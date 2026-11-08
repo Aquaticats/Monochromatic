@@ -33,17 +33,16 @@ const HEADER_SUFFIX: &str = " owner-claim v1";
 /// The line a released claim holds instead of an owner.
 const RELEASED_LINE: &str = "released";
 
-/// Text pieces a generated birth identity or namespace draws from:
-/// quotes,
-/// escapes,
-/// a space,
-/// the separator character,
-/// text that is not ASCII and empty.
-/// No line feed: a generated claim keeps the line structure it is built with.
-const PIECES: [&str; 9] = ["a", "\"", "\\", "\u{0}", "\u{e9}", "\u{1f600}", " ", "-", ""];
-
 /// Lines a generated claim may carry after the last field it reads.
 const TRAILING_LINES: [&str; 4] = ["pid=7", "released", "birth=x", "garbage"];
+
+/// Spellings of a process id field that name no process:
+/// zero,
+/// a negative id,
+/// a fraction,
+/// nothing,
+/// text and a value past the integer range.
+const NO_PROCESS_PIDS: [&str; 6] = ["0", "-1", "1.5", "", "seven", "9223372036854775808"];
 
 /// What:
 ///  The first line of a claim file written under one folder name.
@@ -60,31 +59,79 @@ fn header_of(folder: &str) -> String {
 }
 
 /// What:
-///  The process id field of a generated claim and the id it must read as,
-/// or nothing when the field names no process.
+///  A generated birth identity's or namespace's text.
 /// Why:
-///  Zero,
-/// a negative id,
-/// a fraction,
-/// a value past the integer range,
-/// a leading-zero spelling and text are the cases the reader splits between accepting and refusing.
+///   The shared cursor's pieces hold a line feed,
+/// and a claim file's field is exactly one line:
+/// a line feed inside a field would end it and make the claim another one,
+/// so the field is written without one and the expected record holds the text the file holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function generatedPid(cursor: Cursor): [string, number | undefined];
+/// const fieldText = (cursor: Cursor, nonempty: boolean) => cursor.text(nonempty).replaceAll('\n', ' ');
 /// ```
-fn generated_pid(cursor: &mut Cursor<'_>) -> (String, Option<i64>) {
-    return match cursor.byte() % 7 {
-        0 => {
-            let value: i64 = cursor.positive();
-            (value.to_string(), Some(value))
-        }
-        1 => (String::from("0"), None),
-        2 => (String::from("-1"), None),
-        3 => (String::from("1.5"), None),
-        4 => (String::from("9223372036854775808"), None),
-        5 => (String::from("007"), Some(7)),
-        _ => (String::from("seven"), None),
+fn field_text(cursor: &mut Cursor<'_>, nonempty: bool) -> String {
+    return cursor.text(nonempty).replace('\n', " ");
+}
+
+/// What:
+///  A generated owner: a process id of at least one,
+/// a birth identity and a namespace that is absent,
+/// empty or text.
+/// Why:
+///  Those are the owners a running process can have,
+/// and the claim must carry every one of them,
+/// including identities holding quotes,
+/// controls,
+/// spaces and non-ASCII text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ownedRecord(cursor: Cursor): ClaimRecord;
+/// ```
+fn owned_record(cursor: &mut Cursor<'_>) -> ClaimRecord {
+    let pid: i64 = cursor.positive();
+    let birth: String = field_text(cursor, true);
+    let namespace: Option<String> = match cursor.byte() % 3 {
+        0 => None,
+        1 => Some(String::new()),
+        _ => Some(field_text(cursor, false)),
+    };
+    return ClaimRecord::Owned { pid, birth, namespace };
+}
+
+/// What:
+///  The namespace line's value for an owner,
+/// the released marker when the owner's namespace is absent.
+/// Why:
+///   The file writes an unknown namespace as `-`,
+/// which reads back as no namespace at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namespaceLine = (namespace?: string) => namespace ?? '-';
+/// ```
+fn namespace_text(namespace: Option<&str>) -> &str {
+    return namespace.unwrap_or("-");
+}
+
+/// What:
+///  A whole claim file's text for one record,
+/// written under one first line.
+/// Why:
+///   A generated whole claim must hold exactly the record it was built from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function claimText(header: string, record: ClaimRecord): string;
+/// ```
+fn claim_text(header: &str, record: &ClaimRecord) -> String {
+    return match record {
+        ClaimRecord::Released => format!("{header}\n{RELEASED_LINE}\n"),
+        ClaimRecord::Owned { pid, birth, namespace } => format!(
+            "{header}\npid={pid}\nbirth={birth}\nnamespace={}\n",
+            namespace_text(namespace.as_deref())
+        ),
     };
 }
 
@@ -92,12 +139,16 @@ fn generated_pid(cursor: &mut Cursor<'_>) -> (String, Option<i64>) {
 ///  A generated claim file's text and the record it must hold,
 /// or nothing when the text is not a claim of this command.
 /// Why:
-///  The expectation is decided by the chosen pieces,
-/// never by the decoder under test.
-/// The shapes are a whole claim,
-/// one whose last field line is missing,
-/// one holding only the process id,
-/// and a whole claim with lines no reader of it may act on after its last field.
+///  The expectation is decided by the chosen shape,
+/// never by the decoder under test,
+/// and every shape is built so its outcome cannot depend on which byte
+///  happened to hold which choice.
+/// The shapes are a declared claim,
+/// one followed by a line no reader acts on,
+/// a whole owned claim,
+/// the same followed by such a line,
+/// an owned claim one field edit leaves naming no process,
+/// and a released line a trailing space makes a near miss.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -105,75 +156,56 @@ fn generated_pid(cursor: &mut Cursor<'_>) -> (String, Option<i64>) {
 /// ```
 pub fn generated_claim_text(data: &[u8]) -> (String, Option<ClaimRecord>) {
     let mut cursor: Cursor<'_> = Cursor::new(data);
-    let header_choice: u8 = cursor.byte() % 4;
-    let header: String = match header_choice {
-        0 => header_of(DATA_FOLDER.current),
-        1 => header_of(DATA_FOLDER.earlier),
-        2 => format!("{}{HEADER_SUFFIX}", DATA_FOLDER.current.to_uppercase()),
+    // Three first lines are the current or the earlier folder's name; the capitalised and the folder-less one are what a hand edit looks like.
+    let header_edit: u8 = cursor.byte() % 5;
+    let header: String = match header_edit {
+        0 | 1 => header_of(DATA_FOLDER.current),
+        2 => header_of(DATA_FOLDER.earlier),
+        3 => header_of(DATA_FOLDER.current.to_uppercase().as_str()),
         _ => String::from(HEADER_SUFFIX.trim_start()),
     };
-    // Only the two folder names are a header; the capitalised and the folder-less spelling are what a hand edit looks like.
-    let header_accepted: bool = header_choice < 2;
-    let second_choice: u8 = cursor.byte() % 4;
-    if second_choice == 2 || second_choice == 3 {
-        let second: &str = if second_choice == 2 { "released " } else { "pid" };
-        return (format!("{header}\n{second}\n"), None);
+    let header_accepted: bool = header_edit < 3;
+    let shape: u8 = cursor.byte() % 6;
+    if shape == 5 {
+        return (format!("{header}\n{RELEASED_LINE} \n"), None);
     }
-    if second_choice == 0 {
-        let mut text: String = format!("{header}\n{RELEASED_LINE}\n");
-        if cursor.flip() {
-            text.push_str(TRAILING_LINES[usize::from(cursor.byte()) % TRAILING_LINES.len()]);
-            text.push('\n');
-        }
-        return (text, header_accepted.then_some(ClaimRecord::Released));
+    if shape == 4 {
+        return (broken_owned_claim(header.as_str(), &mut cursor), None);
     }
-    let (digits, pid): (String, Option<i64>) = generated_pid(&mut cursor);
-    let empty_birth: bool = cursor.flip();
-    let birth: String = if empty_birth { String::new() } else { cursor.text(true) };
-    let namespace_choice: u8 = cursor.byte() % 3;
-    let namespace: Option<String> = match namespace_choice {
-        0 => None,
-        1 => Some(String::new()),
-        _ => Some(cursor.text(false)),
-    };
-    let shape: u8 = cursor.byte() % 4;
-    let mut text: String = format!("{header}\npid={digits}\n");
-    if shape == 3 {
-        text.push_str(&format!("birth={birth}\nnamespace={}\n", namespace.as_deref().unwrap_or("-")));
+    let released: bool = shape < 2;
+    let record: ClaimRecord = if released { ClaimRecord::Released } else { owned_record(&mut cursor) };
+    let mut text: String = claim_text(header.as_str(), &record);
+    if shape == 1 || shape == 3 {
         text.push_str(TRAILING_LINES[usize::from(cursor.byte()) % TRAILING_LINES.len()]);
         text.push('\n');
-    } else if shape == 1 {
-        text.push_str(&format!("birth={birth}\n"));
-    } else if shape == 0 {
-        text.push_str(&format!("birth={birth}\nnamespace={}\n", namespace.as_deref().unwrap_or("-")));
     }
-    let complete: bool = (shape == 0 || shape == 3) && !empty_birth && namespace.is_some();
-    let record: Option<ClaimRecord> = match (header_accepted, complete, pid) {
-        (true, true, Some(value)) => Some(ClaimRecord::Owned { pid: value, birth, namespace }),
-        _ => None,
-    };
-    return (text, record);
+    return (text, header_accepted.then_some(record));
 }
 
 /// What:
-///  The text a claim file for one record holds,
-/// built here rather than by the subject's encoder.
+///  An owned claim whose process id,
+/// birth identity or namespace line is edited so that it names no process.
 /// Why:
-///   A record an accepted file gave must be the record that text gives back,
-/// and reading a file nobody edited writes that same text again.
+///  Each edit is one refusal rule of the decoder,
+/// and none of them may still read as an owner.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function restatedText(record: ClaimRecord): string;
+/// function brokenOwnedClaim(header: string, cursor: Cursor): string;
 /// ```
-fn restated_text(record: &ClaimRecord) -> String {
-    let header: String = header_of(DATA_FOLDER.current);
-    return match record {
-        ClaimRecord::Released => format!("{header}\n{RELEASED_LINE}\n"),
-        ClaimRecord::Owned { pid, birth, namespace } => format!(
-            "{header}\npid={pid}\nbirth={birth}\nnamespace={}\n",
-            namespace.as_deref().unwrap_or("-")
-        ),
+fn broken_owned_claim(header: &str, cursor: &mut Cursor<'_>) -> String {
+    let owner: ClaimRecord = owned_record(cursor);
+    let ClaimRecord::Owned { pid, birth, namespace } = &owner else {
+        panic!("a generated owner is an owned claim: {owner:?}");
+    };
+    let namespace: &str = namespace_text(namespace.as_deref());
+    return match cursor.byte() % 3 {
+        0 => {
+            let no_process: &str = NO_PROCESS_PIDS[usize::from(cursor.byte()) % NO_PROCESS_PIDS.len()];
+            format!("{header}\npid={no_process}\nbirth={birth}\nnamespace={namespace}\n")
+        }
+        1 => format!("{header}\npid={pid}\nbirth=\nnamespace={namespace}\n"),
+        _ => format!("{header}\npid={pid}\nbirth={birth}\n"),
     };
 }
 
@@ -211,7 +243,7 @@ fn holds_carriage_return(record: &ClaimRecord) -> bool {
 /// ```
 pub fn check_claim_text(text: &str) {
     let Some(record) = decode(text) else { return };
-    let header: String = text.lines().next().unwrap_or_default().to_string();
+    let header: &str = text.lines().next().unwrap_or_default();
     assert!(
         header == header_of(DATA_FOLDER.current) || header == header_of(DATA_FOLDER.earlier),
         "{header:?}"
@@ -228,7 +260,7 @@ pub fn check_claim_text(text: &str) {
         return;
     }
     assert_eq!(
-        decode(restated_text(&record).as_str()),
+        decode(claim_text(header_of(DATA_FOLDER.current).as_str(), &record).as_str()),
         Some(record),
         "{text:?}"
     );
