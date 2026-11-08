@@ -236,8 +236,8 @@ restored afterwards) and no
 the migrated test passed on `llvmpipe` in 1.11 s against 0.36 s on the RX 7600.
 That is CPU rasterization,
 so it is a measurement and not an option;
-whether it may ever serve as a fallback is an owner
-question below.
+whether it may ever serve as a fallback is an owner question
+under the `Open owner questions` heading.
 
 ## Measurements
 
@@ -706,7 +706,7 @@ and why:
   not tests,
   and not the release binary.
   They were left as they are;
-  whether to keep them is an owner question below.
+  whether to keep them is an owner question under the `Open owner questions` heading.
 
 ### Gates of stage 0b
 
@@ -730,7 +730,7 @@ Run on the final head of the branch:
   The task stops at that command,
   so its last command,
   `lint:slint`,
-  was run alone (above).
+  was run alone (the `lint:slint` bullet under `Gates of stage 0b`).
 - `mise run //package/ide/app:inspect:software-renderer`:
   `Slint software renderer is not linked into the application or the test builds`.
 - `mise run //package/ide/app:test:native`,
@@ -1367,7 +1367,7 @@ Nothing fills a pixel buffer for the code view any more.
 - Selection fills and in-file find boxes stay Slint rectangles under the tile image (`ui/app.slint`),
   which FemtoVG draws on the GPU as before.
   Moving them into the scene would rebuild the tile on every selection change,
-  so this is an owner question below.
+  so this is an owner question under the `Open owner questions of stages 3 and 4` heading.
   The selected ink is a second copy of the glyph run clipped to the selection,
   with the clip edges on whole pixels so no pixel is covered by two partial layers.
 - Texture size is bounded by the device.
@@ -1714,7 +1714,7 @@ the method is the one of the stage 2 section):
   but its split between the tile texture (about 9 MiB at this window),
   Vello's pipelines and its scratch buffers was not measured.
   It is larger than anything stage 2 added to the baseline
-  and is an owner question below.
+  and is an owner question under the `Open owner questions of stages 3 and 4` heading.
 
 ### Gates
 
@@ -2532,7 +2532,7 @@ with `mise run //package/ide/app:<task>`:
   the many remaining differences are glyph edges.
   Whether a reader sees the unhinted text as worse was not asked.
 - The wave and dash geometry was tuned for scale 1 and checked at scale 2 by eye only.
-- Only the guard scripts named above were run,
+- Only the guard scripts named under `Guard evidence` in stages 3 and 4 were run,
   not all of them.
 - A device with a texture limit below 8192 was not run;
   `open_hardware_device_capped` can request one,
