@@ -20,6 +20,27 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- A closure-check skip in the repository's own lint:
+  "Fetch then warn."
+  (the owner's own words,
+  not one of the offered options):
+  the repository's lint tasks fetch Rust dependencies first,
+  and a skip that remains is reported as a warning naming the package and the command that fixes it.
+- Fenced Rust examples inside Markdown:
+  "B:
+  exempt only \"Bad\" examples (Recommended)":
+  a marker on those fences exempts them from `rust/require-rustdoc`,
+  and the other 176 are documented by hand.
+- The decision records' line breaks:
+  "Allow whitespace-only reflow (Recommended)":
+  the fixer runs over `doc/decision/` once,
+  with a word-level diff proving only whitespace changed.
+- Container disk weight and limits for the remaining users:
+  "All of them (Recommended)":
+  every container start gets the lowest disk weight and limits sized to its job,
+  through one shared constant,
+  including `vm-builder`'s rootful run.
+
 - Porting the wrapper package's 145 TypeScript files to Rust
   (`doc/planning/git-policy-cli-typescript-to-rust.md`):
   "After the layout move (Recommended)":
