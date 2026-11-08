@@ -35,7 +35,8 @@ const TAG: &str = "worktreeSnapshotPlaceholders";
 
 /// What:
 ///  The inode number btrfs gives the stand-in directory it shows at an entry that names a subvolume a snapshot does not
-///  carry (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`, in `linux/btrfs_tree.h`).
+///  carry:
+/// `BTRFS_EMPTY_SUBVOL_DIR_OBJECTID` in `linux/btrfs_tree.h`.
 /// Why:
 ///   A directory of a btrfs tree has an inode number of 256 or more,
 /// so this number names a stand-in and never a folder that was written
