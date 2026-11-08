@@ -4177,16 +4177,28 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
 - count existing worktrees whose `node_modules` links are broken (made from main after main moved to pnpm's global
   virtual store,
   before the package repair shipped in 0.5.21) and ask the owner before relinking worktrees that belong to other
   sessions.
+
+Two small fixes this section listed are done:
+- the dry-run summary counted none of the "would convert" lines it printed;
+  fixed in `cdf10486fd`:
+  a dry run now says how many it would convert or complete,
+  and the control counts the lines it listed and requires the summary to name that many
+  (`worktree_convert_command_tests.rs`,
+  `all_worktrees_are_listed_then_converted`);
+- the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers are swept in `d4c213edf0`
+  (`4b4c6db031` names the field check and satisfies the package lint):
+  every journal write sweeps its own administrative directory first,
+  and a file goes only when `process_birth_identity` proves the process its name records is gone,
+  so the journal,
+  the claim files and a file of a running process stay
+  (`worktree_convert_safety_tests.rs`);
+  the other half of this line was already done when it was written:
+  `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
+  and the same test file plants a symlink at the name.
 
 ### Worktree add follow-ups
 
@@ -4350,18 +4362,58 @@ The second gate run (5393 tests) then failed `service_provision::tests::a_foreig
 and the note was written before the refusal;
 it is now written after the units start).
 Open:
-a removal Git runs with the wrapper replaced (`worktree remove --force`,
-`worktree prune`) and a worktree deleted without Git leave their units until the command runs;
 the 8 unmapped instances have neither a note nor a journal record that hashes to them
 (units of worktrees that never landed a commit before this release,
 or whose repository was deleted whole),
-so they stay;
-`run_forwarded_git` is wired to the stop without a unit control of its own
-(the stop is controlled in `worktree_removal_stops_units_tests.rs`,
-and the wiring was checked once against the real user manager in a throwaway repository:
-socket active before the removal,
-inactive after).
+so they stay.
+`run_forwarded_git`'s wiring to the stop was listed here as open for want of a unit control of its own;
+it has one in `b26020e703`:
+`run_forwarded_git_with_unit_stop` takes the stop,
+so `worktree_copy_forward_tests.rs` removes a linked worktree through a forwarded `git worktree remove --force`
+and requires the one stop its registration names,
+and removing the wiring fails that control
+("one removal,
+one stop",
+`left: 0`,
+`right: 1`).
+The stop itself stays controlled in `worktree_removal_stops_units_tests.rs`.
 
+Closed on 2026-11-08, the leftovers a person had to remember:
+a removal Git runs with the wrapper replaced (`worktree remove --force`,
+`worktree prune`) and a worktree deleted without Git used to leave their units until someone ran the command.
+A service that starts and finds its own worktree gone now stops its own socket before it serves anything
+(`service_main.rs`,
+`service_units_of_removed_worktrees.rs`):
+it asks the same question of the same note and journal records the sweep and `doctor` use,
+stops the socket with the stop mode that leaves the units requiring it alone,
+removes the note and the socket file,
+and ends with status 0,
+because the service's own end is what stops its service unit and a failure status would make `Restart=on-failure` start it again.
+A worktree on a device that is not mounted is not gone, so its service serves.
+The controls:
+`a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
+`a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
+`a_service_whose_worktree_cannot_be_told_serves`,
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git, then the sweep),
+and the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
+which was red against a service that served the gone worktree.
+What is still unmeasured:
+the self-stop has not run against a real user manager,
+because the controls start no unit and look for the bus in a fixture runtime directory;
+and a socket nobody ever connects to still listens,
+so the automatic stop needs a first connection and the sweep or `doctor` remains for the rest.
+`doctor` counted the leftovers before this change and counts them still.
+The stopped instance's state directory (`$XDG_STATE_HOME/monochromatic-git-policy-cli/service/<instance>`,
+the service's journal) stays after its units go:
+the sweep and the service read the `gitdir=` records in it to name an instance whose note is missing,
+so removing it would take that mapping away,
+and nothing sweeps it.
+
+Pre-existing,
+from the lock-removal pass,
+probably moot if the commits-never-fail design lands (unsure):
+the scratch ref `refs/worktree/cli-git-service/<seq>` that a killed landing leaves,
+and the `claimed/` scan that is quadratic for a drain of N claims.
 The two leftovers from the lock-removal pass were both still real when checked against this branch
 (2026-11-08T15:43:09-05:00),
 and each is fixed now:
@@ -5029,10 +5081,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   installed;
   about +0.2 ms per call.
   Open:
-  cargo-shadow's install-step cargo starts without the arrival marker;
   `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` failed twice
   (it needs a freed time-namespace number reused,
   shared by every session on the host).
+  The install step's cargo now carries the arrival marker too
+  (`cargo_run_tests::the_cargo_of_an_install_step_arrives_with_the_marker_of_the_shadow_that_started_it`,
+  fixed in `04f4eaa607`,
+  test first in `f6b8c106fa`);
+  it is in the sources only until cargo-shadow is released and installed.
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
 - Repository-wide `monochromatic-lint`:
@@ -5970,6 +6026,13 @@ are in append mode now).
   and a thread census right after the start found all threads in place in every sample,
   so the window is closed by the fix on code reading and the log line alone;
   a failure that keeps the service's own log would settle it.
+  Done 2026-11-08 on `fix/git-policy-cli-flaky-tests-and-unbounded-fixtures` (`9e81f1d134`):
+  a fixture's commit services write their standard error into `service.log` beside the fixture root,
+  as well as into the test's own stream (`binary_support_fixture_service_log.rs`),
+  and every failure of a fault control carries the last 8 KiB of it,
+  so the next failure says which service refused or ended,
+  and what it said.
+  The control of that promise is `fault_limits::a_failure_carries_what_the_fixture_service_logged`.
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
@@ -6003,6 +6066,27 @@ are in append mode now).
   Found 2026-11-07 by the same study:
   `zbus` 5.19.0 and 6.x did not compile on `nightly-2026-11-01`
   (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
+  and do compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate).
+  `package/nested-wayland-session/cli` locks `zbus` 5.19.0,
+  so it may not build on the pinned toolchain;
+  not built yet.
+  The study's agent is bisecting the nightly and checking newer ones.
+- Residual unbounded fixture waits:
+  found and fixed 2026-11-08 on the same branch (`8cea539717`).
+  Two controls started a shell that waits for a release file with no bound:
+  `foundation::scratch_location::tests::a_write_to_a_scratch_file_after_it_was_emptied_lands_at_the_start_and_leaves_no_hole`,
+  and `process::output_capture::tests::a_write_after_the_files_were_emptied_lands_at_the_start_and_leaves_no_hole`.
+  A test that fails before writing the file leaves a loop and its sleeps behind in a removed fixture,
+  which is the leak the push-progress control records at 87 minutes.
+  Both now ask `while_test_lives` at each turn,
+  so the wait ends when the fixture goes or the test process ends,
+  and the child leads a process group killed with the test thread (`spawn_owned`).
+  Swept the rest and left them:
+  every other wait in the crate is bounded by a counter,
+  by the product's own bound,
+  or by `while_test_lives`,
+  and no test starts the wrapper outside a fixture.
+
   and did compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate);
   the one broken nightly is rust-lang/rust issue 165263,
   reverted by PR 165266
@@ -6055,6 +6139,62 @@ are in append mode now).
   the merge into main was `f981e1b493`.
   The two images were removed afterwards,
   so the tags name the runs only.
+  Cause found 2026-11-08 in that retained gate log,
+  which holds the whole outcome:
+  the second lock stayed with `Unproven("a Git process of this account could not be looked into (PID 24494 fd: Permission denied (os error 13)), so it may hold the lock")`.
+  A process denies `/proc/<pid>/fd` to its own account while its command name stays readable when it is not dumpable.
+  Measured in a fixture on 2026-11-08:
+  a same-account process with `prctl(PR_SET_DUMPABLE, 0)` reads exactly that way,
+  and `kwin_wayland` is the same shape on this host (`doc/troubleshooting/amdgpu-fdinfo-vram-attribution.md`).
+  So another program's Git anywhere in the container vetoed a clearance the control was about.
+  The shipped rule stays:
+  the third judgement step of `SPEC.md` makes an unreadable Git of the account unproven,
+  and it keeps its own control:
+  `an_unreadable_git_process_stops_a_proof`,
+  with a planted table.
+  Fixed in the controls instead:
+  `Judge.scan_scope` names the process numbers a scan for open holders may consider,
+  `None` (the wrapper's own reading) being every process of the table.
+  The controls name the processes they plant,
+  and the two controls that plant a live holder name it.
+  The red control is `an_unreadable_git_of_another_program_does_not_stop_a_fixtures_clearance`,
+  which forks a non-dumpable Git-named process of this account beside a fixture:
+  it failed before the fix with the recorded reason text (`131a30d3bd`),
+  and passes after it (`1b41c61748`).
+  Not identified:
+  which program of that container owned PID 24494,
+  or what made it non-dumpable.
+  Measured and ruled out as a cause of an unreadable descriptor directory:
+  a process caught in `execve`,
+  one traced with `strace`,
+  a zombie,
+  one inside a nested user namespace,
+  one with `no_new_privs`,
+  and the container's seccomp filter (its own processes stay readable).
+  No fixture of this crate sets `PR_SET_DUMPABLE`.
+  Open for the owner:
+  whether an unreadable Git that started after the lock was made should stop a proof at all.
+  The proof would rest on a process holding no descriptor it never opened,
+  which a child that inherited the lock's descriptor breaks,
+  so no such rule was shipped.
+- Three `landing::service_index_lock::claim_tests` tests failed in one host full-suite run on
+  `fix/git-policy-cli-home-gate-forwarded-stop-and-conversion-journal`
+  (2026-11-08T16:30:00-05:00,
+  4710 tests,
+  run stopped after the failure):
+  `a_landing_takes_a_stale_lock_under_a_claim_without_waiting` ("the acquisition waited for its ceiling"),
+  `a_landing_waits_for_the_reclaimer_that_holds_a_claim`,
+  and `a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped`.
+  Measured:
+  the whole `service_index_lock::claim_tests` module passes alone (27 of 27,
+  `native:test:host -- service_index_lock::claim_tests`),
+  and the same three passed in a full-suite run of the same worktree an hour earlier,
+  so the failure follows the suite's own concurrency and not a source change.
+  This is the failure the merged-gate record above called a one-time host failure;
+  it has now recurred,
+  and the cause inside the claim tests is not measured.
+  Not the four fixes on that branch:
+  none of them is in `landing/`.
 
 ### Questions waiting for the owner
 
@@ -6089,11 +6229,30 @@ are in append mode now).
   no longer
   needed (needs the owner's word for deletions);
   the stale integration branch named under "Unmerged branches and worktrees of this effort" goes with them.
-- Test services that crash on purpose left hundreds of coredumps a day;
-  fixtures expected to abort were told to set `RLIMIT_CORE` 0
-  (test harness only).
-  Whether that landed is unconfirmed:
-  check `coredumpctl` after 0.5.26.
+- Test services that crash on purpose:
+  checked 2026-11-08 by reading `coredumpctl`,
+  and clean.
+  `coredumpctl list` holds 8397 entries.
+  Of the wrapper's abort records since 2026-11-03,
+  300 kept no core file (`COREFILE` `none`),
+  among them the library and binary fixtures on the host,
+  and inside the container,
+  the aborts of that day's fault-control runs included.
+  The 4 that kept one (`present`) came from harnesses outside this crate,
+  which start the service themselves:
+  `~/temp/agent/native-perf-*` on 2026-11-07T20:19:08 to 20:21:59,
+  and `~/temp/agent/limit-scan-*` at 20:11:56.
+  Each was a stack overflow of a service thread.
+  Three build-script probe binaries under `.../build/monochromatic-git-policy-cli/*/out/` did the same,
+  on 2026-11-04.
+  `/var/lib/systemd/coredump` holds 2104 files,
+  and none of them belongs to a test fixture.
+  Both harnesses already keep the control that holds the promise:
+  `a_process_a_test_starts_may_not_write_a_core_dump`,
+  and `a_process_a_binary_test_starts_may_not_write_a_core_dump`.
+  Left for whoever owns those harnesses:
+  set the limit where they start a service,
+  since they abort outside the test harness and outside its limit.
 
 ### Final re-review
 

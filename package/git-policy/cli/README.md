@@ -909,6 +909,9 @@ and a manager that cannot be reached is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
 (`git worktree remove --force` and `git worktree prune`),
 and a worktree deleted without Git leaves its units too.
+Those leftovers end at the first connection,
+when the service starts and finds the worktree gone,
+or when the command named next runs.
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
@@ -931,6 +934,15 @@ running the command again tries it again.
 It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
+A service that starts and finds its own worktree gone stops its own socket and serves nothing,
+so those leftovers also go at the first connection without anyone running the command:
+the service asks the same question of the same note and journal records,
+stops its socket with the stop mode that leaves the units requiring it alone,
+removes the note and the socket file,
+and ends with status 0.
+Its own end is what stops its service unit,
+so it never asks the manager to stop the service it is,
+and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
 how many removed worktrees still have units and names this command.
 

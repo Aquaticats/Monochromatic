@@ -180,3 +180,46 @@ fn a_settled_run_that_cannot_ask_git_fails_with_the_reason() {
     }
     remove(root.as_path());
 }
+
+/// A forwarded removal stops the units of the worktree it removed:
+/// the instance is the one the registration the removal deletes names,
+/// and it is asked for only after the removal ended well.
+#[cfg(unix)]
+#[test]
+fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
+    let root: PathBuf = fixture("forward-removal-units");
+    let (main, common) = source(root.as_path());
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    let registered: PathBuf = std::fs::canonicalize(common.join("worktrees/wt")).expect("registration");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string() }),
+    };
+    let asked: std::cell::RefCell<Vec<WorktreeAboutToGo>> = std::cell::RefCell::new(Vec::new());
+    let finished: ForwardedRun = run_forwarded_git_with_unit_stop(
+        Path::new(REAL_GIT),
+        arguments(&[
+            "-C",
+            main.to_str().expect("utf8"),
+            "worktree",
+            "remove",
+            "--force",
+            worktree.to_str().expect("utf8"),
+        ])
+        .as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+        &|about: &WorktreeAboutToGo| asked.borrow_mut().push(about.clone()),
+    );
+    assert_eq!(finished, ForwardedRun::Ran(0), "the removal itself must end well");
+    assert!(!worktree.exists(), "the removal took the worktree");
+    let stops: Vec<WorktreeAboutToGo> = asked.into_inner();
+    assert_eq!(stops.len(), 1, "one removal, one stop");
+    assert_eq!(stops[0].git_dir, registered);
+    assert_eq!(stops[0].instance, crate::service_instance::instance_of(registered.as_path()));
+    remove(root.as_path());
+}
