@@ -356,6 +356,74 @@ Named suites and gates.
   The rule ships as conservative parity now;
   a successful re-proof can only relax it later.
 
+## Gate results (2026-11-08T00:06:46-05:00)
+
+Measured by the lead after the teammates' commits,
+each run named with its backing.
+
+- Suites,
+  lead-run in cgroup bounds:
+  shared core 53 cases in 7 suites (`d65e987c30` adds the reduction cases),
+  DSH plugin 17 cases plus the expansion-parity characterization
+  (`4354eeffc8`) with the settings-seam tests unedited,
+  pi extension 47 cases in 13 suites plus the without-pin probe case
+  (`c6701d0112`).
+- `verify:extension`:
+  `PASS neuralwatt extension: provider:neuralwatt, event:session_start,
+  event:session_shutdown (route neuralwatt)`.
+- Install:
+  guarded `install:global` passed its non-package-settings and
+  unrelated-packages assertions,
+  and the entry landed last in `packages`
+  as pi's home-relative path.
+- Live smoke:
+  `pi --print --model neuralwatt/mimo-v2.6-pro:medium` answered the prompt,
+  which the documented `400 unsupported_message_role` makes the role-pin
+  acceptance test;
+  the `reasoning_effort` wire values,
+  the off dispatch,
+  and `system` versus `developer`
+  are asserted against pi's real serialization
+  in the dispatch-payload suite.
+  In-flight body capture through pi's `http-dispatcher` was not achieved:
+  a `globalThis.fetch` wrapper,
+  a `node:http`/`node:https` request wrapper,
+  and `--mode rpc` all stayed silent (their exact failures recorded here
+  rather than claimed away).
+- Offline gate,
+  in a network namespace with the positive control `curl-exit=7`:
+  `pi --list-models` serves the 27 neuralwatt models from the snapshot,
+  and a completion fails gracefully with
+  "live listing refresh failed,
+  so the served catalog stands".
+  A first attempt used `IPAddressDeny=any`,
+  which the same positive control proved ineffective on this host
+  (`curl-exit=0`) and is discarded as evidence.
+- Probes:
+  `maxTokensField` accepts both spellings (no pin);
+  the two reasoning pins measured redundant-but-kept-for-parity
+  (`c6701d0112`),
+  the role pin load-bearing under its positive control;
+  the `off`-level diagnosis confirmed on pi-ai 1.5.0
+  (an unselected level sends the off wire value),
+  so the rule stays needed,
+  and the DSH README's silent-drop claim was retracted (`3fb3feed65`).
+- `env-local-json-core` fix `5c80f0fd9e`:
+  the store reader joined sops stdout at `exit` and returned empty
+  documents under load (8 of 110 reads in one pi startup);
+  it now waits for `close`,
+  with a deterministic guard shown failing then passing,
+  and three pi censuses went from 4/9/4 failures to 0/0/0
+  after the extension bundle rebuilt.
+- Open gate:
+  `verify:host` (throwaway-home pi RPC) was not run as its own gate;
+  the real-home boundary runs above exercised the host path instead.
+- Blocked elsewhere:
+  typecheck gates whose graph includes `test-harness/core-matrix` fail on
+  `TS2307` for `container-limit-core`,
+  a locked-but-uninstalled workspace dependency outside this work,
+  filed as [#6269](https://github.com/Aquaticats/Monochromatic/issues/6269).
+
 ## Accepted risks and limits
 
 - pi's extension API carries no stability guarantee

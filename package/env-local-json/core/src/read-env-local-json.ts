@@ -356,7 +356,7 @@ export async function readEnvLocalJson({
     keys,
     store,
   },);
-  readLogger.info(
+  readLogger.debug(
     `loaded ${String(Object.keys(values,)
       .length,)} requested key(s) from ${storePath}`,
   );

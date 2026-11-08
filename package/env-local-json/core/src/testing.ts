@@ -10,11 +10,21 @@
  */
 
 export {
+  EnvLocalJsonDecryptError,
   EnvLocalJsonWriteError,
 } from './errors.ts';
 export type {
   EnvLocalJsonWriteFailureReason,
 } from './errors.ts';
+export {
+  runSopsDecrypt,
+} from './sops.ts';
+export {
+  collectChildStdout,
+} from './sops-stdout-capture.ts';
+export type {
+  ChildStdoutCapture,
+} from './sops-stdout-capture.ts';
 export {
   buildSopsChildEnv,
   resolveSopsIdentity,
