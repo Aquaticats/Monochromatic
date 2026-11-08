@@ -42,6 +42,49 @@ or to allow it in the permission settings.
   (the exact new values are in `doc/handover/repository-move-dangling-link-items.md`,
   section "W6 and W7 edits to apply").
 
+## Open: may agents' old scratch on the 860 be deleted to make room for the move? (not asked yet)
+
+The move's space rule refused on 2026-11-07,
+as designed
+(nothing copied):
+estimate 389 GiB
+(nested checkout 303 GiB with sharing counted once,
+external worktrees 74 GiB,
+clone-limit allowance 12 GiB),
+487 GiB with the plan's 25 percent margin,
+against 493 GiB free on the 860,
+which would leave 6 GiB where the rule requires 150 GiB.
+The 860 had 662G free when the plan was measured.
+Agents' scratch folder `~/temp/agent` is a link to `/var/mnt/encrypted/temp/agent`,
+which is on the 860,
+and holds 22,242 entries;
+the 25 largest alone measure about 1,113 GiB with `du`
+(which counts reflinked data once per file,
+so the space freed may be less),
+for example `agent-notify` 252 GiB (2026-10-11),
+`pi-mimo-preparation-failure-20261018` 102 GiB,
+`tr-fan` 89 GiB,
+and about twenty `ide-*` and review build folders of 19 to 50 GiB from October and July.
+- A (coordinator's recommendation):
+  delete scratch entries last changed before 2026-10-31
+  that no tracked file in the repository names,
+  listing every entry and its size first
+  (the list kept as a file),
+  then deleting exactly those;
+  rerun the space rule.
+- B:
+  you review that list before anything is deleted.
+- C:
+  delete nothing;
+  shrink the move instead
+  (the plan's scope four:
+  main plus a chosen subset of worktrees,
+  or leave the external worktrees out),
+  or lower the 150 GiB floor or the margin.
+Separately,
+scratch on the 860 means agents write to the drive the repository moves onto;
+after the move both live there.
+
 ## Told, not a question: a wrapper mutation campaign ran against a recorded pause (2026-11-07)
 
 Mutation campaigns over the wrapper were paused on 2026-11-04 after you asked
