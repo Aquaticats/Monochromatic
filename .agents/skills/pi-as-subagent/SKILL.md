@@ -1,13 +1,16 @@
 ---
 name: pi-as-subagent
-description: Use when delegating a task to Pi (DeepSeek or another model) as a subagent over RPC.
+description: Use when delegating a task to Pi as a subagent over RPC.
 ---
 
 # Pi as a subagent
 
-Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process,
-and cite rule `ATH` of `AGENTS.md` in every prompt to it,
+Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process started in the repository,
+where Pi loads `AGENTS.md` (from another folder rule `ATH` was not in its context),
+and cite rule `ATH` in every prompt to it,
 because the model writes scratch to `/tmp` unprompted.
+A systemd user unit does not inherit the shell's `PATH`;
+launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
@@ -23,8 +26,7 @@ so a run can be read back or resumed with `--session <path|id>`.
   Split stdout on LF only,
   because Unicode line separators are valid inside JSON strings.
   Closing stdin ends the process.
-- Install the stdout listener before the first command.
-  Every command takes an optional `id` that its `response` repeats.
+- Every command takes an optional `id` that its `response` repeats.
 - `{"id":"c1","type":"prompt","message":"..."}` answers `disposition: "started"`:
   accepted,
   not finished.
@@ -32,97 +34,87 @@ so a run can be read back or resumed with `--session <path|id>`.
   without it Pi rejects the prompt (documented,
   not run).
   `{"type":"steer","message":"..."}` and `{"type":"follow_up","message":"..."}` also queue during a run.
-  `{"type":"get_last_assistant_text"}` returns `data.text`.
+  `{"type":"get_last_assistant_text"}` returns `data.text`,
+  or an empty object when the session has no assistant message.
 - Wait for `agent_settled` before reading the final text;
   `agent_end` ends only one low-level run.
+  Register that waiter before sending `prompt` or `abort`,
+  because `agent_settled` can arrive before the response does.
 - A dialog request (`extension_ui_request` with method `select`,
   `confirm`,
   `input`,
   or `editor`) waits for an answer,
   and the source leaves it pending forever unless a timeout field or an abort resolves it.
-  Answer each with `{"type":"extension_ui_response","id":<the request id>,"cancelled":true}`.
+  Answer each with an `extension_ui_response` carrying the request's `id`;
+  `{"type":"extension_ui_response","id":<the request id>,"cancelled":true}` declines it,
+  and the recorded driver declined all of them.
   The other UI methods (`notify`,
   `setStatus`,
   `setWidget`,
   `setTitle`,
   `set_editor_text`) need no reply.
-- A prompt Pi rejects comes back as a response,
-  not as an event.
+- A prompt that cannot start (a missing key,
+  for example) comes back as a `response` with an error text and no events,
+  so a client that waits only for `agent_settled` waits forever:
+  give it a deadline and an exit handler.
 - A process holds one active session at a time;
   `fork`,
   `clone`,
   `switch_session`,
   and `new_session` replace it.
+  `switch_session` to a file that does not exist still reports success.
   Parallel agents need separate processes.
-- A mistyped `:suffix` on `--model` does not fail:
-  Pi warns and sends it to the provider as a custom model ID.
-  Leave suffixes off and check `get_state` `data.model.id` after startup.
 
 ## Pi quirks
 
-- A systemd user unit does not inherit the shell's `PATH`;
-  the recorded launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
+- Leave extensions loaded:
+  some providers exist only because an extension registers them,
+  and `--no-extensions` made `synthetic` unknown.
+- The repository's `ask-user-question` tool works only in the terminal UI and answers RPC with an unavailable-tool error,
+  and `ui.custom()` returns `undefined` at once in RPC mode,
+  so the subagent cannot put a question to the human.
 - The owner's real home has a `thinking-default` plugin that sets the level to `xhigh` on every start and model change,
   whatever the command line says.
   Leave the thinking level alone:
   pass no `--thinking` and send no `set_thinking_level`.
-- `PI_CODING_AGENT_DIR=<dir>` points Pi at another home when a run needs different providers or packages:
-  a directory holding `settings.json` (its `packages` list) and a copy of `auth.json` (mode 600 in a mode 700 directory).
-  A provider that comes from a package needs that package in whichever home the child uses,
-  and the `thinking-default` plugin needs to be in it too,
-  or the model runs below `xhigh`.
-  Delete the `auth.json` copy afterwards.
 - In a throwaway folder,
   project `.pi/settings.json` was ignored with no message unless the child got `--approve`;
   other project resources were not tested.
 - A multi-block `edit` is rejected whole when any one `oldText` does not match,
   and a `find` given a path as its pattern returns "No files found" with `isError` false,
   so a soft miss and a success look alike until the result text is read.
+
 ## DeepSeek V4.1 Flash quirks
 
 The owner rates it at about a low-level Sonnet 5.5 when run at `xhigh`,
 and finds it works poorly at any other thinking level.
-It finished a multi-file change unassisted from a problem statement alone,
-so a brief needs no step-by-step handholding.
+It implemented and checked a multi-file change from a problem statement and evidence,
+without step-by-step instructions,
+though it also found the repository's existing diagnosis.
 
-- It stops and explains when an objective is hard or open.
-  Given "prove the Collatz conjecture" it answered that the problem is open and ended its turn,
-  and every later nudge got the same explanation plus a menu of alternative tasks.
+- Unprompted,
+  it declines a hard or open objective:
+  given "prove the Collatz conjecture" it answered that the problem is open and ended its turn.
   Told to attempt a proof,
   it did the work:
   a written proof attempt and compiled verifiers.
   Phrase a hard objective as attempts to make,
   and steer with one concrete next attempt when it stalls.
-- Told to use a tool it does not have (`ask_user_question` under a `--tools` allowlist),
-  it says so and asks in plain text with a numbered list.
-- It slips on tool arguments and recovers without help:
-  a path as a `find` pattern,
-  guessed file extensions,
-  a stale `oldText`.
-  It lists directories,
-  searches recursively,
-  or greps and resends.
-- It verifies thoroughly:
-  confirms exports and types,
-  re-reads after editing,
-  greps other uses,
-  and issues independent calls together.
-  A one-line import change took 34 seconds.
-- At `xhigh` the feed went quiet for 20 seconds or more while it thought.
+- It recovers from its own tool-argument slips without help.
+- Long thinking at `xhigh` leaves the feed quiet.
   Check the process state and the time of the last event before calling a run stuck.
 - It left scripts and compiled binaries in `/tmp`,
   and notes and sources in its working directory.
-  Delete what it leaves by exact name afterwards.
-- It reads this repository's docs,
-  including ones that describe the problem it was given.
-  Record that as a confound when judging an unassisted attempt.
+- It finds and uses repo docs that already describe the problem,
+  including ones that name the cause,
+  so a good result may come from the doc and not from its own work.
 - It builds more than the problem needs.
   Unassisted,
   it wrote a prompt change plus a phrase-list post-filter and tests,
   a much larger change than the prompt-only change that measured the same.
   Read the diff's scope against the problem.
 
-Evidence for each line:
+Recorded experiments and protocol evidence:
 `doc/agent/drive-pi-as-a-subagent.md`,
 `doc/agent/drive-pi-as-a-coding-subagent.md`,
 and `doc/agent/pi-goal-extension-driven-through-rpc.md`.
