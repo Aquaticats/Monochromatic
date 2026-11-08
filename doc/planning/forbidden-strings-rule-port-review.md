@@ -69,7 +69,7 @@ Counts,
   2 were reshaped,
    rule 172 also being one of the 15).
 - 172 builtin rules had their inline case-insensitivity three-casing-expanded,
-  an approximately-preserving change (see below),
+  an approximately-preserving change (see "Inline case-flag three-casing expansion (172 rules)"),
    no longer counted as a semantic change.
 - The 2 append rules changed only by dropping the `m` flag,
   which is a no-op under the always-multiline engine.
@@ -89,7 +89,7 @@ Everything else the port did preserves or approximately preserves the matched-in
 For any listed line number,
  the exact before and after are the line-aligned pair
  `sed -n 'Np' data/builtin-rules.txt` and `sed -n 'Np' data/builtin-rules.ported.txt`;
- representative and high-value pairs are shown inline below.
+ representative and high-value pairs are shown inline under "Semantic changes".
 
 ### Quantifier bounding to the cap of 512 (15 rules)
 
@@ -108,7 +108,7 @@ The 15 affected rules and their unbounded operator:
 - 44:
   `[a-zA-Z0-9+/]{250,}` becomes `{250,512}`.
 - 172:
-   reshaped curl rule (next section);
+   reshaped curl rule ("Rule 172 reshape (the curl basic-auth rule)");
    its kept value alternation bounds several `{3,}`.
 - 255:
   `[a-z0-9]{100,}` becomes `{100,512}`.
