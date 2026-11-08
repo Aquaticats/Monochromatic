@@ -523,6 +523,7 @@ satisfies the lint and documents the item;
  there is no second summary:
 
 ````rust
+//! A constant whose dum-dum block is its doc comment
 /// What:
 ///     `const CEILING: f32 = ...` is the -1 dBTP linear-amplitude ceiling.
 /// Why:
@@ -557,6 +558,18 @@ fn load_rules(path: &str) -> Result<Vec<Rule>, String> {
 Good:
 
 ````rust
+//! A loader whose tail expression carries its own dum-dum block
+/// What:
+///     `fn load_rules(path: &str) -> Result<Vec<Rule>, String>`
+///     reads the rule file at `path`
+///     and builds one `Rule` per entry.
+/// Why:
+///     The caller gets every rule or one error saying what failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function loadRules(path: string): Rule[]
+/// ```
 fn load_rules(path: &str) -> Result<Vec<Rule>, String> {
     // ... body with comments ...
     // What:     `Ok(rules)` constructs the success variant of `Result`,
@@ -584,6 +597,7 @@ return Err("no rules loaded".to_string());
 Good:
 
 ````rust
+//! A literal converted to an owned `String` with the conversion explained
 // What:     `Err("...".to_string())`. `Err` is the failure variant of
 //           `Result`. The literal `"no rules loaded"` has type
 //           `&'static str` — a borrowed slice of bytes baked into the
@@ -614,6 +628,17 @@ fn parse_rule_source(line: &str) -> Option<String> {
 Good:
 
 ````rust
+//! A parser whose `Some` tail carries its own dum-dum block
+/// What:
+///     `fn parse_rule_source(line: &str) -> Option<String>`
+///     turns one line of the rule file into an escaped rule source.
+/// Why:
+///     `None` means the line holds no rule and the caller skips it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseRuleSource(line: string): string | undefined
+/// ```
 fn parse_rule_source(line: &str) -> Option<String> {
     // ... body ...
     // What:     `Some(escape_literal(trimmed))` constructs the present
@@ -643,6 +668,7 @@ if !combined.is_match(&content).unwrap_or(false) {
 Good:
 
 ````rust
+//! A fallback on a fallible match with the dropped error named
 // What:     `combined.is_match(&content)` returns `Result<bool, RegexError>`.
 //           `.unwrap_or(false)` extracts the inner `bool` if the result
 //           is `Ok`, otherwise substitutes `false` and DROPS the error.
@@ -680,31 +706,41 @@ struct Rule { index: usize, src: String, regex: Regex }
 Good:
 
 ````rust
-// What:     `struct Rule { ... }` declares a record type with three OWNED
-//           fields:
-//           - `index: usize`. `usize` is the unsigned integer wide enough
-//             to address any byte in memory on this platform (32 bits on
-//             a 32-bit OS, 64 bits on a 64-bit OS). Siblings the reader
-//             might expect: `u32`, `u64`, `i32`, `i64`.
-//           - `src: String`. `String` is a heap-allocated growable UTF-8
-//             buffer that THIS struct owns. Sibling: `&str`, a borrowed
-//             view that doesn't own its bytes.
-//           - `regex: Regex`. An owned compiled regex object.
-// Why:      - `index` uses `usize` (not `u32`/`u64`) because every std
-//             API that takes a "size" or "index" wants `usize`; mixing
-//             widths forces casts everywhere.
-//           - `src` uses `String` (not `&str`) because the struct
-//             outlives the function that read the file; a borrowed slice
-//             would dangle.
-//           - `regex` is owned for the same outlive reason.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// type Rule = { index: number; src: string; regex: Regex };
-// // TS has no owned/borrowed distinction (everything is GC'd), so the type-choice
-// // question does not arise.
-// ```
-struct Rule { index: usize, src: String, regex: Regex }
+//! A record type whose field choices are explained on the fields
+/// What:
+///     `struct Rule { ... }` declares a record type with three OWNED fields
+///     and holds one rule per forbidden-string entry.
+/// Why:
+///     Each field below says why its type beats the siblings a reader might expect.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Rule = { index: number; src: string; regex: Regex };
+/// // TS has no owned/borrowed distinction (everything is GC'd), so the type-choice
+/// // question does not arise.
+/// ```
+struct Rule {
+    /// What:
+    ///     `index: usize` is the unsigned integer wide enough to address any byte in memory on this platform
+    ///     (32 bits on a 32-bit OS and 64 bits on a 64-bit OS).
+    ///     The siblings a reader might expect are `u32` and `u64` and `i32` and `i64`.
+    /// Why:
+    ///     Every std API that takes a "size" or "index" wants `usize`
+    ///     and mixing widths forces casts everywhere.
+    index: usize,
+    /// What:
+    ///     `src: String` is a heap-allocated growable UTF-8 buffer that THIS struct owns.
+    ///     Its sibling `&str` is a borrowed view that doesn't own its bytes.
+    /// Why:
+    ///     The struct outlives the function that read the file
+    ///     and a borrowed slice would dangle.
+    src: String,
+    /// What:
+    ///     `regex: Regex` is an owned compiled regex object.
+    /// Why:
+    ///     It is owned for the same outlive reason as `src`.
+    regex: Regex,
+}
 ````
 
 ## Anti-patterns
