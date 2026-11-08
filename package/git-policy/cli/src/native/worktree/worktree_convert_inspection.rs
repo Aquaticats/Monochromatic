@@ -101,12 +101,31 @@ pub fn inspect(path: &Path) -> Result<Candidate, String> {
         Err(error) => return Err(format!("the administrative directory {} cannot be resolved ({error})", named.trim())),
     };
     let recorded: Vec<u8> = path_failure(read_plain_file(&admin.join("gitdir"), GIT_FILE_LIMIT), admin.as_path(), "has no gitdir file")?;
-    if Path::new(std::ffi::OsStr::from_bytes(recorded.trim_ascii())) != git_path.as_path() {
-        return Err(format!("{} does not name {} back, so the registration is stale or points elsewhere", admin.display(), git_path.display()));
+    // The registration may spell this worktree through a symbolic link or relative to itself; the question is which file it names.
+    let recorded_path: PathBuf = recorded_path(admin.as_path(), recorded.trim_ascii());
+    if !crate::real_git_candidate::same_file(recorded_path.as_path(), git_path.as_path()) {
+        return Err(format!("{} does not name {} back (it names {}), so the registration is stale or points elsewhere", admin.join("gitdir").display(), git_path.display(), recorded_path.display()));
     }
     let common_text: String = path_failure(read_plain_text(&admin.join("commondir")), admin.as_path(), "has no commondir")?;
     let common: PathBuf = subject_failure(std::fs::canonicalize(admin.join(common_text.trim())), &"the common directory", "cannot be resolved")?;
     return Ok(Candidate { path: real, admin, common, git_file });
+}
+
+/// What:
+///  The path a registration's `gitdir` file names,
+/// absolute whether the record is absolute or written relative to the registration.
+/// Why:
+///   Git writes the record relative to the registration's directory under `--relative-paths` and `worktree.useRelativePaths`;
+/// both spellings name the same file,
+/// so the record is resolved before it is compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = isAbsolute(recorded) ? recorded : join(admin, recorded);
+/// ```
+fn recorded_path(admin: &Path, recorded: &[u8]) -> PathBuf {
+    let named: &Path = Path::new(std::ffi::OsStr::from_bytes(recorded));
+    return if named.is_absolute() { named.to_path_buf() } else { admin.join(named) };
 }
 
 /// What kind of reason stands in the way,

@@ -65,36 +65,159 @@ use std::path::{Path, PathBuf};
 pub struct LinkedWorktree {
     /// `<root>/.git/worktrees/<name>`.
     pub admin_directory: PathBuf,
-    /// The directory the worktree's files are in.
+    /// The directory the worktree's files are in,
+    /// as its real path:
+    /// a registration may spell it through a symbolic link or relative to itself,
+    /// and two spellings of one directory are one worktree.
     pub worktree: PathBuf,
+}
+
+/// What:
+///  One registration that is not a linked worktree inside the checkout, and why.
+/// Why:
+///   A run that covers fewer worktrees than are registered says which ones it left out,
+/// so a
+///  worktree is never passed over without a word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LeftOutWorktree = { adminDirectory: string; reason: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LeftOutWorktree {
+    /// `<root>/.git/worktrees/<name>`.
+    pub admin_directory: PathBuf,
+    /// One sentence naming the worktree and why it is not covered.
+    pub reason: String,
+}
+
+/// What:
+///  Every registration of `root`, split into the linked worktrees inside the checkout and the rest with their reasons.
+/// Why:
+///   See `scan_linked_worktrees`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LinkedWorktreeScan = { inside: LinkedWorktree[]; leftOut: LeftOutWorktree[] };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LinkedWorktreeScan {
+    /// The worktrees whose real path is inside the checkout, sorted by path.
+    pub inside: Vec<LinkedWorktree>,
+    /// Every other registration, sorted by administrative directory.
+    pub left_out: Vec<LeftOutWorktree>,
 }
 
 /// What:
 ///  The linked worktrees of `root` whose directory is inside `root` and exists.
 /// Why:
 ///   Only worktrees inside the checkout are copied with it.
-/// An administrative directory without a readable `gitdir`
-///  file belongs to a worktree Git would prune,
-/// so it is skipped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function linkedWorktreesInside(root: string): LinkedWorktree[];
 /// ```
 pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
+    return scan_linked_worktrees(root).inside;
+}
+
+/// What:
+///  Every registration under `root/.git/worktrees`, split into the linked worktrees inside the checkout and the rest.
+/// Why:
+///   Whether a registered worktree is inside the checkout is a question about the file the registration names,
+/// not about
+///  its text:
+/// a registration written before the repository moved behind a symbolic link spells the old name and names a worktree
+///  inside the checkout all the same.
+/// Each registration that is not covered carries the reason,
+/// so a caller can say
+///  why it looked at fewer worktrees than are registered.
+/// A `gitdir` file Git skips (unreadable or empty)
+///  belongs to a worktree Git would prune,
+/// and a record whose directory is gone is one Git would prune too;
+/// both are
+///  named in `left_out`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function scanLinkedWorktrees(root: string): LinkedWorktreeScan;
+/// ```
+pub fn scan_linked_worktrees(root: &Path) -> LinkedWorktreeScan {
+    let mut scan: LinkedWorktreeScan = LinkedWorktreeScan::default();
     let admin: PathBuf = root.join(".git").join("worktrees");
-    let Ok(names) = std::fs::read_dir(&admin) else { return Vec::new() };
-    let mut found: Vec<LinkedWorktree> = Vec::new();
+    let Ok(names) = std::fs::read_dir(&admin) else { return scan };
+    // A root that cannot be resolved is compared as given, as the registration's worktree is.
+    let real_root: PathBuf = std::fs::canonicalize(root).unwrap_or_else(|_unresolved| { return root.to_path_buf(); });
     for name in names.flatten() {
-        let Ok(recorded) = std::fs::read(name.path().join("gitdir")) else { continue };
+        let admin_directory: PathBuf = name.path();
+        let recorded: Vec<u8> = match std::fs::read(admin_directory.join("gitdir")) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} has no readable gitdir file ({error}), so Git would prune it", admin_directory.display())));
+                continue;
+            }
+        };
         // The recorded path is raw bytes: a directory named with bytes that are not UTF-8 is a valid path on Linux.
-        let Some(worktree) = Path::new(OsStr::from_bytes(recorded.trim_ascii())).parent() else { continue };
-        if worktree.starts_with(root) && worktree != root && worktree.is_dir() {
-            found.push(LinkedWorktree { admin_directory: name.path(), worktree: worktree.to_path_buf() });
+        let line: &[u8] = recorded.trim_ascii();
+        if line.is_empty() {
+            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} has an empty gitdir file, so Git would prune it", admin_directory.display())));
+            continue;
         }
+        let marker: PathBuf = recorded_marker(admin_directory.as_path(), line);
+        let Some(named) = marker.parent() else {
+            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} names {}, which has no directory to hold a worktree", admin_directory.join("gitdir").display(), marker.display())));
+            continue;
+        };
+        let worktree: PathBuf = match std::fs::canonicalize(named) {
+            Ok(resolved) => resolved,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} is gone, so Git would prune the registration in {}", named.display(), admin_directory.display())));
+                continue;
+            }
+            Err(error) => {
+                scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} cannot be resolved ({error})", named.display())));
+                continue;
+            }
+        };
+        if !worktree.is_dir() {
+            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} is not a directory", worktree.display())));
+            continue;
+        }
+        if worktree == real_root {
+            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registration {} names the main checkout {} itself", admin_directory.display(), real_root.display())));
+            continue;
+        }
+        if !worktree.starts_with(real_root.as_path()) {
+            scan.left_out.push(left_out(admin_directory.as_path(), format!("the registered worktree {} is outside the main checkout {}", worktree.display(), real_root.display())));
+            continue;
+        }
+        scan.inside.push(LinkedWorktree { admin_directory, worktree });
     }
-    found.sort_by(by_worktree_path);
-    return found;
+    scan.inside.sort_by(by_worktree_path);
+    scan.left_out.sort_by(|left: &LeftOutWorktree, right: &LeftOutWorktree| { return left.admin_directory.cmp(&right.admin_directory); });
+    return scan;
+}
+
+/// One registration left out of a scan.
+fn left_out(admin_directory: &Path, reason: String) -> LeftOutWorktree {
+    return LeftOutWorktree { admin_directory: admin_directory.to_path_buf(), reason };
+}
+
+/// What:
+///  The `.git` file a registration's record names,
+/// absolute whether the record is absolute or written relative to the registration.
+/// Why:
+///   Git writes the record relative to the registration's directory under `--relative-paths` and `worktree.useRelativePaths`,
+/// and
+///  the worktree is its parent either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const marker = isAbsolute(recorded) ? recorded : join(adminDirectory, recorded);
+/// ```
+fn recorded_marker(admin_directory: &Path, recorded: &[u8]) -> PathBuf {
+    let named: &Path = Path::new(OsStr::from_bytes(recorded));
+    return if named.is_absolute() { named.to_path_buf() } else { admin_directory.join(named) };
 }
 
 /// Order two linked worktrees by their path.
