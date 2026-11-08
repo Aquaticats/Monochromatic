@@ -79,7 +79,7 @@ struct Targets {
 fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Targets, String> {
     if arguments.all {
         let root: PathBuf = main_checkout_root(cwd)?;
-        let scan: LinkedWorktreeScan = scan_linked_worktrees(root.as_path());
+        let scan: LinkedWorktreeScan = scan_linked_worktrees(root.as_path())?;
         return Ok(Targets {
             covered: scan.inside.into_iter().map(|linked: LinkedWorktree| { return linked.worktree; }).collect(),
             left_out: scan.left_out.into_iter().map(|left: LeftOutWorktree| { return left.reason; }).collect(),

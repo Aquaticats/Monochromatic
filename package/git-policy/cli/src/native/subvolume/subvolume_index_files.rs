@@ -118,7 +118,8 @@ pub struct LinkedWorktreeScan {
 /// function linkedWorktreesInside(root: string): LinkedWorktree[];
 /// ```
 pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
-    return scan_linked_worktrees(root).inside;
+    // A listing that cannot be read is no linked worktree here; the callers that must know report it through their own steps.
+    return scan_linked_worktrees(root).map(|scan: LinkedWorktreeScan| { return scan.inside; }).unwrap_or_default();
 }
 
 /// What:
@@ -140,12 +141,17 @@ pub fn linked_worktrees_inside(root: &Path) -> Vec<LinkedWorktree> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function scanLinkedWorktrees(root: string): LinkedWorktreeScan;
+/// function scanLinkedWorktrees(root: string): LinkedWorktreeScan; // throws when the registrations cannot be listed
 /// ```
-pub fn scan_linked_worktrees(root: &Path) -> LinkedWorktreeScan {
+pub fn scan_linked_worktrees(root: &Path) -> Result<LinkedWorktreeScan, String> {
     let mut scan: LinkedWorktreeScan = LinkedWorktreeScan::default();
     let admin: PathBuf = root.join(".git").join("worktrees");
-    let Ok(names) = std::fs::read_dir(&admin) else { return scan };
+    let names = match std::fs::read_dir(&admin) {
+        Ok(listing) => listing,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(scan),
+        // A run that cannot read the registrations would look at none of them and say nothing, so it is an error.
+        Err(error) => return Err(format!("the registered worktrees of {} cannot be listed ({error}), so how many there are cannot be known", admin.display())),
+    };
     // A root that cannot be resolved is compared as given, as the registration's worktree is.
     let real_root: PathBuf = std::fs::canonicalize(root).unwrap_or_else(|_unresolved| { return root.to_path_buf(); });
     for name in names.flatten() {
@@ -195,7 +201,7 @@ pub fn scan_linked_worktrees(root: &Path) -> LinkedWorktreeScan {
     }
     scan.inside.sort_by(by_worktree_path);
     scan.left_out.sort_by(|left: &LeftOutWorktree, right: &LeftOutWorktree| { return left.admin_directory.cmp(&right.admin_directory); });
-    return scan;
+    return Ok(scan);
 }
 
 /// One registration left out of a scan.
