@@ -40,6 +40,11 @@ pub mod standards_review_entry;
 pub mod standards_review_client;
 
 /// The standards-review shadow run:
+/// the name lookup of the call,
+/// on the blocking pool.
+pub mod standards_review_client_name_lookup_on_the_blocking_pool;
+
+/// The standards-review shadow run:
 /// the two real-Git reads (patch and file texts) of a landed commit.
 pub mod standards_review_source;
 

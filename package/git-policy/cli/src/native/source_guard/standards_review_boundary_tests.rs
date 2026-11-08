@@ -33,7 +33,8 @@ fn names_http_library(text: &str) -> bool {
 /// The module names that carry the network client,
 /// the run that calls it,
 /// and the service handler that calls the run.
-const SERVICE_ONLY_MODULES: [&str; 3] = ["standards_review_client", "standards_review_run", "service_review"];
+const SERVICE_ONLY_MODULES: [&str; 4] =
+    ["standards_review_client", "standards_review_client_name_lookup_on_the_blocking_pool", "standards_review_run", "service_review"];
 
 /// The path prefixes of the files of those modules and their tests,
 ///  relative to the source root.

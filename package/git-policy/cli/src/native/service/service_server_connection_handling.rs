@@ -310,3 +310,8 @@ async fn hold_a_scratch_directory(path: PathBuf, read_half: &mut OwnedReadHalf, 
     shared.busy.fetch_sub(1, Ordering::SeqCst);
     let _queued = shared.queue.send(Job::Release(path));
 }
+
+/// The refusal paths of a connection are controlled in the test module.
+#[cfg(test)]
+#[path = "service_server_connection_handling_tests.rs"]
+mod tests;
