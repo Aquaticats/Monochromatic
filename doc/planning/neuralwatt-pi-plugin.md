@@ -143,6 +143,12 @@ Recorded under the interview question ids.
   with no credential from any source,
   register the provider anyway and log guidance,
   matching DSH's `MISSING_CREDENTIAL` at request time.
+- `snapshot-off`:
+  the snapshot reducer keeps `reasoning.default_enabled`
+  so the next `refresh-snapshot` run closes the offline `off`-level gap
+  (concrete case `gemma-4-31b`),
+  while today's checked-in snapshot stays byte-identical
+  and DSH behavior is unchanged until that refresh.
 
 ### Recorded adoptions
 
