@@ -4373,10 +4373,11 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   which measures the added latency of the release binary against paired direct Git within the limits its
   description states (added p95 under 2,000 ms on forwarded commands,
   every paired delta under 5,000 ms on commits),
-  and its figures are recorded for the alpha.2 release in
+  and its figures are recorded in
   `doc/planning/one-release-each-batch-2026-11.md`,
-  "Latency",
-  including the same-binary spread the comparison needs.
+  the release record of 2026-11-07T22:11:47-05:00,
+  under its "Latency" bullet,
+  with the same-binary spread the comparison needs.
 - Long fuzz campaigns stay open.
   Neither recorded pause names them:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
