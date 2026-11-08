@@ -66,6 +66,8 @@ export async function diffStep(
   const commands = (await runner.exec({
     command: 'bash',
     args: [
+      '--noprofile',
+      '--norc',
       '-o',
       'pipefail',
       '-c',

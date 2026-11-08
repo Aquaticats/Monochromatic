@@ -1,23 +1,34 @@
 //! What:
-//! Generated owner records and `/proc/<pid>/stat` lines,
-//! with the invariants of their
-//!       parsers.
+//! Generated owner tokens,
+//! the file names that carry them,
+//! transaction owner records and `/proc/<pid>/stat` lines,
+//! with the invariants of their readers.
 //! Why:
-//! Owner lock records and transaction owner records are files any process can write,
-//! and a
-//!      stat line carries a command name the process chose;
-//! a misread record or start time
-//!      would retire a live owner's lock.
+//! A copy's journal,
+//! stage claim and temporary file name their owner in the file name,
+//! and the transaction owner record is a file any process can write;
+//! a stat line carries a command name the process chose.
+//! A misread name,
+//! record or start time would retire a live owner's item.
+//! The owner lock record these targets once covered was removed with the settlement lock in commit `ee30d244f6`,
+//! and the owner token is what replaced it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const { text, expected } = generatedOwnerLock(data); expect(parseOwnerLockRecord(text)).toEqual(expected);
+//! // const { token, expected } = generatedCopyOwnerToken(data); expect(CopyOwner.fromToken(token)).toEqual(expected);
 //! ```
 
-/// The owner lock record codec under test.
-use git_policy_cli::owner_lock_record::{
-    OwnerLockRecord, encode_owner_lock_record, parse_owner_lock_record,
+/// The file name suffixes and the readers of the owner token in a journal name and a temporary file name.
+use git_policy_cli::worktree_copy_journal::temporary_writer_token;
+/// The journal suffix,
+/// the temporary suffix and the journal name reader.
+use git_policy_cli::worktree_copy_journal_encoding_and_validation::{
+    JOURNAL_SUFFIX, TEMPORARY_SUFFIX, owner_token_of,
 };
+/// The copy owner and its token codec under test.
+use git_policy_cli::worktree_copy_owner::CopyOwner;
+/// The path type the journal name reader takes.
+use std::path::Path;
 /// The `/proc/<pid>/stat` reader under test.
 use git_policy_cli::process_identity::linux_identity_from_stat;
 /// The transaction owner record codec under test.
@@ -107,122 +118,209 @@ impl<'a> Cursor<'a> {
 }
 
 /// What:
-/// Field mutations of a valid owner lock record:
-/// the text replaced once,
-/// its replacement,
-///       and whether the record must still be accepted.
+/// Field mutations of a valid owner token's three fields (process id,
+/// escaped birth identity,
+/// escaped namespace):
+/// which field is edited,
+/// the text appended or put in its place,
+/// and whether the token must still be accepted.
 /// Why:
-///  Each names one rule of the parser.
-const LOCK_MUTATIONS: [(&str, &str, bool); 12] = [
-    ("\"ownerPid\":", "\"ownerPid\":0,\"x\":", false),
-    ("\"ownerPid\":", "\"ownerPid\":-1,\"x\":", false),
-    ("\"ownerPid\":", "\"ownerPid\":1.5,\"x\":", false),
-    (
-        "\"ownerPid\":",
-        "\"ownerPid\":9007199254740992,\"x\":",
-        false,
-    ),
-    ("\"ownerPid\":", "\"ownerPid\":\"7\",\"x\":", false),
-    ("\"token\":", "\"token\":\"\",\"x\":", false),
-    ("\"token\":", "\"tokem\":", false),
-    (
-        "\"ownerBirthIdentity\":",
-        "\"ownerBirthIdentity\":\"\",\"x\":",
-        false,
-    ),
-    ("\"schemaVersion\":1", "\"schemaVersion\":2", false),
-    ("\"schemaVersion\":1", "\"schemaVersion\":1.0", true),
-    ("{", "{\"transactionId\":7,", false),
-    ("{", "{\"extra\":[1,{}],", true),
+///  Each names one rule of the token reader.
+#[derive(Clone, Copy)]
+enum TokenEdit {
+    /// The process id field becomes this text.
+    Pid(&'static str),
+    /// This text follows the birth identity field.
+    AfterBirth(&'static str),
+    /// The birth identity field becomes this text.
+    Birth(&'static str),
+    /// The first character of the birth identity (a plain `t`) is spelled as the escape this text holds.
+    RespelledBirthStart(&'static str),
+    /// This text follows the namespace field.
+    AfterNamespace(&'static str),
+    /// The namespace field and its separator are removed.
+    NoNamespaceField,
+}
+
+/// The edits one generated token is put through,
+/// each with whether the token must still be accepted.
+const TOKEN_EDITS: [(TokenEdit, bool); 13] = [
+    (TokenEdit::Pid("0"), false),
+    (TokenEdit::Pid("-1"), false),
+    (TokenEdit::Pid("1.5"), false),
+    (TokenEdit::Pid("9223372036854775808"), false),
+    (TokenEdit::Pid(""), false),
+    (TokenEdit::Pid("seven"), false),
+    (TokenEdit::Birth(""), false),
+    (TokenEdit::AfterBirth("%"), false),
+    (TokenEdit::AfterBirth("%zz"), false),
+    (TokenEdit::AfterBirth("%ff"), false),
+    (TokenEdit::AfterNamespace("~x"), false),
+    (TokenEdit::NoNamespaceField, false),
+    (TokenEdit::RespelledBirthStart("%74"), true),
 ];
 
-/// What:
-/// A generated owner lock record's text,
-/// the record it must parse to (or none),
-/// and the
-///       record it was built from.
-/// Why:
-///  The expected outcome is decided by the mutation,
-/// never by the parser under test.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function generatedOwnerLock(data: Uint8Array): { text: string; expected?: OwnerLockRecord };
-/// ```
-pub fn generated_owner_lock(data: &[u8]) -> (String, Option<OwnerLockRecord>) {
-    let mut cursor: Cursor<'_> = Cursor::new(data);
-    let record: OwnerLockRecord = OwnerLockRecord {
-        token: cursor.text(true),
-        owner_pid: cursor.positive(),
-        owner_birth_identity: cursor.text(true),
-        transaction_id: if cursor.flip() {
-            None
-        } else {
-            Some(cursor.text(true))
-        },
-        owner_pid_namespace: if cursor.flip() {
-            None
-        } else {
-            Some(cursor.text(true))
-        },
-    };
-    let text: String = encode_owner_lock_record(&record);
-    let choice: usize = usize::from(cursor.byte()) % (LOCK_MUTATIONS.len() + 1);
-    let Some((from, to, accepted)) = LOCK_MUTATIONS.get(choice) else {
-        return (text, Some(record));
-    };
-    let mutated: String = text.replacen(from, to, 1);
-    // A `transactionId` added before an existing one is overwritten by the later key, as
-    // `JSON.parse` keeps the last of duplicate keys.
-    let overridden: bool = to.contains("transactionId") && record.transaction_id.is_some();
-    if !accepted && !overridden {
-        return (mutated, None);
-    }
-    return (mutated, Some(record));
+/// The characters an owner token may hold:
+/// it sits between dots in a file name.
+fn token_character_is_allowed(character: char) -> bool {
+    return character.is_ascii_alphanumeric() || ":-[]~%".contains(character);
 }
 
 /// What:
-/// The owner lock record invariants on any text:
-/// an accepted record has a positive safe
-///       PID and non-empty token and identity,
+/// An owner drawn from the input,
+/// with a positive process id,
+/// a non-empty birth identity and a namespace that is absent or non-empty.
+/// Why:
+///  Those are the owners a running process can have;
+/// the token codec must carry every one of them,
+/// including identities holding quotes,
+/// controls,
+/// separators and non-ASCII text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function generatedCopyOwner(cursor: Cursor): CopyOwner;
+/// ```
+fn generated_copy_owner(cursor: &mut Cursor<'_>) -> CopyOwner {
+    return CopyOwner {
+        pid: cursor.positive(),
+        birth_identity: cursor.text(true),
+        pid_namespace: if cursor.flip() {
+            None
+        } else {
+            Some(cursor.text(true))
+        },
+    };
+}
+
+/// What:
+/// A generated owner,
+/// the token text built from it and edited once,
+/// and the owner that text must name (or none).
+/// Why:
+///  The expected outcome is decided by the edit,
+/// never by the reader under test.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function generatedCopyOwnerToken(data: Uint8Array): { token: string; expected?: CopyOwner };
+/// ```
+pub fn generated_copy_owner_token(data: &[u8]) -> (String, Option<CopyOwner>) {
+    let mut cursor: Cursor<'_> = Cursor::new(data);
+    let owner: CopyOwner = generated_copy_owner(&mut cursor);
+    let token: String = owner.token();
+    let fields: Vec<&str> = token.split('~').collect();
+    let [pid, birth, namespace] = fields.as_slice() else {
+        panic!("an owner token has three fields: {token}");
+    };
+    let choice: usize = usize::from(cursor.byte()) % (TOKEN_EDITS.len() + 1);
+    let Some((edit, accepted)) = TOKEN_EDITS.get(choice) else {
+        return (token.clone(), Some(owner));
+    };
+    let edited: String = match edit {
+        TokenEdit::Pid(text) => format!("{text}~{birth}~{namespace}"),
+        TokenEdit::AfterBirth(text) => format!("{pid}~{birth}{text}~{namespace}"),
+        TokenEdit::Birth(text) => format!("{pid}~{text}~{namespace}"),
+        TokenEdit::RespelledBirthStart(text) => {
+            // A generated birth identity starts with the plain letter `t`.
+            let rest: &str = birth.strip_prefix('t').unwrap_or_default();
+            format!("{pid}~{text}{rest}~{namespace}")
+        }
+        TokenEdit::AfterNamespace(text) => format!("{pid}~{birth}~{namespace}{text}"),
+        TokenEdit::NoNamespaceField => format!("{pid}~{birth}"),
+    };
+    if *accepted {
+        return (edited, Some(owner));
+    }
+    return (edited, None);
+}
+
+/// What:
+/// The owner token invariants on any text:
+/// an accepted token names a positive process id and a non-empty birth identity,
 /// and survives being restated.
 /// Why:
-///  A parser accepting what the incumbent refuses would let a malformed lock look owned.
+///  A reader accepting a name an owner never wrote could hide a live copy from the recovery that takes dead owners' items,
+/// or take a live owner's item.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkOwnerLockText(text: string): void;
+/// function checkCopyOwnerToken(text: string): void;
 /// ```
-pub fn check_owner_lock_text(text: &str) {
-    let Some(record) = parse_owner_lock_record(text) else {
+pub fn check_copy_owner_token(text: &str) {
+    let Some(owner) = CopyOwner::from_token(text) else {
         return;
     };
+    assert!(owner.pid >= 1, "{owner:?}");
+    assert!(!owner.birth_identity.is_empty(), "{owner:?}");
+    assert_ne!(owner.pid_namespace.as_deref(), Some(""), "{owner:?}");
+    let restated: String = owner.token();
     assert!(
-        (1..=MAX_SAFE_INTEGER).contains(&record.owner_pid),
-        "{record:?}"
+        restated.chars().all(token_character_is_allowed),
+        "{restated}"
     );
-    assert!(
-        !record.token.is_empty() && !record.owner_birth_identity.is_empty(),
-        "{record:?}"
-    );
-    assert_ne!(record.transaction_id.as_deref(), Some(""), "{record:?}");
-    let restated: String = encode_owner_lock_record(&record);
-    assert_eq!(parse_owner_lock_record(restated.as_str()), Some(record));
+    assert_eq!(CopyOwner::from_token(restated.as_str()), Some(owner));
 }
 
 /// What:
-/// The generated owner lock record parses to exactly its expected outcome.
+/// The generated token names exactly its expected owner,
+/// the owner's own token is found again by the file name readers in the names built around it,
+/// and holds only characters a name part can carry.
 /// Why:
 ///  The fuzz target and its controls run the same check.
+///  A dot or a slash inside a token would move the owner out of its place in the name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function checkGeneratedOwnerLock(data: Uint8Array): void;
+/// function checkGeneratedCopyOwnerToken(data: Uint8Array): void;
 /// ```
-pub fn check_generated_owner_lock(data: &[u8]) {
-    let (text, expected) = generated_owner_lock(data);
-    assert_eq!(parse_owner_lock_record(text.as_str()), expected, "{text}");
-    check_owner_lock_text(text.as_str());
+pub fn check_generated_copy_owner_token(data: &[u8]) {
+    let (token, expected) = generated_copy_owner_token(data);
+    assert_eq!(CopyOwner::from_token(token.as_str()), expected, "{token}");
+    check_copy_owner_token(token.as_str());
+    let mut cursor: Cursor<'_> = Cursor::new(data);
+    let owner: CopyOwner = generated_copy_owner(&mut cursor);
+    let built: String = owner.token();
+    assert!(built.chars().all(token_character_is_allowed), "{built}");
+    assert_eq!(CopyOwner::from_token(built.as_str()), Some(owner));
+    // The names an owner is written into: `<id>.<token>.json` and `<item>.<token>.<unique>.tmp`.
+    let journal: String = format!("{}.{built}{JOURNAL_SUFFIX}", cursor.text(false));
+    assert_eq!(
+        owner_token_of(Path::new(journal.as_str())),
+        Some(built.clone()),
+        "{journal}"
+    );
+    let unique: String = cursor.positive().to_string();
+    let temporary: String = format!("{}.{built}.{unique}{TEMPORARY_SUFFIX}", cursor.text(true));
+    assert_eq!(
+        temporary_writer_token(temporary.as_str()),
+        Some(built.as_str()),
+        "{temporary}"
+    );
+}
+
+/// What:
+/// The file name readers' invariants on any text:
+/// a journal name or a temporary name that gives a token ends in its suffix,
+/// and the token is a dot-free part of the name.
+/// Why:
+///  A stranger's file name must name no owner by accident.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkOwnerFileNames(text: string): void;
+/// ```
+pub fn check_owner_file_names(name: &str) {
+    if let Some(token) = owner_token_of(Path::new(name)) {
+        assert!(name.ends_with(JOURNAL_SUFFIX), "{name}");
+        assert!(!token.contains('.') && !token.contains('/'), "{name}");
+        assert!(name.contains(token.as_str()), "{name}");
+    }
+    if let Some(token) = temporary_writer_token(name) {
+        assert!(name.ends_with(TEMPORARY_SUFFIX), "{name}");
+        assert!(!token.contains('.'), "{name}");
+        assert!(name.contains(token), "{name}");
+    }
 }
 
 /// What:

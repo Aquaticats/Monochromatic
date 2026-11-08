@@ -176,7 +176,7 @@ export function showStage(
   const { stage, } = stageRun;
   out(`\n== stage ${String(stageRun.index,)}/${String(stages.length,)} ${stage.title} [${stage.id}] ==\n${stage.says}\n`,);
   out(`root: ${stage.root}; unprivileged route: ${stage.unprivileged}\n`,);
-  out(`command (bash -e -o pipefail -c):\n${
+  out(`command (bash --noprofile --norc -e -o pipefail -c):\n${
     command.split('\n',)
       .map(function indent(line,) {
       return `    ${line}`;
