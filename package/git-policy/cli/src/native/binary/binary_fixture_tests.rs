@@ -343,6 +343,35 @@ fn a_fixture_service_starts_after_an_earlier_service_that_is_still_dying() {
     );
 }
 
+/// A fixture root that cannot be created says what became of it,
+/// and of its parent,
+/// not just that the call failed.
+/// Why:
+///  A container gate lost its fixture root after test 5,018 of 5,265,
+///  and 217 later tests failed with a bare `fresh fixture: NotFound`,
+///  so nothing said what removed the folder or how far up the loss went
+///  (item 9 of `~/temp/agent/pi-runs/queue-audit-report.md`).
+#[test]
+fn a_fixture_root_that_cannot_be_created_says_what_became_of_it() {
+    let held: Fixture = fixture("vanished-root");
+    let root: PathBuf = held.root.clone();
+    let wanted: PathBuf = root.join("gone/parent");
+    // A plain file where the root must be a folder, so creating the folder fails at once.
+    std::fs::write(root.join("gone"), b"a file where a folder is needed").expect("a file in place of the folder");
+    let probe: PathBuf = wanted.clone();
+    let caught = std::panic::catch_unwind(move || {
+        let _made = super::support::fixture_in(probe.as_path(), "vanished");
+    });
+    let message: String = match caught {
+        Err(payload) => payload.downcast_ref::<String>().cloned().unwrap_or_else(|| { return String::from("<not text>"); }),
+        Ok(()) => panic!("a fixture root that cannot be created must be refused"),
+    };
+    assert!(message.contains("fixture directory root"), "the failure names the step: {message}");
+    assert!(message.contains(wanted.display().to_string().as_str()), "the failure names the root: {message}");
+    assert!(message.contains("its parent"), "the failure names what became of the parent: {message}");
+    std::fs::remove_dir_all(root.as_path()).expect("the fixture goes");
+}
+
 /// A process the binary tests start (a service that is killed,
 /// a wrapper that aborts) may not write a core dump:
 /// each dump
