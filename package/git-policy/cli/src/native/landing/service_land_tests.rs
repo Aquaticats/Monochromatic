@@ -746,10 +746,16 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     never.new = "f".repeat(40);
     crate::service_journal::write_intent(world.context.journal.as_path(), &never).expect("second intent");
     std::fs::write(batch_path(world.context.journal.as_path(), 3, OPEN_EXTENSION), "seq=3\nrepos").expect("torn");
-    let reports = recover(&world.context);
+    let mut reports: Vec<RecoveryReport> = Vec::new();
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| { reports = recover(&world.context); });
     let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
     assert!(by_seq.contains(&(1, Recovery::Finish)), "{by_seq:?}");
     assert!(by_seq.contains(&(2, Recovery::Drop)), "{by_seq:?}");
+    // The second batch names a commit that is no object, so its kept ref cannot be written, and Git's own words say why.
+    let failures: Vec<&crate::service_timing::capture::Captured> = entries.iter().filter(|entry| { return entry.priority == crate::journald_native::Priority::Error; }).collect();
+    assert_eq!(failures.len(), 1, "{entries:?}");
+    assert!(failures[0].message.contains("refs/cli-git/kept/2"), "{}", failures[0].message);
+    assert!(failures[0].message.contains("fatal:"), "Git's words are logged: {}", failures[0].message);
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
     assert!(crate::service_journal::landed_commits(world.context.journal.as_path()).contains_key("landed"));
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
