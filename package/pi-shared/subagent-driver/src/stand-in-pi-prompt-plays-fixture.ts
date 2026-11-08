@@ -13,6 +13,7 @@ import {
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   FEED_PREVIEW_CHARACTERS,
+  POLL_MILLISECONDS,
   type PiRecord,
 } from '../dist/final/node/index.mjs';
 
@@ -27,10 +28,15 @@ export const CRASH_STATUS = 3;
 const SPLIT_WRITE_MILLISECONDS = 50;
 
 /**
- Milliseconds a delayed answer takes, well beyond the delay between two commands of a run, so a second command arrives while the
- answer is still pending if the driver sends one that early.
+ How many looks at the inbox a delayed answer spans, so a driver that sends the next message without waiting for this answer has
+ sent it before the answer comes.
  */
-export const SLOW_ANSWER_MILLISECONDS = 300;
+const LOOKS_A_DELAYED_ANSWER_SPANS = 3;
+
+/**
+ Milliseconds a delayed answer takes.
+ */
+export const SLOW_ANSWER_MILLISECONDS: number = POLL_MILLISECONDS * LOOKS_A_DELAYED_ANSWER_SPANS;
 
 /**
  Turns the many-turns scenario starts, above any cap the tests set.

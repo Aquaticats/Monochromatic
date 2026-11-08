@@ -205,7 +205,7 @@ async function actOnCommand(line: string,): Promise<void> {
   if ((parsed.type === 'prompt') || (parsed.type === 'steer')) {
     seen.prompts += 1;
     if (seen.answering > 0) {
-      await writeLogLine('overlap',);
+      await writeLogLine('marker overlap',);
     }
     if ((parsed.type === 'steer') && (scenario === 'crash-on-steer')) {
       exit(CRASH_STATUS,);
