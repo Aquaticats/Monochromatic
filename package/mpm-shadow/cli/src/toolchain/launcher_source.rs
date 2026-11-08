@@ -228,9 +228,7 @@ pub fn newest_installed_shadow(scope: &Scope, running: &Path) -> Option<PathBuf>
             newest = Some((version, program));
         }
     }
-    let Some((_version, program)) = newest else {
-        return None;
-    };
+    let (_version, program) = newest?;
     return Some(program);
 }
 
