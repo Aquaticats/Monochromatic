@@ -934,9 +934,11 @@ running the command again tries it again.
 It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
-A service that starts and finds its own worktree gone stops its own socket and serves nothing,
-so those leftovers also go at the first connection without anyone running the command:
-the service asks the same question of the same note and journal records,
+A service that finds its own worktree gone stops its own socket and serves nothing,
+so those leftovers also go without anyone running the command.
+It asks the same question of the same note and journal records,
+when it starts and then once a minute while it serves
+(a removal by another Git takes the worktree while its service is running, so no start of that service ever comes),
 stops its socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
 and ends with status 0.

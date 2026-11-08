@@ -137,8 +137,8 @@ pub const IDLE_EXIT: Duration = Duration::from_secs(3 * 60 * 60);
 /// and the price is one wake of the landing thread and two stat calls per service per interval:
 /// one `symlink_metadata` on the Git directory and one `is_dir` on the place that holds it
 /// (`service_units_of_removed_worktrees::worktree_is_gone`),
-/// measured on this host at 1.6 microseconds for the pair,
-/// so 355 services cost 0.6 milliseconds a second between them.
+/// measured on this host at 11.4 microseconds for the pair (five rounds of a million, 11.32 to 11.74),
+/// so 355 services cost 0.07 milliseconds a second between them.
 /// A minute rather than an hour because the leftover is a listening socket,
 /// and a minute rather than a second
 /// because the loop's own wake is what it costs;
