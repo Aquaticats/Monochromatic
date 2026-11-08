@@ -4198,6 +4198,15 @@ the same checkout at `1a907ccfb9` before the change and with it after.
   about 10 percent slower beside the disposal,
   and still outlasted the disposal in every run,
   which is why the wait is zero.
+- Five more pairs confirmed it with the binary built from the final commit of this branch
+  (`aaf0e711d0`,
+  whose file split changes no behaviour):
+  `totalMs` medians 15303 before and 14275 after,
+  the wait 0 ms in every run,
+  and a per-pair median of 2332 ms.
+  The disposal itself took 3294 to 10050 ms there and the repair about 1 s longer beside it,
+  so the person's saving is the disposal's duration less that contention,
+  which is what separates 2332 ms from the 4504 ms median of the fifteen pairs.
 - A smaller fixture cross-checked the mechanism (160 members,
   200 thousand cache entries):
   `totalMs` median 7514 over five adds of the old binary (7065 to 8802),
