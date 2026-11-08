@@ -1831,3 +1831,44 @@ fn completion_parent_barrier_fixture() {
     };
     crate::journal_transaction::finish_journal(Path::new(&journal)).expect("finishes the journal");
 }
+
+/// Contract assumption b,
+/// the knowledge clause (sixth pass,
+/// group 9 K2 retry):
+/// a directory left unsynchronized by a failed creation attempt is not taken as durable on a later preservation in the same process,
+/// whichever barrier of that attempt failed:
+/// the new directory's own barrier or the barrier of the directory that lists it.
+/// The later walk must go through the remembered directory and synchronize the pre-existing anchor above it.
+/// A regression that forgets a failure of either barrier stops at the remembered directory's parent and never reaches the anchor,
+/// so this test fails on the anchor that it requires in the retry.
+#[test]
+fn a_directory_whose_own_or_parent_barrier_failed_is_not_taken_as_durable_by_a_later_preservation() {
+    for failing_own in [true, false] {
+        let root = repository("expected");
+        let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+        let anchor: PathBuf = root.path().join("a");
+        fs::create_dir_all(&anchor).expect("a pre-existing anchor");
+        let kept_dir: PathBuf = anchor.join("b");
+        let resolved_anchor: PathBuf = fs::canonicalize(&anchor).expect("resolves");
+        let resolved_kept: PathBuf = fs::canonicalize(&kept_dir).unwrap_or_else(|_| { return kept_dir.clone(); });
+        // The first attempt fails at one barrier only: the new directory's own sync, or the sync of the directory that lists it.
+        let failing = |directory: &Path| -> std::io::Result<()> {
+            let target: &Path = if failing_own { resolved_kept.as_path() } else { resolved_anchor.as_path() };
+            if directory == target {
+                return Err(std::io::Error::other("injected barrier failure"));
+            }
+            return Ok(());
+        };
+        let first_attempt = crate::journal::create_directories_with(&kept_dir, &failing);
+        assert!(first_attempt.is_err(), "failing_own={failing_own}: the failed attempt should fail");
+        assert!(kept_dir.exists(), "failing_own={failing_own}: the directory exists although it was not made durable");
+
+        let synced: RefCell<Vec<PathBuf>> = RefCell::new(Vec::new());
+        let record = |directory: &Path| -> std::io::Result<()> { synced.borrow_mut().push(directory.to_path_buf()); return Ok(()); };
+        replace_with(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &real_link, &real_sync_file, &record).expect("replaces");
+
+        let calls = synced.borrow();
+        assert!(calls.iter().any(|directory| { return *directory == anchor || *directory == resolved_anchor; }), "failing_own={failing_own}: the walk stopped at the directory known to be unsynced and never synchronized the anchor above it: {calls:?}");
+        assert!(calls.iter().any(|directory| { return *directory == kept_dir || *directory == resolved_kept; }), "failing_own={failing_own}: the kept directory itself was not synchronized: {calls:?}");
+    }
+}
