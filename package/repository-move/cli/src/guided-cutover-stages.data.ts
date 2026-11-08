@@ -564,6 +564,51 @@ ${link}/check.mjs`,
       unprivileged: 'not needed: written as the user',
     },
     {
+      id: 'c20c-refresh-checkouts',
+      title: 'Refresh the moved checkouts',
+      window: true,
+      says: `The move gave every file a new inode, so each checkout's index keeps the stat data of the files as they were before it: a commit there is stopped at the wrapper's 3-second scratch ceiling, on every retry, until a status has rewritten the index (measured after the move). The relative links of node_modules reach the pnpm store through the checkout's physical path, so they point nowhere after the move, and the main checkout's dangling links broke pi; mise exec -- pnpm install --offline --frozen-lockfile repaired that checkout in 7.6 s. This stage runs a status in every registered checkout, which rewrites the index and changes no file (a --no-optional-locks status does not rewrite it, measured on 2026-11-08), and repairs every node_modules that holds a dangling link. It runs after the through-the-link checks, which compare the index hashes with the frozen baseline, and before the release, because commits resume there. A checkout with no node_modules is left as it is and named.`,
+      command: `/usr/bin/git --no-optional-locks -C ${c.repo} worktree list --porcelain > ${c.wiz}/checkouts-moved.txt
+awk '/^worktree /{ print substr($0, 10) }' ${c.wiz}/checkouts-moved.txt > ${c.wiz}/checkout-paths.txt
+: > ${c.wiz}/checkout-indexes.txt
+: > ${c.wiz}/checkout-index-refusals.txt
+: > ${c.wiz}/checkout-installs.txt
+: > ${c.wiz}/checkout-links-left.txt
+: > ${c.wiz}/checkout-without-node-modules.txt
+: > ${c.wiz}/checkout-install.log
+while IFS= read -r path; do
+  if /usr/bin/git -C "$path" status --porcelain > /dev/null 2> ${c.wiz}/checkout-status.err; then
+    printf 'index rewritten: %s\\n' "$path" >> ${c.wiz}/checkout-indexes.txt
+  else
+    printf 'index not rewritten: %s: %s\\n' "$path" "$(head --lines=1 ${c.wiz}/checkout-status.err)" >> ${c.wiz}/checkout-index-refusals.txt
+  fi
+  if [ ! -d "$path/node_modules" ]; then
+    printf 'no node_modules: %s\\n' "$path" >> ${c.wiz}/checkout-without-node-modules.txt
+    continue
+  fi
+  links=$(find "$path/node_modules" -xtype l -print | wc --lines)
+  if [ "$links" -eq 0 ]; then
+    continue
+  fi
+  printf 'dangling links before the install: %s %s\\n' "$links" "$path" >> ${c.wiz}/checkout-installs.txt
+  if ( cd "$path" && mise exec -- pnpm install --offline --frozen-lockfile ) >> ${c.wiz}/checkout-install.log 2>&1; then
+    printf 'repaired: %s\\n' "$path" >> ${c.wiz}/checkout-installs.txt
+  else
+    printf 'the install failed: %s\\n' "$path" >> ${c.wiz}/checkout-installs.txt
+  fi
+  left=$(find "$path/node_modules" -xtype l -print | wc --lines)
+  if [ "$left" -ne 0 ]; then
+    printf '%s still holds %s dangling node_modules links after the install\\n' "$path" "$left" >> ${c.wiz}/checkout-links-left.txt
+  fi
+done < ${c.wiz}/checkout-paths.txt
+printf 'checkouts: %s, indexes rewritten: %s, node_modules repaired: %s, without node_modules: %s\\n' "$(wc --lines < ${c.wiz}/checkout-paths.txt)" "$(wc --lines < ${c.wiz}/checkout-indexes.txt)" "$(grep --count '^repaired: ' ${c.wiz}/checkout-installs.txt || true)" "$(wc --lines < ${c.wiz}/checkout-without-node-modules.txt)"`,
+      check: `test -s ${c.wiz}/checkout-paths.txt && test ! -s ${c.wiz}/checkout-index-refusals.txt && test ! -s ${c.wiz}/checkout-links-left.txt`,
+      checkText: "every checkout's index was rewritten and no node_modules link is left dangling",
+      rollback: 'the indexes and node_modules folders it wrote belong to the working trees; the rollback command still applies (it renames the links aside)',
+      root: 'no',
+      unprivileged: 'not needed: Git and pnpm run as the user, and the copy is writable after the final pass',
+    },
+    {
       id: 'c21-release',
       title: 'Release',
       window: true,
