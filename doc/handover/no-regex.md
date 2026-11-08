@@ -76,8 +76,9 @@ Three packages are paused at the user's direction;
 - `package/webapp-forge/server` -- 13 sites
 
 To resume any of those,
- apply the patterns documented below (the
+ apply the patterns in the
 "Patterns established this session for common refactors" section
+(it
 covers every refactor shape used in this sweep) and remove the
 paused-status block from the README.
 
@@ -85,7 +86,7 @@ paused-status block from the README.
 
 All 114 errors from `/tmp/pi-bash-25cddcf1ce4714e4.log` plus the
 follow-on packages surfaced by repeated `mise //:lint` runs are
-addressed (modulo the 3 paused packages above).
+addressed (modulo the three paused packages).
  Tests pass for every
 package that has a `test:unit` task and was directly touched.
 

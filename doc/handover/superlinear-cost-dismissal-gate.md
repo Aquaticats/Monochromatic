@@ -624,7 +624,7 @@ Cost of the instrument itself:
 p90 240.0 s,
 max 418.1 s),
 the spend the owner's cost correction then paused
-(the pause entry above).
+(the 2026-10-29 pause bullet in "Decisions on record").
 
 The determinism pair on `d4988f4c9b57` agrees at the verdict level
 (both runs named cost,
@@ -675,7 +675,7 @@ and that no `AGENTS.md` rule backs it in that phase,
 since a mandate would not count as shadow.
 Next:
 the trigger's model call is paused
-(the pause entry above),
+(the 2026-10-29 pause bullet in "Decisions on record"),
 and the uniform scoring pass of 2026-10-29 settled all 65 entries
 (heading `Shadow runs so far`),
 so nothing accumulates on its own now.
