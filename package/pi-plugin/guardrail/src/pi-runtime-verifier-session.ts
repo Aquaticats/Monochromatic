@@ -18,7 +18,12 @@ import {
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent';
-import type { ToolResultMessage, } from '@earendil-works/pi-ai';
+import type {
+  ImageContent,
+  TextContent,
+  ToolResultMessage,
+} from '@earendil-works/pi-ai';
+import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
 import {
   commitSubjects,
@@ -29,6 +34,7 @@ import {
   CLOSING_TEXT,
   registerScriptedGitGuardProvider,
   type ScriptedBashCall,
+  type ScriptedGitGuardProvider,
 } from './pi-runtime-verifier-scripted-provider.ts';
 
 //region Constants
@@ -44,7 +50,7 @@ const REMEDY_SENTENCE = 'git -C <repository-root>';
 const DENIAL_PREFIX = 'Blocked:';
 
 /**
- Text Pi's Bash tool answers a blocked call with, which the model reads as the failure.
+ Word the denial uses for what it did to the call.
  */
 const BLOCKED_CALL_TEXT = 'Blocked';
 
@@ -57,6 +63,11 @@ const DENIED_COMMIT_MESSAGE = 'denied absolute-path commit';
  Commit message of the same call spelled through the PATH wrapper, which must land.
  */
 const ALLOWED_COMMIT_MESSAGE = 'commit through the PATH wrapper';
+
+/**
+ Tool whose Bash calls this verification drives.
+ */
+const BASH_TOOL_NAME = 'bash';
 
 //endregion Constants
 
@@ -89,9 +100,23 @@ type GuardedSessionRequest = {
 };
 
 /**
- One message Pi reports for the session, of whatever role.
+ One message Pi reports for the session, as the harness owns it.
  */
 type SessionMessage = AgentSession['messages'][number];
+
+/**
+ Open session under test and the provider that scripted its calls.
+ */
+type GuardedSession = {
+  /**
+   Real session that owns the loaded extension and the Bash tool.
+   */
+  readonly session: AgentSession;
+  /**
+   Scripted provider, whose remaining count shows whether every call ran.
+   */
+  readonly provider: ScriptedGitGuardProvider;
+};
 
 /**
  What the real session showed.
@@ -119,9 +144,9 @@ type GuardedSessionOutcome = {
  toolResultText({ content: [{ type: 'text', text: 'done' }] });
  ```
  */
-function toolResultText(message: ToolResultMessage,): string {
+function toolResultText(message: ForeignBorrowed<ToolResultMessage>,): string {
   return message.content
-    .flatMap(function textParts(part,) {
+    .flatMap(function textParts(part: ForeignBorrowed<TextContent | ImageContent>,) {
       return part.type === 'text' ? [part.text,] : [];
     },)
     .join('\n',);
@@ -139,7 +164,9 @@ function toolResultText(message: ToolResultMessage,): string {
  const results = toolResultsOf(session.messages);
  ```
  */
-function toolResultsOf(messages: readonly SessionMessage[],): readonly ToolResultMessage[] {
+function toolResultsOf(
+  messages: readonly ForeignBorrowed<SessionMessage>[],
+): readonly ForeignBorrowed<ToolResultMessage>[] {
   return messages.flatMap(function toolResults(message,) {
     return message.role === 'toolResult' ? [message,] : [];
   },);
@@ -150,17 +177,45 @@ function toolResultsOf(messages: readonly SessionMessage[],): readonly ToolResul
 //region Session construction
 
 /**
+ Releases the session and everything it holds.
+ 
+ @param session - session to release
+ 
+ @returns disposable owner for `using`
+ 
+ @example
+ ```typescript
+ using _owner = disposeSession(session);
+ ```
+ */
+function disposeSession(session: AgentSession,): Disposable {
+  return {
+    [Symbol.dispose]() {
+      session.dispose();
+    },
+  };
+}
+
+/**
  Creates the real Pi session that runs the scripted Bash calls.
  
- @param request - package, directories, repository, and real-Git path
+ @param packageDirectory - built package directory whose manifest names its extension
  
- @returns session, its resource loader, and the scripted provider call count
+ @param agentDirectory - disposable Pi global directory
+ 
+ @param sessionDirectory - disposable session-file directory
+ 
+ @param repository - throwaway repository the Bash tool runs in
+ 
+ @param realGitPath - absolute path of this host's real Git binary
+ 
+ @returns session and its scripted provider
  
  @throws when Pi reports extension load errors or loads a different count
  
  @example
  ```typescript
- const session = await openGuardedSession({ packageDirectory, agentDirectory, sessionDirectory, repository, realGitPath });
+ const guarded = await openGuardedSession({ packageDirectory, agentDirectory, sessionDirectory, repository, realGitPath });
  ```
  */
 async function openGuardedSession({
@@ -169,7 +224,7 @@ async function openGuardedSession({
   sessionDirectory,
   repository,
   realGitPath,
-}: GuardedSessionRequest,) {
+}: GuardedSessionRequest,): Promise<GuardedSession> {
   /**
    Settings with no compaction and no retry, so one scripted turn ends where it says.
    */
@@ -207,9 +262,13 @@ async function openGuardedSession({
    Bash calls the scripted model asks for, in the order the guardrail must see them.
    */
   const calls: readonly ScriptedBashCall[] = [
-    { command: `${JSON.stringify(realGitPath,)} commit -m ${JSON.stringify(DENIED_COMMIT_MESSAGE,)}`, },
+    {
+      command: `${JSON.stringify(realGitPath,)} commit -m ${JSON.stringify(DENIED_COMMIT_MESSAGE,)}`,
+    },
     { command: `${JSON.stringify(realGitPath,)} status --short`, },
-    { command: `git commit -m ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} ${repository.stagedFileName}`, },
+    {
+      command: `git commit -m ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} ${repository.stagedFileName}`,
+    },
   ];
   /**
    Scripted provider and its model.
@@ -228,11 +287,14 @@ async function openGuardedSession({
   /**
    Real session that owns the extension lifecycle and the Bash tool.
    */
-  const { session, extensionsResult, } = await createAgentSession({
+  const {
+    session,
+    extensionsResult,
+  } = await createAgentSession({
     cwd: repository.root,
     agentDir: agentDirectory,
     model: provider.model,
-    tools: ['bash',],
+    tools: [BASH_TOOL_NAME,],
     resourceLoader,
     modelRuntime,
     settingsManager,
@@ -242,7 +304,9 @@ async function openGuardedSession({
     .length
     > 0) {
     session.dispose();
-    throw new PiGuardrailVerificationError(`Pi reported extension errors: ${JSON.stringify(extensionsResult.errors,)}`,);
+    throw new PiGuardrailVerificationError(
+      `Pi reported extension errors: ${JSON.stringify(extensionsResult.errors,)}`,
+    );
   }
   if (extensionsResult.extensions
     .length
@@ -253,7 +317,9 @@ async function openGuardedSession({
     const loadedCount = extensionsResult.extensions
       .length;
     session.dispose();
-    throw new PiGuardrailVerificationError(`expected one loaded guardrail extension, Pi loaded ${String(loadedCount,)}`,);
+    throw new PiGuardrailVerificationError(
+      `expected one loaded guardrail extension, Pi loaded ${String(loadedCount,)}`,
+    );
   }
   return {
     session,
@@ -273,12 +339,117 @@ class PiGuardrailVerificationError extends Error {
 
 //endregion Session construction
 
+//region Assertions
+
+/**
+ Reports one mismatch between what Pi answered and what the guardrail promises.
+ 
+ @param problem - what differed, in plain words
+ 
+ @returns the error to throw
+ 
+ @example
+ ```typescript
+ throw mismatch(`expected three tool results, Pi produced ${String(count,)}`);
+ ```
+ */
+function mismatch(problem: string,): PiGuardrailVerificationError {
+  return new PiGuardrailVerificationError(problem,);
+}
+
+/**
+ Checks the result of the refused call and returns the text the model read.
+ 
+ @param result - tool result of the denied call
+ 
+ @returns the denial text
+ 
+ @throws {@link PiGuardrailVerificationError} when the call was not refused with the remedy
+ 
+ @example
+ ```typescript
+ const denialText = requireRefusal(deniedResult);
+ ```
+ */
+function requireRefusal(result: ForeignBorrowed<ToolResultMessage>,): string {
+  if ((result.toolName !== BASH_TOOL_NAME) || (!result.isError)) {
+    throw mismatch(
+      `the absolute-path commit was not refused: ${JSON.stringify({
+        toolName: result.toolName,
+        isError: result.isError,
+        text: toolResultText(result,),
+      },)}`,
+    );
+  }
+  /**
+   What the model read as the failure of the refused call.
+   */
+  const denialText = toolResultText(result,);
+  if (!denialText.includes(DENIAL_PREFIX,))
+    throw mismatch(`the denial carries no refusal reason: ${denialText}`,);
+  if (!denialText.includes(BLOCKED_CALL_TEXT,))
+    throw mismatch(`the denial does not say the call was blocked: ${denialText}`,);
+  if (!denialText.includes(REMEDY_SENTENCE,)) {
+    throw mismatch(
+      `the denial does not name the remedy \`${REMEDY_SENTENCE}\`: ${denialText}`,
+    );
+  }
+  return denialText;
+}
+
+/**
+ Checks the result of the read-only probe and returns its output.
+ 
+ @param result - tool result of the read-only call
+ 
+ @param stagedFileName - staged file the probe must print
+ 
+ @returns the probe's output
+ 
+ @throws {@link PiGuardrailVerificationError} when the probe was refused or printed nothing staged
+ 
+ @example
+ ```typescript
+ const statusText = requireReadOnlyOutput(readOnlyResult, stagedFileName);
+ ```
+ */
+function requireReadOnlyOutput({
+  result,
+  stagedFileName,
+}: {
+  readonly result: ForeignBorrowed<ToolResultMessage>;
+  readonly stagedFileName: string;
+},): string {
+  if (result.isError)
+    throw mismatch(`the read-only absolute-path probe was refused: ${toolResultText(result,)}`,);
+  /**
+   Output of the probe through the real Git binary.
+   */
+  const readOnlyText = toolResultText(result,);
+  if (!readOnlyText.includes(stagedFileName,)) {
+    throw mismatch(
+      `the read-only probe printed no staged file: ${readOnlyText}`,
+    );
+  }
+  return readOnlyText;
+}
+
+//endregion Assertions
+
 //region Verification
 
 /**
  Runs the scripted Bash calls through a real Pi session and checks what the model saw.
  
- @param request - package, directories, repository, and real-Git path
+ @param packageDirectory - built package directory whose manifest names its extension
+ 
+ @param agentDirectory - disposable Pi global directory
+ 
+ @param sessionDirectory - disposable session-file directory
+ 
+ @param repository - throwaway repository the Bash tool runs in
+ 
+ @param realGitPath - absolute path of this host's real Git binary
  
  @returns the verified outcome
  
@@ -286,109 +457,101 @@ class PiGuardrailVerificationError extends Error {
  
  @example
  ```typescript
- await verifyAbsoluteGitGuardAtPiBoundary(request);
+ await verifyAbsoluteGitGuardAtPiBoundary({ packageDirectory, agentDirectory, sessionDirectory, repository, realGitPath });
  ```
  */
-async function verifyAbsoluteGitGuardAtPiBoundary(
-  request: GuardedSessionRequest,
-): Promise<GuardedSessionOutcome> {
+async function verifyAbsoluteGitGuardAtPiBoundary({
+  packageDirectory,
+  agentDirectory,
+  sessionDirectory,
+  repository,
+  realGitPath,
+}: GuardedSessionRequest,): Promise<GuardedSessionOutcome> {
   /**
    Open session under test and its scripted provider.
    */
-  const { session, provider, } = await openGuardedSession(request,);
-  try {
-    await session.prompt('Run the scripted commands.',);
-    /**
-     Every tool result the real session produced.
-     */
-    const results = toolResultsOf(session.messages,);
-    if (results.length !== 3) {
-      throw new PiGuardrailVerificationError(
-        `expected three Bash tool results, Pi produced ${String(results.length,)}: `
-          + JSON.stringify(results.map(function commandOf(result,) {
-            return result.toolName;
-          },),),
-      );
-    }
-    const [deniedResult, readOnlyResult, wrapperResult,] = results;
-    if ((deniedResult === undefined) || (readOnlyResult === undefined) || (wrapperResult === undefined))
-      throw new PiGuardrailVerificationError('Bash tool results are missing',);
+  const {
+    session,
+    provider,
+  } = await openGuardedSession({
+    packageDirectory,
+    agentDirectory,
+    sessionDirectory,
+    repository,
+    realGitPath,
+  },);
+  /**
+   Releases the session on every exit path of this verification.
+   */
+  using _owner = disposeSession(session,);
 
-    if (deniedResult.toolName !== 'bash' || !deniedResult.isError) {
-      throw new PiGuardrailVerificationError(
-        `the absolute-path commit was not denied: ${JSON.stringify({
-          toolName: deniedResult.toolName,
-          isError: deniedResult.isError,
-          text: toolResultText(deniedResult,),
-        },)}`,
-      );
-    }
-    /**
-     What the model read as the failure of the denied call.
-     */
-    const denialText = toolResultText(deniedResult,);
-    if (!denialText.includes(DENIAL_PREFIX,))
-      throw new PiGuardrailVerificationError(`denial does not start a reason: ${denialText}`,);
-    if (!denialText.includes(REMEDY_SENTENCE,))
-      throw new PiGuardrailVerificationError(`denial does not name the remedy \`${REMEDY_SENTENCE}\`: ${denialText}`,);
-    if (!denialText.includes(BLOCKED_CALL_TEXT,))
-      throw new PiGuardrailVerificationError(`denial does not say the call was blocked: ${denialText}`,);
-
-    if (readOnlyResult.isError) {
-      throw new PiGuardrailVerificationError(
-        `the read-only absolute-path probe was refused: ${toolResultText(readOnlyResult,)}`,
-      );
-    }
-    /**
-     Output of the read-only probe through the real Git binary.
-     */
-    const readOnlyText = toolResultText(readOnlyResult,);
-    if (!readOnlyText.includes(request.repository.stagedFileName,)) {
-      throw new PiGuardrailVerificationError(
-        `the read-only probe returned no staged file: ${readOnlyText}`,
-      );
-    }
-
-    if (await hasNoCommit(request.repository,)) {
-      throw new PiGuardrailVerificationError(
-        `the repository still has no commit after the wrapper commit: ${toolResultText(wrapperResult,)}`,
-      );
-    }
-    /**
-     Commit subjects the guarded session left behind.
-     */
-    const subjects = await commitSubjects(request.repository,);
-    if (JSON.stringify(subjects,) !== JSON.stringify([ALLOWED_COMMIT_MESSAGE,],)) {
-      throw new PiGuardrailVerificationError(
-        `expected one commit named ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)}, found ${JSON.stringify(subjects,)}`,
-      );
-    }
-    if (provider.responsesLeft() !== 0) {
-      throw new PiGuardrailVerificationError(
-        `expected every scripted response to be used, ${String(provider.responsesLeft(),)} left`,
-      );
-    }
-    /**
-     Last assistant text of the run.
-     */
-    const lastAssistantText = session.getLastAssistantText() ?? '';
-    if (!lastAssistantText.includes(CLOSING_TEXT,)) {
-      throw new PiGuardrailVerificationError(
-        `the run did not end on the scripted closing text: ${JSON.stringify(lastAssistantText,)}`,
-      );
-    }
-
-    return {
-      summary: [
-        `denied ${JSON.stringify(DENIED_COMMIT_MESSAGE,)} through ${request.realGitPath}`,
-        `allowed ${JSON.stringify(`${JSON.stringify(request.realGitPath,)} status --short`)}`,
-        `landed ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} through the PATH wrapper`,
-      ].join('; ',),
-    };
+  await session.prompt('Run the scripted commands.',);
+  /**
+   Every tool result the real session produced, in the order Pi finished them.
+   */
+  const results = toolResultsOf(session.messages,);
+  if (results.length !== provider.commandCount) {
+    throw mismatch(
+      `expected ${String(provider.commandCount,)} Bash tool results, `
+        + `Pi produced ${String(results.length,)}`,
+    );
   }
-  finally {
-    session.dispose();
+  /**
+   The refused call, the read-only probe, and the call through the PATH wrapper, in that order.
+   */
+  const [
+    deniedResult,
+    readOnlyResult,
+    wrapperResult,
+  ] = results;
+  if ((deniedResult === undefined)
+    || (readOnlyResult === undefined)
+    || (wrapperResult === undefined))
+    throw mismatch('Bash tool results are missing',);
+
+  requireRefusal(deniedResult,);
+  requireReadOnlyOutput({
+    result: readOnlyResult,
+    stagedFileName: repository.stagedFileName,
+  },);
+
+  if (await hasNoCommit({ repository, },)) {
+    throw mismatch(
+      `the repository has no commit after the wrapper commit: ${toolResultText(wrapperResult,)}`,
+    );
   }
+  /**
+   Commit subjects the guarded session left behind.
+   */
+  const subjects = await commitSubjects({ repository, },);
+  if (JSON.stringify(subjects,) !== JSON.stringify([ALLOWED_COMMIT_MESSAGE,],)) {
+    throw mismatch(
+      `expected one commit named ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)}, `
+        + `found ${JSON.stringify(subjects,)}`,
+    );
+  }
+  if (provider.responsesLeft() !== 0) {
+    throw mismatch(
+      `expected every scripted response to be used, ${String(provider.responsesLeft(),)} left`,
+    );
+  }
+  /**
+   Last assistant text of the run.
+   */
+  const lastAssistantText = session.getLastAssistantText() ?? '';
+  if (!lastAssistantText.includes(CLOSING_TEXT,)) {
+    throw mismatch(
+      `the run did not end on the scripted closing text: ${JSON.stringify(lastAssistantText,)}`,
+    );
+  }
+
+  return {
+    summary: [
+      `refused ${JSON.stringify(DENIED_COMMIT_MESSAGE,)} through ${realGitPath}`,
+      `ran ${JSON.stringify(`${JSON.stringify(realGitPath,)} status --short`)}`,
+      `landed ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} through the PATH wrapper`,
+    ].join('; ',),
+  };
 }
 
 //endregion Verification

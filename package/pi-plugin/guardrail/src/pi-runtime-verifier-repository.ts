@@ -7,14 +7,15 @@
  @module
  */
 
-import {
-  execFile,
-} from 'node:child_process';
+import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+
+import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
 
 //region Constants
 
@@ -35,6 +36,11 @@ const FIXTURE_IDENTITY = {
   name: 'pi guardrail verifier',
   email: 'pi-guardrail-verifier@example.invalid',
 } as const;
+
+/**
+ Exit status of a Git invocation that succeeded.
+ */
+const GIT_SUCCESS_STATUS = 0;
 
 //endregion Constants
 
@@ -72,9 +78,46 @@ type ThrowawayRepository = {
   readonly stagedFileName: string;
 };
 
+/**
+ One Git invocation's words and where they run.
+ */
+type GitInvocation = {
+  /**
+   Directory Git runs in.
+   */
+  readonly root: string;
+  /**
+   Git words after the executable.
+   */
+  readonly args: readonly string[];
+};
+
 //endregion Types
 
 //region Git invocation
+
+/**
+ Reads one child stream to its end.
+ 
+ @param stream - child stream to drain
+ 
+ @returns everything the stream carried
+ 
+ @example
+ ```typescript
+ const text = await readStream(child.stdout);
+ ```
+ */
+async function readStream(stream: NodeJS.ReadableStream,): Promise<string> {
+  stream.setEncoding('utf8',);
+  /**
+   Pieces the stream carried, joined once at the end.
+   */
+  const pieces: string[] = [];
+  for await (const piece of stream)
+    pieces.push(String(piece,));
+  return pieces.join('',);
+}
 
 /**
  Runs Git from PATH and reports a refusal instead of throwing.
@@ -85,6 +128,8 @@ type ThrowawayRepository = {
  
  @returns Git's output and whether it failed
  
+ @throws {@link GitLaunchError} when Git cannot be started at all
+ 
  @example
  ```typescript
  await runGit({ root: '/repo', args: ['status', '--short'] });
@@ -93,27 +138,48 @@ type ThrowawayRepository = {
 async function runGit({
   root,
   args,
-}: {
-  readonly root: string;
-  readonly args: readonly string[];
-},): Promise<GitOutcome> {
+}: GitInvocation,): Promise<GitOutcome> {
   /**
-   Settles once Git exits or fails to start.
+   Git process under test.
    */
-  const settled = Promise.withResolvers<GitOutcome>();
-  execFile(
+  const child = spawn(
     'git',
     [...args,],
-    { cwd: root, },
-    function reportOutcome(error, standardOutput, standardError) {
-      settled.resolve({
-        standardOutput: standardOutput.trim(),
-        standardError: standardError.trim(),
-        failed: error !== null,
-      },);
+    {
+      cwd: root,
+      stdio: [
+        'ignore',
+        'pipe',
+        'pipe',
+      ],
     },
   );
-  return await settled.promise;
+  try {
+    /**
+     Output of both streams, awaited with the close event so neither stream is left behind.
+     */
+    const [standardOutput, standardError,] = await Promise.all([
+      readStream(nonNullishOrThrow(child.stdout,),),
+      readStream(nonNullishOrThrow(child.stderr,),),
+      once(
+        child,
+        'close',
+      ),
+    ],);
+    return {
+      standardOutput: standardOutput
+        .trim(),
+      standardError: standardError
+        .trim(),
+      failed: child.exitCode !== GIT_SUCCESS_STATUS,
+    };
+  }
+  catch (error: unknown) {
+    throw new GitLaunchError({
+      args,
+      cause: error,
+    },);
+  }
 }
 
 /**
@@ -135,14 +201,14 @@ async function runGit({
 async function requireGit({
   root,
   args,
-}: {
-  readonly root: string;
-  readonly args: readonly string[];
-},): Promise<string> {
+}: GitInvocation,): Promise<string> {
   /**
    Outcome of the required invocation.
    */
-  const outcome = await runGit({ root, args, },);
+  const outcome = await runGit({
+    root,
+    args,
+  },);
   if (outcome.failed) {
     throw new GitRefusedError({
       args,
@@ -179,6 +245,36 @@ class GitRefusedError extends Error {
   }
 }
 
+/**
+ Git could not be started at all, which is not a refusal.
+ */
+class GitLaunchError extends Error {
+  /**
+   Name printed with the message.
+   */
+  override readonly name = 'GitLaunchError';
+
+  /**
+   Records the failed launch.
+   
+   @param args - Git words that were launched
+   
+   @param cause - what the launch threw
+   */
+  constructor({
+    args,
+    cause,
+  }: {
+    readonly args: readonly string[];
+    readonly cause: unknown;
+  },) {
+    super(
+      `git ${args.join(' ',)} could not be started: ${String(cause,)}`,
+      { cause, },
+    );
+  }
+}
+
 //endregion Git invocation
 
 //region Fixture construction
@@ -200,10 +296,15 @@ class GitRefusedError extends Error {
  const repository = await createThrowawayRepository({ root: join(scratch, 'repo') });
  ```
  */
-async function createThrowawayRepository({ root, }: {
+async function createThrowawayRepository({
+  root,
+}: {
   readonly root: string;
 },): Promise<ThrowawayRepository> {
-  await mkdir(root, { recursive: true, },);
+  await mkdir(
+    root,
+    { recursive: true, },
+  );
   await requireGit({
     root,
     args: [
@@ -227,8 +328,15 @@ async function createThrowawayRepository({ root, }: {
       FIXTURE_IDENTITY.email,
     ],
   },);
+  /**
+   Fixture file path inside the throwaway repository.
+   */
+  const fixtureFilePath = join(
+    root,
+    FIXTURE_FILE_NAME,
+  );
   await writeFile(
-    join(root, FIXTURE_FILE_NAME,),
+    fixtureFilePath,
     FIXTURE_FILE_CONTENT,
   );
   await requireGit({
@@ -257,10 +365,14 @@ async function createThrowawayRepository({ root, }: {
  
  @example
  ```typescript
- const subjects = await commitSubjects(repository);
+ const subjects = await commitSubjects({ repository });
  ```
  */
-async function commitSubjects(repository: ThrowawayRepository,): Promise<readonly string[]> {
+async function commitSubjects({
+  repository,
+}: {
+  readonly repository: ThrowawayRepository;
+},): Promise<readonly string[]> {
   /**
    Log read of the current branch.
    */
@@ -275,7 +387,8 @@ async function commitSubjects(repository: ThrowawayRepository,): Promise<readonl
     return [];
   if (outcome.standardOutput === '')
     return [];
-  return outcome.standardOutput.split('\n',);
+  return outcome.standardOutput
+    .split('\n',);
 }
 
 /**
@@ -287,10 +400,14 @@ async function commitSubjects(repository: ThrowawayRepository,): Promise<readonl
  
  @example
  ```typescript
- if (await hasNoCommit(repository)) throw new Error('the guarded commit landed');
+ if (await hasNoCommit({ repository })) throw new Error('the guarded commit landed');
  ```
  */
-async function hasNoCommit(repository: ThrowawayRepository,): Promise<boolean> {
+async function hasNoCommit({
+  repository,
+}: {
+  readonly repository: ThrowawayRepository;
+},): Promise<boolean> {
   /**
    Head resolution that fails exactly while the branch is unborn.
    */
@@ -310,9 +427,7 @@ async function hasNoCommit(repository: ThrowawayRepository,): Promise<boolean> {
 export {
   commitSubjects,
   createThrowawayRepository,
-  GitRefusedError,
   hasNoCommit,
-  runGit,
 };
 export type {
   GitOutcome,

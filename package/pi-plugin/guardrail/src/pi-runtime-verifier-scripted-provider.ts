@@ -8,13 +8,11 @@
  */
 
 import {
+  type Api,
   createFauxCore,
   fauxAssistantMessage,
   fauxToolCall,
-} from '@earendil-works/pi-ai';
-import type {
-  Model,
-  Api,
+  type Model,
 } from '@earendil-works/pi-ai';
 import type { ModelRuntime, } from '@earendil-works/pi-coding-agent';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
@@ -72,6 +70,10 @@ type ScriptedGitGuardProvider = {
    */
   readonly model: Model<Api>;
   /**
+   How many Bash calls the script queued, which is how many tool results a full run leaves.
+   */
+  readonly commandCount: number;
+  /**
    How many scripted responses are left, so a run that stopped early says so.
    */
   readonly responsesLeft: () => number;
@@ -88,11 +90,9 @@ type ScriptedGitGuardProvider = {
  
  @param calls - Bash commands the scripted model asks for, in order
  
- @returns registered model and the queue's remaining count
+ @returns registered model, its command count, and the queue's remaining count
  
  @mutates modelRuntime - registers one provider with one model and reads it back
- 
- @mutates the returned provider's queue - queues one tool-call response per command plus closing text
  
  @example
  ```typescript
@@ -140,8 +140,15 @@ function registerScriptedGitGuardProvider({
 
   faux.setResponses([
     ...calls.map(function toolCallStep(call,) {
+      /**
+       Tool call this step asks the Bash tool to run.
+       */
+      const bashCall = fauxToolCall(
+        BASH_TOOL_NAME,
+        { command: call.command, },
+      );
       return fauxAssistantMessage(
-        fauxToolCall(BASH_TOOL_NAME, { command: call.command, },),
+        bashCall,
         { stopReason: 'toolUse', },
       );
     },),
@@ -160,6 +167,7 @@ function registerScriptedGitGuardProvider({
 
   return {
     model,
+    commandCount: calls.length,
     responsesLeft() {
       return faux.getPendingResponseCount();
     },

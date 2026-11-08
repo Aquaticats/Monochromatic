@@ -3895,6 +3895,9 @@ importers:
       '@monochromatic-dev/git-executable-core':
         specifier: workspace:*
         version: link:../../git-executable/core
+      '@monochromatic-dev/or-throw-core':
+        specifier: workspace:*
+        version: link:../../or-throw/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core

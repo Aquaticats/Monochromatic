@@ -1,6 +1,6 @@
 {
   "name": "@monochromatic-dev/pi-plugin-guardrail",
-  "description": "Tool-call guardrails for pi: block misleading bun test invocations and config-driven edits or writes to protected paths",
+  "description": "Tool-call guardrails for pi: block misleading bun test invocations, mutating Git through an absolute real-Git path, and config-driven edits or writes to protected paths",
   "type": "module",
   "private": true,
   "version": "0.0.1",
@@ -45,6 +45,7 @@
     "@monochromatic-dev/config-rolldown": "workspace:*",
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/git-executable-core": "workspace:*",
+    "@monochromatic-dev/or-throw-core": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:"
   }
