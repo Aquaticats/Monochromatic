@@ -247,6 +247,10 @@ How to pick a preset through the HTTP API was not tested.
 - Cache files at `$DSH_HOME/storages/session_projcache/sessions/<id>.json` are derived data
   that a failed `session/create` can leave behind.
 
+## See also
+
+`doc/agent/drive-pi-as-a-subagent.md` covers the same job for Pi in RPC mode.
+
 ## Not verified
 
 - ACP and headless beyond their `--help` text.
