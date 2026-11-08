@@ -214,7 +214,7 @@ Family mapping (routes and precedents from the repository lock):
  at the `stable` channel
  (resolves `1.98.1`,
  the version the old install recorded;
- `rustup` itself is the `rustup` entry above,
+ `rustup` itself is the `rustup` entry in the `archive` family,
  so `rust` does not re-declare it).
 - Bootstrap entries:
  `bin`
@@ -368,7 +368,7 @@ with the Mise installs left in place as rollback:
  the review surface is the `toolchain:update:global` output plus the file
  diff the maintainer reads in place.
 - Manager-native singletons can flip between scopes
- (the interplay rule above).
+ (the interplay rule under `Interplay with the repository scope`).
 - `mpm installed` sees `bin`-sourced tools only through the `bin` manager
  reading `bin`'s configuration,
  so inventory runs carry the scope's `BIN_CONFIG`

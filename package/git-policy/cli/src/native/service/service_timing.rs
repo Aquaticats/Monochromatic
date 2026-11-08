@@ -372,6 +372,9 @@ pub enum ExitReason {
     /// The queue its connections feed closed,
     /// which only happens when the acceptor thread died.
     Error,
+    /// The worktree this service serves is gone,
+    /// so it stopped its own socket instead of serving it.
+    WorktreeGone,
 }
 
 impl ExitReason {
@@ -381,6 +384,7 @@ impl ExitReason {
             ExitReason::Idle => "idle",
             ExitReason::Retire => "retire",
             ExitReason::Error => "error",
+            ExitReason::WorktreeGone => "worktree-gone",
         };
     }
 }

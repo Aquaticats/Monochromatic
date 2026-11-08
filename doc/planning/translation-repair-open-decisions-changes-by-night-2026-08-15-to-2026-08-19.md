@@ -45,7 +45,7 @@ at all.
     trading the deadline's six-minute
     ceiling for something faster on a genuinely dead call,
     is Question 10.
-    The measurement above
+    The measurement in the `THE STRAGGLER GRACE'S CUT POPULATION IS COUNTED TO THE END OF THE PASS` entry
     settles the premise;
     it does not settle how much of the documented tail risk is worth paying
     against.
@@ -57,8 +57,7 @@ WHAT A FOURTH NIGHT CHANGED,
 One new question,
 Question 8,
 and one gate that is no longer a gate.
-Nothing
-below was answered in between and nothing changed its answer.
+Nothing in `translation-repair-open-decisions.md` was answered in between and nothing changed its answer.
 
 -   THE WINDOW TRIAL FINISHED,
     all 327 arms,
@@ -108,8 +107,8 @@ below was answered in between and nothing changed its answer.
 
 WHAT A THIRD NIGHT CHANGED,
 08-16 into 08-17.
-None of the questions below were answered in between and none of them changed
-its answer:
+None of the questions in `translation-repair-open-decisions.md` were answered in between
+and none of them changed its answer:
 the night went on the artifact reader,
 two resume guards and the
 last of the invariants review,

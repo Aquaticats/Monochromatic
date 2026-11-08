@@ -55,8 +55,17 @@ import { readWorktree, } from './worker-fixture.ts';
 //region Repository state
 
 /**
+ Prefix of the reference a commit that was built and did not land is kept on.
+ The line the person is told names it,
+ so it is the shelf for that commit rather than leftover state:
+ the wrapper never removes it, and a scenario that checks it reads it.
+ */
+const KEPT_REFERENCE_PREFIX = 'refs/cli-git/kept/';
+
+/**
  Lists leftover transaction state:
- `refs/cli-git/` refs plus the entries {@link classifyLeftovers} reports.
+ `refs/cli-git/` refs other than the kept ones,
+ plus the entries {@link classifyLeftovers} reports.
 
  @param repository - scenario repository
 
@@ -69,7 +78,7 @@ import { readWorktree, } from './worker-fixture.ts';
  */
 async function findLeftovers(repository: ScenarioRepository,): Promise<readonly string[]> {
   /**
-   Private refs, loose or packed.
+   Private refs, loose or packed, each named for the commit it holds or for the one it keeps.
    */
   const refs = (await realGit({
     repository,
@@ -81,7 +90,7 @@ async function findLeftovers(repository: ScenarioRepository,): Promise<readonly 
   },))
     .split('\n',)
     .filter(function nonEmpty(line,) {
-      return line !== '';
+      return (line !== '') && (!line.startsWith(KEPT_REFERENCE_PREFIX,));
     },);
   /**
    Every entry under the common directory, relative to it.

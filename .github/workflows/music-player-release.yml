@@ -1080,13 +1080,10 @@ jobs:
         echo "$install_dir/bin" >> "$GITHUB_PATH"
         "$install_dir/bin/java" -version
     # Everything this step used to install by hand (the floating `nightly` channel, cargo-binstall, cargo-ndk
-    # and cargo-about) is converged at pinned versions by the step below, `toolchain:install`. The Android
-    # standard library is the one exception, and it has to be installed here: `toolchain:install` observes the
-    # toolchain this step just installed as already at the locked version, reports it unchanged, and so never
-    # reaches the `rustTargets` row of the lock (dry run 42521054342 failed with E0463, "can't find crate for
-    # `core`", for the same reason). The triples are read from that row rather than repeated, and the step ends
-    # by naming any declared triple that did not install, instead of leaving the build to report it.
-    # The lock's `rustComponents` are deliberately not installed: nothing in this job compiles with them.
+    # and cargo-about) is converged at pinned versions by the step below, `toolchain:install`. That step also
+    # adds the `rustTargets` and `rustComponents` the lock declares to a toolchain already at the locked version,
+    # which mpm-shadow does from 0.2.7-alpha.7. An older one reported this toolchain unchanged and never reached
+    # those rows (dry run 42521054342 failed with E0463, "can't find crate for `core`").
     - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
       run: |
@@ -1096,23 +1093,9 @@ jobs:
           nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
           *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
         esac
-        # `--exit-status` also fails on an empty list, so a missing or unreadable row stops the step here.
-        if ! lock_targets=$(jq --raw-output --exit-status '.tools.rust.options.rustTargets // [] | .[]' toolchain.lock.json); then
-          echo "::error::toolchain.lock.json names no readable rustTargets row for the rust tool; the native build needs both 64-bit Android triples."
-          exit 1
-        fi
-        mapfile -t targets <<< "$lock_targets"
         rustup toolchain install "$toolchain" --profile minimal --no-self-update
-        rustup target add --toolchain "$toolchain" "${targets[@]}"
         echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
         rustup run "$toolchain" rustc -Vv
-        installed=$(rustup target list --installed --toolchain "$toolchain")
-        for target in "${targets[@]}"; do
-          if ! grep --quiet --line-regexp --fixed-strings -- "$target" <<< "$installed"; then
-            echo "::error::The $toolchain toolchain has no $target standard library; the native build would fail with E0463."
-            exit 1
-          fi
-        done
 
     # `prepare:android` is a thin alias of `toolchain:install`, which converges the toolchain to
     # toolchain.lock.json and installs the SDK components the app builds against (the `android-sdk` tool's

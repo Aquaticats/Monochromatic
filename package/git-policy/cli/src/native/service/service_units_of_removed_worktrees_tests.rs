@@ -72,6 +72,19 @@ fn a_unit_the_manager_does_not_hold_is_already_stopped_and_any_other_refusal_is_
     assert_eq!(refused.stops().len(), 2, "a refused socket stop still stops the service: {:?}", refused.stops());
 }
 
+/// The state directory the service's journal sits in is read from the journal path the unit passes,
+/// so the service can tell whose units these are from the records of its own journal too;
+/// a journal of another shape names none.
+#[test]
+fn the_state_directory_is_read_from_the_journal_the_unit_passes() {
+    let state: PathBuf = PathBuf::from("/state");
+    let instance: &str = "3f9a3f9a3f9a3f9a3f9a3f9a3f9a3f9a";
+    let journal: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current).join("service").join(instance);
+    assert_eq!(state_dir_of_journal(journal.as_path(), instance), Some(state));
+    assert_eq!(state_dir_of_journal(Path::new("/elsewhere/journal"), instance), None);
+    assert_eq!(state_dir_of_journal(journal.as_path(), "ffffffffffffffffffffffffffffffff"), None, "a journal of another instance names no state directory");
+}
+
 /// A worktree is gone only when its Git directory is missing while the place that holds it is still there:
 /// a repository on a drive that is not mounted proves nothing.
 #[test]

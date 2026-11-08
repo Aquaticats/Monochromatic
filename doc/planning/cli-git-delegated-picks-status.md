@@ -27,7 +27,7 @@ the package docs record that the test images take tools from pacman).
 
 ## Built on `fix/git-policy-cli-branch-write-and-tool-ceilings` (2026-11-04)
 
-Three lines for the answered items above,
+Three lines for the items under the Answered by the owner on 2026-11-04 heading,
 with the owner's words:
 
 - Branch write:
@@ -133,7 +133,7 @@ the unmeasured numbers are still to be replaced by measured values as the logs f
   done on `fix/git-policy-cli-branch-write-and-tool-ceilings`:
   the patience is twice the lock ceiling,
   20 minutes,
-  derived in code (see "Built on" above).
+  derived in code (see the "Built on `fix/git-policy-cli-branch-write-and-tool-ceilings`" section).
 - Picks 8,
   13,
   14,

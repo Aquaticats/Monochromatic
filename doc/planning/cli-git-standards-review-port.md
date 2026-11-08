@@ -113,7 +113,7 @@ Nothing else leaves the machine.
 
 ### What it writes
 
-- One log entry (fields below) appended to the log.
+- One log entry (the review entry fields) appended to the log.
 - Two scratch files,
   `~/temp/agent/shadow-review/<sha12>.diff` and `.candidate`,
   which only the full-review route reads.
@@ -255,7 +255,8 @@ nothing read from the system)
 and `http-body-util`,
 on `tokio` as the wrapper's async runtime.
 The hard constraint "blocking and in-process (the wrapper has no async runtime ...)" and the rejection of `hyper` with
-`hyper-rustls` in the ledger below were written before that ruling and are kept as written.
+`hyper-rustls` in the Ledger under the HTTP client choice heading were written before that ruling
+and are kept as written.
 The prototype and its measurements are in `doc/research/wrapper-git-free-jobs-and-published-crates.md`,
 section "Tokio as the runtime".
 
@@ -409,7 +410,7 @@ a durable work item for a resident consumer:
 - Failure:
   if no consumer runs,
   items wait and the review does not happen.
-  That is visible (see the notice below).
+  That is visible (see the notice under "What the wrapper does and prints").
 - Needs a resident process,
   which the owner has decided on (below).
 
@@ -813,7 +814,7 @@ The tracked `doc/audit/standards-review-gate-shadow.md` stays the switch,
 as `standards_review_input::has_shadow_log` reads it,
 and a commit that changes only that file still gets no entry;
 the service never writes it.
-The text above describes the removed behavior and is kept as the record:
+The text under "Appending to the shared log" describes the removed behavior and is kept as the record:
 the spool (`<git dir>/cli-git/review-entries/`),
 the repair,
 and the never-create rule were dropped

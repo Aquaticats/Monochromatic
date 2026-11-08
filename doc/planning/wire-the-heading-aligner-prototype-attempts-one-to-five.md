@@ -21,7 +21,7 @@ a merged
  pair reports its first chunk's index,
 so the merge that is the whole defect is
  invisible.
-Every result below compares the first non-blank LINE of each side.
+Every result in this document compares the first non-blank LINE of each side.
 
 ### Attempt one: pair preamble with preamble, then offset by one
 

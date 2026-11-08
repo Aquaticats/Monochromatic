@@ -44,6 +44,19 @@ and the entry was added back only after a run against a throwaway agent director
 If that message appears again,
 run that install or remove the entry.
 
+## Claude Code sessions are not covered
+
+At 2026-11-08T17:53:25-05:00 a commit through `/usr/bin/git` in a throwaway repository succeeded from the coordinator's Claude Code session.
+Fed the same PreToolUse payload directly,
+`package/claude-code-plugin/guardrail/bundle/node/index.mjs` denied that command from both the session folder and the repository folder,
+and passed a wrapper command through,
+so the rule itself works.
+`~/.claude/settings.json` holds no entry naming the guardrail,
+and the repository's own `.claude/settings.json` is empty,
+which fits that session not running the bundle.
+Other ways a Claude Code session could load it were not examined.
+Whether to register it is an owner question in `doc/handover/questions-for-the-owner.md`.
+
 ## Open
 
 The first check straight after an install exited with `Unknown provider "neuralwatt"`.

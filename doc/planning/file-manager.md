@@ -8,13 +8,14 @@ Status:
  accepted stack direction.
  Product decisions resolved in a grilling session on 2026-07-05.
  Column-strip virtualization spike built and passed on Linux (2026-07-05);
- see `package/file-manager/app/` and the spike result below.
+ see `package/file-manager/app/` and the `Result (2026-07-05)` note in the Column-strip virtualization spike section.
  Row context-menu spike built and passed on Linux (2026-07-05);
- see the context-menu spike result below.
+ see the `Result: passed on Linux (2026-07-05)` section under Row context menu spike.
  Drag-and-drop spike built on Linux (2026-07-05):
  internal pane-to-pane drag passes;
  OS-native file drag-and-drop is not available in stock Slint on any backend and
- needs a per-OS native adapter (see the drag-and-drop spike result below).
+ needs a per-OS native adapter (see the `Result: internal drag passes, OS file drag-and-drop unavailable (2026-07-05)`
+ section under File drag and drop spike).
  Native default-manager spike not yet run.
  Virtualization and context-menu spikes not yet run on macOS or Windows.
  Authored 2026-07-05.

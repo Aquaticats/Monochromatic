@@ -60,7 +60,7 @@ Larger changes were considered and not built:
 
 - A full-height picker that collapses the deck gives the rail more room.
   It makes the deck change size and takes the playback controls away while choosing,
-  which the deck rules above forbid.
+  which the deck rules in "Constraints a better solution must respect" forbid.
 - Putting the picker in a floating panel is P1 and P3,
   which D46 did not choose.
 - Replacing the rail with sticky letter headers and one-column rows breaks D17.

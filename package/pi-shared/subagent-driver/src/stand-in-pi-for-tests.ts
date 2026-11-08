@@ -1,7 +1,8 @@
 /**
  A stand-in for `pi --mode rpc` that speaks just enough of the protocol to take the driver down each path of a real run.
- `STAND_IN_PI_SCENARIO` picks the behaviour; `STAND_IN_PI_LOG` receives every command it gets, its arguments, and the markers a
- test waits for.
+ `STAND_IN_PI_SCENARIO` picks the behaviour; `STAND_IN_PI_LOG` receives every command it gets, its arguments, the names of the
+ variables it inherited, and the markers a test waits for. It never writes a value from its environment: a log line is a name,
+ because everything a command prints reaches a model provider.
 
  @module
  */
@@ -240,6 +241,12 @@ await appendFile(
 await appendFile(
   log,
   `nested ${env[NESTED_RUN_VARIABLE] ?? 'unset'}\n`,
+);
+// Names only: a test learns what Pi's commands could read without any value reaching a log, and so a model provider.
+await appendFile(
+  log,
+  `environment-names ${JSON.stringify(Object.keys(env,)
+    .toSorted(),)}\n`,
 );
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);

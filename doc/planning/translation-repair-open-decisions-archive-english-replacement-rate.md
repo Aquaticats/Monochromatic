@@ -623,7 +623,7 @@ Measure the window before grading through it.
 An earlier version of this line said E is free and C is not.
 E's SCREEN is free;
 E's re-run is not,
-and the paragraph above prices it.
+and the `WHAT THAT RE-RUN COSTS WENT UP ON 08-16` paragraph prices it.
 C over A because the whole disagreement is about whether the judges are right,
 and C answers that with the calls the run would spend anyway;
 A spends the same

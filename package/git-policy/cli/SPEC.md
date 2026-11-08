@@ -2968,6 +2968,30 @@ on the commit path:
   (the landing sweeps its own batch when it fails,
   the restart when it drops one;
   `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+- A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
+  intent to settle it,
+  and a service instance is a hash of its worktree's Git directory,
+  which no path can be made from,
+  so the
+  landing writes `<batch>.scratch` in its own journal before the import,
+  naming the worktree root and the worktree's own Git
+  directory,
+  and a restart's recovery does what the drop does for a named batch:
+  it keeps the commit the reference holds on
+  `refs/cli-git/kept/<batch>`,
+  removes the reference,
+  and removes the record once the reference is gone.
+  A record that cannot be read,
+  a keep Git refused,
+  a kept reference that names another commit and a reference Git cannot read all leave the
+  reference and the record where they are,
+  and the journal keeps that batch number out of use while the record stays,
+  because the next
+  import of that number would move the reference
+  (`src/native/landing/service_scratch_ref_marker_of_a_batch.rs`).
+  The record is written without a flush,
+  so a power loss
+  rather than a kill can lose it and leave the reference where it was.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -5462,7 +5486,8 @@ Owner,
 "Remove all three (Recommended)" for the CPU,
 task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
-A service that starts and finds the worktree it serves gone stops its own socket and serves nothing:
+A service that finds the worktree it serves gone stops its own socket and serves nothing,
+and it asks when it starts and once a minute while it serves:
 the administrative directory is missing while the repository that held it is there
 (a repository on a drive that is not mounted proves nothing),
 and the note provisioning wrote beside the socket,

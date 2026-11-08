@@ -120,7 +120,7 @@ Cons of B (both variants):
 - `flock` is a hold of this kernel:
   reclaimers on different hosts over a shared filesystem are not serialized,
   and on a
-  filesystem that gives no `flock` the stale lock is not removed at all (see "No `flock`" below);
+  filesystem that gives no `flock` the stale lock is not removed at all (see "No `flock`");
 - Git does not take it,
   but Git never reclaims,
   so it is not a party.
@@ -401,7 +401,7 @@ Used only when the `flock` on the stale file answers that the file system gives 
 `EBADF`).
 `EWOULDBLOCK`,
 `EINTR` and `ENOMEM` are back-offs,
-and any other error is `Unguarded` (see the cross-vendor review below).
+and any other error is `Unguarded` (see `The cross-vendor review of the claim chain`).
 All claims are files beside the lock,
 named `<lock>.cli-reclaim-<key>-<slot>`,
 with a key made from the stale lock's marker (batch,
@@ -665,7 +665,7 @@ This closes the mixed case that the first chain left open (one reclaimer on the 
 another on a claim):
 there is
 one path.
-The sections above that describe the `flock` path (B1,
+The sections that describe the `flock` path (B1,
 "What was built",
 the routing by errno) are history.
 
@@ -729,7 +729,7 @@ Machines cloned with one machine ID cannot be told apart and are judged as one m
 
 Release overlap:
 closed by the marker format,
-see "The third cross-vendor review" below (an earlier release reads no marker in a lock of
+see "The third cross-vendor review" (an earlier release reads no marker in a lock of
 this release,
 and this release leaves every lock in the earlier format).
 
