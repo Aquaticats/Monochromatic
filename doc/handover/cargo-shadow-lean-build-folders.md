@@ -117,6 +117,8 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   `package/cargo-shadow/cli/src/lean_records_wiring_tests.rs` holds the ledger of the sixteen programs that write records,
   with each script and prefix read from the program,
   and fails from a task file alone when a producing task stops sweeping;
+  the ledger is kept by hand,
+  so a program that starts writing records is a ledger line in the same change;
   `--list` runs are recorded as writing nothing.
   The plan assigned D to those packages;
   the owner's answer put all six mechanisms in cargo-shadow,

@@ -8,7 +8,9 @@
 //! a task that stops calling it leaves records that nothing removes.
 //! The ledger below is every such program,
 //! read from the programs themselves;
-//! a program that starts writing records fails the last test until it is listed here.
+//! it is kept by hand,
+//! so a program that starts writing records is added here in the same change,
+//! and the tests then hold its prefixes and the wiring of every task that starts it.
 
 /// Files,
 /// maps and sets,
