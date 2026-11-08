@@ -3171,7 +3171,12 @@ An index another program has locked is not written:
 the private index is refreshed instead,
 so the commit still finishes and the real index keeps its stat data until a later commit can write it.
 `initialize_commit_index` therefore refreshes the person's index and not only a copy,
-as native `git commit` does;
+as native `git commit` does.
+The coordinator kept that choice at 2026-11-08T16:05:00-05:00 (veto open),
+because refreshing only the copy would make every later commit pay the refresh,
+against the owner's "commits vs native git should not take 5s longer.";
+only stat fields change,
+never an entry's content.
 `preparation_leaves_real_refs_index_and_worktree_unchanged`
 (`commit_preparation_tests.rs`) still passes,
 because in its fixture the one changed path is the one Git would not refresh either.
