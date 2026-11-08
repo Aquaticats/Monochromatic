@@ -7506,19 +7506,23 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
     the step runs with `core.hooksPath` at a directory that cannot exist and every commit event switched off.
   - The per-step records (release 0.6.1-alpha.2 onward) hold 14 `git commit` steps,
     31 to 1,002 ms.
-    Three times that is 3 s,
-    which would stop commits that took far longer under load in the same log:
-    the 1,041 `buildMs` of 2026-11-05T03:13:38.961Z to 2026-11-08T03:23:41.536Z peak at 406,024 ms (seven above 60 s),
-    and the build holds the step.
-    Those long builds name no step,
-    so what made them long is unknown.
-  - So the ceiling is the owner's factor applied to the slowest whole build:
+    The first version of this change took three times the slowest whole build (406,024 ms,
+    21 minutes) as a veto-open pick,
+    because three times the step records (3 s) would have failed commits that took 11 to 406 s in the same log.
+    The owner answered on 2026-11-08 ("About 3 s now"):
+    the ceiling is three times the slowest step record,
     `SCRATCH_COMMIT_STEP_CEILING` in `service/wait_ceilings.rs`,
-    3 x 406,024 ms = 1,218.07 s,
-    21 whole minutes.
-    This is the coordinator's pick and is open to the owner's veto;
-    the literal reading (3 s) and the signing-only reading (about 50 ms) both fail "Commits should never fail".
-    Two weeks of step records would tighten it.
+    3 x 1,002 ms = 3,006 ms,
+    with the price named in the option;
+    the long builds of that evening were a retry index without stat data (see "Slow rebuilds and the moved-branch bound"),
+    which is fixed.
+    `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds
+    (the controls that sleep in the step to watch its notices use it,
+    so the production figure does not decide them).
+    Two weeks of step records would sharpen the figure.
+    Also answered 2026-11-08:
+    "Empty locks only (Recommended)" for the unheld index lock,
+    which is what is built.
   - Editor detection is the existing `opens_editor` (`landing/service_commit_args_editor_opening.rs`):
     `-m`,
     `-F`,
@@ -7687,6 +7691,27 @@ though nothing conflicted.
   `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
   The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
   `service_land.rs`) is unchanged.
+
+### Open: a test that failed once in the gate of the three-second ceiling (2026-11-08)
+
+The container gate of branch `fix/git-policy-cli-scratch-step-ceiling-three-seconds` (`native:test:container`,
+8 CPUs,
+8 GiB,
+2048 processes) ran 5399 tests and 5398 passed.
+One failed once and was not rerun:
+`native_binary commit_timing::every_service_line_states_the_time_of_its_event` (`binary_commit_timing_tests.rs`,
+line 534),
+with the text
+"1794113651907 is not between 1794113651472 and 1794113651827:
+monochromatic-git-policy-cli-service:
+rules warmed repository=... warm_ms=111 at_ms=1794113651907".
+The line is the service's rules warm,
+stamped 80 ms after the client command ended;
+the control expects every service line inside the command's own window.
+The same control passed in the four earlier gates of the branch before it.
+Nothing in this change touches the warm or that control,
+so it reads as a timing race between the asynchronous warm and the end of the command.
+Cause not measured.
 
 ### Design stance
 

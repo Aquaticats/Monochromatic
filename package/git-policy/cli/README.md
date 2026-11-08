@@ -2767,15 +2767,21 @@ Each line names what the command waits for,
    and says when the step is stopped.
    When the message came with the command (`-m`,
   `-F`,
-  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (21 minutes,
-  three times the slowest build the timing log holds,
+  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (3,006 ms,
+  three times the slowest of the 14 `git commit` step records,
+  1,002 ms;
   owner,
-  2026-11-07,
-  "limit unless editor"):
+  2026-11-08,
+  "About 3 s now",
+  after "limit unless editor" on 2026-11-07;
+  `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds):
    everything below the command is ended,
    nothing is committed,
    the person's index and files are as they were,
-   and the same command is run again.
+   and the same command can be run again.
+   The owner chose this knowing that on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s;
+   those builds were a retry index without stat data,
+   which is fixed.
    A commit that opens the person's editor prints nothing and has no ceiling.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,

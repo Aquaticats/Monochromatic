@@ -87,21 +87,15 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
     assert!(commit.contains("may_rebuild") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
 }
 
-/// The scratch repository's `git commit` is stopped at three times the slowest build the timing log holds,
-/// in whole minutes:
-/// the owner's margin (2026-11-07,
-/// "three times the slowest measured"),
-/// not the five of the other ceilings,
-/// and the figure is a build,
-/// which holds the step,
-/// so the ceiling can only be looser than the step's own measurement.
+/// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:
+/// the owner's answer of 2026-11-08 ("About 3 s now"),
+/// 3 x 1,002 ms,
+/// with no rounding up.
 #[test]
-fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_measured_build() {
-    let slowest_times_margin: Duration = SLOWEST_MEASURED_COMMIT_BUILD * SCRATCH_COMMIT_STEP_MARGIN;
-    assert!(!SLOWEST_MEASURED_COMMIT_BUILD.is_zero(), "the measurement is recorded beside the ceiling");
-    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, whole_minutes_at_least(slowest_times_margin));
-    assert!(SCRATCH_COMMIT_STEP_CEILING >= slowest_times_margin);
-    assert!(SCRATCH_COMMIT_STEP_CEILING < slowest_times_margin + MINUTE);
+fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_step_record() {
+    assert_eq!(SLOWEST_MEASURED_COMMIT_STEP, Duration::from_millis(1_002), "the figure of the 14 step records");
+    assert_eq!(SCRATCH_COMMIT_STEP_MARGIN, 3);
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SLOWEST_MEASURED_COMMIT_STEP * SCRATCH_COMMIT_STEP_MARGIN);
     let source: &str = include_str!("../commit/commit_preparation.rs");
     assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
 }

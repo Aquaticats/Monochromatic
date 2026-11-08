@@ -140,43 +140,43 @@ pub const LANDING_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from
     LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT.as_millis() as u64 * CEILING_MARGIN as u64,
 ));
 
-/// The longest whole build of a commit (`buildMs`) in this repository's commit timing log.
-/// The build holds the scratch repository's `git commit` step and everything else the client does while it builds,
-/// so it can only overstate that step.
-/// Measured on 2026-11-08 over the 1,041 records of the log written from 2026-11-05T03:13:38.961Z to 2026-11-08T03:23:41.536Z
-/// (median 104 ms,
-/// seven above 60 s):
-/// the longest was 406,024 ms,
-/// of release 0.6.0 at 2026-11-07T18:34:22.063Z.
-/// The log's earlier generation (1,112 records,
-/// 2026-11-03T18:48:29.620Z to 2026-11-07T15:22:17.144Z,
-/// release 0.5.27 to 0.6.0) peaked at 26,729 ms.
-/// The 14 records from release 0.6.1-alpha.2 that name each Git step put the `git commit` step at 31 to 1,002 ms,
-/// and the owner's signing probe on 2026-11-07 signed a commit in 16 ms against 9 ms unsigned,
-/// so neither signing nor hooks (the step runs with every hook off) explains the long builds,
-/// and the records that hold them name no step.
-/// The ceiling is looser than the step's own measurement for that reason,
-/// so it stops no commit that landed in the log.
-pub const SLOWEST_MEASURED_COMMIT_BUILD: Duration = Duration::from_millis(406_024);
+/// The longest `git commit` step of the scratch repository in this repository's commit timing log,
+/// from the per-step records.
+/// Measured on 2026-11-08 over the 14 records of release 0.6.1-alpha.2 onward that name each Git step:
+/// the step took 31 to 1,002 ms,
+/// so the slowest is 1,002 ms.
+/// The owner's signing probe on 2026-11-07 signed a commit in 16 ms against 9 ms unsigned,
+/// and the step runs with every hook off,
+/// so neither signing nor hooks is what makes a step long.
+/// The sample is 14 records,
+/// all from one evening.
+/// Whole builds that took 11 to 406 s on 2026-11-07 are in the log too,
+/// but they name no step;
+/// a retry's private index without stat data made the scratch commit hash the whole work tree,
+/// and that is fixed (`initialize_retry_index`).
+pub const SLOWEST_MEASURED_COMMIT_STEP: Duration = Duration::from_millis(1_002);
 
-/// How many times the slowest measured build the ceiling of the scratch `git commit` is (owner,
+/// How many times the slowest measured step the ceiling of the scratch `git commit` is (owner,
 /// 2026-11-07,
 /// "limit unless editor":
-/// "a ceiling of three times the slowest measured signing time").
-/// The owner's wording names signing,
-/// and signing measured about 5 ms of a step that took 16 ms,
-/// so three times that would stop a commit that took a second under load;
-/// the coordinator's pick is to apply the owner's factor to the whole step's measured time,
-/// as `SLOWEST_MEASURED_COMMIT_BUILD` bounds it from above (open to the owner's veto).
+/// "a ceiling of three times the slowest measured signing time"),
+/// applied to the step's own record (owner,
+/// 2026-11-08,
+/// "About 3 s now":
+/// "Three times the slowest step record (1,002 ms)").
 pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 
 /// The longest the scratch repository's `git commit` runs when the message came with the command (`-m`,
 /// `-F`,
 /// `-C`),
 /// before the wrapper ends it with everything below it:
-/// the slowest measured build times the owner's factor,
-/// in whole minutes (1,218.07 s,
-/// so 21 minutes).
+/// three times the slowest step record,
+/// 3 x 1,002 ms = 3,006 ms (owner,
+/// 2026-11-08,
+/// "About 3 s now").
+/// The owner chose it knowing its price,
+/// which the option named:
+/// on the data of 2026-11-07 it would have failed commits whose builds took 11 to 406 s.
 /// With an editor open the step has no ceiling,
 /// only the waiting notice:
 /// the person is the wait,
@@ -185,15 +185,10 @@ pub const SCRATCH_COMMIT_STEP_MARGIN: u32 = 3;
 /// the step runs in a scratch repository on a private copy of the index,
 /// so the person's index,
 /// files and branch are as they were,
-/// and the message is on the command line to run again.
-/// Limit:
-/// the figure bounds the whole build,
-/// not the step,
-/// because the log that holds the long builds names no step;
-/// two weeks of step records would tighten it.
-pub const SCRATCH_COMMIT_STEP_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(
-    SLOWEST_MEASURED_COMMIT_BUILD.as_millis() as u64 * SCRATCH_COMMIT_STEP_MARGIN as u64,
-));
+/// the message is on the command line,
+/// and the same command can be run again.
+/// `CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS` sets another ceiling in whole seconds.
+pub const SCRATCH_COMMIT_STEP_CEILING: Duration = Duration::from_millis(SLOWEST_MEASURED_COMMIT_STEP.as_millis() as u64 * SCRATCH_COMMIT_STEP_MARGIN as u64);
 
 /// The longest the settling of an earlier service's open batches took in the commit service's journal:
 /// the `settle_ms` of the
