@@ -58,9 +58,15 @@ A command that spells the Git binary by path,
  such as `/usr/bin/git commit`,
  starts the real binary instead,
  so every one of those policies is skipped.
+So does a command that takes the wrapper off the search path:
+`PATH=/usr/bin:$PATH git commit`,
+`export PATH=/usr/bin; git commit`,
+`command -p git commit`,
+`env -i git commit`,
+and `env -u PATH git commit`.
 
 The guardrail therefore blocks a Bash tool call that runs a mutating Git
-subcommand through a path to a real Git binary.
+subcommand outside that wrapper.
  The refusal names the subcommand to run instead:
 
 ```sh
@@ -72,7 +78,9 @@ git -C <repository-root> commit -m "message" path/to/file
 Without `-C`,
  plain `git` works from the repository root.
 
-Read-only probes through the same absolute path stay allowed,
+Read-only probes through the same absolute path,
+ or under any of those search-path forms,
+ stay allowed,
  because they change nothing:
  `status`,
  `log`,
@@ -95,6 +103,11 @@ The check parses shell grammar rather than matching text,
  `sudo`,
  `timeout`,
  or a shell `-c` string do not hide a mutation.
+
+A Git path that only the shell knows at run time stays undetected:
+`bash -c "$CMD commit"` and `G=/usr/bin/git; $G commit` are not refused,
+because the check reads command text and runs no shell evaluator.
+The shared analyzer README lists every undetected form.
 
 Unlike the `bun test` guard,
  this one has no config switch:
