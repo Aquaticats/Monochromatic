@@ -1,7 +1,8 @@
 //! What:
 //! `install`:
 //! install every locked tool that is not already at its locked version,
-//! in dependency order,
+//! add the components and
+//!           targets the lock declares to a Rust toolchain that is,
 //! then make
 //!           the postinstall links,
 //! rebuild the exposure directory and run the postinstall commands.
@@ -44,6 +45,8 @@ use super::postinstall_links::sync_postinstall_links;
 use super::http::HttpGet;
 /// Imports `install_tool` from `super::install`.
 use super::install::install_tool;
+/// Imports `reconcile_rust_parts` from `super::install_rust_android`.
+use super::install_rust_android::reconcile_rust_parts;
 /// Imports `applies_to_family` from `super::layout`.
 use super::layout::applies_to_family;
 /// Imports what this module uses from `super::load`.
@@ -131,6 +134,10 @@ pub struct SyncReport {
     pub unchanged: Vec<String>,
     /// Tool ids installed by this run.
     pub installed: Vec<String>,
+    /// One sentence per declared Rust component or target this run added to a toolchain it did not install
+    /// (one another program put at the locked version,
+    /// which `install_tool` never sees).
+    pub reconciled: Vec<String>,
     /// Tool id and failure text.
     pub failed: Vec<(String, String)>,
     /// Declared bin names without a resolving link.
@@ -232,7 +239,17 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             {
                 report.failed.push((tool.declaration.id.clone(), error.message));
             }
-            report.unchanged.push(tool.declaration.id.clone());
+            // A toolchain another program installed is already at its version, so the install path (the only place
+            // that applied the lock's component and target rows) never runs; the rows are reconciled here instead,
+            // which asks `rustup` what it holds and adds nothing on a machine that already has every part.
+            match reconcile_rust_parts(ctx, tool) {
+                Ok(added) if !added.is_empty() => {
+                    report.reconciled.extend(added);
+                    report.installed.push(tool.declaration.id.clone());
+                }
+                Ok(_) => report.unchanged.push(tool.declaration.id.clone()),
+                Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
+            }
             continue;
         }
         match install_tool(ctx, tool) {

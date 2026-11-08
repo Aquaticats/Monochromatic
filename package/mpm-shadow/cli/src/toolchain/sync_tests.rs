@@ -149,6 +149,7 @@ fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.unchanged, vec!["rust".to_string()]);
     assert!(report.installed.is_empty(), "{report:?}");
+    assert!(report.reconciled.is_empty(), "nothing was added, so nothing is reported as added: {report:?}");
     let lines = rig.runner.lines();
     assert!(
         !lines.iter().any(|line| return line.contains(" add ")),
