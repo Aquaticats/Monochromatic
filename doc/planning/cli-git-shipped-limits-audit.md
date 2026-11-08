@@ -3775,7 +3775,20 @@ each with its measurement beside it:
   `SERVICE_HOLD_CEILING` 10 minutes
   (measured,
   with the margins given at each entry above).
-- `LOCK_CEILING` 10 minutes and `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds:
+- `LOCK_CEILING` 10 minutes:
+  measured on 2026-11-08 from the commit timing log (1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z).
+  The six logged waits for another program's hold on the index were two that landed after 3,636
+  and 23,783 ms of answer time and four queued behind the lock that never went on 2026-11-07
+  (62 waiting notices each, 644,710 to 1,200,776 ms, every one stopped).
+  No wait a holder released came near the ten minutes, and the longest of those four is just past the client's
+  twenty-minute `ANSWER_CEILING`.
+  No wait takes it:
+  it stays as the basis of `FOREIGN_OWNER_PATIENCE` (twice this), which another change owns,
+  and the three waits it once bounded take `MERGE_LOCK_CEILING`, `SETTLE_LOCK_CEILING` and
+  `RECONCILE_LOCK_CEILING`, one minute each.
+  See "The lock ceiling and the three waits it fed" in the measurement record.
+- `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds:
   unmeasured,
   labelled as the quiet windows are.
 - `PHASE_PATIENCE` 5 minutes:
@@ -4739,6 +4752,101 @@ it ran one fixture service and sleeping hooks.
   later runs in the same process reuse freed memory and
   grew less.
 
+### The lock ceiling and the three waits it fed (2026-11-08T16:01:42-05:00)
+
+Item 5 of the queue audit asked for the measurement `LOCK_CEILING` never had,
+and for the three waits once derived from it:
+the merge,
+the settling of earlier batches and the index reconciliation of a commit whose corrections removed every change.
+By this date none of the three takes `LOCK_CEILING` any more:
+each takes a ceiling of its own beside it in `src/native/service/wait_ceilings.rs`
+(`MERGE_LOCK_CEILING`,
+`SETTLE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING`, one minute each),
+and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
+(`src/native/process/pid_namespace.rs`).
+
+- Command:
+  read-only reads of both generations of the commit timing log,
+  `<common Git dir>/monochromatic-git-policy-cli-commit-timing.jsonl` and its `.1`
+  (the file moves aside at one mebibyte and keeps one generation),
+  by a scratch script under `${HOME}/temp/agent/lock-ceiling`, not committed.
+  No journal was read for this measurement and nothing was written to the repository.
+- Window and count:
+  1,332 records from 2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
+  from 102 worktrees and releases 0.5.34 to 0.6.1-alpha.4:
+  1,307 landed,
+  23 stopped and 2 ended.
+  The file grows as commits land, so a later read counts more;
+  anything before 2026-11-05T03:13:38Z was replaced at the rotation and is not in the sample.
+- Whole commands (`totalMs`, milliseconds), 1,332 records:
+  p50 1,214,
+  p90 13,300,
+  p99 58,782,
+  longest 1,228,797.
+  The answer wait (`answerWaitMs`, which holds the queue, another program's hold on the index and the landing):
+  p50 109,
+  p99 14,875,
+  longest 1,200,776.
+  The preparation (`prepareMs`, which holds the reconciliation when it runs):
+  p50 379,
+  p99 21,878,
+  longest 230,525.
+  The work after the landing (`afterLandingMs`): at most 7,856.
+- The waits for another program's hold on the index, the population these ceilings are about:
+  six records hold a waiting notice.
+  Two landed, after 3,636 and 23,783 ms of answer time.
+  Five of the six ended with a notice whose holder kind was `unproven`,
+  the sixth with one that named no kind,
+  and no notice in the sample ever proved a holder alive.
+  The other four are the commits queued behind the lock that never went on 2026-11-07:
+  they stopped after 644,710,
+  756,215,
+  1,087,175 and 1,200,776 ms of answer wait,
+  which is the 678 to 1,229 s the handover recorded when the same four are measured as whole commands
+  (678,557 to 1,228,797 ms).
+- Under load:
+  the reading ran at load average 115.9 of 32 threads (`/proc/loadavg`),
+  and the records were taken by up to 182 commits an hour of this repository.
+  Grouped by how many other commits of this repository started within a minute of each landed record:
+  alone (278 records) p99 23,783 ms and longest 38,310;
+  1 to 3 others (611) p99 11,842 and longest 23,739;
+  4 to 9 (261) p99 7,895 and longest 38,545;
+  10 or more (157) p99 5,918 and longest 46,061.
+  The busiest group is not the slowest,
+  so this log's own concurrency does not separate a loaded hour from a quiet one,
+  and the spread of the four groups (p99 5.9 to 23.8 s) is not evidence of a load effect either way.
+- What the log cannot measure:
+  the merge and the settling of earlier batches write no record at all.
+  A merge is forwarded and never reaches the commit command's timing (`CommitTiming::start` is in
+  `src/native/commit/commit_command.rs` alone),
+  and 278 merge commits were made in the window without one;
+  the settling is the management command `service settle-earlier-batches`.
+  The reconciliation runs in the client's preparation, and no record of the window names the `git reset` it runs,
+  so it did not run in this sample.
+  Each of the three keeps the sample its own entry already names:
+  the landing's journal waits for the merge's and the reconciliation's ceiling,
+  and the journal's `settle_ms` for the settle's.
+- What it says about the ten minutes:
+  no wait that a holder released came near it.
+  The largest self-released wait in the log is under 23,783 ms of answer time,
+  and the file's five-times margin over the journal's 8 s is the one minute those ceilings take;
+  ten minutes is 25 times the log's largest self-released wait.
+  The four waits that passed a minute are the ones where nothing proved a live holder:
+  they stopped at the client's twenty-minute `ANSWER_CEILING` (1,200,776 ms in the longest),
+  which is the measured price of bounding one wait and not the command that waits again.
+- Figure this measurement would pick,
+  recorded and not applied, because the owner decides limits case by case:
+  one minute for the merge's wait, which is the value shipped;
+  two minutes if the file's five-times margin were applied to the log's 23,783 ms instead of the journal's 8 s,
+  which that figure does not justify, since it is the whole answer wait and not a measured wait for a lock.
+  Twice the merge's wait would make `FOREIGN_OWNER_PATIENCE` two minutes rather than the twenty it ships;
+  that constant is left as it is, because another change owns it,
+  and its stated basis no longer holds.
+- Limit of the data:
+  one repository on one host,
+  one generation of the log,
+  and five of the six waits are the same incident.
+
 ## Counts
 
 The limit sections hold 73 limits (a grouped entry,
@@ -4848,6 +4956,13 @@ the first count is unchanged and describes main at the audited commit.
   Git child steps
   and tool deadlines,
   the index-lock holder wait and the service waits.
+- Closed after that count (2026-11-08):
+  the four ceilings of the foreign-holder waits are cited,
+  `LOCK_CEILING` 10 minutes,
+  `MERGE_LOCK_CEILING`,
+  `SETTLE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING` one minute each,
+  and no wait takes the ten minutes any more;
+  the measurement is "The lock ceiling and the three waits it fed" in the measurement record.
 
 ### Uncited limits
 
