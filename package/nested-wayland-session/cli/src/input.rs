@@ -10,6 +10,18 @@
 //!  Coordinates are logical;
 //!  keys are evdev codes
 //! (translated to the xkb keycode system by adding the 8-offset winit also applies).
+//!
+//! Every click writes one `info` line naming the surface the hit test found,
+//!  the number of windows on
+//! screen and the cursor the hosted client last asked for,
+//!  then a second one naming the surface the seat
+//! kept the pointer focus on.
+//!  A click that changes nothing in the client can then be read from this side of the
+//! boundary:
+//!  no surface under the point,
+//!  a point over a client-drawn popup that takes no input,
+//!  and a
+//! press delivered to a client that had already taken the pointer there are three different stories.
 
 /// What:
 ///      Grouped `use` of the input state enums,
@@ -30,6 +42,7 @@ use smithay::{
         keyboard::{FilterResult, Keycode, KeysymHandle, ModifiersState},
         pointer::{ButtonEvent, MotionEvent},
     },
+    reexports::wayland_server::Resource,
     utils::{Logical, Point, SERIAL_COUNTER},
 };
 
@@ -107,6 +120,28 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     // Why:      Motion sets the pointer focus to whatever is under the cursor.
     let under = state.surface_under(location);
 
+    // What:     `let hit = under.as_ref().map(|(surface, point)| (surface.id().protocol_id(),
+    //           point.x, point.y));`. The protocol id of the hit surface with its origin.
+    // Why:      `WlSurface` prints no useful identity, and the protocol id matches the ids the
+    //           hosted client's own `WAYLAND_DEBUG` lines carry.
+    let hit = under
+        .as_ref()
+        .map(|(surface, point)| (surface.id().protocol_id(), point.x, point.y));
+
+    // What:     `tracing::info!` with the point, the hit, the window count, and the cursor the
+    //           hosted client last asked for.
+    // Why:      The end-to-end failure file keeps this line beside the app's own log, so a click
+    //           that changed nothing says whether the seat had a target at all and whether the app
+    //           had already taken the pointer there.
+    tracing::info!(
+        x,
+        y,
+        hit = ?hit,
+        windows = state.space.elements().count(),
+        cursor = %crate::control_session::describe_cursor(&state.cursor_image),
+        "sending a click: motion, press and release",
+    );
+
     // What:     `let time = event_time(state);`. Timestamp for all three events.
     // Why:      Consistent timing across the click.
     let time = event_time(state);
@@ -172,6 +207,17 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     // Why:      The record must match what the seat delivered, or a later `button up` would
     //           answer `ok` for a button the seat no longer holds.
     state.held_pointer_buttons.release(code);
+
+    // What:     `tracing::info!` with the surface the pointer focus ended on, read after the
+    //           release.
+    // Why:      A button event reaches a client only through the pointer's focus, so a click that
+    //           left the seat focused on nothing was delivered to nobody whatever the hit test found.
+    tracing::info!(
+        focus = ?pointer
+            .current_focus()
+            .map(|surface| surface.id().protocol_id()),
+        "the click left the seat's pointer focus",
+    );
 }
 
 /// Send one keyboard key event (press or release) through the seat's keyboard.
