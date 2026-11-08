@@ -109,29 +109,29 @@ default").
 Threads count against `pids.max`,
 and browsers and package managers start many.
 
-Update 2026-11-08T16:49:36-05:00:
+Update 2026-11-08T17:10:51-05:00:
 every size marked "adopted" now says beside it whether the repository holds a measurement of that site's own
 workload,
 because the audit of the queue
 (`queue-audit-report.md`,
 item 16)
-found that some numbers came from a sibling
-package's documentation.
-The check was `rg` over `doc/`,
-the comments beside each size in this inventory,
-and the package tasks that set the size,
-looking for a recorded peak of the site's own run (`memory.peak`,
-`pids.peak`,
+found that some numbers came from a sibling package's documentation.
+What was searched:
+every Markdown file under `doc/` for each site's workload name beside a peak,
 RSS,
-or an OOM record).
-It found none:
-every adopted size is still a sibling's documented figure or the `podman run` default,
-and three sites say so in their own comments
+OOM or `memory.peak` term,
+uncapped,
+and the comment beside each size in this inventory and in the task that sets it.
+What that search found:
+no adopted size is backed by a measurement of its own bounded run.
+Three sites say so in their own comments
 (`mise.toml:350`,
 `package/browserslist/core-rust/bin/regenerate-conformance.ts`,
 `package/test-harness/core-matrix/src/container.ts`).
-The one record of a site's own workload is the matrix cell's growth to 42 GB RSS and the OOM kill of 2026-10-26,
-which records the unbounded failure rather than the peak of a bounded run.
+The one own-workload record is the matrix cell's growth to 42 GB RSS and the OOM kill of 2026-10-26,
+which records the unbounded failure and says nothing about the cell's CPU or process caps.
+Those searches cannot prove that no measurement exists outside the files they read,
+so "unmeasured here" means "none found in `doc/` or beside the size".
 No container was built or started for this check;
 `## What each adopted size would need measured` lists the runs that would take.
 
@@ -371,12 +371,16 @@ Builds get the memory and CPU bound only.
 
 ## What each adopted size would need measured
 
-One real run per site,
-at the site's own command,
-started in its own scope with its own bound,
-reading the container's `memory.peak`,
-the CPU time in `cpu.stat` and its `pids.peak` from the cgroup the run creates,
-then writing the three figures here beside the size and the command that produced them.
+What each one needs is a measurement of that site's own workload under its own bound,
+from a representative run and recorded beside the size with the command that produced it:
+the container cgroup's `memory.peak`,
+whether the run reached its bound (a limit hit shows in the run's own error or in `pids.current` reaching
+`pids.max`),
+the elapsed time and the CPU throttling in `cpu.stat`,
+and which workload variants the run covered,
+because one short run does not establish that a bound is adequate.
+`AGENTS.md` rule LQM asks for a workload measurement or an owner decision beside a shipped limit,
+and rule NQH keeps the measurement at the load the host already has.
 The audit that produced this list
 (`queue-audit-report.md`,
 item 16)
@@ -389,15 +393,16 @@ those runs are the separate work.
 - The `containerCargo` cargo build of `package/music-player/desktop-app`
   (build,
   clippy and nextest),
-  whose bound was copied from that package's Alpine guard,
-  and its Windows GNU leg.
+  whose bound was copied from that package's Alpine guard.
+  Its Windows GNU leg stays paused with the rest of Windows.
 - The music player's icon and signing one-shot tool containers,
   whose bound was copied from `vm-builder` `image:check`.
 - The `test-harness/core` `test:browser` run,
   whose 2048 processes is the Podman default.
 - One matrix cell of `package/test-harness/core-matrix`,
-  remembering that a cell is the one site already known to have grown to 42 GB RSS unbounded,
-  and that its 2048 processes is the Podman default.
+  which bounds every cell from the one `CELL_LIMITS` constant and is the one site already known to have grown to
+  42 GB RSS unbounded,
+  with 2048 processes that is the Podman default.
 - The `upstream-fork/conf` and `deepmerge-ts.fuzz` container runs,
   whose 512 processes is the mutation runner's constant.
 - The `config/pnpr` verification containers,

@@ -4116,20 +4116,25 @@ Remaining:
   a link (`Journal::load` uses `read_to_string`);
 - the `node_modules` links that point nowhere are counted (read only,
   nothing relinked,
-  2026-11-08T16:49:36-05:00):
+  2026-11-08T17:10:51-05:00):
   of 358 registered worktrees,
-  228 hold a `node_modules` and 122 hold none,
-  8 registrations named a folder that did not exist yet
-  (the wrapper registers a worktree before its folder appears;
-  other sessions were adding and removing worktrees while the sweep ran,
-  and a listing minutes later named 8 other paths),
-  and 153 of the 228 hold at least one dangling link,
-  16,139 links in all,
-  over 46,185 `node_modules` folders and 457,394 symlinks.
-  Sampling 304 of the 16,139 links found 254 pointing into the pnpm global store's `<name>/<version>/<hash>` folders
-  and 50 into a local `node_modules/.pnpm/<name>@<version>` folder,
-  every one of them gone,
-  which is the failure this bullet expected;
+  239 hold a `node_modules` that could be read and 110 hold none,
+  9 registrations named a folder that did not exist while the sweep ran,
+  and 172 of the 239 hold at least one dangling link,
+  16,177 links in all,
+  over 50,310 `node_modules` folders and 489,365 symlinks,
+  with no walk refused or failed.
+  The registry moved under the sweep:
+  an earlier run at 16:49,
+  before the counter also covered a `node_modules` that is itself a symlink and a walk that failed,
+  found 228 readable worktrees,
+  153 of them dangling and 16,139 links.
+  Other sessions created and removed worktrees between the two runs,
+  so that difference mixes the counter's wider reach with their churn,
+  and both totals are snapshots of one moment rather than a fixed property of the checkout.
+  A sample of 304 of the 16,177 links resolved by text names the pnpm global store's
+  `<name>/<version>/<hash>` folder for 254 of them and a local `node_modules/.pnpm/<name>@<version>` folder for 50,
+  and by `find -xtype l` none of those targets resolves;
   the counts cluster at 3,
   4 and 11 links,
   and at 289 to 328.
@@ -4139,13 +4144,15 @@ Remaining:
   `package/search-fetch/pi-plugin` and `package/search-fetch/mcp`.
   The sweep was `find <worktree>/node_modules -xtype l`,
   plus the same over every `package/*/*/node_modules` folder,
-  and a planted broken link proved it reports one;
+  and the counter was first shown to report a planted broken link,
+  a root `node_modules` that is itself a dangling symlink,
+  a `node_modules` that is a symlink to the folder holding a broken link,
+  and a walk refused for permission;
   its script and listing are `${HOME}/temp/agent/node-modules-dangling-count/`
-  (`dangling-per-worktree.tsv` has one row per worktree,
-  `report.jsonl` every dangling path).
+  (`report.jsonl` has every dangling path and any failed walk).
+  It does not read a worktree's creation date or the wrapper version that made it,
+  so these totals say nothing about which repair each worktree predates.
   Relinking a worktree another session owns still waits on the owner's word.
-  The package repair shipped in 0.5.21 is the change the record expected to keep new worktrees out of this state,
-  so the count above covers worktrees made before that repair.
 
 ### Worktree add follow-ups
 
@@ -4365,9 +4372,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   as that section locates it),
   so the item resumes there in that section when the owner lifts the pause.
 - The Windows checks are paused by that same sentence:
-  `doc/handover/cli-git-native-pathbytes.md` and
-  `doc/handover/cli-git-native-signals.md` both record `native:clippy:windows` as compiling the Windows
-  code and never running it.
+  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not installed,
+  and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
+  Windows branch without ever running it.
   The release-artifact performance gate is closed instead of paused.
   It is the `native:perf` task,
   which measures the added latency of the release binary against paired direct Git within the limits its
@@ -4378,6 +4385,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   the release record of 2026-11-07T22:11:47-05:00,
   under its "Latency" bullet,
   with the same-binary spread the comparison needs.
+  A search of `doc/` and `.github/workflows` for `release-artifact`,
+  `release performance` and `perf` found no other definition of that gate,
+  so `native:perf` is the gate the older item named.
 - Long fuzz campaigns stay open.
   Neither recorded pause names them:
   one covers Windows and macOS ("Ignore Win and mac until I say so."),
@@ -4394,11 +4404,15 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900` three times on 2026-10-15,
   and each exited 1 (11:38,
   11:45 and 12:53:55,
-  the last after 57 minutes and 20 seconds of wall clock),
+  the last after 57 minutes and 20 seconds of wall clock,
+  from `journalctl --user --unit=cli-git-fuzz-campaign`),
   its log `fuzz-campaign-20261015.log` is gone from `${HOME}/temp/agent`,
-  and no crash or total from it is recorded anywhere.
-  What starts it is that same command,
-  with the totals recorded here.
+  and no crash or total from it appears in `doc/` or in the fuzz sidecar's records,
+  which is everything searched.
+  The journal does not show which step failed,
+  so it does not say whether fuzzing ever started.
+  `doc/handover/cli-git-native-replay-core.md` is where the campaign's next result goes;
+  it is started by that same command.
 - Mutation campaigns of non-core modules are paused by the owner's 2026-11-04 pause:
   the owner asked "We're not close to doing mutation runs though,
   right?
@@ -4431,13 +4445,13 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
   2026-11-04 pause.
   The rerun was waiting on a multi-pass control,
-  and the control exists now:
+  and the two controls the record asked for exist now:
   `commit_convergence_tests::stored_states_compare_equal_exactly_when_the_corrected_bytes_match` drives
   `snapshots_equal` through two corrections,
-  and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports,
-  so only the campaign remains.
-  The coordinator's task list that names these as 24,
-  25 and 29 is not in the repository,
+  and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
+  Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
+  so the pause is the only thing that keeps this open,
+  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
   so what those numbers cover beyond this item is unverified here.
 - macOS is not a release target (the GitHub release carries Linux assets only);
   the `native_binary` tests still fail there (`/dev/full` is absent,
