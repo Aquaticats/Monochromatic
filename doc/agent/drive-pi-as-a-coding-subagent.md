@@ -128,7 +128,7 @@ and `.agents/skills/pi-as-subagent/SKILL.md` has the command to start a run.
 Tail the feed through `jq` and let the Monitor tool turn each line into a notification:
 
 ```sh
-tail -n 0 -f feed_impl.jsonl | jq --unbuffered --raw-output \
+tail -n 0 -f <run>/feed.jsonl | jq --unbuffered --raw-output \
   'select(.kind=="tool_start" or .kind=="tool_end" or .kind=="assistant" or .kind=="settled" or .kind=="dialog") |
    "\(.t) \(.kind) \(.tool // "") \(.isError // "") \(.args // .result // .text // "" | tostring | .[0:220])"'
 ```
