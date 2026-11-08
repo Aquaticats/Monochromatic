@@ -3500,16 +3500,32 @@ Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `0ab4fa
 11 skipped;
 host Clippy clean,
 package lint 0 errors and 0 warnings with the closure check run.
-The failure is the one main already has:
-`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+The failure is `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
 `no address-space limit stopped a commit, so the limits tested nothing (service starts at 110, commit lands at 110)`.
-It stays red until the fix of the startup rules warm is in main;
-T10 is not merged before it passes.
-Whether the band between the smallest limit that starts the service and the smallest that lands a commit can still exist
-once the runtime is built at start is open:
-the runtime's plan sizes its workers to the limit,
-so everything a commit needs from threads is reserved when the service starts,
-and an empty band would be a service that is safer under exhaustion and a control whose premise is gone.
+It is not the failure main had.
+Main's was a bisect that met the one lethal limit where the last thread's alternative signal stack cannot be allocated
+(fixed in main at `5083511eed`,
+merged into this branch at `325e2608ea`);
+T10's persists after that merge (same test,
+`starts at 113, commit lands at 113` on the merged tree),
+so the two are separate incidents.
+The cause of T10's is its design:
+the runtime is built when the acceptor starts,
+its plan keeps `ADDRESS_SPACE_RESERVE_BYTES` (64 MiB) back when it sizes workers,
+and so at the smallest limit under which the service greets a client the headroom for everything a commit needs afterward is already reserved;
+the band between "starts" and "lands" that the sweep needs is empty.
+This is a choice for the owner or the coordinator (the brief says the gate must pass it),
+with a ranking in the report that closes this step:
+B (the sweep accepts an empty band,
+because the control `a_service_that_ends_before_it_listens_leaves_a_recoverable_repository` now in main proves the below-start case) >
+A (move the exhaustion to a resource T10 added a refusal path for,
+a blocking-pool thread refused under `pids.max`,
+with a positive control that the refusal fires) >
+C (shrink the reserve until a band exists,
+which weakens the service under exhaustion for the sake of a control).
+The merge of main into the branch was not re-gated:
+the host runs of the fault controls and the connection control on the merged tree are the evidence (9 of 10 pass,
+the one above fails).
 
 Latency (`native:perf`'s own tool,
 three alternating rounds,

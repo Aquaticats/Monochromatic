@@ -103,11 +103,17 @@
   from main at `f2a90d3fe2`,
   NOT merged:
   its container gate has one failure,
-  the one main already has (`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
-  `no address-space limit stopped a commit, so the limits tested nothing (service starts at 110, commit lands at 110)`),
-  which waits for the startup rules warm fix (`service/service_main.rs`,
-  `landing/service_rules_precompile.rs`,
-  another agent's).
+`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`
+(`no address-space limit stopped a commit ... service starts at 110, commit lands at 110`),
+which is T10's own (the runtime is built at the acceptor with a 64 MiB reserve,
+  so the band the sweep needs is empty),
+not the lethal-limit failure main had (fixed at `5083511eed`,
+  merged into the branch at `325e2608ea`;
+the failure persists after it).
+The choice is the coordinator's:
+the plan,
+"Step T10,
+  Gate of T10".
   Done in it:
   the landing's per-thread state in a task-local scope,
   the acceptor and every connection as tasks,
