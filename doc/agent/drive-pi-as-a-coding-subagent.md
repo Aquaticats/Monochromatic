@@ -262,9 +262,10 @@ note({ kind: 'commands', names: commandNames });
 
 const firstPrompt = readFileSync(promptFile, 'utf8');
 const firstResponse = await send({ type: 'prompt', message: firstPrompt });
-note({ kind: 'prompt_sent', success: firstResponse.success, error: firstResponse.error ?? null, chars: firstPrompt.length });
+const disposition = ((firstResponse.data ?? {}) as Record<string, unknown>).disposition;
+note({ kind: 'prompt_sent', success: firstResponse.success, disposition, error: firstResponse.error ?? null, chars: firstPrompt.length });
 // A handled prompt starts no run, so no agent_settled follows it.
-if (((firstResponse.data ?? {}) as Record<string, unknown>).disposition === 'handled') settled += 1;
+if (disposition === 'handled') settled += 1;
 
 let endReason = firstResponse.success === false ? 'prompt-rejected' : '';
 while (!exited && endReason === '') {
@@ -671,9 +672,21 @@ A message dropped during a tool call went as a steer,
 one dropped after settling went as a new prompt,
 and a new unit with `PI_SESSION` resumed the session and named the commands from its first prompt.
 
-Not run:
-a `PI_SESSION` path holding a space,
-and a first prompt that Pi answers with the disposition `handled`.
+The two paths that left unrun went against the real Pi at 2026-11-08T13:52:56-05:00,
+each beside a control that had to behave differently.
+
+A session file whose path holds spaces resumed through `PI_SESSION`:
+the session held five user messages and the model named the commands from its first prompt.
+The same path through `PI_EXTRA_ARGS` was split on the spaces.
+Pi opened a new session in a file named for the first word,
+exited 0,
+and the model replied that the session held no such request,
+so that route fails silently.
+
+A prompt consumed by a one-line extension command came back with the disposition `handled` and no `agent_settled`.
+The driver ended with `idle` and status 0 after 9 seconds.
+With the line that counts a handled prompt removed,
+the same run went to its 45-second wall clock and ended with `wall-clock` and status 1.
 
 ## Tool and feed quirks
 

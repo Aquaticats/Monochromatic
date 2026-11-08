@@ -112,7 +112,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 8.  For a follow-up after the driver has exited,
     start the same unit under a new name and tag,
-    with a new prompt file and `--setenv=PI_SESSION=<session file>`.
+    with a new prompt file and `--setenv=PI_SESSION="<session file>"`.
 9.  Review the diff as the lead,
     regenerate anything `file-enforcer` owns,
     and commit.
