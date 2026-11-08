@@ -36,7 +36,8 @@ use crate::transaction_journal::TransactionMode;
 /// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
 use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
-/// The note of how each build was made, which the commit's timing record takes.
+/// The note of how each build was made,
+/// which the commit's timing record takes.
 use crate::commit_index_builds::{IndexBuildKind, note_index_build};
 /// Real-Git command builder shared with the forwarded commands.
 use crate::forwarding::git_command;
@@ -221,8 +222,7 @@ pub fn initialize_commit_index(
         // slower way, from the base alone.
         let seeded: bool = seeds_private_index(indexes.captured_index.as_path());
         // A private index built without the real index's stat data makes the scratch commit hash every file (233 MB of LFS content
-        //  here), so which way it was built is on record for the next slow build.
-        crate::diagnostic_log::debug("initializeCommitIndex", format!("private index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
+        //  here), so which way it was built goes into the commit's timing record, which is written on every commit.
         note_index_build(IndexBuildKind::First, seeded);
         if seeded {
             copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
@@ -278,7 +278,6 @@ pub fn initialize_commit_index(
 pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
     let mut arguments: Vec<String> = vec![String::from("read-tree")];
     let seeded: bool = real_index.exists() && seeds_private_index(real_index);
-    crate::diagnostic_log::debug("initializeRetryIndex", format!("retry index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
     note_index_build(IndexBuildKind::Retry, seeded);
     if seeded {
         copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;

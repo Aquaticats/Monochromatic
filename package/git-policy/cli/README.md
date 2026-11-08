@@ -4546,7 +4546,8 @@ all durations in whole milliseconds taken from the monotonic clock:
   so every entry its tree shares with the real index kept its cached stat data.
   A build from the base or the tree alone holds none,
   and the scratch `git commit` then hashes every file of the work tree
-  (233,618,538 bytes of LFS content cleaned and 3.6 s, measured on 2026-11-07).
+  (233,618,538 bytes of LFS content cleaned and 3.6 s,
+  measured on 2026-11-07).
   The list is empty for a commit that built no index,
   so a reader never has to tell a missing field from a commit that stopped first.
 - `submitMs` contains `reachMs`,

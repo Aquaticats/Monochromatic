@@ -132,7 +132,8 @@ pub fn index_builds_json(builds: &[IndexBuild]) -> String {
     return format!("[{}]", members.join(","));
 }
 
-/// The ledger, its order and its escaping are kept as controls in the test module beside it.
+/// The ledger,
+/// its order and its escaping are kept as controls in the test module beside it.
 #[cfg(test)]
 #[path = "commit_index_builds_tests.rs"]
 mod tests;

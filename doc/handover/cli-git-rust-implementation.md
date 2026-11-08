@@ -7850,17 +7850,33 @@ though nothing conflicted.
   so the retry path does not account for it.
   The candidates are an index that could not seed (`seeds_private_index` false at that moment) and I/O contention
   (the scratch Git sat in `D` state on a full block queue at load average 38).
-  Both ways of building the index now leave a debug line (`initializeCommitIndex`,
-  `initializeRetryIndex`) saying whether the stat data was kept;
-  a trace of the next slow first build is still wanted.
+  Both ways of building the index wrote a debug line (`initializeCommitIndex`,
+  `initializeRetryIndex`) saying whether the stat data was kept.
   Gap found 2026-11-08:
-  those lines are written only when `MONOCHROMATIC_VERBOSE` is set (`foundation/diagnostic_log.rs`),
+  those lines were written only when `MONOCHROMATIC_VERBOSE` is set (`foundation/diagnostic_log.rs`),
   which nothing sets in normal use,
-  and the journal since 01:00 that day holds none of them,
-  so the wanted trace is never collected.
-  Queued after the move to the 860:
-  the commit timing record gains whether each index build kept the stat data
-  (the record is written on every commit).
+  and the journal since 01:00 that day held none of them,
+  so the wanted trace was never collected.
+  Built 2026-11-08 (commit `db2ebe604d`,
+  branch `feat/git-policy-cli-timing-record-stat-data-kept`):
+  the commit timing record,
+  which is written on every commit,
+  states `indexBuilds`,
+  one entry per build of the private index in the order built,
+  each with `kind` (`first`,
+  or `retry` after the branch moved) and `statDataKept`,
+  which is the fact the wanted trace would have shown.
+  The fact is noted where `commit_index.rs` decides how to build the index (`commit_index_builds.rs`),
+  and the two debug lines above are gone.
+  Controls:
+  `commit_index_builds` runs every way of building an index,
+  including both ways of building a retry,
+  and asks the built index with `git ls-files --debug` whether its entries hold stat data;
+  `a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it` reads the record of a real commit.
+  Still wanted:
+  the trace of a slow first build (the record now answers the question it was wanted for),
+  and a record of a moving-branch commit to show a `retry` entry,
+  which only unit controls prove today.
   Since 0.6.1-alpha.4 no commit of the main checkout has had a build over 20 s
   (the record's largest since then is under that;
   the 26,396 ms build at 05:49:59Z ran on the earlier release).

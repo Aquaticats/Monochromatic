@@ -156,3 +156,55 @@ fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
     assert!(!listing.contains(UNSET_MODIFICATION_TIME), "a copy of the real index keeps its stat data: {listing}");
     remove(root.as_path());
 }
+
+/// The selection an index commit makes:
+/// the whole index,
+/// nothing named.
+fn whole_index(base: &str) -> IndexSelection<'_> {
+    return IndexSelection {
+        mode: TransactionMode::Index,
+        pathspecs: &[],
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: true,
+        stage_tracked_changes: false,
+        base_revision: base,
+    };
+}
+
+/// An index commit copies the real index into its own,
+/// so it is noted as keeping the stat data the real index holds.
+#[test]
+fn an_index_commit_is_noted_as_keeping_the_stat_data_of_the_index_it_copied() {
+    let root: PathBuf = fixture("index-builds-index-mode");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index(base.as_str()))
+        .expect("initialize");
+    assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: true }]);
+    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+    assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the copy holds the real index's stat data: {listing}");
+    remove(root.as_path());
+}
+
+/// A repository nothing was ever staged in has no index to copy,
+/// and the index commit's own index is empty:
+/// the record states that no stat data was there to keep,
+/// so a reader is never told a build kept what never existed.
+#[test]
+fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
+    let root: PathBuf = fixture("index-builds-no-index");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: repo.join(".git").join("captured.index"),
+        commit_index: repo.join(".git").join("commit.index"),
+        object_directory: repo.join(".git").join("objects"),
+    };
+    assert!(!repo.join(".git").join("index").exists(), "a repository nothing was staged in holds no index");
+    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index("HEAD"))
+        .expect("initialize");
+    assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: false }]);
+    remove(root.as_path());
+}

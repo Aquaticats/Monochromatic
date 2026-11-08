@@ -364,11 +364,8 @@ fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
     timing.finish(0);
     let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
     let value: serde_json::Value = parsed(text.as_str());
-    assert_eq!(
-        value["indexBuilds"],
-        serde_json::json!([{"kind": "first", "statDataKept": true}, {"kind": "retry", "statDataKept": false}]),
-        "every build of the private index is stated in the order built: {value}"
-    );
+    let expected: serde_json::Value = serde_json::from_str(r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#).expect("the list of two builds");
+    assert_eq!(value["indexBuilds"], expected, "every build of the private index is stated in the order built: {value}");
     remove(root.as_path());
 }
 
