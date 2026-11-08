@@ -1686,6 +1686,11 @@ verbatim labels:
     No inline fallback;
     the command fails with a plain message in that state,
     which the owner chose over option A.
+12. What a stop of the service does to the Git child of a commit it is preparing
+    (answered 2026-11-07T22:19:43-05:00):
+    "C:
+    shutdown stops its Gits (Recommended)",
+    built in T11 (see open choice 12).
 
 ## Progress on the branch `feat/git-policy-cli-on-tokio`
 
@@ -3353,6 +3358,475 @@ so every stop now waits up to its ceiling and tests sized to the old five-second
   is unmeasured
   until then and is a few milliseconds by construction.
 
+### Step T10, the service on tokio, 2026-11-07T20:40:00-05:00
+
+Branch `feat/git-policy-cli-tokio-t10-service`,
+from main at `f2a90d3fe2`,
+not yet merged (see "Gate of T10").
+
+#### What changed
+
+- The landing's per-thread state is carried by the landing's scope (owner's choice 4,
+  "Rewrite per-thread state").
+  `landing/landing_state_carried_by_its_task.rs` holds one `LandingState` of `Cell`s and `RefCell`s in a `tokio::task_local!`,
+  entered once by `serve` (`in_a_landing_with`) and readable by `on_the_landing_state(arguments, named_function)`;
+  a task entered with `in_a_landing_task` carries it across workers.
+  Ten production `thread_local!` items of the service and landing folders went into it:
+  the board and the detail of a never-ended write,
+  the ceiling step,
+  the abandoned claims,
+  the refused lock,
+  the unsettled locks,
+  the pre-staged marker,
+  and the three of the queued syncs.
+  Outside a scope nothing is remembered and a read answers its default,
+  which is what a thread-local gave a thread that never began a landing;
+  the wrapper's own commands never enter a scope (the index lock is the service's alone in production;
+  `landing_reset_copy` in `index/index_reset_support.rs` is a test helper).
+  The two counters only controls read (`name_steps`,
+  `loose_looks`) are counted in test builds only.
+  What stays a thread-local,
+  with the reason:
+  `#[cfg(test)]` fault hooks (they set a value on the test thread and the code under test runs there),
+  the panic hook's count in `invocation/panic_notice.rs` (a hook runs on the thread that panics,
+  so the thread is the right owner),
+  `worktree/add_timing.rs` (`ACTIVE`,
+  the wrapper's `worktree add`,
+  with worker threads that share a `Mutex`;
+  T12),
+  `repo_read/repo_read_tree.rs` (`SHARED_LISTS`,
+  an `Rc` cache of the wrapper's reads;
+  T11).
+- Connections are tasks.
+  `service/service_server_accept_connections_as_tasks.rs` starts one acceptor task on the process's runtime
+  (`spawn_on_runtime`;
+  no worker thread ends the service with status 4 and a plain line,
+  as the start of a thread did)
+  and a task per connection;
+  `handle_connection` is `async` on `tokio::net::UnixStream` halves,
+  the request line is read under `REQUEST_READ_TIMEOUT`,
+  `Reply` is an unbounded `tokio::sync::mpsc` sender (never waits,
+  so the landing thread cannot block on a client),
+  and `write_until_answered_noting` is an `async fn` whose beat is `tokio::time::timeout` on the channel.
+  The board's file reads,
+  the withdrawal decision (files in the journal),
+  and the instance name of a Git directory (a path resolution) run on the blocking pool (`run_blocking_job`),
+  by the plan's rule "by what a call can wait on".
+  A pool that cannot start a thread answers the client `Unavailable` (instance check),
+  hands a withdrawal to the landing thread (as for a request that began to land),
+  or leaves out one beat's note (the beat is still written).
+- A claim renewal is a task (`landing/service_claim_renewal.rs`):
+  `select!` over the control channel and `sleep_until`,
+  the renames on the blocking pool with the renewer going there and back,
+  and `Drop` still waits until the task has ended (the same wait as the join it replaces;
+  it is not bounded,
+  which is open below).
+- The landing's background syncs are a task that hands each batch to the blocking pool (`landing/service_durable.rs`);
+  `drain` still waits for a barrier (the exit path's wait for durability).
+- The marker made ahead is a blocking job awaited by a task (`service_index_prestage.rs`);
+  the look at the processes is a blocking job awaited under its ceiling (`landing/scan_awaited_under_a_ceiling.rs`).
+- Two closure-lint suppressions were added for the two tokio methods that accept only a callable
+  (`package/git-policy/cli/doc/closure-lint-suppressions.md`).
+
+#### What did not change, and why
+
+- `serve` is still a synchronous loop on the main thread.
+  Its Git steps reach the runtime through the synchronous bridges (`run_on_runtime`),
+  which refuse a call from inside the runtime;
+  an `async` landing loop is T11 (callers `async`,
+  bridges gone).
+  Its sleeps (`landing/service_land_follow.rs`,
+  `service_index_hold.rs`,
+  `service_index_wait.rs`,
+  `service_index_attempts.rs`,
+  `lock/index_holder_wait.rs`),
+  the inotify wait and the `std::sync::mpsc` queues to the landing and the work loop stay with it.
+- The work loop thread (`service/service_server_work_loop.rs`) and `landing/service_work.rs`,
+  `service_work_handlers_replanning_and_acceptance.rs` are the coordinator's W3 files and were not touched.
+- The client side of the service (`service/service_client*.rs`,
+  `service_provision*.rs`) belongs to the synchronous commit command,
+  so it waits for T11.
+
+#### Threads of the service and their stacks (before the worker cap; with it an idle service has 6, see "the worker cap")
+
+Measured with the release binary on this 28-CPU host,
+one service,
+idle (`${HOME}/temp/agent/t10-threads.py`):
+before T10 four threads (the main thread that lands,
+the work loop,
+the acceptor,
+one more) and one thread more for each open connection (36 with 32 connections);
+after T10 27 threads (the main thread,
+the work-loop thread and 25 runtime workers) whatever the number of connections (27 with 32 connections).
+The workers are the runtime plan's (`foundation/runtime_plan.rs`),
+built when the acceptor starts (before,
+the first call of `spawn_on_runtime` or `run_on_runtime` built it:
+the startup warm of a remembered repository,
+or the first Git step of the first landing):
+workers up to the budget,
+fewer under an address-space limit,
+`RLIMIT_NPROC` or `pids.max`,
+each with a 2 MiB stack (`THREAD_STACK_BYTES`) and 64 KiB more of address space,
+and the blocking pool grows on demand up to the plan's `blocking_threads` with the same stack.
+The main thread has the system's 8 MiB stack and the work-loop thread Rust's default 2 MiB.
+Many services run at once on one host (28 were counted on 2026-11-03),
+so 25 idle workers each is a real cost of "sized to budget" for a service;
+whether a service should cap its workers (its tasks wait on sockets and the pool,
+and the landing is its own thread) is a question for the owner.
+
+#### Controls
+
+Red first,
+then green:
+`landing_state_carried_by_its_task_tests.rs` (two tasks that interleave on one thread keep their own state;
+a task polled on one thread and finished on another keeps it;
+a scope inside a scope shadows;
+a thread started inside a scope is not inside a landing;
+outside a scope a write is not kept),
+`binary_service_connections_without_a_thread_each_tests.rs` (32 connections held open added 32 threads,
+now none),
+`service_claim_renewal_tests.rs` (16 renewals added 17 threads),
+`service_durable_tests.rs` (a thread named `cli-git-durable`),
+`service_index_prestage_tests.rs` (a thread named `cli-git-prestag`,
+the kernel's 15-character name),
+and `earlier_service_process_look_tests.rs` (the awaited look beside a ticker,
+and a look that outlasts its ceiling).
+The tests of `service_reply_tests.rs` were ported to tasks on a current-thread runtime with their assertions
+and a counting task beside the writer.
+Forty-six tests that read state across calls were wrapped in `in_a_landing`;
+two of them start their landing on a thread of their own and enter the scope there.
+
+#### Gate of T10
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `0ab4fa764b`:
+5314 run,
+5313 passed (3 slow),
+1 failed,
+11 skipped;
+host Clippy clean,
+package lint 0 errors and 0 warnings with the closure check run.
+The failure is `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+`no address-space limit stopped a commit, so the limits tested nothing (service starts at 110, commit lands at 110)`.
+It is not the failure main had.
+Main's was a bisect that met the one lethal limit where the last thread's alternative signal stack cannot be allocated
+(fixed in main at `5083511eed`,
+merged into this branch at `325e2608ea`);
+T10's persists after that merge (same test,
+`starts at 113, commit lands at 113` on the merged tree),
+so the two are separate incidents.
+The cause of T10's is its design:
+the runtime is built when the acceptor starts,
+its plan keeps `ADDRESS_SPACE_RESERVE_BYTES` (64 MiB) back when it sizes workers,
+and so at the smallest limit under which the service greets a client the headroom for everything a commit needs afterward is already reserved;
+the band between "starts" and "lands" that the sweep needs is empty.
+This is a choice for the owner or the coordinator (the brief says the gate must pass it),
+with a ranking in the report that closes this step:
+B (the sweep accepts an empty band,
+because the control `a_service_that_ends_before_it_listens_leaves_a_recoverable_repository` now in main proves the below-start case) >
+A (move the exhaustion to a resource T10 added a refusal path for,
+a blocking-pool thread refused under `pids.max`,
+with a positive control that the refusal fires) >
+C (shrink the reserve until a band exists,
+which weakens the service under exhaustion for the sake of a control).
+The merge of main into the branch was not re-gated:
+the host runs of the fault controls and the connection control on the merged tree are the evidence (9 of 10 pass,
+the one above fails).
+
+Latency (`native:perf`'s own tool,
+three alternating rounds,
+`${HOME}/temp/agent/t10-perf/`),
+added median of a commit through the service:
+before 18.4,
+17.5,
+17.2 ms (spread 1.2 ms),
+after 18.9,
+18.7,
+18.7 ms;
+p95 of the added time 26.8,
+22.5,
+26.5 before and 22.3,
+27.1,
+22.5 after;
+signed commit 24.4,
+23.9,
+23.7 before and 23.5,
+24.8,
+23.4 after.
+Forwarded commands (`rev-parse`,
+`status`,
+`log`,
+`diff --stat`) added 1.2 to 1.7 ms before and after,
+inside their spread.
+After minus before is 1.05 ms on the mean of the added medians (18.8 against 17.7),
+against a same-binary spread of 1.2 ms in the before runs,
+so the difference is within the spread and not a measured regression.
+A candidate cause,
+not measured:
+the instance check's path resolution now hops to the blocking pool before the request is queued,
+and the first connection pays the start of a pool thread.
+The bar (every paired delta far under five seconds) holds.
+
+#### Step T10, the worker cap, the sweep, the refusal paths and the bounded stop, 2026-11-08T04:00:00-05:00
+
+The coordinator's rulings on the three picks and the owed control,
+applied on the same branch after main (W3 included) was merged into it.
+
+Two answers first.
+An existing fault-point suite does kill the service at each landing step and prove recovery:
+`service/service_fault.rs` arms a `SIGKILL` at `after-objects`,
+`after-intent`,
+`after-ref`,
+`after-index` and `before-ack`,
+and at two instants of the index lock (`lock-created-unmarked`,
+`lock-marked-unsynced`),
+and `binary/binary_service_replay_tests.rs` and `binary_fault_trace_lock_without_links_tests.rs` restart the service and check the repository.
+Those prove recovery from an end at a named point.
+An allocation failure ends the process with an abort at any instruction,
+and in a Git program the landing starts,
+which no named point reaches;
+the address-space sweep samples that.
+And "9 of 10 pass" meant 9 of the 10 tests the filter `fault_limits connections_held_open` selected,
+not 9 of 10 runs of the one test:
+the one failing test was run once.
+
+- The sweep lowers the running service's `RLIMIT_AS` with `prlimit` (`rustix::process::prlimit` exists in the locked 1.1.x;
+  the control uses the test support's `LimitKind::lift_for`,
+  which calls `prlimit`),
+  after the service has greeted.
+  The first design,
+  the mapped size plus a headroom from none up to the reserve,
+  never stopped a commit (every headroom landed):
+  the service's heap is mostly free by then,
+  and the Git programs it starts inherit a limit far above what they need.
+  The sweep now sets the limit to each of eleven parts of the mapped size plus the reserve.
+  The first limits that bite are the ones under which the Git programs of the landing cannot map their own space;
+  whether the service's own allocation also fails in some of them was not measured.
+  The test keeps `refused > 0` and `landed > 0` and checks recovery after every limit
+  (`a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  passed in the gate below).
+  Main's `a_service_that_ends_before_it_listens_leaves_a_recoverable_repository` keeps the below-start case.
+- The refusal paths of a connection are controlled with a system that refuses every thread
+  (`service/service_server_connection_handling_tests.rs`,
+  each in a child with no thread to start):
+  a message about a Git directory is answered `Unavailable` (with a positive control that the same message is `Rejected` where threads exist),
+  a withdrawal that the pool cannot decide reaches the landing thread's queue,
+  and a beat's note is left out.
+  The existing `a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` lowers `RLIMIT_NPROC` on the running service and ran in the gate (not skipped).
+- tokio's `spawn_blocking` panics with "OS can't spawn worker thread" when no thread can start and none is idle.
+  Every blocking call of the service and the landing goes through `run_blocking_job`,
+  which catches that panic (`foundation/blocking_job.rs`);
+  a search of `service/`,
+  `landing/` and `foundation/` finds no other `spawn_blocking`,
+  `block_in_place` or `tokio::fs`.
+  The search found one way in that the code did not control:
+  hyper-util's own resolver calls `tokio::task::spawn_blocking` inside its `call`,
+  in the standards-review call that the service's work loop drives with `block_on`,
+  so the panic would have unwound into the work loop's thread.
+  The call now uses `PoolResolver` (`standards_review/standards_review_client_name_lookup_on_the_blocking_pool.rs`),
+  which looks the name up through `run_blocking_job` and gives an error;
+  its control is the lookup in a child with no thread to start.
+- The worker cap is `SERVICE_WORKER_CAP` = 4 (`service/service_main.rs`,
+  with the measurement beside it).
+  Four rounds alternating release binaries that differ only in the constant,
+  added median of a commit through the service:
+  uncapped 19.0,
+  18.4,
+  18.4,
+  18.5 ms (spread 0.6);
+  2 workers 25.6,
+  22.7,
+  23.0,
+  22.4 (4.9 above the uncapped mean,
+  outside the spread);
+  4 workers 18.4,
+  18.3,
+  18.1,
+  18.7;
+  8 workers 18.6,
+  18.6,
+  18.2,
+  18.5.
+  The signed commit and the forwarded commands show the same shape.
+  An idle service has 6 threads (two of its own and four workers) with or without 32 more connections,
+  where it had 27.
+  The smallest address-space limit under which the service starts is 93 MiB at every cap and 27 MiB before T10:
+  the cap does not move it;
+  the runtime plan's 64 MiB reserve does (a plan whose workers do not fit leaves the current-thread stand-in,
+  and a service with no worker thread ends with status 4).
+  The 110 MiB the container gate reported is the same figure on the gate's host and build.
+- `Drop` of a claim renewal waits for its task for at most `RENEWAL_STOP_CEILING`,
+  which is `WORST_CASE_WITH_MARGIN` (about 18.1 s:
+  the owner's three times the longest delay of a check and a rename seen,
+  and a renewal is one rename).
+  One renewal measured far less than a thousandth of that in its control.
+  On the timeout the task is left behind,
+  a warning is logged,
+  and the claim expires by its lease;
+  the rename the task finishes later finds the claim moved on and changes nothing,
+  because a renewal renames only from the name it last wrote.
+  The coordinator's suggested design (the task releases the claim itself on a stop message) was not needed for that:
+  the existing settlement already finds a claim by its id and generation and asks again when a renewal renamed it meanwhile.
+  The control keeps the blocking pool busy so the renewal's job waits for a thread,
+  and shows the drop returns at the ceiling (red first:
+  it waited until the pool freed).
+  The running renewal moved to `landing/service_claim_renewal_running.rs`,
+  which depends on the renewer and not the reverse (the file had passed the line limit).
+
+#### Gate of T10 after the rulings
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `2c88301e85`,
+which has main at `f981e1b493` (W3) merged in:
+5344 run,
+5343 passed (3 slow),
+1 failed,
+11 skipped;
+host Clippy clean,
+package lint 0 errors and 0 warnings (the closure check ran;
+no `skipped` line).
+The service-memory sweep,
+the process-limit control,
+the thread cap control and the bounded drop control passed.
+The failure,
+recorded as open and not rerun:
+`commit_timing::a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait`,
+`assertion left == right failed: the record says what kind of holder the wait was for` with `left: "unproven"` and `right: "proven-alive"`
+(the service's answer line named `lock_holder="Process 80482"` and `lock_found="foreign no-marker size=281 age_ms=8036"`,
+`lock_wait_ms=4004`;
+the wrapper's record carries the holder kind from the words the service sent,
+and `proven-alive` needs the text `(proven by `).
+The gate before the rulings (an uncapped runtime,
+the same test) passed it,
+so the cap,
+the resolver,
+the bounded drop,
+the sweep and the main merge were all candidates;
+the cause is found below ("The holder kind of the timing record").
+
+Latency of the final binary against the one before T10 (three alternating rounds;
+`${HOME}/temp/agent/t10-perf2/`),
+added median of a commit through the service:
+before 19.9,
+18.4,
+18.6 ms (spread 1.5),
+after 19.7,
+19.0,
+18.2 ms (spread 1.5);
+signed commit 31.1,
+30.3,
+31.0 before and 30.2,
+30.1,
+31.5 after;
+forwarded commands 1.2 to 1.9 ms before and after.
+
+#### The holder kind of the timing record: safety, cause and fix, 2026-11-08T05:00:00-05:00
+
+The gate's one failure after the rulings,
+`commit_timing::a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait` (`unproven` for `proven-alive`),
+was diagnosed by instrumentation and bounded single-test runs,
+not by gate reruns.
+
+- Safety:
+  the failing value is only the attribution in the wrapper's timing record.
+  `lockHolderKind` is set in `service/service_client.rs` from the text of the waiting notices (`holder_kind_of`) and no remediation reads it.
+  The service's own look (`look_at_holder`,
+  `landing/service_index_attempts.rs`) answers `Proved::Alive`,
+  `Dead` or `Nothing`;
+  `Nothing` and `Alive` are waited for until the ceiling and then refused with `IndexInUse`;
+  `Dead` ends the wait with a failure and removes nothing.
+  The only removal is `reclaim_if` (`landing/service_index_reclaim.rs`):
+  a lock with no marker returns `Kept` at `marker_of_file`,
+  and a marked lock goes only when its marker's process identity judges it stale
+  (a foreign or earlier-format lock is told to the person and left).
+  So `unproven` can neither remove a lock a live process holds nor step over it:
+  not a P1.
+- Not starvation of the look:
+  the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
+  so the one look returned `ProvenAlive`,
+  and in every instrumented run below the only holder notice was proven.
+  The look did not reach its ceiling in any run.
+  The pool's busy count was not recorded,
+  because no look waited on the pool.
+- Cause,
+  confirmed:
+  the client overwrote `trace.holder_kind` on every waiting notice and every inside-a-write notice,
+  so the last notice decided the kind.
+  The control releases the holder 4 s after the first notice,
+  which is the same instant as the 4th heartbeat of the connection (beats at +1.0,
+  +2.0,
+  +3.0 and +4.0 s after the first notice).
+  The beat asks the board for a note,
+  and when the landing has just begun its first write the answer is an inside-a-write notice,
+  whose text has no `(proven by `:
+  it arrives after the proof and the kind becomes `unproven`.
+  A message writer that logged each message and each landing write showed it in each failing run:
+  one proven waiting notice,
+  then a heartbeat,
+  and an inside-a-write notice with `proven=false` at +4005 or +4006 ms,
+  on the 4th beat;
+  no run without that notice failed.
+- Counts of the one test under the gate's limits (the host test binary in a scope with `CPUQuota=800%`,
+  `MemoryMax=8G`,
+  `TasksMax=2048`;
+  the gate image takes no test filter,
+  so the image was not used),
+  20 runs each:
+  cap 4,
+  3 failed (run 3,
+  8,
+  19,
+  without the message log);
+  cap 4 with the message log,
+  2 failed (both with the inside-a-write notice at the 4th beat);
+  uncapped,
+  1 failed (the same notice at +4005 ms).
+  So the cap is not the cause.
+  Whether T10 raised the rate over the tree before it was not measured:
+  the coincidence of the beat and the release is in the old writer as well,
+  and only its offset (a few milliseconds of task and pool hops against a thread) differs.
+- The other fields of the timing record:
+  `waitingNotices` counts and `positions` appends;
+  `last_blocker` and the holder's words are last-wins by design (the error names the latest blocker),
+  and `lockHolderKind` was the only last-wins field of the record.
+- Fix,
+  test first (`binary_service_heartbeat_tests.rs`:
+  a proven holder followed by an inside-a-write notice,
+  or by a notice that names no proof,
+  stays `proven-alive`;
+  an unproven wait that a later notice proves is `proven-alive`;
+  an inside-a-write notice alone records no kind;
+  three of the four were red):
+  `holder_kind_after` never undoes a proof (`commit/commit_timing.rs`),
+  and an inside-a-write notice no longer sets the kind (`service/service_client.rs`).
+  No capacity was reserved for the look,
+  because nothing starved it.
+
+#### Gate of T10, third and last, 2026-11-08T05:40:00-05:00
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`,
+image tag `t10-liveness`) of the tree at `4e3bde33c0`:
+5349 run,
+5349 passed (3 slow),
+11 skipped,
+no failure;
+host Clippy clean;
+package lint 0 errors and 0 warnings (the closure check ran,
+no `skipped` line).
+Latency of the final binary against the one before T10 (three alternating rounds,
+`${HOME}/temp/agent/t10-perf3/`),
+added median of a commit through the service:
+before 20.4,
+20.0,
+19.1 ms (spread 1.3),
+after 20.6,
+20.4,
+19.4 (spread 1.2);
+signed commit 27.2,
+26.3,
+25.6 before and 25.5,
+25.4,
+25.7 after;
+forwarded commands 1.0 to 1.9 ms either way.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -3839,6 +4313,28 @@ which leaves that Git running when the service is stopped.
   The agent built A because it is the only option that needed no new design,
   and it is the narrowest;
   a veto of A in favour of C is enough to start C.
+
+The owner's pick,
+2026-11-07T22:19:43-05:00,
+verbatim label:
+"C:
+shutdown stops its Gits (Recommended)".
+Option C is the design:
+the stop handler only records the stop,
+and the service's own shutdown signals the Git processes it is waiting on,
+through a registry of those children.
+Built in T11,
+after T10 merges,
+under the owner's rules:
+"Use as few locks as possible."
+(one owner per piece of state,
+not a shared table),
+"nothing should ever wait forever or indefinitely" (every wait after the signal is bounded,
+then `SIGKILL`),
+and "never discard user data" (a commit whose Git is stopped keeps its work on its side ref,
+as withdrawals do).
+Red tests first:
+a stop during a long-running commit Git leaves no Git process and no `index.lock` behind within the bound.
 
 ## Cross-vendor review
 

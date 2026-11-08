@@ -22,14 +22,14 @@
 //! ```
 
 use crate::index_lock_evidence::{LockMetadata, read_lock_metadata};
-use std::cell::RefCell;
+use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::path::Path;
 use std::time::Duration;
 
 /// The lock that outlasted a wait,
 /// and how long that wait was.
 #[derive(Clone, Copy, Debug)]
-struct Refused {
+pub(crate) struct Refused {
     /// Device,
     /// inode and change time of the lock file.
     identity: LockMetadata,
@@ -37,10 +37,16 @@ struct Refused {
     waited: Duration,
 }
 
-thread_local! {
-    /// The lock this thread's landings last gave up on,
-    /// when one is remembered.
-    static REFUSED: RefCell<Option<Refused>> = const { RefCell::new(None) };
+/// Keeps `refused` as the lock the landing last gave up on,
+/// or nothing.
+fn keep_the_refused_lock(state: &LandingState, refused: Option<Refused>) {
+    *state.refused_lock.borrow_mut() = refused;
+}
+
+/// The lock the landing last gave up on,
+/// when one is remembered.
+fn refused_lock_remembered(state: &LandingState, (): ()) -> Option<Refused> {
+    return *state.refused_lock.borrow();
 }
 
 /// What:
@@ -58,7 +64,7 @@ pub fn remember(lock: &Path, waited: Duration) {
         forget();
         return;
     };
-    REFUSED.set(Some(Refused { identity, waited }));
+    on_the_landing_state(Some(Refused { identity, waited }), keep_the_refused_lock);
 }
 
 /// What:
@@ -75,7 +81,7 @@ pub fn recall(lock: &Path) -> Option<Duration> {
     let Ok(Some(identity)) = read_lock_metadata(lock) else {
         return None;
     };
-    let remembered: Refused = REFUSED.with_borrow(Clone::clone)?;
+    let remembered: Refused = on_the_landing_state((), refused_lock_remembered)?;
     return if remembered.identity == identity { Some(remembered.waited) } else { None };
 }
 
@@ -83,5 +89,5 @@ pub fn recall(lock: &Path) -> Option<Duration> {
 /// the lock was taken,
 /// or is gone.
 pub fn forget() {
-    REFUSED.set(None);
+    on_the_landing_state(None, keep_the_refused_lock);
 }

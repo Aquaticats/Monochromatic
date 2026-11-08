@@ -47,10 +47,9 @@ use crate::work_item::{CLAIMED, Claimed, id_of_entry, parse_claim_name, renew_cl
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, SyncSender, channel, sync_channel};
-use std::sync::{Arc, OnceLock};
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// How many times inside one lease a holder renews,
 /// so a renewal that is late by up to two intervals still beats the lease.
@@ -111,16 +110,6 @@ struct Claim {
 /// with the file name it was taken under:
 /// what the drain tells the renewal of a new claim.
 type Taken = (Arc<Claim>, String);
-
-/// What a controller tells the renewal thread.
-enum Control {
-    /// Renew every claim held now at this reading,
-    /// and say so on the channel when done,
-    /// if one is given.
-    Renew(ClaimTime, Option<SyncSender<()>>),
-    /// Stop the thread.
-    Stop,
-}
 
 /// What:
 ///  The claims one drain holds right now,
@@ -410,166 +399,6 @@ impl Renewer {
             names.push(name.clone());
         }
         return names;
-    }
-}
-
-/// How the claims of one drain are kept fresh.
-#[derive(Clone, Copy, Debug)]
-pub enum Renewal<'a> {
-    /// A thread of the drain renews every third of the lease by the real clock.
-    Timed,
-    /// Nothing renews until the driver is told to,
-    /// with the reading it is given;
-    /// a control uses this to be independent of how
-    /// the host schedules threads,
-    /// and to let any number of leases pass without waiting.
-    Driven(&'a DrivenRenewal),
-}
-
-/// What:
-///  The way a control renews the claims of a drain it started,
-/// at the reading it chooses.
-/// Why:
-///   The renewal thread's timing is real time,
-/// and a control of what a renewal protects cannot be told apart from a slow host by waiting.
-/// A driven renewal does the same renaming at moments the control chooses.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const driver = new DrivenRenewal(); drain(..., { driven: driver }); driver.renew(clockAfterTwoLeases);
-/// ```
-#[derive(Debug, Default)]
-pub struct DrivenRenewal {
-    /// The way to the renewal thread of the drain that registered,
-    /// once it has.
-    /// A driver serves one drain.
-    ticks: OnceLock<Sender<Control>>,
-}
-
-/// Methods over a driver.
-impl DrivenRenewal {
-    /// Register the renewal thread of a drain;
-    /// the first drain to register is the one the driver serves.
-    fn attach(&self, control: Sender<Control>) {
-        let _first: Result<(), Sender<Control>> = self.ticks.set(control);
-    }
-
-    /// Renew every claim the registered drain holds at the reading `now`,
-    /// and return once that is done;
-    /// false when no drain has registered or its thread is gone.
-    pub fn renew(&self, now: &ClaimTime) -> bool {
-        let Some(control) = self.ticks.get() else { return false };
-        let (done, finished) = sync_channel::<()>(1);
-        return control.send(Control::Renew(now.clone(), Some(done))).is_ok() && finished.recv().is_ok();
-    }
-}
-
-/// What:
-///  A running renewal:
-/// a thread that stamps every held claim again each interval until this value is dropped.
-/// Why:
-///   Dropping stops and joins the thread,
-/// so a drain that returns or unwinds leaves no thread behind,
-/// and a drain that ended
-///  renews nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const renewal = ClaimRenewal.start(renewer, every); renewal.stop();
-/// ```
-pub struct ClaimRenewal {
-    /// The way to tell the thread to stop.
-    control: Sender<Control>,
-    /// The thread,
-    /// taken when it is joined.
-    worker: Option<JoinHandle<()>>,
-}
-
-/// Does what a controller asked of the renewal thread;
-/// whether the thread goes on.
-fn obey(renewer: &mut Renewer, control: Control) -> bool {
-    return match control {
-        Control::Renew(now, done) => {
-            renewer.renew(&now);
-            if let Some(finished) = done {
-                let _told = finished.send(());
-            }
-            true
-        }
-        Control::Stop => false,
-    };
-}
-
-/// Methods over a renewal.
-impl ClaimRenewal {
-    /// Start renewing the claims the drain tells `renewer` of,
-    /// every `every`,
-    /// by the real clock.
-    pub fn start(mut renewer: Renewer, every: Duration) -> ClaimRenewal {
-        let (control, requests) = channel::<Control>();
-        // A host with no thread to spare renews nothing: the claims then expire with their lease, as for a service that died.
-        let spawned: std::io::Result<JoinHandle<()>> = std::thread::Builder::new()
-            .spawn(move || {
-                let mut due: Instant = Instant::now() + every;
-                loop {
-                    match requests.recv_timeout(due.saturating_duration_since(Instant::now())) {
-                        Ok(request) => {
-                            if !obey(&mut renewer, request) {
-                                return;
-                            }
-                        }
-                        Err(RecvTimeoutError::Disconnected) => return,
-                        Err(RecvTimeoutError::Timeout) => {
-                            // A claim that was settled is no longer held; one that was taken over is found gone and marked.
-                            renewer.renew(&ClaimTime::read());
-                            due = Instant::now() + every;
-                        }
-                    }
-                }
-            });
-        let worker: Option<JoinHandle<()>> = match spawned {
-            Ok(handle) => Some(handle),
-            Err(error) => {
-                crate::service_error!("no thread to renew claims: {error}");
-                None
-            }
-        };
-        return ClaimRenewal { control, worker };
-    }
-
-    /// Start the thread of a driven renewal:
-    /// it renews only when `driver` is told to,
-    /// and registers with it.
-    pub fn driven(mut renewer: Renewer, driver: &DrivenRenewal) -> ClaimRenewal {
-        let (control, requests) = channel::<Control>();
-        driver.attach(control.clone());
-        let spawned: std::io::Result<JoinHandle<()>> = std::thread::Builder::new()
-            .spawn(move || {
-                while let Ok(request) = requests.recv() {
-                    if !obey(&mut renewer, request) {
-                        return;
-                    }
-                }
-            });
-        let worker: Option<JoinHandle<()>> = match spawned {
-            Ok(handle) => Some(handle),
-            Err(error) => {
-                crate::service_error!("no thread to renew claims: {error}");
-                None
-            }
-        };
-        return ClaimRenewal { control, worker };
-    }
-}
-
-/// Stops the thread when the renewal goes out of scope.
-impl Drop for ClaimRenewal {
-    fn drop(&mut self) {
-        let _told = self.control.send(Control::Stop);
-        if let Some(worker) = self.worker.take() {
-            // A renewal thread that panicked has nothing left to report: the claims it held expire with the lease.
-            let _joined = worker.join();
-        }
     }
 }
 

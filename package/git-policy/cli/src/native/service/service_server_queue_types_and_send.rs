@@ -20,8 +20,6 @@ use crate::service_reply::Reply;
 use crate::service_protocol::{
     CommitRequest, ServiceMessage, encode_service,
 };
-use std::io::Write;
-use std::os::unix::net::UnixStream;
 /// A request waiting to be landed:
 /// what the client sent,
 /// the connection to answer it on,
@@ -86,11 +84,13 @@ pub(crate) enum Job {
     Release(std::path::PathBuf),
 }
 
-pub(crate) fn send(stream: &UnixStream, message: &ServiceMessage) {
+/// Writes `message` and a newline to `stream`;
+/// a client that went away has nothing to be told.
+pub(crate) async fn send<Stream: tokio::io::AsyncWrite + Unpin>(stream: &mut Stream, message: &ServiceMessage) {
+    use tokio::io::AsyncWriteExt;
     let mut line: String = encode_service(message);
     line.push('\n');
-    // A client that went away has nothing to be told.
-    let _written = (&*stream).write_all(line.as_bytes());
+    let _written = stream.write_all(line.as_bytes()).await;
 }
 
 /// What:

@@ -20,8 +20,8 @@ The only suppression is rustc's own attribute on the statement that holds the cl
 `expect` makes rustc report `unfulfilled_lint_expectations` as soon as it suppresses nothing,
 so a suppression cannot outlive its closure.
 
-This crate carries three suppressions,
-one for each standard-library function that accepts only a callable.
+This crate carries five suppressions,
+one for each of three standard-library functions and two methods of tokio's task-local key that accept only a callable.
 Every other closure that earlier passes of the lint left behind was replaced by a function and the state it reads,
 a value with a method,
 an enum,
@@ -69,8 +69,17 @@ The proof for each site is the signature in the sysroot source of the toolchain 
   The guarded call takes no arguments,
   so the arguments it needs must be captured.
 
+- `tokio::task::LocalKey::try_with`:
+  `try_with<F, R>(&'static self, f: F) -> Result<R, AccessError> where F: FnOnce(&T) -> R`,
+  which passes the stored value and nothing else.
+  The caller's arguments and the function that reads the value must be captured.
+- `tokio::task::LocalKey::sync_scope`:
+  `sync_scope<F, R>(&'static self, value: T, f: F) -> R where F: FnOnce() -> R`,
+  with no argument to its callable.
+  The proofs for the two tokio methods are `src/task/task_local.rs` of tokio 1.54.1 in the local registry.
+
 No named function can replace these closures,
-because none of the three functions passes an argument to its callable.
+because none of the five functions passes an argument to its callable.
 No loop can,
 because a loop cannot run on another thread,
 and `catch_unwind` is the only way to turn a panic into a value.
@@ -105,7 +114,19 @@ each with the one closure it holds:
   which takes a function and its state and silences the panic notice around the call;
   its users are `run_blocking_job` (`foundation/blocking_job.rs`) and `build_with_deadline` (`foundation/lazy_runtime.rs`).
 
-A change that lets one of the three callees take a function and an argument (a `catch_unwind_with`,
+- `src/native/landing/landing_state_carried_by_its_task.rs`,
+  `on_the_landing_state` (the closure given to `try_with` carries the arguments and the function) and `in_a_landing_with`
+  (the closure given to `sync_scope` carries the arguments and the body).
+  The users of `on_the_landing_state` are the named functions of the landing's state items (`service_durable.rs`,
+  `service_index_claim.rs`,
+  `service_index_ownership.rs`,
+  `service_index_prestage.rs`,
+  `service_index_refused_lock.rs`,
+  `service_land_git_steps_and_import_stream.rs`,
+  `service/service_busy_step_record_on_this_thread.rs`);
+  the user of `in_a_landing_with` is `serve` (`service/service_server.rs`).
+
+A change that lets one of these callees take a function and an argument (a `catch_unwind_with`,
 for example)
 removes the matching suppression,
 and rustc then reports it as `unfulfilled_lint_expectations` until it is deleted.

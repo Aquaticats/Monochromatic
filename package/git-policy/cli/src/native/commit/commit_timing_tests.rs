@@ -349,3 +349,17 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
     assert_eq!(empty["longestQuietMs"].as_f64(), Some(0.0));
     remove(root.as_path());
 }
+
+/// A proof is never undone by a later notice,
+/// and a notice that proves an earlier unproven wait counts.
+#[test]
+fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
+    use super::holder_kind_after;
+    let proven: String = crate::index_lock_evidence::proven_holder_line(7, true, None, Path::new("/r/.git/index.lock"));
+    let unproven: String = crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None);
+    assert_eq!(holder_kind_after(None, proven.as_str()), "proven-alive");
+    assert_eq!(holder_kind_after(Some("proven-alive"), unproven.as_str()), "proven-alive");
+    assert_eq!(holder_kind_after(Some("unproven"), proven.as_str()), "proven-alive");
+    assert_eq!(holder_kind_after(Some("unproven"), unproven.as_str()), "unproven");
+    assert_eq!(holder_kind_after(None, unproven.as_str()), "unproven");
+}

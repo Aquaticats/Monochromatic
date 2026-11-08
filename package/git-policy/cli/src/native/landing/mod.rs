@@ -56,6 +56,9 @@ pub mod service_land;
 /// finished by the service of this release when none runs.
 pub mod earlier_service_journal_adopted;
 
+/// A scan of the processes run on the blocking pool and awaited under a ceiling.
+pub mod scan_awaited_under_a_ceiling;
+
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 
@@ -99,6 +102,10 @@ pub mod service_rules_precompile;
 /// The foreign index lock that already outlasted a commit's wait,
 /// so the commits queued behind it are not made to wait again.
 pub mod service_index_refused_lock;
+
+/// The state one landing keeps,
+/// carried by the task that runs the landing and not by a thread.
+pub mod landing_state_carried_by_its_task;
 
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
@@ -208,6 +215,11 @@ pub mod service_native;
 
 /// The renewal that keeps the claims of a shared work directory from looking abandoned while their holder works.
 pub mod service_claim_renewal;
+
+/// The task of a running claim renewal,
+/// its driver for controls,
+/// and its stop.
+pub mod service_claim_renewal_running;
 
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;

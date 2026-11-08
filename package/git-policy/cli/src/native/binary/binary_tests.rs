@@ -555,6 +555,12 @@ mod service_withdraw;
 #[path = "binary_service_heartbeat_tests.rs"]
 mod service_heartbeat;
 
+/// The connections the service holds open,
+/// counted against its threads:
+/// a connection is a task.
+#[path = "binary_service_connections_without_a_thread_each_tests.rs"]
+mod service_connections_tasks;
+
 /// Commits real Git builds for the service (an editor,
 /// a signature),
 /// compared with the transaction's commit.

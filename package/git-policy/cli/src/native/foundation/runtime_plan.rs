@@ -138,6 +138,26 @@ pub fn plan_runtime(host: &HostResources, limits: &RuntimeLimits) -> RuntimePlan
 }
 
 /// Plan controls stay out of the release executable.
+/// What:
+///  `plan` with its workers and its blocking pool held to at most `cap` threads each;
+/// a plan that is already smaller,
+/// and the current-thread plan,
+/// stand.
+/// Why:
+///  A long-lived process that many of its kind run at once (one commit service per worktree) keeps its idle workers for hours,
+/// so the owner's "sized to budget" is bounded for it by a cap measured for its work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const capped = plan.kind === 'multi' ? { ...plan, workers: Math.min(plan.workers, cap), blockingThreads: Math.min(plan.blockingThreads, cap) } : plan;
+/// ```
+pub fn capped_at(plan: RuntimePlan, cap: usize) -> RuntimePlan {
+    return match plan {
+        RuntimePlan::MultiThread { workers, blocking_threads } => RuntimePlan::MultiThread { workers: workers.min(cap), blocking_threads: blocking_threads.min(cap) },
+        RuntimePlan::CurrentThread => RuntimePlan::CurrentThread,
+    };
+}
+
 #[cfg(test)]
 #[path = "runtime_plan_tests.rs"]
 mod tests;

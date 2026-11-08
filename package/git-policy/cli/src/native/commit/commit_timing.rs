@@ -121,6 +121,28 @@ pub fn holder_kind_of(text: &str) -> &'static str {
 }
 
 /// What:
+///  The kind of holder a wait was for after one more waiting notice,
+/// given the kind the earlier notices gave.
+/// Why:
+///  A proof counts when it comes and is never undone:
+/// the notices after the one that proved the holder (the way out of a wait that reached its ceiling,
+/// the service's own notice that it is inside a write the moment the holder lets go) say nothing of the holder,
+/// and the last notice must not decide what kind of holder the wait was for
+/// (the heartbeat of the connection and the holder's release meet at the same instant in the control that releases it after a
+/// whole number of beats).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holderKindAfter(earlier, text) // earlier === 'proven-alive' ? 'proven-alive' : holderKindOf(text)
+/// ```
+pub fn holder_kind_after(earlier: Option<&'static str>, text: &str) -> &'static str {
+    return match earlier {
+        Some("proven-alive") => "proven-alive",
+        Some(_) | None => holder_kind_of(text),
+    };
+}
+
+/// What:
 ///  What the client did to hand one request to the service and get its answer.
 /// Why:
 ///   The queue wait,
