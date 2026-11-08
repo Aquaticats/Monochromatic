@@ -136,6 +136,47 @@ one snapshot's commit held a `create`,
 A commit given less disk time under load can hold that work for longer.
 `/sys/fs/btrfs/<uuid>/commit_stats` records commit counts and durations.
 
+### Comparison of the two weights at 2026-11-08T17:03:25-05:00
+
+The slice alternated between the default weight `100` and weight `10`,
+in two-minute windows in an order that spreads slow drift over both,
+under the agents' normal load.
+A small file was created,
+written,
+synced and removed in another folder every two seconds.
+The windows,
+one JSON object per line,
+are in `${HOME}/temp/agent/btrfs-transaction-io-weight/alternating-windows-result.jsonl`.
+
+- `/var/mnt/encrypted`:
+  at `100`,
+  477 commits averaged 835 ms,
+  with window averages from 178 to 8038 ms.
+  At `10`,
+  516 commits averaged 750 ms,
+  with window averages from 287 to 6080 ms.
+- The system filesystem:
+  at `100`,
+  19 commits averaged 5496 ms.
+  At `10`,
+  17 commits averaged 16546 ms.
+  A few commits of over a minute dominate both figures:
+  one of 65652 ms at `100`,
+  and a window averaging 84560 ms over three commits at `10`.
+- The synced file:
+  the median of the window medians was 132 ms at `100` and 256 ms at `10`,
+  the median of the window 95th percentiles was 12627 ms and 8722 ms,
+  and the slowest was 32165 ms and 17069 ms.
+
+The differences are smaller than the spread between windows of one weight,
+so no effect in either direction is shown.
+The two arms each held windows whose median synced file took over ten seconds,
+so this weight does not remove those stalls.
+An earlier comparison of one window each,
+548 ms against 1018 ms on `/var/mnt/encrypted`,
+was noise.
+The run restored weight `10` and restarted the timer.
+
 ### Verification of the transaction threads
 
 - Disposable procfs-shaped fixtures passed for both thread names:
