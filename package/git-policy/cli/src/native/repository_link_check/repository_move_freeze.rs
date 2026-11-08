@@ -16,6 +16,7 @@
 //! const frozen = manifestRows(await readFile(join(stateFolder, 'freeze-manifest.tsv'))).some(({ path }) => isUnder(repository, path));
 //! ```
 
+use crate::repository_link_paths::resolve_as_far_as_it_exists;
 use std::path::{Path, PathBuf};
 
 /// The file name of the freeze manifest in the runner's state folder (`FREEZE_MANIFEST` in the runner's `constants.ts`).
@@ -37,7 +38,15 @@ pub const DEFAULT_STATE_FOLDER_NAME: &str = "repository-move-state";
 /// process.env.MOVE_STATE_DIR ?? join(homedir(), 'repository-move-state')
 /// ```
 pub fn move_state_folder() -> Option<PathBuf> {
-    todo!()
+    if let Some(folder) = crate::service_route::non_empty_path_variable("MOVE_STATE_DIR") {
+        return Some(folder);
+    }
+    return crate::service_route::non_empty_path_variable("HOME").map(path_below_home);
+}
+
+/// The default state folder below a home directory.
+fn path_below_home(home: PathBuf) -> PathBuf {
+    return home.join(DEFAULT_STATE_FOLDER_NAME);
 }
 
 /// What:
@@ -50,7 +59,22 @@ pub fn move_state_folder() -> Option<PathBuf> {
 /// freezeCovers(stateFolder, repository)
 /// ```
 pub fn freeze_covers(state_folder: &Path, repository: &Path) -> bool {
-    todo!("{} {}", state_folder.display(), repository.display())
+    let Ok(table) = std::fs::read_to_string(state_folder.join(FREEZE_MANIFEST_NAME)) else {
+        return false;
+    };
+    let held: PathBuf = resolve_as_far_as_it_exists(repository);
+    for row in table.lines() {
+        let Some((_uuid, path)) = row.split_once('\t') else {
+            continue;
+        };
+        if path.is_empty() {
+            continue;
+        }
+        if repository.starts_with(path) || held.starts_with(resolve_as_far_as_it_exists(Path::new(path))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Freeze record controls stay out of the release executable.

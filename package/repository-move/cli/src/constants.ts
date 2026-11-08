@@ -106,6 +106,14 @@ export const FINAL_PREFIX = 'f';
 export const FREEZE_MANIFEST = 'freeze-manifest.tsv';
 
 /**
+ Start of the name the freeze manifest is renamed to once a thaw has set every subvolume it lists read-write, followed by the
+ time of the thaw in milliseconds. The Git wrapper reads the manifest to tell a read-only failure caused by the move from any
+ other (`package/git-policy/cli/src/native/repository_link_check/repository_move_freeze.rs`), so a manifest that is present
+ means the subvolumes it lists are frozen, and the renamed one means they are not; nothing is deleted.
+ */
+export const FREEZE_MANIFEST_THAWED_PREFIX: string = `${FREEZE_MANIFEST}.thawed-`;
+
+/**
  File in the state folder that lists the subvolumes of the latest first pass.
  */
 export const FIRST_PASS_MANIFEST = 'first-pass-manifest.tsv';

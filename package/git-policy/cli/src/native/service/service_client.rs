@@ -69,7 +69,12 @@ pub enum Submitted {
 /// ```ts
 /// readOnlyFailure(repository, stateFolder)
 /// ```
-pub fn read_only_failure(repository: &str, _state_folder: Option<&Path>) -> ClientFailure {
+pub fn read_only_failure(repository: &str, state_folder: Option<&Path>) -> ClientFailure {
+    if let Some(folder) = state_folder
+        && crate::repository_move_freeze::freeze_covers(folder, Path::new(repository))
+    {
+        return ClientFailure::RepositoryFrozen(repository.to_string());
+    }
     return ClientFailure::RepositoryReadOnly(repository.to_string());
 }
 

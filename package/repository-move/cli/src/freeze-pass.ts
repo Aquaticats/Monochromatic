@@ -9,7 +9,9 @@
  */
 
 import {
+  readdir,
   readFile,
+  rename,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import type { Runner, } from './command-runner.ts';
@@ -17,7 +19,10 @@ import {
   pathExists,
   writeTextAtomically,
 } from './completion-records.ts';
-import { FREEZE_MANIFEST, } from './constants.ts';
+import {
+  FREEZE_MANIFEST,
+  FREEZE_MANIFEST_THAWED_PREFIX,
+} from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 import {
   PARENT_UNKNOWN,
@@ -270,6 +275,12 @@ export async function thaw(
    */
   const manifest = await readFreezeManifest(stateFolder,);
   if ((!manifest.present) && run) {
+    if ((await readdir(stateFolder,)).some(function isThawedRecord(name,) {
+      return name.startsWith(FREEZE_MANIFEST_THAWED_PREFIX,);
+    },)) {
+      runner.log('thaw finished; an earlier thaw already renamed the freeze record aside, so nothing is frozen and nothing was changed',);
+      return;
+    }
     throw new MoveStopError(`no ${FREEZE_MANIFEST} in ${stateFolder}: this tool froze nothing, so it thaws nothing`,);
   }
   /**
@@ -281,6 +292,16 @@ export async function thaw(
     subvolumes,
     value: false,
   },);
+  if (run && manifest.present) {
+    // Renamed, never deleted: the record says nothing is frozen from now on, and the old rows stay for whoever looks.
+    await rename(
+      manifestPath(stateFolder,),
+      join(
+        stateFolder,
+        `${FREEZE_MANIFEST_THAWED_PREFIX}${String(Date.now(),)}`,
+      ),
+    );
+  }
   runner.log(
     run ? `thaw finished; ${String(subvolumes.length,)} subvolumes thawed` : 'print mode: nothing was thawed',
   );
