@@ -44,7 +44,8 @@ from `main` at `05c16d73d2`,
 The round removes or cheapens work the person waits for during `git commit`;
 every change has a control that was seen to
 fail first (the red commit is named),
-and every figure below was measured on this host under the load it had (load
+and every figure in `Result of the third round (less work on the wait)` was measured on this host
+under the load it had (load
 average
 about 9 during the runs),
 never after waiting for a quiet one.

@@ -45,7 +45,7 @@ at all.
     trading the deadline's six-minute
     ceiling for something faster on a genuinely dead call,
     is Question 10.
-    The measurement above
+    The measurement in the `THE STRAGGLER GRACE'S CUT POPULATION IS COUNTED TO THE END OF THE PASS` entry
     settles the premise;
     it does not settle how much of the documented tail risk is worth paying
     against.

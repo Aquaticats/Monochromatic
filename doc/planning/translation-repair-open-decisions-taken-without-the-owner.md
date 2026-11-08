@@ -895,7 +895,7 @@ which lists every file of this record.
     Landing five as designed would have
     made that mistake on eight sections of one entry.
     RERUN AFTER THE REVIEW CHANGES LANDED,
-    because the numbers above are what
+    because the numbers in decision 28 are what
     this question rests on and three things moved underneath them:
     the sheet was
     rewritten,

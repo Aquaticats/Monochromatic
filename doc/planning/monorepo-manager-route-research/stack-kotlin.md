@@ -49,7 +49,7 @@ This file is kept as evidence.
 ## Shared design every option must implement
 
 These pieces don't depend on the language.
-Each option section below says how its runtime reaches them.
+Each of the `Option 1`, `Option 2` and `Option 3` sections says how its runtime reaches them.
 
 - Process model:
    the user starts the daemon with `systemd-run --user --scope -p Delegate=yes`;
