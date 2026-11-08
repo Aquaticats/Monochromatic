@@ -411,7 +411,10 @@ const SILENT_LISTENER_WAIT: Duration = Duration::from_millis(300);
 fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_is_serving() {
     use std::io::Write;
     let held: Fixture = fixture("silent-listener");
-    let socket: PathBuf = held.root.join("socket");
+    // The socket's name must fit `SUN_LEN`, which a fixture root under a deep checkout does not; the short directory is the one
+    //  the fixture's own services put their sockets in.
+    let runtime: PathBuf = super::support::short_runtime_directory(&held);
+    let socket: PathBuf = runtime.join("socket");
     let listener = std::os::unix::net::UnixListener::bind(&socket).expect("a listening socket");
     assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the kernel accepts a connection for a listener that has not answered");
     let began: Instant = Instant::now();
@@ -426,4 +429,5 @@ fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_i
     });
     assert!(service_is_serving(&socket), "a listener that greets is serving");
     greeter.join().expect("the greeter ends");
+    let _removed = std::fs::remove_dir_all(runtime.as_path());
 }

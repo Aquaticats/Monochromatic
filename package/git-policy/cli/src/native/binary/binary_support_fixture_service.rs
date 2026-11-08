@@ -177,12 +177,32 @@ pub static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::
 /// so a control that panics
 ///  or is killed leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
+    let runtime: PathBuf = short_runtime_directory(fixture);
+    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
+}
+
+/// What:
+///  A directory of this fixture's own, short enough to hold a socket name.
+/// Why:
+///   A Unix socket's name must fit `SUN_LEN`,
+/// which is 108 bytes,
+/// and a fixture root under a deep checkout does not.
+/// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN" on a long
+///  checkout and passed on a short one (2026-11-08),
+///  so a test depended on how deep the repository sat.
+/// The service's own socket already lives in such a directory, and this is the one place that makes it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt-${pid}-${n}`
+/// ```
+pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
     let _ = fixture;
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
-    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
+    return runtime;
 }
 
 /// What:
