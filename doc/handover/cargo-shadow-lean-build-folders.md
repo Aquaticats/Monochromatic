@@ -16,6 +16,14 @@ the three Podman refusals the first run met,
 and what of each is still unmeasured.
 Both changes are in the sources only,
 so nothing of this is installed or released yet.
+Updated 2026-11-08T16:18:47-05:00:
+D is wired to its five producers through a new scoped entry point (`lean records`),
+and the Cargo repair without the shadow and the two open questions of the plan are measured,
+with their answers below.
+All of this is in the sources only.
+Until cargo-shadow is released and installed,
+a producing task stops at its first step,
+because the installed 0.1.5-alpha.7 lists only `lean run` and `lean timer-install`.
 
 ## State
 
@@ -64,27 +72,118 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
 ## Open
 
 - D at its producers:
-  the run-record retention runs from `cargo-shadow lean run`.
-  The producing tasks (the TypeScript runners of `package/git-policy/cli`,
-  `package/git-policy/cli.fuzz`,
-  `package/linter/monochromatic-lint`,
-  `package/linter/monochromatic-lint.fuzz` and `package/forbidden-strings/cli`) do not call it first.
+  wired on 2026-11-08 in the five producing packages,
+  and not yet released.
+  The retention still runs from `cargo-shadow lean run` over every checkout,
+  and now also from `cargo-shadow lean records <directory>...` over the directories one producing task names
+  (`package/cargo-shadow/cli/src/lean_command.rs`,
+  section "Keeping the build folders lean" of the crate README).
+  Each of these tasks runs that first,
+  over its own `target/verification`:
+  `native:test:container` and `native:mutation` of `package/git-policy/cli`,
+  `smoke` and `test:planted` of `package/git-policy/cli.fuzz`,
+  `test:container` of `package/linter/monochromatic-lint` (every mutation task there depends on it),
+  `smoke` and `test:planted` of `package/linter/monochromatic-lint.fuzz`,
+  and `test:container` and `test:mutation:container` of `package/forbidden-strings/cli`.
   The plan assigned D to those packages;
-  the owner's answer put all six in cargo-shadow.
+  the owner's answer put all six mechanisms in cargo-shadow,
+  so the tasks call its retention rather than reimplementing it.
+  Why a scoped entry point and not the whole pass:
+  a machine-wide dry run of the records mechanism alone measured 398 s on this host on 2026-11-08
+  (359 checkouts,
+  119 verification directories read,
+  nothing due for removal),
+  which is too much in front of every producing task.
+  Not measured:
+  what the scoped sweep costs on a package whose records are due,
+  and what each of these tasks now takes.
+  A producing task that runs before the release and install stops at its first step
+  with `error: unrecognized subcommand 'records'`;
+  no producing task was run while making this change.
 - A for container builds:
   `package/ide/app/mise.toml` and `package/nested-wayland-session/cli/mise.toml` do not set the keyed folder.
   Their in-tree builds are kept lean by B and E only.
 - The Git wrapper's Cargo repair clones whichever build directory `cargo metadata` reports
   (`package/git-policy/cli/src/native/repair/package_repair_cargo_workspaces.rs`).
-  Run through the shadow that is the keyed folder on both sides;
-  run without the shadow it is Cargo's own hash folder on both sides and the next build under the shadow starts cold.
-  Not measured.
+  Measured 2026-11-08 in this worktree's `package/cargo-shadow/cli`,
+  with `cargo metadata --no-deps --locked --offline`:
+  with the shadow on `PATH` the reported `build_directory` is the keyed folder
+  `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-08/9f/66d64bfdfa2aab`
+  (929 MiB,
+  its ledger naming this worktree),
+  and with the shadow off `PATH` (the real cargo of `.cache/toolchain-bin`) it is Cargo's own hash folder
+  `/var/mnt/encrypted/cargo-build/fb/b51766dd97b6cf`,
+  which held 2.0 KiB (a `CACHEDIR.TAG` and an empty `debug/`).
+  Both sides of a worktree add are read with the same `cargo` from the person's `PATH`
+  (`read_workspace` for the worktree,
+  `cargoMetadataSource` for the source),
+  so without the shadow the repair clones an empty hash folder into an empty hash folder,
+  the next shadow build uses the keyed folder,
+  and that folder is not there:
+  it starts cold.
+  The measurement left that 2 KiB hash folder in the real build base;
+  nothing was built into it and nothing else was touched.
+  What a change would be,
+  if the owner wants one:
+  the repair could ask for the keyed folder itself,
+  which means the wrapper reading cargo-shadow's keying rule,
+  or it could carry whichever of the two build directories holds newer state.
+  Neither is done.
 - Containers in any state use their image:
   an image an exited container holds is kept.
   Whether exited containers should go too is a question for the owner.
-- What runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
-  and which wrapper build is installed:
-  both open questions of the plan are still open.
+- What runs `cargo package` or `cargo publish --dry-run` about 90 times per crate
+  (the plan's first open question):
+  measured,
+  and the "about 90 times per crate" figure is not reproducible as a run count.
+  What a run leaves is exact:
+  `cargo package` verifies by unpacking the crate and building it.
+  Measured 2026-11-08 in a disposable crate with `CARGO_BUILD_BUILD_DIR=<base>/{workspace-path-hash}`,
+  the same shape as this host's `~/.cargo/config.toml`:
+  it compiled
+  `<base>/75/4a9477468c27be/package/tiny-probe-0.1.0`,
+  so the unpacked copy lives inside the workspace's own build tree and no new tree is made.
+  The host build base holds 2,131 `package/tmp-crate` directories and 46 distinct unpacked crate versions
+  (`find /var/mnt/encrypted/cargo-build -maxdepth 4 -mindepth 4 -type d -path '*/package/*'`);
+  25 of those versions are `monochromatic-git-policy-cli`,
+  which has 70 distinct versions in Git history and 69 release tags,
+  so the order-of-magnitude figure is the number of released versions of a crate that were packaged in one tree,
+  not a loop that runs 90 times.
+  Who runs it:
+  `cargo package` once and `cargo publish --dry-run` once per crate job of `.github/workflows/cargo-publish.yml`
+  (18 and 16 steps in that file,
+  and every `publish --dry-run` there passes `--no-verify`,
+  so the dry run does not verify a second time),
+  one `cargo publish --dry-run --locked --allow-dirty` per release from `package/crate-release/cli`,
+  and the manual `package`/`publish:dry-run` task of each crate.
+  Whether it should stop at the source is the owner's call:
+  the only verify left is the `cargo package` step,
+  which is the one place the packaged crate is compiled against the registry,
+  and
+  `--no-verify` there would remove it.
+  What can stop at the source without losing that check is the copy:
+  the worktree copy rule still carries `target/package` into every new worktree,
+  and that is how 25 unpacked wrapper versions became 4,165 copies across the hash-shaped host trees
+  the find above covers.
+- Which wrapper build an add uses
+  (the plan's second open question):
+  the installed and locked one,
+  `monochromatic-git-policy-cli` 0.6.1-alpha.4
+  (`toolchain.lock.json`,
+  route `archive`,
+  launcher record `.cache/toolchain-launchers/monochromatic-git-policy-cli.launch`).
+  That build carries the whole copy rule:
+  the skip of `target/**/incremental`,
+  `target/verification` and the caches entered at version 0.5.14
+  (`5e773a62f4`,
+  2026-11-02)
+  and first shipped in `monochromatic-git-policy-cli-v0.5.18`.
+  The brief's 49.5 GB per add is within a percent of its listed total minus incremental state only (49.2 GB),
+  which is the arithmetic of a build that predates 0.5.18:
+  with `target/verification` (6.2 GiB) also left out
+  the same add would have written about 43 GB.
+  Which build ran for that measurement is still not established;
+  what a new add uses is 0.6.1-alpha.4.
 - The timer:
   `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` to
   `~/.config/systemd/user` and enables the timer.
