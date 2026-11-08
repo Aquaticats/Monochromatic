@@ -133,7 +133,8 @@ fn the_records_action_sweeps_only_the_directories_it_is_given() {
 }
 
 /// A directory named relative to the folder a task runs in is resolved before the in-use scan compares it with the
-/// absolute paths the kernel reports, and an absolute one is kept as it is.
+/// absolute paths the kernel reports,
+/// and an absolute one is kept as it is.
 #[test]
 fn a_named_directory_is_resolved_against_the_folder_the_task_runs_in() {
     let start: PathBuf = PathBuf::from("/somewhere/package/x/y");

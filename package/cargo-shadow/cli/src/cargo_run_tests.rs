@@ -4,7 +4,9 @@
 //! Every start a shadow makes carries the arrival marker of `shadow_identity.rs`,
 //! so a program that turns out to be a shadow stops at its first instruction.
 //! The candidate check and the loop guard recognize a shadow by its file or by its record;
-//! what they cannot see (a script that runs a shadow, a launcher with no record)
+//! what they cannot see
+//! (a script that runs a shadow,
+//! a launcher with no record)
 //! is stopped by the marker,
 //! and the cargo of an install step was the one start without one
 //! (`doc/planning/one-release-each-batch-2026-11.md`,

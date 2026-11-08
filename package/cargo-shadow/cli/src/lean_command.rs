@@ -59,7 +59,9 @@ pub(crate) fn absent_notes(directories: &[PathBuf]) -> Vec<String> {
 /// What:
 /// `pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf>` resolves each named directory against `start`.
 /// Why:
-/// The in-use scan compares a root with the working directory, program, open files and mapped files of every process,
+/// The in-use scan compares a root with the working directory,
+/// program,
+/// open files and mapped files of every process,
 /// and the kernel reports those as absolute paths,
 /// so a directory named relative to a task's own folder is resolved once here.
 ///
