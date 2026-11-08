@@ -676,6 +676,11 @@ fn a_group_record_that_cannot_be_read_defers_the_recovery() {
     // then discarded the journal would pass the two assertions above.
     assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the journal with the unreadable record was removed or replaced: {messages:?}");
     assert!(journal.join("0.lock").exists() && journal.join("groups").is_dir(), "the journal's snapshot or its unreadable record is gone: {messages:?}");
+    // Admission refuses too, and leaves the journal and its snapshot as they are (sixth pass, the fifth-pass open list).
+    let admitted = begin(root.path(), &[snapshot("second")], false);
+    assert!(admitted.is_err(), "a transaction was admitted beside a journal whose record cannot be read");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the refused admission changed the journal set");
+    assert!(journal.join("0.lock").exists() && journal.join("groups").is_dir(), "the refused admission changed the journal");
 }
 
 /// Round 6 (5b2 2,
@@ -1260,7 +1265,7 @@ fn a_leftover_temporary_of_a_killed_replacement_is_reported_and_kept() {
 }
 
 /// Every name under a directory (recursively) that is a hard link of the inode.
-fn names_of_inode(directory: &Path, inode: u64) -> Vec<PathBuf> {
+pub(crate) fn names_of_inode(directory: &Path, inode: u64) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(directory).expect("lists").flatten() {
         let path: PathBuf = entry.path();
@@ -1882,16 +1887,16 @@ fn the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journa
     let text: String = fs::read_to_string(&log).expect("the strace log");
     let calls: Vec<&str> = text.lines().filter(|line| { return line.contains("rename(") || line.contains("renameat") || line.contains("unlinkat(") || line.contains("rmdir(") || line.contains("fsync(") || line.contains("fdatasync("); }).collect();
     let renamed_at: Option<usize> = calls.iter().position(|line| { return line.contains(&format!("{}.done", journal.display())) && !line.contains("= -1"); });
-    let Some(renamed_at) = renamed_at else {
+    let Some(renamed_position) = renamed_at else {
         panic!("the completion marker was never renamed: {calls:?}");
     };
     let parent: String = format!("<{}>", journals.display());
     let removed_at: Option<usize> = calls.iter().position(|line| { return (line.contains("unlinkat(") || line.contains("rmdir(")) && line.contains(&format!("{}.done", journal.display())); });
-    let synced_at: Option<usize> = calls.iter().enumerate().skip(renamed_at + 1).find(|(_, line)| { return (line.contains("fsync(") || line.contains("fdatasync(")) && line.contains(&parent) && line.contains("= 0"); }).map(|(index, _)| { return index; });
-    let Some(synced_at) = synced_at else {
+    let synced_at: Option<usize> = calls.iter().enumerate().skip(renamed_position + 1).find(|(_, line)| { return (line.contains("fsync(") || line.contains("fdatasync(")) && line.contains(&parent) && line.contains("= 0"); }).map(|(index, _)| { return index; });
+    let Some(synced_position) = synced_at else {
         panic!("no fsync of the directory that lists the marker came after the rename: {calls:?}");
     };
-    assert!(removed_at.is_none_or(|removal| { return synced_at < removal; }), "the journal was removed before its marker's directory was synchronized: {calls:?}");
+    assert!(removed_at.is_none_or(|removal| { return synced_position < removal; }), "the journal was removed before its marker's directory was synchronized: {calls:?}");
 }
 
 /// The environment variable that gives the completion-barrier helper its journal.

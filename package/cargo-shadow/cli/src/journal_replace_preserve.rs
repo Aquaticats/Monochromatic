@@ -104,6 +104,12 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
     // ```ts
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
+    // A test fails the preservation of one target after its exchange to show the recovery's post-exchange schedule
+    // (sixth pass, group 8).
+    #[cfg(test)]
+    if crate::failpoints::keep_link_of(target) {
+        return Err(PreserveFailure::Data(io::Error::other("injected preservation failure after the exchange")));
+    }
     (ops.sync_file)(displaced).map_err(PreserveFailure::Data)?;
     let base: String = file_name_text(target);
     let mut directories: Vec<PathBuf> = Vec::new();
@@ -139,15 +145,7 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
             let candidate: PathBuf = directory.join(name);
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&candidate`: lends the value without copying or giving it away.
-            #[cfg(test)]
-            let link_result: io::Result<()> = if crate::failpoints::keep_link_of(target) {
-                Err(io::Error::from_raw_os_error(rustix::io::Errno::MLINK.raw_os_error()))
-            } else {
-                (ops.link)(displaced, &candidate)
-            };
-            #[cfg(not(test))]
-            let link_result: io::Result<()> = (ops.link)(displaced, &candidate);
-            match link_result {
+            match (ops.link)(displaced, &candidate) {
                 Ok(()) => {
                     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
                     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.

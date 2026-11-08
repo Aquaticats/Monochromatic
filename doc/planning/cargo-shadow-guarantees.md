@@ -2114,13 +2114,16 @@ No row is certified by this map.
   `a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped`;
   both red with the identity set emptied,
   planted).
-  The older integration test is renamed `a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs`:
-  it
-  shows the process-bound guard ends a chain of a launcher that has no record,
-  with an append-only counter,
-  and does not claim
-  "skipped";
-  the skipping is `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`.
+  The bounded fallback and the loop guard of an unrecorded launcher that leads back are gone (owner decision of 2026-11-04,
+  option A):
+  the second cargo-shadow stops at once at the arrival stop with exit status 2, and no test named
+  `a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs` exists any more.
+  The current evidence is
+  `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`,
+  `an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`
+  (whose append-only launcher entry trace is depth-aware:
+  every launcher invocation is at the first shadow's depth, so no second shadow re-enters one) and
+  `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2`.
 - **V5,
   A3.**
   Production defect:
@@ -2579,9 +2582,10 @@ Substantive findings and their state:
 
 - The strong-path tests that do not run a transaction rely on the host having a delegated scope (`delegated_route`) and on the
   runner choosing it when it has one;
-  the tests that read a journal record or the program's own group show the choice
-  (`assert_scope_record`,
-  the program's group).
+  `assert_scope_record` proves that the journal holds the record of the scope the runner opened, and the program's own group
+  proves where the program ran;
+  neither alone proves the payload was placed: the record is the intent, and the
+  program's group is the placement (group 1 wording, sixth pass).
 - The identity tests give the recovery a different identity;
   no machine was rebooted.
 - Nothing else in the launcher identity or the boot rule reads a time-namespace-relative value:

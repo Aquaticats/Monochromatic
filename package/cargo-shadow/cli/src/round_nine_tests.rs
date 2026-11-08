@@ -888,7 +888,7 @@ fn a_record_that_is_written_only_in_part_or_cannot_be_written_or_synced_starts_n
             let _ = crate::bounded_run::take_trace_for_test();
             arm(fault);
 
-            let result = output_within(&mut Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
+            let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
             crate::bounded_run::use_route_settings_for_test(None);
             let events: Vec<String> = crate::bounded_run::take_trace_for_test();
 
@@ -1075,4 +1075,49 @@ fn an_acknowledgement_resolves_a_malformed_an_unreadable_and_another_views_journ
         assert_eq!(live_lock(root.path()), "original", "{label}: the acknowledged journal was not settled: {messages:?}");
         assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "{label}: the acknowledged journal was not removed: {messages:?}");
     }
+}
+
+/// Acceptance row V5 (sixth pass,
+/// group 8,
+/// a failure after the exchange):
+/// the snapshot lockfile becomes live (the exchange succeeded),
+/// then the preservation of the file it displaced fails.
+/// The root is treated as failed:
+/// its edited manifest is untouched,
+/// the journal is kept with its snapshot,
+/// and the displaced inode keeps the stranded exchange temporary.
+/// A control without the fault restores both and completes the journal.
+#[test]
+fn a_restore_that_fails_after_the_exchange_keeps_the_edited_manifest_and_the_journal() {
+    use std::os::unix::fs::MetadataExt;
+    let root = repository();
+    let manifest: PathBuf = root.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&manifest, "edited manifest of the killed run").expect("manifest");
+    let manifests: Vec<crate::manifest_edit::ManifestEdit> = vec![crate::manifest_edit::ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "manifest before".to_string(), produced: None }];
+    let journal: PathBuf = plant(root.path(), &[snapshot("original")], &manifests);
+    let lock_path: PathBuf = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let displaced: u64 = fs::metadata(&lock_path).expect("examines").ino();
+    crate::failpoints::arm_keep_link_of(&lock_path);
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    crate::failpoints::disarm_keep_link();
+
+    assert_eq!(live_lock(root.path()), "original", "the exchange did not put the snapshot live before the failure, so the schedule is not the one named: {messages:?}");
+    assert_eq!(fs::read_to_string(&manifest).expect("manifest"), "edited manifest of the killed run", "the manifest of a root whose preservation failed after the exchange was put back: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains(CRATE_DIR) && message.contains("could not recover a killed run"); }), "the failed root was not reported: {messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the journal of an unsettled recovery was not kept");
+    assert!(journal.join("0.lock").exists(), "the journal's snapshot is gone");
+    let names: Vec<PathBuf> = crate::journal_protocol_tests::names_of_inode(root.path(), displaced);
+    assert!(names.iter().any(|name| { return name.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".shadow-"); }); }), "the displaced inode lost the stranded exchange temporary: {names:?}");
+
+    // The control: the same journal without the fault restores the lockfile and the manifest and completes.
+    let control = repository();
+    let control_manifest: PathBuf = control.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&control_manifest, "edited manifest of the killed run").expect("manifest");
+    let control_manifests: Vec<crate::manifest_edit::ManifestEdit> = vec![crate::manifest_edit::ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: control_manifest.clone(), before: "manifest before".to_string(), produced: None }];
+    let control_journal: PathBuf = plant(control.path(), &[snapshot("original")], &control_manifests);
+    let settled: Vec<String> = recover(control.path(), &refusing);
+    assert_eq!(live_lock(control.path()), "original", "the control did not restore the snapshot: {settled:?}");
+    assert_eq!(fs::read_to_string(&control_manifest).expect("manifest"), "manifest before", "the control did not restore the manifest: {settled:?}");
+    assert!(!control_journal.exists(), "the control journal was not completed: {settled:?}");
 }
