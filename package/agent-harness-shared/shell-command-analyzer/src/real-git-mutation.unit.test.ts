@@ -377,6 +377,27 @@ await describe({
               },
             },),
             it({
+              name: 'denies a commit whose arguments follow an attached split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'${FIXTURE_REAL_GIT_PATH}' commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit whose arguments follow a separated split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S '${FIXTURE_REAL_GIT_PATH}' commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe whose arguments follow a split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'${FIXTURE_REAL_GIT_PATH}' rev-parse HEAD`,),)
+                  .toBe(false,);
+              },
+            },),
+            it({
               name: 'denies a commit inside an attached long split-string payload',
               fn: async ({ expect: e, },) => {
                 e(await fixtureMutates(`env --split-string='${FIXTURE_REAL_GIT_PATH} commit -m x'`,),)
