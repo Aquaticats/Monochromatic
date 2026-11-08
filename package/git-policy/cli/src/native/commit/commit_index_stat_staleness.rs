@@ -28,17 +28,6 @@
 //! const stale: boolean = indexStatDataNeedsRefresh({ context, cwd, index, staging });
 //! ```
 
-/// What a commit stages from the worktree,
-/// so its recorded stat data cannot cost the scratch commit a read.
-pub enum WorktreeStaging<'a> {
-    /// The positional pathspecs of an explicit-path commit,
-    /// exactly as the command line gave them.
-    Named(&'a [std::ffi::OsString]),
-    /// Nothing:
-    /// the commit takes its content from the index or from the merged tree.
-    None,
-}
-
 /// The Git context,
 /// which carries the overlay a directory is read with.
 use crate::transaction_git::GitContext;
@@ -113,6 +102,17 @@ const MODE_REGULAR_FILE: u32 = 0o100_644;
 /// The mode an index entry has for an executable regular file.
 #[cfg(unix)]
 const MODE_EXECUTABLE_FILE: u32 = 0o100_755;
+
+/// What a commit stages from the worktree,
+/// so its recorded stat data cannot cost the scratch commit a read.
+pub enum WorktreeStaging<'a> {
+    /// The positional pathspecs of an explicit-path commit,
+    /// exactly as the command line gave them.
+    Named(&'a [std::ffi::OsString]),
+    /// Nothing:
+    /// the commit takes its content from the index or from the merged tree.
+    None,
+}
 
 /// The stat data one worktree file has,
 /// each field cut to the 32 bits an index entry stores.
