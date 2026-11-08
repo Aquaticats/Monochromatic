@@ -33,9 +33,23 @@ use std::time::{Duration, SystemTime};
 
 /// A judge that sees the processes of this kernel completely,
 /// takes any lock as old enough,
-/// and trusts local disks.
+/// and trusts local disks,
+/// scanning for open holders only among the processes the control names.
+/// A scan of every process of the machine would let any other program's Git,
+/// or one this account cannot look into,
+/// veto the clearance a control expects
+/// (the handover records that failure of 2026-11-08);
+/// the veto has its own controls,
+/// which name the holder they plant.
 fn judge() -> Judge {
     return Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, ..Judge::here() };
+}
+
+/// The same judge,
+/// for a control that plants a live process holding a file open:
+/// that process is the only one its scan may see.
+fn judge_seeing(_pid: i64) -> Judge {
+    return judge();
 }
 
 /// A process number that no running process has:
@@ -178,7 +192,7 @@ fn a_lock_that_a_process_holds_open_stays_though_its_pid_file_names_a_gone_proce
         assert!(started.elapsed() < killed::HOLD_PATIENCE, "the holder opened the lock");
         std::thread::sleep(Duration::from_millis(20));
     }
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge_seeing(holder_pid));
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(lock.exists() && stage.pid_file_of(PLANTED_REF).exists());
     assert!(matches!(verdict_of(&outcome, lock.as_path()), Some(Verdict::Held(_))), "{outcome:?}");
@@ -591,6 +605,88 @@ fn an_unreadable_git_process_stops_a_proof() {
     stage.finish();
 }
 
+/// A process of this account that the scan cannot look into,
+/// named like Git:
+/// the shape a sandboxed or privileged program of the same account leaves beside a control,
+/// which denies its descriptors to its own account (`prctl(2)`,
+/// `PR_SET_DUMPABLE`).
+struct NuisanceGit {
+    /// The process number.
+    pid: i64,
+}
+
+impl NuisanceGit {
+    /// Start one,
+    /// or `None` where this account can look into every process it runs (the kernel lets the root account read the
+    /// descriptors of a process that is not dumpable).
+    fn start() -> Option<Self> {
+        // SAFETY: between `fork` and the end of the child the code runs only `prctl` and `pause`, which take no pointer
+        // into this process's memory but the name below, and touch no lock.
+        let forked: libc::pid_t = unsafe { libc::fork() };
+        if forked == 0 {
+            // The child: named like Git and not dumpable, so its own account cannot read `/proc/<pid>/fd`.
+            let name: &[u8] = b"git-nuisance\0";
+            // SAFETY: the name is a terminated string that outlives the call.
+            unsafe {
+                let _named = libc::prctl(libc::PR_SET_NAME, name.as_ptr(), 0, 0, 0);
+                let _hidden = libc::prctl(libc::PR_SET_DUMPABLE, 0, 0, 0, 0);
+                loop {
+                    let _paused = libc::pause();
+                }
+            }
+        }
+        assert!(forked > 0, "fork the process of another program");
+        let nuisance: Self = Self { pid: i64::from(forked) };
+        let started: std::time::Instant = std::time::Instant::now();
+        while !nuisance.named_and_hidden() {
+            assert!(started.elapsed() < killed::HOLD_PATIENCE, "the process of another program took its name and hid its descriptors");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        return nuisance.named_and_hidden().then_some(nuisance);
+    }
+
+    /// Whether the scan of this account meets it as a Git process it cannot look into.
+    fn named_and_hidden(&self) -> bool {
+        let process: PathBuf = PathBuf::from("/proc").join(self.pid.to_string());
+        let named: bool = std::fs::read_to_string(process.join("comm")).is_ok_and(|text| { return text.trim().starts_with("git"); });
+        let hidden: bool = std::fs::read_dir(process.join("fd")).is_err_and(|error| { return error.kind() == std::io::ErrorKind::PermissionDenied; });
+        return named && hidden;
+    }
+}
+
+/// Whatever the control did,
+/// the process of another program is gone.
+impl Drop for NuisanceGit {
+    fn drop(&mut self) {
+        // SAFETY: the number is the own child this control forked, and reaping it here takes its only record.
+        unsafe {
+            let _killed = libc::kill(libc::pid_t::try_from(self.pid).unwrap_or_default(), libc::SIGKILL);
+            let _reaped = libc::waitpid(libc::pid_t::try_from(self.pid).unwrap_or_default(), std::ptr::null_mut(), 0);
+        }
+    }
+}
+
+/// Another program's Git process of this account that cannot be looked into is no holder of this fixture's locks:
+/// the judgement of one fixture looks at the processes that fixture started,
+/// so a sandboxed or privileged Git of the same session elsewhere does not keep a stale lock in place.
+#[test]
+fn an_unreadable_git_of_another_program_does_not_stop_a_fixtures_clearance() {
+    let stage: Stage = killed::stage("stale-refs-unreadable-elsewhere", true);
+    let mut held: Held = killed::hold_fetch(&stage);
+    held.kill();
+    let Some(nuisance) = NuisanceGit::start() else {
+        eprintln!("skipped: this account can look into every process it runs");
+        stage.finish();
+        return;
+    };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    assert_eq!(outcome.cleared.len(), 2, "{outcome:?}");
+    assert_eq!(leftovers(&stage), Vec::<PathBuf>::new());
+    drop(nuisance);
+    fetch_works(&stage);
+    stage.finish();
+}
+
 /// The staging file of a killed packed-references update stays when its lock was removed by hand;
 /// it goes,
 /// and the next
@@ -670,7 +766,7 @@ fn a_staging_file_that_a_process_holds_open_stays() {
         assert!(started.elapsed() < killed::HOLD_PATIENCE, "the holder opened the staging file");
         std::thread::sleep(Duration::from_millis(20));
     }
-    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge_seeing(holder.pid()));
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(stage.packed_staging().exists());
     assert!(matches!(verdict_of(&outcome, stage.packed_staging().as_path()), Some(Verdict::Held(_))), "{outcome:?}");
