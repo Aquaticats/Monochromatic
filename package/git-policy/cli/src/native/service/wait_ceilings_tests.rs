@@ -74,3 +74,22 @@ fn no_wait_is_left_on_the_unmeasured_ceiling() {
     }
     assert!(MINUTE <= LANDING_LOCK_CEILING);
 }
+
+/// The scratch repository's `git commit` is stopped at three times the slowest build the timing log holds,
+/// in whole minutes:
+/// the owner's margin (2026-11-07,
+/// "three times the slowest measured"),
+/// not the five of the other ceilings,
+/// and the figure is a build,
+/// which holds the step,
+/// so the ceiling can only be looser than the step's own measurement.
+#[test]
+fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_measured_build() {
+    let slowest_times_margin: Duration = SLOWEST_MEASURED_COMMIT_BUILD * SCRATCH_COMMIT_STEP_MARGIN;
+    assert!(!SLOWEST_MEASURED_COMMIT_BUILD.is_zero(), "the measurement is recorded beside the ceiling");
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, whole_minutes_at_least(slowest_times_margin));
+    assert!(SCRATCH_COMMIT_STEP_CEILING >= slowest_times_margin);
+    assert!(SCRATCH_COMMIT_STEP_CEILING < slowest_times_margin + MINUTE);
+    let source: &str = include_str!("../commit/commit_preparation.rs");
+    assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
+}

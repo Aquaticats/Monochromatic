@@ -1,10 +1,12 @@
 //! What:
-//!  The waiting notice of the commit Git builds in the scratch repository:
+//!  The waiting notice and the ceiling of the commit Git builds in the scratch repository:
 //! while that `git commit` runs,
 //! a line on standard error
 //! says what the command waits for,
 //! how long it has waited,
-//! and that the step has no time limit here.
+//! and when the step is stopped;
+//! when the ceiling comes,
+//! everything below this process is ended.
 //! Why:
 //!  Every other wait of the wrapper says what it waits for (issue 1811),
 //! but this step runs with the terminal attached and no watch,
@@ -14,20 +16,36 @@
 //! says the commit is signed when `commit.gpgsign` or `-S` asks
 //! for it,
 //! and names the signing program while one runs below the `git commit`.
-//! No ceiling is added:
-//! whether this step may be ended is the owner's question.
-//! A commit that opens the person's editor prints nothing,
+//! The owner's rule is that nothing waits for ever (2026-11-03),
+//! and his answer on this step (2026-11-07,
+//! "A: limit unless editor"):
+//! a ceiling when the message came with the command,
+//! none when an editor may open,
+//! where the person is the wait and a stop would lose what they typed.
+//! The ceiling is `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
+//! with its measurement.
+//! A stop ends every process below this one with `SIGKILL`:
+//! the step runs in a scratch repository on a private copy of the index,
+//! and the objects it wrote are content-addressed files the next build writes again,
+//! so nothing of the person's is in the step.
+//! The thread that watches the step is the only caller that needs to find it,
+//! because the step runs below `SignalGuard`,
+//! which relays signals but names no child;
+//! this is the only child of the command at that point,
+//! the same reading `programs_below` already makes.
+//! A commit that opens the person's editor prints nothing and is never stopped,
 //! because the person is the wait.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const notice = startNotice({ signs, cadence }); try { await runGitCommit(); } finally { notice.finish(); }
+//! const notice = startNotice({ signs, cadence, ceiling }); try { await runGitCommit(); } finally { const stoppedAfter = notice.finish(); }
 //! ```
 
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
-/// The processes started below this one.
-use crate::process_tree::descendants_of;
+/// The processes started below this one,
+/// and their end.
+use crate::process_tree::{descendants_of, kill_members};
 /// The configuration the commit is built under.
 use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
@@ -43,14 +61,63 @@ use std::time::{Duration, Instant};
 /// so a very short interval does not spin.
 const LOOK_PAUSE: Duration = Duration::from_millis(1);
 
+/// What a started notice is given.
+pub struct NoticeStart<'a> {
+    /// The configuration the commit is built under.
+    pub snapshot: Option<&'a ConfigSnapshot>,
+    /// The commit command's own arguments.
+    pub commit_arguments: &'a [String],
+    /// The cadence of the lines.
+    pub cadence: Cadence,
+    /// How long the step lasts before it is stopped,
+    /// when no editor may open in it.
+    pub ceiling: Duration,
+    /// Where the lines go.
+    pub sink: Box<dyn Write + Send>,
+}
+
+/// What:
+///  The words of a stop:
+/// what ended,
+/// after how long,
+/// why this long,
+/// what became of the person's work,
+/// and what to run.
+/// Why:
+///   A commit that stops with a bare exit status leaves the person guessing whether anything was committed;
+/// the step runs in a scratch repository,
+/// so nothing was,
+/// and the message is on the command line.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopWords({ waited, ceiling, signs })
+/// ```
+pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool) -> String {
+    let signing: &str = if signs {
+        " The commit signs the commit because `commit.gpgsign` or `-S` asks for it, so the signing program is the first thing to check."
+    } else {
+        ""
+    };
+    return format!(
+        "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, the most a commit whose \
+         message came with the command may take ({} seconds, three times the longest build this repository's commit timing log holds); nothing was \
+         committed, and your index and files are as they were.{signing} Run the same `git commit` command again.\n",
+        waited.as_secs(),
+        ceiling.as_secs()
+    );
+}
+
 /// The running notice:
 /// the thread that prints it and the sender that ends it.
 pub struct NativeCommitNotice {
     /// Ends the thread when it is sent to or dropped.
     stop: Option<Sender<()>>,
     /// The thread,
-    /// joined when the step has ended.
-    thread: Option<std::thread::JoinHandle<()>>,
+    /// joined when the step has ended;
+    /// it answers how long the step had lasted when it ended it,
+    /// when it did.
+    thread: Option<std::thread::JoinHandle<Option<Duration>>>,
 }
 
 /// Whether the commit is signed:
@@ -104,7 +171,7 @@ fn trim_name(text: String) -> String {
 /// ```ts
 /// noticeLine({ signs, waited, first, below })
 /// ```
-pub fn notice_line(signs: bool, waited: Duration, first: bool, below: &[(i32, String)]) -> String {
+pub fn notice_line(signs: bool, waited: Duration, first: bool, below: &[(i32, String)], ceiling: Duration) -> String {
     let signing: String = if signs { String::from(", which signs the commit because `commit.gpgsign` or `-S` asks for it") } else { String::new() };
     let signer: String = match below.first() {
         Some((pid, name)) => format!("; `{name}` (process {pid}) runs below it"),
@@ -113,8 +180,9 @@ pub fn notice_line(signs: bool, waited: Duration, first: bool, below: &[(i32, St
     let hint: &str = if first { " Hint: it is still running; if it looks stuck, check it with `ps` and report it." } else { "" };
     return format!(
         "monochromatic-git-policy-cli: still waiting for the `git commit` this commit runs in its scratch repository{signing}{signer}, {} seconds so far; \
-         it has no time limit here, so it is waited for as long as it lives.{hint}\n",
-        waited.as_secs()
+         it is stopped if it lasts {} seconds in all.{hint}\n",
+        waited.as_secs(),
+        ceiling.as_secs()
     );
 }
 
@@ -137,7 +205,13 @@ impl NativeCommitNotice {
     /// ```ts
     /// const notice = NativeCommitNotice.start({ snapshot, commitArguments, cadence });
     /// ```
-    pub fn start(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[String], cadence: Cadence, mut sink: Box<dyn Write + Send>) -> Self {
+    pub fn start(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[String], cadence: Cadence, sink: Box<dyn Write + Send>) -> Self {
+        return Self::start_within(NoticeStart { snapshot, commit_arguments, cadence, ceiling: crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING, sink });
+    }
+
+    /// Starts the notice with the ceiling given.
+    pub fn start_within(start: NoticeStart<'_>) -> Self {
+        let NoticeStart { snapshot, commit_arguments, cadence, ceiling, mut sink } = start;
         let words: Vec<std::ffi::OsString> = commit_arguments.iter().map(std::ffi::OsString::from).collect();
         if opens_editor(words.as_slice()) {
             return Self::silent();
@@ -150,16 +224,27 @@ impl NativeCommitNotice {
             let mut first: bool = true;
             loop {
                 let waited: Duration = began.elapsed();
+                if waited >= ceiling {
+                    // Everything below this process is the step and its signer; nothing of the person's runs there.
+                    let below = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
+                    if below.is_empty() {
+                        // The step ended on its own as the ceiling came.
+                        return None;
+                    }
+                    kill_members(below.as_slice());
+                    return Some(waited);
+                }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, programs_below().as_slice());
+                    let line: String = notice_line(signs, waited, first, programs_below().as_slice(), ceiling);
                     first = false;
                     // A closed terminal is not a reason to stop the commit.
                     let _written = sink.write_all(line.as_bytes());
                     let _flushed = sink.flush();
                 }
-                match ended.recv_timeout(ticker.next_in(began.elapsed()).max(LOOK_PAUSE)) {
+                let to_ceiling: Duration = ceiling.saturating_sub(began.elapsed());
+                match ended.recv_timeout(ticker.next_in(began.elapsed()).min(to_ceiling).max(LOOK_PAUSE)) {
                     Err(RecvTimeoutError::Timeout) => {}
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return,
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return None,
                 }
             }
         });
@@ -169,14 +254,17 @@ impl NativeCommitNotice {
         };
     }
 
-    /// Ends the notice once the step has ended.
-    pub fn finish(mut self) {
+    /// Ends the notice once the step has ended,
+    /// and answers how long the step had lasted when the notice stopped it,
+    /// nothing when it ended by itself.
+    pub fn finish(mut self) -> Option<Duration> {
         if let Some(stop) = self.stop.take() {
             let _sent = stop.send(());
         }
-        if let Some(thread) = self.thread.take() {
-            let _joined = thread.join();
-        }
+        return match self.thread.take() {
+            Some(thread) => thread.join().unwrap_or(None),
+            None => None,
+        };
     }
 }
 
