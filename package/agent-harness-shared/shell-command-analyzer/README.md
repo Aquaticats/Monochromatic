@@ -95,30 +95,75 @@ the folder the resolver reports.
 
 ### Wrappers
 
-Program wrappers are stripped before the subcommand is read:
-`NAME=value` prefixes,
-`env` (including `-S` and `--split-string` payloads,
-attached as `-S'...'`/`--split-string=...` or separated),
-`sudo`,
-`doas`,
-`command`,
-`builtin`,
-`exec`,
-`nohup`,
-`setsid`,
-`time`,
-`nice`,
-`ionice`,
-`stdbuf`,
-`timeout`,
-and `xargs`,
+Program wrappers are stripped before the subcommand is read,
+one entry per program,
 for every wrapper layer a command line spells.
+Two shapes are tabled,
+in `src/program-wrappers-that-own-only-options.ts` and
+`src/program-wrappers-that-own-leading-words.ts`:
+
+- Wrappers whose words before the program are their own options:
+  `NAME=value` prefixes,
+  `env` (including `-S` and `--split-string` payloads,
+  attached as `-S'...'`/`--split-string=...` or separated),
+  `sudo`,
+  `doas`,
+  `command`,
+  `builtin`,
+  `exec`,
+  `nohup`,
+  `setsid`,
+  `time`,
+  `nice`,
+  `ionice`,
+  `stdbuf`,
+  `xargs`,
+  `systemd-run`,
+  `watch`,
+  `eval`,
+  and `busybox`.
+- Wrappers that own a positional word before the program,
+  which a reader must drop before the program name:
+  `timeout` (duration),
+  `flock` (lock file),
+  `ssh` (host),
+  and the two that own a number,
+  `taskset` (affinity mask or cpu list) and `chrt` (priority).
+
 A split-string payload carries a command line,
 and GNU `env` appends the words after the payload to that command line,
 so `env -S'/usr/bin/git' commit` is read as `/usr/bin/git commit`.
+`flock -c` carries a command string the same way.
+`eval` and `watch` join the words after their options into one shell source line
+instead of taking them as one program and its arguments,
+so `eval '/usr/bin/git commit'` and `watch '/usr/bin/git commit'` are read as that command.
+`busybox` names its applet in its first word,
+so `busybox sh -c '/usr/bin/git commit'` is read as `sh -c '/usr/bin/git commit'`.
 A nested shell `-c` script string is analyzed too,
 from a work list rather than by recursion,
 and it inherits the search path its launcher was given.
+
+### Programs that run a command named among their arguments
+
+`find` runs a command listed between one of its command options and that option's terminator,
+so those words are read as their own command line:
+`-exec`,
+`-execdir`,
+`-ok`,
+and `-okdir`,
+each ended by `;` or, in the batched form, `+`.
+`find . -exec /usr/bin/git commit {} \;` is refused,
+and `find . -exec git commit {} \;` reaches the wrapper.
+
+### A program handed to another host
+
+`ssh` runs its program on another host,
+so a path word is the only spelling that proves the wrapper is skipped:
+`ssh build-host /usr/bin/git commit` is refused,
+while `ssh build-host git commit` stays allowed,
+because the remote search path, and whether that host installs the wrapper,
+is not in the command text.
+A `PATH` assignment before `ssh` is not read as applying to the remote program.
 
 ### Read-only subcommands
 
@@ -152,15 +197,26 @@ because the guard reads command text and runs no shell evaluator:
 - `G=/usr/bin/git; $G commit` and `"$G" commit`.
 - `eval "$G commit"` and `$(command -v git) commit`.
 
-Programs that run another program but carry no wrapper entry here are not followed either:
-`find . -exec /usr/bin/git commit {};`,
-`flock lock /usr/bin/git commit`,
-`eval '/usr/bin/git commit'`,
-`busybox sh -c '/usr/bin/git commit'`,
-`systemd-run -- /usr/bin/git commit`,
-`watch '/usr/bin/git commit'`,
-`ssh host git commit`,
-and `bash <<< '/usr/bin/git commit'`.
+A shell script string a shell reads from standard input is not followed:
+`bash <<< '/usr/bin/git commit'` and `printf '%s' '/usr/bin/git commit' | bash`
+run a script the guard never reads.
+
+Programs that run another program but carry no entry here are not followed either:
+`su -c '/usr/bin/git commit'`,
+`runuser -c '/usr/bin/git commit'`,
+`unshare --mount /usr/bin/git commit`,
+`nsenter --target 1 /usr/bin/git commit`,
+`chroot /mnt /usr/bin/git commit`,
+`systemd-cat /usr/bin/git commit`,
+`script -c '/usr/bin/git commit'`,
+`tmux new-session '/usr/bin/git commit'`,
+`docker exec container /usr/bin/git commit`,
+`podman run image /usr/bin/git commit`,
+and an interpreter that runs a command the guard would have to execute
+(`python -c 'import os'`, `node -e '...'`).
+
+A `git` word handed to another host with `ssh` stays allowed,
+as the section on that form says.
 
 A `sudo` that resets the search path to its own `secure_path` is not detected:
 that value lives in the sudoers configuration,

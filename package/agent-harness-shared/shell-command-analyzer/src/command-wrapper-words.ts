@@ -10,17 +10,23 @@
  the command lines they split and run,
  and whether they left the program on a search path other than the caller's.
  
+ A wrapper that hands the program to another host reports that too,
+ because the caller's search path and its installed wrappers never reach it.
+ 
+ Programs that run a command named among their own arguments (`find -exec`)
+ contribute each of those command lines as well.
+ 
  @module
  */
 
-import {
-  COMMAND_WRAPPERS,
-  type CommandWrapper,
-} from './command-wrappers.ts';
+import type { CommandWrapper, } from './command-wrapper-record.ts';
+import { COMMAND_WRAPPERS, } from './command-wrappers.ts';
 import {
   lastPathSegment,
   looksLikeExecutablePath,
 } from './executable-path-words.ts';
+import { nestedCommandLines, } from './nested-command-lines.ts';
+import { shellQuotedWord, } from './shell-source-words.ts';
 
 //region Constants
 
@@ -38,6 +44,16 @@ const NO_ATTACHED_OPTION_VALUE: unique symbol = Symbol('option spelling carries 
  Sentinel returned when a word assigns no variable.
  */
 const NO_VARIABLE_ASSIGNMENT: unique symbol = Symbol('word assigns no variable',);
+
+/**
+ Characters that spell a number a wrapper owns: hexadecimal digits.
+ */
+const NUMBER_DIGITS = '0123456789abcdefABCDEF';
+
+/**
+ Separators a cpu list and a mask range use between numbers, as `0,3` and `7-11`.
+ */
+const NUMBER_SEPARATORS = ',:-';
 
 //endregion Constants
 
@@ -82,6 +98,11 @@ type WrappedCommand = {
    Variable names a wrapper removes from the program's environment.
    */
   readonly unsetVariables: readonly string[];
+  /**
+   Whether a wrapper runs the program on another host,
+   whose search path this command text does not carry.
+   */
+  readonly reachesAnotherHost: boolean;
 };
 
 /**
@@ -104,6 +125,10 @@ type WrapperScan = {
    Variable names any layer removes from the environment.
    */
   readonly unsetVariables: string[];
+  /**
+   Whether any layer hands the program to another host.
+   */
+  reachesAnotherHost: boolean;
 };
 
 //endregion Types
@@ -284,33 +309,6 @@ function attachedOptionValue({
 }
 
 /**
- Spells one word so re-reading it as shell source yields the same value.
- 
- The payload of a split-string option is shell source, and the words that follow
- it are not, so the two only join into one command line once the trailing words
- are quoted for that grammar.
- 
- @param word - argument value after shell quote removal
- 
- @returns shell source spelling of that one word
- 
- @example
- ```ts
- shellQuotedWord(`it's`); // `'it'\\''s'`
- ```
- */
-function shellQuotedWord(word: string,): string {
-  /**
-   The word with every embedded quote closed, escaped, and reopened.
-   */
-  const escaped = word.replaceAll(
-    `'`,
-    `'\\''`,
-  );
-  return `'${escaped}'`;
-}
-
-/**
  Reads the command line a split-string option starts.
  
  GNU `env` splits the option's payload and appends the words after it to the
@@ -343,6 +341,143 @@ function payloadCommandLine({
     },),
   ]
     .join(' ',);
+}
+
+/**
+ Reports whether one word is a number the wrapper owns before its program.
+ 
+ `taskset` takes an affinity mask and `chrt` a priority before the command,
+ so that number is neither an option nor the program name.
+ 
+ @param word - word after the wrapper name and its options
+ 
+ @param wrapper - wrapper specification applied to the words
+ 
+ @returns whether the wrapper owns that number rather than launching it
+ 
+ @example
+ ```ts
+ numericWordIsWrapperOwned({ word: '0x3', wrapper: tasksetWrapper }); // true
+ numericWordIsWrapperOwned({ word: 'git', wrapper: tasksetWrapper }); // false
+ ```
+ */
+function numericWordIsWrapperOwned({
+  word,
+  wrapper,
+}: {
+  readonly word: string;
+  readonly wrapper: CommandWrapper;
+},): boolean {
+  return (wrapper.numericWordBeforeProgram === true)
+    && isNumberWord(word,);
+}
+
+/**
+ Reports whether one word spells a number the way a wrapper writes it.
+ 
+ Read by index rather than by pattern,
+ so one pass settles it and no input length can make the reading expensive.
+ 
+ @param word - word inspected as a number the wrapper owns
+ 
+ @returns whether the word is hexadecimal digits joined by separators
+ 
+ @example
+ ```ts
+ isNumberWord('0x3'); // true
+ isNumberWord('0,3,7-11'); // true
+ isNumberWord('git'); // false
+ ```
+ */
+function isNumberWord(word: string,): boolean {
+  /**
+   Offset of the first digit, after the prefix of a hexadecimal mask.
+   */
+  const digitsStart = word.startsWith('0x',) || word.startsWith('0X',)
+    ? 2
+    : 0;
+  return (function readsDigitRuns(): boolean {
+    /**
+     Digits read since the last separator.
+     */
+    let runLength = 0;
+    for (let index = digitsStart; index < word.length; index += 1) {
+      /**
+       Character at the inspected offset.
+       */
+      const character = word[index] ?? '';
+      if (NUMBER_DIGITS.includes(character,)) {
+        runLength += 1;
+        continue;
+      }
+      if ((!NUMBER_SEPARATORS.includes(character,)) || (runLength === 0))
+        return false;
+      runLength = 0;
+    }
+    return runLength > 0;
+  })();
+}
+
+/**
+ Reads the words of the program a wrapper launches, from where that program starts.
+ 
+ A wrapper that owns leading words gives the drop count,
+ a wrapper that reparses its remainder as shell source contributes that line
+ instead of a program,
+ and every other wrapper hands over the rest of the command line.
+ 
+ @param words - wrapper name followed by its arguments
+ 
+ @param programStartIndex - offset of the word the program may start at
+ 
+ @param wrapper - wrapper specification applied to those words
+ 
+ @param scan - accumulator receiving the payloads every layer contributes
+ 
+ @returns words starting at the wrapped program, empty when the wrapper runs a shell source line
+ 
+ @example
+ ```ts
+ programWordsAfterWrapper({
+   words: ['flock', '/tmp/repo.lock', 'git', 'commit'],
+   programStartIndex: 1,
+   wrapper: flockWrapper,
+   scan,
+});
+// ['git', 'commit']
+ ```
+ */
+function programWordsAfterWrapper({
+  words,
+  programStartIndex,
+  wrapper,
+  scan,
+}: {
+  readonly words: readonly string[];
+  readonly programStartIndex: number;
+  readonly wrapper: CommandWrapper;
+  readonly scan: WrapperScan;
+},): readonly string[] {
+  /**
+   Offset of the program, after any number the wrapper owns.
+   */
+  const programStart = numericWordIsWrapperOwned({
+    word: words[programStartIndex] ?? '',
+    wrapper,
+  },)
+    ? programStartIndex + 1
+    : programStartIndex;
+  /**
+   Words after the wrapper's own leading words, all of them when it owns none.
+   */
+  const programWords = words.slice(programStart + wrapper.leadingWordsToSkip,);
+  if (wrapper.joinsRemainderAsShellSource === true) {
+    if (programWords.length > 0)
+      scan.payloads
+        .push(programWords.join(' ',),);
+    return [];
+  }
+  return programWords;
 }
 
 /**
@@ -383,9 +518,25 @@ function wrappedCommandWords({
     if (word === undefined)
       break;
     if (word === '--')
-      return words.slice((index + 1) + wrapper.leadingWordsToSkip,);
-    if (!word.startsWith('-',))
-      return words.slice(index + wrapper.leadingWordsToSkip,);
+      return programWordsAfterWrapper({
+        words,
+        programStartIndex: index + 1,
+        wrapper,
+        scan,
+      },);
+    if (!word.startsWith('-',)) {
+      if (numericWordIsWrapperOwned({
+        word,
+        wrapper,
+      },))
+        continue;
+      return programWordsAfterWrapper({
+        words,
+        programStartIndex: index,
+        wrapper,
+        scan,
+      },);
+    }
     if (wrapper.defaultSearchPathFlags
       .has(word,)) {
       scan.usesDefaultSearchPath = true;
@@ -478,6 +629,7 @@ function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): Wr
     assignments: [],
     usesDefaultSearchPath: false,
     unsetVariables: [],
+    reachesAnotherHost: false,
   };
 
   /**
@@ -514,6 +666,9 @@ function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): Wr
       if (wrapper === undefined)
         return withoutAssignments.words;
 
+      if (wrapper.launchesOnAnotherHost === true)
+        scan.reachesAnotherHost = true;
+
       remaining = wrappedCommandWords({
         words: withoutAssignments.words,
         wrapper,
@@ -522,12 +677,22 @@ function unwrapWrappers({ words, }: { readonly words: readonly string[]; },): Wr
     }
   })();
 
+  /**
+   Command lines the innermost program runs from among its own arguments,
+   as `find -exec` does.
+   */
+  const nestedLines = nestedCommandLines({ words: unwrapped, },);
+
   return {
     words: unwrapped,
-    payloads: scan.payloads,
+    payloads: [
+      ...scan.payloads,
+      ...nestedLines,
+    ],
     assignments: scan.assignments,
     usesDefaultSearchPath: scan.usesDefaultSearchPath,
     unsetVariables: scan.unsetVariables,
+    reachesAnotherHost: scan.reachesAnotherHost,
   };
 }
 
