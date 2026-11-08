@@ -85,7 +85,8 @@ fn an_empty_unheld_lock_with_no_pid_file_is_removed_and_the_proof_names_the_file
 /// with no descriptor open on it and no PID file unless `core.lockfilePid` is on,
 /// so a lock with content that nothing holds is what a person's commit in its editor looks like,
 /// and removing it would make that commit fail when the editor closes.
-/// The control runs real Git: it waits in its editor,
+/// The control runs real Git:
+/// it waits in its editor,
 /// the scan finds nothing holding the lock,
 /// the removal leaves it,
 /// and the commit then succeeds.

@@ -142,7 +142,7 @@ pub const SLOWEST_MEASURED_COMMIT_BUILD: Duration = Duration::from_millis(406_02
 
 /// How many times the slowest measured build the ceiling of the scratch `git commit` is (owner,
 /// 2026-11-07,
-/// "A: limit unless editor (Recommended)":
+/// "limit unless editor":
 /// "a ceiling of three times the slowest measured signing time").
 /// The owner's wording names signing,
 /// and signing measured about 5 ms of a step that took 16 ms,

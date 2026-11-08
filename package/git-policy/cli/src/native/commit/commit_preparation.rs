@@ -176,7 +176,7 @@ pub fn run_native_commit(
 ///  `run_native_commit` with the ceiling given.
 /// Why:
 ///   The owner's answer (2026-11-07,
-///   "A: limit unless editor"):
+///   "limit unless editor"):
 /// the ceiling applies only when the message came with the command;
 /// with an editor open the step is waited for,
 /// and the notice says so.

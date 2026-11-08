@@ -211,8 +211,8 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                         //  the check is made at the first look and at each repeat of the notice, as the evidence is, not at every wake.
                         if first || last_notice.elapsed() >= notice_every() {
                             match remove_if_unheld(platform, index, &scan_platform_holders_bounded) {
-                                Unheld::Removed(proof) => {
-                                    announce.announce(Announce::Waiting(told_words(&proof)));
+                                Unheld::Removed(removed) => {
+                                    announce.announce(Announce::Waiting(told_words(&removed)));
                                     continue;
                                 }
                                 Unheld::Changed => continue,

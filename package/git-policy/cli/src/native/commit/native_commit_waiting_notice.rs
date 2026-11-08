@@ -18,7 +18,7 @@
 //! and names the signing program while one runs below the `git commit`.
 //! The owner's rule is that nothing waits for ever (2026-11-03),
 //! and his answer on this step (2026-11-07,
-//! "A: limit unless editor"):
+//! "limit unless editor"):
 //! a ceiling when the message came with the command,
 //! none when an editor may open,
 //! where the person is the wait and a stop would lose what they typed.

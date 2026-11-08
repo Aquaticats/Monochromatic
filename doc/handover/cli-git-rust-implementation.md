@@ -7487,7 +7487,7 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
 
 - Ceiling of the scratch repository's `git commit`
   (owner:
-  "A: limit unless editor (Recommended)",
+  "limit unless editor",
   "a ceiling of three times the slowest measured signing time" when the message came with the command,
   "no ceiling, only the waiting notice" with an editor open):
   - Signing is not the slow part.

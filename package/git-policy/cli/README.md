@@ -2771,7 +2771,7 @@ Each line names what the command waits for,
   three times the slowest build the timing log holds,
   owner,
   2026-11-07,
-  "A: limit unless editor"):
+  "limit unless editor"):
    everything below the command is ended,
    nothing is committed,
    the person's index and files are as they were,
