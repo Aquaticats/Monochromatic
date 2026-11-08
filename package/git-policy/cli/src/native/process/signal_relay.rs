@@ -419,7 +419,12 @@ pub struct SignalGuard {
 ///   The owner's rule (2026-11-07,
 /// "Only that operation's children"):
 /// a stop of the service is an operation of its own and does
-///  not reach the Git child of a commit that the service happens to be preparing.
+///  not reach the Git child of a commit that the service happens to be preparing through this relay;
+/// the service's own shutdown ends the Gits it waits on (owner,
+/// 2026-11-07T22:19:43-05:00,
+/// "C:
+/// shutdown stops its Gits (Recommended)";
+/// `stop_of_the_service_noticed_by_its_children.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -595,10 +600,12 @@ fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
 /// not lost.
 #[cfg(unix)]
 async fn run_relayed(command: &mut Command, relaying: bool) -> io::Result<ChildOutcome> {
+    // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
+    let (_unfinished, stop) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child("a Git step of a commit")?;
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
-    let mut owned = adopt(started);
+    let owned = adopt(started);
     let published: bool = relaying && publish(owned.id());
-    let waited: io::Result<ExitStatus> = owned.wait().await;
+    let waited: io::Result<ExitStatus> = crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await;
     // The child is reaped, so a signal that finds the descriptor still pointing at it fails with `ESRCH`; the descriptor is
     //  repointed before the next child all the same.
     retire(published);

@@ -35,6 +35,7 @@ use crate::push_deadline_advice::extend_clause;
 use crate::push_progress::{Clock, WaitReport};
 /// The lock files a stopped push leaves,
 /// and the ledger that finds them.
+use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
 use crate::stopped_git_locks::LockLedger;
 /// Starts that ride out a short shortage of processes.
 /// The anonymous output file of the push,
@@ -168,6 +169,9 @@ pub enum StopCause {
     Stalled(StopReport),
     /// The output grew past the cap.
     Flood,
+    /// The service was stopped,
+    /// and its shutdown told every waiter to end its child.
+    ServiceStopped,
 }
 
 /// What:
@@ -202,10 +206,11 @@ pub async fn wait_until_done(
     outputs: &[&File],
     patience: Patience,
     quiet: &mut Option<Duration>,
+    stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
     let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
-    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet).await;
+    return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet, stop).await;
 }
 
 /// What:
@@ -228,10 +233,11 @@ pub async fn wait_until_done_noting(
     patience: Patience,
     label: &str,
     waits: &mut Vec<WaitReport>,
+    stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let clock: Clock = Clock::start(child.id(), patience);
     let mut unused: Option<Duration> = None;
-    return wait_with_clock(child, outputs, clock, label, waits, &mut unused).await;
+    return wait_with_clock(child, outputs, clock, label, waits, &mut unused, stop).await;
 }
 
 /// The loop of both waits,
@@ -243,6 +249,7 @@ async fn wait_with_clock(
     label: &str,
     waits: &mut Vec<WaitReport>,
     quiet: &mut Option<Duration>,
+    stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     // Nothing is kept where the clock reads nothing: its figure would be the elapsed time, not a quiet gap.
     loop {
@@ -251,6 +258,11 @@ async fn wait_with_clock(
             let status: ExitStatus = waited.map_err(SingleFlightError::Start)?;
             *quiet = quiet_gap_kept(&clock);
             return Ok(Ok(status));
+        }
+        // The service's shutdown told the stop: the wait ends here, and the caller ends the child with its own grace.
+        if stop.is_some_and(StopArm::is_told) {
+            *quiet = quiet_gap_kept(&clock);
+            return Ok(Err(StopCause::ServiceStopped));
         }
         for output in outputs {
             let size: u64 = match output.metadata() {
@@ -399,6 +411,15 @@ pub async fn run_bounded_push_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<PushAttempt, SingleFlightError> {
+    // The service's shutdown waits for this push and ends it when the service is stopped; a push that would begin after the stop is not
+    //  started, and is queued for the next service as every stopped push is.
+    let mut unfinished: Unfinished = match begin_unfinished_work(false, "git push") {
+        Ok(counted) => counted,
+        Err(refusal) => {
+            return Ok(PushAttempt { exit_code: STOPPED_EXIT_CODE, output: format!("monochromatic-git-policy-cli: {refusal}. {PUSH_QUEUED_LINE}") });
+        }
+    };
+    let stop: Option<StopArm> = unfinished.take_arm();
     let mut output: File = scratch_file(environment).map_err(SingleFlightError::Start)?;
     let for_stdout: File = output.try_clone().map_err(SingleFlightError::Start)?;
     let for_stderr: File = output.try_clone().map_err(SingleFlightError::Start)?;
@@ -413,7 +434,7 @@ pub async fn run_bounded_push_awaiting(
     drop(command);
     let mut child: OwnedChild = adopt(started);
     let mut waits: Vec<WaitReport> = Vec::new();
-    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits).await?;
+    let ended: Result<ExitStatus, StopCause> = wait_until_done_noting(&mut child, &[&output], patience, label.as_str(), &mut waits, stop.as_ref()).await?;
     if ended.is_err() {
         stop_push(child, grace, locks).await;
     }
@@ -453,6 +474,10 @@ pub async fn run_bounded_push_awaiting(
                     report.moved,
                     report.elapsed.as_secs(),
                     extend_clause()
+                ),
+                StopCause::ServiceStopped => format!(
+                    "monochromatic-git-policy-cli: git push was ended because the service was stopped (limit=service-stop); \
+                     {PUSH_QUEUED_LINE}"
                 ),
                 StopCause::Flood => format!(
                     "monochromatic-git-policy-cli: git push wrote more than {MAX_PUSH_OUTPUT} bytes of output and was stopped. Hint: if a hook or the \

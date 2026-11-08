@@ -619,6 +619,12 @@ mod child_bound;
 #[path = "binary_client_service_tests.rs"]
 mod client_service;
 
+/// A stop of the commit service during a landing:
+/// the shutdown ends the Gits it waits on within a bound,
+/// gives up the index lock and keeps the commit's work on its side ref.
+#[path = "binary_service_stop_ends_its_gits_tests.rs"]
+mod service_stop_ends_its_gits;
+
 /// The package-manager repair of a new worktree:
 /// pnpm,
 /// Cargo and the toolchain launchers work at the new location.

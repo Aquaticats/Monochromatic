@@ -309,4 +309,8 @@ pub(crate) struct WatchFlags {
     /// Raised by the watcher when the child was ended because the ceiling passed,
     /// not because it was quiet.
     pub(crate) ceiling_hit: Arc<AtomicBool>,
+    /// Raised by the watcher when the child was ended because the service was stopped,
+    /// before the child is signalled,
+    /// so the thread that its end releases reads it as true.
+    pub(crate) stopped: Arc<AtomicBool>,
 }

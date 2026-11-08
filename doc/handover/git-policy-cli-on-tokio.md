@@ -135,8 +135,47 @@
   four instrumented repeats passed,
   no cause measured;
   the scan runs only when a kept name exists under its earlier spelling).
+- T11 (choice 12 and the service queues),
+  2026-11-07T23:40:00-05:00:
+  branch `feat/git-policy-cli-tokio-t11`,
+  gate 5371 of 5371,
+  Clippy and lint clean.
+  Done:
+  the owner's "C:
+  shutdown stops its Gits (Recommended)" (the handler records,
+  the service's shutdown tells the waiters,
+  each ends its own child,
+  the process ends by the signal within `SETTLE_CEILING`;
+  a stopped commit keeps its work on `refs/cli-git/kept/<n>`;
+  no lock table),
+  and the two queues of the service on tokio channels.
+  Details,
+  controls,
+  judgment calls for the owner's veto and the list of remaining sleeps:
+  the plan,
+  "Step T11".
+  Not done,
+  and blocked:
+  the landing loop,
+  the work loop and their sleeps,
+  the inotify wait,
+  the client and provision sleeps.
+  They wait for an `async` Git leaf (`run_git` is synchronous and the bridge refuses a call from inside the runtime;
+  79 production files and 203 mentions of `run_git` or `run_git_checked`);
+  the plan names the order.
+  For T12:
+  the parallel runner (`foundation/parallel_runner.rs`,
+  `side_by_side_threads.rs`,
+  `scoped_start.rs`;
+  `drain_directories` of the work loop's round runs on scoped threads) and,
+  before the loops,
+  the leaf-first `async` Git.
+  The signed-ceiling branch owns `landing/service_index_*` and `commit/native_commit*`;
+  a stop does not wake a landing that waits for a foreign index lock (bounded by the settle bound).
+  Host runs of the two askpass controls are skipped (`-- -- --skip askpass`),
+  because they need `GIT_ASKPASS` unset.
 - Not started:
-  T11 (callers),
+  T11 (callers: the commit command and the policy run as `async fn`),
   T12 (parallel runner),
   T13 (removal,
   lint).

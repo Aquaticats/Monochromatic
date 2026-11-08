@@ -53,8 +53,9 @@ pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input
     return match run_git(git, &request) {
         Ok(output) => Ok(output),
         Err(error) => {
-            // A step ended at its ceiling is told apart from every other failure, and its sentence is kept for the answer.
-            if crate::child_watch::is_ceiling(&error) {
+            // A step ended at its ceiling, or by the service's stop, is told apart from every other failure, and its sentence is kept for
+            //  the answer; the commit it belongs to is kept on a side ref and not made (`land_batch_timed`).
+            if crate::child_watch::is_ceiling(&error) || crate::child_watch::is_ended_by_stop(&error) {
                 on_the_landing_state(error.to_string(), keep_the_ceiling_step);
                 return Err(FailureCode::StepTooSlow);
             }

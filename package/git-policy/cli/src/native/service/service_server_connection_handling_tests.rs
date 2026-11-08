@@ -11,7 +11,7 @@
 use super::*;
 use crate::service_protocol::{decode_service, encode_client};
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
-use std::sync::mpsc::{Receiver, channel};
+use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use tokio::io::AsyncBufReadExt;
 
 /// The instance this control's service serves.
@@ -19,10 +19,10 @@ const INSTANCE: &str = "an-instance";
 
 /// What a connection of a control shares,
 /// and the end where the landing thread would read its queue.
-fn shared_in(name: &str) -> (ConnectionShared, Receiver<Job>) {
+fn shared_in(name: &str) -> (ConnectionShared, UnboundedReceiver<Job>) {
     let journal: PathBuf = crate::test_support::fixture(name);
-    let (queue, jobs) = channel::<Job>();
-    let (work, _wakes) = channel::<Wake>();
+    let (queue, jobs) = unbounded_channel::<Job>();
+    let (work, _wakes) = unbounded_channel::<Wake>();
     let board: Arc<LandingBoard> = LandingBoard::new(journal, Duration::from_secs(60));
     let shared: ConnectionShared = ConnectionShared { queue, work, busy: Arc::new(AtomicUsize::new(0)), board, release: String::from("test"), instance: Some(String::from(INSTANCE)) };
     return (shared, jobs);
@@ -80,7 +80,7 @@ fn where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread() {
     if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread") {
         return;
     }
-    let (shared, jobs) = shared_in("connection-no-thread-withdraw");
+    let (shared, mut jobs) = shared_in("connection-no-thread-withdraw");
     let line: String = encode_client(&ClientMessage::Withdraw { id: String::from("a-request") });
     let ((), _ticks) = with_a_ticker_beside(async {
         let (mut read_half, mut write_half, _client) = connection();

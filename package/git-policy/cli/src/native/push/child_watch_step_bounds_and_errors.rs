@@ -162,3 +162,66 @@ pub fn is_ceiling(error: &std::io::Error) -> bool {
         None => false,
     };
 }
+
+/// What:
+///  The error of a step the service's stop ended,
+/// or that was not started because the service is stopping.
+/// Why:
+///  The landing treats it like a step ended at its ceiling:
+/// the commit is not made and its work is kept on a side ref (`landing/service_land.rs`),
+/// and nothing reruns the step,
+/// because the service is going away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class EndedByStop extends Error {}
+/// ```
+#[derive(Debug)]
+pub struct EndedByStop(
+    /// The sentence that names the step and says the stop ended it.
+    pub String,
+);
+
+impl std::fmt::Display for EndedByStop {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for EndedByStop {}
+
+/// What:
+///  The error for a step that the service's stop ended.
+/// Why:
+///  One place words it,
+/// so the landing's announcement and the work loop's records say the same.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// throw new EndedByStop(`${waitingFor} was ended because the service was stopped`);
+/// ```
+pub fn ended_by_the_stop(waiting_for: &str) -> std::io::Error {
+    return std::io::Error::new(std::io::ErrorKind::Interrupted, EndedByStop(format!("{waiting_for} was ended because the service was stopped")));
+}
+
+/// What:
+///  The error for a step that was not started because the service is stopping.
+/// Why:
+///  The same type as a step the stop ended,
+/// so a caller that tells stops from failures tells both at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// throw new EndedByStop(refusal.message);
+/// ```
+pub fn refused_while_stopping(refusal: &crate::stop_of_the_service_noticed_by_its_children::RefusedWhileStopping) -> std::io::Error {
+    return std::io::Error::new(std::io::ErrorKind::Interrupted, EndedByStop(refusal.to_string()));
+}
+
+/// Whether an error is a step the service's stop ended or refused.
+pub fn is_ended_by_stop(error: &std::io::Error) -> bool {
+    return match error.get_ref() {
+        Some(inner) => inner.is::<EndedByStop>(),
+        None => false,
+    };
+}
