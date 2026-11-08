@@ -42,14 +42,14 @@ use std::time::{Duration, SystemTime};
 /// the veto has its own controls,
 /// which name the holder they plant.
 fn judge() -> Judge {
-    return Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, ..Judge::here() };
+    return Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, scan_scope: Some(Vec::new()), ..Judge::here() };
 }
 
 /// The same judge,
 /// for a control that plants a live process holding a file open:
 /// that process is the only one its scan may see.
-fn judge_seeing(_pid: i64) -> Judge {
-    return judge();
+fn judge_seeing(pid: i64) -> Judge {
+    return Judge { scan_scope: Some(vec![pid]), ..judge() };
 }
 
 /// A process number that no running process has:
@@ -557,22 +557,27 @@ fn the_roots_of_a_command_are_found_without_git() {
     stage.finish();
 }
 
+/// The number of the one process of a fake table.
+const FAKE_PROCESS: i64 = 4242;
+
 /// A process table with one process of this account whose descriptors cannot be read,
-/// as `systemd --user` is on a host.
-fn table_with_unreadable(stage: &Stage, command: &str) -> PathBuf {
+/// as `systemd --user` is on a host;
+/// the judge of it scans that process and no other.
+fn table_with_unreadable(stage: &Stage, command: &str) -> Judge {
     use std::os::unix::fs::PermissionsExt as _;
     let table: PathBuf = stage.root.join("proc");
-    let descriptors: PathBuf = table.join("4242").join("fd");
+    let process: PathBuf = table.join(FAKE_PROCESS.to_string());
+    let descriptors: PathBuf = process.join("fd");
     std::fs::create_dir_all(descriptors.as_path()).expect("fake process");
-    std::fs::write(table.join("4242").join("comm"), format!("{command}\n")).expect("comm");
+    std::fs::write(process.join("comm"), format!("{command}\n")).expect("comm");
     std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o000)).expect("hide the descriptors");
-    return table;
+    return Judge { proc_root: table, scan_scope: Some(vec![FAKE_PROCESS]), ..judge() };
 }
 
 /// Make the fake table removable again.
 fn reveal(table: &Path) {
     use std::os::unix::fs::PermissionsExt as _;
-    std::fs::set_permissions(table.join("4242").join("fd"), std::fs::Permissions::from_mode(0o700)).expect("reveal");
+    std::fs::set_permissions(table.join(FAKE_PROCESS.to_string()).join("fd"), std::fs::Permissions::from_mode(0o700)).expect("reveal");
 }
 
 /// A process of this account that is not Git and cannot be looked into (the user's service manager) cannot hold a Git lock.
@@ -581,10 +586,10 @@ fn an_unreadable_process_that_is_not_git_does_not_stop_a_proof() {
     let stage: Stage = killed::stage("stale-refs-unreadable-service", true);
     let gone: i64 = ended_pid();
     plant_lock(&stage, PLANTED_REF, Some(gone));
-    let table: PathBuf = table_with_unreadable(&stage, "systemd");
-    let listed: Judge = Judge { proc_root: table.clone(), ..judge() };
+    let listed: Judge = table_with_unreadable(&stage, "systemd");
+    let revealed: PathBuf = listed.proc_root.clone();
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &listed);
-    reveal(table.as_path());
+    reveal(revealed.as_path());
     assert_eq!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::PidGone(gone))), "{outcome:?}");
     stage.finish();
 }
@@ -595,10 +600,10 @@ fn an_unreadable_process_that_is_not_git_does_not_stop_a_proof() {
 fn an_unreadable_git_process_stops_a_proof() {
     let stage: Stage = killed::stage("stale-refs-unreadable-git", true);
     plant_lock(&stage, PLANTED_REF, Some(ended_pid()));
-    let table: PathBuf = table_with_unreadable(&stage, "git");
-    let listed: Judge = Judge { proc_root: table.clone(), ..judge() };
+    let listed: Judge = table_with_unreadable(&stage, "git");
+    let revealed: PathBuf = listed.proc_root.clone();
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &listed);
-    reveal(table.as_path());
+    reveal(revealed.as_path());
     assert!(!outcome.cleared_any(), "{outcome:?}");
     assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
