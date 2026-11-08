@@ -321,11 +321,21 @@ export async function readNeuralWattStoreValue({
   /**
    Reader environment with the credential name hidden,
    so the store wins the accepted order over a stale environment value.
+   Names are filtered before any pair is built,
+   so no callback parameter carries a mutable tuple.
    */
-  const readerEnvironment = Object.fromEntries(Object.entries(environment,)
+  const readerEnvironment = Object.fromEntries(Object.keys(environment,)
     .filter(
-    function keepsNonCredential([name,]) {
+    function keepsNonCredential(name: string,) {
       return name !== NEURALWATT_API_KEY_ENV;
+    },
+    )
+    .map(
+    function toEnvironmentEntry(name: string,) {
+      return [
+        name,
+        environment[name],
+      ] as const;
     },
     ),);
   /**
