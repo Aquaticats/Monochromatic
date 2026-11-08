@@ -199,9 +199,10 @@ pub fn run_podman(main_checkout: &Path, dry_run: bool, deadline: &Deadline) -> V
     let outcome = clean_podman(&RealPodman, &references, GRACE_SECONDS, now_seconds(), dry_run, &mut log);
     let verb: &str = if dry_run { "would remove" } else { "removed" };
     let mut lines: Vec<String> = vec![format!(
-        "podman: {verb} {} images and {} volumes; kept {} images and {} volumes",
+        "podman: {verb} {} images and {} volumes; {} images were gone with another one of this run; kept {} images and {} volumes",
         outcome.images.len(),
         outcome.volumes.len(),
+        outcome.gone_with_another.len(),
         outcome.kept_images.len(),
         outcome.kept_volumes.len()
     )];
