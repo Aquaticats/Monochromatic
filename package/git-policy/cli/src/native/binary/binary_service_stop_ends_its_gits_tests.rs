@@ -2,7 +2,9 @@
 //!  A stop of the commit service while it lands a commit,
 //! run as the real service against a real repository with a stand-in Git that stalls the landing at its branch move.
 //! Why:
-//!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00, verbatim "C: shutdown stops its Gits (Recommended)"):
+//!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00,
+//! verbatim "C:
+//! shutdown stops its Gits (Recommended)"):
 //! the stop handler only records the stop,
 //! the service's own shutdown signals the Git processes it is waiting on,
 //! every wait after the signal is bounded and then `SIGKILL`,
@@ -29,9 +31,11 @@ const PATIENCE: Duration = Duration::from_secs(60);
 /// What the stand-in Git does with the stop once the landing is inside it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Reaction {
-    /// It ends at the first `SIGTERM`, as Git does.
+    /// It ends at the first `SIGTERM`,
+    /// as Git does.
     EndsAtTerm,
-    /// It ignores `SIGTERM`, so only `SIGKILL` ends it.
+    /// It ignores `SIGTERM`,
+    /// so only `SIGKILL` ends it.
     IgnoresTerm,
 }
 
@@ -39,7 +43,8 @@ enum Reaction {
 /// with the index held by the service,
 /// until it is ended:
 /// it writes its own process number to the returned file when the move starts,
-/// and only the first `update-ref` stalls, so the step that keeps the commit after the stop runs.
+/// and only the first `update-ref` stalls,
+/// so the step that keeps the commit after the stop runs.
 fn stalling_git(fixture: &Fixture, reaction: Reaction) -> (PathBuf, PathBuf) {
     let entered: PathBuf = fixture.root.join("landing-entered");
     let program: PathBuf = fixture.root.join("stalling-git");

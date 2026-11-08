@@ -5,7 +5,9 @@
 //! waits a bounded time for the Git processes and the landing in flight to end,
 //! and ends the process by the signal that stopped it.
 //! Why:
-//!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00, verbatim "C: shutdown stops its Gits (Recommended)"):
+//!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00,
+//! verbatim "C:
+//! shutdown stops its Gits (Recommended)"):
 //! the handler only records the stop (`service_signal.rs`),
 //! and this task,
 //! which is the service's own code and not a handler,
@@ -62,8 +64,8 @@ async fn shut_down_after_a_stop() {
         let _written = send_without_waiting(libc::STDERR_FILENO, line.as_bytes());
     }
     // A wake without a recorded signal cannot happen (the handler records first); the plain exit is the safe side if it did.
-    match stopping_signal() {
-        Some(signal) => end_by_the_signal(signal),
-        None => std::process::exit(1),
-    }
+    let Some(signal) = stopping_signal() else {
+        std::process::exit(1);
+    };
+    end_by_the_signal(signal);
 }

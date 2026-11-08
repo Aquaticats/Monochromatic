@@ -621,7 +621,9 @@ fn an_interrupted_wait_continues_until_the_child_exits() {
 /// A child of a commit step that is running when the service is stopped is ended by the service's shutdown,
 /// and the caller is told the stop did it;
 /// the shutdown finds nothing left unfinished.
-/// (The stop is process-wide state, so this control runs in a process of its own, as every control does under nextest.)
+/// (The stop is process-wide state,
+/// so this control runs in a process of its own,
+/// as every control does under nextest.)
 #[cfg(unix)]
 #[test]
 fn a_commit_step_running_when_the_service_is_stopped_is_ended_by_the_stop() {
@@ -639,7 +641,7 @@ fn a_commit_step_running_when_the_service_is_stopped_is_ended_by_the_stop() {
         });
     })
     .expect("the runtime");
-    let error: io::Error = outcome.err().expect("a stopped step has no outcome");
+    let error: io::Error = outcome.expect_err("a stopped step has no outcome");
     assert!(crate::child_watch::is_ended_by_stop(&error), "{error}");
     assert_eq!(settled, Settled::Completely);
 }

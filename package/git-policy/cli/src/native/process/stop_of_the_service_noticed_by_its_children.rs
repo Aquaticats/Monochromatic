@@ -5,12 +5,15 @@
 //! each waiter ends the one child it owns,
 //! and the same task ends the process by the signal once the work in flight has settled or its bound has passed.
 //! Why:
-//!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00, verbatim "C: shutdown stops its Gits (Recommended)"):
+//!  The owner's pick for open choice 12 (2026-11-07T22:19:43-05:00,
+//! verbatim "C:
+//! shutdown stops its Gits (Recommended)"):
 //! the stop handler only records the stop,
 //! the service's own shutdown signals the Gits it waits on,
 //! every wait after the signal is bounded and then `SIGKILL`,
 //! and a commit whose Git is stopped keeps its work on its side ref.
-//! The owner's rule "Use as few locks as possible." is why there is no table of children:
+//! The owner's rule "Use as few locks as possible."
+//! is why there is no table of children:
 //! each wait owns its child and ends it,
 //! and the shutdown only counts the work that has not finished.
 //! Before this step a stop of the service killed the service at once and left the Git of a landing running,

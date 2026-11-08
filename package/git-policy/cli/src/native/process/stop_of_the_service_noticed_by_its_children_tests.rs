@@ -3,7 +3,8 @@
 //! a stop refuses the work that began after it unless that work must finish,
 //! the arm of work that began before the stop resolves when the shutdown tells it,
 //! and the shutdown waits for the work in flight for at most its bound.
-//! Each control runs in a process of its own (nextest), because the stop is process-wide state.
+//! Each control runs in a process of its own (nextest),
+//! because the stop is process-wide state.
 
 use super::*;
 use crate::lazy_runtime::run_on_runtime;

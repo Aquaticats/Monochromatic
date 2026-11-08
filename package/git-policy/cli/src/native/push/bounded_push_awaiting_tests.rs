@@ -72,7 +72,8 @@ fn the_wait_for_a_running_query_lets_other_tasks_run() {
     assert!(ticks > 0, "the wait for the query held the thread: the task beside it never ran");
 }
 
-/// The service's stop, told through the shutdown,
+/// The service's stop,
+/// told through the shutdown,
 /// after `delay`:
 /// the handler's record,
 /// its wake,
@@ -91,7 +92,8 @@ async fn the_stop_told_after(delay: Duration) -> crate::stop_of_the_service_noti
 /// as a push stopped at its deadline is:
 /// the answer carries the stopped exit code and the queued line,
 /// and the shutdown finds nothing left unfinished.
-/// (Each control runs in a process of its own, because the stop is process-wide state.)
+/// (Each control runs in a process of its own,
+/// because the stop is process-wide state.)
 #[cfg(unix)]
 #[test]
 fn a_push_running_when_the_service_is_stopped_is_ended_and_queued() {
