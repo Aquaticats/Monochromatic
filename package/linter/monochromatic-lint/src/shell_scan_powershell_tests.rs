@@ -271,11 +271,11 @@ fn here_strings_ignore_the_quotes_of_their_body() {
 }
 
 /// Every `$(` of a live here-string is reported,
-///  however far apart they are.
+///  also when one follows another right after a long stretch of text.
 #[test]
-fn a_live_here_string_reports_substitutions_that_are_far_apart() {
+fn a_live_here_string_reports_a_substitution_right_after_another() {
     assert_hits(
-        "@\"\nxxxxxxxxxxxx $(a) yyyyyyyyyyyy $(b)\n\"@",
+        "@\"\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx$(a)$(b)\n\"@",
         &[
             (Construct::DollarParen, "$(", 0),
             (Construct::DollarParen, "$(", 1),
