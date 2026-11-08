@@ -14,7 +14,7 @@ use crate::fs_beneath::{identity_at, open_root};
 use crate::worktree_convert_journal::is_recorded_object;
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
 use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
-use crate::test_support::{git, remove};
+use crate::test_support::{fixture, git, remove};
 use crate::worktree_convert_journal::Phase as JournalPhase;
 use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
 
@@ -420,4 +420,84 @@ fn a_directory_with_another_birth_time_is_not_removed() {
     assert!(matches!(outcome, Removal::Kept(_)), "{outcome:?}");
     assert!(old.exists(), "nothing was removed");
     remove(parent.as_path());
+}
+
+/// The first process number no process can have:
+/// the largest Linux hands out is bounded by `PID_MAX_LIMIT`, 4 * 1024 * 1024,
+/// so nothing can be running under a number above it.
+const A_PID_NO_PROCESS_HAS: u32 = 4 * 1024 * 1024 + 1;
+
+/// An administrative directory with the given files,
+/// each holding a byte.
+fn administrative_directory(name: &str, files: &[&str]) -> PathBuf {
+    let root: PathBuf = fixture(name);
+    let admin: PathBuf = root.join("admin");
+    std::fs::create_dir_all(admin.as_path()).expect("administrative directory");
+    for file in files {
+        std::fs::write(admin.join(file), b"x").expect("file");
+    }
+    return admin;
+}
+
+/// The sweep removes a temporary file only when the process that made it is gone:
+/// the journal, the claim of the conversion, the temporary file of a running process and every name that is no
+/// temporary file all stay.
+#[test]
+fn the_sweep_keeps_every_file_whose_maker_may_still_run() {
+    let live: String = format!("cli-git-convert.tmp.{}.{}", std::process::id(), 1);
+    let kept: [String; 6] = [
+        String::from("cli-git-convert"),
+        format!("{}.1", crate::worktree_convert_journal::CLAIM_PREFIX),
+        live.clone(),
+        String::from("cli-git-convert.tmp.no-number.7"),
+        format!("cli-git-convert.tmp.{A_PID_NO_PROCESS_HAS}.no-clock"),
+        String::from("cli-git-convert.tmp."),
+    ];
+    let names: Vec<&str> = kept.iter().map(String::as_str).collect();
+    let admin: PathBuf = administrative_directory("convert-journal-sweep-kept", names.as_slice());
+    assert_eq!(crate::worktree_convert_journal::sweep_temporary_files(admin.as_path()), 0, "a live maker keeps its file");
+    for name in &kept {
+        assert!(admin.join(name).is_file(), "{name} was removed");
+    }
+    let root: PathBuf = admin.parent().expect("root").to_path_buf();
+    remove(root.as_path());
+}
+
+/// A temporary file whose process number names no process is the leftover of a conversion that was killed,
+/// so the sweep removes it and nothing else.
+#[test]
+fn the_sweep_removes_a_temporary_file_of_a_process_that_is_gone() {
+    let dead: String = format!("cli-git-convert.tmp.{A_PID_NO_PROCESS_HAS}.99");
+    let kept: String = format!("cli-git-convert.tmp.{}.99", std::process::id());
+    let admin: PathBuf = administrative_directory("convert-journal-sweep-gone", &[dead.as_str(), kept.as_str(), "cli-git-convert"]);
+    assert_eq!(crate::worktree_convert_journal::sweep_temporary_files(admin.as_path()), 1);
+    assert!(!admin.join(dead.as_str()).exists(), "the leftover of a killed conversion is gone");
+    assert!(admin.join(kept.as_str()).is_file(), "the file of a running process stays");
+    assert!(admin.join("cli-git-convert").is_file(), "the journal stays");
+    let root: PathBuf = admin.parent().expect("root").to_path_buf();
+    remove(root.as_path());
+}
+
+/// Every journal write sweeps the left-overs of its own administrative directory first,
+/// so the first write of a run after a killed one clears what that one left,
+/// while a file another running process holds is never taken.
+#[test]
+fn a_journal_write_sweeps_the_temporary_file_of_a_killed_conversion() {
+    let dead: String = format!("cli-git-convert.tmp.{A_PID_NO_PROCESS_HAS}.12345");
+    let live: String = format!("cli-git-convert.tmp.{}.12345", std::process::id());
+    let admin: PathBuf = administrative_directory("convert-journal-sweep-write", &[dead.as_str(), live.as_str()]);
+    let journal = Journal {
+        phase: JournalPhase::Started,
+        token: String::from("token"),
+        path: b"/worktree".to_vec(),
+        old_identity: ObjectId { device: 1, inode: 2, birth: None },
+        git_file: b"gitdir: /common/worktrees/wt\n".to_vec(),
+        new_identity: None,
+    };
+    journal.save(admin.as_path()).expect("the journal is written");
+    assert!(admin.join("cli-git-convert").is_file(), "the write published the journal");
+    assert!(!admin.join(dead.as_str()).exists(), "the write swept what the killed conversion left");
+    assert!(admin.join(live.as_str()).is_file(), "a running process keeps its temporary file");
+    let root: PathBuf = admin.parent().expect("root").to_path_buf();
+    remove(root.as_path());
 }

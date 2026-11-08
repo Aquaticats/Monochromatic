@@ -20,7 +20,9 @@
 //! await journal.save(admin); // exclusive temporary, then rename
 //! ```
 
+use crate::diagnostic_log::debug;
 use crate::fs_beneath::ObjectId;
+use crate::process_identity::process_birth_identity;
 use crate::subvolume_error::MigrateError;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
@@ -37,6 +39,13 @@ pub const LOCK_NAME: &str = "cli-git-convert.lock";
 
 /// The prefix of the numbered claim files that give one command at a time the conversion of a worktree.
 pub const CLAIM_PREFIX: &str = "cli-git-convert.owner";
+
+/// The prefix of the temporary file each journal write makes,
+/// followed by the number of the process that made it and the clock reading.
+pub const TEMPORARY_PREFIX: &str = "cli-git-convert.tmp.";
+
+/// Tag used for diagnostics from this module.
+const TAG: &str = "worktreeConvertJournal";
 
 /// The most bytes of a journal or a small registration file that are read.
 const SMALL_FILE_LIMIT: u64 = 1 << 20;
@@ -255,7 +264,68 @@ fn temporary_name() -> String {
         Ok(elapsed) => elapsed.as_nanos(),
         Err(_before_epoch) => 0,
     };
-    return format!("{JOURNAL_NAME}.tmp.{}.{nanos}", std::process::id());
+    return format!("{TEMPORARY_PREFIX}{}.{nanos}", std::process::id());
+}
+
+/// What:
+///  The process number in the name of a temporary journal file,
+///  nothing for every other name.
+/// Why:
+///  Only the files a journal write makes carry it,
+/// and the sweep may remove nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function makerOf(name: string): number | undefined;
+/// ```
+fn maker_of(name: &str) -> Option<u32> {
+    // `?` returns `None` from this function for a name without the prefix.
+    let rest: &str = name.strip_prefix(TEMPORARY_PREFIX)?;
+    let (pid, nanos): (&str, &str) = rest.split_once('.')?;
+    // Both fields are decimal digits and nothing else, as `temporary_name` writes them.
+    let digits: bool = [pid, nanos]
+        .iter()
+        .all(|field: &&str| { return !field.is_empty() && field.bytes().all(|byte: u8| { return byte.is_ascii_digit(); }); });
+    if !digits {
+        return None;
+    }
+    return pid.parse().ok();
+}
+
+/// What:
+///  Removes the temporary files of journal writes whose maker is proven gone,
+///  and says how many it removed.
+/// Why:
+///  Each write makes `cli-git-convert.tmp.<pid>.<nanos>` and removes it only when its own rename or link fails,
+///  so a conversion killed in between leaves one that nothing else cleans.
+///  A file stays unless its maker is gone: the name carries only a process number,
+/// so a number that still runs,
+///  a record this host refuses to read,
+/// or a number a later process got keeps the file,
+///  which costs one
+///  file rather than someone else's write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sweepTemporaryFiles(admin: string): number;
+/// ```
+pub fn sweep_temporary_files(admin: &Path) -> usize {
+    // Nothing to sweep when the directory cannot be read; the journal write that follows reports the real failure.
+    let Ok(entries) = std::fs::read_dir(admin) else { return 0 };
+    let mut removed: usize = 0;
+    for entry in entries.flatten() {
+        // A name that is not text under a home this command wrote is no temporary file of its own.
+        let Ok(name) = entry.file_name().into_string() else { continue };
+        let Some(pid) = maker_of(name.as_str()) else { continue };
+        // `Ok(None)` is the one answer that proves no process of this number runs; anything else proves nothing.
+        if !matches!(process_birth_identity(i64::from(pid)), Ok(None)) {
+            continue;
+        }
+        if std::fs::remove_file(entry.path()).is_ok() {
+            removed += 1;
+        }
+    }
+    return removed;
 }
 
 impl Journal {
@@ -308,6 +378,12 @@ impl Journal {
     /// created exclusively,
     /// so nothing that is there is truncated or followed.
     fn write_temporary(&self, admin: &Path) -> std::io::Result<PathBuf> {
+        // A conversion killed between its write and its rename leaves the temporary file behind; every write sweeps the
+        // leftovers of its own worktree first, and only those whose maker is gone.
+        let swept: usize = sweep_temporary_files(admin);
+        if swept > 0 {
+            debug(TAG, format!("removed {swept} temporary journal file(s) left by a conversion that is gone").as_str());
+        }
         let temporary: PathBuf = admin.join(temporary_name());
         let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&temporary)?;
         let written: std::io::Result<()> = match file.write_all(self.encode().as_bytes()) {
