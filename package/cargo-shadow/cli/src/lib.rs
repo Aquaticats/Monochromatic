@@ -1002,6 +1002,10 @@ pub mod lean_run_records;
 #[cfg(test)]
 mod lean_run_records_tests;
 
+/// The tests of the wiring of the run-record retention to the tasks that write records.
+#[cfg(test)]
+mod lean_records_wiring_tests;
+
 /// The checkouts of a repository,
 /// found from the Git directory's files.
 pub mod lean_checkouts;
