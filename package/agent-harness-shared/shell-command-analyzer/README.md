@@ -63,9 +63,11 @@ an injected folder is what a `PATH` assignment is compared against.
 
 ### Path words, search paths, and default search paths
 
-Three spellings reach the real binary, and each one is reported:
+Three spellings reach the real binary,
+and each one is reported:
 
-- A path word, as in `/usr/bin/git commit`.
+- A path word,
+  as in `/usr/bin/git commit`.
 - A `PATH` assignment on the same command line,
   as in `PATH=/usr/bin:$PATH git commit`,
   `env PATH=/usr/bin git commit`,
@@ -81,7 +83,9 @@ Three spellings reach the real binary, and each one is reported:
   and `env -u PATH` or `env --unset=PATH` (no search path at all).
 
 A search-path decision never reads shell state.
-An entry the shell only resolves at run time (`$PATH`, `~/bin`, `$(dirname "$0")`)
+An entry the shell only resolves at run time (`$PATH`,
+`~/bin`,
+`$(dirname "$0")`)
 names no readable folder and never matches,
 so `PATH=$HOME/.local/bin:$PATH git commit` stays allowed.
 The guard also does not look at what a folder contains:
@@ -159,10 +163,12 @@ Programs that run another program but carry no wrapper entry here are not follow
 and `bash <<< '/usr/bin/git commit'`.
 
 A `sudo` that resets the search path to its own `secure_path` is not detected:
-that value lives in the sudoers configuration, not in the command text.
+that value lives in the sudoers configuration,
+not in the command text.
 `local PATH=...` inside a function is not tracked as setting the search path.
 `git` reached through a relative path or a symlink whose target is the real binary
-is read by spelling, never resolved.
+is read by spelling,
+never resolved.
 
 When real-Git resolution fails the guard stays inactive and logs at debug level:
 a throwing hook would fail every Bash call.
