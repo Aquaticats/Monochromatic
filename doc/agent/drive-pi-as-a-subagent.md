@@ -319,7 +319,9 @@ A static search of their sources for calls to the UI context found these.
   `pi-btw`,
   `pi-processes`,
   and the `pi-synthetic-provider` commands only use `ui.custom`.
-  The repository's `goal` plugin also uses it for a manual review dialog,
+  The repository's `goal` plugin
+  (tested under RPC in `doc/agent/pi-goal-extension-driven-through-rpc.md`)
+  also uses it for a manual review dialog,
   and returns `review_unavailable` before reaching it when `context.mode !== 'tui'`
   (`package/pi-plugin/goal/src/review-unavailable.ts` line 20).
   The `ask-user-question` plugin works only in interactive TUI mode and answers RPC with an unavailable-tool error
