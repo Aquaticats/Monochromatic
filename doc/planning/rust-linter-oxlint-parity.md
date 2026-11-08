@@ -758,7 +758,7 @@ The `implicit_return` debt recorded here earlier is cleared.
 
 ## Further items adopted without asking
 
-Settled after the questions above,
+Settled after the questions in `Open decisions`,
  because each has one defensible answer:
 
 - The hardcoded exemption predicates in `src/config.rs`

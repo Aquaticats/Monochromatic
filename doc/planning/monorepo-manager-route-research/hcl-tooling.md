@@ -2120,7 +2120,7 @@ and the vetted libraries are the parse layer and the protocol layer underneath t
 
 ## Questions for the user
 
-Each question below has options,
+Each question in `Questions for the user` has options,
  pros,
  cons,
  and my ranking.
