@@ -2607,13 +2607,15 @@ The owner's rules,
 verbatim:
 "I'm authorizing you to bump and publish any updates this session."
 On 2026-11-07 the owner chose "Allow release tasks (Recommended)".
-Tokio T10 was to "ship in its own alpha" (the coordinator's plan, recorded in the tokio handover).
+Tokio T10 was to "ship in its own alpha" (the coordinator's plan,
+recorded in the tokio handover).
 The alpha goes to the GitHub release and the toolchain lock,
 not to crates.io.
 
 - Content:
   tokio step T10 (merge `7f5b3e0b3b`;
-  `doc/planning/git-policy-cli-full-tokio.md`, "Step T10"):
+  `doc/planning/git-policy-cli-full-tokio.md`,
+  "Step T10"):
   the commit service's connections,
   claim renewal and syncs are tasks;
   the state of one landing rides with its task;
@@ -2630,8 +2632,9 @@ not to crates.io.
   (2026-11-08T03:34:37Z to 03:39:01Z,
   `success`,
   the `publish` job `skipped`).
-  Note (134 characters):
-  "The commit service runs on tokio tasks: fewer threads,
+  Note (135 characters):
+  "The commit service runs on tokio tasks:
+  fewer threads,
   a bounded claim-renewal stop,
   and timing records that keep a proven lock holder."
 - Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42443634701`
@@ -2682,7 +2685,8 @@ not to crates.io.
   The same read of the idle alpha.2 services of other worktrees,
   which have not retired yet,
   gave 32 threads each (five services),
-  and of alpha.1 services 32 each (five of six; one held 3).
+  and of alpha.1 services 32 each (five of six;
+  one held 3).
   One commit in a throwaway linked worktree under `.claude/worktrees` landed (`37b15c592c`);
   the snapshot took 58.5 seconds,
   and `.git/monochromatic-git-policy-cli-commit-timing.jsonl` holds its line
@@ -2693,7 +2697,8 @@ not to crates.io.
   `"prepareMs":188`,
   `"buildMs":58`,
   `"submitMs":821`;
-  the commit was the first one of a new worktree, so its service started cold).
+  the commit was the first one of a new worktree,
+  so its service started cold).
   Auto-push pushed the throwaway branch;
   the worktree,
   the local branch and the remote branch are deleted,
