@@ -37,6 +37,11 @@ even through a filter,
 and to name the one variable it wants:
 an agent's `env | rg` put a real GitHub token in its session,
 and all command output goes to the model provider.
+Name the worktree in the prompt of an agent given one,
+and tell it to run every command and make every edit inside it:
+one agent ran its builds in the main checkout,
+so they did not test its worktree's code,
+and the uncommitted edits it left there blocked merges of other branches.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
