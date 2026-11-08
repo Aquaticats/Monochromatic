@@ -59,7 +59,7 @@ pub(crate) fn delegated_route() -> Option<Route> {
                 std::env::var_os(ALLOW_NO_CGROUP).is_some(),
                 "this host cannot give the test a delegated scope ({unavailable}); set {ALLOW_NO_CGROUP}=1 to skip the tests that need one"
             );
-            eprintln!("SKIPPED: no delegated scope ({unavailable})");
+            eprintln!("SKIPPED (not evidence for this schedule): no delegated scope ({unavailable}); unset {ALLOW_NO_CGROUP} for a certification run");
             None
         }
     };
