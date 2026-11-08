@@ -1,8 +1,11 @@
 //! What:
 //! The command-line glue of `cargo-shadow lean`:
-//! it turns the parsed arguments into a run or a timer installation.
+//! it turns the parsed arguments into a run,
+//! a sweep of one package's run records,
+//! or a timer installation.
 //! Why:
-//! `lean_run.rs` and `lean_timer_units.rs` take plain values,
+//! `lean_run.rs`,
+//! `lean_run_steps.rs` and `lean_timer_units.rs` take plain values,
 //! so tests call them without a command line.
 //!
 //! In TS you'd write (pseudocode):
@@ -11,18 +14,66 @@
 //! ```
 
 /// Paths and time.
-use std::{path::PathBuf, time::Duration};
+use std::{path::{Path, PathBuf}, time::Duration};
 
 /// Imports the names this file uses from `crate::cli`.
 use crate::cli::{LeanAction, MechanismName};
 /// Imports the names this file uses from `crate::lean_checkouts`.
 use crate::lean_checkouts::main_checkout;
+/// Imports the names this file uses from `crate::lean_guard`.
+use crate::lean_guard::GuardEnvironment;
+/// Imports the names this file uses from `crate::lean_identity`.
+use crate::lean_identity::Deadline;
 /// Imports the names this file uses from `crate::lean_policy`.
 use crate::lean_policy::RUN_DEADLINE_SECONDS;
 /// Imports the names this file uses from `crate::lean_run`.
 use crate::lean_run::{Mechanism, RunOptions, run_lean};
+/// Imports the names this file uses from `crate::lean_run_report`.
+use crate::lean_run_report::summary_line;
+/// Imports the names this file uses from `crate::lean_run_steps`.
+use crate::lean_run_steps::run_records;
 /// Imports the names this file uses from `crate::lean_timer_units`.
 use crate::lean_timer_units::install_timer;
+
+/// What:
+/// `fn absent_notes(directories: &[PathBuf]) -> Vec<String>` names each directory that is not a directory on disk.
+/// Why:
+/// A producing task calls the sweep before its first record exists,
+/// so a directory that is not there yet holds nothing and is not a failure,
+/// while a path that names something else is at least said in the log.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const absentNotes = (directories: string[]): string[] => directories.filter((d) => !isDirectory(d)).map((d) => `${d} is not there yet, so it holds no record`);
+/// ```
+pub(crate) fn absent_notes(directories: &[PathBuf]) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for directory in directories {
+        if !directory.is_dir() {
+            lines.push(format!("run records: {} is not a directory, so it holds no record", directory.display()));
+        }
+    }
+    return lines;
+}
+
+/// What:
+/// `pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf>` resolves each named directory against `start`.
+/// Why:
+/// The in-use scan compares a root with the working directory, program, open files and mapped files of every process,
+/// and the kernel reports those as absolute paths,
+/// so a directory named relative to a task's own folder is resolved once here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const directoriesFrom = (start: string, given: string[]): string[] => given.map((one) => isAbsolute(one) ? one : join(start, one));
+/// ```
+pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf> {
+    let mut resolved: Vec<PathBuf> = Vec::new();
+    for path in given {
+        resolved.push(if path.is_absolute() { path.clone() } else { start.join(path) });
+    }
+    return resolved;
+}
 
 /// What:
 /// `fn mechanism_of(name: MechanismName) -> Mechanism` maps the command-line name to the run's mechanism.
@@ -73,6 +124,22 @@ pub fn run_lean_action(action: &LeanAction) -> i32 {
             }
             let options: RunOptions = RunOptions { dry_run: *dry_run, only: mechanisms, deadline: Duration::from_secs(seconds), start };
             return run_lean(&options);
+        }
+        LeanAction::Records { directory, dry_run, deadline_minutes } => {
+            let seconds: u64 = match deadline_minutes {
+                Some(minutes) => minutes * 60,
+                None => RUN_DEADLINE_SECONDS,
+            };
+            let given: Vec<PathBuf> = directories_from(&start, directory);
+            for line in absent_notes(&given) {
+                summary_line(&line);
+            }
+            let deadline: Deadline = Deadline::after(Duration::from_secs(seconds));
+            let environment: GuardEnvironment = GuardEnvironment::real();
+            for line in run_records(&given, *dry_run, &deadline, &environment) {
+                summary_line(&line);
+            }
+            return 0;
         }
         LeanAction::TimerInstall { no_enable, unit_directory } => {
             let Some(repository) = main_checkout(&start) else {

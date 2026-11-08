@@ -7,7 +7,9 @@
 
 use std::{fs, path::{Path, PathBuf}, process::{Child, Command}, time::Duration};
 
-use crate::lean_identity::Deadline;
+use crate::cli::LeanAction;
+use crate::lean_command::{absent_notes, directories_from, run_lean_action};
+use crate::lean_identity::{Deadline, now_seconds};
 use crate::lean_run_records::{RecordsOutcome, RetentionPolicy, sweep_run_records};
 use crate::lean_test_support::{DAY, HOUR, NOW, age_everything, real_environment};
 use crate::test_scratch::scratch;
@@ -106,4 +108,50 @@ fn a_dry_run_reports_and_removes_nothing() {
     let outcome: RecordsOutcome = sweep_run_records(root.path(), &POLICY, &real_environment(), NOW, true, &Deadline::after(Duration::from_secs(60)), &mut log);
     assert_eq!(outcome.removed, 1);
     assert!(old.exists());
+}
+
+/// What a producing task runs sweeps the directory it names and leaves a sibling directory alone,
+/// and a directory that is not there yet is nothing to sweep rather than a failure.
+#[test]
+fn the_records_action_sweeps_only_the_directories_it_is_given() {
+    let root = scratch();
+    let produced: PathBuf = root.path().join("produced");
+    let sibling: PathBuf = root.path().join("sibling");
+    let missing: PathBuf = root.path().join("not-written-yet");
+    let now: i64 = now_seconds();
+    let old_here: PathBuf = record(&produced, "native-old", 8192, 0);
+    let old_elsewhere: PathBuf = record(&sibling, "native-old", 8192, 0);
+    age_everything(&old_here, now - 20 * DAY);
+    age_everything(&old_elsewhere, now - 20 * DAY);
+    let action = LeanAction::Records { directory: vec![produced, missing], dry_run: false, deadline_minutes: Some(1) };
+
+    let code: i32 = run_lean_action(&action);
+
+    assert_eq!(code, 0);
+    assert!(!old_here.exists(), "the record of the named directory was kept");
+    assert!(old_elsewhere.exists(), "the sweep reached a directory it was not given");
+}
+
+/// A directory named relative to the folder a task runs in is resolved before the in-use scan compares it with the
+/// absolute paths the kernel reports, and an absolute one is kept as it is.
+#[test]
+fn a_named_directory_is_resolved_against_the_folder_the_task_runs_in() {
+    let start: PathBuf = PathBuf::from("/somewhere/package/x/y");
+
+    assert_eq!(directories_from(&start, &[PathBuf::from("target/verification")]), vec![PathBuf::from("/somewhere/package/x/y/target/verification")]);
+    assert_eq!(directories_from(&start, &[PathBuf::from("/absolute/target/verification")]), vec![PathBuf::from("/absolute/target/verification")]);
+}
+
+/// A directory that is not there yet is named and is not a failure;
+/// a directory that is there is not named.
+#[test]
+fn a_directory_that_is_not_there_yet_is_named_and_not_a_failure() {
+    let root = scratch();
+    let present: PathBuf = root.path().join("present");
+    fs::create_dir(&present).expect("a directory");
+
+    let notes: Vec<String> = absent_notes(&[present, root.path().join("not-written-yet")]);
+
+    assert_eq!(notes.len(), 1, "{notes:?}");
+    assert!(notes[0].contains("not-written-yet") && notes[0].contains("holds no record"), "{notes:?}");
 }
