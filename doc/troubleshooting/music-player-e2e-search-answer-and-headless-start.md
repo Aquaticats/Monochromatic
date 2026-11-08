@@ -359,6 +359,10 @@ they are not shown to share a cause.
   Neither the compositor (`package/nested-wayland-session/cli/src/input.rs` sends motion,
   press and release in one batch)
   nor the app log records the press.
+  Both now record it,
+  and the press was never lost:
+  see the heading
+  `The long-folder click was delivered at once and reported late, not lost`.
 - Whether the baseline binary behaves the same;
   a failure that no capped run reproduces on demand gives no comparison.
 
@@ -389,3 +393,182 @@ and the two accounting files for what the unit waited on.
 The failing check's own wait is not a fix:
 raising 6 s would hide the stall,
 which `SLW` in `CLAUDE.md` names as the defect to measure and remove.
+
+## The long-folder click was delivered at once and reported late, not lost
+
+Recorded 2026-11-08T18:20:00-05:00.
+The heading `Three wide-session checks failed together at host load 40 to 55, and the cause is not found` left
+two questions about the click on `WIDE_CLICK_POINTS.longFolder` in
+`package/music-player/desktop-e2e/src/wide-interaction.ts`:
+whether the app dropped the press or the harness never delivered it,
+and why the app logged nothing for it.
+Both are answered here,
+and neither side lost the click:
+the app received it within a millisecond and wrote no line about it,
+so the check waited for whatever line came next,
+which under the session's CPU quota took seconds.
+
+### What was measured, and on what
+
+The measurements ran on the development host (6 hardware threads,
+load average about 96 throughout,
+other sessions building),
+headless on `/dev/dri/renderD129`,
+with `E2E_ONLY=playback` and `E2E_UNIT_CPU_QUOTA=15%`:
+the same filter and cap that reproduced the failure on 2026-11-07.
+Both sides of the boundary were made to log first:
+- The compositor logs one `info` line per click with the point,
+  the protocol id of the surface the hit test found,
+  the window count,
+  the cursor the hosted client last asked for,
+  and one more line with the surface the seat kept the pointer focus on
+  (`click` in `package/nested-wayland-session/cli/src/input.rs`).
+- The app logs one `debug` line per press and release over a folder name,
+  with the folder name and the event kind
+  (`on_name_pointer_event` in `package/music-player/desktop-app/src/ui_wire.rs`,
+  `pointer-event` in `ui/folders.slint`).
+
+A compositor and an app built from this tree are needed to see those lines:
+the installed 0.6.1 compositor and the 2026-10-26 release binary predate them,
+so the runs passed `E2E_COMPOSITOR` and used a release build of this tree.
+
+### The click reached the app, and the line the check reads came later
+
+Twelve runs.
+Eleven kept the session log,
+and in all eleven the click crossed the boundary at once:
+- The compositor's line to the app's press on the row:
+  0 to 1 ms.
+- To the release:
+  2 to 3 ms.
+- The first `ui_state` line whose `folder` was the opened one:
+  18,
+  19,
+  23,
+  71,
+  87,
+  94,
+  112,
+  2363,
+  2658,
+  3202 and 4520 ms after the click.
+  Its `reason` was `focus` in every one of the eleven:
+  the click itself wrote no line,
+  so the check saw the new folder only when the next event wrote one.
+
+The two lines that decide it,
+from one run of that batch:
+```text
+INFO nested_wayland_session::input: sending a click: motion, press and release x=135.0 y=220.0 hit=Some((23, 0.0, 0.0)) windows=1 cursor=default
+DEBUG music_player::ui_wire: a pointer event reached a folder name folder="Gotta Montage line" kind="down"
+```
+
+The app was not busy either.
+Across the wait it used 20 to 140 ms of CPU and read 24 to 1232 bytes,
+and its threads were sleeping in 32 to 1089 of the 100 ms samples,
+running in 0 to 3 and in disk wait in 0 to 30.
+The unit,
+though,
+was held back:
+a failing check of the same session kept
+`nr_periods 583`,
+`nr_throttled 166`,
+`throttled_usec 43914974`,
+`usage_usec 3103195` and `io.pressure some avg10=29.59`,
+so the compositor and the app shared 0.15 CPU and lost their turn in a third of the periods
+while the disk was also contended.
+
+The whole-run answer times of the twelve were
+81,
+101,
+101,
+102,
+203,
+203,
+203,
+2373,
+2735,
+3249,
+4548 and 14542 ms.
+Against the check's `STATE_TIMEOUT_MS` of 6 s,
+one of the twelve would have failed,
+and the rest would have passed with a second or more to spare,
+which is why the failure looked intermittent and rare.
+
+### Why the app wrote no line
+
+A window test shows it without the compositor
+(`a_click_on_a_folder_name_writes_a_state_line_naming_the_folder_it_opened`
+in `src/ui_picker_window_tests.rs`,
+run before the fix):
+the click's own projection of the opened folder is logged 0.6 ms after the press,
+and the first `ui_state` line naming that folder arrives 219 ms later,
+written by a focus change,
+not by the click.
+The app had already applied and shown the folder;
+it had nothing to say about it,
+so the run's wait ended on an unrelated event.
+
+### The fix
+
+`on_select_folder` in `src/ui_wire.rs` now ends with
+`ui_state_log::emit(&window, "folder-select")`,
+the same shape the Search answer took with `search-answer`
+(see the heading `Search result checks timed out waiting for a highlighted result`).
+The line is written while the click is handled,
+after the projection that shows the opened folder,
+so it carries the folder the click opened.
+The check's 6 s wait is unchanged:
+the measured answer after the fix is one poll interval,
+not a longer wait.
+
+After the fix,
+twenty-one runs of the same filter and cap,
+the last five on a release build of the final tree:
+- Nineteen reached the click,
+  and none of them failed on it.
+- Nine of them measured the answer,
+  on a binary that logged how long the click took:
+  all nine gave 41 ms from the click to the `folder-select` line,
+  which is exactly `STATE_POLL_MS`.
+  The third run of that batch,
+  before the timing probe was in place,
+  passed inside the 6 s wait.
+- Two runs of the first batch never reached the click,
+  stopping at the seek setup with `timed out waiting for pause for the seek checks`,
+  the load-induced failure the heading
+  `Three wide-session checks failed together at host load 40 to 55` records.
+- Three runs failed some of the playback checks the same heading names
+  (`play/enter-plays-row`,
+  `play/space-button`,
+  `audio/private-sink`,
+  `track/ctrl-right-left`),
+  which does not stop the session,
+  so the click ran in them and passed.
+  Sixteen runs of the twenty-one failed nothing at all.
+
+A new failure of this click now also carries both sides' lines,
+because the unit's log is kept beside a `session/wide` failure file
+(the log of one such failure was read in a run of this batch;
+its `cpu.stat` and `io.pressure` were not kept,
+because the unit had already stopped when the file was written,
+which the failure file says).
+
+### What is still not measured
+
+- Which event wrote the late `focus` line,
+  and therefore how the app's own event loop spent the 2.4 s,
+  was not traced:
+  the measurement shows it used almost no CPU and wrote no line,
+  not which of its timers or callbacks ran last.
+- The 15 percent quota applies to the whole unit,
+  the compositor and the app together,
+  not to the app alone.
+  Whether the compositor's frames are the larger share of that quota is a guess;
+  what is measured is the unit's `nr_throttled`,
+  `throttled_usec` and `usage_usec`
+  that one failing check of the same session kept.
+- The frequency of the lost-looking click on the 2026-11-07 host
+  was 5 of 12 runs at load 24 to 30 on 28 threads;
+  on this host it was 1 of 12 at load about 96 on 6 threads.
+  The two hosts were not compared directly.
