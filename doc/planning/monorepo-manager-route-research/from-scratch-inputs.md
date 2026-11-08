@@ -273,7 +273,7 @@ All conditional on keeping TypeScript on Node.
   Whether old records are ever collected is not documented on that page (unverified).
   Running each config evaluation in a child process gives fresh transitive imports,
   bounded memory,
-  isolation of the module singletons listed above,
+  isolation of the module singletons listed in "Other process-lifetime caches that matter for a daemon",
   and a real cancellation point (kill the child);
   a dynamic `import()` cannot be aborted (unverified,
   recall).
