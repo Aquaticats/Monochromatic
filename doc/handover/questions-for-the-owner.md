@@ -69,6 +69,11 @@ so any of them can be undone.
 - How many Pi subagents can run at once:
   "Pi doesn't have a limit to number of concurrent subagents.
   In practice it's 16."
+- Where Pi subagents work,
+  correcting the coordinator's reading that they had to work in the main checkout:
+  "Feel free to use worktrees.
+  I said "be okay with pi committing directly to main",
+  not that they have to."
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 

@@ -25,20 +25,25 @@ so naming some removes the rest.
 Pi saves the session by default and the owner wants that kept,
 so a run can be read back or resumed with `--session <path|id>`.
 
-Pi works in the main checkout and commits on `main`,
-which auto-pushes.
-The owner decided this:
+Pi may commit directly on `main`,
+which auto-pushes,
+and it may equally work in a worktree.
+The owner on committing:
 "We have to be happy with Pi committing directly on main.
 We are not building another git wrapper or shim when we're already so busy with one.
 If it turns out this blows up we'll consider enhancing our own git wrapper."
+And later:
+"Feel free to use worktrees.
+I said "be okay with pi committing directly to main",
+not that they have to."
 
 The owner on how many can run at once:
 "Pi doesn't have a limit to number of concurrent subagents.
 In practice it's 16."
 Each run is its own driver process with its own run folder and unit name.
-Runs in the main checkout share its files,
-so give concurrent runs different packages:
-two in one crate build each other's half-finished edits.
+Runs in one checkout share its files,
+so two in one crate build each other's half-finished edits.
+Give a run its own worktree whenever anything else is working in the same packages.
 
 ## Start a run
 
@@ -55,6 +60,10 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 2.  Make a new run folder under `${HOME}/temp/agent`,
     one per run.
     The driver writes everything there.
+    Choose where Pi works:
+    its own worktree (`git worktree add -b <branch> .claude/worktrees/<name> main`,
+    then `mise exec -- pnpm install --offline --frozen-lockfile` inside it),
+    or the main checkout for a small change with nothing else in those packages.
 3.  Write the prompt to a file.
     Beside rules `ATH` and `NLD`,
     give it:
@@ -64,8 +73,9 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     - your own reading as a suggestion it may reject;
     - the files it must not edit,
       including everything `file-enforcer` generates;
-    - that it commits its own work on `main` with explicit paths,
-      as `AGENTS.md` says;
+    - that it commits its own work with explicit paths,
+      as `AGENTS.md` says,
+      on the branch checked out where it works;
     - a final report of each change,
       each commit,
       each disagreement,
@@ -88,7 +98,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
       --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
-      --run-folder=<run> --working-folder="$PWD" --prompt-file=<prompt-file> \
+      --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
       --provider=neuralwatt --model=deepseek-v4.1-flash \
       --wall-seconds=2400 --idle-seconds=60 --turn-cap=80
     ```
@@ -123,7 +133,8 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     and `--session="<session file>"`.
 8.  Read what it committed with `git log` and `git show`,
     fix anything wrong with further commits,
-    and regenerate anything `file-enforcer` owns.
+    regenerate anything `file-enforcer` owns,
+    and merge a worktree's branch into `main`.
 
 ## Protocol
 
