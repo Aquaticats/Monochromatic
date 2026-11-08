@@ -260,6 +260,7 @@ It does not start the cut-over.
 Run it only when no agent works in a worktree.
 Stop `kopia-snapshot-all.timer` first and start it again afterwards:
 `c03-holders-before` refuses the hourly kopia run and `c06-stop-units` does not stop it.
+One run takes about 3 to 5 minutes here.
 It refuses unless the first pass,
 the external pass one,
 the size table and the mount option are recorded as done.
@@ -276,6 +277,9 @@ Stages marked window run inside the window and are refused once its maximum has 
     `~/.local/state/cli-git/service` of the releases before the rename
     and `~/.local/state/monochromatic-git-policy-cli/service` of the renamed wrapper),
     and a fresh `btrfs subvolume list -u` with the print mode of the freeze and the final pass.
+    A registration of a worktree whose folder is gone fails `c01-pre-freeze-table`:
+    `git worktree prune` settles them
+    (the first attempt met 36, all under scratch folders that had been deleted).
 2.  `c06-stop-units` (needs `--assert=c06-stop-units`):
     stops the user units:
     every `cli-git@*` and `monochromatic-git-policy-cli@*` socket and service
@@ -346,16 +350,48 @@ Stages marked window run inside the window and are refused once its maximum has 
     first commit of `main`,
     and the marker `.git/monochromatic-root-commit`),
     and the installed `repository-link-check` must print `ready (on the 860)`.
-11. `c21-release` (needs `--assert=c21-release`):
+    The table and the worktree list are compared with the frozen baseline with exactly one spelling allowed:
+    Git prints the main worktree under its resolved path through the link,
+    so that one line is spelled as the 860 path there and as the link path in the baseline,
+    both spellings are required where they belong,
+    and a difference on any other line still fails the stage.
+11. `c20c-refresh-checkouts`:
+    a plain `git status` in every registered checkout,
+    which takes the index lock and rewrites the index,
+    then `mise exec -- pnpm install --offline --frozen-lockfile` in every checkout whose `node_modules` holds a link
+    that points nowhere.
+    The move gives every file a new inode,
+    so an index keeps the stat data of the files as they were before the move:
+    a commit there stops at the wrapper's 3-second scratch ceiling,
+    again on every retry,
+    until a status has rewritten it
+    (`doc/handover/cli-git-rust-implementation.md`,
+    section "A commit stopped at the scratch ceiling on every retry after the 860 move").
+    The relative links of `node_modules` reach the pnpm store through the checkout's physical path,
+    so after the move they point nowhere:
+    of 12 checkouts sampled the main one held 19 and 2 worktrees held some,
+    the main checkout's broke `pi`,
+    and 5 checkouts had no `node_modules` at all.
+    `mise exec -- pnpm install --offline --frozen-lockfile` repaired the main checkout in 7.6 s.
+    `c25-pnpm-links` checks only a fresh worktree and cannot catch this,
+    so this stage is what repairs the existing ones.
+    It runs after `c20-through-link`,
+    whose table holds the index hashes,
+    and before the release,
+    because commits resume there.
+    A `--no-optional-locks` status does not rewrite the index (measured 2026-11-08),
+    so this stage runs Git without that flag.
+    A checkout with no `node_modules` is named and left as it is.
+12. `c21-release` (needs `--assert=c21-release`):
     starts the stopped commit sockets and `claude-cpu-watch.service` and closes the window.
     After this the fast rollback no longer applies.
-12. `c22-verify-final-checksum` (root,
+13. `c22-verify-final-checksum` (root,
     outside the window):
     the same comparison as `c10b-verify-final` for the same final copies,
     reading every byte.
     The old tree (`.nvme-before-860-<timestamp>`) stays for the rollback until this stage is recorded done;
     the `status` command prints `DO NOT DELETE` until then and says the tree may be deleted by the owner after it.
-13. `c23-link-check` to `c28-ide-through-link` (as the user,
+14. `c23-link-check` to `c28-ide-through-link` (as the user,
     outside the window):
     the checks after the cut-over of the plan's items W12 to W15.
     `c23-link-check` runs the installed check again (the wrapper's `doctor` prints the same line);
@@ -426,7 +462,7 @@ Codex,
 `dsh`,
 `adb`,
 Zed,
-the terminal shells,
+16 terminal shells,
 `atop`,
 the commit service's made-ahead lock file,
 two missed shells,
@@ -498,6 +534,8 @@ with their command counts:
 `f263` 15,932,
 `f267` 16,311.
 The tool wrote the record of `f210` itself on the retry (15,967 commands).
+The status was later measured on throwaway subvolumes and the step fixed;
+the section "What landed after the window" says how.
 
 The check of `c17-externals` can never pass:
 under `bash -e -o pipefail`,
@@ -554,40 +592,105 @@ and nothing else was found
 (a second pass by a Claude Code native subagent,
 not an independent review).
 
-Open in `package/repository-move/cli`,
-each with a failing test first:
+#### What landed after the window
 
-- The check of `c17-externals`,
-  over the empty compare,
+Each of these was fixed after the window,
+on branch `fix/repository-move-cli-checks-after-the-860-move`
+in `.claude/worktrees/pi-repository-move-tool-fixes`,
+with a test that was run against the shipped code first
+(same file,
+same command,
+watch the status):
+
+- The check of `c17-externals`
+  (`642f8e148c` the test,
+  `f395b88b8f` the fix,
+  `guided-external-compare-check.unit.test.ts`)
+  runs over the empty compare,
   the compare holding only `*deleting` lines,
-  and a real difference.
-- The check of `c20-through-link`,
-  allowing only the main worktree's spelling,
-  with a test that a change on any other line still fails it.
-- `final-diff-step.ts` must not stop on a complete dump,
-  once the status 141 has been measured.
-- A stage after the swap that rewrites each index:
-  the move gives every file a new inode,
-  so the first commit in a checkout stopped at the wrapper's 3-second scratch ceiling until a `git status` had run there
-  (`doc/handover/cli-git-rust-implementation.md`,
-  section "A commit stopped at the scratch ceiling on every retry after the 860 move").
-- A stage after the swap that relinks each checkout's `node_modules`.
-  Their relative links reach the pnpm store through `..` from the checkout's physical path,
-  so after the move they resolve under `/var/mnt/encrypted/repository/.local/...` and point nowhere:
-  the main checkout held 19,
-  and it broke `pi`.
-  `mise exec -- pnpm install --offline --frozen-lockfile` in the main checkout took 7.6 s and left none.
-  Of 12 checkouts sampled,
-  the main one and 2 worktrees had dangling links,
-  and 5 had no `node_modules`.
-  `c25-pnpm-links` checks only a fresh worktree,
-  so it cannot catch this.
-  The other existing checkouts are not relinked yet.
+  a real difference,
+  and a compare longer than the 20 lines the report shows.
+  The shipped check exited 1 on the first two
+  (`expected 1 to equal +0` for each);
+  the fix wraps the `grep --invert-match` in a group that keeps its status.
+  No other check in `guided-cutover-stages.data.ts`,
+  `guided-prepare-stages.data.ts`,
+  `guided-loop-image-stages.data.ts` or `guided-undo-stages.data.ts`
+  has a `grep` whose empty selection is a legitimate pass:
+  every other `grep` there either must match to pass,
+  sits in a command substitution whose status `test` ignores,
+  or is guarded by `|| true`.
+- The check of `c20-through-link`
+  (`42a4d409ef` the test,
+  `f395b88b8f` the fix,
+  `guided-through-link-check.unit.test.ts`)
+  allows exactly the main worktree's moved spelling.
+  Against the shipped plain `cmp` the real pair failed
+  (`differ: byte 69, line 2`)
+  and a planted difference on another line must still fail,
+  which the test holds as well:
+  another table line,
+  a nested worktree spelled under the 860 path,
+  a list that still spells the link path,
+  and a planted difference in the list.
+- `final-diff-step.ts` no longer stops on a complete dump
+  (`39ef139236` the test,
+  `a8cf2df158` the fix,
+  `final-diff-step.unit.test.ts`).
+  The status 141 was measured first,
+  on throwaway subvolumes in `${HOME}/temp/agent/repository-move-pipe-measure`
+  with `btrfs-progs` 7.1,
+  not on the move's snapshots:
+  a `--no-data` stream ends exactly at its end record
+  (bisected: 946,688 of 946,688 bytes are needed for a dump to succeed,
+  16,802 commands),
+  bytes appended after the record are ignored by `--dump`,
+  and a stream cut short makes `--dump` exit 1 with
+  `ERROR: short read from stream`
+  (cut at 1,024,
+  40,000 and 400,000 bytes).
+  The shipped shape did not fail in 20 sequential and 24 concurrent runs on that stream,
+  while the same shape with a reader that stops early exits 141 every time,
+  so the harness can see the failure and the trigger is timing rather than size alone.
+  In the real stops the receiver therefore exited 0,
+  because `pipefail` reports the rightmost non-zero status
+  and a truncated stream cannot leave it 0.
+  The command now drains the rest of the stream after the dump,
+  so the sender always finishes,
+  and the group exits with the receiver's own status,
+  so a dump cut short still fails the step.
+  A test of the printed command was updated with it:
+  `move-repository.unit.test.ts` expects the drained pipeline in print mode.
+- A stage after the swap refreshes the moved checkouts
+  (`4f6f3c80fd`,
+  stage `c20c-refresh-checkouts`,
+  `guided-refresh-checkouts.unit.test.ts`),
+  which is item 11 of the cutover list above.
+  It also covers the `node_modules` relink,
+  which `c25-pnpm-links` cannot:
+  that stage only installs in a fresh worktree.
 
-Delete `resume-final-pass.ts`,
-`finish-c17-record.ts`,
-`finish-c20-record.ts`,
-`check-c17-evidence.ts` and `read-c20-differences.ts` once those fixes land.
+Still open:
+
+- The workaround scripts in `${HOME}/temp/agent/860-move/` can be deleted now:
+  `resume-final-pass.ts`,
+  `finish-c17-record.ts`,
+  `finish-c20-record.ts`,
+  `check-c17-evidence.ts` and
+  `read-c20-differences.ts`.
+- The stage times above are from the shipped tool.
+  `c20c-refresh-checkouts` has not run on the real tree:
+  its cost is one status per registered checkout
+  (375 rows at the last table)
+  plus an install in each checkout whose links dangle,
+  which took 7.6 s for the main checkout,
+  and it is inside the window.
+  Until it runs, the existing checkouts other than the repaired main one are not relinked.
+
+The copy tool's unit tests import the built package:
+after a source change run `mise run //package/repository-move/cli:buildAndTest`,
+not `test:unit`,
+or the suite tests the previous build.
 
 ### The thaw and rollback commands
 
