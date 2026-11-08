@@ -31,7 +31,7 @@ use crate::service_client_listen_and_ask_to_retire::{Heard, listen, read_message
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::service_client_reach_service::reach_current;
-use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_of};
+use crate::commit_timing::{ReachTrace, SubmitTrace, holder_kind_after};
 use crate::service_messages::{ClientFailure, SILENT_NOTICE, position_notice};
 use crate::service_protocol::{
     ClientMessage, CommitRequest, FailureCode, LandedCapture, ServiceMessage, encode_client,
@@ -249,10 +249,16 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                     })));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
-                Heard::Message(ServiceMessage::Waiting { text } | ServiceMessage::InsideWrite { text }) => {
+                Heard::Message(ServiceMessage::Waiting { text }) => {
                     last_blocker = Some(text.trim().to_string());
                     trace.waiting_notices += 1;
-                    trace.holder_kind = Some(holder_kind_of(text.as_str()));
+                    trace.holder_kind = Some(holder_kind_after(trace.holder_kind, text.as_str()));
+                    let _written = write!(notices, "{text}");
+                }
+                // The landing is inside a write: said of the commit, not of a holder, so the kind of holder is left as it was.
+                Heard::Message(ServiceMessage::InsideWrite { text }) => {
+                    last_blocker = Some(text.trim().to_string());
+                    trace.waiting_notices += 1;
                     let _written = write!(notices, "{text}");
                 }
                 Heard::Message(ServiceMessage::Holder { who }) => holder = Some(who),
