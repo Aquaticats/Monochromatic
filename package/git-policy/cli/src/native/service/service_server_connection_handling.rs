@@ -31,7 +31,7 @@ use crate::service_protocol::{
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::Sender;
+use tokio::sync::mpsc::UnboundedSender;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::UnixStream;
@@ -48,9 +48,9 @@ pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 #[derive(Clone)]
 pub(crate) struct ConnectionShared {
     /// Where requests for the landing go.
-    pub queue: Sender<Job>,
+    pub queue: UnboundedSender<Job>,
     /// Where after-commit work is announced.
-    pub work: Sender<Wake>,
+    pub work: UnboundedSender<Wake>,
     /// The count of work in flight that keeps the service from exiting idle.
     pub busy: Arc<AtomicUsize>,
     /// What the landing is inside,

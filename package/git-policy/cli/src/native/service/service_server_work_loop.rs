@@ -22,7 +22,8 @@ use crate::service_work::{GitHandlers, Wake};
 use crate::stop_of_the_service_noticed_by_its_children::is_stopping;
 use crate::service_work_run_round::run_round;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError};
+use tokio::sync::mpsc::UnboundedReceiver;
+use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 /// What:
@@ -62,7 +63,7 @@ use std::time::{Duration, Instant};
 /// ```ts
 /// for await (const dir of wakesOrDueRetries) await drain(dir, handlers)
 /// ```
-pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries, mut watch: ClaimWatch) {
+pub fn work_loop(receiver: &mut UnboundedReceiver<Wake>, handlers: &GitHandlers, busy: &AtomicUsize, mut push_retries: PushRetries, mut watch: ClaimWatch) {
     let mut retries: RetrySchedule = RetrySchedule::default();
     let mut counted_waiting: bool = false;
     // A plan that is already there when the loop starts (one rebuilt from disk) is woken for like one made by a round.
@@ -94,21 +95,15 @@ pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &Atomi
         counted_waiting = true;
     }
     loop {
-        let first: Option<Wake> = match retries.next_wait(Instant::now()) {
-            None => match receiver.recv() {
-                Ok(wake) => Some(wake),
-                Err(_) => return,
-            },
-            Some(wait) => match receiver.recv_timeout(wait) {
-                Ok(wake) => Some(wake),
-                Err(RecvTimeoutError::Timeout) => None,
-                Err(RecvTimeoutError::Disconnected) => return,
-            },
+        let first: Option<Wake> = match receive_for_at_most(receiver, retries.next_wait(Instant::now())) {
+            Received::Item(wake) => Some(wake),
+            Received::Timeout => None,
+            Received::Closed => return,
         };
         // After a stop is recorded no round starts: the claims this thread holds run out and the next service runs them again, and
         //  the wakes that still arrive are read and dropped until the shutdown ends the process.
         if is_stopping() {
-            while receiver.recv().is_ok() {}
+            while !matches!(receive_for_at_most(receiver, None), Received::Closed) {}
             return;
         }
         busy.fetch_add(1, Ordering::SeqCst);

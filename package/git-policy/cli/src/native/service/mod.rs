@@ -84,6 +84,12 @@ pub mod service_server;
 /// The loop of the commit service's work thread.
 pub mod service_server_work_loop;
 
+/// The wait of a thread on a queue the runtime owns:
+/// an item,
+/// the end of the wait at its bound,
+/// or the end of the queue.
+pub mod service_queue_received_on_the_runtime;
+
 /// The shapes the connection threads and the landing thread pass between them,
 /// and the one-message send.
 pub mod service_server_queue_types_and_send;
