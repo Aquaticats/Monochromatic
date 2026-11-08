@@ -217,8 +217,10 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   the installed and locked one,
   `monochromatic-git-policy-cli` 0.6.1-alpha.4
   (`toolchain.lock.json`,
-  route `archive`,
-  launcher record `.cache/toolchain-launchers/monochromatic-git-policy-cli.launch`).
+  route `archive`;
+  the launcher record `.cache/toolchain-launchers/monochromatic-git-policy-cli.launch` names
+  `.../toolchain/cargo-monochromatic-git-policy-cli/current/monochromatic-git-policy-cli-0.6.1-alpha.4-x86_64-unknown-linux-gnu/monochromatic-git-policy-cli`,
+  which is there and executable).
   That build carries the whole copy rule:
   the skip of `target/**/incremental`,
   `target/verification` and the caches entered at version 0.5.14
