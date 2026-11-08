@@ -7,8 +7,10 @@
  */
 
 import {
+  chmod,
   mkdtemp,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
@@ -23,6 +25,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   createGuidedConfig,
   cutoverStages,
+  runShell,
   type Stage,
 } from '../dist/final/node/index.mjs';
 
@@ -30,6 +33,52 @@ import {
  Identifier of the stage that starts the container.
  */
 const CONTAINER_BIND_STAGE_ID = 'c27-container-bind';
+
+/**
+ Bytes a Linux pipe holds by default.
+ A listing longer than this cannot all be written before a reader that stops early has gone.
+ */
+const PIPE_CAPACITY_BYTES = 65_536;
+
+/**
+ Full pipes the long listing fills, so its writer is still writing after a reader has taken its first buffer.
+ */
+const PIPES_OF_LISTING = 4;
+
+/**
+ The image the stage must choose: the first with a name.
+ */
+const FIRST_NAMED_IMAGE = 'registry.example/first:latest';
+
+/**
+ An image further down the listing.
+ */
+const LATER_IMAGE = 'registry.example/later:latest';
+
+/**
+ The listing line of an image with no name, which the stage skips.
+ */
+const UNNAMED_IMAGE = '<none>:<none>';
+
+/**
+ Permissions of the stand-in `podman`: owner may read and run it.
+ */
+const STAND_IN_MODE = 0o700;
+
+/**
+ Deadline of a shell run, in seconds; the stand-in only prints a file.
+ */
+const SHELL_DEADLINE_SECONDS = 30;
+
+/**
+ Seconds between terminate and kill for a shell run.
+ */
+const SHELL_KILL_GRACE_SECONDS = 5;
+
+/**
+ Exit status of a shell that succeeded.
+ */
+const SHELL_SUCCESS = 0;
 
 /**
  A disposable home folder, removed when the scope ends.
@@ -93,6 +142,79 @@ async function containerBindCommand(): Promise<string> {
   return stage.command;
 }
 
+/**
+ Runs the stage's line that chooses an image against a stand-in `podman`, in the shell the runner gives a stage.
+
+ @param listing - lines the stand-in prints
+
+ @returns the shell's exit status and the image it chose
+
+ @throws Error when the stage's command has no first line
+
+ @example
+ ```ts
+ const { status, chosen, } = await chooseImageFrom(['registry.example/first:latest',],);
+ ```
+ */
+async function chooseImageFrom(
+  listing: readonly string[],
+): Promise<{ readonly status: number; readonly chosen: string; }> {
+  await using home = await makeHome();
+  /**
+   The line of the stage that picks the image.
+   */
+  const chooseImage = (await containerBindCommand()).split('\n',).at(0,);
+  if (chooseImage === undefined)
+    throw new Error(`stage ${CONTAINER_BIND_STAGE_ID} has no first line`,);
+  /**
+   File the stand-in prints.
+   */
+  const listingFile = join(home.path, 'listing',);
+  /**
+   The stand-in, found first on the shell's path.
+   */
+  const standIn = join(home.path, 'podman',);
+  await writeFile(listingFile, `${listing.join('\n',)}\n`,);
+  await writeFile(standIn, `#!/usr/bin/env bash\nexec cat '${listingFile}'\n`,);
+  await chmod(standIn, STAND_IN_MODE,);
+  /**
+   What the shell printed.
+   */
+  const printed: string[] = [];
+  /**
+   The shell's exit status.
+   */
+  const status = await runShell({
+    command: `PATH='${home.path}':"$PATH"\n${chooseImage}\nprintf '%s\\n' "$image"`,
+    outputFile: join(home.path, 'output',),
+    seconds: SHELL_DEADLINE_SECONDS,
+    killGrace: SHELL_KILL_GRACE_SECONDS,
+    outputFileEnv: join(home.path, 'output',),
+    out: (text: string,) => {
+      printed.push(text,);
+    },
+  },);
+  return { status, chosen: printed.join('',).trim(), };
+}
+
+/**
+ A listing longer than a pipe holds, whose first named image is the one the stage must choose.
+
+ @returns the listing's lines
+
+ @example
+ ```ts
+ const listing = longListing();
+ ```
+ */
+function longListing(): readonly string[] {
+  /**
+   Lines needed to fill the pipes.
+   */
+  const lineCount = Math.ceil((PIPE_CAPACITY_BYTES * PIPES_OF_LISTING) / LATER_IMAGE.length,);
+  return [UNNAMED_IMAGE, FIRST_NAMED_IMAGE, ...Array.from({ length: lineCount, }, () => LATER_IMAGE,),];
+}
+
 await describe({
   name: 'the container-bind stage of the cut-over',
   children: [
@@ -139,6 +261,38 @@ await describe({
         ]) {
           expect(command.indexOf(option,),).toBeLessThan(mount,);
         }
+      },
+    },),
+    it({
+      name: 'chooses the first named image from a listing longer than a pipe holds',
+      fn: async () => {
+        /**
+         The result of choosing from the long listing.
+         */
+        const result = await chooseImageFrom(longListing(),);
+        expect(result.status,).toBe(SHELL_SUCCESS,);
+        expect(result.chosen,).toBe(FIRST_NAMED_IMAGE,);
+      },
+    },),
+    it({
+      name: 'chooses the first named image from a short listing',
+      fn: async () => {
+        /**
+         The result of choosing from a listing that fits in a pipe.
+         */
+        const result = await chooseImageFrom([UNNAMED_IMAGE, FIRST_NAMED_IMAGE, LATER_IMAGE,],);
+        expect(result.status,).toBe(SHELL_SUCCESS,);
+        expect(result.chosen,).toBe(FIRST_NAMED_IMAGE,);
+      },
+    },),
+    it({
+      name: 'fails when no image has a name',
+      fn: async () => {
+        /**
+         The result of choosing from a listing of unnamed images.
+         */
+        const result = await chooseImageFrom([UNNAMED_IMAGE,],);
+        expect(result.status,).toBeGreaterThan(SHELL_SUCCESS,);
       },
     },),
   ],

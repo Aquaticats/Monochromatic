@@ -544,6 +544,16 @@ and the record's third line says so,
 after a comparison allowing only that exact spelling passed
 and a planted difference on another line was caught in each file.
 
+`c27-container-bind` took its image with `grep ... | head --lines=1` under `pipefail`,
+which exited 141 on this host's list of 631 images (reproduced on the real list),
+so the stage could not pass here.
+It now reads the whole listing with `awk 'NR == 1'`,
+and `guided-container-bind-limits.unit.test.ts` runs that line on a listing longer than a pipe holds.
+The other stages' commands and checks in `guided-cutover-stages.data.ts` were read for this shell trap
+and nothing else was found
+(a second pass by a Claude Code native subagent,
+not an independent review).
+
 Open in `package/repository-move/cli`,
 each with a failing test first:
 
@@ -556,13 +566,6 @@ each with a failing test first:
   with a test that a change on any other line still fails it.
 - `final-diff-step.ts` must not stop on a complete dump,
   once the status 141 has been measured.
-- `c27-container-bind` takes its image with `grep ... | head --lines=1` under `pipefail`,
-  which exits 141 on this host's list of 631 images (reproduced on the real list),
-  so the stage cannot pass here.
-  The other stages' commands and checks in `guided-cutover-stages.data.ts` were read for this shell trap
-  and nothing else was found
-  (a second pass by a Claude Code native subagent,
-  not an independent review).
 - A stage after the swap that rewrites each index:
   the move gives every file a new inode,
   so the first commit in a checkout stopped at the wrapper's 3-second scratch ceiling until a `git status` had run there
