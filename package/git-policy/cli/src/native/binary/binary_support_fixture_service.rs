@@ -182,7 +182,8 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 }
 
 /// What:
-///  A directory of this fixture's own, short enough to hold a socket name.
+///  A directory of this fixture's own,
+///  short enough to hold a socket name.
 /// Why:
 ///   A Unix socket's name must fit `SUN_LEN`,
 /// which is 108 bytes,
