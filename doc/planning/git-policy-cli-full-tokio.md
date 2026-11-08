@@ -4154,6 +4154,159 @@ The bar (every paired delta far under five seconds) holds.
 The after binary was built before the fix of the shutdown's start;
 the fix changes nothing a commit through the service runs.
 
+### Step T12, the runner's jobs on the runtime and one bound for the process, 2026-11-08T18:40:00-05:00
+
+Branch `feat/git-policy-cli-tokio-steps-12-and-13`,
+from main at `1a907ccfb9`.
+Two commits:
+`2b1f830568` (the bound and the runner) and
+`c1e6a78a4c` (the lint and Clippy fixes).
+
+#### Where the plan and the code disagree, told as the coordinator asked
+
+The plan's T12 reads "the parallel runner and the scoped threads ... become tasks and `spawn_blocking` jobs under
+the semaphore of the round;
+the nine `HostResources::read` call sites read the budget through the new owner".
+The code does not allow that as one step,
+for two reasons:
+
+- A job of the blocking pool must own what it reads (`spawn_blocking` requires `'static`),
+  and the scoped threads of
+  `parallel_runner.rs` and `side_by_side_threads.rs`
+  borrow the caller's items,
+  lanes and work for the length of one thread scope.
+  So every call site must hand over shared values (`Arc`)
+  instead of borrows,
+  and the seven `run_ordered` call sites
+  (`worktree/worktree_convert_command.rs`,
+  `worktree/worktree_trash_entries.rs`,
+  `push/manual_push_probe.rs`,
+  `push/manual_push_lifecycle.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `landing/service_round.rs`,
+  and the controls) plus the nine `run_all_side_by_side`/`run_beside_caller` sites must change that way,
+  one at a time,
+  since a change of the runner's signature reaches all of them at once.
+- The work of `landing/service_round.rs` runs Git:
+  `drain_directories` calls
+  `drain_planned` → `run_due_push_retries` and `drain_pending` → the `WorkHandlers` of the landing
+  (`landing/service_work.rs`),
+  and those start Git children.
+  A pool job reaches `run_git`,
+  which enters the runtime through `run_on_runtime`,
+  and that bridge refuses a call from inside the runtime (`RuntimeError::Nested`).
+  So the round's conversion needs the leaf-first `async` Git that T11 named and did not build:
+  there is no `async fn run_git` in `transaction/transaction_git.rs` today
+  (T11 left the note in
+  "What T11 did not convert,
+  and why";
+  79 production files and 203 mentions).
+
+So this step is the part that needs neither:
+the two pieces every later call-site conversion rests on.
+
+#### What landed
+
+- `foundation/blocking_jobs_within_the_budget.rs`:
+  the process's one bound on blocking jobs,
+  a `tokio::sync::Semaphore` made once,
+  sized by
+  `runtime_plan::budgeted_workers` (budget ∩ `RLIMIT_NPROC`/`pids.max` ∩ address space)
+  and by `hold_blocking_jobs_to`,
+  whose permits a job takes before the pool is asked for a thread.
+  The size is the same derivation the runtime's worker count uses
+  (`runtime_plan.rs` now has one function for both),
+  so more jobs than threads cannot run.
+- `foundation/parallel_runner_on_the_runtime.rs`:
+  the same ordered run as `parallel_runner.rs` (input order,
+  the live lines of the head item,
+  a lane's items one after another)
+  with each item as one job of the pool under that bound,
+  the consumer on the calling task,
+  and `run_ordered_and_wait_here` as the face a caller that is still synchronous uses
+  (it enters the runtime and refuses from inside it).
+  The reporting is shared with the scoped runner:
+  `Cursor`,
+  the message type and the lane-coverage check are `pub(crate)` in `parallel_runner.rs`,
+  so the two cannot report differently.
+- `service/service_main.rs`:
+  the service holds its blocking jobs to `SERVICE_WORKER_CAP`,
+  as it holds its workers.
+
+The seven call sites are not converted;
+the scoped runner stays beside the new one until they are.
+The nine `HostResources::read` sites still read the budget themselves;
+the bound is what now limits how much of it runs at once.
+
+#### A refused `spawn_blocking` swallows the job, measured
+
+The design of a permit was changed by a measurement,
+not by a preference.
+When the system refuses a thread,
+`spawn_blocking` pushes the job into the pool's queue and *then* panics
+(`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+`spawn_task`:
+the queue push precedes the thread start,
+and `Err(NoThreads)` leaves the task queued with no thread to run it).
+The queued job keeps everything it captured for the life of the process,
+so:
+
+- a permit moved into the job is lost for good.
+  Planted control (the permit put back into the closure):
+  `where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back` failed with
+  "the place of a job refused a thread was never given back:
+  Elapsed(())" after 30 s.
+- a sending end moved into the job never drops,
+  so a consumer that ends when the channel closes never ends.
+  Planted control (the consumer reading until the channel closed):
+  `where_no_thread_can_start_the_run_is_a_plain_error` hung to nextest's 300 s timeout
+  (`TIMEOUT [ 300.007s]`).
+
+So the place is held by the awaiting frame
+(no shipped caller stops waiting for one of these jobs;
+the doc beside it says so),
+and the consumer ends when every job has *returned*,
+counted by `SlotsStillRunning`,
+and then drains what the jobs already sent.
+Both controls pass in 0.016 s and 0.025 s once the design carries this.
+
+#### Controls
+
+`foundation/blocking_jobs_within_the_budget_tests.rs` (5):
+`a_job_gives_its_value`,
+`the_budget_is_at_least_one_place_and_a_cap_holds_it_lower`,
+`no_more_jobs_run_at_once_than_the_budget_allows` (a burst of six held to the two places it asked for;
+reports the most places held at once),
+`a_job_that_panics_gives_its_place_back`,
+`where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back` (the child that is refused every thread,
+two jobs,
+both refused,
+the job never ran,
+no thread started for the second wait).
+
+`foundation/parallel_runner_on_the_runtime_tests.rs` (5):
+`every_item_runs_and_the_report_keeps_input_order` (the first item ends last and the report keeps input order),
+`items_run_at_the_same_time` (a rendezvous of four that a serial run can never pass),
+`the_process_bound_holds_the_items_to_one_at_a_time`,
+`where_no_thread_can_start_the_run_is_a_plain_error`,
+`a_lane_set_that_leaves_an_item_out_is_refused`.
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:test:host -- foundation::blocking_jobs_within_the_budget foundation::parallel_runner foundation::parallel_runner_on_the_runtime foundation::runtime_plan`:
+27 tests run,
+27 passed.
+The scoped runner's 12 controls and the side-by-side,
+scoped-start and blocking-job controls ran unchanged in an earlier run of the same filter (37 tests run,
+37 passed before the two no-thread fixes below landed as they are).
+`native:clippy` clean;
+package `lint` 0 errors and 0 warnings with the closure check run.
+Not run:
+the container gate (it builds the gate image;
+the tree has not been through it),
+`native:perf` (the plan asks for it after T12),
+and the mutation campaign.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -4192,6 +4345,18 @@ the final removal and lint),
 the replacement of `private_storage.rs`,
 the descriptor-limit sweeps of the child helper,
 and the mutation campaign.
+- After T12's first part (2026-11-08T18:40:00-05:00,
+"Step T12,
+the runner's jobs on the runtime"):
+  the bound and the runtime runner exist and are tested;
+  what is left of T12 is the per-call-site conversion of seven `run_ordered` sites and nine
+  `run_all_side_by_side`/`run_beside_caller` sites to shared state,
+  and that conversion of the service round needs the leaf-first `async` Git first.
+  T13's lint (no `std::thread`,
+  no `std::process::Command` outside the guarded start,
+  no `thread::sleep`) cannot be tightened until those call sites are converted,
+  since `scoped_start.rs`,
+  `side_by_side_threads.rs` and 30-odd other files still start threads.
 
 ## Open choices for the owner
 
