@@ -43,7 +43,7 @@ const PROFILE_DEPTH: usize = 3;
 const LEAD_FILES: usize = 300;
 
 /// How many bytes of a dependency-info file are read.
-const LEAD_BYTES: usize = 1_200;
+const LEAD_BYTES: usize = 4_096;
 
 /// Path fragments of sources that are not a workspace.
 const NOT_A_WORKSPACE: [&str; 5] = ["/.cargo/registry/", "/.cargo/git/", "/rustlib/", "/.rustup/", "/toolchains/"];
@@ -267,7 +267,18 @@ fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf> {
     let mut file: fs::File = fs::File::open(dependency_file).ok()?;
     let mut buffer: Vec<u8> = vec![0; LEAD_BYTES];
     let count: usize = file.read(&mut buffer).ok()?;
-    let text: String = String::from_utf8_lossy(&buffer[..count]).to_string();
+    let read: String = String::from_utf8_lossy(&buffer[..count]).to_string();
+    // A read that filled the buffer may have cut the last token in two:
+    // a cut path names nothing and would look gone,
+    // so the text is taken only up to the last whitespace.
+    let text: &str = if count == LEAD_BYTES {
+        match read.rfind(char::is_whitespace) {
+            Some(end) => &read[..end],
+            None => "",
+        }
+    } else {
+        &read
+    };
     for token in text.split_whitespace().skip(1) {
         if !token.starts_with('/') || Path::new(token).starts_with(tree) {
             continue;

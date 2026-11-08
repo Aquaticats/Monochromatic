@@ -206,3 +206,19 @@ fn trees_are_listed_in_both_layouts_and_the_trash_is_not_a_tree() {
     assert!(trees.contains(&Tree { path: keyed, kind: TreeKind::Keyed(String::from("nightly-x")) }));
     assert_eq!(profile_dirs_of(&legacy), vec![legacy.join("debug")]);
 }
+
+#[test]
+fn a_dependency_token_the_read_cut_in_two_is_no_lead_and_names_no_gone_source() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    let tree: PathBuf = make_tree(&base, "ab/0000000000000e", None);
+    let out: PathBuf = tree.join("debug").join("build").join("alpha").join("00000000000000aa").join("out");
+    fs::create_dir_all(&out).expect("out directory");
+    // One path longer than the read: whatever the read keeps of it is a prefix of a path, not a path.
+    fs::write(out.join("alpha.d"), format!("{}/alpha.d: /gone/{}\n", tree.display(), "z".repeat(6_000))).expect("dependency information");
+    age_everything(&tree, NOW - 2 * DAY);
+    assert_eq!(workspace_of(&tree), Workspace::Unidentified);
+    let outcomes = collect(&base, &[], false);
+    assert!(matches!(verdict_of(&outcomes, &tree), TreeVerdict::Keep(_)), "{outcomes:?}");
+    assert!(tree.exists());
+}
