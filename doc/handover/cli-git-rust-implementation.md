@@ -3092,7 +3092,7 @@ In practice it's 16."
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
-Both items it listed are gone:
+The two items this section listed are gone:
 the wizard-skill TypeScript conversion became void once the owner asked for the skill itself to go
 ("Remove and Blocklist the wizard skill.",
 recorded under "Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00" in
