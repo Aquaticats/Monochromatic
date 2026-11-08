@@ -17,6 +17,10 @@ import { once, } from 'node:events';
 import { promisify, } from 'node:util';
 
 import {
+  imageBuildLimitArguments,
+  type ImageBuildLimits,
+} from '@monochromatic-dev/container-limit-core/ts';
+import {
   logger as defaultLogger,
   tagged,
   type Logger,
@@ -38,6 +42,49 @@ const execFileAsync = promisifyExecFile(execFile,);
  Name of the image label that holds the digest of the inputs the image was built from.
  */
 export const IMAGE_BUILD_INPUTS_LABEL_NAME = 'dev.monochromatic.image-build-inputs-sha256';
+
+/**
+ Bound of an image build whose caller gave none: 4 GiB and 4 CPUs, the bound `package/terminal/app` has put on the build
+ of its Ghostty and Slint image.
+ Adopted for the CachyOS images built here, not measured.
+ `podman build` has no process or disk-weight option, so the bound is memory and the CFS quota only.
+ */
+export const DEFAULT_IMAGE_BUILD_LIMITS: ImageBuildLimits = {
+  memory: '4g',
+  cpus: 4,
+};
+
+/**
+ Whether a build flag sets the memory bound.
+
+ @param flag - one bounding flag
+
+ @returns true for `--memory` in either spelling
+ */
+function setsMemory(flag: string,): boolean {
+  return flag.startsWith('--memory',);
+}
+
+/**
+ Flags that bound one image build.
+
+ @param boundingFlags - the flags the caller gave
+
+ @returns the caller's flags when they bound the memory themselves, else the default bound ahead of them
+
+ @example
+ ```ts
+ const flags = boundingFlagsOf([]);
+ ```
+ */
+export function boundingFlagsOf(boundingFlags: readonly string[],): readonly string[] {
+  return boundingFlags.some(setsMemory,)
+    ? boundingFlags
+    : [
+      ...imageBuildLimitArguments(DEFAULT_IMAGE_BUILD_LIMITS,),
+      ...boundingFlags,
+    ];
+}
 
 /**
  The container engine operations this module needs, so a test can stand in for `podman`.
@@ -365,7 +412,7 @@ export async function buildContainerImage({
   },);
   l.info(`building ${inputs.image} with inputs digest ${digest}`,);
   await engine.build([
-    ...inputs.boundingFlags,
+    ...boundingFlagsOf(inputs.boundingFlags,),
     ...inputs.buildArguments,
     '--label',
     `${IMAGE_BUILD_INPUTS_LABEL_NAME}=${digest}`,
