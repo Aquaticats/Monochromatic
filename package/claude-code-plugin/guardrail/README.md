@@ -80,14 +80,23 @@ Only a word carrying a path separator matches,
 so `/usr/share/doc/git/RelNotes` and `/usr/bin/gitk` stay allowed,
 and so does the PATH wrapper,
 including `git -C <root> commit`.
-Read-only subcommands (`for-each-ref`, `rev-parse`, `log`, `show`, `status`, `ls-remote`,
-`diff`, `cat-file`, `ls-files`, `merge-base` and the rest of the read set)
+Read-only subcommands (`for-each-ref`,
+`rev-parse`,
+`log`,
+`show`,
+`status`,
+`ls-remote`,
+`diff`,
+`cat-file`,
+`ls-files`,
+`merge-base` and the rest of the read set)
 stay allowed through the same absolute path.
 A subcommand this analyzer has never seen counts as mutating.
 
 The handler is asynchronous because the check resolves the real Git executable;
 the hook runtime awaits every handler.
-When resolution fails, the check reports nothing and logs at debug level,
+When resolution fails,
+the check reports nothing and logs at debug level,
 so a host without a resolvable Git does not fail every Bash call.
 
 ## Process-name wait loops
