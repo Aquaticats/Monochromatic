@@ -811,6 +811,12 @@ jobs:
       # Both runners have 4 vCPUs and 16 GB; the bounds leave the runner room for the podman and runner processes.
       BUILD_MEMORY: 12g
       BUILD_CPUS: '4'
+      # CFS quota of the image builds: BUILD_CPUS whole CPUs of the 100000 microsecond period (podman build has no --cpus).
+      BUILD_CPU_QUOTA: '400000'
+      # The process limit is the IDE's bound for 4 CPUs (package/ide/app/bin/container-bounds.ts), and the weight is the lowest podman
+      # accepts (package/container-limit/core; repository rule HXR). The first container start of the job is its probe: a runner
+      # that refuses one of these options fails there, in seconds, and not an hour into the build. podman build has neither option.
+      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024 --blkio-weight=10 --cgroup-conf=io.weight=10'
       NOTICES: notices/music-player-${{ needs.detect.outputs.version }}-desktop-third-party-licenses.txt
     steps:
     - name: Checkout
@@ -834,6 +840,7 @@ jobs:
         context="$(mktemp -d)"
         for target in build runtime; do
           podman build \
+            --memory="$BUILD_MEMORY" --cpu-period=100000 --cpu-quota="$BUILD_CPU_QUOTA" \
             --target "$target" \
             --tag "music-player-alpine-$target" \
             --file package/music-player/desktop-app/Containerfile.alpine \
@@ -843,7 +850,7 @@ jobs:
     - name: Check the toolchain builds for musl natively
       run: |
         set -euo pipefail
-        info=$(podman run --rm music-player-alpine-build rustc --version --verbose)
+        info=$(podman run --rm --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS music-player-alpine-build rustc --version --verbose)
         echo "$info"
         host=$(awk '/^host: / { print $2 }' <<< "$info")
         if [ "$host" != "$ALPINE_HOST" ]; then
@@ -858,7 +865,7 @@ jobs:
         # The source is mounted read-only. The registry and the target directory are fresh for every run, so the
         # bytes that ship are built from the locked sources by this run alone.
         podman run --rm \
-          --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" --security-opt label=disable \
+          --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
           --volume "$GITHUB_WORKSPACE/package/music-player:/src:ro" \
           --volume "$RUNNER_TEMP/cargo:/cargo" \
           --volume "$RUNNER_TEMP/target:/target" \
@@ -878,7 +885,7 @@ jobs:
     - name: Smoke test the binary in the runtime image (--version)
       run: |
         set -euo pipefail
-        out=$(podman run --rm --security-opt label=disable \
+        out=$(podman run --rm --memory=4g --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
           --volume "$RUNNER_TEMP/target/release/music-player:/usr/local/bin/music-player:ro" \
           music-player-alpine-runtime music-player --version)
         echo "$out"
@@ -887,7 +894,7 @@ jobs:
           exit 1
         fi
         # The embedded license notices: byte for byte the notices job's file.
-        podman run --rm --security-opt label=disable \
+        podman run --rm --memory=4g --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
           --volume "$RUNNER_TEMP/target/release/music-player:/usr/local/bin/music-player:ro" \
           music-player-alpine-runtime music-player --licenses > "$RUNNER_TEMP/licenses.txt"
         if ! cmp "$NOTICES" "$RUNNER_TEMP/licenses.txt"; then
@@ -1354,6 +1361,12 @@ jobs:
       # room for the podman and runner processes.
       BUILD_MEMORY: 12g
       BUILD_CPUS: '4'
+      # CFS quota of the image builds: BUILD_CPUS whole CPUs of the 100000 microsecond period (podman build has no --cpus).
+      BUILD_CPU_QUOTA: '400000'
+      # The process limit is the IDE's bound for 4 CPUs (package/ide/app/bin/container-bounds.ts), and the weight is the lowest podman
+      # accepts (package/container-limit/core; repository rule HXR). The first container start of the job is its probe: a runner
+      # that refuses one of these options fails there, in seconds, and not an hour into the build. podman build has neither option.
+      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024 --blkio-weight=10 --cgroup-conf=io.weight=10'
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -1368,6 +1381,7 @@ jobs:
           context="$(mktemp -d)"
           for target in build smoke; do
             podman build \
+              --memory="$BUILD_MEMORY" --cpu-period=100000 --cpu-quota="$BUILD_CPU_QUOTA" \
               --target "$target" \
               --tag "music-player-alpine-$target" \
               --file package/music-player/desktop-app/Containerfile.alpine \
@@ -1380,8 +1394,8 @@ jobs:
           set -euo pipefail
           # The key names the rustc version and a short hash of the -dev package versions the build links, because the
           # image pins Alpine by digest but `apk add` installs whatever the stable repository holds on that day.
-          rustc_version="$(podman run --rm music-player-alpine-build rustc --version | tr ' ' '_' | tr -d '()')"
-          packages="$(podman run --rm music-player-alpine-build apk info --installed --verbose rust cargo pipewire-dev alsa-lib-dev fontconfig-dev freetype-dev | sort | sha256sum | cut -c1-12)"
+          rustc_version="$(podman run --rm --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS music-player-alpine-build rustc --version | tr ' ' '_' | tr -d '()')"
+          packages="$(podman run --rm --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS music-player-alpine-build apk info --installed --verbose rust cargo pipewire-dev alsa-lib-dev fontconfig-dev freetype-dev | sort | sha256sum | cut -c1-12)"
           echo "key=${rustc_version}-${packages}" >> "$GITHUB_OUTPUT"
           echo "toolchain: ${rustc_version} packages ${packages}"
 
@@ -1414,7 +1428,7 @@ jobs:
           # The source is mounted read-only; nextest writes its store under the crate's target directory, so that one
           # path gets a scratch directory. The Slint variables are the ones the task bodies set for local runs.
           podman run --rm \
-            --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" --security-opt label=disable \
+            --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
             --volume "$GITHUB_WORKSPACE/package/music-player:/src:ro" \
             --volume "$CI_CACHE/scratch:/src/desktop-app/target" \
             --volume "$CI_CACHE/cargo:/cargo" \
@@ -1430,7 +1444,7 @@ jobs:
         run: |
           set -euo pipefail
           podman run --rm \
-            --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" --security-opt label=disable \
+            --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
             --volume "$GITHUB_WORKSPACE/package/music-player:/src:ro" \
             --volume "$CI_CACHE/cargo:/cargo" \
             --volume "$CI_CACHE/target-app:/target" \
@@ -1447,7 +1461,7 @@ jobs:
           # The package's own release profile is fat LTO with one codegen unit, which is slow on 4 vCPUs; the smoke
           # test needs a working compositor, not its fastest code, so LTO is off and codegen units are many.
           podman run --rm \
-            --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" --security-opt label=disable \
+            --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
             --volume "$GITHUB_WORKSPACE/package/nested-wayland-session/cli:/src:ro" \
             --volume "$CI_CACHE/cargo:/cargo" \
             --volume "$CI_CACHE/target-nws:/target" \
@@ -1503,7 +1517,7 @@ jobs:
           set -euo pipefail
           mkdir --parents "$RUNNER_TEMP/smoke-out"
           podman run --rm \
-            --memory=4g --cpus="$BUILD_CPUS" --security-opt label=disable \
+            --memory=4g --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
             --volume "$RUNNER_TEMP/bin/music-player:/opt/music-player/music-player:ro" \
             --volume "$RUNNER_TEMP/bin/nws:/opt/music-player/nws:ro" \
             --volume "$GITHUB_WORKSPACE/package/music-player/desktop-app/fixture:/opt/music-player/fixture:ro" \

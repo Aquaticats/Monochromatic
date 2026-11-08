@@ -208,9 +208,22 @@ pub fn signal_datagram(signal: libc::c_int, uptime_nanos: u64, at_ms: u64) -> ([
 }
 
 /// The handler:
-/// one `write` of the line to standard error,
-/// then the signal's default action.
+/// one line of the stop,
+/// then the record of the stop and a byte that wakes the service's own shutdown (`stop_of_the_service_noticed_by_its_children.rs`),
+/// which ends the Gits the service waits on and then the process by this signal.
+/// A second stop signal,
+/// or a service with nothing to wake,
+/// ends the process at once by the signal's default action.
 extern "C" fn on_signal(signal: libc::c_int) {
+    // A second stop signal is the operator insisting: no line, no wait, the process ends as it would have without a handler.
+    if !crate::stop_of_the_service_noticed_by_its_children::record_from_a_signal_handler(signal) {
+        // SAFETY: `signal` and `raise` are safe in a signal handler.
+        unsafe {
+            libc::signal(signal, libc::SIG_DFL);
+            libc::raise(signal);
+        }
+        return;
+    }
     let started: u64 = STARTED_NANOS.load(Ordering::Relaxed);
     let uptime: u64 = monotonic_nanos().saturating_sub(started);
     let at_ms: u64 = wall_millis_signal_safe();
@@ -234,6 +247,16 @@ extern "C" fn on_signal(signal: libc::c_int) {
             //  `poll` and `write`.
             let _written = send_without_waiting(libc::STDERR_FILENO, &line[..length]);
         }
+    }
+    // The handler only records the stop (owner, 2026-11-07T22:19:43-05:00, "C: shutdown stops its Gits (Recommended)"): the line is out,
+    //  so the service's own shutdown is woken, and it ends the Gits the service waits on and then the process by this signal. Where
+    //  there is nothing to wake (the pipe could not be made) the process ends here, as it did before the stop was a thing the service handles.
+    if crate::stop_of_the_service_noticed_by_its_children::wake_the_shutdown_from_a_signal_handler() {
+        crate::stop_of_the_service_noticed_by_its_children::arm_the_last_resort_from_a_signal_handler();
+        return;
+    }
+    // SAFETY: `signal` and `raise` are safe in a signal handler.
+    unsafe {
         libc::signal(signal, libc::SIG_DFL);
         libc::raise(signal);
     }
@@ -261,6 +284,10 @@ pub fn install() {
     // The stop of the service is an operation of its own: no commit's signal guard in this process takes these handlers or relays a
     //  stop to the Git child of a commit the service is preparing (owner, 2026-11-07, "Only that operation's children").
     crate::signal_relay::leave_signals_to_the_service();
+    // The pipe the handler wakes the shutdown through; without it a stop ends the process in the handler, as it did before.
+    if let Err(error) = crate::stop_of_the_service_noticed_by_its_children::prepare_to_notice() {
+        crate::service_warn!("the stop of this service cannot wake its shutdown ({error}), so a stop ends the service at once and does not end the Git processes it is waiting for");
+    }
     for signal in HANDLED {
         // SAFETY: `on_signal` has the signature a handler needs and only calls functions that are safe in a handler.
         unsafe {

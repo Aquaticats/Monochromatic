@@ -5568,12 +5568,6 @@ are in append mode now).
 
 ### Questions waiting for the owner
 
-- Container disk weight:
-  about twenty other packages and two workflows start containers at the default weight;
-  the weight constant has several copies;
-  `vm-builder`'s rootful privileged bootc-image-builder run has no CPU,
-  memory or process limits.
-  The six packages in the owner's answer "Both flags in all six" are done.
 - Delete the thirteen merged branches with nondescript names
   (`fix-push-semantics`,
   `fix-review-log-common`,

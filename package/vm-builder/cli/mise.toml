@@ -3,7 +3,7 @@
 # HXR (AGENTS.md) starts containers that can exhaust the host at this weight. The image:check containers are rootful, so they sit
 # in a system scope outside this task's unit and the launcher's IOWeight never reaches them. `--blkio-weight` sets io.bfq.weight
 # (read by the BFQ scheduler) and `--cgroup-conf io.weight=` sets io.weight (read by the other schedulers); the host's scheduler
-# reads one of them. src/disk-weight.ts holds the same value for the converter container, and its unit test fails if they differ.
+# reads one of them. @monochromatic-dev/container-limit-core holds the one copy; src/container-arguments.unit.test.ts fails if this variable differs from it.
 lowest_disk_weight = "10"
 
 [tasks.run]

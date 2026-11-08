@@ -212,6 +212,10 @@ jobs:
       # runner room for podman and the runner processes. container-bounds.ts reads exactly these variable names.
       IDE_CONTAINER_CPUS: '4'
       IDE_CONTAINER_MEMORY: '12g'
+      # The process limit and the weight of the three probe containers below. The tasks' own containers already carry the weight
+      # (package/ide/app/bin/container-bounds.ts, from package/container-limit/core); these steps start first, so a runner that
+      # refuses a weight option fails here, in seconds, and not an hour into the build.
+      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024 --blkio-weight=10 --cgroup-conf=io.weight=10'
       # The shipped executable is compiled in the Ubuntu 24.04 release image (Containerfile.release of the ide and terminal
       # packages), not in the CachyOS development image: the glibc of the build image sets the oldest glibc the
       # executable runs on (doc/decision/container-base-distro.md). The ide tasks read this variable to pick the image.
@@ -286,7 +290,7 @@ jobs:
 
     # A bounded container with the same kinds of limits the tasks pass (CPU, memory, processes, open files), so a
     # runner that refuses one of them fails here and not an hour into the build. The Alpine jobs of
-    # music-player-release.yml prove --memory and --cpus on this runner image; --pids-limit and --ulimit were not proven.
+    # music-player-release.yml prove --memory and --cpus on this runner image; --pids-limit, --ulimit and the disk weight were not proven.
     # The compiler version goes to the release notes: the image installs the stable toolchain of the day it is built
     # (package/terminal/app/Containerfile.release), so each leg records which one. A matrix job cannot hand a value to
     # a later job as an output (the legs would overwrite each other), so the line travels as a small artifact. Its name
@@ -296,16 +300,16 @@ jobs:
       run: |
         set -euo pipefail
         podman run --rm --network=none --security-opt label=disable \
-          --memory="$IDE_CONTAINER_MEMORY" --cpus="$IDE_CONTAINER_CPUS" --pids-limit=1024 --ulimit nofile=4096:4096 \
+          --memory="$IDE_CONTAINER_MEMORY" --cpus="$IDE_CONTAINER_CPUS" $CONTAINER_EXTRA_OPTIONS --ulimit nofile=4096:4096 \
           localhost/monochromatic/ide-release sh -c 'rustc --version --verbose && cargo --version && cargo-about --version'
-        host=$(podman run --rm --network=none --security-opt label=disable localhost/monochromatic/ide-release \
+        host=$(podman run --rm --network=none --memory="$IDE_CONTAINER_MEMORY" --cpus="$IDE_CONTAINER_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable localhost/monochromatic/ide-release \
           sh -c "rustc --version --verbose | awk '/^host: / { print \$2 }'")
         echo "rustc host triple: ${host}"
         if [ "$host" != "${MACHINE}-unknown-linux-gnu" ]; then
           echo "::error::The build image compiles for '${host}', expected '${MACHINE}-unknown-linux-gnu'."
           exit 1
         fi
-        rustc=$(podman run --rm --network=none --security-opt label=disable localhost/monochromatic/ide-release rustc --version)
+        rustc=$(podman run --rm --network=none --memory="$IDE_CONTAINER_MEMORY" --cpus="$IDE_CONTAINER_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable localhost/monochromatic/ide-release rustc --version)
         mkdir --parents "${RUNNER_TEMP}/ide-meta"
         echo "$rustc" > "${RUNNER_TEMP}/ide-meta/rustc-${ARCH}.txt"
         df --human-readable /

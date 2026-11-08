@@ -764,7 +764,8 @@ limits defaults and manifest:
   `--cpus`,
   `--pids-limit` and the lowest disk
   weight (`lowestDiskWeight`,
-  `diskWeightArguments`;
+  `diskWeightArguments`,
+  both from `@monochromatic-dev/container-limit-core`;
   `runLimitArguments` adds it to every started container,
   and
   `podman build` has no such option,

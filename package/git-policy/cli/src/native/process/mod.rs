@@ -66,3 +66,13 @@ pub mod step_output_read_whole_through_pipes;
 /// at the end of its grace,
 /// and not before the ceiling while a member is in uninterruptible sleep.
 pub mod stop_waits_while_a_member_cannot_be_interrupted;
+
+/// How a stop of the commit service reaches the Git processes it waits for:
+/// the handler records it,
+/// the shutdown tells the waiters,
+/// and each waiter ends the child it owns.
+pub mod stop_of_the_service_noticed_by_its_children;
+
+/// An owned child awaited until it exits,
+/// or ended and reported when the service's stop is told first.
+pub mod child_awaited_until_it_exits_or_the_service_is_stopped;

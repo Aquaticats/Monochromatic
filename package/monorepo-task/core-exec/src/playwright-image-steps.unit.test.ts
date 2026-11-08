@@ -10,6 +10,7 @@
  @module
  */
 
+import { imageBuildLimitArguments, } from '@monochromatic-dev/container-limit-core/ts';
 import {
   describe,
   expect,
@@ -442,6 +443,9 @@ await describe({
               ['--version',],
               [
                 'build',
+                // The step cannot import the shared helper (it runs before any dependency is installed), so its
+                // literal bound must equal what the helper builds for a 4 vCPU, 16 GB hosted runner.
+                ...imageBuildLimitArguments({ memory: '12g', cpus: 4, },),
                 '--file',
                 'playwright.Dockerfile',
                 '--label',

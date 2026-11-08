@@ -33,7 +33,7 @@ use crate::push_retry::PLAN_DIRECTORY;
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::service_retry::RETRY_SLACK;
 use crate::service_server::work_loop;
-use std::sync::mpsc::{Sender, channel};
+use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -273,9 +273,9 @@ const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturati
 /// as the service does,
 /// and give the way to wake it;
 /// dropping the sender stops it.
-fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
-    let (sender, receiver) = channel::<Wake>();
-    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
+fn start_service<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, busy: &'scope AtomicUsize) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    let (sender, mut receiver) = unbounded_channel::<Wake>();
+    let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::restored(PAUSE, plans), ClaimWatch::in_memory()); });
     return (sender, running);
 }
 
@@ -674,14 +674,14 @@ fn claim_as_a_dead_service_did(stage: &Stage, commit: &str, age: Duration) -> Pa
 /// Run `work_loop` on a thread as a service that has just started:
 /// the plan and the watch are read from the journal,
 /// and no wake is sent.
-fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+fn start_service_watching<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
     return start_service_watching_with(scope, handlers, PAUSE, plans, watched, busy);
 }
 
 /// The same with the first pause of a push that is tried again given.
-fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, first: Duration, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (Sender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
-    let (sender, receiver) = channel::<Wake>();
-    let running = scope.spawn(move || { work_loop(&receiver, handlers, busy, PushRetries::restored(first, plans), ClaimWatch::restored(watched, None)); });
+fn start_service_watching_with<'scope>(scope: &'scope std::thread::Scope<'scope, '_>, handlers: &'scope GitHandlers, first: Duration, plans: &'scope Path, watched: &'scope Path, busy: &'scope AtomicUsize) -> (UnboundedSender<Wake>, std::thread::ScopedJoinHandle<'scope, ()>) {
+    let (sender, mut receiver) = unbounded_channel::<Wake>();
+    let running = scope.spawn(move || { work_loop(&mut receiver, handlers, busy, PushRetries::restored(first, plans), ClaimWatch::restored(watched, None)); });
     return (sender, running);
 }
 
