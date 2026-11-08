@@ -78,7 +78,7 @@ it never will.
 
 Everything here is the coordinator's reading under the owner's delegation and open to the owner's veto,
 except the three
-answers quoted above.
+answers quoted under `The rule and the answers it rests on`.
 
 ## Method
 
@@ -758,7 +758,7 @@ derived in code (see the audit).
 by `may_be_rerun`,
 it only reads or writes unreferenced objects,
 or it is one of the exact forms the experiment proved);
-which forms those are was decided by experiment (next section),
+which forms those are was decided by experiment (`The cut experiment`),
 not by reading,
 and every other form has no ceiling.
 The first build of this branch (`a8b7473fc7`) had instead a list of subcommands,
@@ -2032,7 +2032,8 @@ its fix and its test:
   only while it still carries the token of the confirmation it removes,
   so a replacement from a stale listing stays.
   The comment about
-  the order of the two removals was wrong (the decision first leaves the confirmation standing alone) and is replaced by the rule above.
+  the order of the two removals was wrong (the decision first leaves the confirmation standing alone)
+  and is replaced by the rule stated for `end_group`.
   Tests:
   `a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision` (the reviewer's schedule:
   failed when the
