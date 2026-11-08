@@ -20,18 +20,7 @@ minimumReleaseAgeStrict = true
 trustPolicy = "no-downgrade"
 # Reviewed and approved by the owner on 2026-10-29 (issue #1806): first releases by publishers who are
 # listed crate owners or publish through the owning team.
-trustPolicyExclude = [
-  "fontique@0.12.0",
-  "parley@0.12.0",
-  "parley_data@0.12.0",
-  "parley_engine@0.12.0",
-  "smallvec@1.16.4",
-  "wayland-server@0.31.14",
-  # Owner, 2026-11-07: "I'm approving the publisher change for jiff." defmt-parser 1.1.0 is published by account 414585 where 0.4.1 was
-  # published by account 84779; it enters the lock only as the optional `defmt` dependency of jiff 0.2.32 and later, and this entry
-  # exempts that one release, not the crate.
-  "defmt-parser@1.1.0",
-]
+trustPolicyExclude = ["fontique@0.12.0", "parley@0.12.0", "parley_data@0.12.0", "parley_engine@0.12.0", "wayland-server@0.31.14", "defmt-parser@1.1.0"]
 trustPolicyExcludePrune = true
 # 365 days in minutes (owner decision, 2026-10-29): a release more than a year old cannot be a fresh takeover,
 # and minimumReleaseAge already holds back new ones.
@@ -120,8 +109,8 @@ sysinfo = ">=0.40.1"
 tar = ">=0.4.46"
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
-toml = ">=1.2.0"
-toml_edit = ">=0.25.18"
+toml = ">=1.2.1"
+toml_edit = ">=0.25.19"
 tower-service = ">=0.3.3"
 tracing = ">=0.1.44"
 tracing-appender = ">=0.2.5"

@@ -153,7 +153,7 @@ slint = { version = ">=1.18.1", default-features = false }
 slint-build = ">=1.18.1"
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
-toml = ">=1.2.0"
+toml = ">=1.2.1"
 tracing = ">=0.1.44"
 tracing-log = { version = ">=0.2", default-features = false }
 tracing-subscriber = ">=0.3.23"
