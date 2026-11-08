@@ -131,34 +131,45 @@ async function persistedMessages(directory: string,): Promise<string[]> {
     },
   );
   /**
-   Message of every persisted record, in read order.
+   Log file paths, sorted so the read order is deterministic.
    */
-  const messages: string[] = [];
-  for (const entry of entries.toSorted(function byPath(left, right,) {
+  const paths = entries.toSorted(function byPath(left, right,) {
     return left.parentPath
       .localeCompare(right.parentPath,)
       || left.name
         .localeCompare(right.name,);
-  },)) {
-    if ((!entry.isFile()) || (!entry.name.endsWith('.log.jsonl',)))
-      continue;
-    /**
-     File content split into one JSONL record per line.
-     */
-    const lines = (await readFile(
-      join(
+  },)
+    .filter(function isLogFile(entry,) {
+      return entry.isFile() && entry.name
+        .endsWith('.log.jsonl',);
+    },)
+    .map(function toPath(entry,) {
+      return join(
         entry.parentPath,
         entry.name,
-      ),
+      );
+    },);
+  /**
+   File contents, read together rather than one await per file.
+   */
+  const contents = await Promise.all(paths.map(async function readLogFile(path,) {
+    return await readFile(
+      path,
       'utf8',
-    )).split('\n',);
-    for (const line of lines) {
+    );
+  },),);
+  /**
+   Message of every persisted record, in read order.
+   */
+  const collected: string[] = [];
+  for (const content of contents) {
+    for (const line of content.split('\n',)) {
       if (line === '')
         continue;
-      messages.push((JSON.parse(line,) as LogRecord).message,);
+      collected.push((JSON.parse(line,) as LogRecord).message,);
     }
   }
-  return messages;
+  return collected;
 }
 
 /**
@@ -1152,9 +1163,9 @@ await describe({
                 expect(failures,)
                   .toHaveLength(1,);
                 expect(failures[0],)
-                  .toContain('failing backend (entry 0)',);
+                  .toContain('failing backend sink (entry 0)',);
                 expect(failures[0],)
-                  .toContain('2 kept records',);
+                  .toContain('the 2 records logged before it answered are dropped',);
               },
             },),
 
@@ -1182,7 +1193,7 @@ await describe({
                 expect(reported,)
                   .toHaveLength(1,);
                 expect(reported[0],)
-                  .toContain('wedged backend (entry 0)',);
+                  .toContain('wedged backend sink (entry 0)',);
                 expect(reported[0],)
                   .toContain(`${SHORT_DEADLINE_MS}ms`,);
                 expect(reported[0],)

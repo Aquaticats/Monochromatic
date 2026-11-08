@@ -609,6 +609,7 @@ export function createConsoleSink(): Sink {
 
   return {
     flush,
+    name: 'console',
     verify: verifyConsole,
     write,
   };

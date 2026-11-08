@@ -51,6 +51,40 @@ export function reportLoggerFallback({
 }
 
 /**
+ Reports a logger-internal condition in plain words, with no caught value to
+ append.
+ 
+ Use this for a state the logger reached rather than for a value it caught, so
+ the reader gets one sentence naming the affected sink, what happened, and what
+ to do next instead of a diagnostic built from an implementation label.
+ 
+ @param message - Sentence naming the affected sink, the outcome, and the next step.
+ 
+ @example
+ ```ts
+ reportLoggerCondition({ message: 'file sink (entry 3) verification had not answered within 5000ms' });
+ ```
+ */
+export function reportLoggerCondition({ message, }: { readonly message: string; },): void {
+  if ((typeof console) === 'undefined')
+    return;
+
+  /**
+   Host console method avoids recursive sink discovery while reporting.
+   */
+  const report = (typeof console.warn) === 'function'
+    ? console.warn
+    : ((typeof console.error) === 'function' ? console.error : console.log);
+  if ((typeof report) !== 'function')
+    return;
+
+  report.call(
+    console,
+    neutralizeControlCharacters(`logger internal error: ${message}`,),
+  );
+}
+
+/**
  Reports a logger-internal caught value without going back through logger
  sinks, formatting it via {@link caughtValueText}.
  
