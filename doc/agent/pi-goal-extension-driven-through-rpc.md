@@ -281,6 +281,57 @@ Without that,
 an unsatisfiable objective runs until something else stops it,
 and each cycle costs a primary run and a reviewer call.
 
+### Two fixes for the loop and their measured effect
+
+Two branches change the reviewer rubric,
+and both were run against the same Collatz objective on 2026-11-07 and 2026-11-08.
+Branch `fix/pi-goal-reviewer-human-input-rubric` changes the prompt only.
+Branch `fix/pi-goal-reviewer-rubric-solo` changes the prompt and adds a phrase post-filter on the reviewer's guidance.
+Both make the rubric depend on the session mode:
+a session that cannot reach a user is never told to ask one,
+and hard or unsolved work must get one concrete next attempt that differs from the attempts already shown.
+
+A driven session loads the goal package from the Pi home's `settings.json` `packages` list.
+The owner's real home lists `package/pi-plugin/goal` of the main checkout by absolute path,
+so a driven session in the real home runs the main checkout's last build,
+whatever branch is checked out elsewhere.
+To test a branch,
+use an isolated Pi home whose `packages` list names that branch's worktree package,
+and build it first,
+because Pi loads the git-ignored `dist/final/node/index.mjs`.
+
+Measured with the old build,
+short bounds,
+four arms:
+every recorded denial told the primary to explain that no proof is known,
+to ask the user,
+or to offer alternative tasks.
+Both new builds,
+eight arms with short bounds and eight with tripled bounds:
+no recorded guidance asked the user or told the primary to stop.
+All but one named a proof attempt or a verification step;
+one guidance from the post-filter build asked for a summary of known partial results,
+a substitute objective that its phrase lists did not catch.
+The control `solve 3x + 1 = 0 and state the value of x` was still approved on the first review.
+Two arms of the post-filter build changed approach between cycles,
+and the one prompt-only arm with two denials repeated the same instruction reworded,
+on counts too small to separate the builds.
+The post-filter never replaced any guidance in the runs where its audit field was visible,
+so the prompt change alone produced compliant guidance there.
+The detail,
+the setup,
+and the open decision are in `doc/handover/pi-goal-reviewer-human-input-rubric.md`.
+
+Side effects of shell-capable arms worth knowing before the next run:
+with bash enabled the primary compiled and ran a Collatz verifier (one build used OpenMP) and wrote scripts into `/tmp`
+and files into the working directory.
+Run such arms in a capped unit,
+use a throwaway working directory,
+and delete what they leave behind.
+A systemd user unit does not inherit the shell's `PATH`,
+so the first matrix launch failed every arm in two seconds with `spawn pi ENOENT`;
+pass `--setenv=PATH`.
+
 ### The result depends on the reviewer model
 
 - `opencode-go/deepseek-v4.1-flash` returned no text for the structured review,

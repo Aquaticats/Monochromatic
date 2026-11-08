@@ -263,34 +263,86 @@ Owner decisions given in this session:
   That is one reviewer model and one objective,
   not proof the filter is never needed.
 
+## Criterion 6 and 7 results, 2026-11-08T00:13:11-05:00
+
+- Criterion 6 (the new tests fail without the source change) holds for both branches.
+  Method:
+  write each non-test source file from `git show <base>:<path>` into the worktree,
+  run `build` and `test:unit` under a capped scope,
+  write the files back from `git show HEAD:<path>`,
+  rebuild.
+  Script:
+  `~/temp/agent/pi-rpc-trial/prove-tests-fail-on-base.ts`.
+  Base `d3dab4839d` for both.
+  Solo branch:
+  base build exit 0,
+  `test:unit` exit 1,
+  failures include a missing export `PRODUCTIVE_REMAINING_WORK`,
+  the denial audit-field validation,
+  and the reviewer prompt matching session reachability.
+  Handheld branch:
+  base build exit 0,
+  `test:unit` exit 1,
+  three named failures in the `buildBudgetedGoalReviewPrompt` suite
+  (a user question offered to a session that cannot reach the user,
+  the missing "one concrete next attempt" sentence,
+  and the token estimate not changing with the prompt).
+  Both worktrees were clean after the restore and their rebuilds exit 0.
+- Two traps hit on the way.
+  The git-policy guard refuses `git checkout <ref> -- <path>` and `git reset` in a worktree that has uncommitted tracked
+  changes,
+  so a first version that used checkout failed silently and the unit tests then passed against the old `dist`;
+  read each step's exit status before believing a pass.
+  One file was left staged at the base content;
+  it was restored with `git show HEAD:<path>`,
+  and the stray index entry was removed with the guard's documented `--no-enforce-worktree` hatch after saving the patch
+  to `~/temp/agent/pi-rpc-trial/out/stray-staged-types.patch`.
+  The scratch folder and the worktrees are on different devices,
+  so a `rename` between them fails with `EXDEV`;
+  copy and remove instead.
+- Criterion 7 (no stray files):
+  the main checkout has no change under `package/pi-plugin/goal`.
+  The long-pass primaries (shell enabled) left `chk.py`,
+  `cv` and `cv_omp` in `/tmp`
+  (attributed by content:
+  a Terras bijection check and builds of a Collatz verifier,
+  one using OpenMP)
+  and `collatz_proof_attempt.md`,
+  `collatz_verify.c` and `collatz_verify` in the fixture folder.
+  Those six files were deleted by name.
+  `/tmp/lint-out.txt` was not attributed
+  (it reports on a `src/projection.ts` that the goal package does not have) and was left alone.
+  The main checkout also shows other modified files that this work did not edit.
+  One repo-wide `lint:monochromatic-lint -- --fix` run of mine happened while they were already dirty or concurrently,
+  so I cannot say whether it touched any of them.
+  I committed only the paths I named.
+- Observation about the repository lint:
+  a repo-wide `mise run lint:monochromatic-lint` (no paths) ran about 9.5 minutes without finishing,
+  with the top `monochromatic-lint` process at zero CPU over a ten second sample,
+  a futex wait,
+  no child processes,
+  and no log output after its start line.
+  I stopped it by PID.
+  The same lint scoped to two files finished in about 15 seconds,
+  and an earlier repo-wide `--fix` run finished in about 100 seconds.
+  The cause was not investigated.
+
 ## Next steps in order
 
-1. Show the new tests fail without the source change (criterion 6),
-   for the handheld branch and for the solo branch.
-   In each worktree set aside the non-test source change,
-   rebuild with `build`,
-   run the new tests under a capped `systemd-run --user --scope`,
-   expect failures,
-   then restore the files.
-   Solo worktree:
-   `.claude/worktrees/pi-goal-rubric-solo`,
-   handheld worktree:
-   `.claude/worktrees/pi-goal-reviewer-rubric`.
-2. Check for stray files outside the worktrees (criterion 7) in `/tmp`,
-   the main checkout,
-   and the throwaway fixture folder `~/temp/agent/dsh-rpc-trial/fixture`.
-3. Update `doc/agent/pi-goal-extension-driven-through-rpc.md` with the measurements above,
-   the planning doc paragraph "Human decisions use `ask_user_question` inside the primary run" in
+1. Update the planning doc paragraph "Human decisions use `ask_user_question` inside the primary run" in
    `doc/planning/pi-goal-tool-free-completion.md`,
    and the matching line in `package/pi-plugin/goal/README.md`.
-   The README edit belongs to whichever branch lands.
-4. The owner decides which branch lands,
+   Both depend on which branch lands;
+   the solo branch already edits its README.
+2. The owner decides which branch lands,
    or a combination.
-   The evidence so far:
+   The evidence:
    both new builds removed every user-asking and stop-instruction guidance in the measured runs,
    the baseline did not;
-   the solo build's post-filter never fired and carries phrase-list false-positive risk;
-   the handheld build is a prompt change only;
+   the solo build's post-filter never fired where its audit field was visible,
+   missed one substitute objective,
+   and carries phrase-list false-positive risk and the repository's rule against magic lists;
+   the handheld build is a prompt change only and is smaller;
    the one multi-cycle handheld arm reworded the same instruction while two solo arms changed approach,
    on counts too small to separate them.
    The user's live Pi keeps the old build until someone rebuilds the goal package in the main checkout,
@@ -300,13 +352,15 @@ Owner decisions given in this session:
 
 ## Cleanup when finished
 
-- `systemctl --user stop pi-goal-solo`,
-  then confirm no `pi --mode rpc` process or `pi-goal-*` unit remains.
-- Delete `~/temp/agent/pi-goal-agent-home/auth.json`,
-  the copy of the credentials file.
+- Confirm no `pi --mode rpc` process and no `pi-goal-*` unit remains
+  (the lane units were started with `--collect` and are gone once they end).
+- Delete the copies of the credentials file:
+  `~/temp/agent/pi-goal-agent-home/auth.json`
+  and `auth.json` in `~/temp/agent/pi-goal-home-baseline`,
+  `pi-goal-home-handheld` and `pi-goal-home-solo`.
 - Remove both worktrees with `git worktree remove` after their branches are merged or dropped,
   then delete the branches.
 - Delete `~/temp/agent/pi-solo-shim` when no run needs it.
 - No stray files outside the worktrees:
-  the first goal test left `/tmp/collatz.py`,
-  so check `/tmp` and the throwaway fixture folder `~/temp/agent/dsh-rpc-trial/fixture` after every subagent run.
+  the goal runs left files in `/tmp` and in the throwaway fixture folder `~/temp/agent/dsh-rpc-trial/fixture` twice,
+  so check both after every subagent run that had a shell.
