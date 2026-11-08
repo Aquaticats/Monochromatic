@@ -38,7 +38,7 @@ in the worktree `~/temp/agent/music-player-production`.
 - Order:
   the human left it to the agent;
   it is foundation up,
-  as the numbered packages below.
+  as the numbered packages under the `Work packages` heading.
 - Landing:
   each verified package merges to `main`.
   A package is verified when its unit tests pass in the capped container,
@@ -322,7 +322,7 @@ the rest need the screen they belong to.
   the deck blanked when the
   playing
   track was on another page,
-  and three keyboard behaviours needed the decisions recorded above.
+  and three keyboard behaviours needed the decisions recorded in the `Keyboard wiring (D102) on the host` entry.
   All were fixed and
   re-run;
   the
@@ -341,7 +341,7 @@ the rest need the screen they belong to.
 - the host.
   What is not exercised is listed in `package/music-player/design/HANDOFF.md` under the production handoff.
 - Correction (2026-10-11 evening):
-  the "final state" above overstated what was checked.
+  the "Final state on `main` (2026-10-11)" entry overstated what was checked.
   Tests,
   lints and static renders
   passed,
@@ -921,7 +921,7 @@ QAB):
   the next version bump releases the notices.
 - 2026-10-15,
   agent `ad05bc0301c37d399` reported (head `1ce3b426e8`) and its work is MERGED and RELEASED as 0.1.4
-  (see the release record below):
+  (see the "RELEASED `music-player-v0.1.4` on 2026-10-15" entry under `Log`):
   GUI subsystem proven on all three Windows runner jobs (Subsystem 2,
   positive control
   failed as intended,
@@ -934,7 +934,7 @@ QAB):
   Follow-up not done:
   9 pre-existing Windows clippy findings (no Windows clippy task exists).
 - In flight on 2026-10-15 after the 0.1.4 release (cap five agents;
-  (c) is the license notices entry above):
+  (c) is the license notices entry for `feat/music-player-license-notices`):
   (d) agent `a9c8a6540c85f6042`,
   branch `fix/music-player-windows-startup-errors`,
   worktree `music-player-winerr`:
@@ -2065,7 +2065,8 @@ check done:
 with the announcement removed,
 `aSeekAnnouncesOneStateChange` and `theEngineIsToldBeforeTheAnnouncement`
 fail;
-the announcement is restored and the tree equals `8829b68359` (the rerun is listed below).
+the announcement is restored and the tree equals `8829b68359` (the `test:unit` rerun is recorded after
+the seek change).
 The first
 dry run of the branch (`39733789973`) built both Android ABIs and passed the per-ABI packaging script,
 then failed the
@@ -3169,7 +3170,8 @@ the next free one is D131.
   range comparisons),
   plus 2 wiring mutants in
   `PlatformSessionCallback` that survive because no JVM test can build `Player.Commands` (it needs an Android runtime):
-  the call to the rule and the notification-controller test are covered only by the device checks above.
+  the call to the rule and the notification-controller test are covered only by the device checks
+  recorded in the `Android playing-queue cost` entry.
   No JVM test reaches the `BrainPlayer` wiring (`playlistFor`,
   `stateWith`,
   `rowOf`,
@@ -3257,7 +3259,7 @@ the next free one is D131.
   see `doc/handover/music-player-readme-and-gallery.md`).
   The ring capture
   emulator ran with `-no-window` on the host GPU,
-  which the rule below bans.
+  which the rule under `Mistakes made in this effort, and what corrected them` bans.
 - Desktop folder names scrollbar removed (2026-10-14,
   D125,
   amends D22):
@@ -3296,7 +3298,7 @@ the next free one is D131.
   `desktop-narrow-player-dark.png` and
   `desktop-empty-light.png` do not show it.
 - Stale docs:
-  the gallery images in the bullet above;
+  the gallery images in the "Desktop folder names scrollbar removed" entry;
   otherwise none known.
   The README gallery and the Android
   page-control text were rewritten on 2026-10-13,

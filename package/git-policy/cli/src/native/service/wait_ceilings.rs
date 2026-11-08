@@ -81,9 +81,31 @@ pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 /// the merge,
 /// the settling of earlier batches and the
 ///  index reconciliation each take their own measured ceiling above.
-/// It is unmeasured and stays only so that patience keeps its
-///  twenty minutes,
-/// which another change owns.
+///  Measured on 2026-11-08 from this repository's commit timing log (`monochromatic-git-policy-cli-commit-timing.jsonl`
+/// and its one rotated generation,
+/// 1,332 records,
+/// 2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
+/// releases 0.5.34 to 0.6.1-alpha.4,
+/// 102
+///  worktrees):
+/// six records hold a waiting notice for another program's hold on the index.
+/// Two of them landed after 3,636
+///  and 23,783 ms of answer time;
+/// the other four are the commits that met the lock that never went on 2026-11-07,
+/// each
+///  with 62 notices and no holder proven alive,
+/// and they stopped after 644,710,
+/// 756,215,
+/// 1,087,175 and 1,200,776 ms.
+/// No wait that a holder released came near the ten minutes,
+/// and the longest of the four stopped ones is 776 ms past the client's
+///  twenty-minute `ANSWER_CEILING`,
+/// which is what bounds the whole wait rather than any one step of it.
+/// The value stays where it is because another change owns the patience it feeds,
+/// and that patience's stated basis (twice the longest a
+///  merge waits) no longer holds now that the merge waits `MERGE_LOCK_CEILING`
+/// (`doc/planning/cli-git-shipped-limits-audit.md`,
+/// "The lock ceiling and the three waits it fed").
 pub const LOCK_CEILING: Duration = Duration::from_secs(10 * 60);
 
 /// The longest wait for a foreign program's `index.lock` that ended because the program let go,
@@ -211,6 +233,9 @@ pub const LONGEST_SETTLE_WAIT: Duration = Duration::from_millis(172);
 /// so it can only
 ///  overstate the wait;
 /// no settle in the journal waited on a foreign lock for any time worth naming.
+/// The commit timing log holds no settle at all (the settling is the management command
+/// `service settle-earlier-batches`),
+/// so the journal stays its only sample.
 pub const SETTLE_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(LONGEST_SETTLE_WAIT.as_millis() as u64 * CEILING_MARGIN as u64));
 
 /// The longest a merge waits for a foreign `index.lock` before it changes anything:
@@ -224,6 +249,17 @@ pub const SETTLE_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from_
 /// so the landing's population of holders (another program's `git`,
 /// an editor-held commit) is the
 ///  sample.
+///  Checked against the commit timing log on 2026-11-08 (1,332 records,
+/// 2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z):
+/// the log holds no record of a merge at
+///  all,
+/// though 278 merge commits were made in that window,
+/// because the record is written by the commit command alone.
+/// In the borrowed
+///  population the longest wait that ended because the holder let go was under 23,783 ms of answer time,
+/// under two fifths of
+///  this ceiling,
+/// and the ten minutes this replaces is 25 times that.
 /// A person's own `git commit` with an editor open longer than this makes the merge stop where native Git would have
 ///  failed at once.
 pub const MERGE_LOCK_CEILING: Duration = LANDING_LOCK_CEILING;
@@ -233,6 +269,13 @@ pub const MERGE_LOCK_CEILING: Duration = LANDING_LOCK_CEILING;
 ///  landing's ceiling,
 /// for the same reason as the merge's;
 /// the reconciliation runs in the client and logs no duration.
+///  Checked against the commit timing log on 2026-11-08 (1,332 records):
+/// no record names the `git reset` this step runs,
+/// so the
+///  reconciliation did not run in that window;
+/// the preparation phase it belongs to took 21,878 ms at the 99th percentile and 230,525 ms at
+///  most,
+/// and that phase holds it and everything else a policy does.
 pub const RECONCILE_LOCK_CEILING: Duration = LANDING_LOCK_CEILING;
 
 /// The longest a forwarded `git add`,

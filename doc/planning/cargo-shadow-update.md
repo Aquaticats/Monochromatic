@@ -106,7 +106,7 @@ commit `c7b46ae`).
   "CI keeps the frozen
   behavior already recorded (the 2026-10-29 trustLockfile amendment)".
   A frozen policy refusal stops the command by a delegated
-  pick of 2026-11-03 (below).
+  pick under the `Delegated picks of 2026-11-03` heading.
   Replaces the fail-closed behavior built first,
   and,
   for a policy refusal of a local install,
@@ -169,7 +169,8 @@ commit `c7b46ae`).
   Which entries are checked follows `trustLockfile`:
   all of them when false (pnpm's default),
   the ones new since the base revision when true (the repository's setting).
-  The set-aside goes through the same transaction and ownership rules as the review findings below,
+  The set-aside goes through the same transaction and ownership rules as the review findings under the
+  Review findings fixed (cross-vendor review of 2026-11-03T13:26:08Z) heading,
   so it never overwrites
   another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,
@@ -267,7 +268,8 @@ and what each rests on:
 - A local install checks existing entries (pnpm's `startLockfileVerification` is not gated on frozen).
 - `--breaking` edits the manifests,
   so they are part of the transaction.
-  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick of 2026-11-03 (below).
+  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick
+  under the `Delegated picks of 2026-11-03` heading.
 - Update arguments are read in every supported spelling,
   before and after the command word,
   and an unmapped option is refused.
@@ -287,7 +289,7 @@ and what each rests on:
 The second review covered `504a82aa3f..09bb7820ea` in three parts (Git reader,
 journal and restore,
 install and policy).
-The nine delegated picks below stand;
+The nine delegated picks under the `Delegated picks of 2026-11-03` heading stand;
 the review found defects in how they were built,
 not in the picks.
 What changed:
@@ -557,7 +559,9 @@ and none is veto-open any more.
   and `check` is clean.
   The installed binary is stale,
   not the source.
-- A strict cutoff with exemptions keeps the approach recorded above:
+- A strict cutoff with exemptions keeps the approach recorded in the
+  Review findings fixed (second cross-vendor review,
+  started 2026-11-03T16:25:50.931Z) section:
   resolve without the cutoff,
   enforce it on the other crates.
 - A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
@@ -723,7 +727,7 @@ stop is `cgroup.kill`,
 quiescence is
 `cgroup.events` reporting `populated 0`,
 and a survivor after a crash is a membership query of the group the journal recorded.
-The probes below ran on this host:
+The `Probe 1` to `Probe 5` subsections ran on this host:
 Linux 7.2.15-ogc1.1.fc45.x86_64,
 systemd 262.1-1.fc45,
 cgroup2 mounted at `/sys/fs/cgroup`
@@ -794,7 +798,7 @@ i.e. a single process managing it".
 The group a shell,
 a terminal or a harness scope runs in is such a cgroup unless its unit has `Delegate=`,
 so the child group
-this tool makes there works on this host (every probe above) but is not what systemd supports;
+this tool makes there works on this host (every one of Probe 1 to Probe 5) but is not what systemd supports;
 what systemd does with an
 unknown child group of a non-delegated unit (a trim when the unit stops,
 a change of controllers) was not probed.
@@ -826,7 +830,7 @@ and it needs the user manager.
   which has
   exited,
   instead of the process,
-  and only the measurement above is claimed.
+  and only the measurement that `cgroup.kill` alone left `populated 1` is claimed.
   So the stop is `cgroup.kill`,
   then `SIGKILL` to every process listed by `cgroup.procs` (through a pidfd that is checked
   against the listing again),
@@ -860,6 +864,11 @@ closed pipes,
 daemons),
 not a
 build script that deliberately moves itself out.
+The probe has no reparenting handshake:
+it read `cgroup.procs` without first observing the grandchild's `ppid` change,
+so the membership is measured and the reparenting is read from the recorded parent process
+number only (sixth pass,
+group 1 wording).
 The known closer is a cgroup namespace with the `nsdelegate` boundary,
 which needs a user namespace and changes how cargo
 runs;
@@ -1168,7 +1177,7 @@ The contract is `doc/planning/cargo-shadow-guarantees.md`;
 its acceptance list is the reviewer's finite checklist,
 and its coverage map
 says which test shows each row.
-Where the sections of rounds 5 to 7 above say otherwise,
+Where the sections of rounds 5 to 7 say otherwise,
 the contract and this section are current:
 
 - The wrapper no longer enters a group around a spawn (7a F1,
@@ -1206,7 +1215,10 @@ Reviews answered:
 `cargo-shadow-sol-8a.txt` and `cargo-shadow-sol-8b.txt` (in `/var/home/user/temp/agent/reviews/`).
 The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows;
 a counterexample reopened rows but added none.
-Where the sections above say otherwise,
+Where the sections from What `cargo update` does under the cargo shadow to
+Round 8 (2026-11-04):
+the contract first,
+then the code say otherwise,
 the contract and this section are current:
 
 - A run that recorded its end appends `settled <scope path>` to the journal;
@@ -1292,7 +1304,9 @@ forcing only at exit;
 "nothing should ever wait forever or indefinitely";
 "never discard user
 data".
-Where the sections above say otherwise,
+Where the sections from What `cargo update` does under the cargo shadow to
+Round 9 (2026-11-04):
+the answers to the round 8 reviews say otherwise,
 the contract and this section are current.
 
 ### 9a D1: an unsettled scope is not completed by a later look
@@ -1657,7 +1671,7 @@ for the boot
 authority,
 "Check and state premise (Recommended)",
 which is what round 10 built and is kept unchanged.
-Option B of "9a D1" above is therefore built;
+Option B of "9a D1" is therefore built;
 options A (refuse and acknowledge) stays as the fallback for what B cannot prove,
 and C
 is not built.
@@ -2427,7 +2441,10 @@ Nothing was published and nothing was merged into main.
 ## Resume point (round 16, rewritten 2026-11-04T11:17:02-05:00 after the gate)
 
 Done:
-rounds 10 to 16 (the sections above).
+rounds 10 to 16 (the Round 10 (2026-11-04):
+the answers to the round 9 reviews section
+to the Round 16 (2026-11-04T11:17:02-05:00):
+the certification pass section).
 Open for the owner:
 the picks of rounds 8 to 13 stay veto-open as listed in their sections;
 the first publication needs the owner's
@@ -2473,7 +2490,7 @@ Next:
   and checks that nothing of the second start ran;
   `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2` covers a start as a child.
   The bounded fallback and the hop limit are gone.
-- The nine delegated picks of 2026-11-03 are kept (see the section above).
+- The nine delegated picks of 2026-11-03 are kept (see the Delegated picks of 2026-11-03 section).
 
 ## Resume point (round 21, written 2026-11-04T17:51:00-05:00, paused by the owner)
 
@@ -2582,7 +2599,7 @@ coverage):
    `assert_scope_record` proves the record,
    not placement;
    the double-fork probe has no reparenting handshake.
-10. The fifth-pass open list not covered above:
+10. The fifth-pass open list not covered by items 1 to 9:
     R2 stranded path,
     admission schedules for the remaining boot and unreadable records,
     the acknowledgement writer's ordering,
@@ -2620,7 +2637,7 @@ The owner's pause of 2026-11-04 was lifted for this merge.
 The branch `feat/cargo-shadow-check-to-start-race` took main twice (`0a3aa354ca`,
 with 0.1.5-alpha.1,
 and the merge of the locks for `monochromatic-lint` 0.5.2-alpha.2),
-and the release gate ran for the first time on the round (the resume point above says it had not).
+and the release gate ran for the first time on the round (the round 21 Resume point section says it had not).
 
 - The gate found one red test that the round itself caused:
   the new `spawned` trace event sits between the launch and the launcher line,
@@ -2685,3 +2702,257 @@ group 14,
 the group 1 wording,
 the fifth-pass open list,
 and rebuilding the packets as cert7 under 250 KB each with the manifest.
+
+## Sixth-pass follow-up (worktree `pi-cargo-shadow-sixth-pass`, branch `fix/cargo-shadow-sixth-pass-review-items`)
+
+Started 2026-11-08T15:42:46-05:00 from the `Still open from the resume point` list,
+in the order the sixth pass asked.
+Each item was checked against the code first;
+the ones already covered in round 21 are named as such.
+Every new test was shown red under a planted change of the production line,
+and the plant was restored (with a file copy inside this worktree,
+never a Git restore).
+The whole suite and the lint were run on this tree (see the Gates section).
+
+### Group 5 (output barriers)
+
+Done:
+
+- A path-targeted barrier switch joins the failpoints (`arm_output_file_sync_of`,
+  `arm_output_directory_sync_of`,
+  `output_file_sync_of`,
+  `output_directory_sync_of`,
+  `path_targets_armed`),
+  and `make_durable` takes the real sync's result.
+- `a_manifest_barrier_that_fails_on_its_own_stops_the_ordinary_finish` fails the manifest's file barrier and its
+  directory barrier separately;
+  the lockfile's barrier succeeds first,
+  the fault is consumed,
+  no marker or cleanup follows,
+  and the journal stays active.
+  Red when the ordinary finish ignores the manifest's barrier error.
+- `a_recovery_manifest_barrier_that_fails_on_its_own_is_mandatory_and_keeps_the_journal` does the same through
+  `recover_report` for a restored root;
+  the report is mandatory,
+  names the manifest,
+  and keeps the journal,
+  the settled lockfile and the restored manifest.
+  Red when recovery skips the manifest barrier.
+- `a_refusal_survives_a_failed_completion_directory_sync_and_names_it` adds the refused outcome with
+  `CompletionSync` (the rename succeeds,
+  the parent barrier fails) to the rename case.
+  Red when the install step drops the completion error from a refusal.
+- `the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journal_is_removed` runs
+  `finish_journal` in a helper under `strace` and requires the fsync of the directory that lists the marker
+  between the rename and the removal.
+  Red when `sync_marker_parent` keeps its trace and failpoint but drops `sync_directory`.
+
+### Group 8 (recovery and preservation)
+
+Done:
+
+- `a_preferred_link_failure_whose_fallback_barrier_fails_keeps_the_stranded_temporary_and_both_names`:
+  the preferred kept directory refuses the link,
+  the fallback link succeeds,
+  its barrier fails,
+  and both the fallback name and the stranded exchange temporary keep the inode and are named in the message.
+  Red when the durability failure path unlinks the stranded temporary.
+- `the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_real_barrier` now also pins the recovery's
+  order (both output barriers,
+  marker,
+  marker parent,
+  removal);
+  `an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report` adds the real
+  `OutputFileSync` and `OutputDirectorySync` faults to the unready schedule,
+  beside the synthetic `RecoverDurability` one.
+  Red when the recovery's lockfile `make_durable` loop is removed.
+- `assert_recovery_keeps_a_damaged_ready_journal` now asserts the manifest too,
+  so a recovery that restores manifests before rejecting a damaged ready record is red;
+  it was shown red with such a
+  plant.
+- `an_update_stops_before_any_work_when_a_mandatory_recovery_finish_fails` covers the update call site:
+  the journal (renamed `.done` by the successful rename,
+  with the failed parent barrier) is kept,
+  its snapshot is unchanged,
+  and cargo was never asked.
+  Red when the update call site's mandatory guard is removed.
+- `a_restore_that_fails_after_the_exchange_keeps_the_edited_manifest_and_the_journal`:
+  a target-armed fault (`arm_keep_link_of`) fails the preservation of the file the exchange displaced,
+  after the exchange put the snapshot live.
+  The root is treated as failed,
+  its edited manifest is untouched,
+  the journal and its snapshot are kept,
+  the displaced inode keeps the stranded exchange temporary,
+  and a control without the fault restores both.
+  Red when the recovery treats the failed root as restored.
+- `a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named` and
+  `a_filesystem_without_exchange_fails_the_restore_and_overwrites_nothing` count their swap callbacks;
+  the second was shown red when the passed swap is bypassed.
+
+Still open for group 8:
+
+- the preferred-directory failure matrix for the queued errors (`ENOSPC`,
+  `EXDEV`) at the fallback preservation and barrier stages,
+  not only at the preferred destination.
+
+### Group 9 (K2 retry)
+
+Done:
+`a_directory_whose_own_or_parent_barrier_failed_is_not_taken_as_durable_by_a_later_preservation` retries a
+preservation after the new directory's own barrier failed and after its parent's barrier failed,
+and requires the walk through the remembered directory to the anchor.
+Red for both cases with `remember_unsynced` removed.
+
+### Groups 10 and 11 (boot identity, views, member admission)
+
+Done:
+
+- `a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused`:
+  another machine,
+  an unreadable current identity,
+  a malformed current identity,
+  a malformed recorded identity and a record without an identity,
+  each through `recover_report` and `begin`,
+  with the live output,
+  journal and snapshot checked,
+  and the well-formed record of another boot as the control.
+  Red with the machine-id comparison removed and with the well-formedness pair removed.
+- `a_journal_seen_through_another_view_is_refused_and_kept` now also refuses admission for each altered journal view
+  and keeps the journal set and the snapshot;
+  `a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal` asks admission inside the namespace and requires
+  the cgroup-parent reason.
+- `a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends` keeps and checks the journal,
+  its record and its snapshot between the first refusal and the scope's end,
+  and refuses a second admission while the member lives.
+- `a_survivor_of_one_journal_stops_the_recovery_of_another` and
+  `a_new_transaction_does_not_start_beside_a_survivor` acknowledge their surviving record,
+  so the live member is the only blocker,
+  and settle after the member ends as the control;
+  `a_malformed_group_record_defers_the_recovery` requires the malformed-line diagnostic and the retained snapshot,
+  and settles after the acknowledgement.
+  Red with the live process-group check removed.
+
+### Group 12 (preparation and skips)
+
+Done:
+
+- `a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conservatively` adds a test-only
+  after-launch hook (between `spawn` of the scope's launcher and the launcher record) and kills a real wrapper there:
+  the journal holds a scope record and no launcher line,
+  recovery refuses because an absent scope does not show the launcher finished entering it,
+  keeps the journal and the live output,
+  and the acknowledged journal settles as the control.
+  Red with the unsettled-scope rule removed.
+- the delegated-scope skip now says it is not evidence for the schedule and names the variable to unset.
+
+### Group 13 (weaker path and acknowledgement)
+
+Done:
+
+- `a_record_that_is_written_only_in_part_or_cannot_be_written_or_synced_starts_no_program` covers record write,
+  short write and record sync with the weaker route forced,
+  no payload started,
+  the record step traced and no launch,
+  and the control shows attempt,
+  write,
+  sync,
+  launch in order.
+  The fsync itself is guarded by the existing
+  `the_record_sync_is_given_to_the_kernel_after_the_write`,
+  which was shown red when the real `fsync` was replaced.
+- the acknowledgement writer and reader now take the real operations' results
+  (`acknowledge`'s directory sync,
+  `is_acknowledged`'s file and directory syncs);
+  `a_reader_that_cannot_make_an_acknowledgement_durable_blocks_recovery_and_admission` drives both consumers for each
+  reader fault,
+  and `the_acknowledgement_barriers_are_the_real_syscalls_in_writer_and_reader_order` observes the writer's publication
+  followed by a directory fsync and the reader's file-before-directory order under `strace`.
+  The writer has two directory barriers
+  (`atomic_write` already syncs the directory,
+  and `acknowledge` syncs it again),
+  so no single removal is observable;
+  removing both was shown red.
+- `the_acknowledge_command_works_as_printed_with_a_quoted_path_and_refuses_while_the_workspace_is_locked` runs the printed
+  repair's quoted word through `/bin/sh`,
+  takes the acknowledgement command through `run_cli` for a path with a space,
+  and shows the command refuses while the workspace lock is held.
+  The hint now shell-quotes the path.
+  Red when the quote is dropped.
+- `an_acknowledgement_resolves_a_malformed_an_unreadable_and_another_views_journal` gives the positive controls for the
+  three broader uncertainty classes.
+
+Still open for group 13:
+
+- a CLI-level test that the command itself (not only the library) makes the marker durable,
+  beyond the library's syscall observation.
+
+### Group 14 (launcher)
+
+Done:
+
+- the launcher fixture's append-only entry trace now records the invocation depth and the starting shadow,
+  and `an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`
+  requires every entry to be at the first shadow's depth,
+  so no second shadow re-enters a launcher and each second shadow is terminal in its chain.
+  Red with the arrival stop's return removed (depths 1 to 4 appeared).
+- the stale bounded-fallback test reference is removed from this plan and from `doc/planning/cargo-shadow-guarantees.md`,
+  which now names the current tests.
+
+Still open for group 14:
+
+- tests at the production start sites with a handshake between selection and check.
+  Round 21 covers the window after the check (`after_check_for_test`) at `Vetted::command`,
+  which both shim start sites use,
+  but no test runs a selection,
+  then swaps the path,
+  then lets the shim's own `vet` run,
+  so removing `vet` from both shim sites and from `RealCargo::run` is not yet shown red.
+
+### Group 1 wording and the fifth-pass open list
+
+- `assert_scope_record` is now described as proving the record,
+  not placement (`doc/planning/cargo-shadow-guarantees.md`,
+  "What the map does not claim").
+- the double-fork probe now says it has no reparenting handshake.
+- the unreadable-record case also refuses admission and keeps the journal and snapshot.
+- R2 stranded path and the acknowledgement writer's ordering are already covered.
+
+Still open from the fifth-pass list:
+
+- the mandatory-finish refusal through a real shim run;
+- the blocked-feeder handshake of the input-ignoring timeout test;
+- the start-time error line naming the namespace;
+- the `missing_entry_verdict` and `start_of` consumer wiring;
+- the group 1 refusal when the emptiness proof fails;
+- the post-exchange group 8 test named above;
+- rebuilding the packets as cert7 under 250 KB each with the manifest (skipped in this session:
+  the packets were for a reviewer).
+
+### Gates
+
+- `mise run //package/cargo-shadow/cli:test:debug`:
+  800 tests run,
+  800 passed,
+  21 skipped,
+  exit 0 (the skips are the host-gated schedules the tests name).
+- `mise run //package/cargo-shadow/cli:lint:clippy` (release,
+  all targets,
+  warnings denied):
+  exit 0.
+- The release `test` gate was started and stopped after ten minutes with 73 of 800 tests passed:
+  the host carried a load average of about 125 on 8 CPUs from other sessions' suites,
+  and two scope tests had been running for five minutes each.
+  It is not reported as passing or failing;
+  the `mise run //package/cargo-shadow/cli:test:debug` task is the run this session reports,
+  and the release gate remains open.
+- Nothing was released,
+  locked or installed,
+  and nothing was merged into main.
+
+### Auto-push
+
+Commits of this branch were saved locally.
+The shared repository config had `remote.origin.pushurl = DISABLED`,
+so the commit service could not push;
+the owner reported that this was undone by removing the setting.
+No agent of this session changed the Git config.

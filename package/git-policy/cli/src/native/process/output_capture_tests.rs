@@ -112,8 +112,16 @@ fn a_write_after_the_files_were_emptied_lands_at_the_start_and_leaves_no_hole() 
     let go: std::path::PathBuf = directory.join("go");
     let capture: Capture = Capture::new().expect("the files");
     let (out, err) = capture.stdio().expect("the streams");
-    let script: String = format!("echo first; while [ ! -e '{}' ]; do sleep 0.01; done; echo second", go.display());
-    let mut child = Command::new("sh").args(["-c", script.as_str()]).stdout(out).stderr(err).spawn().expect("the child");
+    // The wait ends when the fixture goes or this test process ends, and the child's own group is ended with the test thread:
+    //  a loop that waits for a release a failed test never writes would otherwise run on in a removed fixture.
+    let script: String = format!(
+        "echo first; while [ ! -e '{}' ] && {}; do sleep 0.01; done; echo second",
+        go.display(),
+        crate::test_support::while_test_lives(directory.as_path())
+    );
+    let mut command: Command = Command::new("sh");
+    command.args(["-c", script.as_str()]).current_dir(directory.as_path()).stdout(out).stderr(err);
+    let mut child = crate::test_support::spawn_owned(&mut command).expect("the child");
     let began: std::time::Instant = std::time::Instant::now();
     while capture.snapshot(1024).stdout != b"first\n" {
         assert!(began.elapsed() < std::time::Duration::from_secs(60), "the child never wrote its first line");

@@ -18,6 +18,73 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
+
+None of these has been asked yet,
+and none is holding up running work.
+Each record is cited so the context is one read away.
+
+- Does the 2026-11-04 pause still cover the commit protocol that makes commits unable to fail by construction?
+  Your words then:
+  "aside from layout + linting fixes,
+  pause everything else - but let work already in flight run to their natural
+  conclusions".
+  Other wrapper work has resumed since,
+  but `feat/git-policy-cli-commit-protocol-models` and `fix/git-policy-cli-commits-never-fail` have not moved.
+  This matters because an agent's scratch commit stopped at its ceiling under load on 2026-11-08,
+  and an identical retry succeeded,
+  against your "Commits should never fail."
+- Should the Claude Code guardrail be registered in `~/.claude/settings.json`?
+  A real-Git commit from the coordinator's session went through on 2026-11-08,
+  because `~/.claude/settings.json` does not name the guardrail;
+  fed directly,
+  the hook refuses it.
+  Pi agents are covered.
+  Details:
+  `doc/handover/pi-agents-blocked-from-real-git.md`.
+- The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
+  which ask what each shipped limit should cite.
+- Does "never discard user data" cover the audit history?
+  The timing logs and the push trigger log keep one older generation,
+  so a rotation drops the one before it.
+- Should the unmerged branch `worktree-agent-ab3dd6294f9d91284` be kept or dropped,
+  and should the lock-based copy modules main still ships be reviewed?
+  The branch holds open review findings and fixes that exist nowhere else.
+- Should `package-paused/dev-script/inference-canary`,
+  `package-paused/webapp-edu/paper2vn` and the wrapper's own test runners get the container limits?
+- Should the mount unit's stop block guard its `luksClose`?
+  A stop with no mapper now fails where the old stop hid the failure
+  (`doc/handover/repository-move-dangling-link-items.md`).
+- May the stale detached worktrees under `.claude/worktrees/` be removed?
+- May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
+- Should there be an operator override that forces the native Git route when the commit service misbehaves?
+- Rotate `MISE_GITHUB_TOKEN`?
+  A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
+  The value is in that agent's session file,
+  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,
+  and tool output goes to the model provider.
+  The count of matches was read without printing the value.
+  Every running agent has since been told never to print the environment,
+  and `pi-as-subagent` now requires that sentence in every prompt.
+- May the root `vm-builder` run replace the existing VM?
+  `mise run //package/vm-builder/cli:run` overwrites `/var/lib/libvirt/images/monochromatic-dev.qcow2`,
+  dated 2026-03-31,
+  and force-stops and undefines any domain of that name.
+  Your authorization of `sudo` did not name that,
+  so only the build half (`image:build`) was run.
+- How long should `FOREIGN_OWNER_PATIENCE` be?
+  It ships at twenty minutes,
+  stated as twice the longest a merge waits,
+  but a merge has waited at most one minute since 2026-11-07,
+  so that basis would give two
+  (`doc/planning/cli-git-shipped-limits-audit.md`).
+
+Checked and not asked,
+because you have already answered them:
+deleting the merged branches with nondescript names (done with your approval),
+and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
+The two library layout questions stay at your "Not yet.".
+
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
 
 - How subagents are used from now on,
@@ -437,15 +504,6 @@ saying nothing keeps it.
   against your rule that nothing waits forever;
   the coordinator picked a measured ceiling,
   with the claim expiring by its lease if that ceiling passes.
-- mpm-shadow's launchers (the small programs that start `git`,
-  the linter and every other locked tool) are copies of whichever mpm-shadow ran the install,
-  not of the newest one installed;
-  that is how the global `git` launcher stayed an alpha.2 copy and started a deleted 0.6.0 wrapper from systemd units
-  (fixed in mpm-shadow 0.2.7-alpha.6,
-  diagnosis in `doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`).
-  The coordinator picked:
-  launchers are copies of the newest installed mpm-shadow.
-  Queued behind the Git wrapper work.
 - An equivalent mutant that no test can kill
   (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
   a function that already returns 0)

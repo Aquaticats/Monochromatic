@@ -623,7 +623,16 @@ which the published crates do not use.
   run `mise run //package/vm-builder/cli:run` as root once,
   to see that `--pids-limit=2048`,
   `--memory=12g` and `--cpus=8` do not stop `osbuild`.
-- The workflow flags are unproven on a hosted runner (the runners ship `podman` 4.9).
+- The workflow flags ran on a hosted runner in `ide-release` dry run 42448765561,
+  which succeeded on `08c50b0bbb`,
+  the commit with the disk-weight fix.
+  `music-player-release` dry run 42525780309 on `b7ecf6e22f` fails only in its macOS job,
+  `bundle:macos` throwing on a `versionLine` it did not find,
+  and macOS is paused by the owner:
+  "Ignore Win and mac until I say so."
+  Its Android job,
+  which failed in run 42521054342,
+  now succeeds.
 - Sizes marked "adopted" in the inventory are documented siblings,
   not measurements.
   Update 2026-11-08T16:49:36-05:00:

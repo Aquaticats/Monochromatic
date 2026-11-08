@@ -34,3 +34,7 @@ extends = "test:unit"
 [tasks."verify:extension"]
 depends = ["build"]
 run = "node src/mise.verify-extension.ts"
+
+[tasks."verify:pi-runtime"]
+depends = ["build"]
+run = "node src/mise.verify-pi-runtime.ts"

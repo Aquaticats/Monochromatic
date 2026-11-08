@@ -331,7 +331,7 @@ and where the text is.
     `btrfs device add` refuses a device that holds a filesystem unless forced
     (`btrfs-device(8)`:
     "A device with existing filesystem detected by blkid ... will prevent device addition and has to be forced").
-    Option D below is corrected.
+    Option D is corrected.
 
 [claude-mcp]: https://code.claude.com/docs/en/mcp
 
@@ -640,7 +640,7 @@ programs that call `realpath` or `canonicalize` see the first.
   `package/pi-plugin` 11,
   `package/git-policy` 10.
   Historical records stay as written (rule WR6);
-  none is a runtime dependency except those listed below.
+  none is a runtime dependency except the items in the list under `Commands and counts`.
 - User units:
   `rg --follow --files-with-matches --ignore-case 'Monochromatic' ~/.config/systemd/user` printed 4 paths
   (`claude-cpu-watch.service` and its `default.target.wants` link,
@@ -1326,7 +1326,7 @@ M3 does not fit.
 - The parent `repository` does not exist on the NVMe.
   A program that resolves the link and then creates the resolved path must first create `repository` under the
   unmounted mountpoint,
-  which the mountpoint guard refuses (next section).
+  which the mountpoint guard refuses (the `The mountpoint guard` section).
 - The directory groups the repository with its received snapshots,
   so the 860's top level gains one entry,
   not three.
@@ -1354,7 +1354,7 @@ and immutable.
   `/sysroot/ostree/deploy/default/var` is a different subvolume from the live `/var`,
   which is `dm-1[/var]` in `findmnt`).
 - Root-owned mode 0755 stops every user-level program from creating anything under the unmounted mountpoint
-  (fixture result in the next section).
+  (fixture result under `Fixture results: what a process sees in each state`).
 - Immutable (`chattr +i`) additionally stops root-run programs and `chmod`.
   Whether the flag survives the mount is the owner's root test below;
   it is not claimed here.
@@ -1409,7 +1409,7 @@ the mounted 860,
 with no `i` flag.
 
 Whether a mount can be placed over an immutable directory is proven before any login depends on it,
-in the loop-file test F7 below.
+in the loop-file test F7.
 The next login then repeats the proof with the real mount:
 `mount-860.service` mounts at login and notifies on failure.
 If the real mount fails with the flag set,
@@ -2475,7 +2475,7 @@ so nothing is discarded.
 The table exists for two checks:
 any row with an unfinished operation or a held `index.lock` is settled by its owner before the freeze,
 and the table taken on the staged tree must equal this one byte for byte (the paths are equal because the
-verification below runs under a bind mount).
+verification in the `Verification of the real copy` section runs under a bind mount).
 
 Measured scan before the freeze was designed,
 run from 2026-11-07T06:15:00-05:00 to 2026-11-07T06:26:00-05:00 in a bounded scope with the first version of the script
@@ -2565,38 +2565,75 @@ and a snapshot that is kept pins old extents while the live tree changes.
 
 ## The send plan, 2026-11-07 (coordinator's pick, owner's veto open)
 
-Found on the first real fixture runs of the guided runner; the source trace and the measurements are in
+Found on the first real fixture runs of the guided runner;
+the source trace and the measurements are in
 `doc/troubleshooting/btrfs-send-clone-sources-need-a-parent.md`.
-`btrfs send` with clone sources and no parent stops ("parent determination failed"), and a parent that is a snapshot of
+`btrfs send` with clone sources and no parent stops ("parent determination failed"),
+and a parent that is a snapshot of
 another subvolume can pair two different inodes made in one transaction (the kernel pairs inodes by number and
-generation), which failed loudly on the fixture and could silently misdescribe a file on a real run.
-The copy tool therefore sends every first-pass subvolume as `-p <empty parent> -c <every earlier copy>`, sends the final
-pass `-p` the first-pass snapshot of the same subvolume, refuses a destination that holds two subvolumes with one
-received UUID or an entry of the received folder that no record knows, and verifies every first-pass copy against its
-snapshot (`--pass=verify-first`, stage `p4f-verify-first`, required before the cut-over) before the window.
-Clone reach, measured by the coordinator on 2026-11-07 from 21:48Z to 21:54Z in the extent tree of `/dev/dm-1` (read-only,
-`btrfs inspect-internal dump-tree -t extent`, a script that errors on a zero count), over all of `/home`:
+generation),
+which failed loudly on the fixture and could silently misdescribe a file on a real run.
+The copy tool therefore sends every first-pass subvolume as `-p <empty parent> -c <every earlier copy>`,
+sends the final
+pass `-p` the first-pass snapshot of the same subvolume,
+refuses a destination that holds two subvolumes with one
+received UUID or an entry of the received folder that no record knows,
+and verifies every first-pass copy against its
+snapshot (`--pass=verify-first`,
+stage `p4f-verify-first`,
+required before the cut-over) before the window.
+Clone reach,
+measured by the coordinator on 2026-11-07 from 21:48Z to 21:54Z in the extent tree of `/dev/dm-1` (read-only,
+`btrfs inspect-internal dump-tree -t extent`,
+a script that errors on a zero count),
+over all of `/home`:
 4,501,595 data extents with one reference (421.46 GiB);
-3,100,463 with 2 to 64 (544.75 GiB physical, 2,520.65 GiB referenced);
-17,974 with 65 to 1024 (9.41 GiB physical, 1,220.92 GiB referenced, these clone);
-9 with more than 1024, the kernel's `SEND_MAX_EXTENT_REFS` (0.14 GiB physical, 238.39 GiB referenced).
-Six of the nine resolve entirely outside the repository (a browser cache database, the baloo index, the pnpm store index);
-three resolve only to a deleted subvolume (6087) waiting for the cleaner, with 13,038,362,624 bytes (12.14 GiB) referenced.
-So the clone limit adds at most 12.14 GiB to the copy, beyond the 263.6 GiB shared estimate, and only if every such
+3,100,463 with 2 to 64 (544.75 GiB physical,
+2,520.65 GiB referenced);
+17,974 with 65 to 1024 (9.41 GiB physical,
+1,220.92 GiB referenced,
+these clone);
+9 with more than 1024,
+the kernel's `SEND_MAX_EXTENT_REFS` (0.14 GiB physical,
+238.39 GiB referenced).
+Six of the nine resolve entirely outside the repository (a browser cache database,
+the baloo index,
+the pnpm store index);
+three resolve only to a deleted subvolume (6087) waiting for the cleaner,
+with 13,038,362,624 bytes (12.14 GiB) referenced.
+So the clone limit adds at most 12.14 GiB to the copy,
+beyond the 263.6 GiB shared estimate,
+and only if every such
 reference were in the repository.
-Limits: `dump-tree` skips a subtree whose block was rewritten during the read (one block was skipped), so the counts are
-lower bounds, and the count covers all of `/home`, not only the repository.
-The capacity preflight (`p3`) counts the 12.14 GiB as part of the estimate (`CLONE_LIMIT_ALLOWANCE_BYTES`), then adds the
-plan margin, before the first send.
+Limits:
+`dump-tree` skips a subtree whose block was rewritten during the read (one block was skipped),
+so the counts are
+lower bounds,
+and the count covers all of `/home`,
+not only the repository.
+The capacity preflight (`p3`) counts the 12.14 GiB as part of the estimate (`CLONE_LIMIT_ALLOWANCE_BYTES`),
+then adds the
+plan margin,
+before the first send.
 
-The final pass also asks btrfs what changed: an incremental `btrfs send --no-data` between a subvolume's first-pass and
-final snapshots (one history) holds one command per change, and only the snapshot header when nothing changed.
-That answer is recorded (`<name>.diff.json`), the verification inside the window (`c10b-verify-final`, path, type, size,
-time and mode) compares only the final copies that changed or have no first-pass copy, and a checksum-depth pass over the
-same copies (`c22-verify-final-checksum`) runs after the release while the old tree is kept; the runner's `status` says not
+The final pass also asks btrfs what changed:
+an incremental `btrfs send --no-data` between a subvolume's first-pass and
+final snapshots (one history) holds one command per change,
+and only the snapshot header when nothing changed.
+That answer is recorded (`<name>.diff.json`),
+the verification inside the window (`c10b-verify-final`,
+path,
+type,
+size,
+time and mode) compares only the final copies that changed or have no first-pass copy,
+and a checksum-depth pass over the
+same copies (`c22-verify-final-checksum`) runs after the release while the old tree is kept;
+the runner's `status` says not
 to delete the old tree until it is done.
-The snapshot generation was not used as the test, because creating a snapshot sets a new generation
-(`create_pending_snapshot` in `fs/btrfs/transaction.c`), so two snapshots of an unchanged subvolume do not agree on it.
+The snapshot generation was not used as the test,
+because creating a snapshot sets a new generation
+(`create_pending_snapshot` in `fs/btrfs/transaction.c`),
+so two snapshots of an unchanged subvolume do not agree on it.
 
 
 ## The copy
@@ -2606,7 +2643,7 @@ section "Copy methods") in two passes,
 as root,
 for every subvolume in the reconciled inventory;
 plain directories (the 5 plain-directory worktrees inside the main checkout,
-and the 16 external worktrees) are handled as described below.
+and the 16 external worktrees) are handled in the steps and the `External worktrees under ~/worktrees` paragraph.
 
 The root steps of this section,
 the fixture test and the cut-over run through
@@ -2620,13 +2657,14 @@ runs the steps in order,
 and stops at the first failure.
 It was exercised against a btrfs test double for control flow (seven cases listed in the review table,
 item 9);
-the real `btrfs send` and `receive` are unverified until the root fixture test below.
+the real `btrfs send` and `receive` are unverified until the root fixture test under
+`Fixture test before the real run (root, throwaway loop files)`.
 
 What the script does for each subvolume (main first,
 then the nested ones in sorted order):
 
 1.  A pre-flight:
-    the inventory (see below),
+    the inventory (see `Inventory (review item 2)`),
     the destination's free space,
     a state folder with mode 0700.
 2.  `btrfs subvolume snapshot -r <source> <snapshot folder>/<name>`,

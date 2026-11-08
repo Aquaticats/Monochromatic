@@ -153,6 +153,8 @@ The measured source map at baseline is:
   is the shared subset parser used by management and Git-region parsers.
   It is 415 physical lines and has eighteen direct unit cases.
 - `package/git-policy/cli/src/parser/` contains twenty production TypeScript files and 3,953 physical lines.
+  (moved on 2026-10-13 with the TypeScript wrapper:
+  now `package/git-policy/cli/src/native/command/`)
   Most of this surface is Git-specific classification rather than generic command routing.
 - `parseArgv` or `tryParseArgv` is consumed by management plus the `add`,
   `clean`,

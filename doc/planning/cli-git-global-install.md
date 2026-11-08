@@ -171,7 +171,7 @@ with a `postinstall` that links `~/.local/bin/git`:
 ```
 
 Note (moved 2026-10-28):
-the entry above served until the global toolchain migration
+the `cargo:monochromatic-git-policy-cli` entry served until the global toolchain migration
  (`doc/planning/mpm-global-toolchain-migration.md`),
  which removed `[tools]` from the global Mise config.
  The same link is now the `postinstall` link of the

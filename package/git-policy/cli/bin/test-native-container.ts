@@ -30,6 +30,10 @@ import {
 } from './native-layered-build.ts';
 import { ensureTestBase, } from './native-test-base.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
+import {
+  describeProblem,
+  sidecarLockProblems,
+} from './native-sidecar-lock-check.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
 import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
@@ -53,6 +57,31 @@ const {
 });
 if (unknownOptions.length > 0)
   throw new NativeVerificationError(`Only --memory <size>, --cpus <count> and --pids-limit <count> are accepted, got ${unknownOptions.join(' ')}.`);
+
+// The gate is this package's authority, so it reads the sidecars' locks before it builds anything: a dependency this
+// package gained, dropped or moved makes a sidecar's lock stale, and the sidecar's own build only finds that later.
+/**
+ The package directory this gate runs in, which its sidecars sit beside.
+ */
+const subjectDirectory = resolve(
+  import.meta.dirname,
+  '..',
+);
+/**
+ Every sidecar beside the package whose lock no longer agrees with its own.
+ */
+const sidecarProblems = await sidecarLockProblems({ packageDirectory: subjectDirectory, });
+/**
+ What each disagreeing sidecar says, one block of lines each.
+ */
+const sidecarReports = sidecarProblems.map(function described(problem) {
+  return describeProblem({
+    problem,
+    packageDirectory: subjectDirectory,
+  });
+});
+if (sidecarProblems.length > 0)
+  throw new NativeVerificationError(sidecarReports.join('\n'));
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.

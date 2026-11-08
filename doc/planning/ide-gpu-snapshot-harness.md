@@ -7,7 +7,7 @@ so the native tests must stop reading pixels from Slint's software renderer.
 This document records what was measured,
 what was built,
 and what is still open.
-Every number below comes from a command that was run on 2026-10-19 on the owner's host
+Every number in this document comes from a command that was run on 2026-10-19 on the owner's host
 (AMD Radeon RX 7600 as `renderD128`,
 the Raphael integrated GPU as `renderD129`);
 what was not run is listed under "Not proven".
@@ -102,7 +102,8 @@ with the evidence:
   (`i-slint-backend-selector-1.18.1/lib.rs`,
   `create_headless_backend`).
 - Slint's winit backend in a nested compositor as the test path.
-  It works for one picture (see the comparison below) but needs a compositor process per test and has no pixel readback
+  It works for one picture (see the nested compositor comparison under the `Measurements` heading)
+  but needs a compositor process per test and has no pixel readback
   other than `take_snapshot` on the same renderer.
 - Skia.
   It is not enabled in the IDE and was not built;
@@ -235,8 +236,8 @@ restored afterwards) and no
 the migrated test passed on `llvmpipe` in 1.11 s against 0.36 s on the RX 7600.
 That is CPU rasterization,
 so it is a measurement and not an option;
-whether it may ever serve as a fallback is an owner
-question below.
+whether it may ever serve as a fallback is an owner question
+under the `Open owner questions` heading.
 
 ## Measurements
 
@@ -374,7 +375,7 @@ and the result recorded.
 - The CPU refusal in the harness:
   with `hardware_rank` accepting `Cpu` and no `/dev/dri` the test passed on `llvmpipe`;
   with the guard restored,
-  the same container fails with the adapter list above.
+  the same container fails with the adapter list quoted under `The CPU adapter question`.
 
 ## Gates
 
@@ -590,7 +591,7 @@ because any real one-row error also breaks the rows above it.
 The default invocation of `test:native` runs 21 test processes at once on one GPU.
 The invocation with a filter adds `--no-capture`,
 which makes nextest run one test at a time
-(the 20 filtered full runs below took 410.3 s to 427.3 s,
+(the 20 filtered full runs listed under `Run time` took 410.3 s to 427.3 s,
 and their per-test durations sum to the wall time,
 411.2 s in the one summed).
 No test failed in those 20 serial runs,
@@ -705,7 +706,7 @@ and why:
   not tests,
   and not the release binary.
   They were left as they are;
-  whether to keep them is an owner question below.
+  whether to keep them is an owner question under the `Open owner questions` heading.
 
 ### Gates of stage 0b
 
@@ -729,7 +730,7 @@ Run on the final head of the branch:
   The task stops at that command,
   so its last command,
   `lint:slint`,
-  was run alone (above).
+  was run alone (the `lint:slint` bullet under `Gates of stage 0b`).
 - `mise run //package/ide/app:inspect:software-renderer`:
   `Slint software renderer is not linked into the application or the test builds`.
 - `mise run //package/ide/app:test:native`,
@@ -1366,7 +1367,7 @@ Nothing fills a pixel buffer for the code view any more.
 - Selection fills and in-file find boxes stay Slint rectangles under the tile image (`ui/app.slint`),
   which FemtoVG draws on the GPU as before.
   Moving them into the scene would rebuild the tile on every selection change,
-  so this is an owner question below.
+  so this is an owner question under the `Open owner questions of stages 3 and 4` heading.
   The selected ink is a second copy of the glyph run clipped to the selection,
   with the clip edges on whole pixels so no pixel is covered by two partial layers.
 - Texture size is bounded by the device.
@@ -1713,7 +1714,7 @@ the method is the one of the stage 2 section):
   but its split between the tile texture (about 9 MiB at this window),
   Vello's pipelines and its scratch buffers was not measured.
   It is larger than anything stage 2 added to the baseline
-  and is an owner question below.
+  and is an owner question under the `Open owner questions of stages 3 and 4` heading.
 
 ### Gates
 
@@ -1732,7 +1733,9 @@ On the head of the code (`86fd30b4dc`) with the tails in the scratch root (`~/te
   238 tests run,
   238 passed,
   5 skipped,
-  in the second consecutive run after the head's first run failed once (see below);
+  in the second consecutive run after the head's first run failed once
+  (see the `annotation_stability_tests::rows_above_the_view_wait_until_scrolling_has_stopped`
+  failure under `Gates`);
   then 10 more consecutive runs and 8 runs with a filter passed.
 - `test:bin`:
   54 tests,
@@ -1784,7 +1787,7 @@ Filtered loops therefore cannot show these flakes;
 
 - The stage 2 baseline (`fcfaec56e6`),
   unfiltered runs:
-  1 failure in 20 (the old minimap test below),
+  1 failure in 20 (the old minimap test recorded under `Not changed: the old minimap flake`),
   and 0 in 20 while 16 busy loops ran.
 - Main at the merge,
   with only failure details added to some asserts:
@@ -1991,7 +1994,8 @@ Whether that overcommit produces a wrong frame is not shown.
   Should the default number of test threads of the native tests be lowered,
   or the test device given a budget?
   This work changed neither.
-  (The device hint recorded under "Selections over a tall tile" below halves the demand.)
+  (The device hint recorded under the `Selections over a tall tile, and the device's memory hint`
+  heading halves the demand.)
 - Should the old minimap flake be fixed now or left to stage 5?
 
 ### Selections over a tall tile, and the device's memory hint
@@ -1999,7 +2003,8 @@ Whether that overcommit produces a wrong frame is not shown.
 Two changes of 2026-10-20 that come from `doc/planning/ide-vello-buffer-sizes.md`:
 the clips of a selected row no longer use up Vello's tile buffer,
 and the GPU device is opened with `MemoryHints::MemoryUsage`.
-Every number below was measured on the owner's host (RX 7600,
+Every number in the `Selections over a tall tile, and the device's memory hint` section
+was measured on the owner's host (RX 7600,
 RADV,
 Vulkan,
 Vello 0.11.0,
@@ -2336,7 +2341,7 @@ First frame is the time from spawning the compositor to the first recorded frame
   The study's 9.4 and 4.0 GiB were sums of its probe's 457 and 197 MiB per process.
   The card was full at the peak in both (8.13 to 8.17 GiB used),
   so the driver spilled to GTT:
-  the figures above are the demand,
+  the A and B figures are the demand,
   not the video memory held.
   The suite took 23 to 28 s (nextest) before and 25 to 29 s after.
   The first of three rounds of A failed
@@ -2432,7 +2437,7 @@ with `mise run //package/ide/app:<task>`:
   83 rows of 24 pixels do not fit a 2000 pixel window (82 rows show);
   80 rows and select-all were.
 - The application's real tile height and tile count were not read;
-  the threshold is inferred (see above).
+  the threshold is inferred (see `Reproduction in the application`).
 - Another GPU,
   another driver,
   the integrated Raphael GPU,
@@ -2527,7 +2532,7 @@ with `mise run //package/ide/app:<task>`:
   the many remaining differences are glyph edges.
   Whether a reader sees the unhinted text as worse was not asked.
 - The wave and dash geometry was tuned for scale 1 and checked at scale 2 by eye only.
-- Only the guard scripts named above were run,
+- Only the guard scripts named under `Guard evidence` in stages 3 and 4 were run,
   not all of them.
 - A device with a texture limit below 8192 was not run;
   `open_hardware_device_capped` can request one,
@@ -2550,7 +2555,7 @@ and the only memory the minimap adds beyond its texture is a few chunk-sized tex
   `2cf94afacf` formats the sources;
   `6a94d4ec6e` splits the minimap build and the GPU module for the line limit and retargets the guards;
   `d52d871230` asks for a redraw when a slice is handed to the GPU (a bug the screenshots found,
-  see below);
+  see the `Verification by running` section);
   `9f55f3013f` repairs two integration tests that the guard script found stale;
   `c96a6c46b9` names the failures the guards produce.
   The auto-push hook pushed the branch after each commit.
@@ -2727,7 +2732,8 @@ and the only memory the minimap adds beyond its texture is a few chunk-sized tex
   Fifteen consecutive full runs of `test:native`:
   not met,
   and the owner replaced that gate with one run on each committed snapshot.
-  Two batches of fifteen were run before that instruction (on snapshots that still had the flaky tests below):
+  Two batches of fifteen were run before that instruction
+  (on snapshots that still had the flaky tests recorded under `Tests`):
   the first had 6 failed runs,
   the second 4 (the external edit test twice,
   `find_box_context_menu_runs_each_entry` once (a flake listed in the package README before this branch),
@@ -2780,7 +2786,7 @@ and the only memory the minimap adds beyond its texture is a few chunk-sized tex
   because every line has one key without the text) before its edit assertion.
   Both fail the named test,
   and their failure text is the one the script waits for.
-- The redraw request has no guard (see above).
+- The redraw request has no guard (see the `d52d871230` commit under `What was built`).
 
 ### Verification by running
 
@@ -2829,7 +2835,7 @@ and the only memory the minimap adds beyond its texture is a few chunk-sized tex
   A seam at a chunk boundary was not looked for in a screenshot
   (the nested compositor hosts at most 3,704 px of height;
   a seam is covered by the cut tests only).
-- The screenshots found the missing redraw (see above).
+- The screenshots found the missing redraw (see the `d52d871230` commit under `What was built`).
 - Worker time per picture on `big.rs` (release,
   drag then scroll,
   79 pictures):
@@ -2934,7 +2940,7 @@ and the only memory the minimap adds beyond its texture is a few chunk-sized tex
   which is no longer true.
 - Cadence at 1147 by 2000 px and at 50,000 lines was measured on a host that was loaded by other sessions for part of the
   time;
-  more pairs on a quiet host would settle the small differences listed below.
+  more pairs on a quiet host would settle the small differences listed in `Verification by running`.
 
 ### Not proven in stages 5 and 6
 

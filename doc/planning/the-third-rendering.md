@@ -80,7 +80,7 @@ named for that subject and listed here.
   - [Run 8 scored, stratified, and what its headline rate hides](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#run-8-scored-stratified-and-what-its-headline-rate-hides)
   - [Run 9 scored: the band pair, and what run-to-run variation actually costs](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#run-9-scored-the-band-pair-and-what-run-to-run-variation-actually-costs)
   - [The four measurements, run against both runs of the band pair](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#the-four-measurements-run-against-both-runs-of-the-band-pair)
-  - [`#151` landed, and it corrects the first measurement above](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#151-landed-and-it-corrects-the-first-measurement-above)
+  - [`#151` landed, and it corrects the first of the four measurements](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#151-landed-and-it-corrects-the-first-of-the-four-measurements)
   - [The second blocker, measured: a slate with no valid candidate shipped anyway](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#the-second-blocker-measured-a-slate-with-no-valid-candidate-shipped-anyway)
   - [The first measurement, restated once the floor is in it](the-third-rendering-band-pair-runs-8-and-9-and-wiring-blockers.md#the-first-measurement-restated-once-the-floor-is-in-it)
 - [The third rendering: the stage wired in, and the policies measured on the way](the-third-rendering-wiring-measurements-and-policy-decisions.md):
@@ -494,5 +494,6 @@ The fix is proved by unit tests and shown to fail without its resume,
 but it has not been exercised through the CLI over a corpus entry.
 That verification is `#172`,
 and it runs first,
-because every item above it is queued behind a pipeline whose reproducibility
+because every item in the What the order is now,
+and why list is queued behind a pipeline whose reproducibility
  is claimed rather than measured.

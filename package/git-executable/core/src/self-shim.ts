@@ -143,28 +143,34 @@ export class GitCandidateInspectionLimitError extends Error {
 const GIT_POLICY_CLI_PACKAGE_NAME = '@monochromatic-dev/git-policy-cli';
 
 /**
- Bundle entry path used by pnpm command shims for Git policy wrapper.
- */
-const GIT_POLICY_CLI_BUNDLED_ENTRY = 'package/git-policy/cli/dist/final/node/index.mjs';
-
-/**
  Windows package path emitted when command shims spell package scope with backslash.
  */
 const WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH = String.raw`@monochromatic-dev\git-policy-cli`;
 
 /**
- Windows bundle path emitted by command shims without package metadata.
- */
-const WINDOWS_GIT_POLICY_CLI_BUNDLED_ENTRY = String.raw`package\git-policy\cli\dist\final\node\index.mjs`;
-
-/**
  Text markers that identify scripts delegating to Git policy wrapper.
+ A marker names the wrapper as this workspace produces it,
+ so a marker that spells removed output is dead detection.
+ The package name is the marker a package manager writes into a `git` shim,
+ in the spelling of the shim's own platform.
+ The bundled Node entry `package/git-policy/cli/dist/final/node/index.mjs`
+ was a marker until commit `642b6d72cb` deleted the TypeScript wrapper
+ and the package's `git` bin,
+ after which no shim can name that path;
+ the marker went with it.
+ This resolver is built from the tree it inspects,
+ so a tree that still held such a shim also holds the release of this file
+ that still names it.
+ 
+ @example
+ ```ts
+ [...SELF_SHIM_MARKERS];
+ // => ['@monochromatic-dev/git-policy-cli', '@monochromatic-dev\\git-policy-cli']
+ ```
  */
-const SELF_SHIM_MARKERS: ReadonlySet<string> = new Set([
+export const SELF_SHIM_MARKERS: ReadonlySet<string> = new Set([
   GIT_POLICY_CLI_PACKAGE_NAME,
-  GIT_POLICY_CLI_BUNDLED_ENTRY,
   WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH,
-  WINDOWS_GIT_POLICY_CLI_BUNDLED_ENTRY,
 ],);
 
 /**

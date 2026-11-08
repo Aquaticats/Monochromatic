@@ -102,6 +102,83 @@ fn sync_installs_what_is_missing_in_order_with_the_locked_versions_and_skips_wha
     assert!(rust_position < binstall_position, "the Rust toolchain installs before cargo-binstall: {lines:?}");
 }
 
+/// What `rustup toolchain list` prints for a toolchain another step installed at the locked version.
+const LOCKED_TOOLCHAIN_LINE: &str = "nightly-2026-10-30-x86_64-unknown-linux-gnu (active, default)\n";
+
+#[test]
+fn a_current_toolchain_gets_the_declared_components_and_targets_another_step_left_out() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust"]);
+    // The sample lock declares the components `clippy` and `rust-src`, and the target `aarch64-linux-android`.
+    rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
+    rig.runner.answer(
+        "rustup component list --installed --toolchain nightly-2026-10-30",
+        "cargo-x86_64-unknown-linux-gnu\nrust-src\n",
+        0,
+    );
+    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\n", 0);
+    let report = sync_tools(&rig.context(), None);
+    let lines = rig.runner.lines();
+    assert!(
+        !lines.iter().any(|line| return line.starts_with("rustup toolchain install")),
+        "the locked toolchain is installed, so the sync must not install it again: {lines:?}"
+    );
+    assert!(lines.contains(&"rustup component add clippy --toolchain nightly-2026-10-30".to_string()), "{lines:?}");
+    assert!(lines.contains(&"rustup target add aarch64-linux-android --toolchain nightly-2026-10-30".to_string()), "{lines:?}");
+    assert!(!lines.contains(&"rustup component add rust-src --toolchain nightly-2026-10-30".to_string()), "the installed component is not added again: {lines:?}");
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert!(!report.unchanged.contains(&"rust".to_string()), "a tool whose declared target was missing was not left alone: {report:?}");
+    assert_eq!(report.installed, vec!["rust".to_string()]);
+    let text = format_sync_report(&report);
+    assert!(text.contains("added the declared component clippy"), "{text}");
+    assert!(text.contains("added the declared target aarch64-linux-android"), "{text}");
+    assert!(!text.contains("added the declared component rust-src"), "{text}");
+}
+
+#[test]
+fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust"]);
+    rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
+    rig.runner.answer(
+        "rustup component list --installed --toolchain nightly-2026-10-30",
+        "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
+        0,
+    );
+    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\naarch64-linux-android\n", 0);
+    let report = sync_tools(&rig.context(), None);
+    assert_eq!(report.unchanged, vec!["rust".to_string()]);
+    assert!(report.installed.is_empty(), "{report:?}");
+    assert!(report.reconciled.is_empty(), "nothing was added, so nothing is reported as added: {report:?}");
+    let lines = rig.runner.lines();
+    assert!(
+        !lines.iter().any(|line| return line.contains(" add ")),
+        "every declared part is installed, so the sync adds nothing: {lines:?}"
+    );
+    assert!(!format_sync_report(&report).contains("added the declared"), "{}", format_sync_report(&report));
+}
+
+#[test]
+fn a_failed_target_add_fails_the_tool_and_keeps_the_component_it_added_to_the_report() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust"]);
+    rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
+    rig.runner.answer("rustup component list --installed --toolchain nightly-2026-10-30", "rust-src\n", 0);
+    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\n", 0);
+    rig.runner.fail("rustup target add aarch64-linux-android", "error: component 'rust-std' for target 'aarch64-linux-android' is unavailable");
+    let report = sync_tools(&rig.context(), None);
+    assert!(!report.unchanged.contains(&"rust".to_string()), "a failed add was reported as unchanged: {report:?}");
+    assert!(report.installed.is_empty(), "a tool with a failed add is not installed: {report:?}");
+    assert_eq!(report.failed.len(), 1, "{report:?}");
+    assert_eq!(report.failed[0].0, "rust");
+    assert!(report.failed[0].1.contains("is unavailable"), "{:?}", report.failed);
+    assert_eq!(report.reconciled.len(), 1, "the component added before the failure stays reported: {report:?}");
+    assert!(report.reconciled[0].contains("added the declared component clippy"), "{:?}", report.reconciled);
+    let text = format_sync_report(&report);
+    assert!(text.contains("added the declared component clippy"), "{text}");
+    assert!(text.contains("rust failed: rustup target add (aarch64-linux-android) failed for rust"), "{text}");
+}
+
 #[test]
 fn sync_keeps_going_after_a_failure_and_reports_every_failure() {
     let mut rig = Rig::new();
@@ -156,7 +233,9 @@ fn sync_warns_before_replacing_a_different_installed_version() {
     let mut rig = Rig::new();
     rig.lock.tools.retain(|tool| return tool.declaration.id == "pipx:slopo" || tool.declaration.id == "uv");
     rig.install_binary("uv", "uv");
+    // The tool is listed at another version before the install, and at the locked one after it: the route reads it back.
     rig.runner.answer("uv tool list", "slopo v0.9.0\n- slopo\n", 0);
+    rig.runner.answer_after("uv tool install", "uv tool list", "slopo v1.2.3\n- slopo\n", 0);
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.installed, vec!["pipx:slopo".to_string()]);
     assert_eq!(report.warnings.len(), 1);

@@ -242,7 +242,7 @@ pub fn stat_finding(entry: &StatEntry, metadata: &std::fs::Metadata, index_secon
 ///  The reason a file whose metadata is `metadata` differs from its index entry,
 /// or nothing when the two agree.
 /// Why:
-///   Callers that rely on the stat data alone (the snapshot and clone rungs) treat a file the data cannot vouch for like a
+///   Callers that rely on the stat data alone (the clone rung) treat a file the data cannot vouch for like a
 ///  file that changed.
 ///
 /// In TS you'd write (pseudocode):

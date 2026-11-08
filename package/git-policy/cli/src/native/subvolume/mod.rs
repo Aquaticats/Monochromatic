@@ -66,7 +66,11 @@ pub mod subvolume_index;
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_install_into_new_worktree;
 
-/// The linked worktrees of a main checkout and the index stat rewrite applied to files.
+/// The linked worktrees of a main checkout and the registrations that are not one of them.
+#[cfg(target_os = "linux")]
+pub mod subvolume_registered_worktrees;
+
+/// The index stat rewrite applied to the checkout's index and to those of its linked worktrees.
 #[cfg(target_os = "linux")]
 pub mod subvolume_index_files;
 

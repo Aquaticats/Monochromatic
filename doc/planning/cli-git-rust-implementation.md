@@ -206,7 +206,8 @@ The owner said,
 verbatim:
 "git wrapper should embed in forbidden-strings and the like.
 That's why we rewrote everything in Rust in the first place."
-The decision above ("keep the already accepted linter CLI integration rather than introducing a new public library interface")
+The decision in `Unified linter and Markdown integration`
+("keep the already accepted linter CLI integration rather than introducing a new public library interface")
 carried no measured reason,
 and the owner's statement overrides it.
 The measured cost of the child process it kept:

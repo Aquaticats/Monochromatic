@@ -1159,7 +1159,7 @@ the `fetcher` type fix (`a6b16edc2a`),
  which took the package from 452 to 360 lint errors.
 #1800's acceptance criteria are met,
 so it closes with this status update;
- the items below are tracked here and in the session task list.
+ the items under `Remaining` are tracked here and in the session task list.
 
 Remaining:
 

@@ -4,7 +4,7 @@ Status:
 the install-route move and the one release of each crate are done (2026-11-07,
 see "Install route:
 done");
-the other options below stand as the owner answered them above.
+the other options stand as the owner answered the three questions in "Options".
 
 ## The owner's question
 
@@ -66,7 +66,7 @@ verbatim:
   The three defects the cross-vendor review found in the old-helper hand-over
   (`~/temp/agent/issue-6261/sol-review-retry-4/review.txt`) are fixed before it too.
   That release is a plain-number release,
-  so it counts as stable under the rule above;
+  so it counts as stable under the rule in "The owner's answers at 2026-11-07T02:03:01-05:00";
   the older versions are yanked right after it.
 - When the seven tools move from the `cargo:` install route (crates.io plus `cargo-binstall`) to the `archive` route
   of GitHub releases that `mpm-shadow` uses:

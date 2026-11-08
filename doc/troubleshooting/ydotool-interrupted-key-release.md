@@ -291,6 +291,9 @@ The hard guard runs even when auto-mode bypass is enabled.
 covers command classification.
 `package/pi-plugin/auto-mode/src/index-bypass.unit.test.ts`
 covers the non-bypassable integration boundary.
+All three cited files are gone:
+`7ac15b19b4` (2026-10-19) removed `virtual-input-guard.ts` and its unit test,
+and `a3955898f1` (2026-10-17) removed `index-bypass.unit.test.ts`.
 Removing the guard call,
 rebuilding,
 and running that test made it fail because bypass executed the fake Bash path;

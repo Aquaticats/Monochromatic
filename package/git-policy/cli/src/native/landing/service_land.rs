@@ -46,6 +46,7 @@ use crate::service_land_start::witness_of;
 use crate::service_index_lock::{Announce, Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
+use crate::service_scratch_ref_of_a_dropped_batch::{clear_after_a_failed_landing, scratch_ref};
 use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
@@ -161,11 +162,17 @@ pub fn land_batch_timed(
     {
         announce.announce(Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
         let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-        let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
+        let scratch: String = scratch_ref(seq);
         if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
             announce.announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
             let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
         }
+    }
+    // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
+    //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
+    //  removes the branch itself (`service_scratch_ref_of_a_dropped_batch.rs`). One that wrote its intent leaves it to the restart.
+    if result.is_err() {
+        clear_after_a_failed_landing(context, requests, seq);
     }
     let published: bool = match result.as_ref() {
         Ok(outcomes) => any_landed(outcomes.as_slice()),
@@ -237,7 +244,7 @@ fn land_batch_body(
     }
     let repository: &Path = first.repository.as_path();
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-    let scratch: String = format!("refs/worktree/cli-git-service/{seq}");
+    let scratch: String = scratch_ref(seq);
     let mut outcomes: Vec<Outcome>;
     let mut attempts_left: usize = LANDING_ATTEMPTS;
     // A branch that does not exist yet is prepared against the all-zero name and lands only while it still does not.

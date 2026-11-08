@@ -1119,6 +1119,28 @@ fn a_refusal_survives_a_failed_completion_marker_and_names_it() {
     }
 }
 
+/// Acceptance row A3 (refused outcome,
+/// sixth pass group 5):
+/// a refusal survives a failed sync of the completion marker's directory,
+/// and the message names both the policy refusal and the completion barrier.
+/// The rename itself succeeds, so the failure is the parent barrier that makes the marker durable,
+/// not the rename the other refusal test covers.
+#[test]
+fn a_refusal_survives_a_failed_completion_directory_sync_and_names_it() {
+    let root = repository(STALE);
+    let start = root.path().join(CRATE_DIR);
+    let runner = cargo_that_writes_a_refused_release();
+    crate::failpoints::arm(crate::failpoints::Point::CompletionSync);
+
+    let outcome = run_install_step(&StepRequest { start_dir: &start, frozen: false, offline: true, now: 0, runner: &runner, registry: &downgrading_registry(), lock_base: None, trust_base: "HEAD" });
+
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::CompletionSync), "the completion directory sync was never reached");
+    match outcome {
+        StepOutcome::Refused(message) => assert!(message.contains("dep@1.0.1") && message.contains("completion"), "the refusal or the barrier is missing: {message}"),
+        other => panic!("the refusal was replaced: {other:?}"),
+    }
+}
+
 /// Acceptance row R3:
 /// cargo failed after writing a lockfile and the rollback fails too:
 /// the step stops the command (so the `--locked` fallback never builds the unrestored lockfile),

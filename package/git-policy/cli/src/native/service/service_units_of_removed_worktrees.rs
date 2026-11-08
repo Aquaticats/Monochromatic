@@ -19,6 +19,10 @@
 //! The units are stopped through the manager,
 //! never by killing a process by name,
 //! and nothing here starts a unit.
+//! A service that starts and finds its own worktree gone stops its own socket before it serves anything,
+//! so a removal that Git ran with the wrapper replaced,
+//! or a worktree deleted without Git,
+//! takes its units with it at the first connection rather than at the next sweep a person remembers.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +34,8 @@ use crate::private_storage::create_private_directory_all;
 use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
-use crate::systemd_dbus::{CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
+use crate::service_route::non_empty_path_variable;
+use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT, session_bus_path};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
 
@@ -49,6 +54,29 @@ pub struct UnitFolders<'a> {
     /// The user's state directory,
     /// whose `monochromatic-git-policy-cli/service/<instance>` folders hold the service journals.
     pub state_dir: Option<&'a Path>,
+}
+
+/// What:
+///  The state directory whose service folder holds `journal`,
+/// and nothing when the path has not the shape the unit passes.
+/// Why:
+///   The unit starts the service with `--journal <state>/monochromatic-git-policy-cli/service/<instance>`,
+/// so the service reads its worktree from its own journal records as well as from its note,
+/// by the same rule the sweep and `doctor` use.
+/// A journal of another shape (a development run) names no state directory,
+/// and then only the note maps the instance.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stateDirOfJournal('/s/monochromatic-git-policy-cli/service/3f9a', '3f9a') // '/s'
+/// ```
+pub fn state_dir_of_journal(journal: &Path, instance: &str) -> Option<PathBuf> {
+    let state: &Path = journal.parent()?.parent()?.parent()?;
+    let expected: PathBuf = state.join(SERVICE_UNIT.current).join("service").join(instance);
+    if journal != expected {
+        return None;
+    }
+    return Some(state.to_path_buf());
 }
 
 /// What a unit instance's worktree is,
@@ -306,10 +334,83 @@ pub fn survey(folders: &UnitFolders<'_>) -> Survey {
     return found;
 }
 
+/// What:
+/// The Git directory of an instance whose worktree is gone,
+/// and nothing when it is still there,
+/// when it cannot be told whose the units are,
+/// or when the place that held the directory is not there either.
+/// Why:
+///   This is the question a service asks about itself before it serves:
+/// a service of a worktree that no longer exists has nothing to commit to,
+/// and the files of its socket and its note are the only record of whose they are.
+/// The answer is the same one the survey and the sweep give,
+/// so a service and the sweep never disagree about a gone worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ownWorktreeGone(folders, instance) // '/repo/.git/worktrees/topic' or undefined
+/// ```
+pub fn own_worktree_gone(folders: &UnitFolders<'_>, instance: &str) -> Option<PathBuf> {
+    let UnitWorktree::Known(git_dir) = worktree_of(folders, instance) else { return None };
+    return worktree_is_gone(git_dir.as_path()).then_some(git_dir);
+}
+
+/// What a service's own units are to it,
+/// once it asks about the worktree they serve.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OwnWorktree {
+    /// The worktree's Git directory is certainly gone:
+    /// the service has nothing to commit to and stops its own socket.
+    Gone(PathBuf),
+    /// The worktree is there,
+    /// or it is on a device that cannot be reached right now,
+    /// so the service serves it.
+    Served(PathBuf),
+    /// Nothing maps the instance to a worktree,
+    /// so the service serves and nothing is stopped.
+    Unmapped,
+}
+
+/// What:
+/// What this service's own units are,
+/// read from the runtime directory of the process and the journal it was started with.
+/// Why:
+///   This is the question a serving service asks of itself:
+/// the note provisioning wrote beside the socket,
+/// else the `gitdir=` records of its own journal,
+/// name a directory that hashes to the instance,
+/// and the same rule the sweep and `doctor` use decides whether it is gone.
+/// A worktree on a device that is simply not mounted is served,
+/// and so is one neither the note nor the journal names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ownWorktreeState(instance, journal) // { gone: gitDir } | { served: gitDir } | 'unmapped'
+/// ```
+pub fn own_worktree_state(instance: &str, journal: &Path) -> OwnWorktree {
+    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return OwnWorktree::Unmapped };
+    let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
+    return match worktree_of(&folders, instance) {
+        UnitWorktree::Unmapped => OwnWorktree::Unmapped,
+        UnitWorktree::Known(git_dir) if worktree_is_gone(git_dir.as_path()) => OwnWorktree::Gone(git_dir),
+        UnitWorktree::Known(git_dir) => OwnWorktree::Served(git_dir),
+    };
+}
+
 /// One stop,
 /// where a unit the manager does not hold is stopped already.
 fn stop_one(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
     return match manager.stop(unit) {
+        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
+        other => other,
+    };
+}
+
+/// One stop of the named unit and of nothing that requires it,
+/// where a unit the manager does not hold is stopped already.
+fn stop_one_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+    return match manager.stop_alone(unit) {
         Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
         other => other,
     };
@@ -332,6 +433,107 @@ pub fn stop_units(manager: &mut dyn Manager, instance: &str) -> Result<(), CallE
     let socket: Result<(), CallError> = stop_one(manager, socket_unit_instance(instance).as_str());
     let service: Result<(), CallError> = stop_one(manager, service_unit_instance(instance).as_str());
     return socket.and(service);
+}
+
+/// One stop of an instance's socket through the manager,
+/// and the files that said the instance had units.
+fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<(), CallError> {
+    manager.within(EXCHANGE_WAIT);
+    stop_one_alone(manager, socket_unit_instance(instance).as_str())?;
+    forget_stopped_instance(folders.runtime_dir, instance);
+    return Ok(());
+}
+
+/// What:
+/// Stops the socket unit of one instance through the manager,
+/// and removes the files that said it had units,
+/// when the worktree of that instance is gone,
+/// and nothing when it is not.
+/// Why:
+///   This is what a service of a gone worktree does about itself:
+/// it serves nothing,
+/// and the socket,
+/// the note and the socket file go,
+/// so `doctor` counts nothing left over and the next sweep asks nothing.
+/// Only the socket is stopped,
+/// and with the mode that leaves what requires it alone:
+/// the service's own end is what stops its service unit,
+/// and a stop of that unit from inside the service would signal this process mid-sentence.
+/// The socket goes first so no connection starts the service again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await stopOwnSocketOfAGoneWorktree(folders, instance, manager) // the Git directory, or undefined
+/// ```
+pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
+    let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
+    stop_own_socket(folders, instance, manager)?;
+    return Ok(Some(gone));
+}
+
+/// What:
+/// Stops this service's own socket when the worktree it serves is gone,
+/// with the line that says why,
+/// and says whether the worktree is gone.
+/// Why:
+///   A removal Git ran with the wrapper replaced (`worktree remove --force`,
+/// `worktree prune`),
+/// and a worktree deleted without Git,
+/// leave the socket unit listening and the service unit running for a directory that is gone,
+/// and a service has nothing to commit to there.
+/// Nothing else asks,
+/// so the service asks itself:
+/// when it starts,
+/// and while it serves (`service_server.rs`).
+/// It stops its own socket and nothing that requires it,
+/// because its own end is what stops its service unit,
+/// and a stop of that unit from inside the service would signal it before it removed the note and the socket file.
+/// A manager that cannot be reached only logs:
+/// the files stay,
+/// so `doctor` counts the leftover and the next start tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopOwnSocketWhenTheWorktreeIsGone(instance, journal) // true: gone, so serve nothing
+/// ```
+pub fn stop_own_socket_when_the_worktree_is_gone(instance: &str, journal: &Path) -> bool {
+    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
+    let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
+    // A worktree that is there, or one nothing names, costs no bus connection and no question to the manager: the files answer it.
+    let OwnWorktree::Gone(gone) = own_worktree_state(instance, journal) else { return false };
+    let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
+    let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
+        crate::service_warn!(
+            "the worktree of this commit service is gone ({}), so it serves nothing, but no session bus was found to stop its socket; `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
+            gone.display()
+        );
+        return true;
+    };
+    let mut bus: Bus = match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {
+        Ok(connected) => connected,
+        Err(error) => {
+            crate::service_warn!(
+                "the worktree of this commit service is gone ({}), so it serves nothing, but the session bus could not be reached ({error:?}) to stop its socket; `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
+                gone.display()
+            );
+            return true;
+        }
+    };
+    match stop_own_socket_of_a_gone_worktree(&folders, instance, &mut bus) {
+        Ok(Some(stopped)) => {
+            crate::service_log!("the worktree of this commit service is gone ({}), so it served nothing and stopped its own socket", stopped.display());
+        }
+        // The directory came back between the two looks, so this service is a live worktree's again.
+        Ok(None) => {}
+        Err(error) => {
+            crate::service_warn!(
+                "the worktree of this commit service is gone ({}), so it serves nothing, but its socket was not stopped ({error:?}); `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
+                gone.display()
+            );
+        }
+    }
+    return true;
 }
 
 /// The manager's failure in words.

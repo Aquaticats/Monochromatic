@@ -125,7 +125,7 @@ fn links_are_created_timed_and_removed_below_the_handle() {
 /// A directory with something in it is not removed as an empty one,
 /// and a nested subvolume is another device.
 #[test]
-fn a_full_directory_stays_and_a_subvolume_is_another_device() {
+fn btrfs_a_full_directory_stays_and_a_subvolume_is_another_device() {
     let Some(root) = btrfs_fixture("beneath-device") else { return };
     std::fs::create_dir_all(root.join("full")).expect("full");
     std::fs::write(root.join("full/file"), b"x").expect("file");

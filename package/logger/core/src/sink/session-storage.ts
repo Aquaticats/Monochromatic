@@ -126,6 +126,7 @@ export function createSessionStorageSink(): Sink {
 
   return {
     flush,
+    name: 'sessionStorage',
     verify: verifySessionStorage,
     write,
   };
