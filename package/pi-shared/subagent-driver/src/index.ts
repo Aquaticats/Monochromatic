@@ -60,6 +60,14 @@ export {
   finalEndReason,
 } from './end-reasons.ts';
 export {
+  carriesCredentialName,
+  CREDENTIAL_NAME_WORDS,
+  type EnvironmentWithoutCredentials,
+  stripCredentialsFromEnvironment,
+  type VariableKeptWithItsReason,
+  VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
+} from './environment-without-credentials.ts';
+export {
   NestedDriverError,
   PiRunEndedEarlyError,
   supervisePiRun,
