@@ -20,6 +20,15 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- Porting the wrapper package's 145 TypeScript files to Rust
+  (`doc/planning/git-policy-cli-typescript-to-rust.md`):
+  "After the layout move (Recommended)":
+  the pause lifts once the layout move's steps 2 to 6 land,
+  with the plan's recommended option for each of its eleven choices.
+- Answering a pull's Git queries in process
+  (128 ms against native's 12 ms on a fast-forwarding pull):
+  "Not now (Recommended)".
+
 - How long a commit's signed `git commit` step may run:
   "A:
   limit unless editor (Recommended)":
