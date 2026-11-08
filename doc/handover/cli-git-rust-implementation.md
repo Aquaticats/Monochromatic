@@ -3059,7 +3059,7 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
-### Work waiting for a free Pi slot (2026-11-08T15:56:45-05:00)
+### Work waiting for a free Pi slot (2026-11-08T16:24:14-05:00)
 
 The owner:
 "Pi doesn't have a limit to number of concurrent subagents.
@@ -3067,20 +3067,21 @@ In practice it's 16."
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
-Every item it lists has its own record,
-so this list only names what is left to start from it:
 
-- A hosted run of the container-limit workflow flags,
-  recorded in `doc/handover/container-limits-everywhere.md`.
+Only these wait on the repository move's last stages:
+the merge named first in the list of ordered work,
+the checksum and the IDE check themselves,
+and the Claude Code restart the owner asked for after them.
+An earlier version of this section also listed a container probe,
+the build-folder timer and the worktree conversions.
+The owner doubted that,
+and checking each one showed none needed the move.
 
-Waiting on the repository move's last stages rather than on a slot:
-
-- One `podman start` of a created container through the repository link,
-  recorded in `doc/handover/repository-move-dangling-link-items.md`.
-- Enabling `cargo-shadow-lean.timer` again after one dry run against the moved checkouts,
-  recorded in `doc/handover/cargo-shadow-lean-build-folders.md`.
-- Converting the worktrees that are still ordinary folders,
-  which refuses any worktree an agent is working in.
+Converting the remaining worktrees waits on a defect instead:
+301 of 353 registrations spell the repository link,
+and the conversion compares them with the real path as text and refuses them.
+`--all` looked at 15 and did not say so.
+Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
 
 Ordered behind other work rather than waiting for a slot:
 
