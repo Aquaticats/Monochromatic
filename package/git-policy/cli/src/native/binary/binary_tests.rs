@@ -40,7 +40,8 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
-/// The one place a control says that it needs a btrfs fixture root, and what it does where there is none.
+/// The one place a control says that it needs a btrfs fixture root,
+/// and what it does where there is none.
 #[path = "binary_support_btrfs_controls.rs"]
 mod support_btrfs_controls;
 

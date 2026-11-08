@@ -3245,6 +3245,7 @@ mise run //package/git-policy/cli:native:clippy
 mise run //package/git-policy/cli:native:build
 mise run //package/git-policy/cli:native:test:host -- <test name filter>
 mise run //package/git-policy/cli:native:test:binary:host -- <test name filter>
+mise run //package/git-policy/cli:native:test:host:btrfs -- <test name filter>
 mise run //package/git-policy/cli:native:test:container
 ```
 
@@ -3260,6 +3261,19 @@ mise run //package/git-policy/cli:native:test:container
   A shell loop that a failing push-progress test never ended ran for 87 minutes on 2026-11-03 before this.
 - `native:test:host` runs the unit tests and `native:test:binary:host` runs the tests that start the built executable,
   both against the host's Git while iterating.
+- The controls that need a btrfs filesystem cannot run in the gate container,
+  which is an overlay:
+  each one prints `BTRFS CONTROL NOT RUN: <control> (<what its fixture root is on>)` and passes there.
+  `native:test:host:btrfs` is the other half of that bargain.
+  It points `CLI_GIT_TEST_ROOT` at `${HOME}/temp/agent/cli-git-btrfs-fixtures`
+  (or at the directory that variable already names),
+  unsets `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`,
+  and runs every target on that root,
+  so a control that cannot run fails the run with the filesystem it found instead of passing,
+  and no list of control names has to stay current.
+  Selected by name,
+  the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
+  `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.

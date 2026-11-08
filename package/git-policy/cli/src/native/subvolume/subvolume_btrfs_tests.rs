@@ -5,7 +5,7 @@
 //! Each needs a btrfs fixture root;
 //! on the container gate (an overlay) they print one line each
 //!  and the run states that this is known (`fs_btrfs_test_support`),
-//! and the host task `native:test:host` runs them.
+//! and the host task `native:test:host:btrfs` runs them.
 
 use crate::fs_btrfs_test_support::{btrfs_fixture, removal_allowed};
 use crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE;

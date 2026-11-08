@@ -43,7 +43,16 @@ export const runArguments = [
   '--no-fail-fast',
   // A control that needs btrfs prints one line naming itself and the filesystem it found, then passes; that line is
   // captured output of a successful test, which nextest hides for a green run unless it is asked for. Without this the
-  // gate reads as full coverage while a hundred and twenty controls did not run (see `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`).
+  // gate reads as full coverage while every control that needs btrfs passed without running it.
+  // See `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`.
+  '--success-output=final',
+] as const;
+
+/**
+ Options that shape how a run reports what it did, and mean nothing to a step that only compiles.
+ */
+const RUN_REPORTING_OPTIONS = [
+  '--no-fail-fast',
   '--success-output=final',
 ] as const;
 
@@ -54,7 +63,10 @@ export const runArguments = [
 const compileArguments = [
   ...runArguments.slice(1)
     .filter(function keepsBuildOption(argument) {
-      return argument !== '--no-fail-fast' && argument !== '--success-output=final';
+      // A compile step runs nothing, so the options that only shape a run's reporting are not part of it.
+      return !RUN_REPORTING_OPTIONS.some(function isReportingOption(option) {
+        return option === argument;
+      });
     }),
   '--no-run',
 ] as const;
@@ -97,8 +109,9 @@ export function testContainerfile({
         'CARGO_PROFILE_DEV_DEBUG=0',
         'CARGO_INCREMENTAL=0',
         // The gate runs on an overlay filesystem, where the btrfs controls cannot run. They fail loudly unless the run
-        // states that this is known; with it they print one line per control that did not run. `native:test:host`
-        // runs them on btrfs and sets nothing.
+        // states that this is known; with it they print one line per control that did not run, which
+        // `--success-output=final` brings into the log, and `native:test:host:btrfs` runs them on btrfs, setting
+        // nothing.
         'CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1',
       ].join(' '),
     }),
