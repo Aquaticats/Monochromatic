@@ -137,8 +137,11 @@ fn a_restarted_service_warms_the_repository_it_remembers() {
     run_isolated("landing::service_rules_precompile::tests::a_restarted_service_warms_the_repository_it_remembers", "rules-restart", restart_warms_body);
 }
 
-/// A warm is skipped when a limit on the address space leaves less room than a compile needs, and runs when no limit is set, when
-///  the room is exactly what it needs, or when there is more.
+/// A warm is skipped when a limit on the address space leaves less room than a compile needs,
+/// and runs when no limit is set,
+/// when
+///  the room is exactly what it needs,
+/// or when there is more.
 #[test]
 fn a_warm_is_skipped_only_when_the_address_space_left_is_too_small() {
     assert!(warm_fits(None), "no limit leaves the warm to run");
