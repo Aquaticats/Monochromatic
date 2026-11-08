@@ -2168,7 +2168,8 @@ bus calls are skipped when the check there finds nothing to change:
    A new
    file needs no reload:
    measured on this machine,
-   the uniquely named runtime-only probe unit was found and started with no reload,
+   the probe unit of
+   `the_real_user_manager_loads_and_starts_a_runtime_only_probe_unit` was found and started with no reload,
    while one
    reload took over twenty seconds on the loaded host and interrupted other clients of the manager for that time.
 4. Clear failed state (`ResetFailedUnit` on both units,
