@@ -2117,13 +2117,15 @@ No row is certified by this map.
   planted).
   The bounded fallback and the loop guard of an unrecorded launcher that leads back are gone (owner decision of 2026-11-04,
   option A):
-  the second cargo-shadow stops at once at the arrival stop with exit status 2, and no test named
+  the second cargo-shadow stops at once at the arrival stop with exit status 2,
+  and no test named
   `a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs` exists any more.
   The current evidence is
   `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`,
   `an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`
   (whose append-only launcher entry trace is depth-aware:
-  every launcher invocation is at the first shadow's depth, so no second shadow re-enters one) and
+  every launcher invocation is at the first shadow's depth,
+  so no second shadow re-enters one) and
   `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2`.
 - **V5,
   A3.**
@@ -2585,10 +2587,14 @@ Substantive findings and their state:
 
 - The strong-path tests that do not run a transaction rely on the host having a delegated scope (`delegated_route`) and on the
   runner choosing it when it has one;
-  `assert_scope_record` proves that the journal holds the record of the scope the runner opened, and the program's own group
+  `assert_scope_record` proves that the journal holds the record of the scope the runner opened,
+  and the program's own group
   proves where the program ran;
-  neither alone proves the payload was placed: the record is the intent, and the
-  program's group is the placement (group 1 wording, sixth pass).
+  neither alone proves the payload was placed:
+  the record is the intent,
+  and the
+  program's group is the placement (group 1 wording,
+  sixth pass).
 - The identity tests give the recovery a different identity;
   no machine was rebooted.
 - Nothing else in the launcher identity or the boot rule reads a time-namespace-relative value:

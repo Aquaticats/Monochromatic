@@ -591,7 +591,8 @@ entangled by design.
 
 What is left reporting is not a nesting question either,
  which is worth stating because the re-run under
-"The structural false offer no longer reproduces, re-measured 2026-08-07"
+"The structural false offer no longer reproduces,
+re-measured 2026-08-07"
 invites that reading.
  Measured against the flat equivalent:
  `config.rows.at(0,)` read for a property is
@@ -1344,7 +1345,9 @@ What each direction has to survive:
       since nothing in this change touches the upstream checker crash.
      A parent read surviving means a third root walk exists that neither fix found.
 -    Opacity falling.
-     Each lost finding must name a call into `@earendil-works/pi-coding-agent`, `h3@2.0.1-rc.26`, or `yaml@3.0.0-1`.
+     Each lost finding must name a call into `@earendil-works/pi-coding-agent`,
+     `h3@2.0.1-rc.26`,
+     or `yaml@3.0.0-1`.
      This has to be checked against the authored call text,
       because the internal provenance string `callable without an effect summary` does not
       reach the rendered message:
@@ -1913,7 +1916,8 @@ Against `sweep-after-43`,
 So both halves of this work moved zero workspace findings in total.
 
 One prediction confirmed along the way.
-The section titled "The omission count is cache-dependent, not a floor" explained a zero
+The section titled "The omission count is cache-dependent,
+not a floor" explained a zero
  omission count as a warm cache serving the callables that panic.
 This run reports five again.
 Nothing about those callables changed;
@@ -3694,7 +3698,8 @@ Handing a callable over by storing it differs from handing it over as an argumen
  holds it,
  not in what it captured.
 
-Two claims in "The escaping closure is a false offer, falsified" needed correcting once it was measured.
+Two claims in "The escaping closure is a false offer,
+falsified" needed correcting once it was measured.
 
 The first is
  "what the closure DOES inside cannot matter".
@@ -4091,7 +4096,8 @@ A capture disagreeing with expectation is not evidence about the change until th
 
 The shapes staged after the escaping-closure fix landed were measured before anything was
  built on them,
- which is what the lesson in "It read 1966, so the standing baseline was measuring something else" asks for.
+ which is what the lesson in "It read 1966,
+so the standing baseline was measuring something else" asks for.
 All six record nothing:
 
 ```text
@@ -5821,7 +5827,8 @@ function handInvokedResultBack(invokedThrough: Config,): Row {
 
 The first falsification attempt for this was **invalid**,
  in the same way the callback-parameter one under
-"Why my falsification did not count, and the rule that follows" was invalid.
+"Why my falsification did not count,
+and the rule that follows" was invalid.
  Applying the annotation to `invokedThrough`,
  type-checking
  clean and writing through the returned row does change the caller's row,
@@ -7967,7 +7974,8 @@ Runtime lands in the series at 7m58s,
 
 **Offers held at 31 and the prediction that they would fall was wrong again.**
  Its premise had already been
- withdrawn in "Withdrawing sweep six's premise, before the capture was read",
+ withdrawn in "Withdrawing sweep six's premise,
+before the capture was read",
  before the capture was read,
  so this is a prediction failing on a reason
  already recorded rather than a new surprise.
@@ -12355,7 +12363,8 @@ for.
 
 ### Correction to the correction: the probe harness was blind
 
-The retraction under Correction: none of the guards has a program that isolates it
+The retraction under Correction:
+none of the guards has a program that isolates it
  says no guard has a program that isolates it,
  measured by
 neutralising each guard and re-running the fixtures.

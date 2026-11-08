@@ -387,7 +387,8 @@ with the benchmark recorded there.
 
 Layer 1,
  the tool itself:
-covered by the Field census, Run bodies and Inline Node scripts sections.
+covered by the Field census,
+Run bodies and Inline Node scripts sections.
 
 Layer 2,
  parallel systems.

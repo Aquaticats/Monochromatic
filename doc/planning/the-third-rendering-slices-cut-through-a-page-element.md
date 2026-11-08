@@ -472,7 +472,8 @@ no failing lines.
 
 Recorded 2026-08-21,
 before the fix is written,
-so the expectations under What is expected after the change, committed in advance count as evidence.
+so the expectations under What is expected after the change,
+committed in advance count as evidence.
 
 ### The guard's census, and what it hides
 

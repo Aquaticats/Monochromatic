@@ -233,7 +233,8 @@ reads every generation 3 artifact's index as ABSENT.
 ## What would change the recommendation
 
 If the owner would rather not carry a version 2 reader at all,
-dropping it is defensible on the measurement in The objection, measured and found wrong:
+dropping it is defensible on the measurement in The objection,
+measured and found wrong:
 all 48 are scratch,
 and the files stay on disk for a resurrected reader to claim later.
 That is the one point in this proposal where a different answer leads to different work.

@@ -560,7 +560,8 @@ and none is veto-open any more.
   The installed binary is stale,
   not the source.
 - A strict cutoff with exemptions keeps the approach recorded in the
-  Review findings fixed (second cross-vendor review, started 2026-11-03T16:25:50.931Z) section:
+  Review findings fixed (second cross-vendor review,
+  started 2026-11-03T16:25:50.931Z) section:
   resolve without the cutoff,
   enforce it on the other crates.
 - A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
@@ -1215,7 +1216,9 @@ Reviews answered:
 The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows;
 a counterexample reopened rows but added none.
 Where the sections from What `cargo update` does under the cargo shadow to
-Round 8 (2026-11-04): the contract first, then the code say otherwise,
+Round 8 (2026-11-04):
+the contract first,
+then the code say otherwise,
 the contract and this section are current:
 
 - A run that recorded its end appends `settled <scope path>` to the journal;
@@ -1302,7 +1305,8 @@ forcing only at exit;
 "never discard user
 data".
 Where the sections from What `cargo update` does under the cargo shadow to
-Round 9 (2026-11-04): the answers to the round 8 reviews say otherwise,
+Round 9 (2026-11-04):
+the answers to the round 8 reviews say otherwise,
 the contract and this section are current.
 
 ### 9a D1: an unsettled scope is not completed by a later look
@@ -2437,8 +2441,10 @@ Nothing was published and nothing was merged into main.
 ## Resume point (round 16, rewritten 2026-11-04T11:17:02-05:00 after the gate)
 
 Done:
-rounds 10 to 16 (the Round 10 (2026-11-04): the answers to the round 9 reviews section
-to the Round 16 (2026-11-04T11:17:02-05:00): the certification pass section).
+rounds 10 to 16 (the Round 10 (2026-11-04):
+the answers to the round 9 reviews section
+to the Round 16 (2026-11-04T11:17:02-05:00):
+the certification pass section).
 Open for the owner:
 the picks of rounds 8 to 13 stay veto-open as listed in their sections;
 the first publication needs the owner's
@@ -2713,7 +2719,8 @@ The whole suite and the lint were run on this tree (see the Gates section).
 Done:
 
 - A path-targeted barrier switch joins the failpoints (`arm_output_file_sync_of`,
-  `arm_output_directory_sync_of`, `output_file_sync_of`,
+  `arm_output_directory_sync_of`,
+  `output_file_sync_of`,
   `output_directory_sync_of`,
   `path_targets_armed`),
   and `make_durable` takes the real sync's result.
@@ -2732,7 +2739,8 @@ Done:
   the settled lockfile and the restored manifest.
   Red when recovery skips the manifest barrier.
 - `a_refusal_survives_a_failed_completion_directory_sync_and_names_it` adds the refused outcome with
-  `CompletionSync` (the rename succeeds, the parent barrier fails) to the rename case.
+  `CompletionSync` (the rename succeeds,
+  the parent barrier fails) to the rename case.
   Red when the install step drops the completion error from a refusal.
 - `the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journal_is_removed` runs
   `finish_journal` in a helper under `strace` and requires the fsync of the directory that lists the marker
@@ -2750,16 +2758,21 @@ Done:
   and both the fallback name and the stranded exchange temporary keep the inode and are named in the message.
   Red when the durability failure path unlinks the stranded temporary.
 - `the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_real_barrier` now also pins the recovery's
-  order (both output barriers, marker, marker parent, removal);
+  order (both output barriers,
+  marker,
+  marker parent,
+  removal);
   `an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report` adds the real
   `OutputFileSync` and `OutputDirectorySync` faults to the unready schedule,
   beside the synthetic `RecoverDurability` one.
   Red when the recovery's lockfile `make_durable` loop is removed.
 - `assert_recovery_keeps_a_damaged_ready_journal` now asserts the manifest too,
-  so a recovery that restores manifests before rejecting a damaged ready record is red; it was shown red with such a
+  so a recovery that restores manifests before rejecting a damaged ready record is red;
+  it was shown red with such a
   plant.
 - `an_update_stops_before_any_work_when_a_mandatory_recovery_finish_fails` covers the update call site:
-  the journal (renamed `.done` by the successful rename, with the failed parent barrier) is kept,
+  the journal (renamed `.done` by the successful rename,
+  with the failed parent barrier) is kept,
   its snapshot is unchanged,
   and cargo was never asked.
   Red when the update call site's mandatory guard is removed.
@@ -2784,7 +2797,8 @@ Still open for group 8:
 
 ### Group 9 (K2 retry)
 
-Done: `a_directory_whose_own_or_parent_barrier_failed_is_not_taken_as_durable_by_a_later_preservation` retries a
+Done:
+`a_directory_whose_own_or_parent_barrier_failed_is_not_taken_as_durable_by_a_later_preservation` retries a
 preservation after the new directory's own barrier failed and after its parent's barrier failed,
 and requires the walk through the remembered directory to the anchor.
 Red for both cases with `remember_unsynced` removed.
@@ -2793,7 +2807,8 @@ Red for both cases with `remember_unsynced` removed.
 
 Done:
 
-- `a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused`: another machine,
+- `a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused`:
+  another machine,
   an unreadable current identity,
   a malformed current identity,
   a malformed recorded identity and a record without an identity,
@@ -2838,7 +2853,10 @@ Done:
   short write and record sync with the weaker route forced,
   no payload started,
   the record step traced and no launch,
-  and the control shows attempt, write, sync, launch in order.
+  and the control shows attempt,
+  write,
+  sync,
+  launch in order.
   The fsync itself is guarded by the existing
   `the_record_sync_is_given_to_the_kernel_after_the_write`,
   which was shown red when the real `fsync` was replaced.
@@ -2850,7 +2868,8 @@ Done:
   and `the_acknowledgement_barriers_are_the_real_syscalls_in_writer_and_reader_order` observes the writer's publication
   followed by a directory fsync and the reader's file-before-directory order under `strace`.
   The writer has two directory barriers
-  (`atomic_write` already syncs the directory, and `acknowledge` syncs it again),
+  (`atomic_write` already syncs the directory,
+  and `acknowledge` syncs it again),
   so no single removal is observable;
   removing both was shown red.
 - `the_acknowledge_command_works_as_printed_with_a_quoted_path_and_refuses_while_the_workspace_is_locked` runs the printed
@@ -2911,13 +2930,15 @@ Still open from the fifth-pass list:
 
 ### Gates
 
-- `mise run //package/cargo-shadow/cli:test:debug`: 800 tests run,
+- `mise run //package/cargo-shadow/cli:test:debug`:
+  800 tests run,
   800 passed,
   21 skipped,
   exit 0 (the skips are the host-gated schedules the tests name).
 - `mise run //package/cargo-shadow/cli:lint:clippy` (release,
   all targets,
-  warnings denied): exit 0.
+  warnings denied):
+  exit 0.
 - The release `test` gate was started and stopped after ten minutes with 73 of 800 tests passed:
   the host carried a load average of about 125 on 8 CPUs from other sessions' suites,
   and two scope tests had been running for five minutes each.

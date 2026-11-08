@@ -235,7 +235,8 @@ RLM per rule plus `mise run //package/llm/token-count:count -- --model claude-op
    `doc/agent/regression-suite.md` Case 3 gets updated to match GCR.
    Approved.
    The move held until the 2026-10-13 rewrite `4f5bc1d30c` of that README dropped both codes,
-   so neither is defined in any `AGENTS.md`, skill or package doc now,
+   so neither is defined in any `AGENTS.md`,
+   skill or package doc now,
    and the Batch 8 rule blocks recorded in this plan are their only remaining text.
 - Batch 9 (command execution and long-form flags):
    13 rules become 12,
@@ -2138,9 +2139,12 @@ only the #423-gated JCH follow-up remains (issue comment posted on #423).
    RDC,
    AP5 into package docs;
    RCO into `choosing-technology`.
-   Of the four rule codes, none survives:
+   Of the four rule codes,
+   none survives:
    `4f5bc1d30c` dropped GCW and WXG from `package/git-policy/cli/README.md` on 2026-10-13,
-   and `5bc05682ec` deleted `package/rust-linter-plugin/builtin/README.md`, its package gone with it, on 2026-10-06.
+   and `5bc05682ec` deleted `package/rust-linter-plugin/builtin/README.md`,
+   its package gone with it,
+   on 2026-10-06.
 - 718e8663e:
    retired-code references point at successors or enforcing lint rules;
    living Rust comments cite MXL,
@@ -2150,7 +2154,9 @@ only the #423-gated JCH follow-up remains (issue comment posted on #423).
    Dated research snapshots citing old `AGENTS.md` line numbers stay as historical records.
 - Untracked `forbidden-strings.append.local.txt` entry `local-039` reserves the 53 retired codes;
    verified by scanning a `PP9:` probe (flagged) and a `PP8:` probe (passed).
-   MXR, RDC, GCW and WXG are not among the 53,
+   MXR,
+   RDC,
+   GCW and WXG are not among the 53,
    because the plan moved them rather than retiring them,
    so no rule reserves those four codes against reuse.
 - 5dadad6c7:
@@ -2324,7 +2330,9 @@ checked 2026-09-29):
    AP5 to `package/config/rolldown/README.md`.
 - Neither recorded destination of the four rule codes survives:
    `4f5bc1d30c` dropped GCW and WXG from the `git-policy` README on 2026-10-13,
-   and `5bc05682ec` deleted the `rust-linter-plugin` package, its README included, on 2026-10-06.
+   and `5bc05682ec` deleted the `rust-linter-plugin` package,
+   its README included,
+   on 2026-10-06.
 - Rewrite references to retired codes;
    add forbidden-strings entries for retired codes.
 - Update `doc/philosophy/agents.md` and `doc/agent/regression-suite.md` Case 3.

@@ -52,7 +52,8 @@ text alike;
 section body,
  which closes the silent-split failure mode the vet
 validated.
- Genuine content is written with the reshape convention in "Collision mitigation (mandatory, from the vet)".
+ Genuine content is written with the reshape convention in "Collision mitigation (mandatory,
+from the vet)".
  A `#`-leading comment line mentioning an arrow is unaffected
 (its trimmed form starts with `#`).
 

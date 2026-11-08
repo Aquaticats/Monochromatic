@@ -494,5 +494,6 @@ The fix is proved by unit tests and shown to fail without its resume,
 but it has not been exercised through the CLI over a corpus entry.
 That verification is `#172`,
 and it runs first,
-because every item in the What the order is now, and why list is queued behind a pipeline whose reproducibility
+because every item in the What the order is now,
+and why list is queued behind a pipeline whose reproducibility
  is claimed rather than measured.

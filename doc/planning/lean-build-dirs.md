@@ -7,7 +7,8 @@ Nothing was deleted and no build configuration was changed in that round.
 
 Status,
 2026-11-07T23:40:00-05:00:
-the owner decided in the question tool ("A to F, B allowed (Recommended)")
+the owner decided in the question tool ("A to F,
+B allowed (Recommended)")
 and the six mechanisms are built in `package/cargo-shadow/cli`.
 Section "Owner decision and what was built" says what exists,
 section "Measured picks" records the numbers with the owner's veto open,
@@ -703,10 +704,12 @@ busy or unknown layout.
 
 ## Owner decision and what was built
 
-The owner's answers of 2026-11-07 (question tool, recorded at 2026-11-07T22:19:43-05:00 in
+The owner's answers of 2026-11-07 (question tool,
+recorded at 2026-11-07T22:19:43-05:00 in
 `doc/handover/questions-for-the-owner.md`):
 
-- "A to F, B allowed (Recommended)":
+- "A to F,
+  B allowed (Recommended)":
   all six mechanisms in order,
   in cargo-shadow (`package/cargo-shadow/cli`),
   with `doc/decision/cargo-build-dir-host-cache.md` amended so the sweep (B) may read Cargo's fingerprint files,
@@ -715,15 +718,18 @@ The owner's answers of 2026-11-07 (question tool, recorded at 2026-11-07T22:19:4
   under their own locks,
   cleans what exists today;
   grace periods and size caps are measured and recorded as coordinator picks with the owner's veto open.
-- "Rust toolchains (Recommended)" and "Podman images, volumes (Recommended)":
+- "Rust toolchains (Recommended)" and "Podman images,
+  volumes (Recommended)":
   remove nightlies that no checkout's lock pins,
   and images and volumes no container uses and no current image tag of this repository names,
   each after the grace period.
 
 Where each mechanism lives (all in `package/cargo-shadow/cli/src`,
-described in its README, section "Keeping the build folders lean"):
+described in its README,
+section "Keeping the build folders lean"):
 
-- A, toolchain-keyed build folders:
+- A,
+  toolchain-keyed build folders:
   `lean_keyed_folder.rs`,
   called from `shim.rs` for the child cargo only.
   Done for host runs.
@@ -731,25 +737,30 @@ described in its README, section "Keeping the build folders lean"):
   `package/ide/app/mise.toml` and `package/nested-wayland-session/cli/mise.toml` are outside cargo-shadow and the owner's
   answer did not name them,
   so those two in-tree builds are kept lean by B and E.
-- B, the older-compiler sweep:
+- B,
+  the older-compiler sweep:
   `lean_unit_reader.rs`,
   `lean_sweep_plan.rs`,
   `lean_unit_removal.rs`.
-- C, verified-idle trees:
+- C,
+  verified-idle trees:
   `lean_build_trees.rs`,
   `lean_idle_trees.rs`.
-- D, run-record retention:
+- D,
+  run-record retention:
   `lean_run_records.rs`.
   The plan assigned D to the producing packages;
   the owner's answer put all six in cargo-shadow,
   so the retention runs from `cargo-shadow lean run`.
   The producing tasks (five packages with TypeScript runners) do not call it themselves.
   Wiring each producer to call it first is a separate change and is open.
-- E, size caps:
+- E,
+  size caps:
   `lean_size_caps.rs`.
   The caps are absolute per profile directory (see the `Measured picks, 2026-11-07` section),
   because a cap relative to a directory's own newest-compiler bytes can never bind.
-- F, the timer:
+- F,
+  the timer:
   `lean_timer_units.rs`,
   installed by `cargo-shadow lean timer-install`.
 - Also in the same run:
