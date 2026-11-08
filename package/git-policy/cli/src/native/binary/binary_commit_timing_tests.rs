@@ -1027,15 +1027,18 @@ fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[
 /// so a commit that waited minutes in it printed nothing at all;
 /// the owner
 ///  asked that it say what it waits for.
-/// It carries no time limit (an open question for the owner):
-/// the line says so.
+/// It is stopped at its ceiling when the message came with the command (owner,
+/// 2026-11-07,
+/// "limit unless editor"):
+/// the line says when.
 #[test]
 fn a_slow_scratch_commit_says_what_the_command_waits_for() {
     let said: String = commit_noticing("notice-scratch-commit", &[], &[], true);
     let line: &str = said.lines().find(|line| { return line.contains("`git commit`"); }).unwrap_or_else(|| { panic!("a three second wait said nothing about the commit Git builds: {said}") });
     assert!(line.starts_with("monochromatic-git-policy-cli: "), "{line}");
     assert!(line.contains("`git commit`") && line.contains("scratch repository"), "{line}");
-    assert!(line.contains("no time limit"), "no ceiling is added: {line}");
+    assert!(line.contains("stopped if it lasts"), "the line says when the step is stopped: {line}");
+    assert!(!line.contains("no time limit"), "the step has a ceiling now: {line}");
     assert!(!line.contains("signs"), "nothing is signed here: {line}");
     assert!(!said.contains(MESSAGE), "the person's text is not in a notice: {said}");
 }

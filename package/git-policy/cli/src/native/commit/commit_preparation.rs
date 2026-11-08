@@ -149,7 +149,8 @@ fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
 }
 
 /// What:
-///  Runs native `git commit` in the shadow with the terminal attached and returns its exit code.
+///  Runs native `git commit` in the shadow with the terminal attached and returns its exit code,
+/// stopping it at `SCRATCH_COMMIT_STEP_CEILING` when the message came with the command.
 /// Why:
 ///   The editor output reaches the user unchanged,
 ///  so the child inherits standard streams.
@@ -158,10 +159,37 @@ fn native_commit_arguments(request: &PreparationRequest) -> Vec<String> {
 /// ```ts
 /// await runTransactionGit({ gitPath, cwd, args, indexPath, unsetEnvironment, stdio: 'inherit', allowFailure: true });
 /// ```
+///
+/// # Errors
+///
+/// `PreparationError::Git` when Git could not be started,
+/// or when the step lasted to its ceiling and was ended (nothing was committed).
 pub fn run_native_commit(
     context: &GitContext,
     cwd: &Path,
     request: &PreparationRequest,
+) -> Result<i32, PreparationError> {
+    return run_native_commit_within(context, cwd, request, crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING);
+}
+
+/// What:
+///  `run_native_commit` with the ceiling given.
+/// Why:
+///   The owner's answer (2026-11-07,
+///   "limit unless editor"):
+/// the ceiling applies only when the message came with the command;
+/// with an editor open the step is waited for,
+/// and the notice says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runNativeCommitWithin({ context, cwd, request, ceiling });
+/// ```
+pub fn run_native_commit_within(
+    context: &GitContext,
+    cwd: &Path,
+    request: &PreparationRequest,
+    ceiling: std::time::Duration,
 ) -> Result<i32, PreparationError> {
     let arguments: Vec<OsString> = native_commit_arguments(request).iter().map(OsString::from).collect();
     let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
@@ -178,16 +206,25 @@ pub fn run_native_commit(
     //  signing and an editor included.
     let step: String = crate::add_timing::git_step_label(arguments.as_slice());
     let cadence: crate::wait_progress::Cadence = crate::child_watch::WatchTerms::for_class(crate::child_class::ChildClass::Object).cadence;
-    let notice: crate::native_commit_waiting_notice::NativeCommitNotice = crate::native_commit_waiting_notice::NativeCommitNotice::start(
-        request.capture.layout.config_snapshot.as_ref(),
-        request.commit_args,
-        cadence,
-        Box::new(std::io::stderr()),
+    let snapshot: Option<&crate::config_snapshot::ConfigSnapshot> = request.capture.layout.config_snapshot.as_ref();
+    let notice: crate::native_commit_waiting_notice::NativeCommitNotice = crate::native_commit_waiting_notice::NativeCommitNotice::start_within(
+        crate::native_commit_waiting_notice::NoticeStart {
+            snapshot,
+            commit_arguments: request.commit_args,
+            cadence,
+            ceiling,
+            sink: Box::new(std::io::stderr()),
+        },
     );
     let began: std::time::Instant = std::time::Instant::now();
     let finished = run_guarded_child(&mut command);
-    notice.finish();
+    let stopped_after: Option<std::time::Duration> = notice.finish();
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
+    if let Some(waited) = stopped_after {
+        let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
+        crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
+        return Err(PreparationError::Git(GitFailure(crate::native_commit_waiting_notice::stop_words(waited, ceiling, signs))));
+    }
     return finished;
 }
 

@@ -1,0 +1,257 @@
+//! What:
+//! Mechanism C,
+//! the collection of verified-idle trees in the host build base.
+//! Why:
+//! Worktrees created and discarded leave their build trees behind forever
+//! (`doc/decision/cargo-build-dir-host-cache.md`,
+//! "Throwaway worktree builds outlive their worktree").
+//! A tree is removed only when all hold:
+//! its workspace is gone (or it belongs to a retired toolchain,
+//! or nothing identifies its workspace and it has been idle
+//! longer),
+//! it has been idle longer than the period for its case,
+//! no other tree's workspace lies inside it,
+//! every profile directory yields its build locks without waiting,
+//! a scan of every process finds none using anything under it,
+//! and its identity is the one judged.
+//! The tree root is renamed into the trash while the locks are held,
+//! the locks are released,
+//! and the trash is deleted.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! export function collectIdleTrees(base: string, policy: IdlePolicy, env: GuardEnvironment, now: number, dryRun: boolean): TreeOutcome[]
+//! ```
+
+/// Paths and sets.
+use std::{collections::HashSet, path::{Path, PathBuf}};
+
+/// The tree readers.
+use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, profile_dirs_of, workspace_of};
+/// The proof and the removal.
+use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
+/// Imports the names this file uses from `crate::lean_identity`.
+use crate::lean_identity::Deadline;
+/// Imports the names this file uses from `crate::lean_proc_scan`.
+use crate::lean_proc_scan::{ScanReport, scan_processes};
+/// Imports the names this file uses from `crate::lean_removal`.
+use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
+/// Imports the names this file uses from `crate::lean_sizes`.
+use crate::lean_sizes::tree_bytes;
+
+/// The idle periods of mechanism C.
+#[derive(Clone, Copy, Debug)]
+pub struct IdlePolicy {
+    /// A tree whose workspace is gone (or whose toolchain is retired) is removed after this many seconds without a write.
+    pub idle_seconds: i64,
+    /// A tree nothing identifies is removed after this many seconds without a write.
+    pub unidentified_idle_seconds: i64,
+}
+
+/// What the collection did with one tree.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TreeVerdict {
+    /// Kept,
+    /// for this reason.
+    Keep(
+        /// Why the tree is kept.
+        String,
+    ),
+    /// Not judged or not removable now,
+    /// for this reason.
+    Skip(
+        /// Why the tree was not judged or not removed.
+        String,
+    ),
+    /// Removed (or in a dry run,
+    /// would be) with these disk bytes.
+    Removed {
+        /// The reason it qualified.
+        reason: String,
+        /// Disk bytes freed or that would be.
+        bytes: u64,
+    },
+}
+
+/// One tree and what happened to it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TreeOutcome {
+    /// The tree.
+    pub tree: PathBuf,
+    /// What was done.
+    pub verdict: TreeVerdict,
+}
+
+/// What:
+/// `fn qualifies(tree: &Tree, retired: &HashSet<String>, policy: &IdlePolicy, now: i64, activity: i64) -> Result<(String, i64), String>` decides
+/// from the facts whether a tree qualifies:
+/// `Ok((reason, idle period that applied))` when it does,
+/// `Err(why not)` when it does not.
+/// Why:
+/// The decision is separate from the removal so it can be read and tested alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function qualifies(tree: Tree, retired: Set<string>, policy: IdlePolicy, now: number, activity: number): { ok: string } | { no: string }
+/// ```
+fn qualifies(tree: &Tree, retired: &HashSet<String>, policy: &IdlePolicy, now: i64, activity: i64) -> Result<(String, i64), String> {
+    let idle: i64 = now - activity;
+    let toolchain_retired: bool = match &tree.kind {
+        TreeKind::Keyed(name) => retired.contains(name),
+        TreeKind::Legacy => false,
+    };
+    let (needed, why): (i64, String) = match workspace_of(&tree.path) {
+        _ if toolchain_retired => (policy.idle_seconds, String::from("its toolchain is retired")),
+        Workspace::Known(root) if root.exists() => return Err(format!("its workspace {} exists", root.display())),
+        Workspace::Known(root) => (policy.idle_seconds, format!("its workspace {} is gone", root.display())),
+        Workspace::Lead(source) if source.exists() => return Err(format!("the source {} that its dependency information names exists", source.display())),
+        Workspace::Lead(source) => (policy.idle_seconds, format!("the source {} that its dependency information names is gone (a lead, not proof)", source.display())),
+        Workspace::Unidentified => (policy.unidentified_idle_seconds, String::from("nothing identifies its workspace")),
+    };
+    if idle <= needed {
+        return Err(format!("idle for {idle} s, within the {needed} s period ({why})"));
+    }
+    return Ok((format!("{why}; idle for {idle} s, longer than {needed} s"), needed));
+}
+
+/// What:
+/// `fn holds_other_workspace(tree: &Path, roots: &[(PathBuf, PathBuf)]) -> Option<PathBuf>` finds another tree whose recorded
+/// workspace lies inside this tree.
+/// Why:
+/// A tree built from sources inside another tree is removed first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsOtherWorkspace = (tree: string, roots: [string, string][]): string | undefined
+/// ```
+fn holds_other_workspace(tree: &Path, roots: &[(PathBuf, PathBuf)]) -> Option<PathBuf> {
+    for (other, root) in roots {
+        if other != tree && root.starts_with(tree) {
+            return Some(other.clone());
+        }
+    }
+    return None;
+}
+
+/// What:
+/// `fn collect_one(tree, reason, trash, environment, now, needed, deadline, log) -> TreeVerdict`
+/// removes one qualified tree under the protocol.
+/// Why:
+/// The proof is taken under the locks,
+/// the idleness is judged again under them,
+/// and the log line carries the proof.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function collectOne(tree: Tree, reason: string, trash: string, env: GuardEnvironment, now: number, needed: number, deadline: Deadline, log: string[]): TreeVerdict
+/// ```
+fn collect_one(tree: &Tree, reason: &str, trash: &Path, environment: &GuardEnvironment, now: i64, needed: i64, deadline: &Deadline, log: &mut Vec<String>) -> TreeVerdict {
+    let mut held: Vec<Guarded> = Vec::new();
+    for profile in profile_dirs_of(&tree.path) {
+        match guard_profile(&profile, environment) {
+            Guard::Ready(ready) => held.push(ready),
+            Guard::Skip(why) => return TreeVerdict::Skip(format!("{}: {why}", profile.display())),
+        }
+    }
+    match last_activity(&tree.path, deadline) {
+        Some(activity) if now - activity > needed => {}
+        Some(_) => return TreeVerdict::Skip(String::from("a write happened while the locks were being taken")),
+        None => return TreeVerdict::Skip(String::from("the deadline passed while reading the tree")),
+    }
+    let scan: ScanReport = scan_processes(&environment.proc_root, &[tree.path.as_path()], &[], environment.own_pid);
+    if let Some(used) = scan.blocks(&tree.path) {
+        return TreeVerdict::Skip(format!("pid {} uses {} as {}", used.pid, used.path.display(), used.how));
+    }
+    let mut proofs: Vec<String> = Vec::new();
+    for guarded in &held {
+        proofs.push(guarded.proof.clone());
+    }
+    proofs.push(scan.describe());
+    let item = match item_of(&tree.path) {
+        Ok(found) => found,
+        Err(error) => return TreeVerdict::Skip(error.to_string()),
+    };
+    let claimed: PathBuf = match claim_into_trash(&item, trash, 0) {
+        Ok(target) => target,
+        Err(refusal) => return TreeVerdict::Skip(refusal.to_string()),
+    };
+    drop(held);
+    log.push(format!(
+        "removing tree {} (device {} inode {}): {reason}; proof: {}",
+        tree.path.display(),
+        item.identity.device,
+        item.identity.inode,
+        proofs.join(" | ")
+    ));
+    return match delete_claimed(&claimed, item.identity) {
+        Ok(bytes) => TreeVerdict::Removed { reason: reason.to_string(), bytes },
+        Err(refusal) => TreeVerdict::Skip(refusal.to_string()),
+    };
+}
+
+/// What:
+/// `pub fn collect_idle_trees(trees: &[Tree], base: &Path, retired: &HashSet<String>, policy: &IdlePolicy, environment: &GuardEnvironment, now: i64, dry_run: bool, deadline: &Deadline, log: &mut Vec<String>) -> Vec<TreeOutcome>`
+/// judges every tree and removes the ones that qualify.
+/// Why:
+/// It is mechanism C.
+/// A dry run reports what would be removed with its size and removes nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function collectIdleTrees(trees: Tree[], base: string, retired: Set<string>, policy: IdlePolicy, env: GuardEnvironment, now: number, dryRun: boolean, deadline: Deadline, log: string[]): TreeOutcome[]
+/// ```
+pub fn collect_idle_trees(
+    trees: &[Tree],
+    base: &Path,
+    retired: &HashSet<String>,
+    policy: &IdlePolicy,
+    environment: &GuardEnvironment,
+    now: i64,
+    dry_run: bool,
+    deadline: &Deadline,
+    log: &mut Vec<String>,
+) -> Vec<TreeOutcome> {
+    let mut outcomes: Vec<TreeOutcome> = Vec::new();
+    let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for tree in trees {
+        if let Workspace::Known(root) = workspace_of(&tree.path) {
+            roots.push((tree.path.clone(), root));
+        }
+    }
+    let trash: PathBuf = base.join(TRASH_DIRECTORY_NAME);
+    if !dry_run {
+        for failure in empty_trash(&trash) {
+            log.push(format!("could not finish an earlier run's deletion in {}: {failure}", trash.display()));
+        }
+    }
+    for tree in trees {
+        if deadline.passed() {
+            outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Skip(String::from("the run's deadline passed before this tree")) });
+            continue;
+        }
+        let Some(activity) = last_activity(&tree.path, deadline) else {
+            outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Skip(String::from("the deadline passed while reading the tree")) });
+            continue;
+        };
+        let (reason, needed): (String, i64) = match qualifies(tree, retired, policy, now, activity) {
+            Ok(found) => found,
+            Err(why) => {
+                outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(why) });
+                continue;
+            }
+        };
+        if let Some(inside) = holds_other_workspace(&tree.path, &roots) {
+            outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Keep(format!("the workspace of {} lies inside it", inside.display())) });
+            continue;
+        }
+        if dry_run {
+            let bytes: u64 = tree_bytes(&tree.path, deadline).bytes;
+            outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Removed { reason, bytes } });
+            continue;
+        }
+        let verdict: TreeVerdict = collect_one(tree, &reason, &trash, environment, now, needed, deadline, log);
+        outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict });
+    }
+    let _ = std::fs::remove_dir(&trash);
+    return outcomes;
+}

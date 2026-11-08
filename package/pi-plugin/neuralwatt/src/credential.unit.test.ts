@@ -1,0 +1,522 @@
+/**
+ Tests for the NeuralWatt credential seam.
+
+ @module
+ */
+
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+import {
+  NEURALWATT_API_KEY_ENV,
+} from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
+import type {
+  EnvLocalJsonEnvironment,
+  ReadEnvLocalJsonOptions,
+  ReadEnvLocalJsonResult,
+} from '@monochromatic-dev/env-local-json-core/ts';
+import type {
+  Logger,
+} from '@monochromatic-dev/logger-core/ts';
+import type {
+  AuthContext,
+} from '@earendil-works/pi-ai';
+import {
+  createNeuralWattApiKeyAuth,
+  deriveRepoEnvLocalJsonPath,
+  ENV_LOCAL_JSON_PATH_VARIABLE,
+  NEURALWATT_CREDENTIAL_GUIDANCE,
+  readNeuralWattStoreValue,
+  resolveNeuralWattCredential,
+  type NeuralWattStoreRead,
+} from '../dist/final/node/index.mjs';
+
+//region Fixtures
+
+/**
+ Recorded logger whose messages the secret-leak guard inspects.
+ */
+type CapturingLogger = {
+  readonly logger: Logger;
+  readonly messages: string[];
+};
+
+/**
+ Recorder collecting messages into one list.
+
+ @param messages - list the recorder appends to
+
+ @returns a logger-level callback appending to that list
+ */
+function messageRecorder(
+  messages: string[],
+): (message: string) => void {
+  return function record(message: string,): void {
+    messages.push(message,);
+  };
+}
+
+/**
+ Build a logger that records every message instead of emitting it.
+
+ @returns the logger and the message list it appends to
+ */
+function createCapturingLogger(): CapturingLogger {
+  /**
+   Messages every level appends to.
+   */
+  const messages: string[] = [];
+  /**
+   Recorder shared by every level of this logger.
+   */
+  const record = messageRecorder(messages,);
+  return {
+    logger: {
+      debug: record,
+      error: record,
+      fatal: record,
+      flush: function flush(): Promise<void> {
+        return Promise.resolve();
+      },
+      info: record,
+      trace: record,
+      warn: record,
+    },
+    messages,
+  };
+}
+
+/**
+ Existence probe over a known file list, for derivation tests.
+
+ @param existing - absolute paths that count as existing files
+
+ @returns a probe answering membership in that list
+ */
+function fixtureFileExists(
+  existing: readonly string[],
+): (path: string) => Promise<boolean> {
+  return function fileExists(path: string,): Promise<boolean> {
+    return Promise.resolve(existing.includes(path,));
+  };
+}
+
+/**
+ Fake store reader recording the options it was called with.
+
+ @param value - stored value the read reports under the credential name
+
+ @param path - store path the read reports when it loads
+
+ @returns the reader and the recorded call options
+ */
+function fixtureStoreReader({
+  value,
+  path,
+}: {
+  readonly value?: string;
+  readonly path?: string;
+},): {
+  readonly reader: (options: ReadEnvLocalJsonOptions) => Promise<ReadEnvLocalJsonResult>;
+  readonly calls: ReadEnvLocalJsonOptions[];
+} {
+  /**
+   Options every call was made with.
+   */
+  const calls: ReadEnvLocalJsonOptions[] = [];
+  return {
+    reader: function reader(
+      options: ReadEnvLocalJsonOptions,
+    ): Promise<ReadEnvLocalJsonResult> {
+      calls.push(options,);
+      return Promise.resolve({
+        values: value === undefined ? {} : { [NEURALWATT_API_KEY_ENV]: value, },
+        loaded: path !== undefined,
+        ...(path === undefined ? {} : { path, }),
+      });
+    },
+    calls,
+  };
+}
+
+/**
+ pi auth context whose environment answers from a fixture record.
+
+ @param environment - fixture environment values by name
+
+ @returns the auth context pi would hand `resolve`
+ */
+function fixtureAuthContext(
+  environment: EnvLocalJsonEnvironment,
+): AuthContext {
+  return {
+    env: function env(name: string,) {
+      return Promise.resolve(environment[name],);
+    },
+    fileExists: function fileExists(path: string,) {
+      void path;
+      return Promise.resolve(false,);
+    },
+  };
+}
+
+/**
+ Build the auth seam around a fixture store reader.
+
+ @param logger - capturing logger the tests assert on
+
+ @param readStore - store reader the seam resolves through
+
+ @returns the api-key auth object under test
+ */
+function fixtureApiKeyAuth({
+  logger,
+  readStore,
+}: {
+  readonly logger: Logger;
+  readonly readStore: (options: ReadEnvLocalJsonOptions) => Promise<ReadEnvLocalJsonResult>;
+},): ReturnType<typeof createNeuralWattApiKeyAuth> {
+  return createNeuralWattApiKeyAuth({
+    logger,
+    environment: {},
+    moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+    fileExists: fixtureFileExists([],),
+    readStore,
+  },);
+}
+
+//endregion Fixtures
+
+//region Resolution chain
+
+await describe({
+  name: resolveNeuralWattCredential.name,
+  children: [
+    it({
+      name: 'prefers the pi credential over every other home',
+      fn: async () => {
+        const resolution = await resolveNeuralWattCredential({
+          sources: {
+            credentialKey: 'pi-key',
+            environmentKey: 'environment-key',
+            readStoreValue: function readStoreValue(): Promise<NeuralWattStoreRead> {
+              return Promise.resolve({
+                value: 'store-key',
+                path: '/store',
+              });
+            },
+          },
+        },);
+        expect(resolution.key).toBe('pi-key');
+        expect(resolution.source).toBe('pi-credential');
+      },
+    }),
+    it({
+      name: 'prefers the encrypted store over the environment',
+      fn: async () => {
+        const resolution = await resolveNeuralWattCredential({
+          sources: {
+            environmentKey: 'environment-key',
+            readStoreValue: function readStoreValue(): Promise<NeuralWattStoreRead> {
+              return Promise.resolve({
+                value: 'store-key',
+                path: '/store',
+              });
+            },
+          },
+        },);
+        expect(resolution.key).toBe('store-key');
+        expect(resolution.source).toBe('encrypted-store');
+        expect(resolution.storePath).toBe('/store');
+      },
+    }),
+    it({
+      name: 'falls back to the environment when the store carries no value',
+      fn: async () => {
+        const resolution = await resolveNeuralWattCredential({
+          sources: {
+            environmentKey: 'environment-key',
+            readStoreValue: function readStoreValue(): Promise<NeuralWattStoreRead> {
+              return Promise.resolve({});
+            },
+          },
+        },);
+        expect(resolution.key).toBe('environment-key');
+        expect(resolution.source).toBe('environment');
+      },
+    }),
+    it({
+      name: 'reports absence when no home answers',
+      fn: async () => {
+        const resolution = await resolveNeuralWattCredential({
+          sources: {
+            readStoreValue: function readStoreValue(): Promise<NeuralWattStoreRead> {
+              return Promise.resolve({});
+            },
+          },
+        },);
+        expect(resolution.key).toBe(undefined);
+        expect(resolution.source).toBe('none');
+      },
+    }),
+    it({
+      name: 'trims whitespace so it never counts as a key',
+      fn: async () => {
+        const resolution = await resolveNeuralWattCredential({
+          sources: {
+            credentialKey: '   ',
+            environmentKey: '  environment-key  ',
+            readStoreValue: function readStoreValue(): Promise<NeuralWattStoreRead> {
+              return Promise.resolve({ value: '  ', });
+            },
+          },
+        },);
+        expect(resolution.key).toBe('environment-key');
+        expect(resolution.source).toBe('environment');
+      },
+    }),
+  ],
+});
+
+//endregion Resolution chain
+
+//region Store path derivation
+
+await describe({
+  name: deriveRepoEnvLocalJsonPath.name,
+  children: [
+    it({
+      name: 'derives the repository store from any build layout of the package',
+      fn: async () => {
+        /**
+         Manifest that stops the ancestor walk at the package root.
+         */
+        const manifest = '/repo/package/pi-plugin/neuralwatt/package.json';
+        /**
+         Store the repository root is expected to carry.
+         */
+        const store = '/repo/.env.local.json';
+        const fromSource = await deriveRepoEnvLocalJsonPath({
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([
+            manifest,
+            store,
+          ],),
+        },);
+        const fromDist = await deriveRepoEnvLocalJsonPath({
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/dist/final/node/index.mjs',
+          fileExists: fixtureFileExists([
+            manifest,
+            store,
+          ],),
+        },);
+        expect(fromSource.path).toBe(store);
+        expect(fromDist.path).toBe(store);
+      },
+    }),
+    it({
+      name: 'reports no path when the repository store is absent',
+      fn: async () => {
+        const derived = await deriveRepoEnvLocalJsonPath({
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([
+            '/repo/package/pi-plugin/neuralwatt/package.json',
+          ],),
+        },);
+        expect(derived.path).toBe(undefined);
+      },
+    }),
+    it({
+      name: 'reports no path when no package manifest exists above the module',
+      fn: async () => {
+        const derived = await deriveRepoEnvLocalJsonPath({
+          moduleUrl: 'file:///stranded/module.ts',
+          fileExists: fixtureFileExists([],),
+        },);
+        expect(derived.path).toBe(undefined);
+      },
+    }),
+  ],
+});
+
+//endregion Store path derivation
+
+//region Store reader
+
+await describe({
+  name: readNeuralWattStoreValue.name,
+  children: [
+    it({
+      name: 'hides the credential name from the reader environment so the store wins',
+      fn: async () => {
+        const { reader, calls, } = fixtureStoreReader({ value: 'store-key', });
+        const stored = await readNeuralWattStoreValue({
+          environment: {
+            [NEURALWATT_API_KEY_ENV]: 'stale-environment-key',
+            [ENV_LOCAL_JSON_PATH_VARIABLE]: '/store/.env.local.json',
+            PATH: '/usr/bin',
+          },
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([],),
+          readStore: reader,
+        },);
+        expect(stored.value).toBe('store-key');
+        const [options] = calls;
+        expect(calls).toHaveLength(1);
+        expect(Object.hasOwn(options?.env ?? {}, NEURALWATT_API_KEY_ENV)).toBe(false);
+        expect(options?.env?.PATH).toBe('/usr/bin');
+        expect(options?.keys).toEqual([NEURALWATT_API_KEY_ENV]);
+      },
+    }),
+    it({
+      name: 'passes no explicit path when the environment names a store',
+      fn: async () => {
+        const { reader, calls, } = fixtureStoreReader({});
+        await readNeuralWattStoreValue({
+          environment: {
+            [ENV_LOCAL_JSON_PATH_VARIABLE]: '/override/.env.local.json',
+          },
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([
+            '/repo/package/pi-plugin/neuralwatt/package.json',
+            '/repo/.env.local.json',
+          ],),
+          readStore: reader,
+        },);
+        const [call] = calls;
+        expect(call?.path).toBe(undefined);
+      },
+    }),
+    it({
+      name: 'passes the derived repository store when no override exists',
+      fn: async () => {
+        const { reader, calls, } = fixtureStoreReader({});
+        await readNeuralWattStoreValue({
+          environment: {},
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([
+            '/repo/package/pi-plugin/neuralwatt/package.json',
+            '/repo/.env.local.json',
+          ],),
+          readStore: reader,
+        },);
+        const [call] = calls;
+        expect(call?.path).toBe('/repo/.env.local.json');
+      },
+    }),
+    it({
+      name: 'passes no path when the derived candidate is absent, never a hard error',
+      fn: async () => {
+        const { reader, calls, } = fixtureStoreReader({});
+        await readNeuralWattStoreValue({
+          environment: {},
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([
+            '/repo/package/pi-plugin/neuralwatt/package.json',
+          ],),
+          readStore: reader,
+        },);
+        const [call] = calls;
+        expect(call?.path).toBe(undefined);
+      },
+    }),
+    it({
+      name: 'reports the store path only when the reader loaded a store',
+      fn: async () => {
+        const loading = fixtureStoreReader({
+          value: 'store-key',
+          path: '/store/.env.local.json',
+        },);
+        const absent = fixtureStoreReader({});
+        const loaded = await readNeuralWattStoreValue({
+          environment: {},
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([],),
+          readStore: loading.reader,
+        },);
+        const empty = await readNeuralWattStoreValue({
+          environment: {},
+          moduleUrl: 'file:///repo/package/pi-plugin/neuralwatt/src/credential.ts',
+          fileExists: fixtureFileExists([],),
+          readStore: absent.reader,
+        },);
+        expect(loaded.path).toBe('/store/.env.local.json');
+        expect(empty.path).toBe(undefined);
+      },
+    }),
+  ],
+});
+
+//endregion Store reader
+
+//region Pi auth object
+
+await describe({
+  name: createNeuralWattApiKeyAuth.name,
+  children: [
+    it({
+      name: 'resolves the winning home and names it as the pi source label',
+      fn: async () => {
+        const { logger, messages, } = createCapturingLogger();
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: fixtureStoreReader({
+            value: 'store-key',
+            path: '/store',
+          },).reader,
+        },);
+        const resolved = await auth.resolve({
+          ctx: fixtureAuthContext({},),
+          signal: new AbortController().signal,
+        },);
+        expect(resolved?.auth.apiKey).toBe('store-key');
+        expect(resolved?.source).toBe('/store');
+        for (const message of messages) {
+          expect(message.includes('store-key',)).toBe(false);
+        }
+      },
+    }),
+    it({
+      name: 'reports no auth and logs guidance when no home answers',
+      fn: async () => {
+        const { logger, messages, } = createCapturingLogger();
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: fixtureStoreReader({},).reader,
+        },);
+        const resolved = await auth.resolve({
+          ctx: fixtureAuthContext({},),
+          signal: new AbortController().signal,
+        },);
+        expect(resolved).toBe(undefined);
+        expect(messages.some(function namesGuidance(message,) {
+          return message.includes(NEURALWATT_CREDENTIAL_GUIDANCE,);
+        },)).toBe(true);
+      },
+    }),
+    it({
+      name: 'falls through to the environment when the store read fails',
+      fn: async () => {
+        const { logger, } = createCapturingLogger();
+        const auth = fixtureApiKeyAuth({
+          logger,
+          readStore: function failingReader(): Promise<ReadEnvLocalJsonResult> {
+            return Promise.reject(new Error('store unavailable',));
+          },
+        },);
+        const resolved = await auth.resolve({
+          ctx: fixtureAuthContext({
+            [NEURALWATT_API_KEY_ENV]: 'environment-key',
+          },),
+          signal: new AbortController().signal,
+        },);
+        expect(resolved?.auth.apiKey).toBe('environment-key');
+        expect(resolved?.source).toBe(NEURALWATT_API_KEY_ENV);
+      },
+    }),
+  ],
+});
+
+//endregion Pi auth object

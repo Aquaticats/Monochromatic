@@ -239,7 +239,7 @@ fn cleared(claim: ClaimHold, answer: Reclaimed) -> Reclaimed {
 
 /// Opens `lock` to read its marker without following a link or waiting on a pipe,
 /// and without a descriptor a child could inherit.
-fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
+pub(crate) fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
     return std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(lock);
 }
 
@@ -247,7 +247,7 @@ fn open_to_judge(lock: &Path) -> std::io::Result<std::fs::File> {
 /// the same device and the same inode,
 /// so a replaced file whose
 ///  inode number was reused cannot pass while `file` keeps the old one alive.
-fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
+pub(crate) fn same_file(lock: &Path, file: &std::fs::File) -> std::io::Result<bool> {
     let named = std::fs::symlink_metadata(lock)?;
     let open = file.metadata()?;
     return Ok(named.dev() == open.dev() && named.ino() == open.ino());

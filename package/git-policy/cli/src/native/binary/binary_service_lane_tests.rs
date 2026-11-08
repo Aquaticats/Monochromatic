@@ -186,7 +186,8 @@ fn a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree() 
     let services: Services = start(&fixture, name.as_str(), &trees);
     // A program other than the service holds the main worktree's index lock.
     let lock: PathBuf = trees.main_git_dir.join("index.lock");
-    std::fs::write(&lock, b"").expect("the foreign lock");
+    // With content, as a person's `git commit --all` in its editor leaves it: an empty lock that nothing holds is removed.
+    std::fs::write(&lock, b"a foreign program's lock\n").expect("the foreign lock");
     let (heard, waiting_notice) = channel();
     let waiting = submitted_in_thread(
         config(services.runtime.as_path(), trees.main_git_dir.as_path()),

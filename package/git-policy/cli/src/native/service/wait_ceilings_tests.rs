@@ -74,3 +74,34 @@ fn no_wait_is_left_on_the_unmeasured_ceiling() {
     }
     assert!(MINUTE <= LANDING_LOCK_CEILING);
 }
+
+/// A commit that moved under its own build is built again until the answer ceiling,
+/// not for a count of builds,
+/// and the commit path names the ceiling.
+#[test]
+fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
+    assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
+    let decision: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
+    assert!(decision.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision takes this ceiling");
+    let commit: &str = include_str!("../landing/service_commit.rs");
+    assert!(commit.contains("may_rebuild") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+}
+
+/// The scratch repository's `git commit` is stopped at three times the slowest build the timing log holds,
+/// in whole minutes:
+/// the owner's margin (2026-11-07,
+/// "three times the slowest measured"),
+/// not the five of the other ceilings,
+/// and the figure is a build,
+/// which holds the step,
+/// so the ceiling can only be looser than the step's own measurement.
+#[test]
+fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_measured_build() {
+    let slowest_times_margin: Duration = SLOWEST_MEASURED_COMMIT_BUILD * SCRATCH_COMMIT_STEP_MARGIN;
+    assert!(!SLOWEST_MEASURED_COMMIT_BUILD.is_zero(), "the measurement is recorded beside the ceiling");
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, whole_minutes_at_least(slowest_times_margin));
+    assert!(SCRATCH_COMMIT_STEP_CEILING >= slowest_times_margin);
+    assert!(SCRATCH_COMMIT_STEP_CEILING < slowest_times_margin + MINUTE);
+    let source: &str = include_str!("../commit/commit_preparation.rs");
+    assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
+}

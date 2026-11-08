@@ -240,6 +240,11 @@ and the value is checked and ignored.
   The service's wait for a foreign `index.lock` replaced it:
   a holder proven alive and an owner nothing proves alive are both
   waited for until the lock ceiling ("Every wait has a bound"),
+  except an empty lock with no marker,
+  no PID file and no holder a complete scan finds,
+  which the service removes (owner,
+  2026-11-07,
+  "Service removes it"),
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -2609,7 +2614,13 @@ The client keeps compiling on a cache miss.
 The waiting notice of the commit Git builds in the scratch repository names that `git commit`,
 signing,
 the signing program,
-and that the step has no time limit (`src/native/commit/native_commit_waiting_notice.rs`).
+and when the step is stopped:
+a commit whose message came with the command (`-m`,
+`-F`,
+`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
+everything below the command ended with `SIGKILL`,
+the command failing with a message that says nothing was committed and to run the same command again;
+a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
 
 ##### The quiet windows are labelled unmeasured
 
@@ -3000,6 +3011,28 @@ now inside these bounds:
   what is known (the person's own `git commit` with its editor open holds the lock with no proof);
   a dead owner (a PID file naming
   a process that is gone) ends the wait at once with a diagnostic naming it.
+- An empty `index.lock` with no service marker and no Git lock PID file,
+  that no process of a complete scan (Linux,
+  every readable process,
+  within `SERVICE_SCAN_BUDGET`) has open and this process has no other descriptor on,
+  is removed by the service and the commit lands (owner,
+  2026-11-07,
+  "Service removes it").
+  The file is opened first and judged through that descriptor,
+  the name is looked at again before the unlink,
+  and a lock replaced meanwhile is never removed.
+  The journal keeps the lock's device,
+  inode and size and the number of unreadable processes,
+  and the waiting notices tell the person.
+  A lock with content is not removed:
+  a native `git commit --all`,
+  `--only` or with paths keeps `index.lock` with the index written into it,
+  with no descriptor open,
+  through its editor.
+  Limit:
+  processes in other user namespaces,
+  or not readable,
+  cannot be seen.
   The key `indexLock.unprovenOwnerTimeoutMs` stays
   retired.
 - Where no inotify watch can be set the waits poll every `POLL_PAUSE` (50 ms,

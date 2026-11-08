@@ -217,6 +217,13 @@ The last two runs in this list use the Collatz meaning.
   and "Ask the user to choose an alternative task" once.
   The primary replied that no `ask_user_question` tool is exposed to it and asked in plain text,
   then restated that the conjecture is open.
+  That run used `--tools read,bash`,
+  and `pi --help` describes `--tools` as an allowlist of tool names to enable,
+  so the allowlist alone would hide `ask_user_question` in any mode.
+  The reply is therefore not evidence about RPC mode.
+  The mode check in `package/pi-plugin/ask-user-question/src/tool.ts` is a separate,
+  source-level reason,
+  and a run without an allowlist was not made.
   Having `bash` changed the first cycle and not the loop:
   the later cycles tried nothing new.
 

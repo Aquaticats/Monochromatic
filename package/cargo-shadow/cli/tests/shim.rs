@@ -48,6 +48,7 @@ fi\n\
 case \" $* \" in\n\
   *\" --locked \"*|*\" --frozen \"*) if ! head -n 1 Cargo.lock | grep -q satisfied; then echo 'error: the lock file needs to be updated but --locked was passed' >&2; exit 101; fi ;;\n\
 esac\n\
+if [ -n \"$FAKE_PRINT_BUILD_DIR\" ]; then echo \"build-dir=${CARGO_BUILD_BUILD_DIR-unset}\"; fi\n\
 echo \"fake-cargo-ran $@\"\n\
 exit \"${FAKE_CARGO_EXIT:-0}\"\n";
 
@@ -87,6 +88,15 @@ fn make_world() -> World {
     return World { _guard: guard, shadow_directory, fake_directory, repository, log };
 }
 
+/// The shadow started as `cargo`,
+/// with a `CARGO_HOME` that holds no configuration,
+/// so no test run keys a build folder in the user's real build base (`src/lean_keyed_folder.rs`).
+fn shadow_command(world: &World) -> Command {
+    let mut command: Command = Command::new(world.shadow_directory.join("cargo"));
+    command.env("CARGO_HOME", world.shadow_directory.join("cargo-home"));
+    return command;
+}
+
 fn write_lock(world: &World, text: &str) {
     std::fs::write(world.repository.join(CRATE_DIR).join("Cargo.lock"), text).expect("write the lock");
 }
@@ -106,7 +116,7 @@ fn path_of(directories: &[&Path]) -> String {
 /// Runs the shadow as `cargo` in the crate root with the given CI value.
 fn run_shadow(world: &World, arguments: &[&str], ci: &str, fake_exit: i32) -> Output {
     let path: String = path_of(&[&world.shadow_directory, &world.fake_directory]);
-    return Command::new(world.shadow_directory.join("cargo"))
+    return shadow_command(&world)
         .args(arguments)
         .current_dir(world.repository.join(CRATE_DIR))
         .env("PATH", path)
@@ -272,7 +282,7 @@ fn a_missing_real_cargo_is_reported_with_the_not_found_code() {
     let world = make_world();
     let path: String = path_of(&[&world.shadow_directory]);
 
-    let output = Command::new(world.shadow_directory.join("cargo"))
+    let output = shadow_command(&world)
         .arg("fmt")
         .current_dir(&world.repository)
         .env("PATH", path)
@@ -396,7 +406,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     let launcher: PathBuf = launcher_directory.join("cargo");
     let path: String = path_of(&[&world.shadow_directory, &launcher_directory, &world.fake_directory]);
     let run = || -> Output {
-        let mut command = Command::new(world.shadow_directory.join("cargo"));
+        let mut command = shadow_command(&world);
         command
             .args(["check", "-q"])
             .current_dir(world.repository.join(CRATE_DIR))
@@ -432,7 +442,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
         String::from_utf8_lossy(&shown.stdout).into_owned()
     };
     assert!(fixed_path.starts_with(&world.fake_directory.display().to_string()), "the export line did not put the real cargo's folder first: {fixed_path}");
-    let mut fixed = Command::new(world.shadow_directory.join("cargo"));
+    let mut fixed = shadow_command(&world);
     fixed.args(["check", "-q"]).current_dir(world.repository.join(CRATE_DIR)).env("PATH", &fixed_path).env("CI", "").env("FAKE_CARGO_LOG", &world.log);
     let after_a = output_within(&mut fixed, 20).expect("the fixed command timed out");
     assert_eq!(after_a.status.code(), Some(0), "{}", String::from_utf8_lossy(&after_a.stderr));
@@ -503,7 +513,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     // ```ts
     // let x = ...;   // plain Rust `let` is TS `const`
     // ```
-    let mut command = Command::new(world.shadow_directory.join("cargo"));
+    let mut command = shadow_command(&world);
     command
         .args(["add", "serde"])
         .current_dir(world.repository.join(CRATE_DIR))
@@ -762,7 +772,7 @@ fn a_staged_copy_in_an_ignored_directory_is_left_to_cargo_and_the_tracked_crate_
     // The system directories are on PATH so that the shadow finds `git`, as it does outside this test.
     let path: String = path_of(&[&world.shadow_directory, &world.fake_directory, Path::new("/usr/bin")]);
     let run = |manifest: &Path| -> Output {
-        return Command::new(world.shadow_directory.join("cargo"))
+        return shadow_command(&world)
             .args(["vendor", "--manifest-path"])
             .arg(manifest)
             .arg("--offline")
@@ -902,3 +912,48 @@ fn an_execute_only_script_real_cargo_is_given_its_own_path_by_the_kernel() {
     assert_eq!(output.status.code(), Some(0), "stderr: {}", String::from_utf8_lossy(&output.stderr));
 }
 //endregion
+
+/// Runs the shadow as `cargo fmt` (no install step) with a configured build base,
+/// and returns the line the fake cargo printed for its `CARGO_BUILD_BUILD_DIR`.
+fn build_dir_seen_by_cargo(world: &World, base: &Path, toolchain: Option<&str>, own_value: Option<&str>) -> String {
+    let home: PathBuf = world.shadow_directory.join("cargo-home");
+    std::fs::create_dir_all(&home).expect("cargo home");
+    std::fs::write(home.join("config.toml"), format!("[build]\nbuild-dir = \"{}/{{workspace-path-hash}}\"\n", base.display())).expect("config");
+    let mut command: Command = shadow_command(world);
+    command
+        .arg("fmt")
+        .current_dir(world.repository.join(CRATE_DIR))
+        .env("PATH", path_of(&[&world.shadow_directory, &world.fake_directory]))
+        .env_remove("RUSTUP_TOOLCHAIN")
+        .env_remove("CARGO_BUILD_BUILD_DIR")
+        .env("FAKE_PRINT_BUILD_DIR", "1")
+        .env("FAKE_CARGO_LOG", &world.log);
+    if let Some(name) = toolchain {
+        command.env("RUSTUP_TOOLCHAIN", name);
+    }
+    if let Some(value) = own_value {
+        command.env("CARGO_BUILD_BUILD_DIR", value);
+    }
+    let output: Output = command.output().expect("start the shadow");
+    return String::from_utf8_lossy(&output.stdout).lines().find(|line| { return line.starts_with("build-dir="); }).unwrap_or("no line").to_string();
+}
+
+#[test]
+fn a_host_run_under_a_known_toolchain_gets_a_folder_keyed_by_toolchain_and_leaves_a_ledger() {
+    let world = make_world();
+    let base: PathBuf = world.shadow_directory.join("build-base");
+    let seen: String = build_dir_seen_by_cargo(&world, &base, Some("nightly-2026-11-07"), None);
+    let folder: &str = seen.strip_prefix("build-dir=").expect("the fake printed the variable");
+    assert!(folder.starts_with(&format!("{}/toolchain/nightly-2026-11-07/", base.display())), "{seen}");
+    let ledger: String = std::fs::read_to_string(Path::new(folder).join(".cargo-shadow-workspace")).expect("the ledger");
+    assert!(ledger.trim_end().ends_with(CRATE_DIR), "{ledger}");
+}
+
+#[test]
+fn an_explicit_build_dir_of_the_user_wins_and_no_toolchain_means_no_keying() {
+    let world = make_world();
+    let base: PathBuf = world.shadow_directory.join("build-base");
+    assert_eq!(build_dir_seen_by_cargo(&world, &base, Some("nightly-x"), Some("/somewhere/else")), "build-dir=/somewhere/else");
+    assert_eq!(build_dir_seen_by_cargo(&world, &base, None, None), "build-dir=unset");
+    assert!(!base.exists(), "nothing is created when nothing is keyed");
+}

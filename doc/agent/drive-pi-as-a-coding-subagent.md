@@ -346,6 +346,184 @@ The counts of tool calls and turns do not depend on speed.
   and the model started on it by reading the files its context did not yet hold.
 - No dialog request arrived in the runs so far.
 
-Results of the larger task,
-its cost,
-and the correction loop are recorded below when the session ends.
+## The detailed-brief run
+
+Task:
+change the goal reviewer rubric and add tests.
+The brief named the files,
+the exact new sentences,
+the function names,
+and the test cases.
+
+- From prompt to settle:
+  about 250 seconds on the `synthetic` provider.
+- 49 assistant messages,
+  67 tool calls (29 `read`,
+  25 `grep`,
+  6 `edit`,
+  5 `ls`,
+  2 `find`),
+  and 2 tool errors:
+  the `find` with a bad directory,
+  and a `read` with an offset past the end of the file.
+- Usage as reported:
+  85006 input tokens,
+  26904 output tokens,
+  0.136 in cost.
+  The input figure is the `usage.input` field summed over messages,
+  and whether it excludes cached tokens was not checked.
+- No dialog request.
+- The edits matched the brief exactly,
+  including the verbatim rubric sentences.
+  `lint:types`,
+  `test:unit` and `lint` all exit 0 after a rebuild,
+  with no correction round.
+- One review finding:
+  its tests sit in a second `describe` that reuses the existing suite name.
+
+### The stale-build trap
+
+Both the type check and the unit tests failed on the model's correct edit before a rebuild.
+The test files import the built artifact (`../dist/final/node/index.mjs`),
+so until `mise run //package/pi-plugin/goal:build` runs,
+the type check reports the old signature (TS2353 on the new field)
+and the tests see the old prompt (assertion failures that look like logic errors).
+This was the lead's verification mistake,
+not the model's.
+Run `build` before `lint:types` and `test:unit` in this package,
+and check that the new test names appear in the output.
+
+## The unassisted run
+
+The owner's calibration is that DeepSeek V4.1 Flash at `xhigh` is about a Sonnet 5.5 low-level model.
+The owner asked whether it works satisfactorily with less handholding.
+The brief gave the problem,
+the evidence,
+and the owner's intent,
+and nothing about files,
+names,
+wording,
+steps,
+or tests.
+The model had a shell,
+the repository's own checks to find,
+and the read-only git shim below.
+
+What the feed showed:
+
+- It oriented for about three minutes before the first edit,
+  reading nine source files,
+  the existing tests,
+  and the oxlint configuration.
+  It found the reviewer prompt,
+  the call site,
+  and the `mode` signal without pointers.
+- It applied the repository's rules from `AGENTS.md`:
+  every command starts with `cd -- <path> &&`,
+  and its code follows the repository's TSDoc and destructured-parameter style.
+- It also found and read this repository's own write-up of the problem under `doc/`.
+  The unassisted run therefore had the diagnosis from the repository,
+  not only from the brief.
+- It chose a different design from the detailed-brief run:
+  a post-filter module that replaces reviewer guidance matching phrase lists with a fixed instruction,
+  a mode-keyed rubric builder,
+  audit fields on the persisted denial event that keep the reviewer's original text,
+  validation of those fields in `events.ts`,
+  and a decision not to rewrite a human's own manual-rejection text.
+- It wrote a dedicated unit test file for its new module,
+  extended the built-artifact runtime verifier,
+  and made the fake session context take a mode so the tests reach the production wiring.
+- It hit the stale-build trap,
+  read the error as an out-of-date artifact,
+  and ran `build` without being told.
+- It ran two mutation checks on its own:
+  it broke a guard condition with `perl -pi`,
+  rebuilt,
+  confirmed that tests failed,
+  and restored the line.
+  It did the same to the prompt builder.
+  The repository requires a guard test to be shown to fail.
+  After each restore the lead checked the source by hand.
+- It ran `lint`,
+  tallied the findings by rule,
+  fixed them in rounds,
+  and reached 0 warnings and 0 errors.
+  It captured real exit codes with `${PIPESTATUS[0]}` after noticing that `| tail` hides them.
+- One lint run printed a 5924-character stack trace from inside the repository's oxlint plugin
+  (`readonlySourceEvidence`,
+  `openSemanticFile`) instead of findings.
+  The cause of that trace was not read.
+
+Whether the result is satisfactory is judged in `doc/handover/pi-goal-reviewer-human-input-rubric.md`
+and recorded in `doc/agent/pi-goal-extension-driven-through-rpc.md` when the comparison is done.
+
+## Tool and feed quirks
+
+- A multi-block `edit` is rejected whole when one `oldText` does not match.
+  The model recovered by grepping the file for the current text and sending the blocks again.
+- The model guessed file extensions (`.d.mts` for a `.d.ts` package) and got silent empty results,
+  then switched to a recursive search.
+- The `bash` tool result carries `structuredContent` with `output`,
+  `truncated`,
+  `exit_code`,
+  and `wall_time_seconds`.
+  The driver's feed keeps only the first 500 characters of a result and ignores `structuredContent`,
+  so a long lint run shows its tail and no verdict.
+  Record `exit_code` in the feed next time.
+- Two Monitor tasks on one feed deliver every event twice.
+  Stop the old one with `TaskStop`.
+  `tail -n 0 -F` waits for a feed file that does not exist yet.
+- To wait for a subagent without polling,
+  read the unit's main process ID with `systemctl --user show --property=MainPID --value <unit>`
+  and wait with `timeout <seconds> tail --pid=<pid> --follow /dev/null` in a background command.
+
+## The read-only git shim
+
+A commit in this repository auto-pushes,
+and the model has a shell.
+A script named `git` first in the unit's `PATH` lets read-only subcommands through to the real git and refuses the rest.
+It guards against mistakes only:
+an absolute path to the real git bypasses it.
+It was checked to refuse `commit` and `push`
+(against a path that is not a repository,
+so a failure of the shim could not have committed anything)
+and to pass `rev-parse`.
+
+```js
+#!/usr/bin/env node
+// Read-only git shim for an unattended Pi subagent: lets read-only subcommands through to the real git, refuses the rest.
+// A commit in this repository auto-pushes, so the subagent must not be able to commit by accident.
+// This is a guard against mistakes, not a sandbox: an absolute path to the real git bypasses it.
+const { spawnSync } = require('node:child_process');
+
+const REAL_GIT = process.env.REAL_GIT || '/usr/bin/git';
+const READ_ONLY = new Set([
+  'status', 'diff', 'log', 'show', 'rev-parse', 'ls-files', 'blame', 'grep', 'describe', 'cat-file', 'rev-list',
+  'check-ignore', 'shortlog', 'name-rev', 'ls-tree', 'merge-base', 'show-ref', 'for-each-ref', 'version', 'help',
+]);
+const READ_ONLY_CONFIG_FLAGS = new Set(['--get', '--get-all', '--list', '-l', '--get-regexp']);
+
+const args = process.argv.slice(2);
+let index = 0;
+while (index < args.length) {
+  const token = args[index];
+  if (token === '-C' || token === '-c' || token === '--git-dir' || token === '--work-tree') { index += 2; continue; }
+  if (token.startsWith('-')) { index += 1; continue; }
+  break;
+}
+const subcommand = args[index];
+
+const allowed = subcommand === undefined
+  || READ_ONLY.has(subcommand)
+  || (subcommand === 'config' && args.slice(index + 1).some((flag) => READ_ONLY_CONFIG_FLAGS.has(flag)))
+  || (subcommand === 'branch' && args.slice(index + 1).every((flag) => flag.startsWith('-') && ['--show-current', '--list', '-l', '-a', '-r', '-v', '-vv'].includes(flag)));
+
+if (!allowed) {
+  process.stderr.write(`git ${subcommand} is blocked in this session. The lead handles all git changes; read-only git commands work.\n`);
+  process.exit(1);
+}
+const result = spawnSync(REAL_GIT, args, { stdio: 'inherit' });
+process.exit(result.status ?? 1);
+```
+
+Start the unit with `--setenv=PATH="<shim dir>:$PATH"` and `--setenv=REAL_GIT=/usr/bin/git`.

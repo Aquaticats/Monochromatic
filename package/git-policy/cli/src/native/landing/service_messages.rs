@@ -372,6 +372,29 @@ pub fn path_text(path: &Path) -> String {
     return path.display().to_string();
 }
 
+/// What:
+///  The line that says a commit is built again because its branch moved:
+/// the branch,
+/// how many builds were made,
+/// how long it has been since the first,
+/// and the time at which the rebuilding stops.
+/// Why:
+///   A rebuild is a wait the person would otherwise not see,
+/// and the owner's rule is that every wait says what it is for and when it ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: the branch ${branch} moved ...`
+/// ```
+pub fn rebuild_notice(branch: &str, builds: usize, waited: std::time::Duration, ceiling: std::time::Duration) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: the branch {branch} moved while this commit was being built ({builds} builds so far, {} seconds), so it is built again on the new tip; \
+         nothing conflicted, and the building stops after {} seconds in all.\n",
+        waited.as_secs(),
+        ceiling.as_secs()
+    );
+}
+
 /// Message controls stay out of the release executable.
 #[cfg(test)]
 #[path = "service_messages_tests.rs"]

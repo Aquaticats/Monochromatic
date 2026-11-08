@@ -97,6 +97,9 @@ fn a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback() {
     let (root, index) = index_in("lock-creation-existing");
     let lock: PathBuf = lock_path_of(&index);
     std::fs::write(&lock, b"").expect("a lock without a marker, as plain Git leaves one");
+    // This process keeps a descriptor on it, as a program that holds the lock would: an empty lock that nothing holds is removed
+    //  (`service_index_unheld_removal.rs`), and the scan leaves this process out, so the holder is not proven either.
+    let _holder: std::fs::File = std::fs::File::open(&lock).expect("the holder's descriptor");
     let platform: Platform = Platform { rename: &rename_refused, link: &link_refused, ..SYSTEM };
     let announced: RefCell<Vec<String>> = RefCell::new(Vec::new());
     let failure = acquire_within(&platform, &index, 5, SHORT_CEILING, &|note| {

@@ -389,3 +389,41 @@ fn a_configured_hook_for_every_event_does_not_run_in_the_native_commit() {
     assert!(!marker.exists(), "a hook ran: {:?}", std::fs::read_to_string(&marker));
     remove(root.as_path());
 }
+
+/// A scratch commit whose signing program never answers is stopped at its ceiling,
+/// says so in words that name what was kept,
+/// leaves no process below the command,
+/// and changes neither the real refs nor the real index:
+/// the person's work is as it was and the same command can be run again.
+#[test]
+fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
+    let root: PathBuf = fixture("commit-preparation-ceiling");
+    let fixture: Fixture = prepared_fixture(root.as_path());
+    let signer: PathBuf = root.join("slow-signer");
+    crate::test_support::executable(signer.as_path(), b"#!/bin/sh\nexec sleep 120\n");
+    let refs_before: String = git_text(fixture.repo.as_path(), &["for-each-ref"]);
+    let index_before: Vec<u8> = std::fs::read(fixture.repo.join(".git").join("index")).expect("index");
+    let global_args: Vec<String> = vec![String::from("-c"), format!("gpg.program={}", signer.display())];
+    let commit_args: Vec<String> = vec![String::from("-S"), String::from("--message=x")];
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    let outcome = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, std::time::Duration::from_millis(1500));
+    let lasted: std::time::Duration = began.elapsed();
+    let Err(PreparationError::Git(GitFailure(said))) = outcome else {
+        panic!("a step that outlasted its ceiling was not turned into a stop: {outcome:?}");
+    };
+    assert!(lasted < std::time::Duration::from_secs(60), "the stop did not end the step: {lasted:?}");
+    assert!(said.contains("was stopped after") && said.contains("nothing was committed"), "{said}");
+    assert!(said.contains("signs the commit"), "a signed commit's stop names the signer: {said}");
+    assert!(crate::process_tree::descendants_of(i32::try_from(std::process::id()).expect("pid")).is_empty(), "a process was left below the command");
+    assert_eq!(git_text(fixture.repo.as_path(), &["for-each-ref"]), refs_before);
+    assert_eq!(std::fs::read(fixture.repo.join(".git").join("index")).expect("index"), index_before);
+    remove(root.as_path());
+}
