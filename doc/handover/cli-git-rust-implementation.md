@@ -3078,6 +3078,9 @@ as slots free:
 
 Ordered behind other work rather than waiting for a slot:
 
+- Merging `fix/repository-move-cli-checks-after-the-860-move`,
+  after the running cut-over ends:
+  it adds a stage between two stages the running cut-over has already passed.
 - The parallelism audit of loops over independent items,
   after tokio step T12,
   which removes the thread runner.
