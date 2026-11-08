@@ -1997,7 +1997,8 @@ not a proposal to decide:
   and where `shell_quote` lives
   (two repair files quote shell words).
 - The conditional target graph for reading D,
-  which holds only after the replacements above and the two owner decisions
+  which holds only after the replacements in the `What the verdicts do to the table` section
+  and the two owner decisions
   (the engine measured one crate loop and 19 edges until then):
   `starting-and-watching-programs` depends on `parallel-work-within-a-budget` (the shared runtime),
   `fix-packages-after-copying-a-folder` on both,
@@ -4459,7 +4460,7 @@ and passes the crate's tests.
     release the wrapper's last crates.io version from the unsplit crate (the planning doc requires this before it
     depends on an unpublished crate;
     the owner's release answers of 2026-11-07 are in the section "Cargo packaging facts that bear on the tree").
-    Nothing below runs earlier.
+    No other step runs earlier.
 1.  Rescan `main` (open point "Rescan before step 0") and place the files added since `f44d921e24`.
     Done once on 2026-11-07 (section "Rescan of main after the adopted crates");
     tokio steps T6 to T13 are still to land,
