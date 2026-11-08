@@ -828,7 +828,7 @@ it spawns nothing.
   the options until a remount.
   The doctor shows the one line that matches what it detected,
   and re-reading `/proc/self/mountinfo` confirms it.
-- Overlayfs (see the next section):
+- Overlayfs (see the Overlayfs section):
   report the detection,
   which operation is cheap,
   and the fallback.
@@ -986,7 +986,7 @@ per-worktree upper layer):
   which runs against
   "invoke real git as rarely as possible" even though it is one invocation.
 - Overlay-based worktrees:
-  not viable unprivileged (see the previous section).
+  not viable unprivileged (see the Overlayfs section).
 
 Ranking:
 C > B > A.
@@ -1249,7 +1249,7 @@ before its lock was taken.
 The second review found that the fixes still deleted objects identified by a pathname after an earlier check,
 and that a
 pathname in a record authorized deletion.
-The common thread is now the rule above:
+The common thread is now the rule under the `Implemented flow and what superseded the proposal` heading:
 nothing is deleted that the add cannot
 show it created.
 Its findings were:
@@ -1299,7 +1299,7 @@ the held-lock refresh
 followed and truncated an existing staging name,
 and a pointer through a link could be retargeted after the binding.
 Each is
-fixed as described in the bullets above.
+fixed as described in the bullets under the `Implemented flow and what superseded the proposal` heading.
 
 Not covered by a control:
 the arm of `finish_snapshot` that skips the stage cleanup when the stage name is not the

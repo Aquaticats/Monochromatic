@@ -820,7 +820,7 @@ Status:
 built and verified in the branch `feat/git-policy-cli-falls-back-to-installed-git`.
 This is the coordinator's
 pick under the owner's delegation,
-made before the build and recorded here at the time above,
+made before the build and recorded here at 2026-11-03T11:26:52-05:00,
 open to the owner's veto
 when the owner is back.
 The delegation,
@@ -849,7 +849,7 @@ The case behind it:
 the agent that fixed the self-start found a `PATH` that held the wrapper's `git` but no `/usr/bin`,
 while `git --version` in the person's own shell said "shadowing git at /usr/bin/git" because that shell's `PATH` had it.
 Before the pick,
-that `PATH` ended in the stop of the previous section.
+that `PATH` ended in the stop of the Rule section.
 
 ### What records a real Git, and what does not
 
@@ -896,7 +896,7 @@ Read,
   so it exists only after a commit has
   provisioned the service in this login and is gone after the last logout;
   a unit written while the earlier flaw stood
-  can hold a launcher (refused by the checks below).
+  can hold a launcher (refused by the `classify_candidate` checks).
 - B.
   A durable record written whenever `PATH` resolution succeeds,
   below the state directory.
@@ -967,7 +967,7 @@ recorded.
   or a script that starts the TypeScript wrapper.
   Another release of the wrapper behind a native header passes
   the check;
-  the arrival marker of the previous section stops it at its first instruction,
+  the arrival marker of the Rule section stops it at its first instruction,
   as it does for a `PATH`
   candidate.
 - A refusal returns the old failure with `RealGitNotFound.recorded`,
@@ -991,7 +991,7 @@ recorded.
   writes that from the path it resolved,
   so a fallback path reaches the service as it reached the wrapper,
   and the
-  service's own refusal of a launcher (previous section) still guards a unit written earlier.
+  service's own refusal of a launcher (the Rule section) still guards a unit written earlier.
   A service started with no
   `--git` keeps the default `/usr/bin/git`;
   the wrapper never starts it that way.

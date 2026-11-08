@@ -6,7 +6,7 @@ the tool picks were then replaced by the owner's
  decisions of 2026-11-04 (section "Owner decisions of 2026-11-04",
 on branch
  `feat/git-policy-cli-test-images-from-pacman`).
-Where a bullet of "Picks" below names a source build,
+Where a bullet of "Picks (agent's pick, veto open)" names a source build,
 a checksum or a version pin,
 the owner decisions supersede it.
 

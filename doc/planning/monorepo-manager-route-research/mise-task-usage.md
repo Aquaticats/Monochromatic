@@ -25,7 +25,7 @@ and all three stale `mise watch ... -- node ...` tasks are still present.
 
 ## Commands and measurement basis
 
-Every count below came from one of these,
+Every count in this document came from one of these commands,
 run from the repository root unless stated:
 
 ```sh

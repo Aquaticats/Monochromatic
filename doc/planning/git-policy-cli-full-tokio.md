@@ -1960,7 +1960,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
 
 ### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
 
-- The owner's answer on G1 is recorded above,
+- The owner's answer on G1 is recorded in the Safe file saving section,
   verbatim:
   "Keep the fallback (Recommended)".
 - `1cff4935cd` records it;
@@ -3742,7 +3742,7 @@ not by gate reruns.
 - Not starvation of the look:
   the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
   so the one look returned `ProvenAlive`,
-  and in every instrumented run below the only holder notice was proven.
+  and in every instrumented run of the holder kind section the only holder notice was proven.
   The look did not reach its ceiling in any run.
   The pool's busy count was not recorded,
   because no look waited on the pool.
@@ -3899,7 +3899,7 @@ and why").
   `LAST_RESORT` (the alarm) = `SETTLE_CEILING` plus `STOP_GRACE`,
   29.096 s;
   the manager's default stop timeout was taken to be 90 s and this crate's unit set none (wrong,
-  see "Owner answer of 2026-11-08" below:
+  see the "Owner answer of 2026-11-08 and what it changed" section:
   the host's default is 15 s,
   and the unit now sets its own).
 

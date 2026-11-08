@@ -169,7 +169,8 @@ commit `c7b46ae`).
   Which entries are checked follows `trustLockfile`:
   all of them when false (pnpm's default),
   the ones new since the base revision when true (the repository's setting).
-  The set-aside goes through the same transaction and ownership rules as the review findings below,
+  The set-aside goes through the same transaction and ownership rules as the review findings under the
+  Review findings fixed (cross-vendor review of 2026-11-03T13:26:08Z) heading,
   so it never overwrites
   another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,
@@ -557,7 +558,8 @@ and none is veto-open any more.
   and `check` is clean.
   The installed binary is stale,
   not the source.
-- A strict cutoff with exemptions keeps the approach recorded above:
+- A strict cutoff with exemptions keeps the approach recorded in the
+  Review findings fixed (second cross-vendor review, started 2026-11-03T16:25:50.931Z) section:
   resolve without the cutoff,
   enforce it on the other crates.
 - A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
@@ -723,7 +725,7 @@ stop is `cgroup.kill`,
 quiescence is
 `cgroup.events` reporting `populated 0`,
 and a survivor after a crash is a membership query of the group the journal recorded.
-The probes below ran on this host:
+The `Probe 1` to `Probe 5` subsections ran on this host:
 Linux 7.2.15-ogc1.1.fc45.x86_64,
 systemd 262.1-1.fc45,
 cgroup2 mounted at `/sys/fs/cgroup`
@@ -794,7 +796,7 @@ i.e. a single process managing it".
 The group a shell,
 a terminal or a harness scope runs in is such a cgroup unless its unit has `Delegate=`,
 so the child group
-this tool makes there works on this host (every probe above) but is not what systemd supports;
+this tool makes there works on this host (every one of Probe 1 to Probe 5) but is not what systemd supports;
 what systemd does with an
 unknown child group of a non-delegated unit (a trim when the unit stops,
 a change of controllers) was not probed.
@@ -826,7 +828,7 @@ and it needs the user manager.
   which has
   exited,
   instead of the process,
-  and only the measurement above is claimed.
+  and only the measurement that `cgroup.kill` alone left `populated 1` is claimed.
   So the stop is `cgroup.kill`,
   then `SIGKILL` to every process listed by `cgroup.procs` (through a pidfd that is checked
   against the listing again),
@@ -1211,7 +1213,8 @@ Reviews answered:
 `cargo-shadow-sol-8a.txt` and `cargo-shadow-sol-8b.txt` (in `/var/home/user/temp/agent/reviews/`).
 The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows;
 a counterexample reopened rows but added none.
-Where the sections above say otherwise,
+Where the sections from What `cargo update` does under the cargo shadow to
+Round 8 (2026-11-04): the contract first, then the code say otherwise,
 the contract and this section are current:
 
 - A run that recorded its end appends `settled <scope path>` to the journal;
@@ -1297,7 +1300,8 @@ forcing only at exit;
 "nothing should ever wait forever or indefinitely";
 "never discard user
 data".
-Where the sections above say otherwise,
+Where the sections from What `cargo update` does under the cargo shadow to
+Round 9 (2026-11-04): the answers to the round 8 reviews say otherwise,
 the contract and this section are current.
 
 ### 9a D1: an unsettled scope is not completed by a later look
@@ -2432,7 +2436,8 @@ Nothing was published and nothing was merged into main.
 ## Resume point (round 16, rewritten 2026-11-04T11:17:02-05:00 after the gate)
 
 Done:
-rounds 10 to 16 (the sections above).
+rounds 10 to 16 (the Round 10 (2026-11-04): the answers to the round 9 reviews section
+to the Round 16 (2026-11-04T11:17:02-05:00): the certification pass section).
 Open for the owner:
 the picks of rounds 8 to 13 stay veto-open as listed in their sections;
 the first publication needs the owner's
@@ -2478,7 +2483,7 @@ Next:
   and checks that nothing of the second start ran;
   `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2` covers a start as a child.
   The bounded fallback and the hop limit are gone.
-- The nine delegated picks of 2026-11-03 are kept (see the section above).
+- The nine delegated picks of 2026-11-03 are kept (see the Delegated picks of 2026-11-03 section).
 
 ## Resume point (round 21, written 2026-11-04T17:51:00-05:00, paused by the owner)
 
@@ -2587,7 +2592,7 @@ coverage):
    `assert_scope_record` proves the record,
    not placement;
    the double-fork probe has no reparenting handshake.
-10. The fifth-pass open list not covered above:
+10. The fifth-pass open list not covered by items 1 to 9:
     R2 stranded path,
     admission schedules for the remaining boot and unreadable records,
     the acknowledgement writer's ordering,
@@ -2625,7 +2630,7 @@ The owner's pause of 2026-11-04 was lifted for this merge.
 The branch `feat/cargo-shadow-check-to-start-race` took main twice (`0a3aa354ca`,
 with 0.1.5-alpha.1,
 and the merge of the locks for `monochromatic-lint` 0.5.2-alpha.2),
-and the release gate ran for the first time on the round (the resume point above says it had not).
+and the release gate ran for the first time on the round (the round 21 Resume point section says it had not).
 
 - The gate found one red test that the round itself caused:
   the new `spawned` trace event sits between the launch and the launcher line,
@@ -2693,14 +2698,14 @@ and rebuilding the packets as cert7 under 250 KB each with the manifest.
 
 ## Sixth-pass follow-up (worktree `pi-cargo-shadow-sixth-pass`, branch `fix/cargo-shadow-sixth-pass-review-items`)
 
-Started 2026-11-08T15:42:46-05:00 from the point above,
+Started 2026-11-08T15:42:46-05:00 from the `Still open from the resume point` list,
 in the order the sixth pass asked.
 Each item was checked against the code first;
 the ones already covered in round 21 are named as such.
 Every new test was shown red under a planted change of the production line,
 and the plant was restored (with a file copy inside this worktree,
 never a Git restore).
-The whole suite and the lint were run on this tree (see "Gates" below).
+The whole suite and the lint were run on this tree (see the Gates section).
 
 ### Group 5 (output barriers)
 
@@ -2916,7 +2921,7 @@ Still open from the fifth-pass list:
   the host carried a load average of about 125 on 8 CPUs from other sessions' suites,
   and two scope tests had been running for five minutes each.
   It is not reported as passing or failing;
-  the debug nextest task above is the run this session reports,
+  the `mise run //package/cargo-shadow/cli:test:debug` task is the run this session reports,
   and the release gate remains open.
 - Nothing was released,
   locked or installed,

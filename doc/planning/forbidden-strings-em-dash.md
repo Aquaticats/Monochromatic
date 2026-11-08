@@ -15,7 +15,7 @@ and their ASCII substitutes (`-`,
 Feasibility confirmed for both unicode characters and the ASCII `--` shape.
 Open work:
  exclusion-list expansion using the literal-space workaround
-for `\b` inside complement bodies (see revised "Resharp HIR limits" below),
+for `\b` inside complement bodies (see the Resharp HIR limits inside `~(...)` complement bodies section),
 self-match handling for the unicode case,
  single-dash (`-`) handling.
 
@@ -359,7 +359,7 @@ Date:
  The engine migration (issues #375 through #389) replaced resharp with the
 in-house `forbidden-regex` engine (`package/forbidden-strings/core`) after this
 investigation was written.
- Two of the blockers documented above have different answers under
+ Two of the blockers documented under the What does not work heading have different answers under
 the new dialect.
 
 ### Bounded complements no longer need the literal-space workaround
@@ -389,7 +389,8 @@ gap it left.
 
 ### Unbounded quantifiers must become bounded ones
 
-The rules recorded above (`/^.*[a-z] -- [a-z].*$&~(.*npm.*)&~(.*git.*)/` and similar) rely on
+The rules recorded in the Resharp HIR limits inside `~(...)` complement bodies section
+(`/^.*[a-z] -- [a-z].*$&~(.*npm.*)&~(.*git.*)/` and similar) rely on
 unbounded `.*`.
  `forbidden-regex` rejects `*`,
  `+`,
@@ -409,7 +410,7 @@ scanning,
  not a mechanical find-and-replace of the operator syntax alone.
 
 Together,
- these two points mean the "Exclusion list expansion" work above is worth
+ these two points mean the "Exclusion list expansion" work is worth
 revisiting under the new dialect:
  the anchor restriction that motivated the literal-space
 workaround is gone,

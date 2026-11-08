@@ -26,7 +26,7 @@ and the bundled catalog underneath holds
 
 ## Settled decisions
 
-Each item below was decided by the user during the grilling session.
+Every numbered item under the Settled decisions heading was decided by the user during the grilling session.
 
 1. Scope is within-family superseded models only.
    Whole-provider removal is out of scope,
