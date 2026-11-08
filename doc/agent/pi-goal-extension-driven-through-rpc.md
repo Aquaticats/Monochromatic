@@ -24,14 +24,20 @@ Two behaviors need the driver's attention:
 - The outcome depends on the reviewer model.
   One reviewer returned no text and ended the goal as `review_unavailable`,
   and a cheap reviewer accepted an answer that did not solve the stated objective.
+  With the owner's default reviewer scope the reviewer was `openai/gpt-6-astra`,
+  and it returned a valid verdict.
 
 ## How it was driven
 
 Each run started its own Pi process with `--mode rpc --no-session`,
 the `synthetic` / `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` model,
 `--tools read`,
-and `--models <two models>` to limit the reviewer pool,
+and,
+in all runs but one,
+`--models <two models>` to limit the reviewer pool,
 in a throwaway folder.
+The exception is the run that used the owner's default scope,
+and it omitted `--models`.
 The goal extension chooses its reviewer from the effective model scope,
 excluding the primary model,
 by highest expected cost,
@@ -132,7 +138,28 @@ await send({ type: 'abort' });
 - Objective `create a file named result.txt in the current directory containing exactly the word done`,
   same reviewer,
   with only the `read` tool:
-  see the next section.
+  see "A goal the primary cannot satisfy loops".
+- Objective `solve 3x + 1 = 0 and state the value of x`,
+  with no `--models`,
+  so the owner's settings chose the reviewer:
+  the reviewer was `openai/gpt-6-astra`,
+  its rationale says the solution isolates `x = -1/3`,
+  states it,
+  and verifies it by substitution,
+  and the goal was accepted.
+  The settle came 4.6 seconds after `agent_end`,
+  and the run took 22.6 seconds.
+- Replacement:
+  objective `solve 3x + 1 = 0 and state the value of x`,
+  then `/goal solve 2x = 8 and state the value of x` sent about 160 milliseconds after the first run started,
+  with the cheap reviewer scope.
+  The second command was also `handled`.
+  The second `run_started` entry carries a `supersededRunId` for the first goal,
+  the footer status changed from `goal solve 3x …` to `goal solve 2x …`,
+  and only the second goal was reviewed and approved
+  (`x = 4`,
+  reviewer `synthetic/hf:openai/gpt-oss-120b`).
+  No review of the first goal appeared.
 
 ## Problems found
 
@@ -190,14 +217,17 @@ and each cycle costs a primary run and a reviewer call.
 
 ## Not tested
 
-- The owner's default reviewer scope,
-  which picks the highest expected-cost model with up to two fallbacks.
-  Every run limited the scope with `--models` to keep cost down,
-  so the failure of the single `opencode-go` candidate may not occur with the default scope.
+- The owner's default reviewer scope on an ambiguous or unsatisfiable objective.
+  The default scope ran once,
+  on an unambiguous objective,
+  and accepted it.
+  Whether its fallbacks ever ran is unknown,
+  because the first candidate succeeded.
 - The 10 second reviewer timeout path.
-- Replacing an active goal with a new `/goal`,
-  restoring a goal after `new_session` or `switch_session`,
+- Restoring a goal after `new_session` or `switch_session`,
   and goals while background processes from `pi-processes` are live.
 - The TUI behavior.
+- Token and money cost of the reviewer calls.
+  The usage was not recorded.
 
 Whether and how to bound the continuation loop in non-TUI modes is an owner decision.
