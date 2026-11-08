@@ -563,6 +563,68 @@ fn a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scrat
     remove(world.root.as_path());
 }
 
+/// A landing killed at `after-objects` (`service_fault::FAULT_POINTS`)
+/// leaves the batch's commit on `refs/worktree/cli-git-service/<seq>`
+/// with nothing that names it:
+/// the objects are imported,
+/// and no intent was written,
+/// so no restart can decide the batch from the branch.
+/// The landing records the worktree beside its batch before it imports,
+/// so the restart finds that record,
+/// keeps the commit the reference holds on `refs/cli-git/kept/<seq>` and only then removes the reference.
+#[test]
+fn a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch() {
+    let world: World = world("service-land-killed-import-scratch");
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    crate::service_fault::hooks::set("after-objects", std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")));
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::clear();
+    assert!(killed.is_err(), "the landing of the killed service never answered");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert!(!batch_path(world.context.journal.as_path(), 1, crate::service_journal::OPEN_EXTENSION).exists(), "no intent names the batch");
+    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
+    assert!(scratch.starts_with("refs/worktree/cli-git-service/1 "), "the killed landing left its commit on the scratch branch: {scratch:?}");
+    assert_eq!(recover(&world.context), Vec::new(), "no intent is open, so nothing is settled from the branch");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]),
+        "refs/cli-git/kept/1",
+        "the commit of a batch no record named is kept where the person can find it"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the batch's own commit");
+    // Nothing is lost that only the removed reference held: the kept commit survives a maintenance that drops unreachable objects.
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit is still in the object store after a prune");
+    assert!(!batch_path(world.context.journal.as_path(), 1, "scratch").exists(), "the record of the batch's scratch reference goes with the reference");
+    remove(world.root.as_path());
+}
+
+/// The owner's rule "never discard user data":
+/// a kept reference that already names another commit is no proof that the commit the scratch branch holds is safe elsewhere,
+/// so the restart removes neither the scratch branch nor the record that names it.
+#[test]
+fn a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_record() {
+    let world: World = world("service-land-killed-import-kept-clash");
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    crate::service_fault::hooks::set("after-objects", std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")));
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::clear();
+    assert!(killed.is_err(), "the landing of the killed service never answered");
+    let scratch_before: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
+    let elsewhere: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", elsewhere.as_str()]);
+    assert_eq!(recover(&world.context), Vec::new(), "no intent is open");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]),
+        scratch_before,
+        "a kept reference that names another commit proves nothing about the batch's commit, so the scratch branch stays"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), elsewhere, "and the kept reference is not moved");
+    assert!(batch_path(world.context.journal.as_path(), 1, "scratch").exists(), "the record stays for the next restart to try again");
+    remove(world.root.as_path());
+}
+
 /// How long the controls give a landing that must end at its ceiling before they call it hung.
 const CEILING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
 
