@@ -445,17 +445,87 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
 }
 
-/// An address space of each size on the commit service,
-/// from the smallest under which it starts up to the smallest under which a
-///  commit lands.
+/// The address space process `pid` has mapped now,
+/// in mebibytes rounded up,
+/// read from its status (`VmSize`).
+fn mapped_mebibytes(pid: u32) -> u64 {
+    let status: String = std::fs::read_to_string(format!("/proc/{pid}/status")).expect("the status of the service");
+    let line: &str = status.lines().find(|line| return line.starts_with("VmSize:")).expect("a VmSize line");
+    let kibibytes: u64 = line.trim_start_matches("VmSize:").trim().trim_end_matches("kB").trim().parse().expect("a size");
+    return kibibytes.div_ceil(1024);
+}
+
+/// One commit through a service that has started and greeted,
+/// whose address-space limit is then lowered in place to `step` of `MEMORY_STEPS` parts of its mapped size plus the reserve the
+/// runtime keeps back,
+/// so the allocation that fails falls in the middle of the landing whatever the size of the build
+/// (the service's own heap is mostly free by then,
+/// so the first limits that bite are the ones under which the Git programs it starts for the landing cannot map their own space);
+/// then the pressure ends and the repository must recover.
+fn run_case_lowered(label: &str, step: u64) -> Case {
+    let fixture: Fixture = fixture(label);
+    let repo: PathBuf = staged_repository(&fixture, "repo");
+    // The service starts first and meets the limit while it serves: a limit set before it starts moves the instant it ends
+    //  with the size of the build (it aborts before it listens when the limit falls within a signal stack of its mapped size).
+    super::support::service_runtime(&fixture);
+    let services: Vec<u32> = fixture.service.lock().expect("the fixture's service lock").as_ref().map(|started| { return started.process_ids(); }).unwrap_or_default();
+    assert!(!services.is_empty(), "a service ran");
+    let hard: u64 = LimitKind::AddressSpace.current_hard();
+    for pid in &services {
+        let reserve_mebibytes: u64 = git_policy_cli::runtime_plan::ADDRESS_SPACE_RESERVE_BYTES / MEBIBYTE;
+        let limit: u64 = (mapped_mebibytes(*pid) + reserve_mebibytes) * step / MEMORY_STEPS * MEBIBYTE;
+        LimitKind::AddressSpace.lift_for(*pid, limit, hard).expect("the soft limit of a running service is lowered");
+    }
+    let output: Output = limited_commit(&fixture, repo.as_path(), &[]);
+    let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
+    let first: Result<(), String> = check_limited_run(label, &output, false);
+    end_the_pressure(&fixture);
+    let verdict: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
+    let landed: bool = output.status.code() == Some(0);
+    remove_settled(&fixture);
+    return Case { landed, verdict };
+}
+
+/// A running service whose address-space limit is lowered in place to each of `MEMORY_STEPS` parts of its mapped size plus the
+/// reserve the runtime keeps back,
+/// and one commit through it each:
+/// the repository recovers after every one,
+/// some limit stops the commit and some lets it land.
+/// Why:
+///  The runtime reserves its address space when the service starts (`ADDRESS_SPACE_RESERVE_BYTES`),
+/// so no limit set before the start leaves a service that starts and cannot land a commit;
+/// real exhaustion (the control group's `memory.max`,
+/// the host's pressure) arrives later and the reserve protects nothing there,
+/// so an allocation that fails in the middle of a landing is reached by lowering the limit of the service that is running.
 #[test]
 fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
-    let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
-    let lands_at: u64 = smallest_working(starts_at, MOST_MEBIBYTES, &|value| { return lands_with("as-service", value, service_memory); });
-    let values: Vec<u64> = spread(starts_at, lands_at, MEMORY_STEPS);
-    let (landed, refused): (usize, usize) = sweep("as-service", values.as_slice(), service_memory, true);
-    assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
-    assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
+    let headrooms: Vec<u64> = (0..=MEMORY_STEPS).collect();
+    let failures: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    let landed: AtomicUsize = AtomicUsize::new(0);
+    let refused: AtomicUsize = AtomicUsize::new(0);
+    for batch in headrooms.chunks(SWEEP_WIDTH) {
+        std::thread::scope(|scope| {
+            for headroom in batch {
+                let (collected, landings, refusals): (&Mutex<Vec<String>>, &AtomicUsize, &AtomicUsize) = (&failures, &landed, &refused);
+                scope.spawn(move || {
+                    let case: Case = run_case_lowered(format!("as-service-lowered-{headroom}").as_str(), *headroom);
+                    if case.landed {
+                        landings.fetch_add(1, Ordering::SeqCst);
+                    } else {
+                        refusals.fetch_add(1, Ordering::SeqCst);
+                    }
+                    if let Err(message) = case.verdict {
+                        collected.lock().expect("failure list").push(message);
+                    }
+                });
+            }
+        });
+    }
+    let found: Vec<String> = failures.into_inner().expect("failure list");
+    assert!(found.is_empty(), "{} of {} limits left the repository unrecovered:\n{}", found.len(), headrooms.len(), found.join("\n"));
+    let (landed, refused): (usize, usize) = (landed.load(Ordering::SeqCst), refused.load(Ordering::SeqCst));
+    assert!(refused > 0, "no limit stopped a commit, so the limits tested nothing (steps {headrooms:?})");
+    assert!(landed > 0, "no limit let the commit land, so none was close to exhaustion (steps {headrooms:?})");
 }
 
 /// A service whose address-space limit is below the smallest under which it greets a client ends before it listens:
