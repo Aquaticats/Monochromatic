@@ -5063,10 +5063,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   installed;
   about +0.2 ms per call.
   Open:
-  cargo-shadow's install-step cargo starts without the arrival marker;
   `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` failed twice
   (it needs a freed time-namespace number reused,
   shared by every session on the host).
+  The install step's cargo now carries the arrival marker too
+  (`cargo_run_tests::the_cargo_of_an_install_step_arrives_with_the_marker_of_the_shadow_that_started_it`,
+  fixed in `04f4eaa607`,
+  test first in `f6b8c106fa`);
+  it is in the sources only until cargo-shadow is released and installed.
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
 - Repository-wide `monochromatic-lint`:
