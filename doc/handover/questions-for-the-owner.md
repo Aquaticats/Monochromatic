@@ -50,6 +50,20 @@ Each record is cited so the context is one read away.
 - May the stale detached worktrees under `.claude/worktrees/` be removed?
 - May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
 - Should there be an operator override that forces the native Git route when the commit service misbehaves?
+- Rotate `MISE_GITHUB_TOKEN`?
+  A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
+  The value is in that agent's session file,
+  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,
+  and tool output goes to the model provider.
+  The count of matches was read without printing the value.
+  Every running agent has since been told never to print the environment,
+  and `pi-as-subagent` now requires that sentence in every prompt.
+- May the root `vm-builder` run replace the existing VM?
+  `mise run //package/vm-builder/cli:run` overwrites `/var/lib/libvirt/images/monochromatic-dev.qcow2`,
+  dated 2026-03-31,
+  and force-stops and undefines any domain of that name.
+  Your authorization of `sudo` did not name that,
+  so only the build half (`image:build`) was run.
 - How long should `FOREIGN_OWNER_PATIENCE` be?
   It ships at twenty minutes,
   stated as twice the longest a merge waits,
@@ -60,9 +74,7 @@ Each record is cited so the context is one read away.
 Checked and not asked,
 because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
-bumping and publishing ("I'm authorizing you to bump and publish any updates this session."),
-and the root `vm-builder` run ("I authorize you to do and use all of it without my prior approval.",
-due after the move).
+and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00

@@ -136,8 +136,10 @@ export async function enterThrowawayPackage(): Promise<ThrowawayPackage> {
    Log-directory override to restore on dispose. It outranks the `process.cwd()`
    discovery this fixture relies on, so entering removes it for the duration.
    */
-  const originalLogDirectory = process.env.MONOCHROMATIC_LOG_DIRECTORY;
-  delete process.env.MONOCHROMATIC_LOG_DIRECTORY;
+  const originalLogDirectory = process.env
+    .MONOCHROMATIC_LOG_DIRECTORY;
+  delete process.env
+    .MONOCHROMATIC_LOG_DIRECTORY;
   /**
    Fresh temporary package root.
    */
@@ -155,9 +157,11 @@ export async function enterThrowawayPackage(): Promise<ThrowawayPackage> {
     async [Symbol.asyncDispose](): Promise<void> {
       process.chdir(original,);
       if (originalLogDirectory === undefined)
-        delete process.env.MONOCHROMATIC_LOG_DIRECTORY;
+        delete process.env
+          .MONOCHROMATIC_LOG_DIRECTORY;
       else
-        process.env.MONOCHROMATIC_LOG_DIRECTORY = originalLogDirectory;
+        process.env
+          .MONOCHROMATIC_LOG_DIRECTORY = originalLogDirectory;
       await rm(
         dir,
         {
@@ -230,26 +234,49 @@ export async function readFileSinkLines({ dir, }: { readonly dir: string; },): P
     LOG_DIR_NAME,
   );
   /**
+   Entries directly under the log directory: the sink's UTC day directories,
+   the files inside them, and the retention sweep's residue.
+   */
+  const entries = await readdir(
+    logDir,
+    { withFileTypes: true, },
+  );
+  /**
+   Log paths each entry contributes, listed concurrently: the sink's day
+   directories are independent, so none waits on another's read.
+   */
+  const perEntry = await Promise.all(entries.map(
+    async function logPathsIn(entry,): Promise<readonly string[]> {
+      /**
+       Directory holding this entry: the log directory itself for a loose file,
+       the UTC day directory for the sink's own layout.
+       */
+      const container = join(
+        logDir,
+        entry.name,
+      );
+      /**
+       Names inside it; a loose file stands for itself.
+       */
+      const names = entry.isDirectory() ? await readdir(container,) : [entry.name,];
+      return names
+        .filter(function isLogFile(name,) {
+          return name.endsWith(LOG_FILE_SUFFIX,);
+        },)
+        .map(function toLogPath(name,) {
+          return join(
+            container,
+            name,
+          );
+        },);
+    },
+  ));
+  /**
    Log files the sink created. Other entries (the retention sweep stamp, day
    directories) are residue its contract permits, so only `*.log.jsonl` files
    count.
    */
-  const logFiles: string[] = [];
-  for (const entry of await readdir(logDir, { withFileTypes: true, },)) {
-    /**
-     Directory holding this entry: the log directory itself for a loose file,
-     the UTC day directory for the sink's own layout.
-     */
-    const container = join(
-      logDir,
-      entry.name,
-    );
-    for (const name of entry.isDirectory() ? await readdir(container,) : [entry.name,])
-      if (name.endsWith(LOG_FILE_SUFFIX,)) logFiles.push(join(
-        container,
-        name,
-      ),);
-  }
+  const logFiles: readonly string[] = perEntry.flat();
   if (logFiles.length > 1)
     throw new Error(`expected one log file under ${logDir}, found ${String(logFiles.length,)}: ${logFiles.join(', ',)}`,);
   /**
@@ -257,7 +284,8 @@ export async function readFileSinkLines({ dir, }: { readonly dir: string; },): P
    no file at all, so the round trip is empty).
    */
   const [logFile] = logFiles;
-  if (logFile === undefined) { return []; }
+  if (logFile === undefined)
+    return [];
   /**
    Whole file contents.
    */

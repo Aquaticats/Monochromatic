@@ -1,0 +1,13 @@
+# The two first lines a claim file may hold, its field names and the spellings of a process id that is not one.
+" owner-claim v1"
+"cli-git owner-claim v1"
+"monochromatic-git-policy-cli owner-claim v1"
+"\x0areleased\x0a"
+"\x0apid="
+"\x0abirth="
+"\x0anamespace="
+"namespace=-"
+"pid=0"
+"pid=007"
+"pid=9223372036854775808"
+"pid=9007199254740991"

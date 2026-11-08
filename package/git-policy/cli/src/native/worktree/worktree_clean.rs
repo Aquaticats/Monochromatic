@@ -44,7 +44,7 @@ use crate::repo_read_tree::{FlatEntry, MODE_GITLINK, flatten_tree, parse_commit}
 use crate::worktree_clean_content::ConversionEnvironment;
 pub use crate::worktree_clean_stat_verdicts::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, metadata_differs_from_entry, metadata_verdict};
 use crate::worktree_clean_stat_verdicts::{ASSUME_VALID, file_changed};
-pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, stat_fields_beneath, tree_differs_from_index, tree_differs_from_index_beneath, tree_fields_beneath};
+pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, stat_fields_beneath, tree_differs_from_index, tree_differs_from_index_beneath, tree_fields_by_content};
 use crate::worktree_clean_tree_walk::{tree_differs_from_index_by_content, tree_refusal};
 use crate::subvolume_index::{StoredStat, be32, walk_entries};
 use crate::subvolume_index_files::repository_hash_length;
@@ -306,8 +306,8 @@ pub fn check_clean_tracked(root: &Path, git_dir: &Path, common_dir: &Path) -> Re
 /// and an entry it could not prove keeps its old
 ///  stat data,
 /// so Git hashes it at the first status;
-/// the snapshot and clone rungs install the index they proved and use the
-///  stat-only check.
+/// the snapshot rung settles the entries of the copy the same way before it
+///  installs the index (`worktree_snapshot.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -7,7 +7,7 @@
 use super::*;
 use crate::service_instance::{instance_of, socket_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
-use crate::test_support::{fixture, remove};
+use crate::test_support::{fixture, git, remove, repository};
 
 /// One repository and one runtime directory on disk:
 /// a checkout's Git directory with linked worktrees' administrative directories under it.
@@ -185,6 +185,90 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     assert!(socket_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's socket file stays");
     assert_eq!(survey(&machine.folders()), Survey { gone: Vec::new(), unmapped: vec![unknown], present: 1 });
     assert!(note_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's note stays");
+    remove(machine.root.as_path());
+}
+
+/// A service that starts for a worktree that is gone stops its own socket and serves nothing:
+/// the socket goes first so no connection starts it again,
+/// and the service unit is never asked to stop,
+/// because the service's own end is what stops it.
+#[test]
+fn a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing() {
+    let machine: Machine = machine("units-own-gone");
+    let removed: PathBuf = machine.linked("gone", false);
+    let instance: String = instance_of(removed.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), removed.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    let mut recorder: Recorder = Recorder::default();
+    let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
+    assert_eq!(gone, Some(removed));
+    assert_eq!(recorder.stops(), vec![format!("stop-alone {}", socket_unit_instance(instance.as_str()))]);
+    assert!(!note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note goes with the socket, so the doctor counts no leftover");
+    assert!(!socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the stopped socket's file is removed");
+    remove(machine.root.as_path());
+}
+
+/// A worktree on a device that is simply not mounted is not gone,
+/// so the service that starts for it serves instead of stopping:
+/// the missing administrative directory proves nothing while the repository that held it is missing too.
+#[test]
+fn a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves() {
+    let machine: Machine = machine("units-own-unmounted");
+    // The mount point is there and empty, as it is when a drive was not mounted: every path below it is missing.
+    std::fs::create_dir_all(machine.root.join("drive-not-mounted")).expect("mount point");
+    let unmounted: PathBuf = machine.root.join("drive-not-mounted/repository/.git/worktrees/topic");
+    let instance: String = instance_of(unmounted.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), unmounted.as_path()).expect("note");
+    machine.socket_of(instance.as_str());
+    assert_eq!(own_worktree_gone(&machine.folders(), instance.as_str()), None);
+    let mut recorder: Recorder = Recorder::default();
+    let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("nothing stopped");
+    assert_eq!(gone, None);
+    assert!(recorder.stops().is_empty(), "{:?}", recorder.stops());
+    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note of a worktree on an unmounted device stays");
+    remove(machine.root.as_path());
+}
+
+/// An instance that maps to nothing and one whose worktree is still there are both served:
+/// a wrong guess would cut the units of a live worktree.
+#[test]
+fn a_service_whose_worktree_cannot_be_told_serves() {
+    let machine: Machine = machine("units-own-unknown");
+    let kept: PathBuf = machine.linked("kept", true);
+    let kept_instance: String = instance_of(kept.as_path());
+    record_worktree(machine.runtime.as_path(), kept_instance.as_str(), kept.as_path()).expect("note");
+    machine.socket_of(kept_instance.as_str());
+    let unknown: String = String::from("00000000000000000000000000000001");
+    machine.socket_of(unknown.as_str());
+    assert_eq!(own_worktree_gone(&machine.folders(), kept_instance.as_str()), None);
+    assert_eq!(own_worktree_gone(&machine.folders(), unknown.as_str()), None);
+    let mut recorder: Recorder = Recorder::default();
+    assert_eq!(stop_own_socket_of_a_gone_worktree(&machine.folders(), kept_instance.as_str(), &mut recorder), Ok(None));
+    assert_eq!(stop_own_socket_of_a_gone_worktree(&machine.folders(), unknown.as_str(), &mut recorder), Ok(None));
+    assert!(recorder.stops().is_empty(), "{:?}", recorder.stops());
+    remove(machine.root.as_path());
+}
+
+/// What a removal Git runs with the wrapper replaced leaves behind (`git worktree remove --force` through a foreign Git):
+/// the note and the socket of that worktree,
+/// and the sweep stops them once the administrative directory is gone.
+#[test]
+fn a_foreign_git_removal_leaves_units_that_the_sweep_stops() {
+    let machine: Machine = machine("units-foreign-removal");
+    let main: PathBuf = repository(machine.root.as_path(), "repository");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../worktree"]);
+    let admin: PathBuf = std::fs::canonicalize(main.join(".git/worktrees/worktree")).expect("canonical administrative directory");
+    let instance: String = instance_of(admin.as_path());
+    record_worktree(machine.runtime.as_path(), instance.as_str(), admin.as_path()).expect("note written by provisioning");
+    machine.socket_of(instance.as_str());
+    // Real Git, with no wrapper in front of it: the removal's own stop of the units never runs.
+    git(main.as_path(), &["worktree", "remove", "--force", "../worktree"]);
+    assert!(!admin.exists(), "the removal takes the administrative directory");
+    let mut recorder: Recorder = Recorder::default();
+    let outcome: SweepOutcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(outcome.stopped, vec![instance.clone()]);
+    assert_eq!(recorder.stops(), vec![format!("stop {}", socket_unit_instance(instance.as_str())), format!("stop {}", service_unit_instance(instance.as_str()))]);
+    assert_eq!(survey(&machine.folders()), Survey::default(), "nothing is left for the doctor to count");
     remove(machine.root.as_path());
 }
 

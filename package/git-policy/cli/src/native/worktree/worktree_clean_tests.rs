@@ -249,7 +249,20 @@ staged
     remove(root.as_path());
 }
 
-/// One walk below a held directory both judges every tracked file against its entry and returns the stat fields the snapshot's
+/// The entries of a clean fixture and the index the walk compares them with.
+fn walk_inputs(clean: &CleanSource) -> (Vec<StatEntry>, Vec<crate::repo_read_index::IndexEntry>) {
+    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
+    let indexed: Vec<crate::repo_read_index::IndexEntry> = crate::repo_read_index::parse_index(clean.index_bytes.as_slice(), crate::repo_read_layout::ObjectFormat::Sha1).expect("the index of the fixture is a plain one");
+    return (entries, indexed);
+}
+
+/// The content decision's target for a fixture worktree,
+/// whose Git directory is the one named.
+fn content_target<'a>(worktree: &'a Path, git_dir: &'a Path, environment: &'a crate::worktree_clean_content::ConversionEnvironment) -> ContentTarget<'a> {
+    return ContentTarget { root: worktree, git_dir, common_dir: git_dir, environment, format: crate::repo_read_layout::ObjectFormat::Sha1 };
+}
+
+/// One walk below the worktree root both judges every tracked file against its entry and returns the stat fields the snapshot's
 ///  index takes,
 /// equal to what a lookup of each path alone returns,
 /// so the files are looked at once.
@@ -258,13 +271,37 @@ fn one_walk_judges_the_files_and_returns_their_stat_fields() {
     let root: PathBuf = fixture("clean-one-walk");
     let repo: PathBuf = aged_repository(root.as_path());
     let clean: CleanSource = check(repo.as_path()).expect("clean");
-    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
-    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
-    let fields: Vec<StatFields> = tree_fields_beneath(&held, entries.as_slice(), clean.index_seconds).expect("every file agrees");
+    let (entries, indexed) = walk_inputs(&clean);
+    let environment = crate::fixture_content_decision::content_environment();
+    let canonical: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical");
+    let git_dir: PathBuf = canonical.join(".git");
+    let fields: Vec<StatFields> = tree_fields_by_content(&content_target(canonical.as_path(), git_dir.as_path(), &environment), entries.as_slice(), indexed.as_slice(), clean.index_seconds).expect("every file agrees");
+    let held: std::fs::File = crate::fs_beneath::open_root(canonical.as_path()).expect("handle");
     assert_eq!(fields.len(), entries.len());
     for (entry, found) in entries.iter().zip(&fields) {
         assert_eq!(Some(found.clone()), stat_fields_beneath(&held, entry.path.as_slice()), "{}", String::from_utf8_lossy(entry.path.as_slice()));
     }
+    remove(root.as_path());
+}
+
+/// A file whose stat data cannot vouch for it,
+/// and whose content still equals its committed blob,
+/// is settled by content instead
+///  of refused,
+/// and the walk returns its stat fields.
+#[test]
+fn one_walk_settles_a_stale_entry_by_content() {
+    let root: PathBuf = fixture("clean-one-walk-stale");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let clean: CleanSource = check(repo.as_path()).expect("clean");
+    let (entries, indexed) = walk_inputs(&clean);
+    let environment = crate::fixture_content_decision::content_environment();
+    let canonical: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical");
+    // The same bytes written again: the size and the content stand, the times the index recorded do not.
+    std::fs::write(repo.join("a.txt"), b"alpha\n").expect("rewrite");
+    let git_dir: PathBuf = canonical.join(".git");
+    let fields: Vec<StatFields> = tree_fields_by_content(&content_target(canonical.as_path(), git_dir.as_path(), &environment), entries.as_slice(), indexed.as_slice(), clean.index_seconds).expect("the content settles the entry");
+    assert_eq!(fields.len(), entries.len());
     remove(root.as_path());
 }
 
@@ -274,11 +311,14 @@ fn the_one_walk_refuses_a_changed_file() {
     let root: PathBuf = fixture("clean-one-walk-changed");
     let repo: PathBuf = aged_repository(root.as_path());
     let clean: CleanSource = check(repo.as_path()).expect("clean");
-    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
-    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
+    let (entries, indexed) = walk_inputs(&clean);
+    let environment = crate::fixture_content_decision::content_environment();
+    let canonical: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical");
     std::fs::write(repo.join("a.txt"), b"alpha, changed and longer\n").expect("change");
-    let changed: CleanRefusal = tree_fields_beneath(&held, entries.as_slice(), clean.index_seconds).expect_err("a changed file");
+    let git_dir: PathBuf = canonical.join(".git");
+    let changed: CleanRefusal = tree_fields_by_content(&content_target(canonical.as_path(), git_dir.as_path(), &environment), entries.as_slice(), indexed.as_slice(), clean.index_seconds).expect_err("a changed file");
     assert!(changed.reason.contains("a.txt"), "{}", changed.reason);
+    assert_eq!(changed.kind, CleanRefusalKind::FileChanged);
     remove(root.as_path());
 }
 
@@ -288,13 +328,15 @@ fn the_one_walk_refuses_a_link_in_place_of_a_directory() {
     let root: PathBuf = fixture("clean-one-walk-link");
     let repo: PathBuf = aged_repository(root.as_path());
     let clean: CleanSource = check(repo.as_path()).expect("clean");
-    let entries: Vec<StatEntry> = stored_stats(clean.index_bytes.as_slice(), clean.hash_length).expect("entries");
-    let held: std::fs::File = crate::fs_beneath::open_root(std::fs::canonicalize(repo.as_path()).expect("canonical").as_path()).expect("handle");
+    let (entries, indexed) = walk_inputs(&clean);
+    let environment = crate::fixture_content_decision::content_environment();
+    let canonical: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical");
     std::fs::create_dir(root.join("copy")).expect("copy");
     std::fs::copy(repo.join("dir/b.txt"), root.join("copy/b.txt")).expect("copy of the file");
     std::fs::rename(repo.join("dir"), root.join("dir.orig")).expect("moved away");
     std::os::unix::fs::symlink(root.join("copy"), repo.join("dir")).expect("link in its place");
-    let linked: CleanRefusal = tree_fields_beneath(&held, entries.as_slice(), clean.index_seconds).expect_err("a link");
+    let git_dir: PathBuf = canonical.join(".git");
+    let linked: CleanRefusal = tree_fields_by_content(&content_target(canonical.as_path(), git_dir.as_path(), &environment), entries.as_slice(), indexed.as_slice(), clean.index_seconds).expect_err("a link");
     assert!(linked.reason.contains("dir/b.txt"), "{}", linked.reason);
     remove(root.as_path());
 }

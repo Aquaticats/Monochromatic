@@ -155,6 +155,30 @@ fn the_service_start_takes_its_process_setup_first() {
     assert!(refusal < first_directory, "the refusal of a start with no socket comes before anything is created");
 }
 
+/// The state directory the service's journal sits in is read from the journal path the unit passes,
+/// so the service can tell whose units these are from the records of its own journal too;
+/// a journal of another shape names none.
+#[test]
+fn the_state_directory_is_read_from_the_journal_the_unit_passes() {
+    let state: PathBuf = PathBuf::from("/state");
+    let instance: &str = "3f9a3f9a3f9a3f9a3f9a3f9a3f9a3f9a";
+    let journal: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current).join("service").join(instance);
+    assert_eq!(state_dir_of_journal(journal.as_path(), instance), Some(state));
+    assert_eq!(state_dir_of_journal(Path::new("/elsewhere/journal"), instance), None);
+    assert_eq!(state_dir_of_journal(journal.as_path(), "ffffffffffffffffffffffffffffffff"), None, "a journal of another instance names no state directory");
+}
+
+/// A start that serves nothing because the worktree is gone ends without a failure status:
+/// the unit is meant to be gone,
+/// and `Restart=on-failure` would start it again for a failure status.
+#[test]
+fn a_start_that_serves_nothing_is_not_a_failure() {
+    assert_eq!(EXIT_NOTHING_TO_SERVE, 0);
+    for refusal in [EXIT_REFUSED, EXIT_NOT_LISTENING] {
+        assert_ne!(EXIT_NOTHING_TO_SERVE, refusal);
+    }
+}
+
 /// The fewest workers a multi-thread runtime has that the owner's "Full on tokio.
 /// Multi-thread."
 /// leaves room for.

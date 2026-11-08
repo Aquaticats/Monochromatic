@@ -447,15 +447,31 @@ from the brief and the plan:
 - W13 stage `c27-container-bind` starts a fresh container with a read-only bind through the link;
   the plan's test was to start one
   existing `created` container with worktree binds (`podman ps --all --filter status=created` lists them);
-  do that by hand too.
+  done by hand at 2026-11-08T16:21:32-05:00:
+  `podman start --attach c42af057a886`,
+  which binds `catalog-regenerate-every-lock/package/ide/app` through the repository link,
+  exited 0 and `cargo metadata` printed its packages,
+  so the bind resolves.
+  The container is gone afterwards,
+  which matches its created twin `7cf22bd2610a` reporting `AutoRemove` true.
+  Of the five created containers,
+  only those two have binds that still exist.
 - The mount unit's new stop block runs `luksClose` unconditionally when the mount is not a mount point,
   so a stop with no mapper now
   fails where the old stop hid it;
   a guard `[ -e /dev/mapper/crypt_sda ]` is the owner's call.
-- The startup gate and the doctor line read `HOME` from the process environment,
-  the entry gate from the invocation's environment
-  (rule HOM);
-  threading `environment` to `recover_for_command` is left undone.
+- The startup gate and the doctor line read `HOME` from the process environment while the entry gate read the
+  invocation's environment (rule HOM);
+  done in `a31518394e` and `2b9567c8ad`:
+  `recover_for_command` now takes the environment and resolves the home through
+  `child_environment::environment_home`,
+  `prepare_guarded_command`,
+  `recover_before_read_only` and `plan_direct` pass it down,
+  and `plan_doctor` binds the invocation's home into the doctor's filesystem section.
+  The control plants an identity file in the home the invocation names,
+  with a link the worktree sits under,
+  and requires the stop the old process-environment read answered as `Clear`
+  (`invocation/startup_gate_tests.rs`).
 - `mise trust --show` prints `<path>: trusted` or `<path>: untrusted` (checked in this worktree),
   which `c24-mise-trust` greps.
 

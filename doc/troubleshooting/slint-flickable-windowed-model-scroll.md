@@ -159,6 +159,17 @@ build the prototype with the embedded Slint MCP server and drive it headless.
 mise run //package/file-manager/app:mcp   # binds 127.0.0.1:9317
 ```
 
+That address no longer resolves:
+commit `9d63ab6f56` (2026-07-08) rebuilt the file manager as a GTK4 app and cleared the Slint deck,
+which removed `[tasks.mcp]` and its `SLINT_MCP_PORT` server.
+The package's tasks today are `build`,
+`build:debug`,
+`format:clippy`,
+`lint`,
+`lint:clippy`,
+`run`,
+and `test`.
+
 Then `drag_element` the `AppWindow::strip-flick` element leftward repeatedly and
 `take_screenshot`.
 

@@ -37,7 +37,7 @@ use std::path::Path;
 /// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
 /// ```
 pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
-    let name: String = format!("refs/cli-git/kept/{seq}");
+    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
     let made = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
     if !matches!(made, Ok(output) if output.succeeded()) {
         return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");

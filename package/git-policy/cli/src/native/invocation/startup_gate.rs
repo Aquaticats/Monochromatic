@@ -29,11 +29,12 @@ use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
 use crate::random_id::is_canonical_uuid;
 use crate::repository_link_gate::{LinkGate, link_gate};
-use crate::service_route::non_empty_path_variable;
+use crate::child_environment::environment_home;
 use crate::recovery_error::RecoveryError;
 use crate::recovery_files::recovery_path_exists;
 use crate::transaction_git::GitContext;
 use crate::worktree_identity::WorktreeIdentity;
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -228,6 +229,9 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Res
 /// Why:
 ///   Shared by wrapped commands,
 /// read-only commands and direct commands.
+/// The home the link gate reads is the one this invocation's environment names,
+/// never this process's,
+/// so the entry gate and this step judge the same command by the same identity file.
 /// A recovery failure stops the command with exit 2,
 ///  as the incumbent's `content-unavailable` engine failure does;
 /// the note about an earlier release's records goes to
@@ -235,10 +239,10 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path) -> Res
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function recoverForCommand({ gitPath, identity }): Promise<Gate>;
+/// async function recoverForCommand({ gitPath, identity, environment }): Promise<Gate>;
 /// ```
-pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity) -> Gate {
-    let home: Option<PathBuf> = non_empty_path_variable("HOME");
+pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, environment: &[(OsString, OsString)]) -> Gate {
+    let home: Option<PathBuf> = environment_home(environment);
     return recover_for_command_with_home(context, identity, home.as_deref());
 }
 

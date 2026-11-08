@@ -183,6 +183,13 @@ run in the same image by `mise run //package/git-policy/cli:test:built:trust`:
 `package/git-policy/cli/src/trust/fixture/built-racy-index-consumer.ts`
 and `built-racy-index-install.ts`,
 with helpers in `built-racy-index-helpers.ts`.
+That fixture set and the task that ran it are gone:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript wrapper,
+`package/git-policy/cli/src/trust/`,
+and `//package/git-policy/cli:test:built:trust`.
+The retained scenario sizes remain valid,
+but the harness has to be rebuilt against the Rust binary
+(`//package/git-policy/cli:native:test:host`).
 They set `core.trustctime=false`,
 pin a file's mtime and the real index's mtime to one second 100 seconds in the past,
 refresh the index,
