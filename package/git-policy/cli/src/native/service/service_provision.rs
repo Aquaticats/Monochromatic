@@ -81,6 +81,7 @@ use crate::service_provision_host_and_manager::refusal;
 use crate::service_provision_earlier_service_retirement::{clear_earlier_units, retire_earlier_service};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
 use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_units_of_removed_worktrees::note_worktree;
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
 
@@ -182,6 +183,7 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
 /// await provisionWith(host, manager)
 /// ```
 pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result<(), ClientFailure> {
+    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
     // A reload makes the manager re-read every unit and interrupts its other clients for a while, so it is asked for only
     //  when a unit it may already hold changed or went away. A file that is new is found by the manager when the unit is
     //  first started.
@@ -338,6 +340,8 @@ fn stop_earlier_instance_socket(host: &ProvisionHost, manager: &mut dyn Manager)
 /// unless the units and the socket are already in place.
 pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     if in_place(host) {
+        // Units set up before this release have no note of their worktree yet.
+        note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
         return Ok(());
     }
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {

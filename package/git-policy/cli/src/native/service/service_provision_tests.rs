@@ -139,6 +139,7 @@ pub(super) fn machine(name: &str) -> Machine {
         service_binary: root.join("programs/monochromatic-git-policy-cli"),
         git: PathBuf::from("/usr/bin/git"),
         instance: String::from(INSTANCE),
+        git_dir: root.join("repository/.git/worktrees/topic"),
         retirement_wait: std::time::Duration::from_millis(400),
     };
     return Machine { root, host };
@@ -181,6 +182,22 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
     }
     assert!(written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()));
     assert_eq!(recorder.calls(), with_earlier_instance_questions(vec![format!("start {}", instance_socket())]));
+    remove(machine.root.as_path());
+}
+
+/// Provisioning writes the worktree's Git directory beside the socket,
+/// so the units can be told apart from a removed worktree's later,
+/// and a second provisioning leaves the same note.
+#[test]
+fn provisioning_notes_which_worktree_the_units_are_for() {
+    let machine: Machine = machine("provision-note-lib");
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(machine.host.runtime_dir.as_path(), INSTANCE);
+    assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
+    let mut again: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut again).expect("provisioned again");
+    assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
     remove(machine.root.as_path());
 }
 

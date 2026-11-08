@@ -303,6 +303,18 @@ fn doctor_help_states_the_exit_statuses() {
     assert!(!MANAGEMENT_HELP.contains("exit 1 when any are found"), "{MANAGEMENT_HELP}");
 }
 
+/// `service stop-units-of-removed-worktrees` takes no argument and is named in the usage and the help.
+#[test]
+fn the_service_command_takes_stop_units_of_removed_worktrees_alone() {
+    assert_eq!(parse(&["service", "stop-units-of-removed-worktrees"]), Ok(ManagementAction::StopUnitsOfRemovedWorktrees));
+    for bad in [vec!["service", "stop-units-of-removed-worktrees", "--now"], vec!["service", "stop-units"]] {
+        assert_eq!(parse(&bad), Err(ManagementRefusal::Usage), "{bad:?}");
+    }
+    for text in [MANAGEMENT_USAGE, MANAGEMENT_HELP] {
+        assert!(text.contains("stop-units-of-removed-worktrees"), "{text}");
+    }
+}
+
 /// `service` takes exactly the word `status` or the word `settle-earlier-batches`,
 /// and anything else (the retired `install` and
 ///  `uninstall` included) is a usage error.

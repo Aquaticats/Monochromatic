@@ -46,6 +46,10 @@ pub struct ProvisionHost {
     pub git: PathBuf,
     /// The instance of the worktree the commit is made in (`service_instance::instance_of`).
     pub instance: String,
+    /// The worktree's own Git directory that the instance is named from,
+    /// which provisioning writes beside the socket so the units can be told apart from a removed worktree's later
+    ///  (`service_units_of_removed_worktrees.rs`).
+    pub git_dir: PathBuf,
     /// How long retiring the earlier single service may take before the commit fails instead of starting an instance beside it.
     pub retirement_wait: std::time::Duration,
 }

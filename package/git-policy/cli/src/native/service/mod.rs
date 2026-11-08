@@ -144,6 +144,17 @@ pub mod systemd_dbus_wire_format;
 /// socket and unit instances.
 pub mod service_instance;
 
+/// The commit service units of worktrees that no longer exist:
+/// which worktree a unit belongs to,
+/// whether it is gone,
+/// and the stop of its units through the manager.
+pub mod service_units_of_removed_worktrees;
+
+/// A manager that records the stops it is asked for,
+/// for the controls of the units of removed worktrees.
+#[cfg(test)]
+pub mod service_unit_manager_recorder_test_support;
+
 /// One entry from the wrapper a person ran to the journal,
 /// sent without waiting.
 #[cfg(target_os = "linux")]

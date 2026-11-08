@@ -144,6 +144,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         service_binary,
         git: inputs.real_git.to_path_buf(),
         instance,
+        git_dir: inputs.git_dir.to_path_buf(),
         retirement_wait: RETIREMENT_WAIT,
     };
     return Some(Route { address: Bind::Path(socket), provision: Some(host) });

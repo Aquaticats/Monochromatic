@@ -107,6 +107,7 @@ fn write_record(runtime: &Path, git: &Path) {
         service_binary: PathBuf::from("/nonexistent/monochromatic-git-policy-cli"),
         git: git.to_path_buf(),
         instance: String::from("fixture"),
+        git_dir: std::path::PathBuf::new(),
         retirement_wait: std::time::Duration::ZERO,
     };
     let units = unit_texts(&host);

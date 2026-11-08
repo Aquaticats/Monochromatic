@@ -22,6 +22,7 @@ use crate::child_environment::{child_environment_overlay, environment_value};
 use crate::doctor::doctor_action_with_section;
 use crate::service_route::service_status;
 use crate::management_service_settle_earlier_batches::{earlier_batches_note, plan_settle_earlier_batches, state_dir_of};
+use crate::management_service_stop_units_of_removed_worktrees::{plan_stop_units_of_removed_worktrees, units_note};
 use crate::management_arguments::{
     MANAGEMENT_HELP, ManagementAction, RetiredCommand,
     parse_management_arguments,
@@ -346,7 +347,29 @@ fn plan_doctor(
     };
     let action: Action = doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
     let noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
+    let noted: Action = with_units_note(noted, environment);
     return with_leading_notice(noted, resolved.notice.as_deref());
+}
+
+/// What:
+///  The doctor's action with the note about commit service units that belong to worktrees that no longer exist.
+/// Why:
+///   Like the note about earlier batches it is informational and read-only,
+/// and a run that could not examine the repository (status 2) gets none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withUnitsNote(action, environment)
+/// ```
+fn with_units_note(action: Action, environment: &[(OsString, OsString)]) -> Action {
+    let Action::Exit { code, stdout, stderr } = action else {
+        return action;
+    };
+    if code == ENGINE_FAILURE_EXIT_CODE {
+        return Action::Exit { code, stdout, stderr };
+    }
+    let note: String = units_note(environment);
+    return Action::Exit { code, stdout, stderr: format!("{stderr}{note}") };
 }
 
 /// What:
@@ -477,6 +500,7 @@ pub fn plan_management_with_section(
         ManagementAction::Doctor => return plan_doctor(git_global_arguments, environment, inputs, filesystem_section),
         ManagementAction::ServiceStatus => return plan_service(git_global_arguments, environment, inputs),
         ManagementAction::SettleEarlierBatches => return plan_settle(git_global_arguments, environment, inputs),
+        ManagementAction::StopUnitsOfRemovedWorktrees => return plan_stop_units_of_removed_worktrees(environment),
         ManagementAction::MigrateToSubvolume(migrate_parse) => return plan_migrate(migrate_parse),
         ManagementAction::ConvertWorktree(convert_parse) => return plan_convert(convert_parse, git_global_arguments, environment, inputs),
         ManagementAction::Direct {
