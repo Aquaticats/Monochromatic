@@ -1,0 +1,483 @@
+//! What:
+//!  The question whether an index still records the stat data its worktree has,
+//! answered in process.
+//! Why:
+//!  The scratch `git commit` reads and hashes every file whose index entry records stat data the worktree no longer
+//!  has, and that read is what the scratch step's ceiling ends
+//!  (`commit_index_stat_refresh.rs`).
+//!  A refresh of the real index pays those reads where the ceiling does not apply and keeps them,
+//!  but every `git update-index --refresh` takes Git's `index.lock` on the real index,
+//!  even the refresh of an index that already describes the worktree:
+//!  measured on 2026-11-08 in throwaway repositories,
+//!  `update-index --refresh` creates `index.lock` on every run and renames it over the index only when it writes.
+//!  So the refresh is asked for only when an entry's recorded stat data differs from the file's.
+//!  An index Git calls racily clean is not asked for:
+//!  its entries record the stat data their files have,
+//!  and three refreshes of an index written in the same second as its entry left the index's bytes identical (the same
+//!  SHA-1), so such a refresh writes nothing the private copies could carry,
+//!  and the scratch commit reads those entries just as native `git commit` does.
+//!  The entries of paths the commit stages from the worktree are skipped as well,
+//!  because `git add` writes their stat data into the private index afresh.
+//!  Anything this reading does not fully understand answers "stale",
+//!  and Git's own refresh decides.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! const stale: boolean = indexStatDataNeedsRefresh({ context, cwd, index, staging });
+//! ```
+
+/// What a commit stages from the worktree,
+/// so its recorded stat data cannot cost the scratch commit a read.
+pub enum WorktreeStaging<'a> {
+    /// The positional pathspecs of an explicit-path commit,
+    /// exactly as the command line gave them.
+    Named(&'a [std::ffi::OsString]),
+    /// Nothing:
+    /// the commit takes its content from the index or from the merged tree.
+    None,
+}
+
+/// The Git context,
+/// which carries the overlay a directory is read with.
+use crate::transaction_git::GitContext;
+/// One entry with its stat data and flags,
+/// and the whole index file read into entries.
+#[cfg(unix)]
+use crate::index_full::{ASSUME_VALID, FullEntry, FullIndex, SKIP_WORKTREE, parse_full_index};
+/// The nine 32-bit stat fields an entry stores.
+#[cfg(unix)]
+use crate::index_stat::StatData;
+/// A refusal to read a file,
+/// and the bounded read that reports it.
+#[cfg(unix)]
+use crate::private_storage::{ReadRefusal, read_regular_file};
+/// The worktree's top level,
+/// the start directory below it and the object hash a directory is read with.
+#[cfg(unix)]
+use crate::repo_read_layout::{RepoLayout, read_layout_in};
+/// How many bytes one object name of the repository's hash has.
+#[cfg(unix)]
+use crate::repo_read_object::name_length;
+/// `OsStr` borrows operating-system text without copying it.
+#[cfg(unix)]
+use std::ffi::OsStr;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
+#[cfg(unix)]
+use std::path::PathBuf;
+/// Index paths are bytes that need not be UTF-8,
+/// and this turns them into an operating-system file name.
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
+/// One file's stat fields,
+/// each 32 bits wide on this platform as the index stores them.
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
+
+/// The most bytes of an index file this reads:
+/// the bound the in-process query layer already puts on the same file
+/// (`repo_read_query_request_answer_and_context.rs`),
+/// not a new measurement.
+#[cfg(unix)]
+const INDEX_LIMIT: u64 = 1 << 30;
+
+/// The file-type bits of an entry's mode.
+#[cfg(unix)]
+const TYPE_BITS: u32 = 0o170_000;
+
+/// The file-type bits of an entry that names another repository:
+/// a gitlink holds no file to stat.
+#[cfg(unix)]
+const GITLINK: u32 = 0o160_000;
+
+/// The file-type bits of a symbolic link.
+#[cfg(unix)]
+const SYMBOLIC_LINK: u32 = 0o120_000;
+
+/// The file-type bits of a regular file.
+#[cfg(unix)]
+const REGULAR_FILE: u32 = 0o100_000;
+
+/// The one permission bit of a file's mode that an index entry records.
+#[cfg(unix)]
+const EXECUTABLE_BIT: u32 = 0o100;
+
+/// The mode an index entry has for a regular file,
+/// as Git's `create_ce_mode` makes it.
+#[cfg(unix)]
+const MODE_REGULAR_FILE: u32 = 0o100_644;
+
+/// The mode an index entry has for an executable regular file.
+#[cfg(unix)]
+const MODE_EXECUTABLE_FILE: u32 = 0o100_755;
+
+/// The stat data one worktree file has,
+/// each field cut to the 32 bits an index entry stores.
+/// Why not the full 64-bit fields: Git compares the index's cut fields with the file's own, so a comparison here has to
+/// cut them the same way or every entry would look changed.
+#[cfg(unix)]
+struct WorktreeFile {
+    /// The device.
+    dev: u32,
+    /// The inode.
+    ino: u32,
+    /// The mode Git would record for the file.
+    mode: u32,
+    /// The owner.
+    uid: u32,
+    /// The group.
+    gid: u32,
+    /// The size.
+    size: u32,
+    /// The change time,
+    /// seconds.
+    ctime_sec: u32,
+    /// The change time,
+    /// nanoseconds.
+    ctime_nsec: u32,
+    /// The modification time,
+    /// seconds.
+    mtime_sec: u32,
+    /// The modification time,
+    /// nanoseconds.
+    mtime_nsec: u32,
+}
+
+/// What:
+///  Whether one entry is one Git's own refresh never re-reads.
+/// Why:
+///  An unmerged entry, one marked assume-unchanged or skip-worktree, and a gitlink have no file this reading could
+///  compare, and Git's `refresh_index` skips exactly those.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftToGit = (entry) => entry.stage !== 0 || entry.assumeValid || entry.skipWorktree || entry.gitlink;
+/// ```
+#[cfg(unix)]
+fn is_left_to_git(entry: &FullEntry) -> bool {
+    if entry.stage() != 0 {
+        return true;
+    }
+    if entry.flags & ASSUME_VALID != 0 {
+        return true;
+    }
+    if entry.extended & SKIP_WORKTREE != 0 {
+        return true;
+    }
+    return entry.mode & TYPE_BITS == GITLINK;
+}
+
+/// What:
+///  Whether one byte of a pathspec is one of the characters that make a pathspec name more than the one path it spells.
+/// Why:
+///  A pathspec with magic, an escape or a wildcard names paths this reading cannot work out,
+///  and exempting the wrong entry would leave the scratch commit to read a file it need not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNotMagicByte = (byte) => !':*?[]\\\0'.includes(String.fromCharCode(byte));
+/// ```
+#[cfg(unix)]
+fn is_not_a_magic_byte(byte: &u8) -> bool {
+    return !matches!(*byte, b':' | b'*' | b'?' | b'[' | b']' | b'\\' | 0);
+}
+
+/// What:
+///  Whether a pathspec names exactly the one path it spells.
+/// Why:
+///  Only such a pathspec can be matched against an index path without guessing what a directory or a glob names,
+/// and a pathspec this refuses costs one Git start, never a wrong answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLiteralPath = (spec) => spec.length > 0 && !spec.endsWith('/') && [...spec].every(isNotMagicByte);
+/// ```
+#[cfg(unix)]
+fn is_literal_path(spec: &[u8]) -> bool {
+    if spec.is_empty() || spec.ends_with(b"/") {
+        return false;
+    }
+    return spec.iter().all(is_not_a_magic_byte);
+}
+
+/// What:
+///  The top-relative paths the selection stages from the worktree.
+/// Why:
+///  `git add --all` writes their stat data into the private index afresh,
+/// so what the real index records for them cannot cost the scratch commit a read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const restaged = staging.named.filter(isLiteralPath).map((spec) => prefix + spec);
+/// ```
+#[cfg(unix)]
+fn restaged_paths(staging: &WorktreeStaging<'_>, prefix: &[u8]) -> Vec<Vec<u8>> {
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    let WorktreeStaging::Named(named) = staging else {
+        return paths;
+    };
+    for spec in named.iter() {
+        let spelled: &[u8] = spec.as_bytes();
+        if !is_literal_path(spelled) {
+            continue;
+        }
+        let mut top_relative: Vec<u8> = Vec::with_capacity(prefix.len() + spelled.len());
+        top_relative.extend_from_slice(prefix);
+        top_relative.extend_from_slice(spelled);
+        paths.push(top_relative);
+    }
+    return paths;
+}
+
+/// What:
+///  Whether one index path is one the selection stages from the worktree.
+/// Why:
+///  The lookup says whether the entry's recorded stat data still matters.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isRestaged = (restaged, path) => restaged.some((named) => named === path);
+/// ```
+#[cfg(unix)]
+fn is_restaged(restaged: &[Vec<u8>], path: &[u8]) -> bool {
+    return restaged.iter().any(|named: &Vec<u8>| { return named.as_slice() == path; });
+}
+
+/// What:
+///  The mode an index entry has for a file with `file_mode`,
+/// or nothing when no entry can describe the file.
+/// Why:
+///  Git records a regular file as 100644 or 100755 and a link as 120000,
+/// whatever the rest of the permission bits say,
+/// so comparing the raw mode would report every file as changed.
+/// A directory, socket or device in a tracked path is a change only Git can judge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const recordedMode = (fileMode) =>
+///   fileMode & TYPE_BITS === SYMBOLIC_LINK ? 0o120000
+///   : fileMode & TYPE_BITS === REGULAR_FILE ? (fileMode & EXECUTABLE_BIT ? 0o100755 : 0o100644)
+///   : undefined;
+/// ```
+#[cfg(unix)]
+fn recorded_mode(file_mode: u32) -> Option<u32> {
+    if file_mode & TYPE_BITS == SYMBOLIC_LINK {
+        return Some(SYMBOLIC_LINK);
+    }
+    if file_mode & TYPE_BITS != REGULAR_FILE {
+        return None;
+    }
+    return if file_mode & EXECUTABLE_BIT != 0 { Some(MODE_EXECUTABLE_FILE) } else { Some(MODE_REGULAR_FILE) };
+}
+
+/// What:
+///  The stat data the file at `path` has.
+/// Why:
+///  A file this cannot read is one Git has to judge,
+///  and so is a link where the worktree expects none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const worktreeFile = (path) => {
+///   const stat = lstatSync(path); // the link itself, not what it points at
+///   const mode = recordedMode(stat.mode);
+///   return mode === undefined ? undefined : { dev: stat.dev, ino: stat.ino, mode, ... };
+/// };
+/// ```
+#[cfg(unix)]
+fn worktree_file(path: &Path) -> Option<WorktreeFile> {
+    let metadata: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
+    let mode: u32 = recorded_mode(metadata.mode())?;
+    return Some(WorktreeFile {
+        dev: metadata.dev() as u32,
+        ino: metadata.ino() as u32,
+        mode,
+        uid: metadata.uid(),
+        gid: metadata.gid(),
+        size: metadata.size() as u32,
+        ctime_sec: metadata.ctime() as u32,
+        ctime_nsec: metadata.ctime_nsec() as u32,
+        mtime_sec: metadata.mtime() as u32,
+        mtime_nsec: metadata.mtime_nsec() as u32,
+    });
+}
+
+/// What:
+///  Whether the stat data an entry records is the stat data its file has.
+/// Why:
+///  This is the question `git update-index --refresh` asks,
+///  field for field,
+///  and only an entry that answers it needs no refresh.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const matchesRecorded = (entry, file) => entry.mode === file.mode && entry.dev === file.dev && entry.ino === file.ino &&
+///   entry.uid === file.uid && entry.gid === file.gid && entry.size === file.size &&
+///   entry.ctimeSec === file.ctimeSec && entry.ctimeNsec === file.ctimeNsec &&
+///   entry.mtimeSec === file.mtimeSec && entry.mtimeNsec === file.mtimeNsec;
+/// ```
+#[cfg(unix)]
+fn matches_recorded(entry: &FullEntry, file: &WorktreeFile) -> bool {
+    let recorded: StatData = entry.stat;
+    return entry.mode == file.mode
+        && recorded.dev == file.dev
+        && recorded.ino == file.ino
+        && recorded.uid == file.uid
+        && recorded.gid == file.gid
+        && recorded.size == file.size
+        && recorded.ctime_sec == file.ctime_sec
+        && recorded.ctime_nsec == file.ctime_nsec
+        && recorded.mtime_sec == file.mtime_sec
+        && recorded.mtime_nsec == file.mtime_nsec;
+}
+
+/// What:
+///  The reading itself:
+/// every entry the commit leaves alone is compared with its file,
+/// and every doubt answers "stale".
+/// Why:
+///  `index_stat_data_needs_refresh` is the one caller,
+/// and separating the reading keeps that answer readable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readInProcess = ({ context, cwd, index, staging }) => {
+///   const bytes = readIndex(index);          // absent: nothing to refresh
+///   const layout = readLayout(cwd, overlay(context));
+///   const parsed = parseFullIndex(bytes, layout.objectFormat);
+///   const restaged = restagedPaths(staging, layout.prefix);
+///   return parsed.entries.some((entry) => !isLeftToGit(entry) && !isRestaged(restaged, entry.path) &&
+///     !matchesRecorded(entry, worktreeFile(join(layout.worktreeRoot, entry.path)) ?? STALE));
+/// };
+/// ```
+#[cfg(unix)]
+fn read_in_process(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> bool {
+    // What:
+    //  The index file's bytes.
+    // Why:
+    //  Every entry and its stat data is in them,
+    //  so no Git is needed to ask the question.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const bytes = readRegularFile(index, INDEX_LIMIT);
+    // ```
+    let bytes: Vec<u8> = match read_regular_file(index, INDEX_LIMIT) {
+        Ok(read) => read,
+        // A repository nothing was ever staged in has no index, and so no stat data to refresh.
+        Err(ReadRefusal::Missing) => return false,
+        // An index this reading cannot open is one Git answers for.
+        Err(_) => return true,
+    };
+    // What:
+    //  The environment the directory is read with,
+    //  including the real Git a child would run.
+    // Why:
+    //  The in-process reader declines some configurations,
+    //  and the answer then has to be "stale".
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const overlay = withRealGit(context.overlay, context.realGit);
+    // ```
+    let overlay: Vec<(std::ffi::OsString, std::ffi::OsString)> = crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path());
+    // What:
+    //  The worktree's top level, the start directory below it and the repository's object hash.
+    // Why:
+    //  Index paths are relative to the top level, which need not be the directory the command runs in,
+    //  and the hash length says where the index's entries end.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const layout = readLayoutIn(cwd, overlay);
+    // ```
+    let layout: RepoLayout = match read_layout_in(cwd, overlay.as_slice()) {
+        Some(read) => read,
+        None => return true,
+    };
+    // What:
+    //  Every entry of the index with its stat data.
+    // Why:
+    //  A form this reader does not understand is one Git has to answer for.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const parsed = parseFullIndex(bytes, nameLength(layout.objectFormat));
+    // ```
+    let parsed: FullIndex = match parse_full_index(bytes.as_slice(), name_length(layout.object_format)) {
+        Some(read) => read,
+        None => return true,
+    };
+    // What:
+    //  The top-relative paths this commit stages from the worktree.
+    // Why:
+    //  Their recorded stat data is replaced by `git add`,
+    //  so a stale record of theirs costs the scratch commit nothing.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const restaged = restagedPaths(staging, layout.prefix);
+    // ```
+    let restaged: Vec<Vec<u8>> = restaged_paths(&staging, layout.prefix.as_slice());
+    for entry in parsed.entries.iter() {
+        if is_left_to_git(entry) || is_restaged(restaged.as_slice(), entry.path.as_slice()) {
+            continue;
+        }
+        // What:
+        //  The file the entry names, inside the worktree.
+        // Why:
+        //  Its stat data is the answer to the question for this entry.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const path = join(layout.worktreeRoot, entry.path);
+        // ```
+        let path: PathBuf = layout.worktree_root.join(OsStr::from_bytes(entry.path.as_slice()));
+        // What:
+        //  The stat data that file has now.
+        // Why:
+        //  A file this cannot read is one Git has to judge.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const file = worktreeFile(path);
+        // ```
+        let file: WorktreeFile = match worktree_file(path.as_path()) {
+            Some(read) => read,
+            None => return true,
+        };
+        if !matches_recorded(entry, &file) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether `index` records stat data the worktree no longer has for an entry `staging` does not write afresh.
+/// Why:
+///  A commit the worktree has not moved needs no refresh,
+/// and asking Git would cost it a start and the real index's lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stale = indexStatDataNeedsRefresh({ context, cwd, index, staging }); // true: ask Git
+/// ```
+#[cfg(unix)]
+pub fn index_stat_data_needs_refresh(context: &GitContext, cwd: &Path, index: &Path, staging: WorktreeStaging<'_>) -> bool {
+    return read_in_process(context, cwd, index, staging);
+}
+
+/// Where there is no `stat` this reading knows,
+/// Git's own refresh always decides.
+#[cfg(not(unix))]
+pub fn index_stat_data_needs_refresh(_context: &GitContext, _cwd: &Path, _index: &Path, _staging: WorktreeStaging<'_>) -> bool {
+    return true;
+}
+
+/// Controls for the question itself,
+/// kept in a file of their own so the reading above stays readable.
+#[cfg(test)]
+#[path = "commit_index_stat_staleness_tests.rs"]
+mod tests;
