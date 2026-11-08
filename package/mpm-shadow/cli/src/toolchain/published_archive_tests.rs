@@ -17,7 +17,7 @@ use super::commands::older_lock_warning_lines;
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::hash::sha256_hex;
-use super::launcher::{LaunchRecord, PROC_SELF_EXE, prepare_launch, usable_source};
+use super::launcher::{LaunchRecord, PROC_SELF_EXE, prepare_launch, usable_source, warning_naming_program};
 use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
@@ -322,7 +322,7 @@ fn the_launcher_finds_the_version_of_a_release_archive_below_any_number_of_folde
     for depth in [0, 1, 3] {
         let record = record_below_current(&rig._directory.path().join(format!("depth-{depth}")), "0.2.1", depth);
         let launch = prepare_launch(&record, Some(&lock_text("0.2.0")));
-        assert_eq!(launch.warning, Some(older_lock_message(ID, "0.2.0", "0.2.1")), "depth {depth}");
+        assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(ID, "0.2.0", "0.2.1"), &record.real)), "depth {depth}");
         assert_eq!(prepare_launch(&record, Some(&lock_text("0.2.1"))).warning, None, "depth {depth}: matching");
     }
     let unlinked = LaunchRecord {
@@ -347,7 +347,11 @@ fn an_archive_folder_named_current_does_not_hide_the_link_that_names_the_version
         scope: ScopeKind::Repo,
     };
     let launch = prepare_launch(&record, Some(&lock_text("0.2.0")));
-    assert_eq!(launch.warning, Some(older_lock_message(ID, "0.2.0", "0.2.1")), "the nearest ancestor that is a link wins, not the folder");
+    assert_eq!(
+        launch.warning,
+        Some(warning_naming_program(&older_lock_message(ID, "0.2.0", "0.2.1"), &record.real)),
+        "the nearest ancestor that is a link wins, not the folder"
+    );
     assert_eq!(prepare_launch(&record, Some(&lock_text("0.2.1"))).warning, None);
 }
 
