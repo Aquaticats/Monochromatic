@@ -169,7 +169,7 @@ Measured process lifetimes of one commit (strace):
   exist plus `hook.<event>.enabled=false` for every event,
   and the wrapper starts no hook and no hook shim.
   The S1
-  shim record above,
+  shim record,
   `write_hook_dispatch`,
   `run_post_commit_hook` and the fifteen-shape parity suite describe code that
   no longer exists;
@@ -287,7 +287,7 @@ Measured process lifetimes of one commit (strace):
 - Merging `core.hooksPath` with the maintenance reads by hand:
   different phases and a `--type=path` value;
   covered
-  instead by the snapshot above.
+  instead by `config_snapshot.rs`.
 - Capping Git's threads (`pack.threads=1`,
   `core.preloadindex=false`):
   101 ms against 105 and 100 ms baseline,

@@ -268,7 +268,7 @@ The defect is real and has a reproduction;
 this repository simply contains no callable whose only in-scope inbound is its own recursive call
 and whose parameter would otherwise be offered.
 
-That is worth separating from the cache attempt recorded above,
+That is worth separating from the cache attempt,
 which was also measured as no change and was reverted.
 The difference is what each was for.
 The cache was a performance change that bought no performance,

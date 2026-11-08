@@ -2895,7 +2895,7 @@ Still open for group 14:
   "What the map does not claim").
 - the double-fork probe now says it has no reparenting handshake.
 - the unreadable-record case also refuses admission and keeps the journal and snapshot.
-- R2 stranded path and the acknowledgement writer's ordering are covered above.
+- R2 stranded path and the acknowledgement writer's ordering are already covered.
 
 Still open from the fifth-pass list:
 

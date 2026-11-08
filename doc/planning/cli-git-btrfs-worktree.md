@@ -1284,8 +1284,8 @@ stages identified by name,
 quarantine names replaced after the check,
 files inside an owned root,
 a failed marker lookup read as incomplete).
-The rule
-above replaced all of that code:
+The rule that nothing is deleted that the add cannot show it created
+replaced all of that code:
 recovery and rollback no longer delete anything.
 
 Fourth review (part B of round three):

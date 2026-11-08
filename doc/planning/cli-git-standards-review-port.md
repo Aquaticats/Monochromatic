@@ -255,7 +255,8 @@ nothing read from the system)
 and `http-body-util`,
 on `tokio` as the wrapper's async runtime.
 The hard constraint "blocking and in-process (the wrapper has no async runtime ...)" and the rejection of `hyper` with
-`hyper-rustls` in the Ledger under the HTTP client choice heading were written before that ruling and are kept as written.
+`hyper-rustls` in the Ledger under the HTTP client choice heading were written before that ruling
+and are kept as written.
 The prototype and its measurements are in `doc/research/wrapper-git-free-jobs-and-published-crates.md`,
 section "Tokio as the runtime".
 

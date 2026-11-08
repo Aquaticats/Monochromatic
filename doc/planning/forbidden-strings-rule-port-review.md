@@ -486,7 +486,7 @@ Six of these also bound an unbounded quantifier
  621,
  699,
  828),
- which is the quantifier-bounding semantic change covered above.
+ which is the quantifier-bounding semantic change under Quantifier bounding to the cap of 512 (15 rules).
 Four of them (136,
  556,
  592,

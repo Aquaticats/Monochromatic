@@ -1255,7 +1255,8 @@ I'd like you to confirm with me each pkg can stand on its own itself."),
 each of the nine is lifted bottom first and shown,
 one at a time:
 
-- It has its own `Cargo.toml` that lists only the nine libraries of the What each passing library changes section as `path` dependencies with an exact `=` pin,
+- It has its own `Cargo.toml` that lists only the nine libraries of the
+  What each passing library changes section as `path` dependencies with an exact `=` pin,
   and,
   for every package except `disposable-test-folders` itself,
   that library as a dev-dependency.
@@ -4463,7 +4464,8 @@ and passes the crate's tests.
     Done once on 2026-11-07 (section "Rescan of main after the adopted crates");
     tokio steps T6 to T13 are still to land,
     so it runs again before step 7.
-2.  Every change in the Changes the tree needs before files can move section that is not a loop break also gets its own commit before the first grouping that needs it:
+2.  Every change in the Changes the tree needs before files can move section that is not a loop break
+    also gets its own commit before the first grouping that needs it:
     the `worktree_command_facts` move,
     the `copy_file_exclusive` error type,
     the hint-function moves,
@@ -5030,7 +5032,7 @@ and what changed:
   `worktree_ladder` and others):
   correct and not yet changed.
   The names are one table (`target` in the group map) and the owner's veto round is the place to settle them;
-  the reviewer's replacements are kept in the open points below.
+  the reviewer's replacements are kept in the Open points added by that review list.
 - `new-worktrees-quickly` rejection unsupported by the folder graph:
   partly.
   The early three-crate cut that looped

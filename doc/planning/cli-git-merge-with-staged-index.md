@@ -182,8 +182,7 @@ Evidence:
   branch that moved makes it refuse.
   The window between Git's worktree and index update and its branch move is Git's own and is the same in native
   `git merge`;
-  it is covered by a journal,
-  below.
+  it is covered by `merge_isolation_journal.rs`, described under Implementation.
 
 What is reused from the repository:
 `merge-tree --write-tree` and `commit-tree` as in

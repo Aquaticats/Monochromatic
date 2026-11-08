@@ -9538,7 +9538,7 @@ Changed it,
  and reverted.
 
 **That test was invalid**,
- by the exact trap recorded earlier in this document.
+ by the exact trap under Correcting the claim I just made about the external channel.
  Looking for version provenance
  cannot distinguish "resolution still fails" from "resolution now succeeds and the callee happens to be clean",
  because a resolved external summary with empty effect sets records nothing.
@@ -12354,7 +12354,8 @@ for.
 
 ### Correction to the correction: the probe harness was blind
 
-The retraction recorded above says no guard has a program that isolates it,
+The retraction under Correction: none of the guards has a program that isolates it
+ says no guard has a program that isolates it,
  measured by
 neutralising each guard and re-running the fixtures.
 Those runs went through the `lint-fixture-readonly-*` tasks in

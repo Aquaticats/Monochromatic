@@ -654,8 +654,7 @@ defaults rather than settled decisions.
 - Context-window regression guard.
   Rejected by decision 8,
   against the recommendation,
-  with the measured cost recorded
-  above.
+  with the measured cost recorded under What the naive rule got wrong.
 
 ## Implementation risks, ordered by severity
 

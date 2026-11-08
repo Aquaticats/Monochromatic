@@ -1095,8 +1095,7 @@ the record).
   keep the stop instead of the fallback.
   Options:
   keep the fallback (picked),
-  return to the stop of the previous
-  section.
+  return to the stop that the Not covered section records for a `PATH` with no real Git.
   Ranking:
   fallback > stop,
   because a found wrapper that cannot run Git is the failure the owner's rules name,

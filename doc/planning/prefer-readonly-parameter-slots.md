@@ -221,7 +221,7 @@ That turned out to be faster in wall-clock terms as well as survivable,
 because the parallel version was thrashing.
 
 The thread count inside each process is the second reason,
- recorded next.
+ recorded under Every sweep comparison must run single-threaded.
 
 ## Every sweep comparison must run single-threaded
 

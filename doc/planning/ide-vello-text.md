@@ -353,8 +353,7 @@ FemtoVG second):
   row element keeps its line) cost 5.7 and 14.1,
   which equals the static scene.
 - The first row as a Slint binding on `content-y` cost the same as native-driven for 90 rows,
-  but see the minimap
-  below:
+  but see Question 4: the minimap on the GPU:
   a binding on `content-y` makes every dependent item re-evaluate each step even when its value is unchanged
   (a 489-row minimap whose first row never changes cost +10.5 ms per step).
 - Culling probe:

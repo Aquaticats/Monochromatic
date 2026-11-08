@@ -2298,8 +2298,7 @@ The decision now:
   Equal means no bus connection at all (no rewrite,
   no reload,
   no call).
-  Different or missing means the
-  steps above,
+  Different or missing means the numbered provisioning steps under the Provisioning heading,
   so an upgrade or a downgrade is repaired by the first commit that follows it,
   with no step for the person.
 - When the manager refuses after a unit was rewritten,
@@ -2642,8 +2641,7 @@ because the single-writer service makes it unnecessary (landing moves to the ser
   the foreign `index.lock` waiting and holder-evidence family is NOT deletable.
   It
   moves into the service landing,
-  which takes `index.lock` first (see "Landing every command line",
-  below).
+  which takes `index.lock` first (see "Landing every command line").
   Kept:
   `index_lock_holders.rs`,
   `index_lock_holder_parsers.rs`,
@@ -2936,8 +2934,7 @@ Delete:
 `post_landing`,
 `landed_disposal`,
 `commit_recovery`,
-`recovery_*` (but see
-below),
+`recovery_*` (but see the Keep or move list),
 `transaction_registry`,
 `transaction_gate`,
 `commit_workspace`,

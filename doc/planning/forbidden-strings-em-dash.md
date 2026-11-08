@@ -15,7 +15,7 @@ and their ASCII substitutes (`-`,
 Feasibility confirmed for both unicode characters and the ASCII `--` shape.
 Open work:
  exclusion-list expansion using the literal-space workaround
-for `\b` inside complement bodies (see the Resharp HIR limits inside `~(...)` complement bodies section),
+for `\b` inside complement bodies (see "Resharp HIR limits inside `~(...)` complement bodies"),
 self-match handling for the unicode case,
  single-dash (`-`) handling.
 
@@ -229,8 +229,7 @@ Not implemented.
 
 Rule 2's exclusion list currently has only `npm` and `git`.
 The earlier framing blamed an "algebra ceiling" on alternation count;
-the actual blocker (see "Resharp HIR limits inside `~(...)` complement bodies"
-above) was `\b` inside the complement,
+the actual blocker (see "Resharp HIR limits inside `~(...)` complement bodies") was `\b` inside the complement,
  not size.
 Splitting exclusions across multiple rules does not help:
 multiple rules combine via union (any rule firing flags the line),
@@ -359,7 +358,7 @@ Date:
  The engine migration (issues #375 through #389) replaced resharp with the
 in-house `forbidden-regex` engine (`package/forbidden-strings/core`) after this
 investigation was written.
- Two of the blockers documented under the What does not work heading have different answers under
+ Two of the blockers documented under "What does not work" have different answers under
 the new dialect.
 
 ### Bounded complements no longer need the literal-space workaround
@@ -389,7 +388,7 @@ gap it left.
 
 ### Unbounded quantifiers must become bounded ones
 
-The rules recorded in the Resharp HIR limits inside `~(...)` complement bodies section
+The rules recorded in "Resharp HIR limits inside `~(...)` complement bodies"
 (`/^.*[a-z] -- [a-z].*$&~(.*npm.*)&~(.*git.*)/` and similar) rely on
 unbounded `.*`.
  `forbidden-regex` rejects `*`,

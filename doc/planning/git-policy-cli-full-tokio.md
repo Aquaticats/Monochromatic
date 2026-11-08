@@ -3742,7 +3742,8 @@ not by gate reruns.
 - Not starvation of the look:
   the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
   so the one look returned `ProvenAlive`,
-  and in every instrumented run of the holder kind section the only holder notice was proven.
+  and in every instrumented run under "Counts of the one test under the gate's limits"
+  the only holder notice was proven.
   The look did not reach its ceiling in any run.
   The pool's busy count was not recorded,
   because no look waited on the pool.

@@ -791,7 +791,7 @@ The ladder branch `btrfs-worktree-ladder` (head `414bb552d1`) owns the snapshot 
 I read it and did not run it,
 so
 the
-numbers below are for the snapshot and the removals the owner asked for,
+numbers in the Snapshot route measured section are for the snapshot and the removals the owner asked for,
 not for the ladder's own steps (its tree
 update,
 index install and checkout line),
