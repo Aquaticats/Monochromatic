@@ -17,7 +17,7 @@ use super::commands::older_lock_warning_lines;
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::hash::sha256_hex;
-use super::launcher::{LaunchRecord, prepare_launch, warning_naming_program};
+use super::launcher::{LaunchRecord, parse_record, prepare_launch, warning_naming_program};
 use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
@@ -81,6 +81,37 @@ pub(super) fn serve_releases(rig: &Rig, versions: &[&str]) {
             let position: usize = request.args.iter().position(|argument| return argument == "--directory").expect("a directory");
             let directory: PathBuf = PathBuf::from(&request.args[position + 1]);
             write_executable(&directory.join("release-folder").join(BIN));
+        }),
+    );
+}
+
+/// The folder a release archive of this repository unpacks into,
+/// named after the version the way the release job names it.
+pub(super) fn release_folder(version: &str) -> String {
+    return format!("monochromatic-mpm-shadow-{version}-x86_64-unknown-linux-gnu");
+}
+
+/// Makes the fake network serve releases whose unpacking folder carries the version,
+/// the way a real release archive of this repository unpacks.
+/// The version is read from the download's own directory,
+/// `<toolchain root>/downloads/<tool id>/<version>/`,
+/// which is what a real `tar --extract` receives.
+pub(super) fn serve_versioned_releases(rig: &Rig, versions: &[&str]) {
+    for version in versions {
+        rig.http.serve(&release_url(version), &release_body(version));
+    }
+    rig.runner.on(
+        "tar --extract",
+        Box::new(|request: &RunRequest| {
+            let position: usize = request.args.iter().position(|argument| return argument == "--directory").expect("a directory");
+            let directory: PathBuf = PathBuf::from(&request.args[position + 1]);
+            let file: usize = request.args.iter().position(|argument| return argument == "--file").expect("a file");
+            let version: String = PathBuf::from(&request.args[file + 1])
+                .parent()
+                .and_then(Path::file_name)
+                .map(|name| return name.to_string_lossy().to_string())
+                .expect("the download's version directory");
+            write_executable(&directory.join(release_folder(&version)).join(BIN));
         }),
     );
 }
@@ -204,18 +235,57 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
 }
 
 /// What:
-/// The program a launcher record names is the version-carrying folder below `current`,
+/// A tree's launcher record names the program through the tool's `current` link,
+/// never a folder whose name carries the version,
+/// so a newer install in another tree,
+/// which deletes the older version's folder,
+/// leaves that record naming a program that is still there.
+/// Why:
+/// The census of this machine on 2026-11-08 found 289 of 1105 launcher records naming a deleted folder,
+/// and every one of them named a release folder of a repository-published archive tool.
+/// A launcher repairs such a record on its first run,
+/// but only after that run;
+/// a record written through `current` never goes stale in the first place.
+#[test]
+fn a_record_names_a_program_a_newer_install_in_another_tree_leaves_in_place() {
+    let rig = Rig::new();
+    serve_versioned_releases(&rig, &["0.2.0", "0.2.1"]);
+    let scope_old = second_tree(&rig);
+    let lock_old = lock_at(&rig, "0.2.0");
+    let lock_new = lock_at(&rig, "0.2.1");
+
+    let first = sync_tools(&context_of(&rig, &scope_old, &lock_old), None);
+    assert_eq!(first.installed, vec![ID.to_string()], "{first:?}");
+    let record_file: PathBuf = scope_old.launcher_dir.join(format!("{BIN}.launch"));
+    let record = parse_record(&fs::read_to_string(&record_file).expect("a record")).expect("a record");
+    let through_current: PathBuf = current_link_of(&scope_old.toolchain_root, ID).expect("a plain id").join(BIN);
+    assert_eq!(record.real, through_current, "the record names the program through `current`, not a folder named after the version");
+
+    // The other tree installs the newer release, which deletes the folder 0.2.0 unpacked into.
+    let second = sync_tools(&context_of(&rig, &rig.scope, &lock_new), None);
+    assert_eq!(second.installed, vec![ID.to_string()], "{second:?}");
+    assert!(
+        !tool_directory(&scope_old.toolchain_root, ID).expect("a plain name").join("0.2.0").exists(),
+        "installing 0.2.1 removed 0.2.0"
+    );
+    assert!(
+        record.real.is_file(),
+        "the record of a tree that installed the older release still names a program that exists: {}",
+        record.real.display()
+    );
+}
+
+/// What:
+/// The program a record written before this rule names is still the version-carrying folder below `current`,
 /// so a newer install,
 /// which deletes the older folder,
 /// leaves another tree's record naming a path that no longer exists.
 /// Why:
 /// The census of this machine on 2026-11-08 found 284 such records and 891 launcher binaries that predate the code which
 /// follows `current` and rewrites the record.
-/// The rule that launchers are copies of the newest installed `mpm-shadow` changes which binary a launcher is,
-/// not where a record points,
-/// so it does not stop those records appearing;
-/// it stops such a record breaking the run,
-/// because the newest launcher follows `current` and rewrites it.
+/// Such a record keeps working,
+/// because the launcher follows `current` to the program of the same name and then rewrites the record,
+/// and a directory an older release unpacked in place carries no `current`-relative program path of its own.
 #[test]
 fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
     let rig = Rig::new();

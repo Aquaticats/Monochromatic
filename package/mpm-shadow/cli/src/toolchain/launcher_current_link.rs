@@ -108,7 +108,8 @@ pub fn version_named_by(link: &Path) -> Option<String> {
 /// The version the tool's `current` link names,
 /// found from the real program's path:
 /// `<crate directory>/current/bin/<name>` for a crate,
-/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
+/// `<tool directory>/current/<archive folder>/<name>` for a release archive record written before `link_stable_programs`,
+/// and `<tool directory>/current/<name>` for a record written after it,
 /// so the link is the nearest ancestor of the program that is named `current`.
 pub fn version_that_runs(real: &Path) -> Option<String> {
     return version_named_by(current_link_above(real)?);
@@ -121,8 +122,11 @@ pub fn version_that_runs(real: &Path) -> Option<String> {
 /// otherwise `real` again (the launcher then reports that it could not start it).
 /// Why:
 /// The folder below `current` of a release archive carries the version,
-/// so the path a record names stops existing when `current` moves,
-/// while a program of the same name still sits under `current`.
+/// so the path a record written before `link_stable_programs` names stops existing when `current` moves,
+/// while a program of the same name still sits under `current`,
+/// now also as the version-independent link the install writes.
+/// The search finds that link first,
+/// so a repaired record needs no repair after the next version move.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
