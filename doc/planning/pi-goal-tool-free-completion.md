@@ -183,6 +183,20 @@ or `/goal clear`.
 Human decisions use `ask_user_question` inside the primary run.
 That tool blocks indefinitely until the user answers or cancels,
 so completion review does not need a second blocked-on-user state.
+The reviewer prompt depends on whether the session can reach a user,
+which only the terminal UI can.
+In RPC,
+JSON,
+and print sessions the reviewer is told the user cannot be asked,
+and never routes work to `ask_user_question`.
+In every mode,
+hard,
+unsolved,
+or unfinished work gets one concrete next attempt that differs from the attempts already shown,
+never an instruction to stop,
+explain impossibility,
+or ask for another task.
+The measurements that led to this are in `doc/agent/pi-goal-extension-driven-through-rpc.md`.
 
 Reviewer exhaustion keeps the existing TUI manual decision and non-interactive terminal behavior.
 

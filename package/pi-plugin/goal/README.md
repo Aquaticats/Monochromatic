@@ -70,6 +70,18 @@ so goal does not poll or override process notifications.
 Human decisions use Pi's `ask_user_question` tool inside primary run.
 That tool blocks until user answers or cancels,
 so settlement review does not need separate blocked-on-user state.
+Reviewer prompt follows session mode:
+only the terminal UI can reach a user,
+so in RPC,
+JSON,
+and print sessions reviewer never directs primary model to ask a user.
+In every mode,
+hard,
+unsolved,
+or unfinished work gets one concrete next attempt that differs from attempts already shown,
+never an instruction to stop,
+explain impossibility,
+or request another task.
 
 ## Private independent review
 
