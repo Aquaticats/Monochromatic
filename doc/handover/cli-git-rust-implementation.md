@@ -7692,6 +7692,27 @@ though nothing conflicted.
   The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
   `service_land.rs`) is unchanged.
 
+### Open: a test that failed once in the gate of the three-second ceiling (2026-11-08)
+
+The container gate of branch `fix/git-policy-cli-scratch-step-ceiling-three-seconds` (`native:test:container`,
+8 CPUs,
+8 GiB,
+2048 processes) ran 5399 tests and 5398 passed.
+One failed once and was not rerun:
+`native_binary commit_timing::every_service_line_states_the_time_of_its_event` (`binary_commit_timing_tests.rs`,
+line 534),
+with the text
+"1794113651907 is not between 1794113651472 and 1794113651827:
+monochromatic-git-policy-cli-service:
+rules warmed repository=... warm_ms=111 at_ms=1794113651907".
+The line is the service's rules warm,
+stamped 80 ms after the client command ended;
+the control expects every service line inside the command's own window.
+The same control passed in the four earlier gates of the branch before it.
+Nothing in this change touches the warm or that control,
+so it reads as a timing race between the asynchronous warm and the end of the command.
+Cause not measured.
+
 ### Design stance
 
 The commit service unit sets no resource limits of its own
