@@ -93,7 +93,10 @@ Every Rust arm returns `firefox 140`.
 `oxc-browserslist` hard-codes it in `src/queries/firefox_esr.rs:3-4`:
 
 ```rust
+//! The query of the Firefox ESR release in the browserslist port:
+//! it returns a fixed Firefox version.
 // src/queries/firefox_esr.rs (oxc-browserslist main 6297028)
+/// Resolves the `firefox esr` query to its single fixed distribution.
 pub(super) fn firefox_esr() -> QueryResult {
     Ok(vec![Distrib::new("firefox", "140")])
 }

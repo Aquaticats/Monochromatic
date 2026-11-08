@@ -573,9 +573,19 @@ The core crate should define a small decoded-audio abstraction.
 The current desktop and Android Rust `Source` traits are already close enough for adapters:
 
 ```rust
+//! The source contract of the shared true-peak core:
+//! a decoded stream that reports its format,
+//! yields chunks of samples and can seek.
+
+/// A decoded audio stream that the true-peak analysis reads,
+/// owned by the caller and movable between threads.
 pub trait TruePeakSource: Send {
+    /// The sample format of the stream.
     fn spec(&self) -> AudioSpec;
+    /// Decodes and returns the next chunk of interleaved samples,
+    /// or the analysis error that stopped the decoder.
     fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError>;
+    /// Moves the read position to the given time in seconds.
     fn seek(&mut self, seconds: f64) -> Result<(), TruePeakError>;
 }
 ```
@@ -587,6 +597,12 @@ Conceptually,
 the main service API is:
 
 ```rust
+//! The service calls of the shared true-peak core,
+//! as signatures only:
+//! open the database,
+//! read a cached decision,
+//! resolve a decision from a source,
+//! and warm the library in bulk.
 TruePeakService::open(database_path, active_policy)
 TruePeakService::cached_decision(fingerprint)
 TruePeakService::resolve_decision(fingerprint, source)

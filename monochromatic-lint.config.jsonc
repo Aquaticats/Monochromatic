@@ -8,6 +8,8 @@
       "package-paused/",
       "package-deprecated/",
       ".out-of-scope/",
+      // The fuzz seeds break rules on purpose, so the fuzzer can test the linter on them (owner approval 2026-11-07).
+      "package/linter/monochromatic-lint.fuzz/seed/",
     ],
   },
   {

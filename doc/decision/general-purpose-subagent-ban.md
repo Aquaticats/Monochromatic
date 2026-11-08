@@ -59,7 +59,8 @@ With a human supervising in the UI,
 
 ## Scope and boundary
 
-Superseded on 2026-10-29 for the supervision requirement; the list records the boundary as of 2026-06-12.
+Superseded on 2026-10-29 for the supervision requirement;
+the list records the boundary as of 2026-06-12.
 
 - Allowed in interactive sessions where a human watches the Claude Code UI.
 - Autonomous and headless contexts are out of scope and unsupported in this repo:

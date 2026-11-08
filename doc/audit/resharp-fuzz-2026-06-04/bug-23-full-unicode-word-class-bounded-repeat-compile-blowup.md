@@ -22,6 +22,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the compile-time blowup of a bounded repeat of a word class in the full Unicode mode,
+//! compared with the default and ASCII modes in the comment.
+
+/// The regex type,
+/// its options and the Unicode mode that selects the full classes.
 use resharp::{Regex, RegexOptions, UnicodeMode};
 let full = RegexOptions::default().unicode(UnicodeMode::Full);
 let _ = Regex::with_options(r"\w{16}", full).unwrap(); // ~15.6 s to COMPILE
@@ -98,7 +103,11 @@ The parser lowers `{n}`,
 quantifier:
 
 ```rust
+//! The repeat constructor of the algebra,
+//! which builds one node per repetition of the body.
 // resharp-algebra/src/lib.rs:3710
+/// Builds the node for a body repeated between `lower` and `upper` times,
+/// as the optional body `upper - lower` times followed by the body `lower` times.
 pub fn mk_repeat(&mut self, body_id: NodeId, lower: u32, upper: u32) -> NodeId {
     let opt = self.mk_opt(body_id);
     let mut nodes1 = vec![];

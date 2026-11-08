@@ -84,8 +84,13 @@ journal recovery,
 settlement locking,
 and synchronization,
 even when they create a linked worktree.
-(Changed 2026-11-03T02:57:19-05:00: there is no settlement locking; the other bypasses stand, and a main checkout that creates a worktree
-is still a copy source. See `package/git-policy/cli/SPEC.md`, "Linked-worktree ignored-state synchronization".)
+(Changed 2026-11-03T02:57:19-05:00:
+there is no settlement locking;
+the other bypasses stand,
+and a main checkout that creates a worktree
+is still a copy source.
+See `package/git-policy/cli/SPEC.md`,
+"Linked-worktree ignored-state synchronization".)
 For applicable sources,
 do not classify only literal `worktree add` argv.
 Compare linked administrative identities before and after forwarding so ordinary aliases and worktrees retained after
@@ -952,11 +957,15 @@ Consumer lockfiles and self-contained builds govern plugin inputs.
   implementation state and evidence.
 - `package/git-policy/cli/README.md` and `package/git-policy/cli/src/index.ts`:
   current wrapper behavior.
-  Moved: the TypeScript wrapper was retired on 2026-10-13 (merge `9e633292e7`); the entry point is now
+  Moved:
+  the TypeScript wrapper was retired on 2026-10-13 (merge `9e633292e7`);
+  the entry point is now
   `package/git-policy/cli/src/native/main.rs` with `src/native/entry.rs`.
 - `package/git-policy/cli/src/escape-hatch.ts`:
   parser-based invocation escape hatches.
-  Moved: now `package/git-policy/cli/src/native/escape_hatch.rs` (same retirement, 2026-10-13).
+  Moved:
+  now `package/git-policy/cli/src/native/escape_hatch.rs` (same retirement,
+  2026-10-13).
 - `package/fs-id/core/README.md`:
   implemented filesystem identity prerequisite and verified platform behavior.
 - `doc/planning/final-newline-normalization.md`:

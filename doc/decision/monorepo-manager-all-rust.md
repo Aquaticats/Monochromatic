@@ -83,7 +83,8 @@ and the root `mise.toml` is no longer generated.
    with committed and gitignored `.config/mise/conf.d/` fragments,
    so nothing generates `mise.toml` (`doc/decision/file-enforcer-rust-rewrite.md`).
   Done at the Rust file-enforcer cutover (2026-10-31):
-   `mise.no-env.toml` is gone, the root `mise.toml` is hand-written,
+   `mise.no-env.toml` is gone,
+  the root `mise.toml` is hand-written,
    and the static environment is the committed `.config/mise/conf.d/20-env.toml`
    beside the gitignored `10-bin.local.toml` that `file-enforcer` writes.
 - The tool does not own Meta Package Manager's lifecycle (user,

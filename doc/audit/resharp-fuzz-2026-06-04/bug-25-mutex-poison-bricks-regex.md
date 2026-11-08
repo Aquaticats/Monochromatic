@@ -30,7 +30,13 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the poisoned lock:
+//! a panic that the caller catches leaves the cache lock poisoned,
+//! so every later call on the same `Regex` fails.
+
+/// The regex type whose lock is poisoned.
 use resharp::Regex;
+/// The panic helpers that catch the first panic and show that the second call fails too.
 use std::panic;
 
 let re = Regex::new(r"\w+b").unwrap();

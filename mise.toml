@@ -880,8 +880,13 @@ for (const directory of directories) {
 if (failed.length > 0) { throw new Error('cargo fetch --locked failed in: ' + failed.join(', ')) }
 """
 
+# `depends` runs the fetch first (owner decision of 2026-11-07, "Fetch then warn"): the closure check reads the Cargo
+# cache offline, and a package whose crates are missing is reported as a warning finding naming the fix, so the fetch
+# keeps that warning from appearing on a cold cache. Unlike a `run` array entry, `depends` takes none of the post-`--`
+# paths, so the fetch always covers every locked package.
 [tasks."lint:monochromatic-lint"]
 description = "Lint Rust, Markdown and MDX with monochromatic-lint, optionally restricted to specific paths"
+depends = ["fetch:rust-dependencies"]
 # No usage spec: mise appends post-`--` args to the command as a real argv vector
 # (preserving spaces). The linter walks `.` when no paths are given.
 run = "monochromatic-lint"

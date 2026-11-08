@@ -26,6 +26,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the superlinear match:
+//! a lookbehind that wraps the end anchor takes seconds on a short input and minutes on a longer one.
+
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 // default config (multiline on, size limits on)
 let re = Regex::with_options("(?<=$)", RegexOptions::default()).unwrap();
@@ -147,6 +151,9 @@ The `Kind::Lookbehind` derivative arm
 every input symbol and rebuilds a fresh lookbehind term:
 
 ```rust
+//! The derivative step for a lookbehind node:
+//! it derives the inner pattern again at every position,
+//! which makes the whole match superlinear.
 // resharp-algebra/src/lib.rs:1378
 Kind::Lookbehind => {
     let lb_prev_der = { /* der of the reverse-tracking "prev" */ };

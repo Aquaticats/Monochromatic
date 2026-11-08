@@ -17,6 +17,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the correctness assertion:
+//! `find_all` panics in the default option mode on a two byte input.
+
+/// The regex type whose `find_all` panics.
 use resharp::Regex;
 // panics in the default option mode on a two byte input:
 let re = Regex::new(r".\W*b+").unwrap();
@@ -73,6 +77,9 @@ produces a real cross-engine `DIVERGE` (`is_match` true in resharp,
 `resharp-engine/src/engine.rs:960`:
 
 ```rust
+//! The assertion that fires,
+//! and the match push that follows it,
+//! in the matcher of the failing case.
 assert_ne!(NO_MATCH, l_max_end, "correctness issue found");
 matches.push(Match { start: 0, end: l_max_end });
 ```

@@ -67,13 +67,18 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
 
 ### Update and tightening
 
-- The update lives in the cargo shadow, `package/cargo-shadow/cli` (it was a TypeScript package,
-   `package/dependency-catalog/cli-rust-update`, until 2026-11-03):
-   started as `cargo`, the shadow answers `cargo update` as `pnpm update`,
+- The update lives in the cargo shadow,
+  `package/cargo-shadow/cli` (it was a TypeScript package,
+   `package/dependency-catalog/cli-rust-update`,
+  until 2026-11-03):
+   started as `cargo`,
+  the shadow answers `cargo update` as `pnpm update`,
    `cargo generate-lockfile` as `pnpm install --lockfile-only`,
    and runs an install step before every cargo command that resolves dependencies
    (the `verifyDepsBeforeRun: install` counterpart);
-   started as `cargo-shadow`, it runs the repository-wide `install`, `update` and `verify` commands.
+   started as `cargo-shadow`,
+  it runs the repository-wide `install`,
+  `update` and `verify` commands.
    The whole-repository update runs `cargo update` in every crate root
    (the `pnpm -r --no-save update` counterpart),
    with dry run,
@@ -101,12 +106,15 @@ The JS side already runs pnpm catalogs (`catalogMode: strict`),
    The first full cold check had found 41 findings on long-locked releases.
    Amended by the owner on 2026-10-29:
    a cold cache is filled from the crates.io database dump (`https://static.crates.io/db-dump.tar.gz`,
-   rebuilt daily, no rate limit), which crates.io's data-access policy lists ahead of the API,
+   rebuilt daily,
+  no rate limit),
+  which crates.io's data-access policy lists ahead of the API,
    after a full API-only verification hit HTTP 429 after 657 requests.
    The dump keeps every Trusted Publishing column private,
    so a crate with a publisher-less release since 2025-07-01 still takes its history from the API,
    which is spaced at 1100 ms and retries HTTP 429 after `Retry-After`.
-   The dump and CSV readers are hand-written, not third-party libraries (owner choice).
+   The dump and CSV readers are hand-written,
+  not third-party libraries (owner choice).
 - `catalog-tighten` gains a Cargo source that raises `>=` floors to the highest version locked across consuming crates;
    it writes no lockfiles.
 

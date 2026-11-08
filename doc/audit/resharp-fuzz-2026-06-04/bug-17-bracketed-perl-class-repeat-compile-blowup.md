@@ -23,6 +23,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the compile-time blowup of a bracketed class under a bounded repeat:
+//! two patterns,
+//! the second of which takes more than ten seconds to construct.
+
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 let _ = Regex::with_options("[\\w]{3,5}", RegexOptions::default()).unwrap();
 // ~1.76 s for a five-token pattern
@@ -125,7 +130,12 @@ unrolling into a concatenation of `upper - lower` optional copies plus `lower`
 mandatory copies of the body node:
 
 ```rust
+//! The repeat constructor of the algebra:
+//! it builds one node per repetition,
+//! so a large class repeated several times multiplies its own size.
 // resharp-algebra/src/lib.rs:3710
+/// Builds the node for a body repeated between `lower` and `upper` times,
+/// as the optional body `upper - lower` times followed by the body `lower` times.
 pub fn mk_repeat(&mut self, body_id: NodeId, lower: u32, upper: u32) -> NodeId {
     let opt = self.mk_opt(body_id);            // EPS | body
     let mut nodes1 = vec![];

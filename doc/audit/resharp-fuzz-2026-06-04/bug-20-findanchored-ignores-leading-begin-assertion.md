@@ -23,6 +23,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the ignored leading assertion:
+//! `find_all` correctly skips offset 0,
+//! `find_anchored` returns a match there.
+
+/// The regex type whose two entry points disagree.
 use resharp::Regex;
 let re = Regex::new(r"\B0").unwrap();
 let hay = b"00";
@@ -99,6 +104,9 @@ the `regex` crate matches `\B0` on `"00"` at offset 1,
 with the generic forward scanner:
 
 ```rust
+//! The anchored search:
+//! it scans forward from offset 0 and returns the span it finds,
+//! without first checking that a leading assertion holds at offset 0.
 // resharp-engine/src/lib.rs:1847
 let max_end = inner.fwd.scan_fwd_slow(&mut inner.b, 0, input)?;
 if max_end != engine::NO_MATCH {

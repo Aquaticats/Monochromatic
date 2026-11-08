@@ -2,16 +2,25 @@
 
 ## Accepted decision
 
-On 2026-10-18 the user chose, from three options, a rustc-driver lint through Dylint plus comment directives.
+On 2026-10-18 the user chose,
+from three options,
+a rustc-driver lint through Dylint plus comment directives.
 The alternatives were a callee allow-list in `monochromatic-lint` and a type criterion inside `monochromatic-lint`
 with a build-generated load.
-The evidence is in [the proposal][proposal], sections "Spike results", "Research results" and "Round two results".
+The evidence is in [the proposal][proposal],
+sections "Spike results",
+"Research results" and "Round two results".
 
 The Rust closure rule becomes a Dylint library lint.
 It reports a closure unless two things hold:
-the closure captures state, and it is a direct argument whose callee parameter requires `'static`
-(so the callee keeps the state past the call and no named function, loop, or `match` can replace the closure).
-rustc answers both questions: captures from `tcx.upvars_mentioned`, the bound from the callee's `TypeOutlives` clauses.
+the closure captures state,
+and it is a direct argument whose callee parameter requires `'static`
+(so the callee keeps the state past the call and no named function,
+loop,
+or `match` can replace the closure).
+rustc answers both questions:
+captures from `tcx.upvars_mentioned`,
+the bound from the callee's `TypeOutlives` clauses.
 
 ## Suppression
 
@@ -19,19 +28,25 @@ The Dylint lint is suppressed with rustc's own attributes:
 `#[cfg_attr(dylint_lib = "<library>", expect(<lint>, reason = "..."))]` on the closure argument or an enclosing item.
 rustc then reports an expectation that suppresses nothing (`unfulfilled_lint_expectations`).
 The comment directives of `doc/planning/rust-linter-oxlint-parity.md` (decision D2) remain decided for
-`monochromatic-lint`'s own rules; they are a separate piece of work and the Dylint lint does not use them.
-If the owner meant the comment form for the Dylint lint too, that reading was not asked and is open to veto.
+`monochromatic-lint`'s own rules;
+they are a separate piece of work and the Dylint lint does not use them.
+If the owner meant the comment form for the Dylint lint too,
+that reading was not asked and is open to veto.
 
 ## What the user approved with the choice
 
-- Using the Dylint crates (`dylint_linting`, `dylint_testing`, `cargo-dylint`, `dylint-link`).
+- Using the Dylint crates (`dylint_linting`,
+  `dylint_testing`,
+  `cargo-dylint`,
+  `dylint-link`).
 - The `rustc-dev` toolchain component for the package that builds the lint.
 
 ## Root toolchain change approved on 2026-10-18
 
 Stage 1 kept the lint's toolchain package-local (a dated nightly in the package) because the root toolchain was not
 approved to change.
-On 2026-10-18 the owner answered three questions through the question tool, and stage 2a carries them out:
+On 2026-10-18 the owner answered three questions through the question tool,
+and stage 2a carries them out:
 
 - Add `rustc-dev` to the shared floating nightly.
   `mise.no-env.toml` lists the component and the tools `cargo-dylint` and `dylint-link`,
@@ -61,11 +76,17 @@ the package README says so.
 ## Staging
 
 1. A new package for the lint with tests that include positive controls and adversarial cases,
-   a README, and tasks in its `mise.toml`.
+   a README,
+   and tasks in its `mise.toml`.
    No change to the IDE package.
-2. Run it over the IDE, record the verdicts for the 67 closures, and propose the attribute placement and the
+2. Run it over the IDE,
+   record the verdicts for the 67 closures,
+   and propose the attribute placement and the
    `check-cfg` entry the IDE needs (package `Cargo.toml` files are managed by file-enforcer).
-3. After review: the IDE integration, the five known reports, and the fate of the syntax-only
+3. After review:
+   the IDE integration,
+   the five known reports,
+   and the fate of the syntax-only
    `rust/no-anonymous-functions` rule in `monochromatic-lint`.
 
 ## Removal of `rust/no-anonymous-functions`
@@ -131,9 +152,11 @@ Consequences:
 
 Asked whether to add a `lint:closures` gate to the other Rust packages,
 the owner answered through the question tool that `avoidable_closure` should be enabled by default everywhere in
-the linter, and that there should be no separate `lint:closures` task.
+the linter,
+and that there should be no separate `lint:closures` task.
 The owner had taken the closure check for a built-in rule of `monochromatic-lint` enabled everywhere;
-it was until the removal of 2026-10-18, and the consequence above (only the IDE keeps a check) was not known to them.
+it was until the removal of 2026-10-18,
+and the consequence above (only the IDE keeps a check) was not known to them.
 The mechanism is not decided:
 the lint needs rustc type information,
 so `monochromatic-lint` would have to run the Dylint library over each Rust package itself,
@@ -143,25 +166,41 @@ The feasibility and the options are in `doc/planning/closure-lint-everywhere.md`
 
 The owner answered four questions about `doc/planning/closure-lint-everywhere.md` through the question tool:
 
-- Mechanism A: `monochromatic-lint` runs `cargo dylint` for each Rust package itself,
+- Mechanism A:
+  `monochromatic-lint` runs `cargo dylint` for each Rust package itself,
   with the library path named in the rule options and a per-package manifest of build prerequisites.
-- Severity: warnings first.
-- Exemptions: tests, fuzz crates and bench crates are exempt.
-- A package whose prerequisites are missing on the machine is skipped, and the linter says so.
+- Severity:
+  warnings first.
+- Exemptions:
+  tests,
+  fuzz crates and bench crates are exempt.
+- A package whose prerequisites are missing on the machine is skipped,
+  and the linter says so.
 
-Adopted as defaults without asking, open to veto:
+Adopted as defaults without asking,
+open to veto:
 the floating nightly stays (no pin),
 only rustc's `expect` suppresses the Dylint lint (no comment directives),
 generated code is skipped by the lint itself (spans outside the package's own source),
 and the IDE keeps error severity because it has no findings.
 ## Known limits to carry into the lint's README
 
-- Wrappers are not recognised (`Arc::new(closure)`, `Some(closure)`, struct fields, `Option<F>`, a callee that is
-  a value of fn-trait type); the spike counted none in the final IDE, and 8 `Arc::new(closure)` plus 37
+- Wrappers are not recognised (`Arc::new(closure)`,
+  `Some(closure)`,
+  struct fields,
+  `Option<F>`,
+  a callee that is
+  a value of fn-trait type);
+  the spike counted none in the final IDE,
+  and 8 `Arc::new(closure)` plus 37
   `Box::new(closure)` elsewhere in the repository.
-- Only code that compiles is linted: features, `cfg`, and `--all-targets` decide coverage.
+- Only code that compiles is linted:
+  features,
+  `cfg`,
+  and `--all-targets` decide coverage.
 - Dylint builds the target with the toolchain that built the library.
-- The generated Slint window type is unverified under rustc; the IDE build needs its runtime prepared first
+- The generated Slint window type is unverified under rustc;
+  the IDE build needs its runtime prepared first
   (`mise run //package/ide/app:runtime`).
 
 ## Implementation of 2026-10-19
@@ -184,5 +223,36 @@ The behaviour is documented in `package/linter/monochromatic-lint/README.md`,
 section "Closure check".
 Activation in a checkout needs a released `monochromatic-lint` that knows the rule:
 the 0.2.0 release rejects the configuration with status 2.
+
+## Amendment of 2026-11-07T22:19:43-05:00: a skip is a warning
+
+The answer of 2026-10-19 that a package whose prerequisites are missing "is skipped,
+and the linter says so"
+left the form of the saying open,
+and the first implementation said it with a line on standard error and exit status 0.
+On 2026-11-07 a cold cargo cache skipped five packages and hid their findings behind a green run.
+Asked what a skip should do in the repository's own lint,
+the owner answered through the question tool,
+in their own words and not as one of the offered options:
+"Fetch then warn."
+
+This reads as two rules:
+
+- The repository's own lint tasks fetch the Rust dependencies first (`mise run fetch:rust-dependencies`),
+  so the cold cache that caused the skip is filled before the closure check reads it.
+- A skip that remains is reported as a warning-level finding of `rust/avoidable-closure`,
+  at the package's `Cargo.toml`,
+  naming the package and the command that fixes it.
+  It is not a silent message with exit status 0,
+  and it is not an error:
+  it counts against `--max-warnings` like any warning,
+  and `--quiet` and `--silent` hide it with the other warnings.
+
+A machine-wide gap (no `cargo-dylint`,
+no `rustc-dev`) and a missing driver produce one such finding per package,
+so the report shows how many packages went unchecked.
+Failures that are not a missing prerequisite keep exiting with status 2.
+The implementation is recorded in `package/linter/monochromatic-lint/README.md`,
+section "Machine requirements and skips".
 
 [proposal]: ../planning/linter-selective-anonymous-functions.md

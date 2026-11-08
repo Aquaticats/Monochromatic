@@ -10,10 +10,10 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! test('a cold cache skips', () => expect(runClosureStepWith(plans, cwd, false, stub.cargo).messages).toEqual([...]));
+//! test('a cold cache skips', () => expect(runClosureStepWith(plans, cwd, false, stub.cargo).skips).toEqual([...]));
 //! ```
 
-use super::{ClosureOutcome, run_closure_step_at, run_closure_step_with, with_messages};
+use super::{ClosureOutcome, run_closure_step_at, run_closure_step_with};
 use crate::closure_findings::RULE;
 use crate::{
     closure_driver::DriverSite,
@@ -82,7 +82,7 @@ fn a_clean_package_is_checked_in_order() {
     let fixture: Fixture = fixture();
     let stub = scenario(&[]);
     let outcome = run(&fixture, &stub);
-    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert!(outcome.findings.is_empty() && outcome.skips.is_empty());
     assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
     assert!(
         outcome
@@ -128,9 +128,9 @@ fn an_unfulfilled_expectation_is_reported() {
     assert_eq!(run(&fixture, &stub).findings.len(), 1);
 }
 
-/// A cold cache skips with a message on the standard-error channel and runs nothing else.
+/// A cold cache skips with a warning finding at the package's manifest and runs nothing else.
 #[test]
-fn a_cold_cache_skips_with_a_message() {
+fn a_cold_cache_skips_with_a_warning_finding() {
     let fixture: Fixture = fixture();
     let stub = scenario(&[
         ("metadata.status", "101"),
@@ -138,13 +138,23 @@ fn a_cold_cache_skips_with_a_message() {
     ]);
     let outcome = run(&fixture, &stub);
     assert!(outcome.findings.is_empty());
-    assert_eq!(outcome.messages.len(), 1);
+    assert_eq!(outcome.skips.len(), 1);
     assert!(
-        outcome.messages[0].starts_with("rust/avoidable-closure skipped my pkg:"),
+        outcome.skips[0]
+            .message
+            .starts_with("rust/avoidable-closure skipped my pkg:"),
         "{:?}",
-        outcome.messages
+        outcome.skips
     );
-    assert!(outcome.messages[0].contains("cargo fetch --locked"));
+    assert!(outcome.skips[0].message.contains("cargo fetch --locked"));
+    assert_eq!(
+        (
+            outcome.skips[0].code.as_str(),
+            outcome.skips[0].severity,
+            outcome.skips[0].filename.as_str()
+        ),
+        (RULE, Severity::Warn, "my pkg/Cargo.toml")
+    );
     assert_eq!(kinds(&stub), vec!["dylint-version", "metadata"]);
 }
 
@@ -161,9 +171,11 @@ fn a_missing_prerequisite_skips() {
     let outcome = run(&fixture, &stub);
     assert!(outcome.findings.is_empty());
     assert!(
-        outcome.messages[0].contains("monochromatic-lint-absent-program"),
+        outcome.skips[0]
+            .message
+            .contains("monochromatic-lint-absent-program"),
         "{:?}",
-        outcome.messages
+        outcome.skips
     );
     assert!(!kinds(&stub).contains(&String::from("dylint")));
 }
@@ -257,10 +269,10 @@ fn a_compiler_error_is_quoted_and_findings_are_kept() {
     );
 }
 
-/// A missing `cargo` skips every package once,
-/// with one message.
+/// A missing `cargo` skips every package,
+/// with one warning finding per package.
 #[test]
-fn a_missing_cargo_skips_everything_with_one_message() {
+fn a_missing_cargo_skips_everything_with_one_warning_per_package() {
     let fixture: Fixture = fixture();
     let outcome = run_closure_step_with(
         plans(&fixture).as_slice(),
@@ -269,12 +281,40 @@ fn a_missing_cargo_skips_everything_with_one_message() {
         std::path::Path::new("/nonexistent/monochromatic-lint/cargo"),
     );
     assert!(outcome.findings.is_empty());
-    assert_eq!(outcome.messages.len(), 1);
+    assert_eq!(outcome.skips.len(), 1);
     assert!(
-        outcome.messages[0].contains("all 1 package(s)"),
+        outcome.skips[0]
+            .message
+            .starts_with("rust/avoidable-closure skipped my pkg:"),
         "{:?}",
-        outcome.messages
+        outcome.skips
     );
+}
+
+/// A machine-wide gap names every package it skips,
+/// so the report shows how much went unchecked.
+#[test]
+fn a_machine_wide_skip_names_each_package() {
+    let fixture: Fixture = fixture();
+    write(&fixture.path, "second/Cargo.toml", "[package]\n");
+    write(&fixture.path, "second/src/lib.rs", SOURCE);
+    let selected = vec![
+        plan(&fixture.path, "second/src/lib.rs"),
+        plan(&fixture.path, "my pkg/src/lib.rs"),
+    ];
+    let outcome = run_closure_step_with(
+        selected.as_slice(),
+        &fixture.path,
+        false,
+        std::path::Path::new("/nonexistent/monochromatic-lint/cargo"),
+    );
+    let mut files: Vec<&str> = Vec::<&str>::new();
+    for skip in &outcome.skips {
+        assert_eq!(skip.severity, Severity::Warn);
+        files.push(skip.filename.as_str());
+    }
+    files.sort_unstable();
+    assert_eq!(files, vec!["my pkg/Cargo.toml", "second/Cargo.toml"]);
 }
 
 /// A `cargo` that says there is no such subcommand skips everything and runs no package,
@@ -291,9 +331,9 @@ fn a_missing_dylint_skips_everything() {
     ]);
     let outcome = run(&fixture, &stub);
     assert!(
-        outcome.messages[0].contains("cargo dylint --version"),
+        outcome.skips[0].message.contains("cargo dylint --version"),
         "{:?}",
-        outcome.messages
+        outcome.skips
     );
     assert_eq!(kinds(&stub), vec!["dylint-version"]);
 }
@@ -312,9 +352,9 @@ fn a_cargo_that_cannot_start_its_program_fails_the_run_instead_of_skipping() {
         ]);
         let outcome = run(&fixture, &stub);
         assert!(
-            outcome.messages.is_empty(),
+            outcome.skips.is_empty(),
             "no skip message hides the failure: {:?}",
-            outcome.messages
+            outcome.skips
         );
         assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
         let message: &str = outcome.findings[0].message.as_str();
@@ -351,9 +391,9 @@ fn a_stale_installed_cargo_fails_the_run_naming_the_install_command() {
         ]);
         let outcome = run(&fixture, &stub);
         assert!(
-            outcome.messages.is_empty(),
+            outcome.skips.is_empty(),
             "no skip message hides the failure: {:?}",
-            outcome.messages
+            outcome.skips
         );
         assert_eq!(outcome.findings.len(), 1, "{:?}", outcome.findings);
         let message: &str = outcome.findings[0].message.as_str();
@@ -374,7 +414,7 @@ fn fix_mode_runs_nothing() {
     let stub = scenario(&[]);
     let outcome =
         run_closure_step_with(plans(&fixture).as_slice(), &fixture.path, true, &stub.cargo);
-    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert!(outcome.findings.is_empty() && outcome.skips.is_empty());
     assert!(outcome.notes[0].contains("--fix"));
     assert!(stub.calls().is_empty());
 }
@@ -389,7 +429,7 @@ fn no_package_runs_nothing() {
     let stub = scenario(&[]);
     let selected = vec![plan(&fixture.path, "loose/script.rs")];
     let outcome = run_closure_step_with(selected.as_slice(), &fixture.path, false, &stub.cargo);
-    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert!(outcome.findings.is_empty() && outcome.skips.is_empty());
     assert!(stub.calls().is_empty());
 }
 
@@ -412,29 +452,14 @@ fn packages_are_independent() {
         plan(&fixture.path, "my pkg/src/lib.rs"),
     ];
     let outcome = run_closure_step_with(selected.as_slice(), &fixture.path, false, &stub.cargo);
-    assert_eq!(outcome.messages.len(), 1);
+    assert_eq!(outcome.skips.len(), 1);
     assert!(
-        outcome.messages[0].contains("cold"),
+        outcome.skips[0].message.contains("cold"),
         "{:?}",
-        outcome.messages
+        outcome.skips
     );
     assert_eq!(outcome.findings.len(), 1);
     assert_eq!(outcome.findings[0].filename, "my pkg/src/lib.rs");
-}
-
-/// Messages are prefixed with the program name and put before the existing standard error.
-#[test]
-fn messages_are_prefixed_and_come_first() {
-    let text: String = with_messages(
-        "debug line\n",
-        &[String::from("one"), String::from("two")],
-        "monochromatic-lint",
-    );
-    assert_eq!(
-        text,
-        "monochromatic-lint: one\nmonochromatic-lint: two\ndebug line\n"
-    );
-    assert_eq!(with_messages("", &[], "p"), "");
 }
 
 //region Dylint driver check
@@ -498,10 +523,10 @@ fn a_missing_driver_skips_with_the_warm_command() {
     let rustup = toolchain_stub();
     let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
     assert!(outcome.findings.is_empty());
-    assert_eq!(outcome.messages.len(), 1, "{:?}", outcome.messages);
-    let message: &String = &outcome.messages[0];
+    assert_eq!(outcome.skips.len(), 1, "{:?}", outcome.skips);
+    let message: &String = &outcome.skips[0].message;
     assert!(
-        message.starts_with("rust/avoidable-closure skipped all 1 package(s):"),
+        message.starts_with("rust/avoidable-closure skipped my pkg:"),
         "{message}"
     );
     assert!(
@@ -531,7 +556,7 @@ fn a_current_driver_lets_the_package_run() {
     install_driver(&stub, "dylint-driver 6.3.0\n");
     let rustup = toolchain_stub();
     let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
-    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert!(outcome.findings.is_empty() && outcome.skips.is_empty());
     assert_eq!(kinds(&stub), vec!["dylint-version", "metadata", "dylint"]);
     assert!(
         !stub.calls()[1].contains("driver-probe-"),
@@ -549,7 +574,7 @@ fn a_stale_driver_with_a_warm_cache_lets_the_package_run() {
     install_driver(&stub, "dylint-driver 6.2.0\n");
     let rustup = toolchain_stub();
     let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
-    assert!(outcome.findings.is_empty() && outcome.messages.is_empty());
+    assert!(outcome.findings.is_empty() && outcome.skips.is_empty());
     assert_eq!(
         kinds(&stub),
         vec!["dylint-version", "metadata", "metadata", "dylint"]
@@ -571,7 +596,7 @@ fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {
     let stub = scenario(&[]);
     let rustup = toolchain_stub();
     let outcome = run_at(&fixture, &stub, &driver_site(&stub, &rustup));
-    assert!(outcome.messages.is_empty());
+    assert!(outcome.skips.is_empty());
     assert!(
         outcome
             .notes
@@ -587,7 +612,7 @@ fn a_driver_check_that_cannot_be_made_is_a_note_and_the_run_proceeds() {
         ..driver_site(&located, &rustup)
     };
     let second = run_at(&fixture, &located, &unlocated);
-    assert!(second.messages.is_empty());
+    assert!(second.skips.is_empty());
     assert!(
         second
             .notes

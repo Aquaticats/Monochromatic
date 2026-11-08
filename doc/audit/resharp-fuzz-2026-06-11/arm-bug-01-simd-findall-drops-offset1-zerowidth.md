@@ -27,6 +27,11 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the dropped empty match at offset one:
+//! the vectorized scan misses it,
+//! and the scalar fallback finds it.
+
+/// The regex type whose `find_all` drops the match.
 use resharp::Regex;
 
 let re = Regex::new(r"^$").unwrap();
@@ -84,6 +89,8 @@ begin-nullable block emits the offset-0 match,
  then advances:
 
 ```rust
+//! The restart position after a match:
+//! a match that ends at offset zero restarts the search at offset one.
 // resharp-engine/src/fwd.rs:123
 search_start = if max_end == 0 { 1 } else { max_end };
 ```

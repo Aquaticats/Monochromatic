@@ -35,6 +35,10 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the live reentrant union rewrite panic:
+//! constructing this pattern panics with the message quoted in the comments.
+
+/// The regex type whose construction panics.
 use resharp::Regex;
 let _ = Regex::new(r"(.*.+)*.+"); // panics during construction
 // thread panicked at resharp-algebra/src/lib.rs:2724:

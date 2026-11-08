@@ -105,6 +105,8 @@ pub(crate) enum Guard {
     Fence {
         /// Byte address of the fence marker in the physical host.
         marker: usize,
+        /// Whether the fence's info string carries the marker that exempts it from `rust/require-rustdoc`.
+        skips_rustdoc: bool,
     },
     /// Physical line start of an authored comment run,
     ///  or block marker address.

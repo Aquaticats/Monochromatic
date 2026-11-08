@@ -110,7 +110,8 @@ deferred.
    the Linux build needs no Mac.
 - `osslsigncode`,
    `opensc`,
-   and `openssl` live in `Containerfile.sign` (CachyOS; `osslsigncode` is in no Arch or CachyOS repository,
+   and `openssl` live in `Containerfile.sign` (CachyOS;
+  `osslsigncode` is in no Arch or CachyOS repository,
    so the image compiles the latest upstream release from source);
    the proprietary cloud-key PKCS#11 module is
   added per the Windows runbook.
@@ -151,7 +152,8 @@ deferred.
    MSI,
    NSIS):
    deferred until the signing chain is proven.
-   Update 2026-10-14: unsigned `.dmg` images and standalone `.exe` files are now released by CI without this chain;
+   Update 2026-10-14:
+  unsigned `.dmg` images and standalone `.exe` files are now released by CI without this chain;
    see `doc/decision/music-player-releases.md`.
 
 ## Sources

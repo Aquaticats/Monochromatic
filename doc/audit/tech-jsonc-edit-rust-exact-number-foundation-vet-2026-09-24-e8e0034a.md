@@ -220,10 +220,15 @@ None has yet passed the full vet gates.
    `src/lib.rs:110-120` describes lexical comparison and derives `PartialEq` and `Eq` on the raw bytes:
 
   ```rust
+  //! Excerpt of the `json-number` crate:
+  //! its number type compares the lexical text of a number,
+  //! so equality and ordering are decided by the bytes as written.
   /// All the comparison operations are done on this *lexical* representation,
   /// meaning that `1` is actually greater than `0.1e+80` for instance.
   #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
   pub struct Number {
+      /// The number as written,
+      /// kept as unparsed bytes so that no digit is lost or rewritten.
       data: [u8],
   }
   ```
@@ -252,10 +257,20 @@ None has yet passed the full vet gates.
    `src/number.rs:20-25,72-73` derives equality on `Number` and sets its arbitrary-precision inner type to `String`:
 
   ```rust
+  //! Excerpt of the `serde_json` number type with the arbitrary precision feature on:
+  //! the number is kept as a string,
+  //! and equality is derived from it.
+
+  /// A JSON number,
+  /// compared by the string it holds.
   #[derive(Clone, PartialEq, Eq, Hash)]
   pub struct Number {
+      /// The number's inner value,
+      /// which is a string when arbitrary precision is on.
       n: N,
   }
+  /// The inner type of a number under arbitrary precision:
+  /// its digits as a string.
   #[cfg(feature = "arbitrary_precision")]
   type N = String;
   ```
@@ -278,6 +293,9 @@ None has yet passed the full vet gates.
    `src/impl_num.rs:47-55,92-104` parses exponents into `i128` then checks resulting scale fits `i64`:
 
   ```rust
+  //! Excerpt of the `bigdecimal` exponent parsing:
+  //! the exponent is read as a wide integer,
+  //! then the resulting scale must fit a narrower integer or parsing fails with an overflow error.
   (base, i128::from_str(&e_exp[1..])?)
   // ...
   .and_then(|scale| scale.to_i64())

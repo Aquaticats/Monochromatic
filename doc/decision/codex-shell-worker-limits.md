@@ -27,7 +27,9 @@ The shared `piwork3285273.slice` has these aggregate limits:
 - CPU quota:
   200%,
   with explicit user authorization to increase only this limit if needed.
-- Tasks: 2048, increased from 256 at the user's request on 2026-10-15.
+- Tasks:
+  2048,
+  increased from 256 at the user's request on 2026-10-15.
 
 Only the slice's `codex` child is writable inside the sandbox.
 The parent budget remains read-only.
@@ -44,8 +46,13 @@ global hook-trust bypass is unnecessary.
 On 2026-10-15 the user increased task capacity to 2048 after concurrent verification and a browser preview
 exhausted the former 256-task limit.
 Commit `561ac46f20` updates the hook's exact check and disposable fixtures.
-The installed helper, persistent slice definition, runtime parent, and existing `codex` child use 2048 tasks.
-Memory, swap, and CPU limits are unchanged.
+The installed helper,
+persistent slice definition,
+runtime parent,
+and existing `codex` child use 2048 tasks.
+Memory,
+swap,
+and CPU limits are unchanged.
 The package's native test task passes five tests with the opt-in host test skipped;
 Clippy passes with warnings denied.
 Subsequent real shell calls pass through the installed hook and read both live task limits as 2048.

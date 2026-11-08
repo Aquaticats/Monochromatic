@@ -25,6 +25,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the dropped lookbehind gate:
+//! an alternation takes the branch whose lookbehind cannot hold at the start of the input.
+
+/// The regex type,
+/// its options and the match type that `find_all` returns.
 use resharp::{Regex, RegexOptions, Match};
 let re = Regex::with_options(r"(|(?<=[a-z])b)", RegexOptions::default()).unwrap();
 // branch 2's lookbehind cannot hold at offset 0, so the only legal match there is

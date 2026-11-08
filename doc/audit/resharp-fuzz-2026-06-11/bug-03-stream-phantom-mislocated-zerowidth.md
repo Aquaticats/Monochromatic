@@ -30,6 +30,11 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the mislocated zero-width matches of `stream`:
+//! three patterns whose spans differ from `find_all`,
+//! with both results in the comments.
+
+/// The regex type whose `stream` mislocates matches.
 use resharp::Regex;
 
 // lookahead-of-char: matches the empty string at offset 0 where 'c' follows.

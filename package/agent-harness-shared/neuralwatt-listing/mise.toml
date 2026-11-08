@@ -1,0 +1,128 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+
+[tasks.buildAndTest]
+run = ["mise run build", "mise run test:unit"]
+
+[tasks."refresh-snapshot"]
+description = "Regenerate the checked-in listing snapshot from the live NeuralWatt listing and print the drift it would change"
+depends = ["build"]
+shell = "node --input-type=module-typescript -e"
+run = """
+const { writeFileSync } = await import('node:fs')
+const { fetchNeuralWattListing, mapNeuralWattListing, neuralWattListingSnapshot, reduceListingEntry } = await import('./dist/final/node/index.mjs')
+const ENTRIES_PER_CHUNK = 4
+const numberText = (value) => {
+  if (!Number.isInteger(value)) return String(value)
+  const digits = String(Math.abs(value))
+  if (digits.length < 4) return String(value)
+  const grouped = digits.replace(/\\B(?=(\\d{3})+(?!\\d))/g, '_')
+  return value < 0 ? `-${grouped}` : grouped
+}
+const scalarText = (value) => {
+  if (typeof value === 'string') return `'${value.replaceAll("'", "\\\\'")}'`
+  if (typeof value === 'number') return numberText(value)
+  return String(value)
+}
+const emitProperty = (key, value, indent) => {
+  const pad = ' '.repeat(indent)
+  if (Array.isArray(value)) {
+    return `${pad}${key}:\\n${' '.repeat(indent + 2)}${emitValue(value, indent + 2)},`
+  }
+  return `${pad}${key}: ${emitValue(value, indent)},`
+}
+const emitValue = (value, indent) => {
+  const pad = ' '.repeat(indent)
+  const inner = ' '.repeat(indent + 2)
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '[]'
+    const items = value.map((item) => `${inner}${emitValue(item, indent + 2)},`)
+    return `[\\n${items.join('\\n')}\\n${pad}]`
+  }
+  if (typeof value === 'object' && value !== null) {
+    const rows = Object.entries(value).map(([key, field]) => emitProperty(key, field, indent + 2))
+    if (rows.length === 0) return '{}'
+    return `{\\n${rows.join('\\n')}\\n${pad}}`
+  }
+  return scalarText(value)
+}
+const chunkText = (name, first, last, chunkEntries) => {
+  const body = chunkEntries.map((entry) => `    ${emitValue(entry, 4)},`)
+  return `/**
+ Checked-in NeuralWatt listing snapshot data, one segment. @module
+ */
+
+import type { NeuralWattListingEntry, } from './listing.ts';
+
+//region Public API
+
+/**
+ Listing entries ${first} to ${last} of the checked-in snapshot, in endpoint
+ order. Split into segments so each module stays within the repository
+ file size limit; \\`neuralWattListingSnapshot\\` joins them.
+ */
+export const ${name}:
+  readonly NeuralWattListingEntry[] = [
+${body.join('\\n')}
+  ];
+
+//endregion Public API
+`
+}
+const listing = await fetchNeuralWattListing()
+const reduced = listing.map((entry) => reduceListingEntry({ entry }))
+const liveFacts = mapNeuralWattListing({ listing })
+const servedFacts = mapNeuralWattListing({ listing: neuralWattListingSnapshot })
+console.log(`live listing entries: ${reduced.length}`)
+console.log(`served snapshot entries: ${neuralWattListingSnapshot.length}`)
+const liveIds = new Set(liveFacts.map((facts) => facts.id))
+const servedIds = new Set(servedFacts.map((facts) => facts.id))
+for (const id of servedIds) {
+  if (!liveIds.has(id)) { console.log(`drift: served-only model ${id}`) }
+}
+for (const id of liveIds) {
+  if (!servedIds.has(id)) { console.log(`drift: live-only model ${id}`) }
+}
+const groups = []
+for (let index = 0; index < reduced.length; index += ENTRIES_PER_CHUNK) {
+  groups.push(reduced.slice(index, index + ENTRIES_PER_CHUNK))
+}
+groups.forEach((group, index) => {
+  const first = index * ENTRIES_PER_CHUNK + 1
+  const last = index * ENTRIES_PER_CHUNK + group.length
+  writeFileSync(new URL(`./src/snapshot-chunk-${index + 1}.ts`, import.meta.url), chunkText(`neuralWattListingSnapshotChunk${index + 1}`, first, last, group))
+  console.log(`wrote src/snapshot-chunk-${index + 1}.ts (entries ${first} to ${last})`)
+})
+console.log(`chunks written: ${groups.length}`)
+console.log('update the fetch-date header in src/snapshot.ts to the current timestamp')
+"""

@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.2"
+version = "0.6.1-alpha.3"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -68,7 +68,7 @@ forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.2" }
 # `monochromatic_lint::run_embedded::fix_source`, the executable's own `--stdin --fix` code, on a guarded thread.
 # Without its default `semantic` feature: the rust-analyzer backend is not used by Markdown, and linking it made
 # every start of this executable slower (doc/planning/cli-git-rust-implementation.md, "Markdown policy in process").
-monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.6", default-features = false }
+monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.7", default-features = false }
 # Lock, journal and work records are JSON read and written with `serde_json`.
 # The scanner already links this exact version, so it adds no package to the lockfile.
 serde_json = { workspace = true }

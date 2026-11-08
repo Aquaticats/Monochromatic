@@ -27,11 +27,14 @@ which unlocked implementation.
 ## Purpose
 
 Make the NeuralWatt LLM provider usable in the pi coding agent
-(`@earendil-works/pi-coding-agent` and `@earendil-works/pi-ai`, both 1.5.0)
+(`@earendil-works/pi-coding-agent` and `@earendil-works/pi-ai`,
+both 1.5.0)
 with behavioral parity to the DSH plugin [`package/dsh-plugin/neuralwatt`](../../package/dsh-plugin/neuralwatt),
 which today serves the `neuralwatt` route only inside DSH.
 pi currently carries no NeuralWatt provider at all,
-measured across `~/.pi/agent/settings.json`, `models.json`, and `models-store.json`.
+measured across `~/.pi/agent/settings.json`,
+`models.json`,
+and `models-store.json`.
 
 ## What lands
 
@@ -41,15 +44,21 @@ with a thin projection per harness.
 - [`package/agent-harness-shared/neuralwatt-listing`](../../package/agent-harness-shared/neuralwatt-listing)
   (`@monochromatic-dev/agent-harness-shared-neuralwatt-listing`):
   the listing-to-facts mapping
-  (skip rules, display-name fallback, context and max-output fallback chains,
-  input modalities, the offered efforts dict and its `off` rule),
+  (skip rules,
+  display-name fallback,
+  context and max-output fallback chains,
+  input modalities,
+  the offered efforts dict and its `off` rule),
   `expandThinkingLevelMap` for the pi projection,
   the reduced snapshot with its fetch-date header and pricing fields,
   the bounded listing fetch
   (`GET https://api.neuralwatt.com/v1/models`,
   `NEURALWATT_LISTING_TIMEOUT_MS` in `src/constants.ts`),
   shared constants
-  (listing URL, base URL, timeout, effort table,
+  (listing URL,
+  base URL,
+  timeout,
+  effort table,
   and the `NEURALWATT_API_KEY` credential name),
   and a `refresh-snapshot` mise task that rewrites the chunks and prints drift.
   It carries no pi types and no DSH types.
@@ -69,15 +78,20 @@ with a thin projection per harness.
   already runs (`src/index.ts`).
   Snapshot baseline models first;
   `refreshModels(context)` performs the bounded fetch and
-  `publish({ update })`, never `persist`;
+  `publish({ update })`,
+  never `persist`;
   refresh on `session_start` for startup and reload;
   teardown on `session_shutdown`;
-  auth resolves pi credential, then the encrypted store,
-  then `process.env.NEURALWATT_API_KEY`, then guidance logging;
+  auth resolves pi credential,
+  then the encrypted store,
+  then `process.env.NEURALWATT_API_KEY`,
+  then guidance logging;
   cold start registers the provider anyway.
   Package boilerplate mirrors siblings:
   `README.md` with a fresh trust-rule code,
-  `mise.toml`, rolldown config, `tsconfig.json`,
+  `mise.toml`,
+  rolldown config,
+  `tsconfig.json`,
   and the `"pi": { "extensions": [...] }` manifest.
 
 ## Settled decisions
@@ -87,7 +101,8 @@ with a thin projection per harness.
 Recorded under the interview question ids.
 
 - `home`:
-  a pi extension in this repo, installed in the owner's pi.
+  a pi extension in this repo,
+  installed in the owner's pi.
   No upstreaming and no npm publishing in this plan.
 - `parity`:
   full behavioral parity.
@@ -128,19 +143,30 @@ Recorded under the interview question ids.
   with no credential from any source,
   register the provider anyway and log guidance,
   matching DSH's `MISSING_CREDENTIAL` at request time.
+- `snapshot-off`:
+  the snapshot reducer keeps `reasoning.default_enabled`
+  so the next `refresh-snapshot` run closes the offline `off`-level gap
+  (concrete case `gemma-4-31b`),
+  while today's checked-in snapshot stays byte-identical
+  and DSH behavior is unchanged until that refresh.
 
 ### Recorded adoptions
 
 Veto-open;
 each was recorded during the interview and none was objected to.
 
-- Provider key `neuralwatt`, model ids, and effort wire values stay
+- Provider key `neuralwatt`,
+  model ids,
+  and effort wire values stay
   byte-identical across harnesses,
   so `neuralwatt/<model>` slugs work in both.
-- The extension never writes `enabledModels`, `models.json`,
+- The extension never writes `enabledModels`,
+  `models.json`,
   or `models-store.json`.
 - No extras beyond parity:
-  no slash commands, no quota surfaces, no UI.
+  no slash commands,
+  no quota surfaces,
+  no UI.
   DSH `locale/` and `icon.svg` stay DSH-bundle-only.
 - Compat pins:
   `supportsDeveloperRole: false`,
@@ -148,7 +174,8 @@ each was recorded during the interview and none was objected to.
   `supportsReasoningEffort: true`,
   and `maxTokensField` decided by probe.
   The listing itself corroborates the pins
-  (`capabilities.developer_role: false`, `system_role: true`,
+  (`capabilities.developer_role: false`,
+  `system_role: true`,
   `reasoning_effort: true`).
 - Thinking-level expansion mirrors `dsh-llm-pi-ai`
   (`resolveModelReasoning` in `lib/index.js`):
@@ -175,7 +202,9 @@ each was recorded during the interview and none was objected to.
 - Payload capture reuses
   `package/pi-plugin/openai-fast/src/host-fixture-http.ts`.
 - Each compat pin gets a fail-first guard test:
-  remove the pin, observe the failure, restore it.
+  remove the pin,
+  observe the failure,
+  restore it.
 - Logger tags are renamed per the tagging rule when modules move.
 - Snapshot staleness stays visible through the fetch-date header
   and `refresh-snapshot` drift printing;
@@ -185,26 +214,34 @@ each was recorded during the interview and none was objected to.
 ## Dependencies
 
 - `@earendil-works/pi-ai` and `@earendil-works/pi-coding-agent`:
-  peers `"*"`, dev-dependencies `catalog:`
+  peers `"*"`,
+  dev-dependencies `catalog:`
   (`pnpm-workspace.yaml` pins `>=1.5.0`).
 - `@monochromatic-dev/env-local-json-core`:
-  workspace; the credential store reader,
+  workspace;
+  the credential store reader,
   already proven inside a pi extension by
   `package/search-fetch/pi-plugin`.
 - `@monochromatic-dev/logger-core` and
   `@monochromatic-dev/caught-value-core`:
-  workspace; logging and value narrowing,
+  workspace;
+  logging and value narrowing,
   matching the DSH plugin.
 - `@monochromatic-dev/test-harness-core`,
-  `config-rolldown`, and `config-typescript`:
-  workspace dev tooling, matching siblings.
+  `config-rolldown`,
+  and `config-typescript`:
+  workspace dev tooling,
+  matching siblings.
 - Native `fetch` with `AbortSignal.timeout` for the listing request.
 
 Rejected dependencies:
 
-- valibot: bounded listing input needs no schema library.
-- HTTP client libraries: native fetch suffices.
-- `@earendil-works/pi-ai/compat`: a temporary entrypoint.
+- valibot:
+  bounded listing input needs no schema library.
+- HTTP client libraries:
+  native fetch suffices.
+- `@earendil-works/pi-ai/compat`:
+  a temporary entrypoint.
 
 ## Identity and behavior invariants
 
@@ -231,21 +268,44 @@ Rejected dependencies:
   (conventions recorded in
   [`package/pi-plugin/model-retirement/README.md`](../../package/pi-plugin/model-retirement/README.md)).
 - One-time credential migration:
-  add `NEURALWATT_API_KEY` to `.env.local.json` (sops/age),
-  taking the value from the DSH credentials service record
+  satisfied by the owner,
+  who generated a new NeuralWatt key
+  and added `NEURALWATT_API_KEY` to `.env.local.json` themselves
+  (store entry first written 2026-11-08T03:29:38Z per `sops.lastmodified`).
+  The key is a dedicated mint,
+  distinct from the DSH credentials service record
   in `~/.dsh/.credentials.yaml`
   ([`doc/agent/drive-dsh-as-a-subagent.md`](../agent/drive-dsh-as-a-subagent.md))
-  with a no-output command.
-  The value is never logged, never echoed, never committed.
+  and from `TRANSLATION_REPAIR_NEURALWATT_API_KEY`,
+  so pi draws on its own credential.
+  Validated read-only against `GET https://api.neuralwatt.com/v1/quota`
+  (status 200,
+  JSON body).
+  The store is gitignored (`.gitignore`,
+  `*.local.*`),
+  and no value is ever logged,
+  echoed,
+  or committed.
 - The store is re-read lazily on each resolve,
   so a key added later takes effect without restarting pi.
+- Store resolution for the extension:
+  `readEnvLocalJson` is called without an explicit path,
+  so the library honors `ENV_LOCAL_JSON_PATH`
+  (host-wired at `~/.bashrc:57`)
+  and then its own repository-root discovery;
+  an `import.meta.url`-derived repo-store path serves as the fallback
+  when pi is launched without a shell environment,
+  used only when it validates as a file,
+  never as a hard path error.
 
 ## Verification
 
 Named suites and gates.
 
 - Unit suites:
-  the mapping, fetch, and snapshot tests move to the shared core;
+  the mapping,
+  fetch,
+  and snapshot tests move to the shared core;
   the settings-seam tests stay with the DSH plugin;
   the pi plugin gains projection and registration tests.
 - `verify:extension` against a fake `ExtensionAPI`,
@@ -263,7 +323,9 @@ Named suites and gates.
   and through `expandThinkingLevelMap`,
   asserting identical maps.
 - Never-persist guard:
-  `models-store.json`, `models.json`, and `enabledModels`
+  `models-store.json`,
+  `models.json`,
+  and `enabledModels`
   byte-identical before and after refresh.
 - Register-anyway probe:
   a provider whose auth resolves nothing still lists models in pi 1.5.0.
@@ -280,8 +342,11 @@ Named suites and gates.
 ## Pre-ship probes
 
 - `maxTokensField`:
-  whether the API accepts pi's unknown-host default
-  `max_completion_tokens` or requires `max_tokens`.
+  probed 2026-11-08T03:39:59Z on `nw-small` with the owner-minted key:
+  the API accepts both `max_completion_tokens` and `max_tokens`
+  (status 200 for each),
+  so pi's auto-detected default stands unpinned
+  and the pin list keeps only verified differences.
 - With-pin and without-pin reasoning dispatch positive control,
   settling the discrepancy between the DSH README's silent-drop claim
   and pi-ai 1.5.0 auto-detecting `thinkingFormat: "openai"`
@@ -307,16 +372,22 @@ Named suites and gates.
 
 ## Out of scope
 
-- npm publishing, the pi.dev gallery, and upstreaming into pi.
+- npm publishing,
+  the pi.dev gallery,
+  and upstreaming into pi.
 - Extras:
-  slash commands, quota surfaces, UI, model auto-enabling.
+  slash commands,
+  quota surfaces,
+  UI,
+  model auto-enabling.
 - Any DSH behavior change.
 
 ## Pending doc edits
 
 These land with the port unless the owner wants them sooner.
 
-- `AGENTS.md`, new rule,
+- `AGENTS.md`,
+  new rule,
   code `QCR` (checked against both forbidden-strings appendixes;
   extending the EVL text would exceed the rule length cap):
 
@@ -345,7 +416,9 @@ names like `apiKeyEnv` hide the source.
   the later rounds rest on,
   including the installed pi-ai 1.5.0 type reading that replaced
   docs-only API claims.
-- Round five settled `persist`, `spend`, and `peers`.
+- Round five settled `persist`,
+  `spend`,
+  and `peers`.
 - The `missing-key` question was withdrawn after the owner challenged
   its premise.
   Measurement showed the credential lives in the DSH credentials service
@@ -354,10 +427,15 @@ names like `apiKeyEnv` hide the source.
   and the corrected questions `cred-home` and `cold-start` replaced it.
 - Cross-vendor reviews:
   Moonshot Kimi (`neuralwatt/kimi-k3`) named the installed-API,
-  pin-evidence, and off-level blockers now closed above;
+  pin-evidence,
+  and off-level blockers now closed above;
   Z.ai GLM (`neuralwatt/glm-5.3`) returned READY
   with the named gates folded into [Verification](#verification).
 - The owner confirmed the shared understanding (`confirm`).
+- Implementation start:
+  the owner generated a new NeuralWatt key
+  and installed `NEURALWATT_API_KEY` in `.env.local.json` themselves,
+  satisfying the migration step with a dedicated pi credential.
 
 ## Next action
 

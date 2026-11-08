@@ -15,7 +15,8 @@ The in-app surface was decided on 2026-10-18 (see [In-app surface](#in-app-surfa
 Amended 2026-10-18 by the owner:
 the desktop programs use Slint under its Royalty-free license instead of GPL-3.0-only,
 and the desktop Settings gets a Licenses row.
-The sections below keep the 2026-10-15 text as history, each marked where it is superseded;
+The sections below keep the 2026-10-15 text as history,
+each marked where it is superseded;
 the current arrangement is in [Amendment of 2026-10-18](#amendment-of-2026-10-18).
 
 ## Context
@@ -302,7 +303,8 @@ which Maven metadata does not carry).
   The release workflow's check runs `--licenses` under bash.
 - The APK holds the Android file as `assets/THIRD-PARTY-LICENSES.txt`
   (`ThirdPartyLicensesAssetTask` in `app/build.gradle.kts`,
-  every variant since 2026-10-18, a short note when the file is absent and the release gate is off),
+  every variant since 2026-10-18,
+  a short note when the file is absent and the release gate is off),
   and it is the release file `music-player-<version>-android-third-party-licenses.txt`.
 - Both release files are attested and listed in `SHA256SUMS` like every other file.
 
@@ -364,48 +366,80 @@ The human made that decision on 2026-10-18 (see [Licenses row in Settings](#lice
 
 ### The owner's decision
 
-On 2026-10-18 the owner decided, through the agent's question tool:
+On 2026-10-18 the owner decided,
+through the agent's question tool:
 
-1. The desktop releases use Slint under its **Royalty-free Desktop, Mobile, and Web Applications License, version 2.0**
+1. The desktop releases use Slint under its **Royalty-free Desktop,
+   Mobile,
+   and Web Applications License,
+   version 2.0**
    instead of GPL-3.0-only.
 2. Settings gets a **Licenses row** on both platforms.
-   It needs no mockups: the owner called it simple and low in design impact.
-   The desktop row is built; the Android row is a separate change.
+   It needs no mockups:
+   the owner called it simple and low in design impact.
+   The desktop row is built;
+   the Android row is a separate change.
 
 This replaces the default of 2026-10-15 ([Slint](#slint)) and answers two of the [Open decisions](#open-decisions).
 
 ### What the license requires
 
-The text is `LicenseRef-Slint-Royalty-free-2.0`, read on 2026-10-18 from the file
+The text is `LicenseRef-Slint-Royalty-free-2.0`,
+read on 2026-10-18 from the file
 `LICENSES/LicenseRef-Slint-Royalty-free-2.0.md` of the Slint repository (branch `master`),
-from slint.dev (the Royalty-free License on its terms page), and from the same file in every Slint crate 1.18.1 in the
+from slint.dev (the Royalty-free License on its terms page),
+and from the same file in every Slint crate 1.18.1 in the
 build.
 All of them are byte for byte the same (SHA-256 `5167f5056e850419106ab6265efbdca7cba4d99c849d1445ca0bbf6a1e2315fe`).
 It is vendored as `package/music-player/desktop-app/notices/slint-royalty-free-2.0.md`.
 
-Section 1 grants a world-wide, royalty-free, non-exclusive license to "use, reproduce, make available, modify, display,
-perform, distribute the Software as part of a Desktop, Mobile, or Web Application".
+Section 1 grants a world-wide,
+royalty-free,
+non-exclusive license to "use,
+reproduce,
+make available,
+modify,
+display,
+perform,
+distribute the Software as part of a Desktop,
+Mobile,
+or Web Application".
 A Desktop Application is "a computer program that is designed to run on a general-purpose computer (PC or notebook),
 typically installed and executed locally on the computer's operating system".
 
-Section 2, the condition for distributing the Software in an Application, in the license's words:
+Section 2,
+the condition for distributing the Software in an Application,
+in the license's words:
 
-> You may distribute the Software as part of an Application, modified or unmodified, provided that You do either of the
+> You may distribute the Software as part of an Application,
+modified or unmodified,
+provided that You do either of the
 > following:
 >
 > (a) Display the `AboutSlint` widget in an "About" screen or dialog that is accessible from the top level menu of the
 > Application.
-> In the absence of such a screen or dialog, display the widget in the "Splash Screen" of the Application.
+> In the absence of such a screen or dialog,
+display the widget in the "Splash Screen" of the Application.
 >
-> (b) Display the Slint attribution badge on a public webpage, preferably where the binaries of your Application can be
-> downloaded from, in such a way that it can be easily found by any visitor to that page.
+> (b) Display the Slint attribution badge on a public webpage,
+preferably where the binaries of your Application can be
+> downloaded from,
+in such a way that it can be easily found by any visitor to that page.
 
 Section 3 limits the license:
-it does not permit distributing Slint alone, using it within Embedded Systems, distributing an Application that exposes
-Slint's APIs, or removing license notices from Slint's source.
-The desktop programs are Applications for general-purpose computers, expose no Slint API, and change no Slint source.
-slint.dev's licensing summary says the same: the royalty-free license "is free, as long as you disclose that you use
-Slint" (for example with the `AboutSlint` widget or the badge), and embedded systems need the commercial license.
+it does not permit distributing Slint alone,
+using it within Embedded Systems,
+distributing an Application that exposes
+Slint's APIs,
+or removing license notices from Slint's source.
+The desktop programs are Applications for general-purpose computers,
+expose no Slint API,
+and change no Slint source.
+slint.dev's licensing summary says the same:
+the royalty-free license "is free,
+as long as you disclose that you use
+Slint" (for example with the `AboutSlint` widget or the badge),
+and embedded systems need the commercial license.
 
 ### How the desktop programs meet it
 
@@ -420,8 +454,10 @@ window and below the header.
 One word of the license does not map exactly.
 Section 2(a) says the screen is "accessible from the top level menu of the Application".
 The desktop app has no menu bar.
-Its top level is the player page with a Settings button (Ctrl+Alt+S, Ctrl+Comma on macOS),
-and the Licenses page is one row under Settings, below an "About" heading.
+Its top level is the player page with a Settings button (Ctrl+Alt+S,
+Ctrl+Comma on macOS),
+and the Licenses page is one row under Settings,
+below an "About" heading.
 That is the nearest thing the app has to an About screen reachable from its top level;
 whether it counts as the license's "About screen or dialog" is the owner's call
 (see [Decisions left to the owner](#decisions-left-to-the-owner)).
@@ -430,146 +466,244 @@ It was added so that the doubt about the word "top level menu" does not decide w
 
 ### The badge on the release page
 
-Added on 2026-10-18, with the Licenses page kept.
-Section 2(b) asks for the Slint attribution badge "on a public webpage, preferably where the binaries of your
-Application can be downloaded from, in such a way that it can be easily found by any visitor to that page".
-The binaries are downloaded from the GitHub release page, whose text is the notes that the "Write the release notes"
-step of `.github/workflows/music-player-release.yml` writes (one template, `notes.md`, for every release).
-The badge is the first element of the notes after the two paragraphs that name the version, the commit and the tag,
+Added on 2026-10-18,
+with the Licenses page kept.
+Section 2(b) asks for the Slint attribution badge "on a public webpage,
+preferably where the binaries of your
+Application can be downloaded from,
+in such a way that it can be easily found by any visitor to that page".
+The binaries are downloaded from the GitHub release page,
+whose text is the notes that the "Write the release notes"
+step of `.github/workflows/music-player-release.yml` writes (one template,
+`notes.md`,
+for every release).
+The badge is the first element of the notes after the two paragraphs that name the version,
+the commit and the tag,
 above the Downloads
-heading, so it is on the screen when the page opens.
+heading,
+so it is on the screen when the page opens.
 
-What Slint publishes, read on 2026-10-18 and not recalled:
+What Slint publishes,
+read on 2026-10-18 and not recalled:
 
-- The license (slint.dev, `https://slint.dev/terms-and-conditions#royalty-free`, section 2(b), and the same sentence in
+- The license (slint.dev,
+  `https://slint.dev/terms-and-conditions#royalty-free`,
+  section 2(b),
+  and the same sentence in
   the repository's `FAQ.md`) links the words "Slint attribution badge" to
   `https://github.com/slint-ui/slint/tree/master/logo/MadeWithSlint-logo-whitebg.png`.
   Neither says how the badge is embedded or where it links.
-- `logo/README.md` of the Slint repository (blob `d7ae82c8cfd8`) says: "Use the #MadeWithSlint logo for attributions to
+- `logo/README.md` of the Slint repository (blob `d7ae82c8cfd8`) says:
+  "Use the #MadeWithSlint logo for attributions to
   Slint (e.g. when using Slint under the Royalty-Free License)",
-  "If the background switched between dark and light mode, but only one logo can be shown, use the versions with
-  whitebg", and "Do not modify the logo by changing the colors, changing of the aspect ration, or other alterations".
-  A GitHub release page switches between light and dark, so the `whitebg` file is the one used.
-- The `AboutSlint` widget (the 1.19.0 source, `internal/compiler/widgets/common/about-slint.slint`) draws the
+  "If the background switched between dark and light mode,
+  but only one logo can be shown,
+  use the versions with
+  whitebg",
+  and "Do not modify the logo by changing the colors,
+  changing of the aspect ration,
+  or other alterations".
+  A GitHub release page switches between light and dark,
+  so the `whitebg` file is the one used.
+- The `AboutSlint` widget (the 1.19.0 source,
+  `internal/compiler/widgets/common/about-slint.slint`) draws the
   `MadeWithSlint-logo-light.svg` or `-dark.svg` image with the accessible label "#MadeWithSlint" and opens
   `https://slint.dev` on a click.
   The notes use the same label as the alt text and the same link target.
-- `https://slint.dev/madewithslint` answers 404; the page of the community showcase is `https://madewithslint.com`,
+- `https://slint.dev/madewithslint` answers 404;
+  the page of the community showcase is `https://madewithslint.com`,
   which is not the badge page.
   The widget's documentation page (`docs.slint.dev/latest/docs/slint/reference/std-widgets/misc/aboutslint/`) says only
   "This element displays a Made with Slint badge".
-- The license of the badge file: all logos in `logo/` are CC-BY-ND-4.0 (`logo/README.md`; `REUSE.toml` annotates
+- The license of the badge file:
+  all logos in `logo/` are CC-BY-ND-4.0 (`logo/README.md`;
+  `REUSE.toml` annotates
   `**/MadeWithSlint-**.png` with `CC-BY-ND-4.0` and "Copyright © SixtyFPS GmbH").
-  The release notes link the file and do not copy, resize or alter it, which the no-derivatives term allows.
+  The release notes link the file and do not copy,
+  resize or alter it,
+  which the no-derivatives term allows.
   Nothing of it enters the repository or the release files.
 
-The embed form in the notes (GitHub-flavored Markdown, one line):
+The embed form in the notes (GitHub-flavored Markdown,
+one line):
 
 ```md
 [![#MadeWithSlint](https://raw.githubusercontent.com/slint-ui/slint/7577a165d15b7a097789cb7c417691ed3f8c1bcf/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev)
 ```
 
 The image URL names the commit of the Slint `master` head of 2026-10-18 (`7577a165d15b7a097789cb7c417691ed3f8c1bcf`)
-instead of `master`, so a release page keeps its badge after Slint renames or moves the file.
+instead of `master`,
+so a release page keeps its badge after Slint renames or moves the file.
 The file at that commit and at `master` are the same bytes (SHA-256
-`6edb9b815f94ff9065edbf062a4d1756d43eb3778f94310315259e413260bab6`, PNG, 424 by 194 pixels).
+`6edb9b815f94ff9065edbf062a4d1756d43eb3778f94310315259e413260bab6`,
+PNG,
+424 by 194 pixels).
 The same notes sentence under Licenses names the badge,
-and the "The app has no screen that shows them yet" sentence for Android was corrected to name the Licenses row, which
+and the "The app has no screen that shows them yet" sentence for Android was corrected to name the Licenses row,
+which
 exists since 0.1.6.
 
-Checks: the workflow text passes `actionlint` 1.7.12, the notes template rendered with pandoc (`--from gfm`) and with
-GitHub's own renderer (`gh api markdown`, mode `gfm`) gives an `<a href="https://slint.dev">` around an `<img>` with
-the alt text `#MadeWithSlint`, and a dry run of the release workflow prints the notes with the line.
-A new Slint release can change the badge name or the license's section 2(b); the runbook says to reread both
+Checks:
+the workflow text passes `actionlint` 1.7.12,
+the notes template rendered with pandoc (`--from gfm`) and with
+GitHub's own renderer (`gh api markdown`,
+mode `gfm`) gives an `<a href="https://slint.dev">` around an `<img>` with
+the alt text `#MadeWithSlint`,
+and a dry run of the release workflow prints the notes with the line.
+A new Slint release can change the badge name or the license's section 2(b);
+the runbook says to reread both
 (see `doc/runbook/release-the-music-player.md`).
 
 ### The SPDX expression of the desktop programs
 
-- The project's own code, in the repository and in each program: `LGPL-3.0-or-later`.
-- Slint (10 crates, 1.18.1): `LicenseRef-Slint-Royalty-free-2.0`, chosen from the crates' own
+- The project's own code,
+  in the repository and in each program:
+  `LGPL-3.0-or-later`.
+- Slint (10 crates,
+  1.18.1):
+  `LicenseRef-Slint-Royalty-free-2.0`,
+  chosen from the crates' own
   `GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0`.
-- Every other Rust crate: the license cargo-about chose from the allow-list, one of MIT, Apache-2.0, ISC, BSD-2-Clause,
-  BSD-3-Clause, Zlib, Unicode-3.0, BSL-1.0, MPL-2.0, CC0-1.0 and Unlicense.
-- The Inter typeface `OFL-1.1`, the Material Symbols icons `Apache-2.0`, the Rust standard library with the licenses its
-  notice lists, and for the Windows GNU program the MinGW-w64 runtime.
+- Every other Rust crate:
+  the license cargo-about chose from the allow-list,
+  one of MIT,
+  Apache-2.0,
+  ISC,
+  BSD-2-Clause,
+  BSD-3-Clause,
+  Zlib,
+  Unicode-3.0,
+  BSL-1.0,
+  MPL-2.0,
+  CC0-1.0 and Unlicense.
+- The Inter typeface `OFL-1.1`,
+  the Material Symbols icons `Apache-2.0`,
+  the Rust standard library with the licenses its
+  notice lists,
+  and for the Windows GNU program the MinGW-w64 runtime.
 
 A distributed program therefore carries `LGPL-3.0-or-later AND LicenseRef-Slint-Royalty-free-2.0` together with the
 third-party licenses above.
 A `LicenseRef-` identifier is local to the document that defines it;
 here the definition is the vendored file and the Slint section of the notice file.
-No GPL work remains in the program, so the GPL text appears only as the text the LGPL supplements.
+No GPL work remains in the program,
+so the GPL text appears only as the text the LGPL supplements.
 
 ### What stays unchanged, and why
 
 - The repository `LICENSE` (the LGPL-3.0 text) and the `license = "LGPL-3.0-or-later"` field of
   `desktop-app/Cargo.toml` and `truepeak-core/Cargo.toml`.
   The field names the license of the crate's own source,
-  which the Slint license does not change; the Slint license covers Slint, not this code.
-  `file-enforcer.config.ts` manages these manifests, and running `node package/file-enforcer/core/src/cli.ts`
+  which the Slint license does not change;
+  the Slint license covers Slint,
+  not this code.
+  `file-enforcer.config.ts` manages these manifests,
+  and running `node package/file-enforcer/core/src/cli.ts`
   after this change produced no difference in them.
-- Android: the APK contains no Slint, so nothing changes there.
+- Android:
+  the APK contains no Slint,
+  so nothing changes there.
 
 ### Compatibility of the remaining licenses
 
-The program is LGPL-3.0-or-later, so every other license in a desktop program must be compatible with the LGPL
+The program is LGPL-3.0-or-later,
+so every other license in a desktop program must be compatible with the LGPL
 version 3.
 That is the bar the Android native crates already meet (`android-app/rust/about.toml`),
-and the desktop allow-list is now the same list plus the Slint identifier, in the same order.
+and the desktop allow-list is now the same list plus the Slint identifier,
+in the same order.
 
-- MIT, ISC, BSD-2-Clause, BSD-3-Clause, Zlib, Unicode-3.0, BSL-1.0, CC0-1.0 and Unlicense are permissive licenses that
+- MIT,
+  ISC,
+  BSD-2-Clause,
+  BSD-3-Clause,
+  Zlib,
+  Unicode-3.0,
+  BSL-1.0,
+  CC0-1.0 and Unlicense are permissive licenses that
   the Free Software Foundation lists as GPL-compatible,
   and a license that can be combined with the GPL version 3 can be combined with the LGPL version 3,
   which is that license with added permissions.
-- Apache-2.0 is compatible with the GPL version 3, and so with the LGPL version 3.
+- Apache-2.0 is compatible with the GPL version 3,
+  and so with the LGPL version 3.
 - MPL-2.0 is file-level copyleft and lets the larger work carry other terms,
   so it combines with an LGPL-3.0 program as it did before.
-- The cargo-about gate confirms the whole graph: with `GPL-3.0-only` out of the list and the Slint identifier in,
-  it accepted all 570 crates, so no crate needs the GPL.
+- The cargo-about gate confirms the whole graph:
+  with `GPL-3.0-only` out of the list and the Slint identifier in,
+  it accepted all 570 crates,
+  so no crate needs the GPL.
 
 ### Tooling changes
 
 - `about.toml` accepts `LicenseRef-Slint-Royalty-free-2.0` in place of `GPL-3.0-only`.
-- cargo-about 0.9.2 accepts the Slint crates but writes no text for a `LicenseRef-*` license, so the Slint crates are
+- cargo-about 0.9.2 accepts the Slint crates but writes no text for a `LicenseRef-*` license,
+  so the Slint crates are
   missing from its text list.
   `bin/third-party-notices.mjs` finds them (the crates cargo-about lists whose manifest offers the identifier and that
-  have no text), requires each crate's own license file to match the vendored one by SHA-256,
+  have no text),
+  requires each crate's own license file to match the vendored one by SHA-256,
   and writes a Slint section with the text.
   Any other crate without a text stops the script.
   The cause is in `doc/troubleshooting/cargo-about-licenseref-text-is-dropped.md`.
-- The notice intro, the release notes of `music-player-release.yml`, the README and the runbook no longer say the
+- The notice intro,
+  the release notes of `music-player-release.yml`,
+  the README and the runbook no longer say the
   programs are GPL works.
 
 ### The Licenses page and startup
 
 The notice file is about 2 MB and 40,000 lines.
 The window does not hold it as a Slint string and the page builds nothing at startup:
-opening the page gives it a model (`ui_licenses.rs`, `NoticeLines`) that slices the embedded text one line at a time,
+opening the page gives it a model (`ui_licenses.rs`,
+`NoticeLines`) that slices the embedded text one line at a time,
 and the ListView builds only the lines in view (a window test feeds 40,000 lines and finds fewer than 150 built).
 Closing the page releases the model.
 
-Measured on 2026-10-18 with release builds that embed their own notice file, `main` at `5b6e6d3061` against this branch:
+Measured on 2026-10-18 with release builds that embed their own notice file,
+`main` at `5b6e6d3061` against this branch:
 
 - Opening the page builds the model for 40,039 lines in 833 to 1,098 microseconds (four runs of the real app in the
-  nested compositor, from the `opened the Licenses page` log line).
-- Startup, taken as the app's own log timestamps from its first line to the first state line with a folder shown
-  (`ui_state_log`), five launches per batch.
-  Batch one: `main` 90 to 105 ms (fifteen launches, median 95), this branch 90 to 101 ms (ten launches, median 92).
-  Batch two, run later: `main` 109 to 126 ms (ten launches, median 114), this branch 102 to 113 ms (ten launches,
+  nested compositor,
+  from the `opened the Licenses page` log line).
+- Startup,
+  taken as the app's own log timestamps from its first line to the first state line with a folder shown
+  (`ui_state_log`),
+  five launches per batch.
+  Batch one:
+  `main` 90 to 105 ms (fifteen launches,
+  median 95),
+  this branch 90 to 101 ms (ten launches,
+  median 92).
+  Batch two,
+  run later:
+  `main` 109 to 126 ms (ten launches,
+  median 114),
+  this branch 102 to 113 ms (ten launches,
   median 106).
-  The two batches of the same build differ by about 20 ms, more than any difference between the builds,
+  The two batches of the same build differ by about 20 ms,
+  more than any difference between the builds,
   so no startup cost is measurable.
-- Binary size: `main` 55,544,040 bytes, this branch 55,816,872 bytes (272,832 more).
-  The first build of this branch was 57,790,760 bytes: `NOTICES` was a `const`, which Rust copies into every crate that
-  uses it, so the window crate carried a second 2 MB copy beside the library crate's.
-  It is a `static` now, and a test compares the address `--licenses` writes from with the address the page reads.
-  A build without the AboutSlint widget was 43,648 bytes smaller, so the widget itself costs that much.
+- Binary size:
+  `main` 55,544,040 bytes,
+  this branch 55,816,872 bytes (272,832 more).
+  The first build of this branch was 57,790,760 bytes:
+  `NOTICES` was a `const`,
+  which Rust copies into every crate that
+  uses it,
+  so the window crate carried a second 2 MB copy beside the library crate's.
+  It is a `static` now,
+  and a test compares the address `--licenses` writes from with the address the page reads.
+  A build without the AboutSlint widget was 43,648 bytes smaller,
+  so the widget itself costs that much.
 
 ### Decisions left to the owner
 
 - Whether the Licenses page counts as the "About screen or dialog accessible from the top level menu" of section 2(a).
-  Section 2(b) is met as well by the badge in the release notes, so the answer no longer decides whether the
+  Section 2(b) is met as well by the badge in the release notes,
+  so the answer no longer decides whether the
   license is met.
-- Whether the Licenses row should carry the name About, or the page a title that includes it.
+- Whether the Licenses row should carry the name About,
+  or the page a title that includes it.
 
 ## Measurements
 
@@ -619,27 +753,57 @@ Taken on 2026-10-15 at the branch `feat/music-player-license-notices`:
 
 Re-run on 2026-10-18 at the branch head after merging `main` (each number from a command run that day):
 
-- Desktop: the `notices` task covered 570 crates in 253 license texts.
+- Desktop:
+  the `notices` task covered 570 crates in 253 license texts.
   `cargo tree --edges normal,no-proc-macro --features alsa-fallback --target x86_64-unknown-linux-gnu` names 440
-  lines, 2 of them path crates (`music-player`, `truepeak-core`), so 438 third-party crates, all in the file
+  lines,
+  2 of them path crates (`music-player`,
+  `truepeak-core`),
+  so 438 third-party crates,
+  all in the file
   (the task reports 438 for that target).
-  The union over the eight targets is 501 and, with procedural-macro edges, 576; the only ones of those 576 that
+  The union over the eight targets is 501 and,
+  with procedural-macro edges,
+  576;
+  the only ones of those 576 that
   the file lacks are the 8 compile-time dependencies of procedural macros named in the 2026-10-15 measurement
-  (rayon, rayon-core, crossbeam-deque, rspolib, natord, snafu, snafu-derive, toml_writer).
-  `twox-hash 2.1.5`, `slint 1.18.1`, `symphonia 0.6.1` and `turso_core 0.8.2` are entries of the file.
-- A debug build with the file embedded prints it byte for byte with `--licenses` (2,004,190 bytes), also into a closed
+  (rayon,
+  rayon-core,
+  crossbeam-deque,
+  rspolib,
+  natord,
+  snafu,
+  snafu-derive,
+  toml_writer).
+  `twox-hash 2.1.5`,
+  `slint 1.18.1`,
+  `symphonia 0.6.1` and `turso_core 0.8.2` are entries of the file.
+- A debug build with the file embedded prints it byte for byte with `--licenses` (2,004,190 bytes),
+  also into a closed
   pipe with exit status 0.
   Removing `GPL-3.0-only` from a copy of `about.toml` made cargo-about exit 1 with
   `failed to satisfy license requirements` for the Slint crates.
   Building with `MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES=true` and no file failed in `build.rs`.
-- Android: `:app:dependencies --configuration releaseRuntimeClasspath` lists 124 `group:artifact` entries and
-  `artifacts.json` of `licenseeAndroidRelease` (forced to rerun) 121, all Apache-2.0; the three missing are
-  `compose-bom`, `kotlinx-coroutines-bom` and `kotlinx-serialization-bom`.
+- Android:
+  `:app:dependencies --configuration releaseRuntimeClasspath` lists 124 `group:artifact` entries and
+  `artifacts.json` of `licenseeAndroidRelease` (forced to rerun) 121,
+  all Apache-2.0;
+  the three missing are
+  `compose-bom`,
+  `kotlinx-coroutines-bom` and `kotlinx-serialization-bom`.
   With `allow("MIT")` in place of `allow("Apache-2.0")` the task failed.
-  The notice file (1,748,650 bytes) names `media3-session`, `material3`, `kotlinx-coroutines-core`, `guava`,
-  `work-runtime`, `symphonia`, `twox-hash` and `opusic-sys`; the NOTICE collector read 1 file from 84 libraries.
+  The notice file (1,748,650 bytes) names `media3-session`,
+  `material3`,
+  `kotlinx-coroutines-core`,
+  `guava`,
+  `work-runtime`,
+  `symphonia`,
+  `twox-hash` and `opusic-sys`;
+  the NOTICE collector read 1 file from 84 libraries.
   The desktop and Android verification tasks passed on that head:
-  1,466 nextest tests (1 skipped), clippy and `lint:slint` clean, detekt and `lintDebug` clean,
+  1,466 nextest tests (1 skipped),
+  clippy and `lint:slint` clean,
+  detekt and `lintDebug` clean,
   1,289 Android unit tests with 0 failures in 127 result files.
 
 ## Consequences
@@ -658,9 +822,15 @@ Re-run on 2026-10-18 at the branch head after merging `main` (each number from a
 
 The human decided through the question tool on 2026-10-18:
 add a Licenses row to Settings in both apps,
-"doesn't need mockups, just do it, this one is pretty simple and low-impact in terms of design".
-No mockup was made, by that decision; the design record is D132 in `package/music-player/design/decisions.md`
-(written 2026-10-18, after the rows were built), and this section holds the build facts.
+"doesn't need mockups,
+just do it,
+this one is pretty simple and low-impact in terms of design".
+No mockup was made,
+by that decision;
+the design record is D132 in `package/music-player/design/decisions.md`
+(written 2026-10-18,
+after the rows were built),
+and this section holds the build facts.
 
 The Android app (branch `feat/music-player-android-licenses-row`) does this:
 
@@ -668,60 +838,110 @@ The Android app (branch `feat/music-player-android-licenses-row`) does this:
   after Templates and Playback.
   Its one row is Licenses,
   with the supporting line "Open-source libraries used by this app",
-  the 72 dp row form, the 40 dp icon circle and the same group rounding as the other rows,
+  the 72 dp row form,
+  the 40 dp icon circle and the same group rounding as the other rows,
   and the Material Symbols `license` icon (same pinned commit as the other Settings icons;
-  it was `description` until 2026-10-18, when it became `license` to match the desktop row).
-  The row is a button (role Button), a Tab stop after the Playback switch, and Enter and Space open it.
+  it was `description` until 2026-10-18,
+  when it became `license` to match the desktop row).
+  The row is a button (role Button),
+  a Tab stop after the Playback switch,
+  and Enter and Space open it.
 - The row opens a page of its own on every window width,
   also on the unfolded screen where Settings has two panes:
   a Settings row there shows its content in the right pane (D110),
-  but the 1.7 MB notice text is a document, not a setting,
-  so it takes the window (the right half on a creased screen, so no text crosses the fold).
+  but the 1.7 MB notice text is a document,
+  not a setting,
+  so it takes the window (the right half on a creased screen,
+  so no text crosses the fold).
   Back (the button or the system gesture) returns to Settings,
   and on the unfolded screen Escape does too.
   Putting the page into the right pane instead is an open choice for the human.
-- The page has the Settings header (Back button labelled "Back to Settings", title Licenses) and a lazy list.
+- The page has the Settings header (Back button labelled "Back to Settings",
+  title Licenses) and a lazy list.
   The text is the APK asset `THIRD-PARTY-LICENSES.txt`,
   read on the IO dispatcher and cut into blocks on the default dispatcher
-  (`core/LicenseNoticeBlocks.kt`: section titles, subsection titles,
-  wrapped prose joined into paragraphs, other lines kept in a monospace face; at most 40 source lines per block).
+  (`core/LicenseNoticeBlocks.kt`:
+  section titles,
+  subsection titles,
+  wrapped prose joined into paragraphs,
+  other lines kept in a monospace face;
+  at most 40 source lines per block).
   The real file becomes 6,649 blocks.
-  Titles carry the heading role and differ by size, weight and color;
-  a spinner with the words "Loading licenses" shows while it loads, and a message shows if the asset cannot be read.
+  Titles carry the heading role and differ by size,
+  weight and color;
+  a spinner with the words "Loading licenses" shows while it loads,
+  and a message shows if the asset cannot be read.
   The list is one keyboard stop with a ring inside its edge;
-  Up, Down, Page Up, Page Down, Home and End scroll it.
+  Up,
+  Down,
+  Page Up,
+  Page Down,
+  Home and End scroll it.
 - Every build variant now carries the asset,
   not only release.
   A build without the `notices` task's output packs the short note,
   so `build` and the instrumented tests need no cargo-about;
   a build with `MUSIC_PLAYER_REQUIRE_THIRD_PARTY_LICENSES=true` (the release workflow) still fails on a missing file.
-  Checked on 2026-10-18: `:app:thirdPartyLicensesAsset` with the variable and no file failed,
+  Checked on 2026-10-18:
+  `:app:thirdPartyLicensesAsset` with the variable and no file failed,
   and `assembleDebug` without the variable and without the file packed the 258 byte note.
 - `desktop-app/bin/third-party-notices.mjs` names the `license` icon in both notices
   (the Android notice named `description` until 2026-10-18).
 
-Measurements on 2026-10-18 (debug APK, Pixel 9 Pro Fold emulator on the host GPU, the real 1,748,364 character file,
-5 repeats each, run from logcat and `dumpsys gfxinfo`):
+Measurements on 2026-10-18 (debug APK,
+Pixel 9 Pro Fold emulator on the host GPU,
+the real 1,748,364 character file,
+5 repeats each,
+run from logcat and `dumpsys gfxinfo`):
 
-- Open, process cold (force-stop, start, Settings, tap the row), route change to the first frame with the list:
-  267, 264, 276, 272 and 265 ms (median 267 ms, 264 to 276).
-  Of that, reading the asset took 8 to 9 ms and splitting 181 to 188 ms.
-- Open, process warm (Back, tap the row again): 199, 147, 140, 131 and 122 ms (median 140 ms, 122 to 199;
+- Open,
+  process cold (force-stop,
+  start,
+  Settings,
+  tap the row),
+  route change to the first frame with the list:
+  267,
+  264,
+  276,
+  272 and 265 ms (median 267 ms,
+  264 to 276).
+  Of that,
+  reading the asset took 8 to 9 ms and splitting 181 to 188 ms.
+- Open,
+  process warm (Back,
+  tap the row again):
+  199,
+  147,
+  140,
+  131 and 122 ms (median 140 ms,
+  122 to 199;
   the splitting falls from 124 to 60 ms as the code warms).
-- Scroll, eight swipes down and eight up (250 ms each) per window, five windows:
-  901 to 907 frames, 29, 29, 29, 29 and 30 janky frames (3.2 to 3.3 percent),
+- Scroll,
+  eight swipes down and eight up (250 ms each) per window,
+  five windows:
+  901 to 907 frames,
+  29,
+  29,
+  29,
+  29 and 30 janky frames (3.2 to 3.3 percent),
   50th to 99th percentile of the frame time 16 ms in every window.
   This is a debuggable build on an emulator;
-  the 2026-10-15 track list windows (1,000 tracks, top) had 4 to 16 janky frames of 724 to 838
-  (`doc/audit/music-player-release-build-measurements-2026-10-15.md`), so the two are not the same build.
+  the 2026-10-15 track list windows (1,000 tracks,
+  top) had 4 to 16 janky frames of 724 to 838
+  (`doc/audit/music-player-release-build-measurements-2026-10-15.md`),
+  so the two are not the same build.
 - An earlier set on the same code before the indentation fix (one more emulator session):
-  cold 267 to 295 ms, warm 133 to 176 ms, janky 13 to 24 of 928 to 938 frames.
+  cold 267 to 295 ms,
+  warm 133 to 176 ms,
+  janky 13 to 24 of 928 to 938 frames.
 
 The desktop row and the Slint license switch are recorded by the desktop branch.
 
 ## Open decisions
 
-As of 2026-10-15; the first and the third were decided on 2026-10-18, and the second no longer applies to the
+As of 2026-10-15;
+the first and the third were decided on 2026-10-18,
+and the second no longer applies to the
 desktop programs (see [Amendment of 2026-10-18](#amendment-of-2026-10-18)).
 
 - Slint license:
@@ -732,7 +952,8 @@ desktop programs (see [Amendment of 2026-10-18](#amendment-of-2026-10-18)).
   or attach a `cargo vendor` archive of the exact
   crate sources to every release.
 - In-app surface:
-  decided on 2026-10-18, a Licenses row in Settings of both apps
+  decided on 2026-10-18,
+  a Licenses row in Settings of both apps
   (see [Licenses row in Settings](#licenses-row-in-settings-2026-10-18)).
 
 ## Alternatives rejected

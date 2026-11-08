@@ -44,7 +44,10 @@ and no dependency was adopted.
 A single pure function owns the normalization:
 
 ```rust
+//! The public entry point that the Rust port of the Git LFS endpoint normalizer would expose.
 // package/linter/monochromatic-lint (name and module are the port's choice)
+/// Normalizes an endpoint to its object base URL,
+/// or returns the reason it is outside the supported form.
 pub fn lfs_object_base(endpoint: &str) -> Result<String, LfsUrlRejection>
 ```
 
@@ -221,7 +224,8 @@ The variant order and the `fixture_name` strings are the contract;
 everything else is free for the port to restructure.
 
 ```rust
-// ~/temp/agent/native-lfs-url-vet-20261005/rust-reference/src/lib.rs (scratch reference, not product code)
+//! Source file:
+//! ~/temp/agent/native-lfs-url-vet-20261005/rust-reference/src/lib.rs
 //! Scratch reference for the restricted LFS object-base normalizer contract.
 //! Standard library only.
 //! Not product code.
@@ -264,6 +268,7 @@ pub enum LfsUrlRejection {
     DotSegment,
 }
 
+/// Naming of the rejection reasons for the committed parity fixture.
 impl LfsUrlRejection {
     /// Identifier used by the `rejection` field of the committed parity fixture.
     pub const fn fixture_name(self) -> &'static str {
@@ -294,18 +299,29 @@ const PATH_PUNCTUATION: &[u8] = b"-._~!$&'()*+,;=:@/%";
 /// Lowercase spellings of single-dot and double-dot path segments.
 const DOT_SEGMENTS: [&str; 6] = [".", "..", "%2e", ".%2e", "%2e.", "%2e%2e"];
 
+/// Whether a byte may appear in a host:
+/// an ASCII letter or digit,
+/// `-`,
+/// `.` or `_`.
 fn is_host_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'.' || byte == b'_';
 }
 
+/// Whether a byte may appear in a path:
+/// an ASCII letter or digit,
+/// or one of the kept punctuation bytes.
 fn is_path_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || PATH_PUNCTUATION.contains(&byte);
 }
 
+/// Whether a text is non-empty and made only of ASCII digits.
 fn is_decimal(text: &str) -> bool {
     return !text.is_empty() && text.bytes().all(|byte: u8| -> bool { return byte.is_ascii_digit() });
 }
 
+/// Whether a host label reads as a number:
+/// decimal digits,
+/// or `0x` followed by hexadecimal digits.
 fn is_number_label(label: &str) -> bool {
     if is_decimal(label) {
         return true;
@@ -316,6 +332,10 @@ fn is_number_label(label: &str) -> bool {
     };
 }
 
+/// Whether one part of a dotted address is canonical:
+/// decimal,
+/// without a leading zero,
+/// and not above 255.
 fn is_canonical_ipv4_part(part: &str) -> bool {
     if !is_decimal(part) || part.len() > 3 || (part.len() > 1 && part.starts_with('0')) {
         return false;
@@ -327,10 +347,14 @@ fn is_canonical_ipv4_part(part: &str) -> bool {
     return value <= 255;
 }
 
+/// Whether a host is a canonical dotted-decimal IPv4 address:
+/// four canonical parts.
 fn is_canonical_ipv4(host: &str) -> bool {
     return host.split('.').count() == 4 && host.split('.').all(is_canonical_ipv4_part);
 }
 
+/// Whether a path segment is a single-dot or double-dot segment in any of its spellings,
+/// in any ASCII letter case.
 fn is_dot_segment(segment: &str) -> bool {
     return DOT_SEGMENTS
         .iter()

@@ -24,6 +24,10 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the compile-time hang of a dot followed by literals in the full Unicode mode.
+
+/// The regex type,
+/// its options and the Unicode mode that selects the full classes.
 use resharp::{Regex, RegexOptions, UnicodeMode};
 let opts = RegexOptions::default().unicode(UnicodeMode::Full);
 let _ = Regex::with_options(".n.................  n.", opts); // hangs 40s+

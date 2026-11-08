@@ -34,6 +34,13 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the lazy automaton cache contamination:
+//! an identical call,
+//! or a call after a different query,
+//! changes its own answer on one `Regex` instance,
+//! and the no-match sentinel leaks into `find_all`.
+
+/// The regex type whose cached automaton is contaminated.
 use resharp::Regex;
 
 // Repeating an identical call flips its own answer on a single instance.
@@ -141,6 +148,8 @@ The terminal step of the reverse scan,
 the begin-of-input boundary by taking a lazy transition on the first byte's minterm:
 
 ```rust
+//! The lazy transition taken for the first byte of the data:
+//! the transition table is read and extended while the cache that it shares with earlier queries may hold stale state.
 // engine.rs:1477
 let mt = self.mt_lookup[data[0] as usize] as u32;
 let new_state = self.lazy_transition(b, sid, mt)?;   // engine.rs:1478

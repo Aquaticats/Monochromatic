@@ -37,6 +37,10 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the non-maximal anchored span:
+//! `find_anchored` returns a shorter span than the one `find_all` returns at the same start.
+
+/// The regex type whose two entry points disagree.
 use resharp::Regex;
 let re = Regex::new(r"~(.{1,3}\z){2,4}").unwrap();
 let fa  = re.find_all(b"ab").unwrap();        // [Match{0,2}, Match{2,2}]

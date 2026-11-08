@@ -26,14 +26,18 @@ Push runs scan the tree-to-tree delta from a validated-tree watermark:
 - The watermark is the head commit of the newest checked-out-history ancestor that is also
   the head of a successful `push` run of this exact workflow on the same branch.
 - A run's own head becomes a watermark candidate only when that run completes successfully,
-  so cancellation, failure, and timeout can never advance the baseline past unvalidated
+  so cancellation,
+  failure,
+  and timeout can never advance the baseline past unvalidated
   changes.
 - Candidate heads must carry the `validated-tree-watermark-v1` marker in their committed
   workflow file.
   Only revisions whose push runs prove their head tree this way count;
   earlier revisions scanned only their own push range.
-- With no suitable candidate the run scans the current tree with `--all`, the only
-  coverage-safe scope when validation state is unknown, and that head becomes the first
+- With no suitable candidate the run scans the current tree with `--all`,
+  the only
+  coverage-safe scope when validation state is unknown,
+  and that head becomes the first
   watermark for later runs.
 - Pull requests and merge groups keep their cumulative `origin/main...HEAD` comparison,
   which already survives cancellation,
@@ -58,8 +62,10 @@ A successful marker-era push run leaves its head tree fully validated:
   rejected by the maintainer.
   It stays only as the rare fallback above.
 - **Commit-status or movable-tag watermark**.
-  A stamp needs `statuses: write`, which can forge required checks,
-  and a tag needs `contents: write`, which can rewrite branches;
+  A stamp needs `statuses: write`,
+  which can forge required checks,
+  and a tag needs `contents: write`,
+  which can rewrite branches;
   both escalate a secret-bearing workflow.
   Listing runs is read-only (`actions: read`).
 - **Watermark without the version marker**.

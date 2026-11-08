@@ -71,6 +71,9 @@ under a comment that admits it
 (`config.rs:398` to `408`):
 
 ```rust
+//! The literal buffer sizes of Vello's render configuration:
+//! hand picked to fit its test scenes and the paris-30k scene,
+//! and meant to be derived from the scene layout by heuristics instead.
 // The following buffer sizes have been hand picked to accommodate the vello test scenes as
 // well as paris-30k. These should instead get derived from the scene layout using
 // reasonable heuristics.
