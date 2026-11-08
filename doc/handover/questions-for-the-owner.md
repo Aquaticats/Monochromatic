@@ -50,6 +50,12 @@ Each record is cited so the context is one read away.
 - May the stale detached worktrees under `.claude/worktrees/` be removed?
 - May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
 - Should there be an operator override that forces the native Git route when the commit service misbehaves?
+- How long should `FOREIGN_OWNER_PATIENCE` be?
+  It ships at twenty minutes,
+  stated as twice the longest a merge waits,
+  but a merge has waited at most one minute since 2026-11-07,
+  so that basis would give two
+  (`doc/planning/cli-git-shipped-limits-audit.md`).
 
 Checked and not asked,
 because you have already answered them:
