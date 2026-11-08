@@ -1044,6 +1044,10 @@ pub mod lean_run_steps;
 /// The lean-folder run.
 pub mod lean_run;
 
+/// The tests of the order a run takes its mechanisms in.
+#[cfg(test)]
+mod lean_run_tests;
+
 /// Mechanism F:
 /// the daily systemd user timer and its installer.
 pub mod lean_timer_units;

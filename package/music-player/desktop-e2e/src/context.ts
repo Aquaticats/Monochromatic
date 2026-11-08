@@ -22,6 +22,7 @@ import type {
   DisplayMode,
   SessionOptions,
 } from './session-launch.ts';
+import { sessionEvidenceFiles, } from './session-evidence.ts';
 
 /**
  What a scenario needs to run and record checks.
@@ -87,7 +88,7 @@ export async function startContextSession(
     runId: context.runId,
   },);
 
-  // A failing check keeps the states of the session it ran in.
+  // A failing check keeps the states of the session it ran in, and the session's own files beside them.
   context.recorder
     .attach({
       label: session.label,
@@ -95,6 +96,12 @@ export async function startContextSession(
         // `seq` reads the lines the log gained since the last read, so `states` is current.
         await session.seq();
         return session.states();
+      },
+      readSessionFiles: async function readSessionFiles() {
+        return await sessionEvidenceFiles({
+          logPath: session.logPath,
+          unit: session.unit,
+        },);
       },
     },);
   return session;

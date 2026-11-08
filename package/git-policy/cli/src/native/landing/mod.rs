@@ -278,3 +278,7 @@ pub mod service_index_claim;
 
 /// Whether a new index file holds the live index's bytes.
 pub mod service_index_same;
+
+/// The two side references of a landing,
+/// and the scratch reference a restart removes once a batch it dropped has its commit kept.
+pub mod service_scratch_ref_of_a_dropped_batch;

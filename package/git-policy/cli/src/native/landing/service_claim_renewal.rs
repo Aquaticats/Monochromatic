@@ -43,7 +43,7 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::work_item::{CLAIMED, Claimed, id_of_entry, parse_claim_name, renew_claim, settle_named, state_directory};
+use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, parse_claim_name, renew_claim, settle_named};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -134,8 +134,78 @@ pub struct HeldClaims {
     /// The claims held,
     /// in the order they were taken.
     claims: RefCell<Vec<Arc<Claim>>>,
+    /// The listing of `claimed` the last look took,
+    /// shared by every claim of the round,
+    /// and nothing before the first look.
+    listed: RefCell<Option<ClaimNames>>,
     /// The way to tell the renewal of a claim just taken.
     holds: Sender<Taken>,
+}
+
+/// What:
+///  The claim files `claimed` held when it was listed,
+/// by the id each name carries.
+/// Why:
+///   A drain holds many claims and settles them one after another,
+/// and a listing of the whole directory for
+///  each claim costs a multiple of the directory per round (`RG2`).
+/// One listing serves every name the round needs;
+/// a name the listing does not hold is looked for in a fresh listing,
+/// because a renewal renames the claim of a
+///  live holder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ClaimNames { byId: Map<string, string[]>; nameOf(claim) }
+/// ```
+#[derive(Debug)]
+struct ClaimNames {
+    /// The names of `claimed`,
+    /// by the id each one is the claim of.
+    by_id: std::collections::HashMap<String, Vec<String>>,
+}
+
+impl ClaimNames {
+    /// What:
+    ///  Lists `claimed` once.
+    /// Why:
+    ///   The names are kept whole,
+    /// so a claim is found by its id and generation alone,
+    /// and the listing is the one
+    ///  directory read the round makes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// new ClaimNames(Object.groupBy(await readdir(claimed), idOfEntry))
+    /// ```
+    fn listed(work_dir: &Path) -> ClaimNames {
+        let mut by_id: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+        for (name, _modified) in entries_oldest_first(work_dir, CLAIMED) {
+            by_id.entry(id_of_entry(name.as_str()).to_owned()).or_default().push(name);
+        }
+        return ClaimNames { by_id };
+    }
+
+    /// What:
+    ///  The name that is the file of `claim` in this listing,
+    /// or nothing when this listing holds no such file.
+    /// Why:
+    ///   A claim is found by its id and the generation of its acquisition,
+    /// so another instance's claim of the same item is
+    ///  not taken for this one's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// this.byId.get(claim.id)?.find((name) => namesClaim(name, claim))
+    /// ```
+    fn name_of(&self, claim: &Claim) -> Option<&str> {
+        for name in self.by_id.get(claim.id.as_str())? {
+            if names_claim(name.as_str(), claim) {
+                return Some(name.as_str());
+            }
+        }
+        return None;
+    }
 }
 
 /// What:
@@ -166,7 +236,7 @@ pub struct Renewer {
 pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
     let (holds, taken) = channel::<Taken>();
     return (
-        HeldClaims { claims: RefCell::new(Vec::new()), holds },
+        HeldClaims { claims: RefCell::new(Vec::new()), listed: RefCell::new(None), holds },
         Renewer { work_dir: work_dir.to_path_buf(), holds: taken, names: Vec::new() },
     );
 }
@@ -197,35 +267,6 @@ fn names_claim(name: &str, claim: &Claim) -> bool {
         Some((token, _stamp)) => token == claim.token,
         None => false,
     };
-}
-
-/// What:
-///  The file name that holds `claim` in `claimed` now,
-/// or nothing when no file does.
-/// Why:
-///   A renewal changes the reading in the name and nothing else,
-/// so the id and the generation find the claim whatever its
-///  reading is,
-/// and a claim that was taken over and claimed again by another instance has another generation and is not found.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (await readdir(join(workDir, 'claimed'))).find((name) => nameClaims(name, claim))
-/// ```
-fn current_name(work_dir: &Path, claim: &Claim) -> Option<String> {
-    for _ in 0..LOOKS {
-        // A directory that cannot be listed finds nothing on this look; the next look tries again.
-        let Ok(listing) = std::fs::read_dir(state_directory(work_dir, CLAIMED)) else {
-            continue;
-        };
-        for entry in listing.flatten() {
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            if names_claim(name.as_str(), claim) {
-                return Some(name);
-            }
-        }
-    }
-    return None;
 }
 
 /// Methods over the held claims.
@@ -281,6 +322,38 @@ impl HeldClaims {
     }
 
     /// What:
+    ///  The file name that holds `claim` in `claimed` now,
+    /// or nothing when no file does.
+    /// Why:
+    ///   A renewal changes the reading in the name and nothing else,
+    /// so the id and the generation find the claim whatever its
+    ///  reading is,
+    /// and a claim that was taken over and claimed again by another instance has another generation and is not found.
+    /// The listing is taken once and serves every claim of the round;
+    /// a name it does not hold is looked for in a fresh listing,
+    /// because a renewal may have renamed the file since.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (let look = 0; look < LOOKS; look += 1) { const name = this.listed.nameOf(claim); if (name) return name; this.listed = ClaimNames.listed(workDir) }
+    /// ```
+    fn current_name(&self, work_dir: &Path, claim: &Claim) -> Option<String> {
+        for _ in 0..LOOKS {
+            let found: Option<String> = match self.listed.borrow().as_ref() {
+                Some(listed) => listed.name_of(claim).map(str::to_owned),
+                None => None,
+            };
+            if let Some(name) = found {
+                return Some(name);
+            }
+            // Nothing in the listing: a renewal may have renamed the file since it was taken, so `claimed` is listed again;
+            //  a directory that cannot be listed holds nothing, and the next look tries again.
+            *self.listed.borrow_mut() = Some(ClaimNames::listed(work_dir));
+        }
+        return None;
+    }
+
+    /// What:
     ///  Whether the claim of `id` is held and its file is in `claimed` now,
     /// found by its id and generation.
     /// Why:
@@ -310,7 +383,7 @@ impl HeldClaims {
         if claim.lost.load(Ordering::SeqCst) {
             return false;
         }
-        if current_name(work_dir, claim).is_none() {
+        if self.current_name(work_dir, claim).is_none() {
             claim.lost.store(true, Ordering::SeqCst);
             return false;
         }
@@ -352,10 +425,14 @@ impl HeldClaims {
         }
         let mut last: String = String::new();
         for _ in 0..LOOKS {
-            let Some(name) = current_name(work_dir, &claim) else { break };
+            let Some(name) = self.current_name(work_dir, &claim) else { break };
             match settle_named(work_dir, name.as_str(), state) {
                 Ok(()) => return Ok(()),
-                Err(reason) => last = reason,
+                Err(reason) => {
+                    last = reason;
+                    // A renewal renamed the file between the look and the rename: the listing the name came from is old.
+                    *self.listed.borrow_mut() = None;
+                }
             }
         }
         let reason: String = if last.is_empty() { format!("moving {id} to {state} failed: the claim is not in {CLAIMED}") } else { last };

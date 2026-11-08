@@ -46,6 +46,9 @@ pub mod owners;
 /// with their invariants.
 pub mod index_lock;
 
+/// Generated single-owner claim file text and the invariants of its decoder.
+pub mod owner_claim_record;
+
 /// Generated manifests and raw text through the dependent-version rewrite and specifier scan.
 pub mod dependent_version;
 /// Linter output,

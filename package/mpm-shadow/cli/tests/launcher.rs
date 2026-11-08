@@ -24,11 +24,13 @@ const TOOL_ID: &str = "cargo:monochromatic-demo-tool";
 /// and exits with `TOOL_EXIT` or dies of SIGTERM when `TOOL_KILL` is set.
 const REAL_PROGRAM: &str = "#!/bin/sh\nprintf 'out:'\nfor argument in \"$@\"; do printf '[%s]' \"$argument\"; done\nprintf '\\n'\nprintf 'env:%s\\n' \"$TOOL_ENV\"\necho 'err-from-the-tool' >&2\nif [ -n \"$TOOL_KILL\" ]; then kill -TERM $$; fi\nexit ${TOOL_EXIT:-0}\n";
 
-/// The warning text the launcher prints for the given versions and the program it starts.
-fn expected_warning(locked: &str, used: &str, started: &Path) -> String {
+/// The warning text the launcher prints for the given versions,
+/// the lock file it read and the program it starts.
+fn expected_warning(locked: &str, used: &str, lock_file: &Path, started: &Path) -> String {
     return format!(
-        "mpm-shadow: warning: {TOOL_ID} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
-         once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main; starting {}\n",
+        "mpm-shadow: warning: {TOOL_ID} is locked at {locked} in this tree's lock, {}, but {used} runs, because older repository tools are \
+         never kept once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main; starting {}\n",
+        lock_file.display(),
         started.display()
     );
 }
@@ -103,7 +105,8 @@ fn an_older_lock_prints_the_warning_on_standard_error_and_leaves_standard_output
     let launched = run(&tree.launcher(), &arguments, &[]);
     assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
     assert!(!launched.stdout.is_empty());
-    let expected_stderr = format!("{}{}", expected_warning("0.4.0", "0.4.4", &tree.real()), String::from_utf8_lossy(&direct.stderr));
+    let expected_stderr =
+        format!("{}{}", expected_warning("0.4.0", "0.4.4", &tree.lock_file(), &tree.real()), String::from_utf8_lossy(&direct.stderr));
     assert_eq!(String::from_utf8_lossy(&launched.stderr), expected_stderr);
     assert_eq!(launched.status.code(), Some(0));
 }
@@ -239,6 +242,10 @@ impl VerbTree {
         return VerbTree { directory };
     }
 
+    fn lock_file(&self) -> PathBuf {
+        return self.directory.path().join("work").join("toolchain.lock.json");
+    }
+
     fn run(&self, arguments: &[&str]) -> Output {
         return Command::new(env!("CARGO_BIN_EXE_mpm-shadow"))
             .args(arguments)
@@ -253,10 +260,11 @@ impl VerbTree {
 
 /// The warning the verbs print,
 /// with the verb's own prefix.
-fn verb_warning(verb: &str, locked: &str, used: &str) -> String {
+fn verb_warning(verb: &str, locked: &str, used: &str, lock_file: &Path) -> String {
     return format!(
-        "toolchain {verb}: warning: {TOOL_ID} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
-         once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n"
+        "toolchain {verb}: warning: {TOOL_ID} is locked at {locked} in this tree's lock, {}, but {used} runs, because older repository tools \
+         are never kept once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n",
+        lock_file.display()
     );
 }
 
@@ -266,16 +274,16 @@ fn lock_check_and_bin_warn_on_standard_error_and_status_in_its_report() {
     let lock = tree.run(&["install", "--lockfile-only", "--frozen-lockfile"]);
     assert_eq!(lock.status.code(), Some(0), "{}", String::from_utf8_lossy(&lock.stderr));
     assert!(String::from_utf8_lossy(&lock.stdout).contains("digest verified"));
-    assert_eq!(String::from_utf8_lossy(&lock.stderr), verb_warning("install", "0.0.1", "0.0.2"));
+    assert_eq!(String::from_utf8_lossy(&lock.stderr), verb_warning("install", "0.0.1", "0.0.2", &tree.lock_file()));
 
     let paths = tree.run(&["bin", "--json"]);
     assert_eq!(paths.status.code(), Some(0));
     serde_json::from_slice::<serde_json::Value>(&paths.stdout).expect("standard output stays plain JSON");
-    assert_eq!(String::from_utf8_lossy(&paths.stderr), verb_warning("bin", "0.0.1", "0.0.2"));
+    assert_eq!(String::from_utf8_lossy(&paths.stderr), verb_warning("bin", "0.0.1", "0.0.2", &tree.lock_file()));
 
     let status = tree.run(&["list"]);
     assert_eq!(status.status.code(), Some(0), "an installed-newer repository tool is not drift");
-    assert!(String::from_utf8_lossy(&status.stdout).contains(&verb_warning("list", "0.0.1", "0.0.2")), "{}", String::from_utf8_lossy(&status.stdout));
+    assert!(String::from_utf8_lossy(&status.stdout).contains(&verb_warning("list", "0.0.1", "0.0.2", &tree.lock_file())), "{}", String::from_utf8_lossy(&status.stdout));
 }
 
 /// A tree whose tool is a release archive of this repository:
@@ -311,8 +319,11 @@ fn a_release_archive_tool_warns_on_every_run_when_the_lock_pins_an_older_version
     let direct = run(&real, &["x"], &[]);
     let launched = run(&launcher, &["x"], &[]);
     assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
-    let warning = "mpm-shadow: warning: demo-release is locked at 0.2.0 in this tree but 0.2.1 runs, because older repository tools are never kept \
-                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ";
+    let warning = format!(
+        "mpm-shadow: warning: demo-release is locked at 0.2.0 in this tree's lock, {}, but 0.2.1 runs, because older repository tools are \
+         never kept once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ",
+        _directory.path().join("toolchain.lock.json").display()
+    );
     assert_eq!(
         String::from_utf8_lossy(&launched.stderr),
         format!("{warning}{}\n{}", real.display(), String::from_utf8_lossy(&direct.stderr))
@@ -402,8 +413,11 @@ fn a_launcher_whose_recorded_version_was_deleted_runs_the_version_current_names(
     let launched = run(&moved.launcher, &["a b", "--flag"], &[]);
     assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
     assert_eq!(launched.stdout, direct.stdout, "standard output is the new version's program, byte for byte");
-    let warning = "mpm-shadow: warning: demo-release is locked at 0.1.4 in this tree but 0.1.5 runs, because older repository tools are never kept \
-                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ";
+    let warning = format!(
+        "mpm-shadow: warning: demo-release is locked at 0.1.4 in this tree's lock, {}, but 0.1.5 runs, because older repository tools are \
+         never kept once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ",
+        moved.lock_file.display()
+    );
     let started = moved.program_of("0.1.5");
     assert_eq!(
         String::from_utf8_lossy(&launched.stderr),
@@ -485,8 +499,11 @@ fn a_global_launcher_whose_recorded_version_was_deleted_names_the_path_it_starts
     let launched = run(&moved.launcher, &["x"], &[]);
     assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
     assert_eq!(launched.stdout, direct.stdout);
-    let warning = "mpm-shadow: warning: demo-release is locked at 0.1.4 in this machine's global lock but 0.1.5 runs, because older repository tools \
-                   are never kept once a newer one is installed; upgrade the global lock with `mpm update -g demo-release`; starting ";
+    let warning = format!(
+        "mpm-shadow: warning: demo-release is locked at 0.1.4 in this machine's global lock, {}, but 0.1.5 runs, because older repository \
+         tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g demo-release`; starting ",
+        moved.lock_file.display()
+    );
     let started = moved.program_of("0.1.5");
     assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}\n{}", started.display(), String::from_utf8_lossy(&direct.stderr)));
     let record = mpm_shadow::toolchain::launcher::parse_record(&fs::read_to_string(record_path(&moved.launcher)).expect("the record")).expect("a record");

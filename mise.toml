@@ -1124,6 +1124,10 @@ runWorkspaceNode('package/monorepo-task/core-exec', 'playwright-image', [])
 # stays as a thin alias of `toolchain:install` so existing callers (the `prepare`
 # umbrella, the release workflow, package error messages) keep working. A depth-2
 # `prepare:*` task, so the `prepare` umbrella auto-runs it after a fresh clone.
+# The `rustTargets` row is applied only when the sync installs that toolchain
+# itself: a toolchain another step installed at the locked version is observed as
+# current and keeps missing them, so the release workflow's Rust step installs them
+# first (doc/troubleshooting/ci-steps-do-not-see-the-toolchain-environment.md).
 # EXPENSIVE on a fresh machine: ~2.9 GB of Android SDK + NDK (the NDK alone is
 # ~2.4 GB), and the `prepare` umbrella auto-runs it for every developer, not just
 # Android ones; this cost is intended and tolerated. Idempotent: a fast no-op
