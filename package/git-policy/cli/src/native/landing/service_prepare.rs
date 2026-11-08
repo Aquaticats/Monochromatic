@@ -45,7 +45,7 @@ use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use crate::commit_facts::PrivateIndexFacts;
 use crate::commit_index::{
-    IndexSelection, initialize_commit_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
+    IndexSelection, initialize_commit_index, initialize_retry_index, list_changed_index_paths, list_unmerged_index_paths, prepare_interactive_selection,
     write_private_tree,
 };
 use crate::commit_staged_deletions::{STAGED_DELETION_CODE, STAGED_DELETION_CORE_ID, staged_deletion_message, staged_deletions_present_on_disk};
@@ -209,10 +209,9 @@ pub fn prepare<F: RepositoryFacts>(
             Merged::Tree(tree) => (tree, Vec::new()),
             Merged::Combined { tree, files } => (tree, files),
         };
-        run_git_checked(
-            context,
-            &indexed_request(cwd, &["read-tree", tree.as_str()], Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())),
-        )?;
+        // Built from a copy of the real index, so the entries the tree shares with it keep their stat data and the scratch commit
+        //  does not hash the whole work tree again (`commit_index.rs`, `initialize_retry_index`).
+        initialize_retry_index(context, cwd, capture.layout.real_index_path.as_path(), &indexes, tree.as_str())?;
         // Every part the word pass merged is told to the person with the commit and sent to the journal.
         word_merge_events = word_merge_notice(combined.as_slice());
     } else {

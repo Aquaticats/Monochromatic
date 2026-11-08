@@ -7635,6 +7635,65 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
     the one that wrote an empty lock (`a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback`) now holds a
     descriptor on it.
 
+### Slow rebuilds and the moved-branch bound (2026-11-08)
+
+Found from the coordinator's live commit (request `539a7563`,
+release 0.6.1-alpha.3):
+five builds,
+270,232 ms,
+`outcome: stopped`,
+the change left uncommitted,
+though nothing conflicted.
+
+- Cause of the slow rebuilds,
+  measured in this repository on 2026-11-07 with a dry-run of the scratch commit against a scratch LFS store
+  (22,000 tracked files,
+  1,578 of them LFS-tracked):
+  a private index with the real index's stat data refreshes in 0.1 s and cleans nothing;
+  one built by `git read-tree <tree>` into a fresh index holds no stat data,
+  so `git commit` hashes every file and sends every LFS file through `git-lfs filter-process`:
+  3.6 s on a warm cache and 233,618,538 bytes cleaned (the coordinator saw about 215 MB read for a one-file commit).
+  The retry branch of `landing/service_prepare.rs` built its index exactly that way,
+  and a retry runs when the branch moved,
+  that is when other commits land.
+  Fixed:
+  `commit/commit_index.rs`,
+  `initialize_retry_index` copies the real index and runs `read-tree --reset <tree>` (the single-tree form keeps the cached stat data
+  of entries the tree shares with the index),
+  and builds from the tree alone only when the index carries an assume-unchanged or skip-worktree mark or cannot be read.
+  Still pointed at LFS pointers:
+  the commit is of the index's blob ids,
+  and the clean filter is not disabled.
+- Not explained:
+  the first build of that commit took 171,383 ms,
+  and a first preparation copies the real index too (stat data kept),
+  so the retry path does not account for it.
+  The candidates are an index that could not seed (`seeds_private_index` false at that moment) and I/O contention
+  (the scratch Git sat in `D` state on a full block queue at load average 38).
+  Both ways of building the index now leave a debug line (`initializeCommitIndex`,
+  `initializeRetryIndex`) saying whether the stat data was kept;
+  a trace of the next slow first build is still wanted.
+- The count of five builds is gone:
+  a commit whose branch moved is built again until `MOVED_BRANCH_REBUILD_CEILING` (`ANSWER_CEILING`,
+  20 minutes,
+  1.6 times the longest whole commit of the 2026-11-03 log) has passed since its first build.
+  Chosen over applying the built commit onto the moved tip in the service:
+  that makes a new commit with another parent,
+  and a signed commit cannot be signed again without the person's signer,
+  which only the client runs.
+  No lock is held while a build runs,
+  and every rebuild prints a line with the builds so far,
+  the time so far and the limit.
+  A branch that never stops moving ends at the ceiling with the plain failure and nothing lands;
+  `CLI_GIT_REBUILD_CEILING_SECONDS` lets a control watch that without waiting twenty minutes.
+  Controls:
+  `a_branch_that_moves_more_often_than_a_count_allowed_still_lands_the_commit` (seven moves,
+  lands),
+  `a_branch_that_keeps_moving_stops_the_rebuilds_at_the_ceiling`,
+  `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
+  The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
+  `service_land.rs`) is unchanged.
+
 ### Design stance
 
 The commit service unit sets no resource limits of its own

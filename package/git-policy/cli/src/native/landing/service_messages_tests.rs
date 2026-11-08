@@ -240,3 +240,16 @@ fn a_read_only_filesystem_a_permission_error_and_a_frozen_move_each_have_their_o
     assert!(frozen.contains(NOTHING_CHANGED), "{frozen}");
     assert!(!frozen.contains("permission"), "{frozen}");
 }
+
+/// The line for a rebuild names the branch,
+/// the builds so far,
+/// the time so far and when the rebuilding stops,
+/// and promises nothing it does not do.
+#[test]
+fn the_rebuild_notice_names_the_branch_the_builds_the_time_and_the_ceiling() {
+    let said: String = rebuild_notice("main", 3, std::time::Duration::from_secs(41), std::time::Duration::from_secs(1200));
+    for part in ["the branch main moved", "3 builds so far, 41 seconds", "built again on the new tip", "nothing conflicted", "stops after 1200 seconds"] {
+        assert!(said.contains(part), "{part}: {said}");
+    }
+    assert!(said.ends_with('\n') && !said.contains("so it was built again"), "{said}");
+}

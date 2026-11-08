@@ -53,7 +53,7 @@ use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 use crate::service_client::{ClientConfig, FreshScratch, ScratchWatch, Submitted, submit_traced, watch_scratch};
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
-use crate::service_land::LANDING_ATTEMPTS;
+use crate::service_commit_rebuild_ceiling::may_rebuild;
 use crate::service_messages::{ClientFailure, render};
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
@@ -77,13 +77,6 @@ pub struct ServiceCommit {
     /// absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
 }
-
-/// How many times a commit Git built is built again on the new tip when the branch moves before it lands,
-/// before the
-///  plain failure.
-/// A build is one signature,
-/// so the bound keeps a busy branch from keeping a person's command running.
-pub const REBUILD_ATTEMPTS: usize = 5;
 
 /// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
 fn branch_moved(ready: &Ready) -> TransactionStop {
@@ -159,7 +152,9 @@ pub fn service_commit<F: RepositoryFacts>(
     // The commits Git built that the branch moving made useless: Git printed a summary for each, so the wrapper names them
     //  once the commit that did land is known.
     let mut unlanded: Vec<String> = Vec::new();
-    for attempt in 0..REBUILD_ATTEMPTS {
+    // The first build's start: the ceiling on rebuilding is counted from it.
+    let first_build_began: Instant = Instant::now();
+    for attempt in 0usize.. {
         // A rebuild replays what the batches that landed meanwhile captured; the first try replays nothing.
         let mut replay: Option<Retry<'_>> = None;
         if let Some(captured) = retry.as_ref() {
@@ -351,9 +346,9 @@ pub fn service_commit<F: RepositoryFacts>(
                     // An amend, and a commit Git built, are never sent for another tip; the service answers a moved branch as a failure.
                     return Err(branch_moved(&ready));
                 }
-                if attempt + 1 == LANDING_ATTEMPTS {
-                    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: LANDING_ATTEMPTS })));
+                let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+                if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                 }
                 // What this preparation captured is merged onto the branch by the next one.
                 retry = Some(retry_of(invocation.context, invocation.cwd, &ready, landed)?);
@@ -363,10 +358,10 @@ pub fn service_commit<F: RepositoryFacts>(
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
                 //  again on the new tip (and signs it again), up to the bound.
                 if native && !sent.amend && !editor_possible && !ready.interactive && !ready.fixed_parents {
-                    if attempt + 1 == REBUILD_ATTEMPTS {
-                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: REBUILD_ATTEMPTS })));
+                    if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+                        return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
                     }
-                    // Git builds it again from the tree this build captured, not from the worktree.
+                        // Git builds it again from the tree this build captured, not from the worktree.
                     retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                     unlanded.extend(sent.commit.clone());
                     continue;
@@ -383,7 +378,7 @@ pub fn service_commit<F: RepositoryFacts>(
                                 && !ready.interactive
                                 && !ready.fixed_parents
                                 && with_fixed_message(native_inputs.arguments.as_slice(), prefix, file.as_path()).is_some();
-                            if repeatable && attempt + 1 < REBUILD_ATTEMPTS {
+                            if repeatable && may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
                                 fixed_message = Some(file);
                                 retry = Some(retry_of(invocation.context, invocation.cwd, &ready, Vec::new())?);
                                 unlanded.extend(sent.commit.clone());
@@ -412,7 +407,7 @@ pub fn service_commit<F: RepositoryFacts>(
             Err(failure) => return Err(TransactionStop::Message(render(&failure))),
         }
     }
-    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: REBUILD_ATTEMPTS })));
+    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts })));
 }
 
 /// Service commit controls stay out of the release executable.

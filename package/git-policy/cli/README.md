@@ -2777,6 +2777,28 @@ Each line names what the command waits for,
    the person's index and files are as they were,
    and the same command is run again.
    A commit that opens the person's editor prints nothing and has no ceiling.
+- A commit whose branch moved while it was being built:
+   a commit Git built (a signed one,
+   or one with a template or clean-up mode) is built again on the new tip,
+   and a captured change is merged onto it again,
+   for as long as the time since the first build is under `MOVED_BRANCH_REBUILD_CEILING` (20 minutes,
+   `service/wait_ceilings.rs`);
+   there is no count of builds,
+   because a count ended a commit on 2026-11-08 that conflicted with nothing,
+   with the change left uncommitted.
+   Each rebuild says so on standard error,
+   with the builds so far,
+   the time so far and when the rebuilding stops.
+   `CLI_GIT_REBUILD_CEILING_SECONDS` (a positive number of seconds) sets the ceiling for a control.
+   A real conflict is still withdrawn with a plain message,
+   and an amend,
+   or a commit written or signed by hand,
+   is still not moved onto another tip.
+   A rebuild's private index is made from a copy of the real index,
+   so the scratch `git commit` keeps the cached stat data of every entry the new tree shares with it
+   and does not hash the work tree again (measured:
+   233,618,538 bytes of LFS content cleaned and 3.6 s with an index built by a plain `read-tree`,
+   against 0.1 s with the real index's stat data).
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).

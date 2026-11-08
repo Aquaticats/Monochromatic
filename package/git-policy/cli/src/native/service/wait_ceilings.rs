@@ -33,6 +33,25 @@ use std::time::Duration;
 ///  750,604 ms. Twenty minutes is 3.9 times the longest answer wait and 1.6 times the longest whole commit.
 pub const ANSWER_CEILING: Duration = Duration::from_secs(20 * 60);
 
+/// The longest a commit that moved under its own build is built again on the new tip,
+/// counted from the first build.
+/// It replaces a count of five builds,
+/// which ended a commit on 2026-11-08 (release 0.6.1-alpha.3,
+/// 270,232 ms in all,
+/// five attempts,
+/// three of them answered `branch-moved` while other agents landed on the same branch) with the person's change left uncommitted,
+/// though nothing conflicted:
+/// each slow build gave the branch time to move again.
+/// A rebuild is one signature and no lock is held while it runs,
+/// so the number of rebuilds is not what has to be bounded,
+/// the time is.
+/// The bound is `ANSWER_CEILING`:
+/// the longest whole commit in the timing log of 2026-11-03 was 750,604 ms (1,329 records),
+/// and 20 minutes is 1.6 times that,
+/// so a commit that landed in the log never reaches it.
+/// Every rebuild says so on standard error with the time so far and this limit.
+pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
+
 /// The longest a client waits for the service to start when it can ask the service manager how the start goes.
 ///  Measured:
 /// the slowest of 52 cold starts took 1,041 ms (`startWaitMs`,

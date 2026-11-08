@@ -215,6 +215,9 @@ pub fn initialize_commit_index(
         // marked file the commit named, so an index with such a mark (or one this crate cannot read) is built the
         // slower way, from the base alone.
         let seeded: bool = seeds_private_index(indexes.captured_index.as_path());
+        // A private index built without the real index's stat data makes the scratch commit hash every file (233 MB of LFS content
+        //  here), so which way it was built is on record for the next slow build.
+        crate::diagnostic_log::debug("initializeCommitIndex", format!("private index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
         if seeded {
             copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
                 .map_err(copy_index_failure)?;
@@ -241,6 +244,42 @@ pub fn initialize_commit_index(
         carry_selected_staged_additions(context, cwd, indexes, selection)?;
     }
     return add_selected_paths(context, cwd, indexes, selection);
+}
+
+/// What:
+///  Makes the private index of a retry hold exactly `tree`,
+/// starting from a copy of the real index so every entry the tree shares with it keeps its cached stat data.
+/// Why:
+///   A `read-tree` into a fresh index leaves every entry with no stat data,
+/// and the scratch `git commit` then reads and hashes every file of the work tree to refresh it,
+/// LFS-tracked files through the clean filter:
+/// measured on 2026-11-07 in this repository,
+/// 233,618,538 bytes cleaned and 3.6 s with the index of a retry built that way against 0.1 s with the real index's stat data,
+/// for a commit of one Markdown file.
+/// A retry runs when the branch moved under a commit,
+/// which is when other commits land,
+/// so the cost fell on the busiest moments and each rebuild gave the branch time to move again.
+/// An index that holds an assume-unchanged or skip-worktree mark,
+/// or that cannot be read,
+/// is not copied,
+/// as for the first preparation (`seeds_private_index`),
+/// and the tree is read into a fresh index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await copyIndexFile(realIndex, commitIndex); await git(['read-tree', '--reset', tree], { index: commitIndex });
+/// ```
+pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
+    let mut arguments: Vec<String> = vec![String::from("read-tree")];
+    let seeded: bool = real_index.exists() && seeds_private_index(real_index);
+    crate::diagnostic_log::debug("initializeRetryIndex", format!("retry index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
+    if seeded {
+        copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
+        arguments.push(String::from("--reset"));
+    }
+    arguments.push(tree.to_string());
+    private_git(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), &arguments)?;
+    return Ok(());
 }
 
 /// What:

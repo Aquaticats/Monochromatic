@@ -15,7 +15,7 @@
 //!  silent change of what an editor or a signature means.
 
 use super::commit::{git_text, remove_settled};
-use super::service_commit::{Running, query, start, through_service};
+use super::service_commit::{Running, query, start, through_service, through_service_with};
 use super::support::{Fixture, direct, executable, fixture, git, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::ffi::OsStr;
@@ -307,6 +307,27 @@ fn racing_commit(repo: &Path, only_once_marker: Option<&Path>) -> String {
     );
 }
 
+/// The shell line that makes another commit on the branch the first `times` times it runs,
+/// counted in `marker`,
+/// unless the signer was started by that very commit.
+fn racing_commit_times(repo: &Path, marker: &Path, times: usize) -> String {
+    let guard: String = format!("[ -z \"$RACING\" ] && [ \"$(cat '{0}' 2>/dev/null | wc -l)\" -lt {times} ] && echo race >> '{0}' && ", marker.display());
+    return racing_commit(repo, None).replacen("[ -z \"$RACING\" ] && ", guard.as_str(), 1);
+}
+
+/// The number the plain failure names:
+/// "changed N times".
+fn builds_named(stderr: &str) -> usize {
+    let after: &str = stderr.split("changed ").nth(1).expect("the failure names the builds");
+    return after.split(' ').next().expect("a number").parse::<usize>().expect("a number of builds");
+}
+
+/// The ceiling the controls give the rebuilding,
+/// in seconds:
+/// far below the measured twenty minutes,
+/// so a branch that never stops moving ends the control.
+const CONTROL_REBUILD_CEILING: &str = "3";
+
 fn lines_in(path: &Path) -> usize {
     return std::fs::read_to_string(path).map_or(0, |text| { return text.lines().count(); });
 }
@@ -398,10 +419,42 @@ fn a_commit_built_again_prints_gits_summary_for_each_build_and_the_last_names_th
     remove_settled(&fixture);
 }
 
-/// A branch that moves every time ends in the plain failure after the named number of builds,
+/// A branch that moves more often than the five builds a count once allowed still lets the commit land,
+/// on the last tip,
+/// signed again each time,
+/// and each rebuild says so on standard error:
+/// nothing conflicted,
+/// so the commit is not refused (the owner's rule "Commits should never fail").
+#[test]
+fn a_branch_that_moves_more_often_than_a_count_allowed_still_lands_the_commit() {
+    let fixture: Fixture = fixture("service-native-rebuild-many");
+    let (repo, _start_commit) = repository_with_programs(&fixture);
+    let marker: PathBuf = fixture.root.join("races");
+    let moves: usize = 7;
+    let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit_times(&repo, marker.as_path(), moves).as_str());
+    let name: String = format!("native-rebuild-many-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    edit_a(&repo);
+    let before: usize = finished(&fixture);
+    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "lands after many moves", "--", "a.txt"]);
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(output.status.success(), "{stderr}");
+    assert_eq!(finished(&fixture), before + 1, "the service landed it once");
+    assert_eq!(lines_in(&calls), 2 * moves + 1, "a build and the other commit's signature for each move, and the build that landed");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s"]), "lands after many moves");
+    assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", "HEAD^"]), "raced", "it sits on the last other commit");
+    assert_eq!(stderr.lines().filter(|line| { return line.contains("moved while this commit was being built"); }).count(), moves, "each rebuild is said: {stderr}");
+    assert_eq!(query(&fixture, &repo, &["show", "HEAD:a.txt"]), "base\nedited");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// A branch that moves every time ends in the plain failure when the rebuilding reaches its ceiling,
+/// naming the builds made,
 /// and nothing lands.
 #[test]
-fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_bound() {
+fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_ceiling() {
     let fixture: Fixture = fixture("service-native-rebuild-bound");
     let (repo, _start_commit) = repository_with_programs(&fixture);
     let calls: PathBuf = ssh_signing_through(&fixture, &repo, racing_commit(&repo, None).as_str());
@@ -409,13 +462,13 @@ fn a_branch_that_keeps_moving_stops_the_rebuilds_at_the_bound() {
     let mut service: Running = start(&fixture, name.as_str());
     edit_a(&repo);
     let before: usize = finished(&fixture);
-    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-m", "never lands", "--", "a.txt"]);
+    let output: Output = through_service_with(&fixture, &repo, name.as_str(), &["commit", "-m", "never lands", "--", "a.txt"], &[(git_policy_cli::service_commit_rebuild_ceiling::REBUILD_CEILING_VARIABLE, CONTROL_REBUILD_CEILING)]);
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
-    let bound: usize = git_policy_cli::service_commit::REBUILD_ATTEMPTS;
-    assert!(stderr.contains(&format!("changed {bound} times")), "{stderr}");
+    let builds: usize = builds_named(stderr.as_str());
+    assert!(builds >= 2, "the ceiling is not a count of one build: {stderr}");
     assert_eq!(finished(&fixture), before, "nothing landed");
-    assert_eq!(lines_in(&calls), 2 * bound, "a build and the other commit's signature, for each attempt");
+    assert_eq!(lines_in(&calls), 2 * builds, "a build and the other commit's signature, for each attempt");
     assert_eq!(query(&fixture, &repo, &["log", "--format=%s", "--grep=never lands"]), "");
     let _killed = service.kill();
     let _waited = service.wait();
@@ -531,7 +584,7 @@ fn a_branch_that_moves_while_the_editor_is_open_is_built_again_from_the_typed_me
     remove_settled(&fixture);
 }
 
-/// The rebuilds from the typed message stop at the bound:
+/// The rebuilds from the typed message stop at the ceiling:
 /// while the editor's message is fixed,
 /// a branch that moves on every
 ///  build ends in the plain failure that names the file the message was saved in,
@@ -549,13 +602,13 @@ fn a_typed_message_is_saved_only_when_the_branch_never_stops_moving() {
     git(&fixture, &repo, &["config", "core.editor", typing.to_str().expect("UTF-8")]);
     edit_a(&repo);
     let before: usize = finished(&fixture);
-    let output: Output = through_service(&fixture, &repo, name.as_str(), &["commit", "-e", "-m", "seed", "--", "a.txt"]);
+    let output: Output = through_service_with(&fixture, &repo, name.as_str(), &["commit", "-e", "-m", "seed", "--", "a.txt"], &[(git_policy_cli::service_commit_rebuild_ceiling::REBUILD_CEILING_VARIABLE, CONTROL_REBUILD_CEILING)]);
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("moved while this commit was being prepared"), "{stderr}");
     assert_eq!(finished(&fixture), before, "nothing landed");
-    let bound: usize = git_policy_cli::service_commit::REBUILD_ATTEMPTS;
-    assert_eq!(lines_in(&calls), 2 * bound, "a build and the other commit's signature, for each attempt");
+    let builds: usize = stderr.matches("moved while this commit was being built").count() + 1;
+    assert_eq!(lines_in(&calls), 2 * builds, "a build and the other commit's signature, for each attempt: {stderr}");
     let saved: PathBuf = std::fs::read_dir(repo.join(".git"))
         .expect("git directory")
         .flatten()

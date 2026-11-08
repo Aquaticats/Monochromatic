@@ -75,6 +75,18 @@ fn no_wait_is_left_on_the_unmeasured_ceiling() {
     assert!(MINUTE <= LANDING_LOCK_CEILING);
 }
 
+/// A commit that moved under its own build is built again until the answer ceiling,
+/// not for a count of builds,
+/// and the commit path names the ceiling.
+#[test]
+fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
+    assert_eq!(MOVED_BRANCH_REBUILD_CEILING, ANSWER_CEILING);
+    let decision: &str = include_str!("../landing/service_commit_rebuild_ceiling.rs");
+    assert!(decision.contains("MOVED_BRANCH_REBUILD_CEILING"), "the rebuilding decision takes this ceiling");
+    let commit: &str = include_str!("../landing/service_commit.rs");
+    assert!(commit.contains("may_rebuild") && !commit.contains("REBUILD_ATTEMPTS"), "a count of builds no longer ends a commit");
+}
+
 /// The scratch repository's `git commit` is stopped at three times the slowest build the timing log holds,
 /// in whole minutes:
 /// the owner's margin (2026-11-07,

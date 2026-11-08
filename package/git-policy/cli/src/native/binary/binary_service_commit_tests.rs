@@ -190,6 +190,16 @@ pub(super) fn through_service(fixture: &Fixture, repo: &Path, name: &str, argume
     return command.output().expect("the wrapped commit runs");
 }
 
+/// `through_service` with environment variables set for the wrapped command.
+pub(super) fn through_service_with(fixture: &Fixture, repo: &Path, name: &str, arguments: &[&str], environment: &[(&str, &str)]) -> Output {
+    let mut command: Command = wrapped_commit(fixture, repo, arguments);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name));
+    for (variable, value) in environment {
+        command.env(variable, value);
+    }
+    return command.output().expect("the wrapped commit runs");
+}
+
 fn fields(fixture: &Fixture, repo: &Path, revision: &str) -> (String, String, String) {
     return (
         query(fixture, repo, &["rev-parse", format!("{revision}^{{tree}}").as_str()]),
