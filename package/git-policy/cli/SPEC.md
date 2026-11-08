@@ -2815,8 +2815,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `LOCK_CEILING` 10 minutes,
   measured on 2026-11-08 from the commit timing log (1,332 records,
   2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z):
-  the six logged waits for another program's hold on the index were two that landed after 3,636 and 23,783 ms of
-  answer time and four queued behind the lock that never went on 2026-11-07 (62 waiting notices each,
+  the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
+  and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
   644,710 to 1,200,776 ms,
   every one stopped).
   No wait a holder released reached the ten minutes,

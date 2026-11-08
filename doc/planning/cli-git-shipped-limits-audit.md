@@ -4808,7 +4808,7 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   Five of the six ended with a notice whose holder kind was `unproven`,
   the sixth with one that named no kind,
   and no notice in the sample ever proved a holder alive.
-  The other four are the commits queued behind the lock that never went on 2026-11-07:
+  The other four are the commits that met the lock that never went on 2026-11-07:
   they stopped after 644,710,
   756,215,
   1,087,175 and 1,200,776 ms of answer wait,

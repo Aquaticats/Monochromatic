@@ -91,7 +91,7 @@ pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 /// six records hold a waiting notice for another program's hold on the index.
 /// Two of them landed after 3,636
 ///  and 23,783 ms of answer time;
-/// the other four are the commits queued behind the lock that never went on 2026-11-07,
+/// the other four are the commits that met the lock that never went on 2026-11-07,
 /// each
 ///  with 62 notices and no holder proven alive,
 /// and they stopped after 644,710,

@@ -8070,7 +8070,7 @@ what the ten minutes is worth and what the three ceilings now rest on.
   after landing at most 7,856 ms.
   Six records hold a waiting notice for another program's hold on the index:
   two landed (3,636 and 23,783 ms of answer time),
-  four are the 2026-11-07 queue behind the lock that never went
+  four are the commits that met the lock that never went on 2026-11-07
   (644,710 to 1,200,776 ms, all stopped, the last notice `unproven` in five of them).
 - What the log cannot measure:
   a merge writes no record (278 merge commits in the window, and `CommitTiming::start` is in
