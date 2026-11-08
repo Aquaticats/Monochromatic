@@ -339,6 +339,32 @@ from the brief and the plan:
   forwarded added medians 1.5 to 2.0 ms and commit paired deltas 20 to 26 ms in
   both arms of three alternating pairs,
   inside the spread.
+- Footprint measurement (coordinator,
+  after `prepare-10` stopped at `p3a-footprint` when a worktree was removed during the walk):
+  merged into main as cf498e159e from `fix/repository-move-footprint-retries-removed-worktrees`
+  (`footprint-measure.ts`,
+  `measure-footprint.ts`,
+  tests in `measure-footprint.unit.test.ts`).
+  One whole-tree walk,
+  made again at most
+  three times when every line btrfs printed says an entry was not there;
+  any other error or a walk past its deadline fails at once.
+  It is not split by subvolume:
+  worktrees share extents (3753 GiB per-worktree sum against about 264 GiB counted once),
+  nested
+  subvolumes would count twice,
+  and a `btrfs filesystem du` call with several paths prints one independent row per path.
+- The wrapper's container gate fails one test in main itself,
+  not in this branch:
+  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository` (the service aborts with
+  `memory allocation of 13 bytes failed` under the address-space limit before it listens).
+  Main 48c8fe6692 plus only the runner fix
+  fails it in the gate image;
+  this branch failed it 5 of 5 alone in the gate image;
+  the older image `coordinator-tokio-062` passes it;
+  the host passes it.
+  The commit-stall merge's startup warm is the coordinator's lead and its author is investigating.
+  This branch merges only after that fix is in main.
 - Open harness item,
   container run 1 (220 failures):
   217 `fresh fixture: NotFound` (the fixture root `target/tmp` of the container
