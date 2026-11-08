@@ -2286,6 +2286,63 @@ not to crates.io.
   none changed a token (731 s).
   The 0.5.2-alpha.3 executable with the same rules over 3063 Markdown files changed tokens in 9.
 
+### Release record: `monochromatic-lint` 0.5.2-alpha.6, the closure check builds the IDE and the terminal (2026-11-07T21:50:00-05:00)
+
+The owner's rules,
+verbatim:
+"Label decides";
+"I'm authorizing you to bump and publish any updates this session."
+The coordinator relayed the owner's approval of this release.
+The alpha goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- 0.5.2-alpha.6 carries the closure-check changes of merge `1d3e9bcdec`
+  (branch `fix/closure-check-runs-on-ide-and-terminal`):
+  the IDE runtime and license list are linked where the IDE `build.rs` reads them
+  (the profile directory is the parent of the nearest `build` ancestor of `OUT_DIR`),
+  so the dylint build of `package/ide/app` finds its manifest;
+  and the prerequisite kind `libghostty-offline-inputs` hands `libghostty-vt-sys` the fetched Ghostty source and Zig packages,
+  so the dylint build of `package/terminal/app` downloads nothing.
+- Built from `6507cee727` (the bump commit).
+  `git merge-base --is-ancestor 1b1aa901b3 6507cee727` answered yes (exit 0),
+  so the pin-hint fix is in the release;
+  `git merge-base --is-ancestor 9f4c45bd67 6507cee727` answered yes (exit 0),
+  so the mutation-test work is in it too.
+- Release runs:
+  dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42427210564`,
+  release `https://github.com/Aquaticats/Monochromatic/actions/runs/42438318626`,
+  publish `https://github.com/Aquaticats/Monochromatic/actions/runs/42438441069`;
+  `release:wait` ended `PUBLISHED`,
+  crates.io was skipped by the label rule,
+  and the GitHub release `monochromatic-lint-v0.5.2-alpha.6` carries the assets of every platform.
+- Lock move:
+  `mise run toolchain:update` without arguments moved two tools,
+  `cargo:monochromatic-lint` 0.5.2-alpha.5 to 0.5.2-alpha.6 and the floating `rust` nightly `nightly-2026-11-07` to `nightly-2026-11-08`;
+  it was not committed,
+  because only the linter was meant to move.
+  `mise run toolchain:update -- cargo:monochromatic-lint` then moved exactly that row (its version,
+  four Linux archive URLs and SHA-256 values,
+  and the lock digest),
+  and `mise run toolchain:install` installed it
+  (`monochromatic-lint --version` printed `monochromatic-lint 0.5.2-alpha.6`).
+  The nightly stays for the daily update.
+- Proof at the user boundary,
+  with the installed 0.5.2-alpha.6 and no exported variable or hand-made link:
+  after `mise run //package/terminal/app:fetch:ghostty-offline-inputs`,
+  `monochromatic-lint package/ide/app package/terminal/app` exited 0 with no finding and no `core/processing-failure`
+  (about 160 s);
+  the run itself made the links `target/dylint/debug/runtime` and `target/dylint/crate-licenses.json` of the IDE.
+  Before this release the same command ended `core/processing-failure` for both packages.
+- Closure findings:
+  `package/ide/app` 5 and `package/terminal/app` 12 when the check first built them,
+  none left in either,
+  and no suppression.
+- Pin-hint tests on the current source (`test:container`):
+  the five `config_pin` tests passed,
+  including `the_hint_names_a_measured_newer_pin_and_nothing_else` and `unmeasured_pins_and_farther_lockfiles_produce_no_hint`,
+  and `binary a_newer_repository_pin_adds_the_stale_binary_hint` passed (the test builds its own executable,
+  so it did not run the installed binary).
+
 ## Evidence log
 
 - crates.io API reads:
