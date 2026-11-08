@@ -174,7 +174,21 @@ pub fn run_native_commit(
     if let Some(directory) = request.object_directory {
         command.env("GIT_OBJECT_DIRECTORY", directory);
     }
-    return run_guarded_child(&mut command);
+    // This step runs with the terminal attached and no watch, so no other record knows it: its own entry says how long it took,
+    //  signing and an editor included.
+    let step: String = crate::add_timing::git_step_label(arguments.as_slice());
+    let cadence: crate::wait_progress::Cadence = crate::child_watch::WatchTerms::for_class(crate::child_class::ChildClass::Object).cadence;
+    let notice: crate::native_commit_waiting_notice::NativeCommitNotice = crate::native_commit_waiting_notice::NativeCommitNotice::start(
+        request.capture.layout.config_snapshot.as_ref(),
+        request.commit_args,
+        cadence,
+        Box::new(std::io::stderr()),
+    );
+    let began: std::time::Instant = std::time::Instant::now();
+    let finished = run_guarded_child(&mut command);
+    notice.finish();
+    crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
+    return finished;
 }
 
 /// What:

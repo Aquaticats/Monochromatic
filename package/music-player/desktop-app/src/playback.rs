@@ -408,11 +408,12 @@ pub(crate) fn expand_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
 /// }
 /// ```
 fn collect_dir_files(root: &Path) -> Vec<PathBuf> {
-    // What:     `crate::scan_stream::scan_streaming(root, usize::MAX, &mut |_batch| {})`. The one folder walk of the
-    //           app, called with a report callback that ignores its batches.
+    // What:     `crate::scan_stream::scan_streaming(root, usize::MAX, &mut crate::scan_stream::ignore_batch)`. The
+    //           one folder walk of the app, with a batch size so large that no batch is reported and the named
+    //           function `ignore_batch` as the callback of a caller that wants no progress reports.
     // Why:      The streaming walk (which also reports batches, for Search while the scan runs) and this plain walk
     //           must list the same tracks in the same order, so they share one implementation.
-    return crate::scan_stream::scan_streaming(root, usize::MAX, &mut |_batch| {});
+    return crate::scan_stream::scan_streaming(root, usize::MAX, &mut crate::scan_stream::ignore_batch);
 }
 
 /// What:

@@ -271,10 +271,10 @@ pub struct Page {
 /// Returns a stable page identity that distinguishes folder and root-letter pages.
 pub fn page_identity(page: &Page) -> String {
     let folder_prefix = format!("{}/", page.label);
-    let is_folder = page
-        .entries
-        .first()
-        .is_some_and(|entry| return entry.name.starts_with(&folder_prefix));
+    let is_folder = match page.entries.first() {
+        Some(entry) => entry.name.starts_with(&folder_prefix),
+        None => false,
+    };
     if is_folder {
         return format!("folder:{}", page.label);
     }
@@ -555,13 +555,9 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
         groups.entry(key).or_default().push(entry);
     }
 
-    // What:     `groups.into_iter().map(|((_, _, label), entries)| Page { label, entries }).collect()`.
-    //           `.into_iter()` CONSUMES the map, yielding `((u8, String, String), Vec<PageEntry>)`
-    //           pairs in sorted-key order; `.map(|((_, _, label), entries)| ...)`
-    //           destructures each, DISCARDING the `u8` group and the case-folded sort-key
-    //           (the two `_`s) and keeping the original label, then builds a `Page`
-    //           (field-init shorthand); `.collect()` gathers them into the `Vec<Page>` the
-    //           return type names. Tail expression -> return value.
+    // What:     The loop below turns the sorted `(sort group, sort key, label)` buckets into pages: `((_group, _key,
+    //           label), entries)` takes each bucket apart, and `Page { label, entries }` (field-init shorthand)
+    //           builds the page.
     // Why:      Materialize the sorted buckets as the ordered list of pages; the sort group
     //           and sort-key were only needed to order them.
     //
@@ -569,10 +565,11 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
     // ```ts
     // return [...groups].map(([[, , label], entries]) => ({ label, entries }));
     // ```
-    return groups
-        .into_iter()
-        .map(|((_, _, label), entries)| return Page { label, entries })
-        .collect()
+    let mut pages: Vec<Page> = Vec::new();
+    for ((_group, _key, label), entries) in groups {
+        pages.push(Page { label, entries });
+    }
+    return pages
 }
 
 /// What:
@@ -594,23 +591,23 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
 /// }
 /// ```
 pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
-    // What:     `pages.iter().position(|page| page.entries.iter().any(|entry| entry.index == index))`.
-    //           `.iter()` borrows each page; `.position(|page| ...)` returns the index of
-    //           the FIRST page for which the closure is true, as `Option<usize>`. Inside,
-    //           `page.entries.iter().any(|entry| ...)` is true when ANY entry on that page
-    //           has the matching load-order index. `|page|` and `|entry|` are closures
-    //           taking a borrowed page / entry. Tail expression -> return value.
-    // Why:      One linear scan locates the page; `position` already yields the `Option`
-    //           shape the caller wants.
+    // What:     The nested loops below return the position of the first page that holds an entry with the wanted
+    //           load-order index, or `None` when no page does.
+    // Why:      One linear scan locates the page, and the `Option` is the shape the caller wants.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const p = pages.findIndex((page) => page.entries.some((e) => e.index === index));
     // return p < 0 ? null : p;
     // ```
-    return pages
-        .iter()
-        .position(|page| return page.entries.iter().any(|entry| return entry.index == index))
+    for (position, page) in pages.iter().enumerate() {
+        for entry in &page.entries {
+            if entry.index == index {
+                return Some(position);
+            }
+        }
+    }
+    return None
 }
 
 /// What:

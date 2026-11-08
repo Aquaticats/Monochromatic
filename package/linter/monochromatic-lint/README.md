@@ -548,8 +548,18 @@ The kinds:
 - `ide-runtime-artifacts`:
   `true`;
   `target/debug/runtime/manifest.json` and `target/crate-licenses.json` must exist.
-  The linter builds in `target/dylint` and links both artifacts into it,
-  because the IDE's `build.rs` finds them relative to the build directory.
+  The linter builds in `target/dylint` and links the runtime as `target/dylint/debug/runtime`
+  and the license list as `target/dylint/crate-licenses.json`,
+  because the IDE's `build.rs` takes the parent of the nearest `build` directory above `OUT_DIR` as the profile
+  directory and reads `runtime` in it and `crate-licenses.json` beside it.
+- `libghostty-offline-inputs`:
+  `true`;
+  `target/ghostty-offline/ready`,
+  `target/ghostty-offline/source/build.zig` and the directory `target/ghostty-offline/packages` must exist.
+  They are what `mise run //package/terminal/app:fetch:ghostty-offline-inputs` leaves behind,
+  the marker last.
+  The linter sets `GHOSTTY_SOURCE_DIR` and `GHOSTTY_ZIG_SYSTEM_DIR` to the source tree and the package directory,
+  which `libghostty-vt-sys` reads instead of cloning Ghostty and letting `zig build` download packages.
 - `android-ndk`:
   `true`;
   `cargo ndk-env --target arm64-v8a` must print the NDK variables,

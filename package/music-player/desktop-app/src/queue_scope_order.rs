@@ -140,16 +140,20 @@ impl Queue {
         // const played = new Set(this.order.slice(this.cycleStart));
         // ```
         let played: HashSet<usize> = self.order[self.cycle_start..].iter().copied().collect();
-        // What:     `let mut remaining: Vec<usize> = scope.iter().copied().filter(|i| !played.contains(i)).collect();`.
-        //           Scope tracks not yet played this cycle.
+        // What:     The loop below keeps the scope's tracks that have not played this cycle:
+        //           `played.contains(&index)` is false for them.
         // Why:      The candidates for the next pick.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // let remaining = scope.filter((i) => !played.has(i));
         // ```
-        let mut remaining: Vec<usize> =
-            scope.iter().copied().filter(|i| return !played.contains(i)).collect();
+        let mut remaining: Vec<usize> = Vec::new();
+        for index in scope.iter().copied() {
+            if !played.contains(&index) {
+                remaining.push(index);
+            }
+        }
         // What:     `if remaining.is_empty() { ... }`. Cycle exhausted: begin a new one.
         // Why:      Without replacement means a full cycle covers the whole scope; then reshuffle.
         //
@@ -167,15 +171,20 @@ impl Queue {
             // this.cycleStart = this.order.length;
             // ```
             self.cycle_start = self.order.len();
-            // What:     `remaining = scope.iter().copied().filter(|&i| i != current).collect();`.
-            //           All scope tracks except the one that just finished.
+            // What:     `remaining.clear();` and the loop below refill the candidates with every track of the scope
+            //           except the current one.
             // Why:      A fresh cycle should not immediately replay the current track.
             //
             // In TS you'd write (pseudocode):
             // ```ts
             // remaining = scope.filter((i) => i !== current);
             // ```
-            remaining = scope.iter().copied().filter(|&i| return i != current).collect();
+            remaining.clear();
+            for index in scope.iter().copied() {
+                if index != current {
+                    remaining.push(index);
+                }
+            }
             // What:     `if remaining.is_empty() { remaining = scope; }`. A single-track scope
             //           has nothing else; replay it.
             // Why:      Avoid an empty candidate list when the scope is one track.
@@ -315,15 +324,21 @@ impl Queue {
             // const scope = this.scopeIndices(anchor);
             // ```
             let scope = self.scope_indices(clamped_anchor);
-            // What:     `let pos = scope.iter().position(|&x| x == clamped_anchor);`. The
-            //           anchor's slot in the scope.
+            // What:     The loop below sets `pos` to the position of the clamped anchor in the scope, or leaves it
+            //           `None` when the scope does not hold it.
             // Why:      The cursor must point at the anchor after the rebuild.
             //
             // In TS you'd write (pseudocode):
             // ```ts
             // const p = scope.indexOf(anchor);
             // ```
-            let pos = scope.iter().position(|&x| return x == clamped_anchor);
+            let mut pos: Option<usize> = None;
+            for (at, member) in scope.iter().enumerate() {
+                if *member == clamped_anchor {
+                    pos = Some(at);
+                    break;
+                }
+            }
             // What:     `self.order = scope; self.pos = pos.or(Some(0));`. Adopt the sequential
             //           order and point the cursor at the anchor (or the start).
             // Why:      Off's `order` is the full scope, walked sequentially with looping.

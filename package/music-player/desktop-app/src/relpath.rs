@@ -115,22 +115,22 @@ pub fn relative_display_paths_in(tracks: &[PathBuf], root: Option<&Path>) -> Vec
     }
     let prefix_len: usize = display_prefix_len(tracks, root);
     // Join the components after the stripped prefix.
-    return tracks
-        .iter()
-        .map(|path| {
-            let mut relative: String = String::new();
-            for (position, part) in normal_parts(path).skip(prefix_len).enumerate() {
-                if position > 0 {
-                    relative.push_str(SEPARATOR);
-                }
-                relative.push_str(&part);
+    let mut shown: Vec<String> = Vec::with_capacity(tracks.len());
+    for path in tracks {
+        let mut relative: String = String::new();
+        for (position, part) in normal_parts(path).skip(prefix_len).enumerate() {
+            if position > 0 {
+                relative.push_str(SEPARATOR);
             }
-            if relative.is_empty() {
-                return path.to_string_lossy().into_owned();
-            }
-            return relative;
-        })
-        .collect();
+            relative.push_str(&part);
+        }
+        if relative.is_empty() {
+            shown.push(path.to_string_lossy().into_owned());
+        } else {
+            shown.push(relative);
+        }
+    }
+    return shown;
 }
 
 /// What:
@@ -151,15 +151,28 @@ fn display_prefix_len(tracks: &[PathBuf], root: Option<&Path>) -> usize {
         tracing::debug!(root = %root_path.display(), "the opened folder has no named component; the shared directory is stripped");
         return shared_prefix_len(tracks);
     }
-    let all_under_root: bool = tracks.iter().all(|path| {
+    let mut all_under_root: bool = true;
+    for path in tracks {
         let mut parts = normal_parts(path);
+        let mut under_root: bool = true;
         for root_part in &root_parts {
-            if parts.next().is_none_or(|part| return part != *root_part) {
-                return false;
+            let outside: bool = match parts.next() {
+                Some(part) => part != *root_part,
+                None => true,
+            };
+            if outside {
+                under_root = false;
+                break;
             }
         }
-        return parts.next().is_some();
-    });
+        if under_root && parts.next().is_none() {
+            under_root = false;
+        }
+        if !under_root {
+            all_under_root = false;
+            break;
+        }
+    }
     if all_under_root {
         return root_parts.len();
     }
@@ -187,7 +200,7 @@ fn shared_prefix_len(tracks: &[PathBuf]) -> usize {
         let mut matching: usize = 0;
         let mut still_matching: bool = true;
         for part in normal_parts(path) {
-            if still_matching && matching < shared && first_parts.get(length).is_some_and(|first| return *first == part) {
+            if still_matching && matching < shared && matches!(first_parts.get(length), Some(first) if *first == part) {
                 matching += 1;
             } else {
                 still_matching = false;
@@ -273,14 +286,13 @@ pub fn page_scope_for_anchor_in(tracks: &[PathBuf], anchor: usize, root: Option<
     let anchor_path: &PathBuf = tracks.get(anchor)?;
     let prefix_len: usize = display_prefix_len(tracks, root);
     let wanted: PageKey<'_> = page_key_of(anchor_path, prefix_len);
-    return Some(
-        tracks
-            .iter()
-            .enumerate()
-            .filter(|(_, path)| return page_key_of(path, prefix_len) == wanted)
-            .map(|(position, _)| return position)
-            .collect(),
-    );
+    let mut scope: Vec<usize> = Vec::new();
+    for (position, path) in tracks.iter().enumerate() {
+        if page_key_of(path, prefix_len) == wanted {
+            scope.push(position);
+        }
+    }
+    return Some(scope);
 }
 
 /// What:
@@ -291,13 +303,46 @@ pub fn page_scope_for_anchor_in(tracks: &[PathBuf], anchor: usize, root: Option<
 ///       `relative_display_paths` walks every track twice;
 ///  borrowing keeps that to the cost of reading the components,
 ///  with no allocation per component.
-fn normal_parts(path: &Path) -> impl Iterator<Item = std::borrow::Cow<'_, str>> {
-    return path.components().filter_map(|component| {
-        return match component {
-            Component::Normal(part) => Some(part.to_string_lossy()),
-            _ => None,
-        };
-    });
+fn normal_parts(path: &Path) -> NormalParts<'_> {
+    return NormalParts { components: path.components() };
+}
+
+/// What:
+/// `NormalParts` is the iterator over the named components of a path,
+/// as text.
+/// Why:
+/// the display prefix and the page keys read the named parts of every track path,
+/// so the walk allocates nothing per path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NormalParts = Iterator<string>;
+/// ```
+struct NormalParts<'path> {
+    /// The components not yet visited.
+    components: std::path::Components<'path>,
+}
+
+/// Iteration of the named components of a path.
+impl<'path> Iterator for NormalParts<'path> {
+    /// Each step yields the text of one named component.
+    type Item = std::borrow::Cow<'path, str>;
+
+    /// What:
+    /// `next` gives the text of the next named component,
+    /// skipping the root,
+    /// the current-folder and the parent-folder components.
+    /// Why:
+    /// only named parts take part in a display path.
+    fn next(&mut self) -> Option<std::borrow::Cow<'path, str>> {
+        loop {
+            match self.components.next() {
+                Some(Component::Normal(part)) => return Some(part.to_string_lossy()),
+                Some(_other) => {}
+                None => return None,
+            }
+        }
+    }
 }
 
 /// Unit tests of `relpath`,

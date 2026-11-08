@@ -67,6 +67,8 @@ pub(crate) fn finish_forwarded(run: ForwardedRun) -> i32 {
 pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
     // A command that adds commits keeps the wrapper alive around Git, so the push can be handed over once it succeeded.
     let watch: Option<TipWatch> = if adds_commits(&forward.command) { watch_forward(forward) } else { None };
+    // The rules text is read before and after only for the commands that move the worktree to other files.
+    let rules_mark = crate::entry_rules_text_change_warm::mark_rules_text(&forward.command, &forward.identity);
     let code: i32 = match run_coordinated_forward(forward) {
         CoordinatedRun::Ran(code) => code,
         CoordinatedRun::Failed { stderr, code } => {
@@ -89,6 +91,11 @@ pub(crate) fn run_coordinated_action(forward: &CoordinatedForward) -> i32 {
             ENGINE_FAILURE_EXIT_CODE
         }
     };
+    if code == 0
+        && let Some(mark) = rules_mark.as_ref()
+    {
+        let _asked: bool = mark.ask_if_changed();
+    }
     if let Some(found) = watch.as_ref() {
         if code == 0 {
             hand_over_if_ahead(found, trigger_command(&forward.command).as_str(), &mut std::io::stderr());

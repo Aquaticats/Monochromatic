@@ -213,12 +213,13 @@ fn install_backend() -> Result<()> {
     // Why:      The hook runs at native window creation time.
     let mut builder = Backend::builder().with_window_attributes_hook(launcher::set_window_app_id);
     // What:     `std::env::var("SLINT_BACKEND")` reads an environment variable and
-    //           returns `Result<String, VarError>`. `.map(...).unwrap_or(false)`
-    //           converts missing env to `false`.
+    //           returns `Result<String, VarError>`. The `match` turns a missing or
+    //           non-Unicode value into `false`.
     // Why:      Preserve the sibling app's software-renderer escape hatch.
-    let force_software = std::env::var("SLINT_BACKEND")
-        .map(|value| return value.contains("software"))
-        .unwrap_or(false);
+    let force_software = match std::env::var("SLINT_BACKEND") {
+        Ok(value) => value.contains("software"),
+        Err(_) => false,
+    };
     // What:     `if force_software { ... }` conditionally changes the builder.
     // Why:      Headless or no-GPU sessions can force Slint's software renderer;
     //           winit expects the renderer token `software`, not Cargo's
@@ -501,11 +502,12 @@ fn log_callback_error(context: &str, error: anyhow::Error) {
 ///       No manual `process.exit` style path is needed.
 fn main() -> Result<()> {
     // Install the stderr tracing subscriber (RUST_LOG, default info) before backend setup.
+    let log_filter = match tracing_subscriber::EnvFilter::try_from_default_env() {
+        Ok(filter) => filter,
+        Err(_) => tracing_subscriber::EnvFilter::new("info"),
+    };
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| return tracing_subscriber::EnvFilter::new("info")),
-        )
+        .with_env_filter(log_filter)
         .with_writer(std::io::stderr)
         .init();
     install_backend()?;
@@ -540,59 +542,53 @@ fn main() -> Result<()> {
     let shared_engine = Rc::new(RefCell::new(engine));
     let shared_pty = Rc::new(RefCell::new(pty));
 
+    // Each callback below is a `move` closure passed directly to its setter, because Slint keeps the callback
+    // (`'static`) and the closure owns the state it needs: the clones are named first so the shared cells stay here.
     let weak_for_scroll = app.as_weak();
-    app.on_scroll_changed({
-        let scroll_engine = Rc::clone(&shared_engine);
-        move |pixel_scroll| {
-            if let Some(window) = weak_for_scroll.upgrade()
-                && let Err(error) = refresh_from_scroll(&window, &scroll_engine, pixel_scroll) {
-                    log_callback_error("scroll refresh failed", error);
-                }
-        }
+    let scroll_engine = Rc::clone(&shared_engine);
+    app.on_scroll_changed(move |pixel_scroll| {
+        if let Some(window) = weak_for_scroll.upgrade()
+            && let Err(error) = refresh_from_scroll(&window, &scroll_engine, pixel_scroll) {
+                log_callback_error("scroll refresh failed", error);
+            }
     });
 
     let weak_for_resize = app.as_weak();
-    app.on_viewport_resized({
-        let resize_engine = Rc::clone(&shared_engine);
-        let resize_pty = Rc::clone(&shared_pty);
-        move |width_px, height_px, cell_width_px, cell_height_px| {
-            if let Some(window) = weak_for_resize.upgrade()
-                && let Err(error) = refresh_from_resize(
-                    &window,
-                    &resize_engine,
-                    &resize_pty,
-                    width_px,
-                    height_px,
-                    cell_width_px,
-                    cell_height_px,
-                ) {
-                    log_callback_error("resize refresh failed", error);
-                }
-        }
+    let resize_engine = Rc::clone(&shared_engine);
+    let resize_pty = Rc::clone(&shared_pty);
+    app.on_viewport_resized(move |width_px, height_px, cell_width_px, cell_height_px| {
+        if let Some(window) = weak_for_resize.upgrade()
+            && let Err(error) = refresh_from_resize(
+                &window,
+                &resize_engine,
+                &resize_pty,
+                width_px,
+                height_px,
+                cell_width_px,
+                cell_height_px,
+            ) {
+                log_callback_error("resize refresh failed", error);
+            }
     });
 
-    app.on_terminal_key({
-        let key_pty = Rc::clone(&shared_pty);
-        move |key_text, control, alt| {
-            if let Err(error) = write_terminal_key(&key_pty, key_text, control, alt) {
-                log_callback_error("terminal input write failed", error);
-            }
+    let key_pty = Rc::clone(&shared_pty);
+    app.on_terminal_key(move |key_text, control, alt| {
+        if let Err(error) = write_terminal_key(&key_pty, key_text, control, alt) {
+            log_callback_error("terminal input write failed", error);
         }
     });
 
     let output_timer = Timer::default();
     let weak_for_output = app.as_weak();
+    let output_engine = Rc::clone(&shared_engine);
     output_timer.start(
         TimerMode::Repeated,
         Duration::from_millis(OUTPUT_POLL_INTERVAL_MS),
-        {
-            let output_engine = Rc::clone(&shared_engine);
-            move || {
-                if let Some(window) = weak_for_output.upgrade()
-                    && let Err(error) = refresh_from_pty_events(&window, &output_engine, &pty_receiver) {
-                        log_callback_error("PTY output refresh failed", error);
-                    }
-            }
+        move || {
+            if let Some(window) = weak_for_output.upgrade()
+                && let Err(error) = refresh_from_pty_events(&window, &output_engine, &pty_receiver) {
+                    log_callback_error("PTY output refresh failed", error);
+                }
         },
     );
 

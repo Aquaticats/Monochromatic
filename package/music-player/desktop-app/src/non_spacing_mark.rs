@@ -193,7 +193,11 @@ pub fn split_tail_clusters(text: &str, count: usize) -> (String, String) {
     if count == 0 {
         return (text.to_owned(), String::new());
     }
-    let Some(first_tail) = starts.len().checked_sub(count).and_then(|position| return starts.get(position)) else {
+    let first_tail_position = match starts.len().checked_sub(count) {
+        Some(position) => starts.get(position),
+        None => None,
+    };
+    let Some(first_tail) = first_tail_position else {
         return (String::new(), text.to_owned());
     };
     let (head, tail) = text.split_at(*first_tail);

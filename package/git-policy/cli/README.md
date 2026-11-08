@@ -1791,7 +1791,7 @@ the merge waits for any program's hold on `index.lock`
  (the commit service's,
 a foreign `git`'s,
 or a lock nothing proves held):
- until `LOCK_CEILING` (10 minutes),
+ until `MERGE_LOCK_CEILING` (1 minute),
 whether its owner is proven alive or not
  (the line for an unproven owner says what is known and how to remove the lock if no program uses the repository);
  at the bound it names the holder and the merge ends with Git's refusal,
@@ -2025,7 +2025,8 @@ none is waited out or retried on the moved head yet:
   and `REBUILD_ATTEMPTS` (`service_commit.rs`) builds by Git on a moved branch end the commit.
 - A commit that concludes a merge,
   an amend or a revert cannot replay onto a branch that moved (`concurrent-commit/head-moved`).
-- `index.lock` is held by a program that does not let go within `LOCK_CEILING` (10 minutes),
+- `index.lock` is held by a program that does not let go within `LANDING_LOCK_CEILING` (1 minute;
+  commits queued behind the same lock are refused at once),
   or was left by a dead owner (Git's
    lock PID file names a process that is gone;
   a diagnostic names it at once).
@@ -2326,7 +2327,7 @@ See "Discarding commands" for the pass.
    default `1000`.
   Inert:
   it was how long the wrapper backed off for an `index.lock` whose owner is dead or unproven,
-   and nothing reads it now (the commit service waits for a foreign lock until `LOCK_CEILING`,
+   and nothing reads it now (the commit service waits for a foreign lock until `LANDING_LOCK_CEILING`,
   proven alive or not).
   Older files that set it still load;
   the value is checked and ignored,
@@ -2407,7 +2408,7 @@ with `git log -1`,
 `git status` and the write
 named;
 the commit lands when the write returns.
-A lock holder is waited for until `LOCK_CEILING` (10 minutes),
+A lock holder is waited for until `LANDING_LOCK_CEILING` (1 minute),
 the commit service's answer until `ANSWER_CEILING` (20 minutes),
 a start until `START_CEILING` (60 seconds),
 the service's hold for a forwarded `git add` until `SERVICE_HOLD_CEILING`
@@ -2719,6 +2720,15 @@ Each line names what the command waits for,
    leaving its thread to end with the command.
    The guard contains a hang and a panic,
   not a stack overflow or an abort in the linter.
+- The `git commit` a commit that Git must build runs in its scratch repository
+   (a template,
+  a clean-up mode,
+  or `commit.gpgsign`):
+   it says the command waits for that `git commit` (its process),
+   says the commit is signed when `commit.gpgsign` or `-S` asks for it,
+   names the signing program while one runs below it,
+   and says the step has no time limit here.
+   A commit that opens the person's editor prints nothing.
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
@@ -2730,6 +2740,35 @@ Each line names what the command waits for,
 monochromatic-git-policy-cli: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far;
 this waits for the service's hold for up to `SERVICE_HOLD_CEILING`, then runs and reports what Git says.
 ```
+
+#### Compiled rules are warmed off the commit path
+
+The forbidden-strings rules are compiled once per text of the rules files and kept in a cache shared by every worktree
+(`~/.cache/forbidden-strings/v<version>/<platform>/<digest of the rules text>/rules.bin`).
+A commit that finds no compiled form compiles the rules itself in its prepare phase,
+between 1.2 s and 1.3 s as measured on 2026-11-07 under the host's load at the time,
+and about 20 s on the first commit of a fresh cache under heavier load.
+The commit service therefore compiles them on its own time,
+on the blocking pool and never on the landing thread:
+
+- after the first landing it sees for a repository,
+  and after a landing that changes a path of the rules,
+- right after it starts,
+  for the repository it remembered in its state directory (`rules-repository`),
+  so a service restarted by an upgrade fills the new release's cache at once,
+- when the client asks it to:
+  after `merge`,
+  `pull`,
+  `checkout`,
+  `switch`,
+  `rebase` or `reset` exits 0,
+  the client compares a digest of the rules text it would load before and after,
+  and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
+  The client never starts a service or a process for this,
+  and a command whose rules text did not change reads two small files and sends nothing.
+
+The client still compiles on a cache miss,
+so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
 
 ## Reading the repository in process
 
@@ -3181,6 +3220,12 @@ mise run //package/git-policy/cli:native:test:container
   checkout,
   for example),
   refreshes its index and gives it the tracked file `README.md` to edit;
+  `--files <count>` edits and commits that many tracked text files by name in every sample (the size of the commit;
+  one by default),
+  `--change-rules` appends a comment line to `forbidden-strings.append.local.txt` before every sample,
+  so a `--shape` repository whose configuration names that file (this repository's does) meets rules text with no compiled form in the cache;
+  it changes nothing a commit reads in a fixture whose configuration does not name the file,
+  `--new-files <count>` also creates that many new files per sample and stages them with `git add` before the commit names them (staged additions),
   `--hooks-from <git directory>` copies that repository's policy hooks,
   `--tool <path>` puts an executable such as `git-lfs`
   on the fixtures' PATH,
@@ -3563,7 +3608,55 @@ missed,
 timed out or unviable.
 For `native:mutation:parallel`,
 start the same launcher command again;
-each file resumes its own campaign.
+each file resumes its own campaign
+(see "Image tags of a parallel launch" for what the launcher does to the unit image tags first).
+
+### Image tags of a parallel launch
+
+Each file unit of `native:mutation:parallel` runs the image `localhost/git-policy-native-test:<label><index>`
+(the shared launcher's default `--tag-template`,
+one tag per file).
+Those tags do not exist after a gate,
+so before it starts any unit the launcher makes them
+(`bin/native-mutation-parallel.ts`,
+`ensureUnitImages` in the shared package;
+its README,
+"Image tags",
+has the rules):
+it runs `podman tag <full ID of the gate image> localhost/git-policy-native-test:<label><index>` for every unit,
+reads every tag back,
+and starts nothing if one does not name the gate image.
+A plain `native:mutation:parallel -- <label> <files>` therefore works right after `native:test:container`,
+with no `podman tag` by hand.
+
+The gate image is the one the last `native:test:container` built,
+`localhost/git-policy-native-test:<tag>` with the tag from `GIT_POLICY_NATIVE_IMAGE_TAG`,
+or `development` when that variable is not set in the launcher's shell
+(`gateImageTagOf` in `bin/native-gate-image-tag.ts`,
+which the gate,
+the campaign task,
+the controls-only task and the launcher all use,
+so they name one image).
+To make the tags from another gate image,
+pass `--from-tag <tag>` after the `--`:
+the person's flag comes after the launcher's own,
+and the later one wins.
+A relaunch of a label after a new gate moves that label's tags to the new image and prints a line for each
+(the old image stays in storage).
+A running unit keeps the image it started with,
+and a resumed campaign over a new image is another campaign directory.
+If the gate image does not exist,
+nothing starts and the message names the image and `--from-tag`.
+The launcher exits 0 only when every file unit started:
+a unit that `systemd-run` refuses is named with its error and the launcher exits 1,
+while the other units keep running
+(the shared launcher's README,
+"Exit status and errors").
+A refused launch prints only the plain message,
+with no stack trace.
+Before this change the launcher started units whose tags did not exist,
+every one died at once with "image not known",
+and the launcher exited 0 (2026-11-07).
 
 The campaign's results are in `target/verification/native-mutation-<key>/`,
 where the key names the gate image,
@@ -4327,6 +4420,34 @@ all durations in whole milliseconds taken from the monotonic clock:
   leaving the work records and waking the service,
   which reaches the service a second time.
   It is not split into a reach and a wait.
+- `steps` lists every Git step the command started,
+  in the order they began,
+  each as `{"name": "git commit", "offsetMs": 18, "durationMs": 1004}`:
+  the program and the subcommand (never a path,
+  a message,
+  an option value or the environment),
+  when the step began after the command's start,
+  and how long it ran,
+  in whole milliseconds.
+  It names the step that spent a slow phase,
+  which `quietMs` cannot (that holds the longest quiet gap of a step,
+  not its time).
+  The commit Git builds in the scratch repository is `git commit`:
+  it runs with the terminal attached and no watch,
+  so signing
+  with `commit.gpgsign` and an editor are inside its duration,
+  and `ssh-keygen`,
+  which Git starts,
+  is not listed apart from it.
+  The list holds at most 64 steps (`MAX_STEP_RUNS`:
+  the most one commit starts is 3 landing attempts times 17 Git starts,
+  measured with `strace` on 2026-11-07,
+  rounded up to a power of two),
+  and `stepsDropped` counts the steps that came after.
+  `quietMs` and `longestQuietMs` stay as they were.
+  The service's `answered` line ends with `steps="git rev-parse@3+4;..."` (`name@offset+duration`,
+  the offset from the request's
+  acceptance) and `steps_dropped=<count>`.
 
 The service writes to its standard error,
 which the service manager keeps in the journal of its unit.

@@ -129,22 +129,20 @@ use crate::natural_order::natural_cmp;
 /// const compareNames = (left: string, right: string): Ordering => naturalCmp(left, right) || bytes(left, right);
 /// ```
 fn compare_names(left: &OsStr, right: &OsStr) -> Ordering {
-    // What:     `return natural_cmp(&left.to_string_lossy(), &right.to_string_lossy()).then_with(|| return left.cmp(right));`
-    //           first turns each name into text with `.to_string_lossy()` (a copy-on-demand that replaces bytes that are
-    //           not valid UTF-8 with the replacement character) and lends both texts to `natural_cmp` with `&`. The
-    //           `Ordering` it answers has `.then_with(...)`, which keeps the answer unless it is `Equal` and only then
-    //           runs the closure. `|| return left.cmp(right)` is a closure: `||` is its empty parameter list, and the
-    //           body compares the raw names byte by byte with `.cmp`.
+    // What:     `let by_name = natural_cmp(...)` compares the two names in natural order; when they differ that
+    //           answer is returned, and only on a tie does `left.cmp(right)` compare the whole paths.
     // Why:      Two names that read the same naturally (`a1` and `A1`) must still have a fixed order, so the bytes break
     //           the tie, exactly as the walk does.
-    // Gotcha:   The closure is lazy: `.then_with` runs it only on a tie, unlike `.then(value)`, which would compute the
-    //           byte comparison every time.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // return naturalCmp(String(left), String(right)) || compareBytes(left, right);
     // ```
-    return natural_cmp(&left.to_string_lossy(), &right.to_string_lossy()).then_with(|| return left.cmp(right));
+    let by_name = natural_cmp(&left.to_string_lossy(), &right.to_string_lossy());
+    if by_name != Ordering::Equal {
+        return by_name;
+    }
+    return left.cmp(right);
 }
 
 /// What:
@@ -171,46 +169,121 @@ fn compare_names(left: &OsStr, right: &OsStr) -> Ordering {
 /// ```ts
 /// function* namesBelow(root: string, path: string): Generator<string> { /* yield each normal path step after root */ }
 /// ```
-fn names_below<'a>(root: &Path, path: &'a Path) -> impl Iterator<Item = &'a OsStr> {
-    // What:     `let below: &Path = path.strip_prefix(root).unwrap_or(path);` removes the root from the front of the path.
-    //           `strip_prefix` answers a `Result`: `Ok(rest)` when the path starts with the root and `Err(_)` when it does
-    //           not. `.unwrap_or(path)` takes the `Ok` value, or the given fallback (`path` itself) on `Err`. The `: &Path`
-    //           annotation says that `below` is a borrowed path.
-    // Why:      A path that is not under the root keeps all its steps, so the comparison still has something to work with.
-    // Gotcha:   `.unwrap_or(value)` on a `Result` silently drops the error; here that is the intended fallback.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const below: string = path.startsWith(root) ? path.slice(root.length) : path;
-    // ```
+fn names_below<'a>(root: &Path, path: &'a Path) -> NamesBelow<'a> {
     let below: &Path = path.strip_prefix(root).unwrap_or(path);
-    // What:     `return below.components().filter_map(|component| { ... });` splits the path into steps and keeps only the
-    //           ones the closure turns into `Some(name)`. `.components()` is a lazy iterator of `Component`s, and
-    //           `.filter_map(f)` calls `f` on each one: a `Some(x)` result is kept as `x`, a `None` is dropped.
-    //           `|component| { ... }` is a closure (an anonymous function) with one parameter; the parameters sit
-    //           between the bars where TypeScript writes them in parentheses before `=>`.
-    // Why:      Only real names count as levels; the root marker and `.` or `..` steps are not names.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // return splitPath(below).flatMap((component) => (component.kind === "normal" ? [component.name] : []));
-    // ```
-    return below.components().filter_map(|component| {
-        // What:     `return match component { Component::Normal(name) => Some(name), _ => None };` takes the step apart
-        //           by its kind. `Component::Normal(name)` matches the ordinary-name variant and binds its text to `name`;
-        //           `_` matches every other variant. `Some(name)` wraps the name in the present case of `Option`, and
-        //           `None` is the absent case; `Option` is Rust's `T | null`.
-        // Why:      Keep the names and drop the rest, as `filter_map` asks.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return component.kind === "normal" ? component.name : null;
-        // ```
-        return match component {
-            Component::Normal(name) => Some(name),
-            _ => None,
-        };
-    });
+    return NamesBelow { components: below.components() };
+}
+
+/// What:
+/// `NamesBelow` is the iterator over the named components of a path below a root.
+/// Why:
+/// the walk order compares paths level by level through their names,
+/// and a named iterator avoids a closure over the components.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NamesBelow = Iterator<string>;
+/// ```
+struct NamesBelow<'path> {
+    /// The components not yet visited.
+    components: std::path::Components<'path>,
+}
+
+/// Iteration of the named components.
+impl<'path> Iterator for NamesBelow<'path> {
+    /// Each step yields one named component.
+    type Item = &'path OsStr;
+
+    /// What:
+    /// `next` gives the next named component,
+    /// skipping the root,
+    /// the current-folder and the parent-folder components.
+    /// Why:
+    /// only named components take part in the order.
+    fn next(&mut self) -> Option<&'path OsStr> {
+        loop {
+            match self.components.next() {
+                Some(Component::Normal(name)) => return Some(name),
+                Some(_other) => {}
+                None => return None,
+            }
+        }
+    }
+}
+
+/// What:
+/// `sort_in_walk_order` sorts paths into the order of the folder walk below a root.
+/// Why:
+/// the comparison needs the root,
+/// so the paths travel with it as `WalkKey` values while the standard sort orders them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sortInWalkOrder(root: string, paths: string[]): void { paths.sort((a, b) => walkCmp(root, a, b)); }
+/// ```
+pub(crate) fn sort_in_walk_order(root: &Path, paths: &mut Vec<PathBuf>) {
+    let mut keys: Vec<WalkKey<'_>> = Vec::with_capacity(paths.len());
+    for path in paths.drain(..) {
+        keys.push(WalkKey { root, path });
+    }
+    keys.sort();
+    for key in keys {
+        paths.push(key.path);
+    }
+}
+
+/// What:
+/// `WalkKey` is a path with the root that its walk order is measured from.
+/// Why:
+/// `sort_in_walk_order` needs an ordering that knows the root,
+/// and a value that carries it can be sorted by the standard sort.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WalkKey = { root: string; path: string };
+/// ```
+struct WalkKey<'root> {
+    /// The root the walk order is measured from.
+    root: &'root Path,
+    /// The path to place in the walk order.
+    path: PathBuf,
+}
+
+/// Equality of two walk keys is equality in the walk order.
+impl PartialEq for WalkKey<'_> {
+    /// What:
+    /// `eq` is true when the walk order puts neither path before the other.
+    /// Why:
+    /// equality must agree with the order for a sort to be sound.
+    fn eq(&self, other: &Self) -> bool {
+        return self.cmp(other) == Ordering::Equal;
+    }
+}
+
+/// A walk key is totally ordered by the walk order.
+impl Eq for WalkKey<'_> {}
+
+/// Ordering of two walk keys follows `walk_cmp`.
+impl PartialOrd for WalkKey<'_> {
+    /// What:
+    /// `partial_cmp` gives the walk order of the two paths.
+    /// Why:
+    /// the order is total,
+    /// so the answer always exists.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        return Some(self.cmp(other));
+    }
+}
+
+/// The total order of walk keys.
+impl Ord for WalkKey<'_> {
+    /// What:
+    /// `cmp` compares the two paths with `walk_cmp` below the shared root.
+    /// Why:
+    /// this is the order in which the walk lists a folder's entries.
+    fn cmp(&self, other: &Self) -> Ordering {
+        return walk_cmp(self.root, &self.path, &other.path);
+    }
 }
 
 /// What:
@@ -352,15 +425,26 @@ pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering {
 /// const locate = (tracks: string[], root: string, path: string): { found: number } | { insertAt: number } => bsearch(...);
 /// ```
 pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usize, usize> {
-    // What:     `return tracks.binary_search_by(|track| return walk_cmp(root, track, path));` runs a binary search where
-    //           the closure `|track| ...` tells, for each probed track, how it compares with the wanted path.
+    // What:     The loop below is a binary search: `walk_cmp(root, &tracks[middle], path)` tells for the probed
+    //           track how it compares with the wanted path, `Equal` returns `Ok(middle)`, and the bounds narrow
+    //           until `Err(low)` names where the path would go.
     // Why:      The queue is sorted in walk order, so the search needs only about twenty comparisons for a million tracks.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // return binarySearchBy(tracks, (track) => walkCmp(root, track, path));
     // ```
-    return tracks.binary_search_by(|track| return walk_cmp(root, track, path));
+    let mut low: usize = 0;
+    let mut high: usize = tracks.len();
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        match walk_cmp(root, &tracks[middle], path) {
+            Ordering::Less => low = middle + 1,
+            Ordering::Greater => high = middle,
+            Ordering::Equal => return Ok(middle),
+        }
+    }
+    return Err(low);
 }
 
 /// What:
@@ -445,6 +529,34 @@ fn against_folder(root: &Path, track: &Path, folder: &[&OsStr]) -> Ordering {
 }
 
 /// What:
+/// `folder_boundary` is the position where the tracks stop being before a folder,
+/// or stop being before or inside it when `through_inside` is set.
+/// Why:
+/// the tracks are in walk order,
+/// so the folder's subtree is the run between the two boundaries,
+/// and a binary search finds each in the logarithm of the library.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function folderBoundary(tracks: string[], root: string, folder: string[], throughInside: boolean): number { /* binary search */ }
+/// ```
+fn folder_boundary(tracks: &[PathBuf], root: &Path, folder: &[&OsStr], through_inside: bool) -> usize {
+    let mut low: usize = 0;
+    let mut high: usize = tracks.len();
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        let order: Ordering = against_folder(root, &tracks[middle], folder);
+        let before: bool = if through_inside { order != Ordering::Greater } else { order == Ordering::Less };
+        if before {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return low;
+}
+
+/// What:
 /// `pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> Range<usize>` gives the indexes
 /// of every track under `folder`,
 /// however deep (empty when there is none),
@@ -469,26 +581,25 @@ pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> R
     // const names: string[] = [...namesBelow(root, folder)];
     // ```
     let names: Vec<&OsStr> = names_below(root, folder).collect();
-    // What:     `let start: usize = tracks.partition_point(|track| return against_folder(root, track, &names) == Ordering::Less);`
-    //           finds the first position where the closure stops being true, assuming the answers are true and then false
-    //           (`partition_point` is a binary search for that border). `&names` lends the `Vec` where a slice
-    //           `&[&OsStr]` is expected; the `Vec` coerces to a slice.
+    // What:     `let start: usize = folder_boundary(tracks, root, &names, false);` finds the first position where
+    //           the tracks stop being before the folder, by a binary search that assumes the answers are true and
+    //           then false.
     // Why:      Everything before the folder's run sorts `Less`, so the border is the run's start.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const start: number = partitionPoint(tracks, (track) => againstFolder(root, track, names) === "Less");
     // ```
-    let start: usize = tracks.partition_point(|track| return against_folder(root, track, &names) == Ordering::Less);
-    // What:     `let end: usize = tracks.partition_point(|track| return against_folder(root, track, &names) != Ordering::Greater);`
-    //           is the same search with `!=`: the border after the last track that is `Less` or `Equal`.
+    let start: usize = folder_boundary(tracks, root, &names, false);
+    // What:     `let end: usize = folder_boundary(tracks, root, &names, true);` finds the first position where the
+    //           tracks stop being before or inside the folder, by the same binary search.
     // Why:      Everything up to the run's last track is not `Greater`, so the border is the run's end.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const end: number = partitionPoint(tracks, (track) => againstFolder(root, track, names) !== "Greater");
     // ```
-    let end: usize = tracks.partition_point(|track| return against_folder(root, track, &names) != Ordering::Greater);
+    let end: usize = folder_boundary(tracks, root, &names, true);
     // What:     `return start..end.max(start);` builds the range `start..end`, raising `end` to `start` when it is smaller.
     //           `..` is the range constructor; `.max` picks the larger of two integers.
     // Why:      The range is never backwards (`end < start` would be an invalid slice), and an empty run is `start..start`.
@@ -527,16 +638,25 @@ pub(crate) fn direct_files(tracks: &[PathBuf], folder: &Path, run: Range<usize>)
     // const inside: string[] = tracks.slice(run.start, run.end);
     // ```
     let inside: &[PathBuf] = &tracks[run.clone()];
-    // What:     `let count: usize = inside.partition_point(|track| return track.parent() == Some(folder));` counts the
-    //           leading tracks whose parent folder is `folder`. `track.parent()` answers `Option<&Path>`; `Some(folder)`
-    //           builds the matching `Option` so that the two can be compared with `==`.
+    // What:     The loop below is a binary search for the number of leading tracks whose parent is `folder`: it
+    //           assumes the answers are true and then false, and `count` is the first position where they stop.
     // Why:      Direct files are a prefix of the run, so a border search finds how many there are.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const count: number = partitionPoint(inside, (track) => dirname(track) === folder);
     // ```
-    let count: usize = inside.partition_point(|track| return track.parent() == Some(folder));
+    let mut low: usize = 0;
+    let mut high: usize = inside.len();
+    while low < high {
+        let middle: usize = low + (high - low) / 2;
+        if inside[middle].parent() == Some(folder) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    let count: usize = low;
     // What:     `return run.start..run.start + count;` builds the range of the direct files, which starts where the run
     //           starts and is `count` long.
     // Why:      The caller needs positions in the whole queue, so the run's start is added back.

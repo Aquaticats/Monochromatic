@@ -303,10 +303,7 @@ pub fn resolve_with(request: &ToolchainRequest, runner: &dyn Runner) -> Toolchai
     //  the launcher that the link reaches learns the tree from the path it was started under.
     let invocation = command::Invocation {
         program: entry.program.clone(),
-        arguments: ARGUMENTS
-            .iter()
-            .map(|argument| return (*argument).to_string())
-            .collect(),
+        arguments: ARGUMENTS.iter().copied().map(String::from).collect(),
         directory: request.project_root.clone(),
     };
     let done = match runner.run(&invocation, TIME_LIMIT) {

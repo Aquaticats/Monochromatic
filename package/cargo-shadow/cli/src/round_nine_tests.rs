@@ -183,7 +183,7 @@ fn a_settled_run_whose_scope_was_collected_is_read_as_ended_without_any_launcher
     drop(transaction);
 
     assert_eq!(survivor_note(&journal), None, "a settled run with a collected scope was held back for want of a launcher record");
-    let messages = crate::journal::recover(root.path(), &|_before, _live| { return vec!["refused".to_string()]; });
+    let messages = crate::journal::recover(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return vec!["refused".to_string()]; });
     assert!(journal_dirs(root.path()).is_empty(), "the journal of a settled, collected run was not recovered without an acknowledgement: {messages:?}");
 }
 
@@ -717,7 +717,7 @@ fn two_roots_with_manifests_are_restored_or_kept_together_per_root() {
         .collect();
     let _journal = plant(root.path(), &snapshots, &manifests);
 
-    let messages: Vec<String> = recover(root.path(), &|before, _live| {
+    let messages: Vec<String> = recover(root.path(), &|before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| {
         return if before[0].crate_dir == first { vec!["dep@1.0.1 refused".to_string()] } else { Vec::new() };
     });
 

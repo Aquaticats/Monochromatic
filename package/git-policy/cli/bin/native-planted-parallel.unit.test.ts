@@ -7,6 +7,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  inspectionEnvironment,
   type LauncherOptions,
   parseLauncherOptions,
   planUnits,
@@ -23,10 +24,10 @@ import {
   runLimitArguments,
 } from './container-limits.ts';
 
+import { nativeTestImageRepository } from './native-gate-image-tag.ts';
 import {
   type ImageInspector,
   imageOptionOf,
-  inspectionEnvironment,
   planControlsUnit,
   plantedTask,
   skipPlantedEntry,
@@ -152,6 +153,8 @@ function launch({
       '//package/git-policy/cli:native:mutation:scoped',
       '--tag-env',
       'GIT_POLICY_NATIVE_IMAGE_TAG',
+      '--image-repository',
+      nativeTestImageRepository,
       '--unit-prefix',
       'cli-git-mutpar',
       '--root',

@@ -112,8 +112,25 @@ pub fn has_virtual_terminal(mode: u32) -> bool {
 /// const logColorsWanted = (stderr, noColor) => stderr === "virtualTerminal" && !noColor;
 /// ```
 pub fn log_colors_wanted(stderr: ConsoleColorSupport, no_color: Option<&str>) -> bool {
-    let no_color_set = no_color.is_some_and(|value| return !value.is_empty());
+    let no_color_set = match no_color {
+        Some(value) => !value.is_empty(),
+        None => false,
+    };
     return stderr == ConsoleColorSupport::VirtualTerminal && !no_color_set;
+}
+
+/// What:
+/// `refused_virtual_terminal` is true when a console handle refused escape sequences.
+/// Why:
+/// `cli_color` turns clap's colors off when either handle refused,
+/// so that no sequence is shown as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusedVirtualTerminal = (support: ConsoleColorSupport): boolean => support.kind === "noVirtualTerminal";
+/// ```
+fn refused_virtual_terminal(support: ConsoleColorSupport) -> bool {
+    return matches!(support, ConsoleColorSupport::NoVirtualTerminal { .. });
 }
 
 /// What:
@@ -128,8 +145,7 @@ pub fn log_colors_wanted(stderr: ConsoleColorSupport, no_color: Option<&str>) ->
 ///           sequences as text when `TERM` is set,
 /// so then clap prints no colors at all.
 pub fn cli_color(colors: ConsoleColors) -> clap::ColorChoice {
-    let refused = |support: ConsoleColorSupport| return matches!(support, ConsoleColorSupport::NoVirtualTerminal { .. });
-    if refused(colors.stdout) || refused(colors.stderr) {
+    if refused_virtual_terminal(colors.stdout) || refused_virtual_terminal(colors.stderr) {
         return clap::ColorChoice::Never;
     }
     return clap::ColorChoice::Auto;

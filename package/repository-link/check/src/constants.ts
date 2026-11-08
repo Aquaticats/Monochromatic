@@ -71,3 +71,18 @@ export const IDENTITY_FILE_MODE = 0o644;
  Name of the folder below the data home that holds the installed copy.
  */
 export const INSTALL_FOLDER = 'monochromatic-dev/repository-link';
+
+/**
+ The programs `repository-link-launch` runs, by the name of the link it was started through, each with its path below the
+ repository link: the two links in `~/.local/bin` that used to lead into the repository directly (plan item W9, so the
+ shell's own "No such file or directory" becomes the check's plain message).
+ */
+export const LAUNCHED_PROGRAMS: Readonly<Record<string, string>> = {
+  'spawn-claude': 'package/claude-code-plugin/source/src/cli/spawn-claude.ts',
+  'spawn-pi': 'package/pi-plugin/spawn/dist/final/node/cli.mjs',
+};
+
+/**
+ Exit status of `repository-link-launch` for a link name it does not know: the usage status of the shell tools.
+ */
+export const EXIT_UNKNOWN_PROGRAM = 2;

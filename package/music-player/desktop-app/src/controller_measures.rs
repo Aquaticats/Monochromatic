@@ -41,9 +41,10 @@ use crate::track_measure::measure_from_decision;
 /// const displayNameOf = (root: string) => basename(root) || root;
 /// ```
 pub(crate) fn display_name_of(root: &Path) -> String {
-    return root
-        .file_name()
-        .map_or_else(|| return root.display().to_string(), |name| return name.to_string_lossy().into_owned());
+    return match root.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => root.display().to_string(),
+    };
 }
 
 /// Methods of `Controller` for the per-track measures:
@@ -141,7 +142,15 @@ impl Controller {
     /// ```
     pub(crate) fn report_unplayable_once(&self, files: Vec<PathBuf>) {
         let fresh: Vec<PathBuf> = match self.reported_unplayable.lock() {
-            Ok(mut reported) => files.into_iter().filter(|file| return reported.insert(file.clone())).collect(),
+            Ok(mut reported) => {
+                let mut newly_reported: Vec<PathBuf> = Vec::new();
+                for file in files {
+                    if reported.insert(file.clone()) {
+                        newly_reported.push(file);
+                    }
+                }
+                newly_reported
+            }
             Err(_poisoned) => files,
         };
         if fresh.is_empty() {

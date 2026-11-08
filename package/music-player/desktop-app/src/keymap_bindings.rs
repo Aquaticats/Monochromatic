@@ -195,7 +195,10 @@ impl Binding {
     /// Why:
     ///      A row restricted to one map is invisible on the other.
     pub fn applies_on(&self, platform: KeyboardPlatform) -> bool {
-        return self.platform.is_none_or(|only| return only == platform);
+        return match self.platform {
+            Some(only) => only == platform,
+            None => true,
+        };
     }
 
     /// What:
@@ -230,9 +233,13 @@ impl Binding {
     ///      Letters and digits arrive in either case (Shift changes them),
     ///  while named keys match exactly.
     pub fn matches_key(&self, key: &str) -> bool {
-        return self.keys.iter().any(|name| {
-            return if name.chars().count() == 1 { name.eq_ignore_ascii_case(key) } else { *name == key };
-        });
+        for name in self.keys.iter() {
+            let same = if name.chars().count() == 1 { name.eq_ignore_ascii_case(key) } else { *name == key };
+            if same {
+                return true;
+            }
+        }
+        return false;
     }
 }
 
@@ -369,9 +376,12 @@ fn request_held(request: &ShortcutRequest) -> HeldModifiers {
 /// const bindingMatching = (r: ShortcutRequest) => BINDINGS.find(b => matches(b, r) && b.scope !== "popup");
 /// ```
 pub fn binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
-    return BINDINGS.iter().find(|binding| {
-        return binding.scope != Scope::Popup && row_hits(binding, request) && scope_allows(binding.scope, request);
-    });
+    for binding in BINDINGS.iter() {
+        if binding.scope != Scope::Popup && row_hits(binding, request) && scope_allows(binding.scope, request) {
+            return Some(binding);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -385,9 +395,12 @@ pub fn binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
 /// const popupBindingMatching = (r: ShortcutRequest) => BINDINGS.find(b => b.menu && matches(b, r));
 /// ```
 pub fn popup_binding_matching(request: &ShortcutRequest) -> Option<&'static Binding> {
-    return BINDINGS
-        .iter()
-        .find(|binding| return binding.menu && row_hits(binding, request) && request.route == crate::keymap::KeyRoute::Player);
+    for binding in BINDINGS.iter() {
+        if binding.menu && row_hits(binding, request) && request.route == crate::keymap::KeyRoute::Player {
+            return Some(binding);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -413,7 +426,12 @@ fn row_hits(binding: &Binding, request: &ShortcutRequest) -> bool {
 /// const bindingFor = (a: ShortcutAction, p: KeyboardPlatform) => BINDINGS.find(b => b.action === a && appliesOn(b, p));
 /// ```
 pub fn binding_for(action: ShortcutAction, platform: KeyboardPlatform) -> Option<&'static Binding> {
-    return BINDINGS.iter().find(|binding| return binding.action == action && binding.applies_on(platform));
+    for binding in BINDINGS.iter() {
+        if binding.action == action && binding.applies_on(platform) {
+            return Some(binding);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -472,12 +490,14 @@ fn modifier_label(modifier: Modifier, platform: KeyboardPlatform) -> &'static st
 /// const chordText = (b: Binding, p: KeyboardPlatform) => [...b.modifiers.map(label), keyLabel(b.keys[0])].join(p === "mac" ? "" : "+");
 /// ```
 pub fn chord_text(binding: &Binding, platform: KeyboardPlatform) -> String {
-    let key = binding.keys.first().map_or_else(String::new, |name| return key_label(name));
-    let mut parts: Vec<String> = binding
-        .modifiers
-        .iter()
-        .map(|modifier| return modifier_label(*modifier, platform).to_owned())
-        .collect();
+    let key = match binding.keys.first() {
+        Some(name) => key_label(name),
+        None => String::new(),
+    };
+    let mut parts: Vec<String> = Vec::new();
+    for modifier in binding.modifiers.iter() {
+        parts.push(modifier_label(*modifier, platform).to_owned());
+    }
     parts.push(key);
     return match platform {
         KeyboardPlatform::WindowsLinux => parts.join("+"),
@@ -497,7 +517,10 @@ pub fn chord_text(binding: &Binding, platform: KeyboardPlatform) -> String {
 /// const shortcutText = (a: ShortcutAction, p: KeyboardPlatform) => { const b = bindingFor(a, p); return b ? chordText(b, p) : ""; };
 /// ```
 pub fn shortcut_text(action: ShortcutAction, platform: KeyboardPlatform) -> String {
-    return binding_for(action, platform).map_or_else(String::new, |binding| return chord_text(binding, platform));
+    return match binding_for(action, platform) {
+        Some(binding) => chord_text(binding, platform),
+        None => String::new(),
+    };
 }
 
 /// Unit tests in `keymap_bindings_tests.rs`,

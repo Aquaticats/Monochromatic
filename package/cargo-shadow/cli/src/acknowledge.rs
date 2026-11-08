@@ -23,6 +23,9 @@
 //! export function acknowledge(journal: string): string  // throws the reason it did not
 //! ```
 
+/// Error text built only on failure,
+/// from a `format_args!` value.
+use crate::lazy_error_text::{ExplainedError, OrText};
 /// Imports `std::path::{Path, PathBuf}` for this file.
 use std::path::{Path, PathBuf};
 
@@ -46,7 +49,7 @@ use crate::journal_transaction::take_workspace;
 /// function workspaceOf(journal: string): string  // throws the reason
 /// ```
 fn workspace_of(journal: &Path) -> Result<PathBuf, String> {
-    let parent: &Path = journal.parent().ok_or_else(|| { return format!("{} has no parent directory", journal.display()); })?;
+    let parent: &Path = journal.parent().or_text(format_args!("{} has no parent directory", journal.display()))?;
     let mut root: PathBuf = parent.to_path_buf();
     for _component in Path::new(JOURNAL_DIR).components() {
         if !root.pop() {
@@ -76,7 +79,7 @@ fn workspace_of(journal: &Path) -> Result<PathBuf, String> {
 /// export function acknowledge(journal: string): string  // throws the reason
 /// ```
 pub fn acknowledge(journal: &Path) -> Result<String, String> {
-    let resolved: PathBuf = std::fs::canonicalize(journal).map_err(|error| { return format!("{} cannot be examined ({error})", journal.display()); })?;
+    let resolved: PathBuf = std::fs::canonicalize(journal).explained(format_args!("{} cannot be examined", journal.display()))?;
     if resolved.to_string_lossy().ends_with(DONE_SUFFIX) {
         return Err(format!("{} is a journal that is already finished", resolved.display()));
     }
@@ -89,18 +92,21 @@ pub fn acknowledge(journal: &Path) -> Result<String, String> {
         Ok(Err(holder)) => return Err(format!("{holder}; nothing was acknowledged")),
         Err(error) => return Err(format!("the workspace lock could not be tried ({error}); nothing was acknowledged")),
     };
-    let seconds: u64 = SystemTime::now().duration_since(UNIX_EPOCH).map(|elapsed| { return elapsed.as_secs(); }).unwrap_or(0);
+    let seconds: u64 = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_secs(),
+        Err(_) => 0,
+    };
     let text: String = format!("{ACKNOWLEDGED_HEADER}\n{}\n{seconds}\n", std::process::id());
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementPublish) {
         return Err("the acknowledgement could not be written (injected failure); nothing was acknowledged".to_string());
     }
-    atomic_write(&resolved.join(ACKNOWLEDGED_FILE), &text).map_err(|error| { return format!("the acknowledgement could not be written ({error}); nothing was acknowledged"); })?;
+    atomic_write(&resolved.join(ACKNOWLEDGED_FILE), &text).explained_with_tail(format_args!("the acknowledgement could not be written"), "; nothing was acknowledged")?;
     #[cfg(test)]
     if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
         return Err("the acknowledgement could not be made durable (injected failure); it counts only once it is, so run the command again".to_string());
     }
-    sync_directory(&resolved).map_err(|error| { return format!("the acknowledgement could not be made durable ({error}); it counts only once it is, so run the command again"); })?;
+    sync_directory(&resolved).explained_with_tail(format_args!("the acknowledgement could not be made durable"), "; it counts only once it is, so run the command again")?;
     return Ok(format!(
         "acknowledged {}: you asserted that every process or worker of that run that can modify the workspace has stopped; the next cargo-shadow run settles the journal",
         resolved.display()

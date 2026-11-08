@@ -516,15 +516,13 @@ pub fn search_row_semantics(
 /// ```
 pub fn search_emphasis_spans(text: &str, highlights: &[SearchHighlight]) -> Vec<SearchHighlight> {
     let text_length: i32 = to_offset(text.chars().count());
-    return highlights
-        .iter()
-        .copied()
-        .filter(|highlight| {
-            return highlight.start >= 0
-                && highlight.start < highlight.end
-                && highlight.end <= text_length;
-        })
-        .collect();
+    let mut spans: Vec<SearchHighlight> = Vec::new();
+    for highlight in highlights.iter().copied() {
+        if highlight.start >= 0 && highlight.start < highlight.end && highlight.end <= text_length {
+            spans.push(highlight);
+        }
+    }
+    return spans;
 }
 
 /// What:
@@ -593,9 +591,12 @@ pub fn should_preserve_row_visibility(previous_query: &str, current_query: &str)
 /// const isClearVisible = (q) => q.trim().length > 0;
 /// ```
 pub fn is_clear_visible(query: &str) -> bool {
-    return query
-        .chars()
-        .any(|character| return !is_kotlin_whitespace(character));
+    for character in query.chars() {
+        if !is_kotlin_whitespace(character) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Unit tests in `search_page_model_tests.rs`,

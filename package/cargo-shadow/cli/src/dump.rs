@@ -212,78 +212,186 @@ fn history_json(history: &[VersionRecord]) -> String {
 
 /// Reads one table of the archive into rows of the wanted columns;
 /// the callback gets the row's wanted fields in order.
-fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn FnMut(&[String]) -> Result<(), DumpFormatError>) -> Result<(), DumpFormatError> {
-    let mut positions: Option<Vec<usize>> = None;
-    let mut failure: Option<DumpFormatError> = None;
-    // The header's field count and the number of the row being read (the header is row 1), for the width check below.
-    let mut header_width: usize = 0;
-    // `let mut`: a binding that may change.
-    // Typed binding: `row_number: usize`.
-    let mut row_number: usize = 0;
-    let outcome = read_csv(entry, &mut |row: &[String]| {
-        row_number += 1;
-        match &positions {
-            None => match column_indexes(row, columns) {
-                // What:     `Ok(value)` and `Err(error)` build the two variants of `Result<T, E>`, Rust's success-or-failure value (siblings: `Option<T>`, a value or nothing; a TS function that throws has no value form of this).
-                // Why:      Failure is returned as an ordinary value, so the caller must handle or forward it; nothing is thrown.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // // Ok(value)  is  return value;
-                // // Err(error) is  throw error;   (the caller sees it as a returned value)
-                // ```
-                Ok(found) => {
-                    header_width = row.len();
-                    // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
-                    // Why:      Absence is a value the caller must check; there is no `null`.
-                    //
-                    // In TS you'd write (pseudocode):
-                    // ```ts
-                    // // Some(value) is  value
-                    // // None        is  undefined
-                    // ```
-                    positions = Some(found);
-                }
-                Err(error) => {
-                    failure = Some(error);
-                    return false;
-                }
-            },
-            Some(found) => {
-                // Review finding (padded short rows): a row that is not as wide as the header is a damaged table, so it
-                // stops the read instead of being completed with empty fields.
-                if row.len() != header_width {
-                    // `Some`: the present or the absent value of an `Option`.
-                    failure = Some(DumpFormatError {
-                        // What:     A name ending in `!` is a macro: code that expands before compiling. `format!("..{}..", x)` builds a `String` from a template (a TS template literal); `eprintln!`/`println!` print a line to standard error/output; `vec![..]` builds a `Vec`; `matches!(v, Pattern)` tests a pattern.
-                        // Why:      Text building and printing are written as one call instead of string concatenation.
-                        //
-                        // In TS you'd write (pseudocode):
-                        // ```ts
-                        // `..${x}..`   // template literal
-                        // console.error(text);   // eprintln!
-                        // [a, b]            // vec![a, b]
-                        // ```
-                        message: format!("row {row_number} of a crates.io dump table has {} fields, but its header has {header_width}", row.len()),
-                    });
-                    return false;
-                }
-                let picked: Vec<String> = found.iter().map(|index| { return row.get(*index).cloned().unwrap_or_default(); }).collect();
-                if let Err(error) = on_row(&picked) {
-                    failure = Some(error);
-                    return false;
-                }
-            }
-        }
-        return true;
-    });
-    if let Some(error) = failure {
+fn read_table(entry: &mut dyn Read, columns: &[&str], on_row: &mut dyn TableRow) -> Result<(), DumpFormatError> {
+    let mut reader: TableReader = TableReader { columns, on_row, positions: None, failure: None, header_width: 0, row_number: 0 };
+    let outcome = read_csv(entry, &mut reader);
+    if let Some(error) = reader.failure {
         return Err(error);
     }
     return match outcome {
         Ok(found) => Ok(found),
         Err(error) => Err(DumpFormatError { message: format!("reading the crates.io dump failed: {error}") }),
     };
+}
+
+/// What:
+/// `trait TableRow` is what `read_table` hands the wanted fields of each row to.
+/// Why:
+/// The reader takes the handler as a value instead of a closure,
+/// so a handler can be a struct that holds its own state.
+/// Every `FnMut(&[String]) -> Result<(), DumpFormatError>` is a `TableRow` too,
+/// so a test passes a closure.
+trait TableRow {
+    /// What:
+    /// `row(&mut self, fields)` takes the wanted fields of one row,
+    /// in the order of the wanted columns.
+    /// Why:
+    /// An error stops the read and is returned by it.
+    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError>;
+}
+
+/// What:
+/// The implementation of `TableRow` for every function with the handler's shape.
+/// Why:
+/// Callers that hold a closure need no wrapper.
+impl<F: FnMut(&[String]) -> Result<(), DumpFormatError>> TableRow for F {
+    /// What:
+    /// Calls the function.
+    /// Why:
+    /// The function is the handler.
+    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError> {
+        return self(fields);
+    }
+}
+
+/// What:
+/// `struct TableReader<'a>` is the row handler `read_table` gives to `read_csv`:
+/// it finds the wanted columns in the header,
+/// checks every row's width,
+/// and passes the wanted fields on.
+/// Why:
+/// It holds the state that the closure that stood here captured.
+struct TableReader<'a> {
+    /// The names of the wanted columns.
+    columns: &'a [&'a str],
+    /// The handler of the wanted fields of each row.
+    on_row: &'a mut dyn TableRow,
+    /// The positions of the wanted columns,
+    /// known once the header was read.
+    positions: Option<Vec<usize>>,
+    /// The first failure,
+    /// which stops the read.
+    failure: Option<DumpFormatError>,
+    /// The header's field count.
+    header_width: usize,
+    /// The number of the row being read (the header is row 1).
+    row_number: usize,
+}
+
+/// What:
+/// The implementation of `RowHandler` for `TableReader`.
+/// Why:
+/// `read_csv` hands each finished row to it.
+impl crate::csv::RowHandler for TableReader<'_> {
+    /// What:
+    /// Reads the header on the first row and checks and passes on every later row.
+    /// Why:
+    /// `false` stops the read after the first failure.
+    fn on_row(&mut self, row: &[String]) -> bool {
+        self.row_number += 1;
+        match &self.positions {
+            None => match column_indexes(row, self.columns) {
+                Ok(found) => {
+                    self.header_width = row.len();
+                    self.positions = Some(found);
+                }
+                Err(error) => {
+                    self.failure = Some(error);
+                    return false;
+                }
+            },
+            Some(found) => {
+                if row.len() != self.header_width {
+                    self.failure = Some(DumpFormatError {
+                        message: format!("row {} of a crates.io dump table has {} fields, but its header has {}", self.row_number, row.len(), self.header_width),
+                    });
+                    return false;
+                }
+                let mut picked: Vec<String> = Vec::new();
+                for index in found {
+                    picked.push(row.get(*index).cloned().unwrap_or_default());
+                }
+                if let Err(error) = self.on_row.row(&picked) {
+                    self.failure = Some(error);
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+}
+
+/// What:
+/// `struct CrateNameRows<'a>` is the handler of the `crates.csv` rows:
+/// it keeps the id of each wanted crate name.
+/// Why:
+/// It holds what the closure that stood here captured.
+struct CrateNameRows<'a> {
+    /// The crate names that are wanted.
+    names: &'a BTreeSet<String>,
+    /// The crate id of each wanted name,
+    /// filled by the rows.
+    id_to_name: &'a mut BTreeMap<String, String>,
+}
+
+/// What:
+/// The implementation of `TableRow` for `CrateNameRows`.
+/// Why:
+/// `read_table` hands each row's id and name to it.
+impl TableRow for CrateNameRows<'_> {
+    /// What:
+    /// Keeps the id of the row's crate when its name is wanted.
+    /// Why:
+    /// The versions table is read against these ids.
+    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError> {
+        if self.names.contains(&fields[1]) {
+            self.id_to_name.insert(fields[0].clone(), fields[1].clone());
+        }
+        return Ok(());
+    }
+}
+
+/// What:
+/// `struct VersionRows<'a>` is the handler of the `versions.csv` rows:
+/// it appends each release of a wanted crate to that crate's history.
+/// Why:
+/// It holds what the closure that stood here captured.
+struct VersionRows<'a> {
+    /// The crate name of each wanted crate id.
+    id_to_name: &'a BTreeMap<String, String>,
+    /// The history of each wanted crate,
+    /// filled by the rows.
+    histories: &'a mut BTreeMap<String, Vec<VersionRecord>>,
+}
+
+/// What:
+/// The implementation of `TableRow` for `VersionRows`.
+/// Why:
+/// `read_table` hands each row's wanted fields to it.
+impl TableRow for VersionRows<'_> {
+    /// What:
+    /// Appends the release to the history of its crate when the crate is wanted,
+    /// and refuses a crate with more releases than the bound.
+    /// Why:
+    /// The retained history of one crate is bounded.
+    fn row(&mut self, fields: &[String]) -> Result<(), DumpFormatError> {
+        let name: &String = match self.id_to_name.get(&fields[0]) {
+            Some(found) => found,
+            None => return Ok(()),
+        };
+        let kept: usize = self.histories.get(name).map(Vec::len).unwrap_or(0);
+        if kept >= MAX_VERSIONS_PER_CRATE {
+            return Err(DumpFormatError { message: format!("the crates.io dump lists more than {MAX_VERSIONS_PER_CRATE} releases of {name}") });
+        }
+        self.histories.entry(name.clone()).or_default().push(VersionRecord {
+            num: fields[1].clone(),
+            created_at: dump_timestamp(&fields[2])?,
+            publisher_id: fields[3].clone(),
+            trustpub_repository: String::new(),
+            repository: fields[4].clone(),
+        });
+        return Ok(());
+    }
 }
 
 /// What:
@@ -344,38 +452,13 @@ pub fn fill_histories_from_dump(archive: Box<dyn Read>, names: &BTreeSet<String>
         };
         let path: String = entry.path().map(entry_path_text).unwrap_or_default();
         if path.ends_with(CRATES_ENTRY) {
-            read_table(&mut entry, &["id", "name"], &mut |row: &[String]| {
-                if names.contains(&row[1]) {
-                    id_to_name.insert(row[0].clone(), row[1].clone());
-                }
-                return Ok(());
-            })?;
+            read_table(&mut entry, &["id", "name"], &mut CrateNameRows { names, id_to_name: &mut id_to_name })?;
             crates_read = true;
         } else if path.ends_with(VERSIONS_ENTRY) {
             if !crates_read {
                 return Err(DumpFormatError { message: "the crates.io dump lists versions.csv before crates.csv; the single-pass reader needs crates.csv first".to_string() });
             }
-            read_table(&mut entry, &["crate_id", "num", "created_at", "published_by", "repository"], &mut |row: &[String]| {
-                let name: &String = match id_to_name.get(&row[0]) {
-                    Some(found) => found,
-                    None => return Ok(()),
-                };
-                // The retained history of one crate is bounded.
-                let kept: usize = histories.get(name).map(Vec::len).unwrap_or(0);
-                if kept >= MAX_VERSIONS_PER_CRATE {
-                    // `Err(...)`: builds the success or the failure variant of a `Result`.
-                    // Macro `format!`: builds or prints text (or a list) from a template.
-                    return Err(DumpFormatError { message: format!("the crates.io dump lists more than {MAX_VERSIONS_PER_CRATE} releases of {name}") });
-                }
-                histories.entry(name.clone()).or_default().push(VersionRecord {
-                    num: row[1].clone(),
-                    created_at: dump_timestamp(&row[2])?,
-                    publisher_id: row[3].clone(),
-                    trustpub_repository: String::new(),
-                    repository: row[4].clone(),
-                });
-                return Ok(());
-            })?;
+            read_table(&mut entry, &["crate_id", "num", "created_at", "published_by", "repository"], &mut VersionRows { id_to_name: &id_to_name, histories: &mut histories })?;
             versions_read = true;
         }
         if crates_read && versions_read {

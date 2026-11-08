@@ -268,11 +268,9 @@ impl OpusSource {
         track: Track,
         track_id: u32,
     ) -> Result<Self, PlayerError> {
-        // What:     `let audio_params = track.codec_params.as_ref().and_then(|cp| cp.audio()).ok_or_else(|| ...)?;`.
-        //           Select the audio codec params out of the optional `CodecParameters`
-        //           enum (`.as_ref()` borrows the `Option`, `.and_then(|cp| cp.audio())`
-        //           picks the audio variant). `.ok_or_else(...)` turns `None` into our
-        //           error; `?` unwraps.
+        // What:     `audio_params_or_unsupported(&track, ...)` gives the audio variant of the track's optional
+        //           `CodecParameters`, or the unsupported error with the message it was given. `?` unwraps the
+        //           parameters or returns the error.
         // Why:      The channel layout lives on the audio params.
         //
         // In TS you'd write (pseudocode):
@@ -280,13 +278,7 @@ impl OpusSource {
         // const audio = track.codecParams?.audio();
         // if (!audio) throw new PlayerError.Unsupported("opus: no audio codec parameters");
         // ```
-        let audio_params = track
-            .codec_params
-            .as_ref()
-            .and_then(|cp| return cp.audio())
-            .ok_or_else(|| {
-                return PlayerError::Unsupported("opus: no audio codec parameters".to_string())
-            })?;
+        let audio_params = crate::decode::audio_params_or_unsupported(&track, "opus: no audio codec parameters")?;
 
         // What:     `let channels = match &audio_params.channels { ... };`. Pattern-match
         //           the borrowed `&Option<Channels>` to a numeric count, erroring if

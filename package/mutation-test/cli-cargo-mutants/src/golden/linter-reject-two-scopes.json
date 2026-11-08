@@ -1,6 +1,6 @@
 {
   "status": 1,
-  "errorMessage": "Only one of --rust-style, --markdown, --markdown-parent, --processors, --inferred-constants, --executable, --core, --semantic is accepted.",
+  "errorMessage": "Only one of --rust-style, --markdown, --markdown-parent, --processors, --inferred-constants, --executable, --core, --layout, --workflow-shell, --semantic is accepted.",
   "stdout": "",
   "calls": [],
   "containerfiles": [],

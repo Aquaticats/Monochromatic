@@ -614,19 +614,17 @@ impl RefreshCoalescer {
         // this.running = null;
         // ```
         self.running = None;
-        // What:     `return self.pending.take().map(|waiting| return self.start(waiting));` takes the pending work out of its slot
-        //           (leaving `None`) and, only when there was some, starts it. `.map(f)` on an `Option` runs `f` on the value
-        //           inside `Some` and wraps the answer back in `Some`; on `None` it gives `None` without calling `f`.
-        //           `|waiting| ...` is a closure (an anonymous function), and it calls `self.start`, which needs `&mut self`.
+        // What:     `let waiting = self.pending.take()?;` takes the pending work out of its slot (leaving `None`)
+        //           and returns `None` when there was none; `Some(self.start(waiting))` starts it.
         // Why:      The follow-up starts the moment the running sweep ends, and an empty slot means the coalescer stays idle.
-        // Gotcha:   The `.take()` finishes before `.map` runs, so the closure may borrow `self` mutably again.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const waiting = this.pending; this.pending = null;
         // return waiting ? this.start(waiting) : null;
         // ```
-        return self.pending.take().map(|waiting| return self.start(waiting));
+        let waiting = self.pending.take()?;
+        return Some(self.start(waiting));
     }
 
     /// What:

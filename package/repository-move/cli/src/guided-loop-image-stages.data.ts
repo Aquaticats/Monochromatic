@@ -5,6 +5,11 @@
  @module
  */
 
+import {
+  FIXTURE_GUARD_MIN_GIB,
+  FIXTURE_MAIN_DATA_MIB,
+  fixtureImageGiB,
+} from './constants.ts';
 import type {
   GuidedConfig,
   Stage,
@@ -18,7 +23,7 @@ import type {
  @returns the shared arguments
  */
 function fixtureArguments(fx: string,): string {
-  return `--main=${fx}/source/main --snapshots=${fx}/source/snap --received=${fx}/dest/recv --final=${fx}/dest/final --state=${fx}/state --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=1`;
+  return `--main=${fx}/source/main --snapshots=${fx}/source/snap --received=${fx}/dest/recv --final=${fx}/dest/final --state=${fx}/state --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=${String(FIXTURE_GUARD_MIN_GIB,)}`;
 }
 
 /**
@@ -77,10 +82,10 @@ export function fixtureStages(
     {
       id: 'f1-images',
       title: 'Fixture: loop images',
-      says: 'Fixture F1: two 3G sparse images, a btrfs on each, mounted by loop. No real disk is touched.',
+      says: `Fixture F1: two ${String(fixtureImageGiB(),)}G sparse images (sized from what the fixture stages write, so the free-space guard never stops a later stage), a btrfs on each, mounted by loop. No real disk is touched.`,
       command: `for name in source dest; do
   if [ ! -e ${fx}/$name.img ]; then
-    truncate --size=3G ${fx}/$name.img.partial
+    truncate --size=${String(fixtureImageGiB(),)}G ${fx}/$name.img.partial
     sudo mkfs.btrfs --quiet --force ${fx}/$name.img.partial
     mv ${fx}/$name.img.partial ${fx}/$name.img
   fi
@@ -106,7 +111,7 @@ for name in source dest; do findmnt --noheadings --output SOURCE,TARGET --mountp
       command: `sudo btrfs subvolume create ${fx}/source/main
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/main
 /usr/bin/git -C ${fx}/source/main init --quiet
-head --bytes=300M /dev/urandom > ${fx}/source/main/big
+head --bytes=${String(FIXTURE_MAIN_DATA_MIB,)}M /dev/urandom > ${fx}/source/main/big
 /usr/bin/git -C ${fx}/source/main add big
 /usr/bin/git -C ${fx}/source/main -c user.name=t -c user.email=t@t commit --quiet --message base
 mkdir --parents ${fx}/source/main/.claude/worktrees
@@ -258,7 +263,7 @@ df --block-size=1M ${fx}/source ${fx}/dest`,
 snap=$(sudo mktemp --directory ${fx}/source/snap-f5a.XXXXXX)
 sudo chown ${c.userName}:${c.groupName} "$snap"
 state=$(mktemp --directory ${fx}/state-f5a.XXXXXX)
-${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots="$snap" --received="$recv" --final=${fx}/dest/final-f5a --state="$state" --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=1`,
+${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots="$snap" --received="$recv" --final=${fx}/dest/final-f5a --state="$state" --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=1 --min-free-gib=${String(FIXTURE_GUARD_MIN_GIB,)}`,
       okCodes: [
         0,
         1,
@@ -279,7 +284,7 @@ sudo btrfs subvolume create ${fx}/dest/recv-f5b/s000
 sudo mkdir --parents ${fx}/source/snap-f5b
 sudo chown ${c.userName}:${c.groupName} ${fx}/source/snap-f5b
 mkdir ${fx}/state-f5b
-${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source/snap-f5b --received=${fx}/dest/recv-f5b --final=${fx}/dest/final-f5b --state=${fx}/state-f5b --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=1`,
+${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source/snap-f5b --received=${fx}/dest/recv-f5b --final=${fx}/dest/final-f5b --state=${fx}/state-f5b --inventory=${fx}/inventory.txt --inventory-main=main --inventory-prefix=main/=${fx}/source/main/ --deadline-seconds=600 --min-free-gib=${String(FIXTURE_GUARD_MIN_GIB,)}`,
       okCodes: [1,],
       check: `grep --fixed-strings 'exists without a completion record' "$OUTPUT_FILE" && grep --fixed-strings 'btrfs subvolume delete' "$OUTPUT_FILE"`,
       checkText: "exit status 1 with 'exists without a completion record' and the printed 'btrfs subvolume delete'",

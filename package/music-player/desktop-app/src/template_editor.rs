@@ -288,12 +288,16 @@ pub fn clamp_offset(offset: usize, text: &str) -> usize {
 /// const insideFormula = (text, caret) => parse(text).parts.some(p => isFormula(p) && inSpan(caret, p));
 /// ```
 pub fn inside_formula(text: &str, caret: usize) -> bool {
-    return parse_template(text).parts.iter().any(|part| {
-        return match part {
+    for part in &parse_template(text).parts {
+        let holds: bool = match part {
             TemplatePart::Formula(formula) => formula_holds_caret(formula, caret),
             TemplatePart::Literal(_) => false,
         };
-    });
+        if holds {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

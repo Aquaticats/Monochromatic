@@ -36,7 +36,13 @@ use std::cmp::Ordering;
 /// const digitRun = (text: string): [string, string] => { const m = /^\d*/.exec(text)!; return [m[0], text.slice(m[0].length)]; };
 /// ```
 fn digit_run(text: &str) -> (&str, &str) {
-    let end: usize = text.find(|character: char| return !character.is_ascii_digit()).unwrap_or(text.len());
+    let mut end: usize = text.len();
+    for (offset, character) in text.char_indices() {
+        if !character.is_ascii_digit() {
+            end = offset;
+            break;
+        }
+    }
     return text.split_at(end);
 }
 
@@ -56,10 +62,11 @@ fn digit_run(text: &str) -> (&str, &str) {
 fn compare_digit_runs(left: &str, right: &str) -> Ordering {
     let left_trimmed: &str = left.trim_start_matches('0');
     let right_trimmed: &str = right.trim_start_matches('0');
-    return left_trimmed
-        .len()
-        .cmp(&right_trimmed.len())
-        .then_with(|| return left_trimmed.cmp(right_trimmed));
+    let by_length = left_trimmed.len().cmp(&right_trimmed.len());
+    if by_length != Ordering::Equal {
+        return by_length;
+    }
+    return left_trimmed.cmp(right_trimmed);
 }
 
 /// What:

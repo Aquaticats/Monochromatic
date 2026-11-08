@@ -52,3 +52,30 @@ fn the_socket_is_the_instances_own() {
     assert_ne!(socket, runtime.join(LEGACY_SOCKET_RELATIVE));
     assert_eq!(socket, socket_path(runtime, instance_of(Path::new("/work/repo/.git")).as_str()));
 }
+
+/// A Git directory that resolves has the same name from the checked and the unchecked function,
+/// so no existing instance changes name.
+#[test]
+fn the_checked_name_equals_the_unchecked_name_for_a_directory_that_resolves() {
+    let root = fixture("instance-checked-same");
+    let git_dir = root.join("main/.git");
+    std::fs::create_dir_all(&git_dir).expect("directories");
+    assert_eq!(try_instance_of(git_dir.as_path()), Ok(instance_of(git_dir.as_path())));
+    remove(root.as_path());
+}
+
+/// A Git directory that cannot be resolved is refused with its path and the cause,
+/// where the unchecked function would hash the text as given.
+#[test]
+fn the_checked_name_refuses_a_directory_that_cannot_be_resolved() {
+    let root = fixture("instance-checked-dangling");
+    let link = root.join("link");
+    std::os::unix::fs::symlink(root.join("no-such-target"), &link).expect("dangling link");
+    for unreachable in [root.join("absent/.git"), link.join(".git")] {
+        let refusal: GitDirUnreachable = try_instance_of(unreachable.as_path()).expect_err("no name for an unreachable directory");
+        assert_eq!(refusal.path, unreachable);
+        let text: String = refusal.to_string();
+        assert!(text.contains(unreachable.to_string_lossy().as_ref()) && text.contains("No such file or directory"), "{text}");
+    }
+    remove(root.as_path());
+}

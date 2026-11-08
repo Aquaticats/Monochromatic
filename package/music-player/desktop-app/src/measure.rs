@@ -163,7 +163,15 @@ pub(crate) fn spawn_queue_measurement(job: SweepJob) {
         let sink: SweepSink = Arc::clone(&job.sink);
         let (generation, refresh_id): (u64, Option<u64>) = (job.generation, job.refresh_id);
         // A refresh sweep tells the coalescer it ended even when the coordinator panicked, or the follow-up would never start.
-        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return run_sweep(job))).is_err() {
+        #[cfg_attr(
+            dylint_lib = "monochromatic_lint_closure",
+            expect(
+                avoidable_closure,
+                reason = "std::panic::catch_unwind takes only a callable that passes no argument to its body, so the job the sweep runs must be captured; catch_unwind is the only way to turn a panic of the sweep into a value"
+            )
+        )]
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| return run_sweep(job)));
+        if outcome.is_err() {
             tracing::error!(generation, "the sweep coordinator panicked");
         }
         if let Some(id) = refresh_id {
@@ -261,12 +269,12 @@ fn run_sweep(job: SweepJob) {
     // ```ts
     // const measureTracks = job.tracks.filter((p) => p !== job.current);
     // ```
-    let measure_tracks: Vec<PathBuf> = job
-        .tracks
-        .iter()
-        .filter(|path| return job.current.as_ref() != Some(*path))
-        .cloned()
-        .collect();
+    let mut measure_tracks: Vec<PathBuf> = Vec::new();
+    for path in &job.tracks {
+        if job.current.as_ref() != Some(path) {
+            measure_tracks.push(path.clone());
+        }
+    }
     // What:     `let shared = Arc::new(SweepShared { ... })`. Snapshot the known set and build the shared state.
     // Why:      One snapshot serves every worker; the cursor and visit counter start at zero.
     //
@@ -308,19 +316,19 @@ fn run_sweep(job: SweepJob) {
     // ```
     let workers = worker_count(total);
     tracing::info!(tracks = total, workers, generation = job.generation, "warming sweep started");
-    // What:     `handles = (0..workers).map(|_| thread::spawn(...))`. Start the workers.
+    // What:     The loop below starts `workers` threads, each with its own clone of the shared state, and keeps
+    //           their join handles.
     // Why:      Every worker shares the same `SweepShared`.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const handles = range(workers).map(() => startWorker(() => runWorker(shared)));
     // ```
-    let handles: Vec<_> = (0..workers)
-        .map(|_| {
-            let worker_shared = Arc::clone(&shared);
-            return thread::spawn(move || run_worker(worker_shared));
-        })
-        .collect();
+    let mut handles: Vec<thread::JoinHandle<()>> = Vec::with_capacity(workers);
+    for _worker in 0..workers {
+        let worker_shared = Arc::clone(&shared);
+        handles.push(thread::spawn(move || run_worker(worker_shared)));
+    }
     // What:     join every worker, logging a panicked one.
     // Why:      One bad thread must not poison the sweep; the final progress report runs after all joins.
     //
@@ -621,17 +629,18 @@ fn worker_count(track_count: usize) -> usize {
     if track_count == 0 {
         return 0;
     }
-    // What:     `let cores = thread::available_parallelism().map(|n| n.get()).unwrap_or(1);`.
-    //           Logical core count; fall back to 1 if the platform cannot report it.
+    // What:     `let cores = match thread::available_parallelism() { Ok(count) => count.get(), Err(_) => 1 };` is
+    //           the number of cores the operating system reports, or 1 when it cannot say.
     // Why:      The degree of parallelism for CPU-bound decoding.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const cores = navigator.hardwareConcurrency ?? 1;
     // ```
-    let cores = thread::available_parallelism()
-        .map(|n| return n.get())
-        .unwrap_or(1);
+    let cores = match thread::available_parallelism() {
+        Ok(count) => count.get(),
+        Err(_error) => 1,
+    };
     // What:     `cores.min(track_count)`. Never more workers than tracks. Tail -> return.
     // Why:      Extra threads beyond the work would just exit immediately.
     //
@@ -808,7 +817,10 @@ fn measure_one(path: &Path, shared: &SweepShared) {
 /// ```
 fn already_exact(shared: &SweepShared, key: u64) -> bool {
     if shared.listed {
-        return shared.cache.get(key).is_some_and(|decision| return decision.kind != DecisionKind::ProbeEstimate);
+        return match shared.cache.get(key) {
+            Some(decision) => decision.kind != DecisionKind::ProbeEstimate,
+            None => false,
+        };
     }
     return shared.known.contains(&key);
 }

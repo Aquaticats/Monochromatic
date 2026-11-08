@@ -222,7 +222,7 @@ use crate::verify::{is_verified, mark_verified, verify_added_since_base_outcome,
 /// ```ts
 /// export { LockBaseFactory, LockBaseReader, verificationCached, verificationScope } from './install-verify.ts';
 /// ```
-pub use crate::install_verify::{LockBaseFactory, LockBaseReader, policy_findings, verification_cached, verification_scope};
+pub use crate::install_verify::{LockBaseFactory, LockBaseReader, PolicyJudge, policy_findings, verification_cached, verification_scope};
 /// What:
 /// `use crate::install_verify::{base_reader, set_aside_pass};` imports the two helpers that only this crate calls.
 /// Why:
@@ -299,7 +299,13 @@ pub fn arguments_for(args: &[&str], offline: bool) -> Vec<String> {
     // ```ts
     // list.map(f).filter(g)
     // ```
-    return args.iter().filter(|argument| { return offline || **argument != "--offline"; }).map(ToString::to_string).collect();
+    let mut kept: Vec<String> = Vec::new();
+    for argument in args.iter() {
+        if offline || *argument != "--offline" {
+            kept.push(argument.to_string());
+        }
+    }
+    return kept;
 }
 
 /// The values of the `CI` variable that mean this is not a continuous integration run.
@@ -417,6 +423,32 @@ pub fn is_stale(request: &InstallRequest, crate_dir: &str) -> Result<bool, Insta
     // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
     // Borrow `&CHECK_ARGS`: lends the value without copying or giving it away.
     return Ok(!run_cargo(request, crate_dir, &CHECK_ARGS)?.ok);
+}
+
+/// What:
+/// `struct UpdateOffline<'a> { request, crate_dir }` is the work of updating one crate root's workspace offline.
+/// Why:
+/// `run_recording` takes the work as a value,
+/// and this holds what the closure that stood here captured.
+struct UpdateOffline<'a> {
+    /// The install request that names the cargo runner.
+    request: &'a InstallRequest<'a>,
+    /// The crate root the update runs in.
+    crate_dir: &'a str,
+}
+
+/// What:
+/// The implementation of `RecordedWork` for `UpdateOffline`.
+/// Why:
+/// `run_recording` runs it between its before and after observations.
+impl crate::file_owner::RecordedWork<Result<(), InstallError>> for UpdateOffline<'_> {
+    /// What:
+    /// Runs the offline update and fails with the crate named when cargo exits non-zero.
+    /// Why:
+    /// The result is the one the closure returned.
+    fn run(self) -> Result<(), InstallError> {
+        return run_or_fail(self.request, self.crate_dir, &UPDATE_ARGS);
+    }
 }
 
 /// Runs one cargo command in a crate root and fails with the crate named when it exits non-zero.
@@ -537,7 +569,7 @@ fn update_stale_roots(request: &InstallRequest, before: &[LockSnapshot], produce
         eprintln!("cargo-shadow: {crate_dir}: lockfile is stale, updating the workspace offline");
         // The call is recorded whether it succeeds or fails: a cargo that wrote a lockfile and then exited with an error left that
         // lockfile behind, and the rollback must know it is this run's.
-        let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(request.root, crate_dir, produced, || { return run_or_fail(request, crate_dir, &UPDATE_ARGS); }).map_err(io_error)?;
+        let (updated, _claim): (Result<(), InstallError>, Claim) = run_recording(request.root, crate_dir, produced, UpdateOffline { request, crate_dir }).map_err(io_error)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         updated?;
         run_or_fail(request, crate_dir, &VERIFY_ARGS)?;
@@ -736,10 +768,8 @@ pub fn install_rust_lockfiles(request: &InstallRequest) -> Result<InstallReport,
         // ```
         return Ok(InstallReport { crate_dirs: request.crate_dirs.to_vec(), problems: outcome.problems, warnings: outcome.warnings, ..InstallReport::default() });
     }
-    // Closure `|old, live|`: an anonymous function, like a TS arrow function.
-    // Borrow `&process_exists`: lends the value without copying or giving it away.
     // Typed binding: `recovered: Vec<String>`.
-    let recovery = recover_report(request.root, &|old, live| { return policy_findings(request.settings, request.registry, request.now, old, live); });
+    let recovery = recover_report(request.root, &PolicyJudge { settings: request.settings, registry: request.registry, now: request.now });
     let mandatory_recovery_failure: bool = recovery.mandatory_failure;
     let recovered: Vec<String> = recovery.messages;
     // Borrow `&recovered`: lends the value without copying or giving it away.

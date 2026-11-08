@@ -11,6 +11,7 @@ import {
   fakeCargoMutantsBytes,
   fakeCargoSource,
   fakePodmanSource,
+  fakeSystemdRunSource,
 } from './fake-programs.ts';
 
 /**
@@ -106,6 +107,14 @@ export async function createFakePodman(): Promise<FakePodman> {
         'podman',
       ),
       fakePodmanSource,
+      { mode: ownerOnlyMode },
+    ),
+    writeFile(
+      join(
+        programs,
+        'systemd-run',
+      ),
+      fakeSystemdRunSource,
       { mode: ownerOnlyMode },
     ),
     writeFile(

@@ -37,12 +37,19 @@ pub mod entry;
 /// or index-writer coordination.
 pub mod entry_forward_action_planning;
 
+/// The stop of an invocation that names the repository through a link to the 860 drive that does not resolve.
+pub mod entry_repository_link_stop;
+
 /// Turns a plain forward of a push into a stacked or LFS-uploading push,
 /// with the notices a forward owes.
 pub mod entry_push_stacking_and_lfs_upload;
 
 /// Runs coordinated and settled forwards and writes to the standard streams.
 pub mod entry_run_forwarded_actions;
+
+/// The ask to compile changed rules text,
+/// after a command that moves the worktree.
+pub mod entry_rules_text_change_warm;
 
 /// Spellings of the wrapper-only escape hatches shared by several modules.
 pub mod escape_hatch;

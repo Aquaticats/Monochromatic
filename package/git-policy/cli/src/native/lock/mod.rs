@@ -26,6 +26,12 @@ pub mod index_lock_holder_parsers;
 /// Evidence about a foreign `index.lock` and the verdict it supports.
 pub mod index_lock_evidence;
 
+/// The sentences about a lock's holder:
+/// its program,
+/// start time and the way to end it,
+/// and a summary of unreadable processes.
+pub mod index_lock_holder_words;
+
 /// Index-writer classification and the commands that coordinate with a landing.
 pub mod index_writer_commands;
 
@@ -61,6 +67,10 @@ pub mod stale_ref_lock_identity;
 
 /// How one reference lock is judged.
 pub mod stale_ref_lock_judge;
+
+/// What the wrapper itself knows of a child it stopped:
+/// the tree's ended processes and the locks its members held.
+pub mod stale_ref_lock_own_ended;
 
 /// Removal of a proven stale lock with its companions.
 pub mod stale_ref_lock_retire;

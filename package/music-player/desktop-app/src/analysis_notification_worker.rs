@@ -147,7 +147,10 @@ impl Worker {
         loop {
             let received = match self.machine.deadline() {
                 Some(due) => receiver.recv_timeout(due.saturating_duration_since(Instant::now())),
-                None => receiver.recv().map_err(|_| return RecvTimeoutError::Disconnected),
+                None => match receiver.recv() {
+                    Ok(input) => Ok(input),
+                    Err(_disconnected) => Err(RecvTimeoutError::Disconnected),
+                },
             };
             let now = Instant::now();
             let effects = match received {
@@ -175,7 +178,10 @@ impl Worker {
     fn on_signal(&mut self, now: Instant, signal: &BusSignal) -> Vec<Effect> {
         match signal {
             BusSignal::JobSuspend { sender, path } | BusSignal::JobResume { sender, path } => {
-                let ours = self.job.as_ref().is_some_and(|job| return job.owns(sender, path));
+                let ours = match self.job.as_ref() {
+                    Some(job) => job.owns(sender, path),
+                    None => false,
+                };
                 if !ours {
                     tracing::debug!(sender = %sender, path = %path, "job signal ignored: not our job");
                     return Vec::new();
@@ -184,7 +190,10 @@ impl Worker {
                 return self.machine.set_paused(now, pause);
             }
             BusSignal::ActionInvoked { sender, id, key } => {
-                let ours = self.notification.as_ref().is_some_and(|open| return open.owns(sender, *id));
+                let ours = match self.notification.as_ref() {
+                    Some(open) => open.owns(sender, *id),
+                    None => false,
+                };
                 if !ours {
                     tracing::debug!(id, "action ignored: not our notification");
                     return Vec::new();
@@ -199,7 +208,10 @@ impl Worker {
                 };
             }
             BusSignal::NotificationClosed { sender, id, reason } => {
-                let ours = self.notification.as_ref().is_some_and(|open| return open.owns(sender, *id));
+                let ours = match self.notification.as_ref() {
+                    Some(open) => open.owns(sender, *id),
+                    None => false,
+                };
                 if !ours || (*reason != CLOSED_BY_USER && *reason != CLOSED_BY_EXPIRY) {
                     tracing::debug!(id, reason, "close signal ignored: not ours or not a user action");
                     return Vec::new();
@@ -236,10 +248,12 @@ impl Worker {
                 );
                 self.job = None;
                 self.notification = None;
-                let mut kept: VecDeque<Effect> = queue
-                    .into_iter()
-                    .filter(|left| return matches!(left, Effect::SetEnginePause(_)))
-                    .collect();
+                let mut kept: VecDeque<Effect> = VecDeque::new();
+                for left in queue {
+                    if matches!(left, Effect::SetEnginePause(_)) {
+                        kept.push_back(left);
+                    }
+                }
                 kept.extend(self.machine.bus_failed());
                 queue = kept;
             }

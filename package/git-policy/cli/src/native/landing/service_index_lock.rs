@@ -41,7 +41,7 @@
 //! ```
 
 use crate::service_index_attempts::{Placing, wait_and_place};
-use crate::wait_ceilings::LOCK_CEILING;
+use crate::wait_ceilings::LANDING_LOCK_CEILING;
 use crate::service_protocol::FailureCode;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -254,7 +254,7 @@ pub fn acquire(index: &Path, seq: u64, announce: &dyn Announcer) -> Result<Index
 /// As `acquire`.
 pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Announcer, holder: &mut Option<String>) -> Result<IndexLock, LockFailure> {
     let mut notes: WaitNotes = WaitNotes::default();
-    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LOCK_CEILING, announce, &mut notes, None);
+    let taken: Result<IndexLock, LockFailure> = acquire_placing(&SYSTEM, index, seq, LANDING_LOCK_CEILING, announce, &mut notes, None);
     holder.clone_from(&notes.holder);
     return taken;
 }
@@ -278,7 +278,7 @@ pub fn acquire_noting_holder(index: &Path, seq: u64, announce: &dyn Announcer, h
 ///
 /// As `acquire`.
 pub fn acquire_noting_wait(index: &Path, seq: u64, announce: &dyn Announcer, notes: &mut WaitNotes) -> Result<IndexLock, LockFailure> {
-    return acquire_noting_wait_within(index, seq, LOCK_CEILING, announce, notes);
+    return acquire_noting_wait_within(index, seq, LANDING_LOCK_CEILING, announce, notes);
 }
 
 /// `acquire_noting_wait` that gives up on a foreign holder after `ceiling`.
@@ -304,7 +304,7 @@ pub fn acquire_noting_wait_within(index: &Path, seq: u64, ceiling: Duration, ann
 /// the log of the service says why a lock that could not be created or removed stays,
 /// and why a process with no birth identity takes none.
 pub fn acquire_on(platform: &Platform, index: &Path, seq: u64, announce: &dyn Announcer) -> Result<IndexLock, LockFailure> {
-    return acquire_placing(platform, index, seq, LOCK_CEILING, announce, &mut WaitNotes::default(), None);
+    return acquire_placing(platform, index, seq, LANDING_LOCK_CEILING, announce, &mut WaitNotes::default(), None);
 }
 
 /// `acquire_on` that gives up on a foreign holder after `ceiling`,

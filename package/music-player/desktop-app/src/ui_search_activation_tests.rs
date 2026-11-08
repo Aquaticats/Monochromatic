@@ -3,6 +3,7 @@
 // Why:      D127: a Search result that names a track follows the row click rule (D124): a track that is not current is
 //           only selected, the current track toggles play and pause, and a folder result still opens its folder.
 use super::*;
+use crate::ui_screen::{read_state, update_state};
 use crate::ui_test_support::fresh_window_at;
 use crate::ui_test_support::load_library;
 use music_player::search_matcher::SearchHighlight;

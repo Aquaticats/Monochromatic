@@ -74,11 +74,11 @@ pub fn playing_track(display_path: &str, place: usize, total: usize, measure: Op
 /// and each track's known measure.
 pub fn editor_library(names: &[String], measures: &HashMap<String, TrackMeasure>) -> Vec<PlayingTrackFields> {
     let total = names.len();
-    return names
-        .iter()
-        .enumerate()
-        .map(|(position, name)| return playing_track(name, position + 1, total, measures.get(name)))
-        .collect();
+    let mut library: Vec<PlayingTrackFields> = Vec::with_capacity(total);
+    for (position, name) in names.iter().enumerate() {
+        library.push(playing_track(name, position + 1, total, measures.get(name)));
+    }
+    return library;
 }
 
 /// What:
@@ -95,7 +95,10 @@ pub fn editor_library(names: &[String], measures: &HashMap<String, TrackMeasure>
 pub fn playing_subtitle(text: &str, track: &PlayingTrackFields) -> Option<String> {
     let fields = playing_template_fields();
     return match evaluate_template(text, track, &fields) {
-        music_player::template_model::TemplateResult::Shown(line) => Some(line.trim().to_string()).filter(|trimmed| return !trimmed.is_empty()),
+        music_player::template_model::TemplateResult::Shown(line) => {
+            let trimmed: String = line.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        }
         music_player::template_model::TemplateResult::Refused(_) => None,
     };
 }

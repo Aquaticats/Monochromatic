@@ -2560,6 +2560,24 @@ others of
 that batch hold none;
 a figure is a gap of some step of the service since the previous answer,
 not of one request.
+Every Git step a command or a landing starts is also listed with its duration (`src/native/transaction/transaction_step_durations.rs`):
+`steps` in the commit timing record (`name`,
+the program and the subcommand only;
+`offsetMs` from the command's start;
+`durationMs`) and `stepsDropped`,
+and `steps="<name>@<offset>+<duration>;..."` with `steps_dropped=<count>` at the end of the
+service's `answered` line (offsets from the request's acceptance,
+the steps since the previous answer,
+as with `quiet_steps`).
+The list is bounded by `MAX_STEP_RUNS` (64):
+the most one commit starts is `LANDING_ATTEMPTS` (3) times 17 Git starts (10 in the
+client and 7 in the service,
+counted with `strace` over ten commits on 2026-11-07),
+rounded up to a power of two.
+The commit Git builds in the scratch repository runs with the terminal attached and no watch,
+so its entry (`git commit`) is the
+only record of its time,
+signing included.
 The gateway call's total deadline is `ureq`'s `global` timeout,
 set to `REVIEW_CALL_CEILING`;
 the transport's other timeouts
@@ -2570,6 +2588,28 @@ the transport's other timeouts
 `src/config.rs`;
 only the one second wait for a `100 Continue`,
 which the call never sends).
+
+The commit service warms the compiled forbidden-strings rules (`src/native/landing/service_rules_precompile.rs`):
+after the first landing it sees for a repository,
+after a landing that changes a path of the rules,
+right after it starts for the repository named in `rules-repository` in its state directory,
+and on a `warm` message (`{"type":"warm","version":<n>,"gitDir":<absolute>,"repository":<absolute>}`,
+never answered).
+The work is a job of the blocking pool and never runs on the landing thread,
+and one warm runs at a time.
+The client sends `warm` only after `merge`,
+`pull`,
+`checkout`,
+`switch`,
+`rebase` or `reset` exits 0 and the digest of the rules text
+it would load changed,
+only to a service of that worktree that already runs (found by its start arguments),
+and never starts a process.
+The client keeps compiling on a cache miss.
+The waiting notice of the commit Git builds in the scratch repository names that `git commit`,
+signing,
+the signing program,
+and that the step has no time limit (`src/native/commit/native_commit_waiting_notice.rs`).
 
 ##### The quiet windows are labelled unmeasured
 
@@ -2655,12 +2695,49 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
+- `LANDING_LOCK_CEILING` 1 minute:
+  the landing waits for a foreign `index.lock` this long.
+  It is five times the longest wait for a foreign lock that ended because the holder let go (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
+  8 s,
+  the longest of ten landings that waited over a second in the `lock_wait_ms` of 3,634 answers since 2026-11-01),
+  in whole
+  minutes.
+  The only longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07).
+  The lock that outlasts one commit's wait is remembered by its file identity,
+  and the commits queued behind it are refused at once
+  instead of each waiting a ceiling (`src/native/landing/service_index_refused_lock.rs`).
+- `MERGE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING` 1 minute each:
+  the merge's wait for a foreign `index.lock` before it changes
+  anything,
+  and the wait of the index reconciliation after a commit's corrections removed every change.
+  Neither wait is logged
+  (they run in the client,
+  on the person's terminal),
+  so each takes the landing's measured ceiling:
+  the same kind of holder,
+  the only
+  sample there is.
+  The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
+  thread,
+  so only the landing has queued commits to spare it for;
+  each client command waits at most this long on its own.
+- `SETTLE_LOCK_CEILING` 1 minute:
+  the settling of an earlier service's open batches.
+  Five times the longest settle in the journal
+  since 2026-11-01 (`LONGEST_SETTLE_WAIT`,
+  172 ms of 3,630 settles,
+  99th percentile 20 ms),
+  in whole minutes.
+  The settle's whole time
+  holds any wait it made,
+  so the figure can only overstate it.
 - `LOCK_CEILING` 10 minutes,
-  unmeasured (no log holds a foreign holder):
-  the landing,
-  the merge and the index reconciliation
-  wait for a foreign `index.lock` this long.
-  It is below `ANSWER_CEILING` so the service answers first.
+  unmeasured:
+  no wait takes it.
+  It stays as the basis of `FOREIGN_OWNER_PATIENCE`
+  (`src/native/process/pid_namespace.rs`,
+  twice this),
+  which another change owns.
 - `SERVICE_HOLD_CEILING` 10 minutes:
   a forwarded `git add`,
   `rm` or `mv` waits for the service's hold,
@@ -2737,7 +2814,7 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 What happens at the bound,
 on the commit path:
 
-- The landing waits for a foreign `index.lock` until `LOCK_CEILING`.
+- The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
   At the bound the batch is withdrawn before the branch
   moved:
   its intent is removed from the journal,
@@ -2779,7 +2856,7 @@ on the commit path:
   unless it is a step that cannot be run twice,
   which
   has none.
-  The batch is withdrawn as at `LOCK_CEILING` (intent removed,
+  The batch is withdrawn as at `LANDING_LOCK_CEILING` (intent removed,
   commit kept on `refs/cli-git/kept/<batch>`,
   lock given up,
   failure `step-too-slow` with the step named),
@@ -2882,7 +2959,7 @@ on the commit path:
   Protocol messages are unchanged.
   A client that waits behind a hung write keeps the service busy only as long as the write lasts;
   nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `LOCK_CEILING`;
+- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`;
   at the bound it names the holder and ends the wait,
   and Git's own
   refusal ends the merge non-zero with nothing changed.
@@ -5325,7 +5402,7 @@ Each commit passes through three phases:
     and the batch is built again on the new tip (the attempts a branch that moves under a batch already had).
     A foreign holder of `index.lock` is waited for on an event watch of the Git directory,
     with the holder's line repeated at the interval of `CLI_GIT_WAIT_NOTICE_SECONDS`.
-    A holder proven alive and an owner nothing proves alive are waited for until `LOCK_CEILING`,
+    A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
     and a dead one not at all;
     either ends the commit before the branch moved,
     removing the batch's intent,
@@ -5887,7 +5964,7 @@ tells the person to remove it).
 It may be a Git that is mid-write,
 so nothing here removes it:
 a wrapped `git add` meets it as Git does,
-a landing waits for it until `LOCK_CEILING` and ends with `index_in_use`,
+a landing waits for it until `LANDING_LOCK_CEILING` and ends with `index_in_use`,
 and the words at the ceiling name the file and the command that clears it.
 A kill after the marker is written leaves the whole marker of a gone process,
 which the next landing removes where a claim file can be placed (any filesystem that offers a rename that does not replace or a hard link);

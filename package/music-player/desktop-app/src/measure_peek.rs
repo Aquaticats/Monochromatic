@@ -38,14 +38,18 @@ use crate::track_measure::{TrackMeasure, measure_from_decision};
 /// }
 /// ```
 pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure {
-    // What:     `let decision = fingerprint(path).and_then(|key| cache.get(key));`. Read the cached decision.
+    // What:     `let decision = match fingerprint(path) { Some(key) => cache.get(key), None => None };` reads the
+    //           cached decision of the file, or nothing when the file has no fingerprint.
     // Why:      A read is a single indexed lookup, so it is cheap on the sweep thread.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const decision = fingerprint(path) === null ? null : cache.get(fingerprint(path));
     // ```
-    let decision = peakcache::fingerprint(path).and_then(|key| return cache.get(key));
+    let decision = match peakcache::fingerprint(path) {
+        Some(key) => cache.get(key),
+        None => None,
+    };
     let measure = match decision {
         Some(found) => measure_from_decision(&found),
         None => TrackMeasure::default(),
@@ -80,10 +84,11 @@ pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure {
 /// const peekMeasures = (tracks: string[], cache: CacheHandle) => tracks.map((p) => [p, peekMeasure(p, cache)]);
 /// ```
 pub(crate) fn peek_measures(tracks: &[PathBuf], cache: &CacheHandle) -> Vec<(PathBuf, TrackMeasure)> {
-    return tracks
-        .iter()
-        .map(|path| return (path.clone(), peek_measure(path, cache)))
-        .collect();
+    let mut measures: Vec<(PathBuf, TrackMeasure)> = Vec::with_capacity(tracks.len());
+    for path in tracks {
+        measures.push((path.clone(), peek_measure(path, cache)));
+    }
+    return measures;
 }
 
 /// Unit tests of `measure_peek`,

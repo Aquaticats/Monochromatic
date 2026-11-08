@@ -16,7 +16,7 @@ use crate::template_model::DEFAULT_TRACK_TEMPLATE;
 #[test]
 fn default_template_shows_length_and_peak() {
     let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE);
-    assert_eq!(line(&analysed()), Some("4:35 \u{2212}0.3 dBTP".to_string()));
+    assert_eq!(line.evaluate(&analysed()), Some("4:35 \u{2212}0.3 dBTP".to_string()));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -24,7 +24,7 @@ fn default_template_shows_length_and_peak() {
 #[test]
 fn default_template_with_only_length_shows_duration() {
     let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE);
-    assert_eq!(line(&waiting()), Some("4:35".to_string()));
+    assert_eq!(line.evaluate(&waiting()), Some("4:35".to_string()));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -32,7 +32,7 @@ fn default_template_with_only_length_shows_duration() {
 #[test]
 fn default_template_with_neither_length_nor_peak_gives_none() {
     let line = supporting_line_from_template(DEFAULT_TRACK_TEMPLATE);
-    assert_eq!(line(&bare()), None);
+    assert_eq!(line.evaluate(&bare()), None);
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -41,7 +41,7 @@ fn default_template_with_neither_length_nor_peak_gives_none() {
 fn custom_template_joins_folder_and_file_fields() {
     let line = supporting_line_from_template("$mi(folder)$ / $mi(file)$");
     assert_eq!(
-        line(&analysed()),
+        line.evaluate(&analysed()),
         Some("Camellia / かめりあ(Camellia) - Another Xronixle".to_string())
     );
 }
@@ -51,7 +51,7 @@ fn custom_template_joins_folder_and_file_fields() {
 #[test]
 fn custom_template_keeps_text_outside_formulas() {
     let line = supporting_line_from_template("Now: $mi(title)$");
-    assert_eq!(line(&analysed()), Some("Now: Another Xronixle".to_string()));
+    assert_eq!(line.evaluate(&analysed()), Some("Now: Another Xronixle".to_string()));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -59,7 +59,7 @@ fn custom_template_keeps_text_outside_formulas() {
 #[test]
 fn shown_text_is_trimmed() {
     let line = supporting_line_from_template("  $mi(title)$  ");
-    assert_eq!(line(&analysed()), Some("Another Xronixle".to_string()));
+    assert_eq!(line.evaluate(&analysed()), Some("Another Xronixle".to_string()));
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -67,7 +67,7 @@ fn shown_text_is_trimmed() {
 #[test]
 fn whitespace_only_result_gives_none() {
     let line = supporting_line_from_template("  $mi(peak)$  ");
-    assert_eq!(line(&waiting()), None);
+    assert_eq!(line.evaluate(&waiting()), None);
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -75,7 +75,7 @@ fn whitespace_only_result_gives_none() {
 #[test]
 fn invalid_template_gives_none() {
     let line = supporting_line_from_template("$nosuch(mi(title))$");
-    assert_eq!(line(&analysed()), None);
+    assert_eq!(line.evaluate(&analysed()), None);
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -83,7 +83,7 @@ fn invalid_template_gives_none() {
 #[test]
 fn empty_template_gives_none() {
     let line = supporting_line_from_template("");
-    assert_eq!(line(&analysed()), None);
+    assert_eq!(line.evaluate(&analysed()), None);
 }
 
 // What:     `#[test]` marks the next function as a test case.
@@ -91,8 +91,8 @@ fn empty_template_gives_none() {
 #[test]
 fn one_function_reads_each_track_it_is_given() {
     let line = supporting_line_from_template("$mi(title)$");
-    assert_eq!(line(&analysed()), Some("Another Xronixle".to_string()));
-    assert_eq!(line(&waiting()), Some("Exit This Earth's Atomosphere".to_string()));
+    assert_eq!(line.evaluate(&analysed()), Some("Another Xronixle".to_string()));
+    assert_eq!(line.evaluate(&waiting()), Some("Exit This Earth's Atomosphere".to_string()));
 }
 
 // What:     Parsing the template once gives the lines that parsing it for every track gave.
@@ -108,7 +108,7 @@ fn parsing_once_gives_what_parsing_per_track_gave() {
                 TemplateResult::Shown(text) => Some(text.trim().to_string()).filter(|trimmed| return !trimmed.is_empty()),
                 TemplateResult::Refused(_) => None,
             };
-            assert_eq!(line(&track), expected, "template {template:?}");
+            assert_eq!(line.evaluate(&track), expected, "template {template:?}");
         }
     }
 }

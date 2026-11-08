@@ -30,6 +30,7 @@ import { join, } from 'node:path';
 import {
   KNOWN_TOOLS,
   fetchTool,
+  programOf,
   type PlatformNames,
   unpack,
 } from './repo-tools-setup-archives.ts';
@@ -135,7 +136,9 @@ async function installOneTool(
     'tool-',
   ),);
   if (!KNOWN_TOOLS.has(tool,)) {
-    sayOnStandardError(`::error::repo-tools-setup: unknown tool '${tool}'`,);
+    sayOnStandardError(
+      `::error::repo-tools-setup: unknown tool '${tool}'. The tools input takes names separated by blanks, from: ${[...KNOWN_TOOLS,].join(', ',)}.`,
+    );
     throw new StepExitError(1,);
   }
   await unpack({
@@ -146,7 +149,8 @@ async function installOneTool(
       work,
     },),
     binDirectory,
-    tool,
+    program: programOf(tool,),
+    archiveLabel: tool,
   },);
 }
 
@@ -170,7 +174,9 @@ async function installRepositoryTools(): Promise<void> {
    */
   const platform = PLATFORMS.get(runnerPlatform,);
   if (platform === undefined) {
-    sayOnStandardError(`::error::repo-tools-setup: no prebuilt archive for runner ${runnerPlatform}`,);
+    sayOnStandardError(
+      `::error::repo-tools-setup: no prebuilt archive for runner ${runnerPlatform}. The tools are published for ${[...PLATFORMS.keys(),].join(' and ',)} only; run the job on one of those runners.`,
+    );
     throw new StepExitError(1,);
   }
   /**

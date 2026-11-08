@@ -36,6 +36,7 @@
 /// ```
 use crate::wrapped_command_notices_snapshots_and_manual_push::{prepare_manual_push, record_escape_use, show_push_failures, snapshot_before_worktree_removal};
 use crate::action::ENGINE_FAILURE_EXIT_CODE;
+use crate::repository_link_answer::EXIT_GIT_FATAL;
 /// `git add` asks for what it would stage.
 use crate::candidate_prediction::CandidateRequest;
 use crate::command_options::OptionError;
@@ -279,6 +280,12 @@ fn prepare_guarded_command<F: RepositoryFacts>(
                 stderr,
             });
         }
+        Gate::RepositoryUnreachable(stderr) => {
+            return Err(WrappedOutcome::Exit {
+                code: EXIT_GIT_FATAL,
+                stderr,
+            });
+        }
     }
     let config: CliGitConfig = match load_identity_config(&location.identity) {
         Ok(loaded) => loaded.config,
@@ -384,6 +391,12 @@ fn recover_before_read_only<F: RepositoryFacts>(
         Gate::Stop(stderr) => {
             return Some(WrappedOutcome::Exit {
                 code: ENGINE_FAILURE_EXIT_CODE,
+                stderr,
+            });
+        }
+        Gate::RepositoryUnreachable(stderr) => {
+            return Some(WrappedOutcome::Exit {
+                code: EXIT_GIT_FATAL,
                 stderr,
             });
         }

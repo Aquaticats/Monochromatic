@@ -73,6 +73,20 @@ pub struct SweepGate {
 /// tests build their own gates and never touch this one.
 static SHARED: OnceLock<Arc<SweepGate>> = OnceLock::new();
 
+/// What:
+/// `new_shared_gate` makes the one gate that the whole process shares.
+/// Why:
+/// the shared slot is filled by the first caller,
+/// and the filling step is a function with no state of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const newSharedGate = (): SweepGate => new SweepGate();
+/// ```
+fn new_shared_gate() -> Arc<SweepGate> {
+    return Arc::new(SweepGate::new());
+}
+
 /// Methods of `SweepGate`.
 impl SweepGate {
     /// What:
@@ -92,7 +106,7 @@ impl SweepGate {
     /// Why:
     /// see `SHARED`.
     pub fn shared() -> Arc<SweepGate> {
-        return Arc::clone(SHARED.get_or_init(|| return Arc::new(SweepGate::new())));
+        return Arc::clone(SHARED.get_or_init(new_shared_gate));
     }
 
     /// What:

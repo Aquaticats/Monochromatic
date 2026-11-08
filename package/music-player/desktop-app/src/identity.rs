@@ -182,18 +182,8 @@ pub(crate) fn config_dir() -> Option<PathBuf> {
     // ```ts
     // const dirs = projectDirs(CONFIG_QUALIFIER, CONFIG_ORGANIZATION, CONFIG_APPLICATION);
     // ```
-    return directories::ProjectDirs::from(CONFIG_QUALIFIER, CONFIG_ORGANIZATION, CONFIG_APPLICATION)
-        // What:     `.map(|dirs| dirs.config_dir().to_path_buf())`. Runs only on `Some`.
-        //           `dirs.config_dir()` borrows a `&Path` from the temporary `dirs`, so
-        //           `.to_path_buf()` copies it into an owned `PathBuf` before `dirs`
-        //           drops. Tail expression -> return.
-        // Why:      Hand back an owned directory the callers can `.join(<filename>)`.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return dirs ? dirs.configDir : null;
-        // ```
-        .map(|dirs| return dirs.config_dir().to_path_buf())
+    let dirs = directories::ProjectDirs::from(CONFIG_QUALIFIER, CONFIG_ORGANIZATION, CONFIG_APPLICATION)?;
+    return Some(dirs.config_dir().to_path_buf())
 }
 
 /// What:

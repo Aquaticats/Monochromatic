@@ -44,7 +44,7 @@ function options({
   readonly environment?: Environment;
 }): LauncherOptions {
   return parseLauncherOptions({
-    argv: ['--task', '//p:t', '--tag-env', 'IMG_TAG', '--root', '/w', ...argv],
+    argv: ['--task', '//p:t', '--tag-env', 'IMG_TAG', '--image-repository', 'localhost/product-test', '--root', '/w', ...argv],
     environment,
     home: '/h',
     packageDirectory: '/repo/package/mutation-test/cli-cargo-mutants',

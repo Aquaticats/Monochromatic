@@ -200,18 +200,19 @@ impl TruePeakSource for DesktopSource {
     /// nextChunk() { try { return this.inner.nextChunk(); } catch (e) { throw decodeError(e); } }
     /// ```
     fn next_chunk(&mut self) -> Result<Vec<f32>, TruePeakError> {
-        // What:     `self.inner.next_chunk().map_err(|error| TruePeakError::Decode { ... })`.
-        //           Forward; `.map_err` rewraps a `PlayerError` as a crate decode error.
-        //           Tail -> return.
+        // What:     `match self.inner.next_chunk() { Ok(chunk) => Ok(chunk), Err(error) => Err(TruePeakError::Decode
+        //           { message: error.to_string() }) }` keeps a chunk and wraps a decoder failure as the decode error
+        //           with its text.
         // Why:      Keep the decoder's message while crossing the crate boundary.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // return mapErr(this.inner.nextChunk(), (e) => ({ kind: "decode", message: String(e) }));
         // ```
-        return self.inner
-            .next_chunk()
-            .map_err(|error| return TruePeakError::Decode { message: error.to_string() })
+        return match self.inner.next_chunk() {
+            Ok(chunk) => Ok(chunk),
+            Err(error) => Err(TruePeakError::Decode { message: error.to_string() }),
+        }
     }
 
     /// What:
@@ -257,17 +258,19 @@ impl TruePeakSource for DesktopSource {
         // const seconds = frame / rate;
         // ```
         let seconds = frame as f64 / f64::from(rate);
-        // What:     `self.inner.seek(seconds).map_err(|error| TruePeakError::Seek { ... })`.
-        //           Seek; rewrap a `PlayerError` as a crate seek error. Tail -> return.
+        // What:     `match self.inner.seek(seconds) { Ok(()) => Ok(()), Err(error) => Err(TruePeakError::Seek {
+        //           message: error.to_string() }) }` keeps a successful seek and wraps a decoder failure as the seek
+        //           error with its text.
         // Why:      Keep the decoder's message while crossing the crate boundary.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // return mapErr(this.inner.seek(seconds), (e) => ({ kind: "seek", message: String(e) }));
         // ```
-        return self.inner
-            .seek(seconds)
-            .map_err(|error| return TruePeakError::Seek { message: error.to_string() })
+        return match self.inner.seek(seconds) {
+            Ok(()) => Ok(()),
+            Err(error) => Err(TruePeakError::Seek { message: error.to_string() }),
+        }
     }
 }
 
@@ -287,16 +290,18 @@ impl TruePeakSource for DesktopSource {
 /// function openAdapter(path) { return new DesktopSource(decode.open(path)); }
 /// ```
 fn open_adapter(path: &Path) -> Result<DesktopSource, TruePeakError> {
-    // What:     `let inner = decode::open(path).map_err(|error| TruePeakError::Decode { ... })?;`.
-    //           Open the decoder; `?` propagates a rewrapped open error.
+    // What:     `let inner = match decode::open(path) { Ok(inner) => inner, Err(error) => return Err(...) };` opens
+    //           the file, or returns the decode error with the failure's text.
     // Why:      The adapter needs an open decoder to drive.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const inner = decode.open(path);
     // ```
-    let inner =
-        decode::open(path).map_err(|error| return TruePeakError::Decode { message: error.to_string() })?;
+    let inner = match decode::open(path) {
+        Ok(inner) => inner,
+        Err(error) => return Err(TruePeakError::Decode { message: error.to_string() }),
+    };
     // What:     `Ok(DesktopSource { inner })`. Wrap it. Tail -> return.
     // Why:      Hand back the adapter the resolver drives.
     //

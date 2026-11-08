@@ -104,8 +104,14 @@ impl Controller {
     /// ringQueuedFrames(): number { return framesOfSamples(this.producer?.length ?? 0, this.spec?.channels ?? 0); }
     /// ```
     pub(crate) fn ring_queued_frames(&self) -> u64 {
-        let channels = self.spec.as_ref().map_or(0, |s| return s.channels);
-        let queued_samples = self.producer.as_ref().map_or(0, |producer| return producer.occupied_len());
+        let channels = match self.spec.as_ref() {
+            Some(spec) => spec.channels,
+            None => 0,
+        };
+        let queued_samples = match self.producer.as_ref() {
+            Some(producer) => producer.occupied_len(),
+            None => 0,
+        };
         return frames_of_samples(queued_samples, channels)
     }
 
@@ -124,7 +130,10 @@ impl Controller {
     /// audibleSecs(): number { return this.clock.audibleSecs(this.ringQueuedFrames(), this.spec?.rate ?? 0); }
     /// ```
     pub(crate) fn audible_secs(&self) -> f64 {
-        let rate = self.spec.as_ref().map_or(0, |s| return s.rate);
+        let rate = match self.spec.as_ref() {
+            Some(spec) => spec.rate,
+            None => 0,
+        };
         return self.clock.audible_secs(self.ring_queued_frames(), rate)
     }
 
@@ -139,7 +148,10 @@ impl Controller {
     /// recordPushed(samplesPushed: number): void { this.clock.recordPushed(framesOfSamples(samplesPushed, channels)); }
     /// ```
     pub(crate) fn record_pushed(&mut self, samples_pushed: usize) {
-        let channels = self.spec.as_ref().map_or(0, |s| return s.channels);
+        let channels = match self.spec.as_ref() {
+            Some(spec) => spec.channels,
+            None => 0,
+        };
         self.clock.record_pushed(frames_of_samples(samples_pushed, channels));
     }
 
@@ -327,7 +339,10 @@ impl Controller {
     /// audibleSpec(): AudioSpec | null { return this.staged?.previousSpec ?? this.spec; }
     /// ```
     pub(crate) fn audible_spec(&self) -> Option<AudioSpec> {
-        return self.staged.as_ref().map(|staged| return staged.previous_spec).or(self.spec)
+        return match self.staged.as_ref() {
+            Some(staged) => Some(staged.previous_spec),
+            None => self.spec,
+        }
     }
 
     /// What:
@@ -348,7 +363,10 @@ impl Controller {
         if self.output.is_none() {
             return Duration::ZERO;
         }
-        let rate = self.audible_spec().map_or(0, |s| return s.rate);
+        let rate = match self.audible_spec() {
+            Some(spec) => spec.rate,
+            None => 0,
+        };
         return Duration::from_secs_f64(frames_to_secs(crate::output::FILL_FRAMES_FLOOR as u64, rate))
     }
 
@@ -367,10 +385,10 @@ impl Controller {
     /// idleParkTimeout(fallback: number): number { ... }
     /// ```
     pub(crate) fn idle_park_timeout(&self, fallback: Duration) -> Duration {
-        return self
-            .clock
-            .drain_wait(Instant::now(), self.drain_hold())
-            .map_or(fallback, |left| return left.max(Duration::from_millis(1)).min(fallback))
+        return match self.clock.drain_wait(Instant::now(), self.drain_hold()) {
+            Some(left) => left.max(Duration::from_millis(1)).min(fallback),
+            None => fallback,
+        }
     }
 
     /// What:

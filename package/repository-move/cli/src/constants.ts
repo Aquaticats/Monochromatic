@@ -174,3 +174,60 @@ export const STATUS_FAILURE_LIMIT = 80;
  `doc/planning/repository-on-the-860-drive.md`, section "The send plan".
  */
 export const CLONE_LIMIT_ALLOWANCE_BYTES = 13_038_362_624;
+
+/**
+ MiB of random data the fixture's main checkout holds: stage `f2-populate` writes it with `head --bytes`, and each worktree
+ holds a reflink of it, so one populated subvolume carries this much.
+ */
+export const FIXTURE_MAIN_DATA_MIB = 300;
+
+/**
+ Subvolumes the fixture populates: the main checkout and its two worktrees (a and b).
+ */
+export const FIXTURE_SUBVOLUME_COUNT = 3;
+
+/**
+ Copy sets the destination image still holds when the last fixture stage that writes one runs, each counted as a full set with
+ no extent sharing (the worst case): the first pass (`recv`), the final pass (`final`), the deadline stage's first pass on fresh
+ folders (`recv-f5a.*`), and one more for the partial receives and the corrupted-stream stage that leave folders until the images
+ are deleted.
+ */
+export const FIXTURE_COPY_SETS_KEPT = 4;
+
+/**
+ Free space in GiB every fixture copy keeps before it starts a transfer: the guard minimum the fixture stages pass as
+ `--min-free-gib`. One is the smallest the guard can state in whole GiB, and the fixture images are small.
+ */
+export const FIXTURE_GUARD_MIN_GIB = 1;
+
+/**
+ Margin on the fixture images' written size, in percent: the plan's own quarter margin on every size estimate
+ (`doc/planning/repository-on-the-860-drive.md`, section "Capacity policy").
+ */
+export const FIXTURE_IMAGE_MARGIN_PERCENT = 25;
+
+/**
+ Size in whole GiB of each fixture image: what the stages write (the populated data of every subvolume in every copy set kept)
+ plus the guard minimum, with the margin, rounded up. The images are sparse files, so the size costs nothing until written.
+
+ @returns the size in GiB
+
+ @example
+ ```ts
+ import { fixtureImageGiB, } from './constants.ts';
+
+ const size = fixtureImageGiB();
+ ```
+ */
+export function fixtureImageGiB(): number {
+  /**
+   MiB the fixture stages write, with no sharing between the copies.
+   */
+  const writtenMiB = FIXTURE_MAIN_DATA_MIB * FIXTURE_SUBVOLUME_COUNT
+    * FIXTURE_COPY_SETS_KEPT;
+  /**
+   GiB the stages write plus the free space the guard keeps.
+   */
+  const neededGiB = ((writtenMiB * BYTES_PER_MIB) / BYTES_PER_GIB) + FIXTURE_GUARD_MIN_GIB;
+  return Math.ceil(neededGiB * (1 + (FIXTURE_IMAGE_MARGIN_PERCENT / 100)),);
+}

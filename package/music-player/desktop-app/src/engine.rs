@@ -62,8 +62,6 @@ use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 /// // JoinHandle ~ a Worker + exit promise; Thread ~ a WorkerRef you can post "wake" to
 /// ```
 use std::thread::{self, JoinHandle, Thread};
-/// Imports the shared ownership type that hands the controller's shared state to the worker thread.
-use std::sync::Arc;
 
 /// What:
 ///      `use std::time::Duration;`.
@@ -714,8 +712,9 @@ fn run(
         tx: self_tx,
         worker: thread::current(),
     };
-    // What:     `controller.sweep_sink = Arc::new(move |report| sweep_sender.send(Command::SweepReport(report)));`.
-    //           Route every sweep and re-analysis report back through this engine's command channel.
+    // What:     `controller.sweep_sink = sink_from(move |report| sweep_sender.send(...));` wraps a callable that
+    //           owns a clone of the engine's command sender into the sink type: each report becomes a
+    //           `Command::SweepReport`.
     // Why:      Sweep threads cannot call the update callback, but they can send a command that wakes this loop.
     //
     // In TS you'd write (pseudocode):
@@ -723,7 +722,7 @@ fn run(
     // controller.sweepSink = (report) => selfSender.send({ kind: "sweepReport", report });
     // ```
     let sweep_sender = self_sender.clone();
-    controller.sweep_sink = Arc::new(move |report| return sweep_sender.send(Command::SweepReport(report)));
+    controller.sweep_sink = crate::sweep_report::sink_from(move |report| return sweep_sender.send(Command::SweepReport(report)));
     // What:     no `emit_source_root` here any more; `Command::NoLibrary` says "nothing to open" when that is true.
     // Why:      The old start-up signal said "no folder is open" before the launch had decided whether a saved folder or the
     //           music folder was about to open, so a library being read showed the "No folder is open" copy (EM1).

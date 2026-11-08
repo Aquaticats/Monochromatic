@@ -313,6 +313,43 @@ pub(crate) fn set_aside_pass(request: &InstallRequest, baseline: &[String], prod
     return Ok(lines);
 }
 
+/// What:
+/// `pub struct PolicyJudge<'a> { settings, registry, now }` is the judgement of a recovery by the policy:
+/// the settings,
+/// the registry,
+/// and the time the check reads.
+/// Why:
+/// A recovery takes its judgement as a value (`Judge`),
+/// and the installer and the updater pass this one instead of a closure that captured the three.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class PolicyJudge implements Judge { constructor(readonly settings: Settings, readonly registry: Registry, readonly now: number) {} }
+/// ```
+pub struct PolicyJudge<'a> {
+    /// The settings of the policy.
+    pub settings: &'a Settings,
+    /// The registry the versions are looked up in.
+    pub registry: &'a dyn Registry,
+    /// The time the check reads,
+    /// in seconds.
+    pub now: i64,
+}
+
+/// What:
+/// The implementation of `Judge` for `PolicyJudge`.
+/// Why:
+/// A recovery asks it for the findings on one root.
+impl crate::journal::Judge for PolicyJudge<'_> {
+    /// What:
+    /// Returns the policy findings for the versions `live` holds that `old` did not.
+    /// Why:
+    /// They are the refusals a recovery acts on.
+    fn judge(&self, old: &[LockSnapshot], live: &[LockSnapshot]) -> Vec<String> {
+        return policy_findings(self.settings, self.registry, self.now, old, live);
+    }
+}
+
 /// The policy findings for the registry versions `after` holds that `before` did not;
 /// used to judge a killed run's leftovers.
 pub fn policy_findings(settings: &Settings, registry: &dyn Registry, now: i64, before: &[LockSnapshot], after: &[LockSnapshot]) -> Vec<String> {

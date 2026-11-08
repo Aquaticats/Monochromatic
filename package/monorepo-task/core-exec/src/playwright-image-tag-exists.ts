@@ -31,6 +31,7 @@ import {
   request,
   tokenAddress,
   tokenOf,
+  tokenProblemOf,
 } from './playwright-image-registry-requests.ts';
 import {
   appendToRunnerFile,
@@ -158,7 +159,7 @@ async function requestBearer(
    */
   const bearer = await tokenOf(body,);
   if (bearer === '')
-    reportUnknown('The token response had no token',);
+    reportUnknown(await tokenProblemOf(body,),);
   return {
     granted: true,
     bearer,

@@ -807,6 +807,23 @@ fn startup_failed(_step: StartupStep, error: slint::PlatformError) -> anyhow::Er
 }
 
 /// What:
+/// `finish_step` gives the value of a startup step,
+/// or the startup failure for that step.
+/// Why:
+/// each step that can fail names itself in the failure the user sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function finishStep<T>(step: StartupStep, outcome: T | PlatformError): T { if (outcome instanceof PlatformError) throw startupFailed(step, outcome); return outcome; }
+/// ```
+fn finish_step<T>(step: StartupStep, outcome: Result<T, slint::PlatformError>) -> Result<T> {
+    return match outcome {
+        Ok(value) => Ok(value),
+        Err(error) => Err(startup_failed(step, error)),
+    };
+}
+
+/// What:
 ///      `fn main() -> Result<()>`.
 ///  The entry point.
 ///  The return type is
@@ -954,20 +971,19 @@ fn main() -> Result<()> {
         // ```
         let mut builder =
             Backend::builder().with_window_attributes_hook(launcher::set_window_app_id);
-        // What:     `let force_software = std::env::var("SLINT_BACKEND").map(|value| value.contains("software")).unwrap_or(false);`.
-        //           `var(...)` returns `Result<String, _>`; `.map(closure)` runs only
-        //           on `Ok`, testing whether the value contains "software";
-        //           `.unwrap_or(false)` extracts the `Ok(bool)` or SUBSTITUTES `false`
-        //           if the var was unset/non-UTF-8 (dropping the error).
+        // What:     `let force_software = match std::env::var("SLINT_BACKEND") { Ok(value) =>
+        //           value.contains("software"), Err(_) => false };` is true when the variable names the software
+        //           renderer. `var(...)` returns `Result<String, _>`, and an unset variable counts as false.
         // Why:      Honor the run task's software-renderer escape hatch.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const forceSoftware = (process.env.SLINT_BACKEND ?? "").includes("software");
         // ```
-        let force_software = std::env::var("SLINT_BACKEND")
-            .map(|value| return value.contains("software"))
-            .unwrap_or(false);
+        let force_software = match std::env::var("SLINT_BACKEND") {
+            Ok(value) => value.contains("software"),
+            Err(_error) => false,
+        };
         // What:     `if force_software { builder = builder.with_renderer_name("software"); }`.
         //           Reassign `builder` (allowed because it is `mut`) to one pinned to
         //           the software renderer by Slint winit's renderer token. This is
@@ -992,9 +1008,11 @@ fn main() -> Result<()> {
         // ```ts
         // const backend = builder.build(); // throws PlatformError on failure
         // ```
-        let backend = forced_failure(StartupStep::WindowSystem)
-            .and_then(|()| return builder.build())
-            .map_err(|error| return startup_failed(StartupStep::WindowSystem, error))?;
+        let built = match forced_failure(StartupStep::WindowSystem) {
+            Ok(()) => builder.build(),
+            Err(error) => Err(error),
+        };
+        let backend = finish_step(StartupStep::WindowSystem, built)?;
         // What:     `slint::platform::set_platform(Box::new(backend)).expect("no Slint platform should already be set");`.
         //           `Box::new(backend)` moves the backend onto the heap behind an
         //           owning pointer (the API wants a `Box<dyn Platform>` trait object;
@@ -1023,9 +1041,11 @@ fn main() -> Result<()> {
     // ```ts
     // const app = new AppWindow();
     // ```
-    let app = forced_failure(StartupStep::Window)
-        .and_then(|()| return AppWindow::new())
-        .map_err(|error| return startup_failed(StartupStep::Window, error))?;
+    let created = match forced_failure(StartupStep::Window) {
+        Ok(()) => AppWindow::new(),
+        Err(error) => Err(error),
+    };
+    let app = finish_step(StartupStep::Window, created)?;
     // What:     `app.global::<Theme>().set_scheme_override(color_scheme_from_env());`.
     //           Apply the color scheme override before the first frame.
     // Why:      Verification runs fix the scheme with MUSIC_PLAYER_COLOR_SCHEME; unset follows the system.
@@ -1289,19 +1309,19 @@ fn main() -> Result<()> {
                     play: cli.start_playing,
                 });
             } else {
-                // What:     `path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."))`.
-                //           The file's parent directory, or the current directory when the
-                //           path has no parent (a bare filename).
+                // What:     `let root = match path.parent() { Some(parent) => parent.to_path_buf(), None =>
+                //           PathBuf::from(".") };` is the folder that holds the path, or `.` for a path with no
+                //           parent.
                 // Why:      The parent folder is the Source Root for a single-file launch.
                 //
                 // In TS you'd write (pseudocode):
                 // ```ts
                 // const root = dirname(path) || ".";
                 // ```
-                let root = path
-                    .parent()
-                    .map(|p| return p.to_path_buf())
-                    .unwrap_or_else(|| return PathBuf::from("."));
+                let root = match path.parent() {
+                    Some(parent) => parent.to_path_buf(),
+                    None => PathBuf::from("."),
+                };
                 engine.send(Command::OpenRoot {
                     root,
                     select: Some(path),
@@ -1327,8 +1347,8 @@ fn main() -> Result<()> {
             // const session = Session.load();
             // ```
             let session = Session::load();
-            // What:     `let root = session.source_root.clone().filter(|r| r.is_dir());`. The
-            //           saved Source Root, kept only if it still exists as a directory.
+            // What:     `let root = match session.source_root.clone() { Some(saved) if saved.is_dir() =>
+            //           Some(saved), _ => None };` keeps the saved Source Root only when it is still a folder.
             // Why:      A missing root falls back to the music directory (and is replaced on
             //           the next save), so a non-directory root is treated as absent.
             //
@@ -1336,7 +1356,10 @@ fn main() -> Result<()> {
             // ```ts
             // const root = (session.sourceRoot && isDir(session.sourceRoot)) ? session.sourceRoot : null;
             // ```
-            let root = session.source_root.clone().filter(|r| return r.is_dir());
+            let root = match session.source_root.clone() {
+                Some(saved) if saved.is_dir() => Some(saved),
+                _ => None,
+            };
             // What:     `if let Some(saved_root) = root { ... } else if let Some(music_dir) = music_dir() { ... }`.
             //           Restore the saved root with its Selected Track and position, else
             //           restore the music directory carrying the saved settings but no
@@ -1393,11 +1416,14 @@ fn main() -> Result<()> {
     // What:     run the event loop, then close the indicator and release the sweep before the engine drops.
     // Why:      a Plasma job or notification must not outlive the app, and a sweep parked by Pause must not wait for a
     //           resume that can no longer come.
-    let run_result = forced_failure(StartupStep::EventLoop).and_then(|()| return app.run());
+    let run_result = match forced_failure(StartupStep::EventLoop) {
+        Ok(()) => app.run(),
+        Err(error) => Err(error),
+    };
     analysis_notifier.shutdown();
     unplayable_notifier.shutdown();
     SweepGate::shared().close();
-    run_result.map_err(|error| return startup_failed(StartupStep::EventLoop, error))?;
+    finish_step(StartupStep::EventLoop, run_result)?;
     return Ok(())
 }
 

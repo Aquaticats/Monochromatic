@@ -48,6 +48,8 @@ use super::error::ToolchainError;
 use super::launcher_chain::chain_problem;
 /// Imports what this module uses from `super::launcher_current_link`.
 use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
+/// Imports what this module uses from `super::repository_link_cause`.
+use super::repository_link_cause::{CHECK_DEADLINE, LinkVerdict, repository_link_verdict};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{Scope, ScopeKind};
 
@@ -236,6 +238,11 @@ pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, Too
 /// export function ensureLauncher(scope: Scope, tool: LockedTool, name: string, real: string): string
 /// ```
 pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) -> Result<PathBuf, ToolchainError> {
+    // A launcher folder under a repository whose link to the 860 drive does not resolve is never made:
+    // the plain message of the repository link check comes before any write.
+    if let LinkVerdict::NotReady { message } = repository_link_verdict(&scope.home, &scope.launcher_dir, CHECK_DEADLINE) {
+        return Err(ToolchainError::failure(message));
+    }
     if let Err(error) = fs::create_dir_all(&scope.launcher_dir) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", scope.launcher_dir.display())));
     }
@@ -349,6 +356,32 @@ fn refresh_stale_record(record: &LaunchRecord, program: &Path) -> Result<(), Too
 }
 
 /// What:
+/// Says on standard error why an unreadable lock file is unreadable when the cause is the repository's link to the 860 drive.
+/// Why:
+/// The launcher never blocks a run for an unreadable lock,
+/// so without this the version warning is dropped in silence.
+/// Nothing is asked unless the identity file exists and the lock file is under the repository it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// sayWhyTheLockIsUnreadable(lockFile)
+/// ```
+fn say_why_the_lock_is_unreadable(lock_file: &Path) {
+    let Some(home) = std::env::var_os("HOME") else {
+        return;
+    };
+    match repository_link_verdict(Path::new(&home), lock_file, CHECK_DEADLINE) {
+        LinkVerdict::NotReady { message } => {
+            eprintln!("mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway: {message}", lock_file.display());
+        }
+        LinkVerdict::CheckUnavailable { why } => {
+            eprintln!("mpm-shadow: warning: {} cannot be read, so the version check was skipped and the tool runs anyway; the cause is unknown: {why}", lock_file.display());
+        }
+        LinkVerdict::NotConfigured | LinkVerdict::Ready => {}
+    }
+}
+
+/// What:
 /// Runs a launcher:
 /// warns when the lock pins an older version than the one that runs,
 /// then becomes the real binary.
@@ -362,6 +395,9 @@ fn refresh_stale_record(record: &LaunchRecord, program: &Path) -> Result<(), Too
 /// ```
 pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
     let lock_text: Option<String> = fs::read_to_string(&record.lock_file).ok();
+    if lock_text.is_none() {
+        say_why_the_lock_is_unreadable(&record.lock_file);
+    }
     let launch: Launch = prepare_launch(record, lock_text.as_deref());
     if let Some(warning) = &launch.warning {
         eprintln!("mpm-shadow: warning: {warning}");

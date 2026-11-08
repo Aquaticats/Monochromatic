@@ -1033,16 +1033,16 @@ impl Controller {
                 // if (select) { /* preselect */ } else { /* normal open */ }
                 // ```
                 match select {
-                    // What:     `Some(sel) => { ... }`. Find `sel` in the scanned queue and
-                    //           select it; `position(|p| *p == sel)` returns the matching index
-                    //           or `None`.
+                    // What:     `Some(sel) => match self.queue.position_of_path(&sel) { ... }`. Find `sel` in the
+                    //           scanned queue and select it; `position_of_path` returns the matching index or
+                    //           `None`.
                     // Why:      Cue the file the launch named, loaded paused unless `play`.
                     //
                     // In TS you'd write (pseudocode):
                     // ```ts
                     // const idx = tracks.indexOf(sel);
                     // ```
-                    Some(sel) => match self.queue.tracks().iter().position(|p| return *p == sel) {
+                    Some(sel) => match self.queue.position_of_path(&sel) {
                         // What:     `Some(idx) => { ... }`. The file is in the scan: select,
                         //           load, and play only when `play` AND the load succeeded.
                         // Why:      A preselected file is cued; `--start-playing` plays it.
@@ -1324,7 +1324,11 @@ impl Controller {
                 // const idx = selected ? tracks.indexOf(selected) : -1;
                 // if (idx >= 0) this.queue.playIndex(idx); else this.queue.clearSelection();
                 // ```
-                match selected.and_then(|sel| return self.queue.tracks().iter().position(|p| return *p == sel)) {
+                let saved_position: Option<usize> = match selected {
+                    Some(sel) => self.queue.position_of_path(&sel),
+                    None => None,
+                };
+                match saved_position {
                     // What:     `Some(idx) => { self.queue.play_index(idx); }`. The saved track
                     //           is present: select it (rebuilding the scope around it).
                     // Why:      Resume where the user left off.

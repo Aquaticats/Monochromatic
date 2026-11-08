@@ -49,9 +49,10 @@ pub struct Notice {
 /// a message names the file,
 /// not its long folder path.
 pub fn file_name_text(path: &Path) -> String {
-    return path
-        .file_name()
-        .map_or_else(|| return path.display().to_string(), |name| return name.to_string_lossy().into_owned());
+    return match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => path.display().to_string(),
+    };
 }
 
 /// What:
@@ -106,7 +107,12 @@ impl Ledger {
     /// and a file
     /// named twice in one report is counted once.
     pub fn admit(&mut self, paths: &[PathBuf]) -> Option<Notice> {
-        let fresh: Vec<PathBuf> = paths.iter().filter(|path| return self.announced.insert((*path).clone())).cloned().collect();
+        let mut fresh: Vec<PathBuf> = Vec::new();
+        for path in paths {
+            if self.announced.insert(path.clone()) {
+                fresh.push(path.clone());
+            }
+        }
         if fresh.is_empty() {
             tracing::debug!(files = paths.len(), "no unplayable file is new; no notification is made");
             return None;

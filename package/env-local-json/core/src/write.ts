@@ -44,6 +44,7 @@ import {
   EnvLocalJsonWriteError,
 } from './errors.ts';
 import { isNonBlank, } from './environment.ts';
+import { repositoryLinkCause, } from './repository-link-cause.ts';
 import { resolveSopsExecutable, } from './sops-executable.ts';
 import { runSopsSet, } from './sops.ts';
 import { assertSopsEnvelope, } from './store-shape.ts';
@@ -273,9 +274,11 @@ async function applyEntriesSequentially({
 async function canonicalExistingStore({
   path,
   cwd,
+  home,
 }: {
   readonly path: string;
   readonly cwd: string;
+  readonly home: string;
 },): Promise<string> {
   /**
    Absolute store path resolved against the caller's directory.
@@ -309,6 +312,10 @@ async function canonicalExistingStore({
     throw new EnvLocalJsonPathError({
       path,
       reason: 'missing',
+      linkCause: await repositoryLinkCause({
+        path: absolute,
+        home,
+      },),
     },);
   }
 }
@@ -412,6 +419,7 @@ export async function writeEnvLocalJsonValues({
    */
   const storePath = await canonicalExistingStore({
     cwd: process.cwd(),
+    home,
     path,
   },);
   /**

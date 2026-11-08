@@ -517,12 +517,11 @@ pub fn trust_problems(
             record.repository, previous.num, previous.repository
         ));
     }
-    return problems
-        .into_iter()
-        .map(|problem| {
-            return format!(
-                "{problem}; review the release, then add \"{name}@{version}\" to trustPolicyExclude in rust-catalog.toml if it is legitimate"
-            );
-        })
-        .collect();
+    let mut worded: Vec<String> = Vec::new();
+    for problem in problems {
+        worded.push(format!(
+            "{problem}; review the release, then add \"{name}@{version}\" to trustPolicyExclude in rust-catalog.toml if it is legitimate"
+        ));
+    }
+    return worded;
 }

@@ -21,6 +21,7 @@ import { join, } from 'node:path';
 import {
   jsonAt,
   rawJsonTextOrEmpty,
+  readTextIfPresent,
   requiredEnvironment,
   runProgram,
   withoutTrailingLineBreaks,
@@ -360,6 +361,34 @@ export async function tokenOf(path: string,): Promise<string> {
     value: await readResponse(path,),
     keys: ['token',],
   },),);
+}
+
+/**
+ Says why a token response gave no token, for the message that tells the owner what the registry answered.
+
+ @param path - File the response was written into
+
+ @returns A sentence about the response: empty, not JSON, or JSON without a usable `token`
+
+ @example
+ ```ts
+ const reason = await tokenProblemOf(path,);
+ ```
+ */
+export async function tokenProblemOf(path: string,): Promise<string> {
+  /**
+   The response text; a missing file reads as empty.
+   */
+  const text = await readTextIfPresent(path,);
+  if (text.trim() === '')
+    return 'The token response was empty';
+  try {
+    JSON.parse(text,);
+  }
+  catch (error) {
+    return `The token response was not JSON (${String(error,)})`;
+  }
+  return 'The token response is JSON but has no token field with a value';
 }
 
 /**

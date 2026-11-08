@@ -25,6 +25,9 @@
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders};
 /// Process start times.
 use crate::process_start::{ProcessStart, resolve_process_start};
+/// The sentences about a live holder and the summary of what a scan could not see.
+pub use crate::index_lock_holder_words::holder_way_out;
+use crate::index_lock_holder_words::partial_summary;
 /// Git's PID file path.
 use crate::recovery_files::lock_pid_path;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -484,7 +487,7 @@ pub fn proven_holder_progress_line(pid: i64, by_descriptor: bool, command: Optio
 fn evidence_words(evidence: &Evidence) -> String {
     let descriptors: String = match &evidence.holders {
         Some(scan) if scan.partial.is_empty() => String::from("no process has the lock open"),
-        Some(scan) => format!("no process the scan could see has the lock open (the scan could not see everything: {})", scan.partial.join("; ")),
+        Some(scan) => format!("no process the scan could see has the lock open (the scan could not see everything: {})", partial_summary(scan.partial.as_slice())),
         None => String::from("the open descriptors were not scanned"),
     };
     let pid_file: String = match &evidence.pid_file {

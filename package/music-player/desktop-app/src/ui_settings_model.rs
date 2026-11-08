@@ -103,7 +103,12 @@ pub fn kind_of_index(index: usize) -> Option<TemplateKind> {
 /// Why:
 /// the window marks the row of the template the editor is open on as the selected one.
 pub fn index_of_kind(kind: TemplateKind) -> usize {
-    return TemplateKind::all().iter().position(|candidate| return *candidate == kind).unwrap_or(0);
+    for (position, candidate) in TemplateKind::all().iter().enumerate() {
+        if *candidate == kind {
+            return position;
+        }
+    }
+    return 0;
 }
 
 /// What:
@@ -125,14 +130,15 @@ pub fn icon_name(kind: TemplateKind) -> &'static str {
 /// each row shows the applied line for the first preview track;
 /// a template that no longer applies shows an empty line.
 pub fn settings_rows(editor: &TemplateEditorState) -> Vec<SettingsRow> {
-    return TemplateKind::all()
-        .into_iter()
-        .map(|kind| return SettingsRow {
+    let mut rows: Vec<SettingsRow> = Vec::new();
+    for kind in TemplateKind::all() {
+        rows.push(SettingsRow {
             label: kind.label().to_string(),
             line: editor.settings_line(kind).unwrap_or_default(),
             icon: icon_name(kind),
-        })
-        .collect();
+        });
+    }
+    return rows;
 }
 
 /// What:
@@ -143,26 +149,37 @@ pub fn settings_rows(editor: &TemplateEditorState) -> Vec<SettingsRow> {
 /// help and fields from one state read.
 pub fn editor_view(editor: &TemplateEditorState) -> EditorView {
     let help = editor.help();
+    let preview: Vec<(String, String)> = match editor.preview_rows() {
+        Ok(rows) => {
+            let mut pairs: Vec<(String, String)> = Vec::with_capacity(rows.len());
+            for row in rows {
+                pairs.push((row.title, row.supporting));
+            }
+            pairs
+        }
+        Err(_error) => Vec::new(),
+    };
+    let (help_signature, help_description) = match help.as_ref() {
+        Some(value) => (value.signature.to_string(), value.description.clone()),
+        None => (String::new(), String::new()),
+    };
+    let mut fields: Vec<EditorField> = Vec::new();
+    for field in editor.fields() {
+        fields.push(EditorField {
+            label: field.label.to_string(),
+            insert: field.insert,
+            value: field.value,
+        });
+    }
     return EditorView {
         title: editor.kind().label().to_string(),
         text: editor.text().to_string(),
-        preview: editor
-            .preview_rows()
-            .map(|rows| return rows.into_iter().map(|row| return (row.title, row.supporting)).collect())
-            .unwrap_or_default(),
+        preview,
         mistakes: editor.mistake_lines(),
-        help_signature: help.as_ref().map_or_else(String::new, |value| return value.signature.to_string()),
-        help_description: help.as_ref().map_or_else(String::new, |value| return value.description.clone()),
+        help_signature,
+        help_description,
         has_help: help.is_some(),
-        fields: editor
-            .fields()
-            .into_iter()
-            .map(|field| return EditorField {
-                label: field.label.to_string(),
-                insert: field.insert,
-                value: field.value,
-            })
-            .collect(),
+        fields,
         notes: vec![editor.source_note().to_string()],
         kept_note: editor.kept_note().map_or_else(String::new, str::to_string),
         can_reset: editor.can_reset(),

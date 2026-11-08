@@ -305,9 +305,8 @@ pub(crate) fn cache_identity() -> CacheIdentity {
 /// }
 /// ```
 fn db_path() -> Option<PathBuf> {
-    // What:     `identity::config_dir().map(|dir| dir.join("decisions.db"))`. Append the
-    //           database filename to the shared config directory when present. Tail
-    //           -> return.
+    // What:     `let dir = identity::config_dir()?;` returns `None` when there is no config folder, and
+    //           `Some(dir.join("decisions.db"))` appends the database file name.
     // Why:      Same directory the session uses, so the containerized run's config volume
     //           persists it and it never pollutes the source tree.
     //
@@ -316,7 +315,8 @@ fn db_path() -> Option<PathBuf> {
     // const dir = configDir();
     // return dir ? join(dir, "decisions.db") : null;
     // ```
-    return identity::config_dir().map(|dir| return dir.join("decisions.db"))
+    let dir = identity::config_dir()?;
+    return Some(dir.join("decisions.db"))
 }
 
 /// What:

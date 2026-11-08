@@ -84,10 +84,12 @@ impl KeyboardPlatform {
     ///
     /// Returns `KeymapError::UnknownPlatform` when no stored name equals `text`.
     pub fn from_name(text: &str) -> Result<Self, KeymapError> {
-        return Self::ALL
-            .into_iter()
-            .find(|platform| return platform.stored_name() == text)
-            .ok_or(KeymapError::UnknownPlatform);
+        for platform in Self::ALL {
+            if platform.stored_name() == text {
+                return Ok(platform);
+            }
+        }
+        return Err(KeymapError::UnknownPlatform);
     }
 }
 

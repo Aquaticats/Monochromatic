@@ -18,6 +18,8 @@
 //! export async function setAsideUntilClean(args): Promise<string[]>  // warnings
 //! ```
 
+/// The owned path type of the directory a recorded cargo command runs in.
+use std::path::PathBuf;
 /// Imports `RefCell`,
 /// a list or value that can be changed through a shared reference;
 /// it holds the record of the lockfiles this run wrote.
@@ -65,7 +67,7 @@ use monochromatic_dependency_catalog::Settings;
 /// ```ts
 /// import { CargoRunner } from 'crate/cargo_run';
 /// ```
-use crate::cargo_run::CargoRunner;
+use crate::cargo_run::{CargoOutcome, CargoRunner};
 /// What:
 /// `use crate::checks::{TrustRefusal, group_by_name, trust_refusals};` imports `TrustRefusal`,
 /// `group_by_name`,
@@ -231,6 +233,60 @@ pub struct SetAsideRequest<'a> {
     /// every successful `--precise` move is added,
     /// so a rollback knows the root is this run's own.
     pub produced: &'a RefCell<Vec<LockSnapshot>>,
+}
+
+/// What:
+/// `struct RunnerWork<'a> { runner, directory, args }` is the work of running one cargo command through a runner in a crate root.
+/// Why:
+/// `run_recording` takes the work as a value,
+/// and this holds what the closure that stood here captured.
+struct RunnerWork<'a> {
+    /// The runner that starts cargo.
+    runner: &'a dyn CargoRunner,
+    /// The directory cargo runs in.
+    directory: PathBuf,
+    /// The arguments of the cargo command.
+    args: &'a [String],
+}
+
+/// What:
+/// The implementation of `RecordedWork` for `RunnerWork`.
+/// Why:
+/// `run_recording` runs it between its before and after observations.
+impl crate::file_owner::RecordedWork<Result<CargoOutcome, String>> for RunnerWork<'_> {
+    /// What:
+    /// Runs the command through the runner.
+    /// Why:
+    /// The result is the one the closure returned.
+    fn run(self) -> Result<CargoOutcome, String> {
+        return self.runner.run(&self.directory, self.args);
+    }
+}
+
+/// What:
+/// `fn locks_key(versions: &[LockedVersion], key: &str) -> bool` says whether any locked version has the key.
+/// Why:
+/// A loop replaces the `any` closure that captured the key.
+fn locks_key(versions: &[LockedVersion], key: &str) -> bool {
+    for locked in versions {
+        if locked.key() == key {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+/// `fn is_pending(pending: &[TrustRefusal], refusal: &TrustRefusal) -> bool` says whether a refusal of the same name and version is already pending.
+/// Why:
+/// A loop replaces the `any` closure that captured the refusal.
+fn is_pending(pending: &[TrustRefusal], refusal: &TrustRefusal) -> bool {
+    for known in pending {
+        if known.name == refusal.name && known.version == refusal.version {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -562,7 +618,7 @@ fn crates_locking(snapshots: &[LockSnapshot], key: &str) -> Vec<String> {
             // ```ts
             // for (const item of list) { ... }  // or list.map(...)
             // ```
-            && versions.iter().any(|locked| { return locked.key() == key; })
+            && locks_key(&versions, key)
         {
             // `.clone()`: an independent owned copy.
             dirs.push(snapshot.crate_dir.clone());
@@ -615,7 +671,7 @@ fn move_crate(request: &SetAsideRequest, crate_dir: &str, refused: &TrustRefusal
             // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
             // Borrow `&request.root.join`: lends the value without copying or giving it away.
             // `.map_err(...)`: converts the callee's error into this function's error type.
-            run_recording(request.root, crate_dir, request.produced, || { return request.runner.run(&request.root.join(crate_dir), &args); }).map_err(text_of)?;
+            run_recording(request.root, crate_dir, request.produced, RunnerWork { runner: request.runner, directory: request.root.join(crate_dir), args: &args }).map_err(text_of)?;
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         let outcome = ran?;
         if outcome.ok {
@@ -699,14 +755,19 @@ pub fn set_aside_until_clean(request: &SetAsideRequest) -> Result<Vec<String>, S
         for refusal in trust_refusals(&added, request.settings, request.registry, request.now).map_err(message_of)? {
             // Closure `|known|`: an anonymous function, like a TS arrow function.
             // Iterator step (`.iter()`/`.into_iter()`/`.cloned()`): walks the collection by reference or copies the items.
-            if !pending.iter().any(|known| { return known.name == refusal.name && known.version == refusal.version; }) {
+            if !is_pending(&pending, &refusal) {
                 pending.push(refusal);
             }
         }
         // Closure `|refusal|`: an anonymous function, like a TS arrow function.
         // Borrow `&format`: lends the value without copying or giving it away.
         // Macro `format!`: builds or prints text (or a list) from a template.
-        pending.retain(|refusal| { return !rejected.contains(&format!("{}@{}", refusal.name, refusal.version)); });
+        let held: Vec<TrustRefusal> = std::mem::take(&mut pending);
+        for refusal in held {
+            if !rejected.contains(&format!("{}@{}", refusal.name, refusal.version)) {
+                pending.push(refusal);
+            }
+        }
         if pending.is_empty() {
             break;
         }

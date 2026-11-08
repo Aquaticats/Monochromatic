@@ -386,3 +386,51 @@ fn a_young_lock_of_an_ended_child_does_not_wait_out_the_margin() {
 }
 
 //endregion
+
+/// A lock whose pid file named a running member when the wrapper claimed it goes once that member has ended,
+/// though the pid file
+///  is gone:
+/// Git's handler removes the pid file first,
+/// and a kill between the two unlinks left nothing else to name the holder.
+#[test]
+fn a_claimed_lock_goes_with_its_holder_though_the_pid_file_went_first() {
+    let repo: Repo = repo("sweep-claimed-lock");
+    let lock: PathBuf = lock_of(&repo, "main");
+    std::fs::write(&lock, b"0123456789abcdef0123456789abcdef01234567\n").expect("lock");
+    let (member, mut child) = running_member();
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    let claimed: LockLedger = ledger_of(&repo).claiming(std::slice::from_ref(&member));
+    // The cut: the pid file is removed and the holder is killed before it removes the lock.
+    std::fs::remove_file(pid_file_of(&repo, "main")).expect("the pid file goes first");
+    child.kill().expect("kill the holder");
+    child.wait().expect("reap the holder");
+    let removed: Vec<PathBuf> = claimed.sweep(std::slice::from_ref(&member));
+    assert_eq!(removed, vec![lock.clone()]);
+    assert!(!lock.exists());
+    remove(repo.root.as_path());
+}
+
+/// A lock that was claimed for a member that still runs is not removed,
+/// and neither is a lock another Git made at the same path
+///  after the claim.
+#[test]
+fn a_claimed_lock_stays_while_its_holder_runs_and_when_another_git_replaced_it() {
+    let repo: Repo = repo("sweep-claimed-lock-replaced");
+    let lock: PathBuf = lock_of(&repo, "main");
+    std::fs::write(&lock, b"0123456789abcdef0123456789abcdef01234567\n").expect("lock");
+    let (member, mut child) = running_member();
+    write_pid_file(pid_file_of(&repo, "main").as_path(), member.pid);
+    let claimed: LockLedger = ledger_of(&repo).claiming(std::slice::from_ref(&member));
+    std::fs::remove_file(pid_file_of(&repo, "main")).expect("the pid file goes first");
+    // The holder still runs: nothing is removed.
+    assert!(claimed.sweep(std::slice::from_ref(&member)).is_empty());
+    assert!(lock.exists());
+    // The holder ends, and another Git has made the lock again by then: it is another file, so it stays.
+    child.kill().expect("kill the holder");
+    child.wait().expect("reap the holder");
+    std::fs::remove_file(&lock).expect("the first lock goes");
+    std::fs::write(&lock, b"fedcba9876543210fedcba9876543210fedcba98\n").expect("another Git's lock");
+    assert!(claimed.sweep(std::slice::from_ref(&member)).is_empty());
+    assert!(lock.exists());
+    remove(repo.root.as_path());
+}

@@ -408,66 +408,28 @@ impl Disk for RealDisk {
                 return Vec::new();
             }
         };
-        // What:     `return listing.flatten().filter_map(|entry| { ... }).collect();` is one chain of lazy steps. `.flatten()`
-        //           turns the listing's items (each a `Result` that may have failed) into just the successful entries,
-        //           dropping the failed ones. `.filter_map(|entry| ...)` runs the closure on each entry and keeps the
-        //           `Some` results; `|entry| ...` is a closure, a function whose parameters sit between the bars.
-        //           `.collect()` gathers the kept values into the method's return type, `Vec<(PathBuf, EntryKind)>`.
+        // What:     The loop below visits each readable entry of the listing (`.flatten()` drops the entries that
+        //           failed to read) and keeps a `(path, kind)` pair for every file and folder; an entry whose type
+        //           cannot be read, and every entry the queue does not list, is skipped.
         // Why:      One pass over the folder produces exactly the pairs the planner needs, and an unreadable entry is
         //           skipped instead of stopping the pass.
-        // Gotcha:   Nothing runs until `.collect()` pulls the values through; the steps before it only describe the work.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // return readdirSync(folder, { withFileTypes: true }).flatMap((entry) => { ...; return kind !== "Other" ? [[path, kind]] : []; });
         // ```
-        return listing
-            .flatten()
-            .filter_map(|entry| {
-                // What:     `let file_type = entry.file_type().ok()?;` asks the entry for its type. `file_type()` answers a
-                //           `Result`; `.ok()` converts it to an `Option` (`Some(value)` on success, `None` on failure,
-                //           dropping the error); and the trailing `?` leaves the closure early with `None` when the
-                //           `Option` is `None`, otherwise unwraps the value.
-                // Why:      An entry whose type cannot be read is skipped, which in this `filter_map` means `None`.
-                // Gotcha:   `?` is early return, not an optional-chaining dot as in TypeScript's `a?.b`.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const fileType = tryFileType(entry); if (fileType == null) return null;
-                // ```
-                let file_type = entry.file_type().ok()?;
-                // What:     `let path: PathBuf = entry.path();` takes the entry's full path as an owned `PathBuf`.
-                // Why:      The pair that is returned must own its path, because the entry is dropped at the end of the
-                //           closure.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const path: string = entry.path;
-                // ```
-                let path: PathBuf = entry.path();
-                // What:     `let kind: EntryKind = kind_of(&path, file_type);` classifies the entry. `&path` lends the path
-                //           read-only, so `path` can still be moved into the returned pair afterwards.
-                // Why:      The classification decides whether the entry is kept.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // const kind: EntryKind = kindOf(path, fileType);
-                // ```
-                let kind: EntryKind = kind_of(&path, file_type);
-                // What:     `return (kind != EntryKind::Other).then_some((path, kind));` turns a condition into an optional
-                //           value. `bool.then_some(x)` answers `Some(x)` when the bool is true and `None` when it is false.
-                //           `(path, kind)` is a tuple that moves `path` into the pair. `!=` is TypeScript's `!==`.
-                // Why:      Entries the queue does not list are dropped; the rest become `(path, kind)` pairs.
-                // Gotcha:   `then_some` builds its argument even when the bool is false (the pair is cheap); `.then(|| ...)`
-                //           would defer it.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // return kind !== "Other" ? [path, kind] : null;
-                // ```
-                return (kind != EntryKind::Other).then_some((path, kind));
-            })
-            .collect();
+        let mut found: Vec<(PathBuf, EntryKind)> = Vec::new();
+        for entry in listing.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            let path: PathBuf = entry.path();
+            let kind: EntryKind = kind_of(&path, file_type);
+            if kind != EntryKind::Other {
+                found.push((path, kind));
+            }
+        }
+        return found;
     }
 
     /// What:
@@ -481,21 +443,17 @@ impl Disk for RealDisk {
     /// walk(folder: string): string[] { return scanStreaming(folder, Infinity, () => {}); }
     /// ```
     fn walk(&self, folder: &Path) -> Vec<PathBuf> {
-        // What:     `return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut |_batch| {});` runs the same walk the
-        //           first scan uses. `usize::MAX` is the largest value of `usize` (the unsigned integer that indexes
-        //           memory; siblings: `u32`, `u64`), used as "never report a batch". `&mut |_batch| {}` is a closure that
-        //           does nothing, lent mutably (`&mut`) because the function expects a callback it may call repeatedly.
-        //           The `_` in `_batch` marks the parameter as deliberately unused. The path
-        //           `crate::scan_stream::scan_streaming` is spelled in full because it was not imported.
+        // What:     `return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut
+        //           crate::scan_stream::ignore_batch);` runs the same walk the first scan uses. `usize::MAX` is a
+        //           batch size so large that no batch is ever reported, and `ignore_batch` is the named function
+        //           that takes the batches this caller does not want.
         // Why:      Reusing the walk keeps the planner and the first scan listing exactly the same tracks; the empty
         //           callback is there because this caller wants no progress reports.
-        // Gotcha:   `usize::MAX` is a plain number (the way `Infinity` is in TypeScript, but finite); a batch size that
-        //           large simply never fills.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // return scanStreaming(folder, Number.MAX_SAFE_INTEGER, () => {});
         // ```
-        return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut |_batch| {});
+        return crate::scan_stream::scan_streaming(folder, usize::MAX, &mut crate::scan_stream::ignore_batch);
     }
 }

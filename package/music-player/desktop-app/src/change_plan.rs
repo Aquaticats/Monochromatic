@@ -544,28 +544,36 @@ impl Planner<'_> {
         // const entries: [string, EntryKind][] = this.disk.entries(folder);
         // ```
         let entries: Vec<(PathBuf, EntryKind)> = self.disk.entries(folder);
-        // What:     `let on_disk_files: HashSet<&Path> = entries.iter().filter(...).map(...).collect();` builds the set of file paths.
-        //           `.iter()` walks the list by reference, `.filter(|(_, kind)| ...)` keeps the items whose closure answers true
-        //           (the closure's parameter takes the tuple apart and ignores the path with `_`), `.map(|(path, _)| ...)` turns each
-        //           kept item into a borrowed path, and `.collect()` gathers them into the type the annotation names. `*kind` reads the
-        //           kind through its reference, and `path.as_path()` borrows the owned path as a `&Path`.
+        // What:     `let mut on_disk_files: HashSet<&Path> = HashSet::new();` and the loop below it build the set of
+        //           file paths: each entry whose kind is `Track` is inserted as a borrowed `&Path`
+        //           (`path.as_path()`), and `*kind` reads the kind through its reference.
         // Why:      Membership questions are asked many times, which a set answers in constant time. The set borrows from `entries`,
         //           so no path is copied.
-        // Gotcha:   Iterator steps are lazy; nothing runs until `.collect()` pulls the items through.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const onDiskFiles = new Set(entries.filter(([, kind]) => kind === EntryKind.Track).map(([path]) => path));
         // ```
-        let on_disk_files: HashSet<&Path> = entries.iter().filter(|(_, kind)| return *kind == EntryKind::Track).map(|(path, _)| return path.as_path()).collect();
-        // What:     `let on_disk_folders: HashSet<&Path> = ...;` is the same chain for the entries that are folders.
+        let mut on_disk_files: HashSet<&Path> = HashSet::new();
+        for (path, kind) in entries.iter() {
+            if *kind == EntryKind::Track {
+                on_disk_files.insert(path.as_path());
+            }
+        }
+        // What:     `let mut on_disk_folders: HashSet<&Path> = HashSet::new();` and its loop build the set of folder
+        //           paths the same way, for the entries whose kind is `Folder`.
         // Why:      Subfolders are compared by their own set.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // const onDiskFolders = new Set(entries.filter(([, kind]) => kind === EntryKind.Folder).map(([path]) => path));
         // ```
-        let on_disk_folders: HashSet<&Path> = entries.iter().filter(|(_, kind)| return *kind == EntryKind::Folder).map(|(path, _)| return path.as_path()).collect();
+        let mut on_disk_folders: HashSet<&Path> = HashSet::new();
+        for (path, kind) in entries.iter() {
+            if *kind == EntryKind::Folder {
+                on_disk_folders.insert(path.as_path());
+            }
+        }
         // What:     `let own: Range<usize> = direct_files(self.tracks, folder, run.clone());` finds the part of the run that holds the
         //           folder's own files, before its subfolders. `run.clone()` copies the range, because `run` is used again.
         // Why:      The walk lists a folder's files first, so they form one stretch at the start of the run.
@@ -658,22 +666,23 @@ impl Planner<'_> {
         // while (position < run.end) {
         // ```
         while position < run.end {
-            // What:     `let Some(child) = ... else { position += 1; continue; };` is `let ... else`: it binds `child` when the value on
-            //           the right is `Some(child)`, and otherwise runs the `else` block, which must leave the loop pass. The right side
-            //           strips the folder off the track's path (`.strip_prefix(folder)` answers a `Result`), turns it into an `Option`
-            //           with `.ok()`, and `.and_then(|below| ...)` continues only when that is `Some`, taking the first name of the rest
-            //           with `.components().next()`.
+            // What:     `let first_component = match ... { Ok(below) => below.components().next(), Err(_) => None
+            //           };` takes the first name of the track's path below the folder, or nothing when the track is
+            //           not below it. `let Some(child) = first_component else { position += 1; continue; };` is `let
+            //           ... else`: it binds `child` when there is a name and otherwise steps past the track.
             // Why:      The first name under the folder is the subfolder that holds the track. A track that is not under the folder
             //           cannot be placed, so the cursor skips it.
-            // Gotcha:   `continue` jumps to the next pass of the `while`, as in TypeScript; the cursor must move first, or the loop
-            //           would never end.
             //
             // In TS you'd write (pseudocode):
             // ```ts
             // const child = firstNameUnder(folder, this.tracks[position]);
             // if (child === null) { position += 1; continue; }
             // ```
-            let Some(child) = self.tracks[position].strip_prefix(folder).ok().and_then(|below| return below.components().next()) else {
+            let first_component = match self.tracks[position].strip_prefix(folder) {
+                Ok(below) => below.components().next(),
+                Err(_error) => None,
+            };
+            let Some(child) = first_component else {
                 position += 1;
                 continue;
             };
@@ -756,16 +765,17 @@ impl Planner<'_> {
     /// visit(path: string, structural: boolean): void { /* skip covered paths, then dispatch on what the path is now */ }
     /// ```
     fn visit(&mut self, path: &Path, structural: bool) {
-        // What:     `if !path.starts_with(self.root) || self.walked_until.as_deref().is_some_and(|folder| return path.starts_with(folder)) { return; }`
-        //           leaves early in two cases. `.as_deref()` views the optional owned path as an optional borrowed one, and
-        //           `.is_some_and(f)` is true only when the option holds a value for which the closure answers true.
+        // What:     `if !path.starts_with(self.root) || matches!(self.walked_until.as_deref(), Some(folder) if
+        //           path.starts_with(folder)) { return; }` ignores a path outside the root and a path inside a
+        //           folder that the walk has already covered. `matches!` with a guard is true only when
+        //           `walked_until` holds a folder that the path lies under.
         // Why:      A path outside the root is not the queue's business, and a path inside a folder read in full is already covered.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // if (!path.startsWith(this.root) || (this.walkedUntil !== null && path.startsWith(this.walkedUntil))) return;
         // ```
-        if !path.starts_with(self.root) || self.walked_until.as_deref().is_some_and(|folder| return path.starts_with(folder)) {
+        if !path.starts_with(self.root) || matches!(self.walked_until.as_deref(), Some(folder) if path.starts_with(folder)) {
             return;
         }
         // What:     `match self.disk.kind(path) { ... }` dispatches on what the path is on disk now. `EntryKind::Missing | EntryKind::Other`
@@ -824,6 +834,20 @@ impl Planner<'_> {
 }
 
 /// What:
+/// `run_start` is where an index run begins.
+/// Why:
+/// runs are sorted by their start,
+/// and a sort key is a function of the run alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runStart = (run: Range): number => run.start;
+/// ```
+fn run_start(run: &Range<usize>) -> usize {
+    return run.start;
+}
+
+/// What:
 /// `fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>>` sorts index runs and joins the ones that overlap or
 /// touch.
 /// `mut runs` makes the parameter changeable inside the function;
@@ -839,15 +863,15 @@ impl Planner<'_> {
 /// function mergeRuns(runs: Range[]): Range[] { /* sort by start, then extend the last run while the next one starts inside it */ }
 /// ```
 fn merge_runs(mut runs: Vec<Range<usize>>) -> Vec<Range<usize>> {
-    // What:     `runs.sort_by_key(|run| return run.start);` sorts the list in place by the key the closure returns. `|run| ...` is a
-    //           closure (an anonymous function) whose parameters sit between the bars.
+    // What:     `runs.sort_by_key(run_start);` sorts the list in place by each run's start; `run_start` is a plain
+    //           function that reads a run's `start`.
     // Why:      Overlapping runs must be neighbors before they can be joined in one pass.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // runs.sort((a, b) => a.start - b.start);
     // ```
-    runs.sort_by_key(|run| return run.start);
+    runs.sort_by_key(run_start);
     // What:     `let mut merged: Vec<Range<usize>> = Vec::new();` makes an empty list that the loop fills.
     // Why:      The joined runs are built in a new list.
     //
@@ -944,15 +968,15 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
     // plan.removed = mergeRuns(plan.removed);
     // ```
     plan.removed = merge_runs(plan.removed);
-    // What:     `plan.added.sort_by(|left, right| return walk_cmp(root, left, right));` sorts the new tracks in walk order. `sort_by`
-    //           takes a closure that answers an `Ordering` for two items.
+    // What:     `crate::walk_order::sort_in_walk_order(root, &mut plan.added);` sorts the new tracks in walk order
+    //           below the root. The function carries the root with each path while the standard sort orders them.
     // Why:      The queue is rebuilt by placing the additions in order.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // plan.added.sort((left, right) => walkCmp(root, left, right));
     // ```
-    plan.added.sort_by(|left, right| return walk_cmp(root, left, right));
+    crate::walk_order::sort_in_walk_order(root, &mut plan.added);
     // What:     `plan.added.dedup();` drops items equal to the one before them.
     // Why:      After sorting, equal paths are neighbors, and two events can name the same new file.
     //
@@ -969,16 +993,21 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
     // const seen = new Set<string>();
     // ```
     let mut seen: HashSet<PathBuf> = HashSet::new();
-    // What:     `plan.touched.retain(|path| return seen.insert(path.clone()));` keeps the items for which the closure answers true.
-    //           `seen.insert(...)` answers true when the value was not in the set yet, so only the first copy of a path stays.
+    // What:     The loop below keeps the first copy of every touched path: `seen.insert(path.clone())` is true only
+    //           for a path that was not seen yet, and the kept paths replace `plan.touched`.
     // Why:      A path can be touched through more than one named path.
-    // Gotcha:   The closure changes `seen` as a side effect; `retain` runs it once per item in order, so the first copy wins.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // plan.touched = plan.touched.filter((path) => { if (seen.has(path)) return false; seen.add(path); return true; });
     // ```
-    plan.touched.retain(|path| return seen.insert(path.clone()));
+    let mut kept_touched: Vec<PathBuf> = Vec::with_capacity(plan.touched.len());
+    for path in plan.touched.drain(..) {
+        if seen.insert(path.clone()) {
+            kept_touched.push(path);
+        }
+    }
+    plan.touched = kept_touched;
     // What:     `tracing::info!(named = ..., "the named paths are planned");` writes one log event. `!` marks a macro (code that is
     //           expanded at compile time), `name = value` pairs become structured fields, and the string is the message.
     // Why:      The sizes of the plan show, in the log, how much work one refresh asked for.
@@ -1020,18 +1049,22 @@ pub(crate) fn plan_changes(tracks: &[PathBuf], root: &Path, dirty: &DirtyPaths, 
 /// export function applyPlan(old: string[], root: string, plan: Plan): string[] { /* merge old, minus removed runs, with added */ }
 /// ```
 pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<PathBuf> {
-    // What:     `let places: Vec<usize> = plan.added.iter().map(|path| return locate(&old, root, path).unwrap_or_else(|place| return place)).collect();`
-    //           finds, for each added track, the position it takes in the old queue. `locate` answers `Ok(index)` for a found path
-    //           and `Err(place)` for the position where it would go; `.unwrap_or_else(f)` takes the `Ok` value, or calls the closure
-    //           with the `Err` value and uses what it answers. Here both cases give a position.
+    // What:     The loop below fills `places` with the position of each added track. `locate` answers `Ok(place)`
+    //           when the track is already in the old list and `Err(place)` for the position where it would go; both
+    //           arms give the place.
     // Why:      A binary search per addition is cheap and keeps the additions in order.
-    // Gotcha:   `.unwrap_or_else` is lazy: its closure runs only on `Err`, unlike `.unwrap_or(value)`, which computes the value always.
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const places: number[] = plan.added.map((path) => insertionPoint(old, root, path));
     // ```
-    let places: Vec<usize> = plan.added.iter().map(|path| return locate(&old, root, path).unwrap_or_else(|place| return place)).collect();
+    let mut places: Vec<usize> = Vec::with_capacity(plan.added.len());
+    for path in &plan.added {
+        places.push(match locate(&old, root, path) {
+            Ok(place) => place,
+            Err(place) => place,
+        });
+    }
     // What:     `let mut rebuilt: Vec<PathBuf> = Vec::with_capacity(old.len() + plan.added.len());` makes an empty list with room for
     //           the most items it can hold. `Vec::with_capacity(n)` reserves memory for `n` items at once.
     // Why:      One reservation avoids growing the list again and again for a queue of a million tracks.
@@ -1079,28 +1112,27 @@ pub(crate) fn apply_plan(old: Vec<PathBuf>, root: &Path, plan: &Plan) -> Vec<Pat
             rebuilt.push(plan.added[next_added].clone());
             next_added += 1;
         }
-        // What:     `while runs.peek().is_some_and(|run| return run.end <= index) { runs.next(); }` drops the runs that end before this
-        //           track. `.peek()` answers an `Option` of the next run without taking it, `.is_some_and(f)` is true when it holds a
-        //           value the closure accepts, and `.next()` takes it.
+        // What:     `while matches!(runs.peek(), Some(run) if run.end <= index) { runs.next(); }` drops the runs
+        //           that end before this track. `.peek()` answers an `Option` of the next run without taking it, the
+        //           guard tests it, and `.next()` takes it.
         // Why:      A run that ended can no longer remove anything, and the next run is the one that matters.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // while (runIndex < plan.removed.length && plan.removed[runIndex].end <= index) runIndex++;
         // ```
-        while runs.peek().is_some_and(|run| return run.end <= index) {
+        while matches!(runs.peek(), Some(run) if run.end <= index) {
             runs.next();
         }
-        // What:     `if runs.peek().is_some_and(|run| return run.contains(&index)) { continue; }` skips the track when the next run
-        //           holds its position. `run.contains(&index)` asks a range whether it includes a number, and `continue` jumps to the
-        //           next pass of the `for`.
+        // What:     `if matches!(runs.peek(), Some(run) if run.contains(&index)) { continue; }` skips the track when
+        //           the next run holds its position.
         // Why:      A track in a removed run is not copied to the new queue.
         //
         // In TS you'd write (pseudocode):
         // ```ts
         // if (runIndex < plan.removed.length && index >= plan.removed[runIndex].start) continue;
         // ```
-        if runs.peek().is_some_and(|run| return run.contains(&index)) {
+        if matches!(runs.peek(), Some(run) if run.contains(&index)) {
             continue;
         }
         // What:     `rebuilt.push(track);` appends the old track. The path moves in; nothing is copied.

@@ -193,7 +193,7 @@ export async function runCopyPass(
     // oxlint-disable-next-line eslint/no-await-in-loop -- subvolumes are copied one at a time: each copy is recorded before the next, the order names the copies and later sends name earlier ones as clone sources, one total deadline bounds the pass; see doc/lint/sequential-awaits.md
     if (options.run && (await freeGiB(options.receivedFolder,) < options.minFreeGiB)) {
       throw new MoveStopError(
-        `the 860 has under ${
+        `the filesystem that holds ${options.receivedFolder} has under ${
           String(options.minFreeGiB,)
         } GiB free before ${subvolume.name}; stopping with every earlier step recorded`,
       );

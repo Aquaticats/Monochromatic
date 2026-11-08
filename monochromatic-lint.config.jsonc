@@ -53,11 +53,44 @@
       },
     },
   },
+  // The terminal has no finding left, so it holds the line at error severity.
+  {
+    "name": "closure-check-terminal",
+    "files": [
+      "package/terminal/app/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/avoidable-closure": {
+        "severity": "error",
+      },
+    },
+  },
   // The linter package has no finding left, so it holds the line at error severity.
   {
     "name": "closure-check-monochromatic-lint",
     "files": [
       "package/linter/monochromatic-lint/**/*.rs",
+    ],
+    "ignores": [
+      "**/*.md/**",
+      "**/*.mdx/**",
+    ],
+    "rules": {
+      "rust/avoidable-closure": {
+        "severity": "error",
+      },
+    },
+  },
+  // The desktop music player has no finding left (its suppressions are recorded in
+  // package/music-player/desktop-app/doc/closure-lint-suppressions.md), so it holds the line at error severity.
+  {
+    "name": "closure-check-music-player-desktop-app",
+    "files": [
+      "package/music-player/desktop-app/**/*.rs",
     ],
     "ignores": [
       "**/*.md/**",

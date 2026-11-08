@@ -683,7 +683,7 @@ fn an_active_recovery_finishes_with_its_own_mandatory_phases_and_tells_cleanup_a
         assert_eq!(journal_states(root.path()), vec![done_afterwards], "{fault:?}: the journal is not in the state that this failure leaves: {failed:?}");
 
         let judged: std::cell::Cell<u32> = std::cell::Cell::new(0);
-        let later: Vec<String> = crate::journal::recover(root.path(), &|before, live| { judged.set(judged.get() + 1); return refusing(before, live); });
+        let later: Vec<String> = crate::journal::recover(root.path(), &|before: &[crate::crates::LockSnapshot], live: &[crate::crates::LockSnapshot]| { judged.set(judged.get() + 1); return refusing(before, live); });
         assert!(journal_states(root.path()).is_empty(), "{fault:?}: the later recovery did not complete the journal: {later:?}");
         assert_eq!(live_lock(root.path()), "original");
         if done_afterwards {

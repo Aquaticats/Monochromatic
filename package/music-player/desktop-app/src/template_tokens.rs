@@ -134,8 +134,13 @@ pub fn is_word_break(unit: u16) -> bool {
 /// const found = text.indexOf(target, from);
 /// ```
 pub fn find_unit(units: &[u16], from: usize, target: u16) -> Option<usize> {
-    let found = units.get(from..)?.iter().position(|unit| return *unit == target)?;
-    return Some(from + found);
+    let tail = units.get(from..)?;
+    for (offset, unit) in tail.iter().enumerate() {
+        if *unit == target {
+            return Some(from + offset);
+        }
+    }
+    return None;
 }
 
 /// What:

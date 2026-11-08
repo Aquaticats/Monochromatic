@@ -45,6 +45,10 @@ const BINS: readonly (readonly [
     'repository-link-record',
     'record.mjs',
   ],
+  [
+    'repository-link-launch',
+    'launch.mjs',
+  ],
 ];
 
 /**
