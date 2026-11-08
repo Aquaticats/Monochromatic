@@ -15,6 +15,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  ESTIMATED_CHARACTERS_PER_TOKEN,
   buildBudgetedGoalReviewPrompt,
   buildGoalReviewEvidence,
   parseGoalReviewVerdict,
@@ -23,6 +24,7 @@ import {
   ReviewerContextTooLargeError,
   truncateTranscript,
   type ActiveGoalState,
+  type BudgetedGoalReviewPrompt,
   type GoalSettlementReviewRequest,
 } from '../dist/final/node/index.mjs';
 
@@ -34,6 +36,36 @@ const COMPLETED_AT = '2026-08-26T00:01:00.000Z';
 
 /** Exact incident answer sentinel. */
 const INCIDENT_ANSWER = '67 is prime in these five ways:';
+
+/** Candidate context window used by reviewer rubric fixtures. */
+const REVIEWER_PROMPT_CONTEXT_WINDOW = 20_000;
+
+/** Interactive human-input clause promising the user question tool. */
+const INTERACTIVE_HUMAN_INPUT_CLAUSE = 'must directly instruct the primary model to use ask_user_question';
+
+/** Non-interactive human-input clause forbidding user questions. */
+const NON_INTERACTIVE_HUMAN_INPUT_CLAUSE = 'The user cannot be asked in this session';
+
+/** Hard-work clause demanding a fresh next attempt. */
+const CONCRETE_NEXT_ATTEMPT_CLAUSE = 'one concrete next attempt';
+
+/**
+ Build candidate reviewer prompt for one session capability.
+ 
+ @param humanInputAvailable - whether the fixture session can reach the user
+ 
+ @returns budgeted reviewer prompt over the shared evidence fixture
+ */
+function reviewerPromptFixture(humanInputAvailable: boolean,): BudgetedGoalReviewPrompt {
+  return buildBudgetedGoalReviewPrompt({
+    evidence: {
+      objective: 'Explain why 67 is prime in five ways',
+      transcriptChunks: ['Assistant:\n67 is prime in these five ways:',],
+    },
+    contextWindow: REVIEWER_PROMPT_CONTEXT_WINDOW,
+    humanInputAvailable,
+  },);
+}
 
 /**
  Build active evidence-test goal.
@@ -275,6 +307,7 @@ await describe({
             transcriptChunks: ['x'.repeat(20_000,),],
           },
           contextWindow: 20_000,
+          humanInputAvailable: true,
         },);
         expect(prompt.userContent,).toContain('Exact objective',);
         expect(prompt.userContent,).not.toContain('Completion summary',);
@@ -285,6 +318,7 @@ await describe({
             transcriptChunks: [],
           },
           contextWindow: 100,
+          humanInputAvailable: true,
         },),).toThrow(ReviewerContextTooLargeError,);
       },
     },),
@@ -331,6 +365,56 @@ await describe({
           rationale: 'Done.',
           remaining_work: 'Do more.',
         },),).toThrow();
+      },
+    },),
+  ],
+},);
+
+await describe({
+  name: buildBudgetedGoalReviewPrompt.name,
+  children: [
+    it({
+      name: 'offers user questions only to sessions that can reach the user',
+      fn: async () => {
+        /** Reviewer prompt for an interactive session. */
+        const interactive = reviewerPromptFixture(true,);
+        /** Reviewer prompt for a session that cannot ask the user. */
+        const nonInteractive = reviewerPromptFixture(false,);
+        expect(interactive.systemPrompt,).toContain(INTERACTIVE_HUMAN_INPUT_CLAUSE,);
+        expect(nonInteractive.systemPrompt,).not.toContain(INTERACTIVE_HUMAN_INPUT_CLAUSE,);
+        expect(nonInteractive.systemPrompt,).toContain(NON_INTERACTIVE_HUMAN_INPUT_CLAUSE,);
+      },
+    },),
+    it({
+      name: 'demands one concrete next attempt in both session capabilities',
+      fn: async () => {
+        expect(reviewerPromptFixture(true,).systemPrompt,).toContain(CONCRETE_NEXT_ATTEMPT_CLAUSE,);
+        expect(reviewerPromptFixture(false,).systemPrompt,).toContain(CONCRETE_NEXT_ATTEMPT_CLAUSE,);
+      },
+    },),
+    it({
+      name: 'derives the token estimate from the prompt the session receives',
+      fn: async () => {
+        /** Reviewer prompt for an interactive session. */
+        const interactive = reviewerPromptFixture(true,);
+        /** Reviewer prompt for a session that cannot ask the user. */
+        const nonInteractive = reviewerPromptFixture(false,);
+        /** Serialized request characters behind each token estimate. */
+        const interactiveCharacters = interactive.systemPrompt.length
+          + interactive.userContent.length;
+        const nonInteractiveCharacters = nonInteractive.systemPrompt.length
+          + nonInteractive.userContent.length;
+        expect(interactive.transcriptTruncated,).toBe(false,);
+        expect(nonInteractive.transcriptTruncated,).toBe(false,);
+        expect(nonInteractive.userContent,).toBe(interactive.userContent,);
+        expect(interactive.estimatedInputTokens,).toBe(
+          Math.ceil(interactiveCharacters / ESTIMATED_CHARACTERS_PER_TOKEN,),
+        );
+        expect(nonInteractive.estimatedInputTokens,).toBe(
+          Math.ceil(nonInteractiveCharacters / ESTIMATED_CHARACTERS_PER_TOKEN,),
+        );
+        expect(nonInteractiveCharacters,).toBeGreaterThan(interactiveCharacters,);
+        expect(nonInteractive.estimatedInputTokens,).toBeGreaterThan(interactive.estimatedInputTokens,);
       },
     },),
   ],
