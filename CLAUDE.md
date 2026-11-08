@@ -14,6 +14,14 @@ when a Claude Code native subagent model is refused,
 try it again at the next delegation,
 or delegate to another model meanwhile.
 
+MWK:
+ Monitors,
+ wakeups,
+ and waiting Claude Code native subagents rarely wake main agent:
+ wait in one command that ends at a terminal state;
+ emit only lines you'd act on,
+ never routine progress.
+
 Use `spawn-claude` outside sandbox to launch a steerable child Claude Code session in a visible terminal window.
 The child runs independently,
 but result forwarding back to the parent is unreliable (a Claude Code limitation),
@@ -234,14 +242,6 @@ PX1:
 While verifying,
  advance independent work without changing inputs.
 Stop at completion or an external blocker.
-
-MWK:
- Monitors,
- wakeups,
- and waiting Claude Code native subagents rarely wake main agent:
- wait in one command that ends at a terminal state;
- emit only lines you'd act on,
- never routine progress.
 
 WUC:
  When a wakeup,

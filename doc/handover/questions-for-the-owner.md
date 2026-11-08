@@ -33,6 +33,20 @@ so any of them can be undone.
   You can temporarily disable the kopia job if you need to."
   The coordinator stopped `kopia-snapshot-all.timer` at 2026-11-08T07:02-05:00
   and started it again at 2026-11-08T12:43:36-05:00.
+- Where a rule that only concerns Claude Code native agents lives:
+  "Holdup.
+  Is MWK really about Claude Code native agents?
+  If not,
+  it shouldn't have been changed.
+  If so,
+  it should only live in CLAUDE.md preamble."
+  `MWK` concerns Claude Code's `Monitor` tool,
+  its wakeups and its subagent notifications
+  (commits `80588d6aa6` and `8873aae967`),
+  so it moved to `.config/file-enforcer/claude-preamble.md`.
+  `pi --help` names no wakeup,
+  monitor,
+  cron or schedule option.
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
