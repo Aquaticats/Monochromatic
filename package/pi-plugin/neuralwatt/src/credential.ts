@@ -295,6 +295,8 @@ export async function deriveRepoEnvLocalJsonPath({
 
  @param fileExists - existence probe for the derived store candidate
 
+ @param readStore - store reader seam, injected in tests so no run decrypts
+
  @param signal - abort signal forwarded to the store read
 
  @returns the stored value and the store path when a store loaded
@@ -311,11 +313,13 @@ export async function readNeuralWattStoreValue({
   environment,
   moduleUrl,
   fileExists,
+  readStore = readEnvLocalJson,
   signal,
 }: {
   readonly environment: EnvLocalJsonEnvironment;
   readonly moduleUrl: string;
   readonly fileExists: (path: string) => Promise<boolean>;
+  readonly readStore?: typeof readEnvLocalJson;
   readonly signal?: AbortSignal;
 },): Promise<NeuralWattStoreRead> {
   /**
@@ -356,7 +360,7 @@ export async function readNeuralWattStoreValue({
    Store read, discovery-only when neither an override nor a derived path
    applies.
    */
-  const result = await readEnvLocalJson({
+  const result = await readStore({
     keys: [NEURALWATT_API_KEY_ENV],
     env: readerEnvironment,
     ...(derived.path === undefined ? {} : { path: derived.path, }),
@@ -457,11 +461,13 @@ export function createNeuralWattApiKeyAuth({
   environment = process.env,
   moduleUrl = import.meta.url,
   fileExists = defaultFileExists,
+  readStore = readEnvLocalJson,
 }: {
   readonly logger: Logger;
   readonly environment?: EnvLocalJsonEnvironment;
   readonly moduleUrl?: string;
   readonly fileExists?: (path: string) => Promise<boolean>;
+  readonly readStore?: typeof readEnvLocalJson;
 },): NonNullable<ApiKeyAuth> {
   /**
    Logger tagged for this seam, so records name the credential resolution.
@@ -505,6 +511,7 @@ export function createNeuralWattApiKeyAuth({
             environment,
             moduleUrl,
             fileExists,
+            readStore,
             signal: input.signal,
           },);
         } catch (error) {
