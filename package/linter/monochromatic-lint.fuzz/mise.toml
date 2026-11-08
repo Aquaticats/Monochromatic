@@ -29,7 +29,8 @@ run = "cargo fmt"
 
 [tasks.build]
 description = "Build AddressSanitizer targets in a 2 GiB / 2 CPU container"
-run = "node bin/container.ts --build-only"
+# Mechanism D: a build-only run writes a campaign- record of its own, so it sweeps the run records first too.
+run = ["cargo-shadow lean records target/verification", "node bin/container.ts --build-only"]
 
 [tasks.smoke]
 description = "Run ASAN targets for 30s each in mount-free bounded containers"
