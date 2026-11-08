@@ -270,6 +270,10 @@ export async function createGuidedConfig(
       toolsFolder,
       'list-uncommitted-work.ts',
     ),
+    measureTool: join(
+      toolsFolder,
+      'measure-footprint.ts',
+    ),
     inventory: join(
       moveState,
       'inventory-nested.txt',

@@ -26,6 +26,7 @@ export type GuidedConfig = {
   readonly toolsFolder: string;
   readonly copyTool: string;
   readonly scanTool: string;
+  readonly measureTool: string;
   readonly inventory: string;
   readonly inventoryMain: string;
   readonly fixtureParent: string;
