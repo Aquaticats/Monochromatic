@@ -4177,16 +4177,28 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
 - count existing worktrees whose `node_modules` links are broken (made from main after main moved to pnpm's global
   virtual store,
   before the package repair shipped in 0.5.21) and ask the owner before relinking worktrees that belong to other
   sessions.
+
+Two small fixes this section listed are done:
+- the dry-run summary counted none of the "would convert" lines it printed;
+  fixed in `cdf10486fd`:
+  a dry run now says how many it would convert or complete,
+  and the control counts the lines it listed and requires the summary to name that many
+  (`worktree_convert_command_tests.rs`,
+  `all_worktrees_are_listed_then_converted`);
+- the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers are swept in `d4c213edf0`
+  (`4b4c6db031` names the field check and satisfies the package lint):
+  every journal write sweeps its own administrative directory first,
+  and a file goes only when `process_birth_identity` proves the process its name records is gone,
+  so the journal,
+  the claim files and a file of a running process stay
+  (`worktree_convert_safety_tests.rs`);
+  the other half of this line was already done when it was written:
+  `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
+  and the same test file plants a symlink at the name.
 
 ### Worktree add follow-ups
 
@@ -4462,12 +4474,18 @@ Open:
 the 8 unmapped instances have neither a note nor a journal record that hashes to them
 (units of worktrees that never landed a commit before this release,
 or whose repository was deleted whole),
-so they stay;
-`run_forwarded_git` is wired to the stop without a unit control of its own
-(the stop is controlled in `worktree_removal_stops_units_tests.rs`,
-and the wiring was checked once against the real user manager in a throwaway repository:
-socket active before the removal,
-inactive after).
+so they stay.
+`run_forwarded_git`'s wiring to the stop was listed here as open for want of a unit control of its own;
+it has one in `b26020e703`:
+`run_forwarded_git_with_unit_stop` takes the stop,
+so `worktree_copy_forward_tests.rs` removes a linked worktree through a forwarded `git worktree remove --force`
+and requires the one stop its registration names,
+and removing the wiring fails that control
+("one removal,
+one stop",
+`left: 0`,
+`right: 1`).
+The stop itself stays controlled in `worktree_removal_stops_units_tests.rs`.
 
 Closed on 2026-11-08, the leftovers a person had to remember:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
@@ -6268,6 +6286,24 @@ are in append mode now).
   The proof would rest on a process holding no descriptor it never opened,
   which a child that inherited the lock's descriptor breaks,
   so no such rule was shipped.
+- Three `landing::service_index_lock::claim_tests` tests failed in one host full-suite run on
+  `fix/git-policy-cli-home-gate-forwarded-stop-and-conversion-journal`
+  (2026-11-08T16:30:00-05:00,
+  4710 tests,
+  run stopped after the failure):
+  `a_landing_takes_a_stale_lock_under_a_claim_without_waiting` ("the acquisition waited for its ceiling"),
+  `a_landing_waits_for_the_reclaimer_that_holds_a_claim`,
+  and `a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped`.
+  Measured:
+  the whole `service_index_lock::claim_tests` module passes alone (27 of 27,
+  `native:test:host -- service_index_lock::claim_tests`),
+  and the same three passed in a full-suite run of the same worktree an hour earlier,
+  so the failure follows the suite's own concurrency and not a source change.
+  This is the failure the merged-gate record above called a one-time host failure;
+  it has now recurred,
+  and the cause inside the claim tests is not measured.
+  Not the four fixes on that branch:
+  none of them is in `landing/`.
 
 ### Questions waiting for the owner
 

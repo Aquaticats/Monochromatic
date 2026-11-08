@@ -46,6 +46,10 @@ fn all_worktrees_are_listed_then_converted() {
     assert_eq!(code, 0, "{lines:#?}");
     assert!(lines.iter().any(|line: &String| { return line.trim() == "would convert"; }), "{lines:#?}");
     assert!(lines.iter().any(|line: &String| { return line.contains("skipped:") && line.contains("locked"); }), "{lines:#?}");
+    // The summary counts what the run listed it would convert, so it never says "0 converted" beside "would convert".
+    let would: usize = lines.iter().filter(|line: &&String| { return line.trim() == "would convert"; }).count();
+    let summary: &str = lines.last().expect("a summary line").as_str();
+    assert!(summary.contains(format!("{would} would convert or complete").as_str()), "{would} line(s) said 'would convert': {lines:#?}");
     assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "a dry run converts nothing");
     std::fs::remove_file(root.join(".git/worktrees/second/locked")).expect("unlock");
     let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
