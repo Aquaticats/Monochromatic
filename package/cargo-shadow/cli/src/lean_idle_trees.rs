@@ -30,7 +30,7 @@ use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, profile_
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
 use crate::lean_identity::Deadline;
 use crate::lean_proc_scan::{ScanReport, scan_processes};
-use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, item_of};
+use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
 use crate::lean_sizes::tree_bytes;
 
 /// The idle periods of mechanism C.
@@ -204,6 +204,11 @@ pub fn collect_idle_trees(
         }
     }
     let trash: PathBuf = base.join(TRASH_DIRECTORY_NAME);
+    if !dry_run {
+        for failure in empty_trash(&trash) {
+            log.push(format!("could not finish an earlier run's deletion in {}: {failure}", trash.display()));
+        }
+    }
     for tree in trees {
         if deadline.passed() {
             outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Skip(String::from("the run's deadline passed before this tree")) });

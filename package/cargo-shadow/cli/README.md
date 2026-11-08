@@ -1096,6 +1096,91 @@ and an HTTP 429 is retried after its `Retry-After`.
   the lock check and the update run offline (the check drops `--offline` in CI,
   where no registry index is cached).
 
+## Keeping the build folders lean
+
+`cargo-shadow lean` removes what nothing needs from the build folders of this machine.
+Plan, measurements and the owner's decision of 2026-11-07 ("A to F, B allowed (Recommended)"):
+[`doc/planning/lean-build-dirs.md`](../../../doc/planning/lean-build-dirs.md).
+The numbers (grace periods, idle periods, retention, caps) are in `src/lean_policy.rs`,
+each beside the measurement it rests on, and are coordinator picks with the owner's veto open.
+
+Six mechanisms, in the plan's order:
+
+- A, toolchain-keyed build folders.
+  For a host cargo run the shadow sets `CARGO_BUILD_BUILD_DIR` for the child cargo only,
+  to `<base>/toolchain/<toolchain>/<xx>/<14 hex>`,
+  where `<base>` is what precedes `{workspace-path-hash}` in `build.build-dir` of `$CARGO_HOME/config.toml`,
+  the toolchain is a leading `+name` argument or `RUSTUP_TOOLCHAIN`,
+  and the key is SHA-256 of the canonical workspace root.
+  It sets nothing when the user already set `CARGO_BUILD_BUILD_DIR`,
+  when no `build.build-dir` template ends in `{workspace-path-hash}`,
+  or when no toolchain is known.
+  A ledger file `.cargo-shadow-workspace` in the folder names the workspace.
+  Runs that bypass the shadow (an IDE starting cargo itself) and container builds keep their own location
+  and are reached by B to F.
+  The container runners (`package/ide/app`, `package/nested-wayland-session/cli`) are not changed.
+- B, the sweep of units an older compiler built.
+  In each profile directory the newest compiler group (the `rustc` field of the fingerprints) and every group invoked within the grace period stay;
+  the rest, with the incremental directories written before the newest group first ran, goes.
+  A profile directory with one compiler group is left alone.
+  The reader of fingerprint files is the one the owner allowed
+  (`doc/decision/cargo-build-dir-host-cache.md`, amendment of 2026-11-07T22:19:43-05:00);
+  a layout it does not know is left untouched and reported.
+- C, verified-idle trees of the host build base.
+  A tree goes only when its workspace is gone (ledger, or a lead from dependency information),
+  or its toolchain is retired,
+  or nothing identifies it and it has been idle longer;
+  no other tree's workspace lies inside it;
+  every profile directory yields its build locks;
+  and no process uses anything under it.
+- D, retention of verification run records under `target/verification`:
+  records (`campaign-`, `native-`, `git-image-`, `mutation-`, `planted-`) older than the retention age go,
+  and the oldest go while the directory is over its cap.
+  Anything else in the directory is never touched.
+  The sweep runs from `cargo-shadow lean run`;
+  the producing tasks do not call it themselves yet.
+- E, size caps per profile directory with oldest-first eviction.
+  Entries touched within the grace period are never evicted.
+- F, a systemd user timer.
+  `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` into
+  `~/.config/systemd/user` and enables the timer.
+  The timer fires once a day at 04:30 local time and at no other moment:
+  `Persistent=false` (a missed run is not made up at boot or login),
+  the service has no `[Install]` section,
+  and nothing in cargo-shadow starts itself.
+  The service runs `<repository>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5, two threads of CPU,
+  4 GiB of memory and a start timeout above the run's own deadline,
+  and shows nothing on the desktop.
+
+Beyond the build folders, `lean run` also retires dated nightly toolchains that no checkout pins
+(`toolchain.lock.json`, `.cache/toolchain.env.json`, `rust-toolchain` files, rustup's default and overrides),
+and removes Podman images and volumes that no container uses and no current source names,
+as the user and never as root.
+A container in any state uses its image, so an image an exited container holds is kept.
+
+The proof of "not in use", recorded in the log line of every removal:
+
+- The profile directory's build locks (`.cargo-build-lock`, `.cargo-artifact-lock`, `.cargo-lock`) are taken exclusively without waiting
+  (through a container's bind mount too, probed 2026-11-04);
+  a busy lock, a waiter queued in `/proc/locks`, a file system that cannot lock and a directory with no lock file all skip it.
+- A scan of `/proc` finds no process whose working directory, program, open file or mapped file lies under the entry;
+  processes in another mount namespace are judged by the device and inode of what they hold.
+- The entry's device and inode are read when it is judged,
+  before it is moved into a trash directory on the same file system by an atomic rename that never replaces,
+  and again just before it is deleted.
+  A mismatch leaves the entry in the trash and removes nothing.
+
+Nothing waits without end: every walk obeys the run's deadline and every `podman`, `rustup` and `systemctl` call has its own.
+`lean` never starts `cargo`, never starts itself,
+and takes no lock of its own (the claim is the rename).
+
+```sh
+# package/cargo-shadow/cli/README.md
+cargo-shadow lean run --dry-run
+cargo-shadow lean run --only units,records
+cargo-shadow lean timer-install
+```
+
 ## Containers and the tasks that run cargo outside the shadow
 
 The shadow is on PATH only where the toolchain plan's links are,

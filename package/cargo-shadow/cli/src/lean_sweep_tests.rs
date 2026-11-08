@@ -214,3 +214,14 @@ fn each_removal_logs_the_lock_and_process_proof() {
     assert!(line.contains("exclusive flock on"), "{line}");
     assert!(line.contains("/proc scan:"), "{line}");
 }
+
+#[test]
+fn what_an_earlier_stopped_run_left_in_the_trash_is_deleted_by_the_next_sweep() {
+    let root = scratch();
+    let (profile, _stale, _current) = stale_and_current(root.path());
+    let leftover: PathBuf = profile.join(".cargo-shadow-trash").join("123-456-1-unit");
+    fs::create_dir_all(&leftover).expect("a claimed unit that was never deleted");
+    fs::write(leftover.join("file"), b"claimed earlier").expect("file");
+    sweep(&profile);
+    assert!(!leftover.exists());
+}

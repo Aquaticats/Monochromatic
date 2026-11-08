@@ -33,7 +33,7 @@ use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, Path
 use crate::lean_guard::GuardEnvironment;
 use crate::lean_identity::{Deadline, Identity};
 use crate::lean_proc_scan::{ScanReport, scan_processes};
-use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, item_of};
+use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
 use crate::lean_sizes::add_tree_bytes;
 
 /// The name prefixes of run records.
@@ -150,6 +150,9 @@ pub fn sweep_run_records(
     let mut total: u64 = records.iter().map(|record| { return record.bytes; }).sum();
     let scan: ScanReport = if dry_run { ScanReport::default() } else { scan_processes(&environment.proc_root, &[directory], &[], environment.own_pid) };
     let trash: PathBuf = directory.join(TRASH_DIRECTORY_NAME);
+    if !dry_run {
+        outcome.refusals.extend(empty_trash(&trash));
+    }
     for record in &records {
         let age: i64 = now - record.modified;
         let over_age: bool = age > policy.max_age_seconds;

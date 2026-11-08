@@ -227,3 +227,36 @@ pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<u64, Refusal> 
     let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
     return delete_entry(claimed, &mut seen).map_err(|error| { return Refusal::Io { path: claimed.to_path_buf(), error }; });
 }
+
+/// What:
+/// `pub fn empty_trash(trash: &Path) -> Vec<String>` deletes what an earlier run claimed into this trash directory and did not
+/// finish deleting (it was stopped between the move and the delete),
+/// and returns a reason for each entry it could not delete.
+/// Why:
+/// Everything in a trash directory was judged removable and claimed by a rename;
+/// the trash is the tools' own,
+/// so finishing the deletion discards nothing that was not already judged.
+/// Each entry is deleted under the same identity check as any claimed entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function emptyTrash(trash: string): string[]
+/// ```
+pub fn empty_trash(trash: &Path) -> Vec<String> {
+    let mut failures: Vec<String> = Vec::new();
+    let Ok(entries) = fs::read_dir(trash) else { return failures };
+    for entry in entries.flatten() {
+        let judged: Identity = match identity_of(&entry.path()) {
+            Ok(found) => found,
+            Err(error) => {
+                failures.push(format!("{}: {error}", entry.path().display()));
+                continue;
+            }
+        };
+        match delete_claimed(&entry.path(), judged) {
+            Ok(_) | Err(Refusal::Gone(_)) => {}
+            Err(refusal) => failures.push(refusal.to_string()),
+        }
+    }
+    return failures;
+}

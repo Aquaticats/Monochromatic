@@ -120,7 +120,7 @@ fn run_trees(base: &Path, pinned: &HashSet<String>, options: &RunOptions, deadli
     let mut log: Vec<String> = Vec::new();
     let outcomes = collect_idle_trees(&trees, base, &retired, &policy, environment, now_seconds(), options.dry_run, deadline, &mut log);
     for line in &log {
-        eprintln!("cargo-shadow lean: {line}");
+        crate::lean_run_report::log_line(line);
     }
     let (mut removed, mut bytes, mut kept, mut skipped): (usize, u64, usize, usize) = (0, 0, 0, 0);
     let mut skips: Vec<String> = Vec::new();
@@ -214,7 +214,7 @@ pub fn run_lean(options: &RunOptions) -> i32 {
         summary.push(String::from("the run's deadline passed: whatever was not reached waits for the next run"));
     }
     for line in summary {
-        println!("{line}");
+        crate::lean_run_report::summary_line(&line);
     }
     return 0;
 }

@@ -28,7 +28,7 @@ use std::path::{Path, PathBuf};
 /// the reader and the sizes.
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
 use crate::lean_identity::{Deadline, Identity};
-use crate::lean_removal::{Item, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, item_of};
+use crate::lean_removal::{Item, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
 use crate::lean_sizes::add_tree_bytes;
 use crate::lean_unit_reader::{IncrementalDirectory, ProfileRead, ProfileUnits, Unit, read_profile};
 
@@ -247,6 +247,7 @@ pub fn apply_removals(
         }
     };
     let trash: PathBuf = profile.join(TRASH_DIRECTORY_NAME);
+    outcome.refusals.extend(empty_trash(&trash));
     let claimed: Vec<(PathBuf, Identity)> = claim_all(&guarded, &second, &trash, &mut outcome, log);
     drop(guarded);
     for (target, identity) in claimed {

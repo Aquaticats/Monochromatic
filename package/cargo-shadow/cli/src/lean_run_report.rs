@@ -101,3 +101,32 @@ pub fn space_lines(places: &[Place]) -> Vec<String> {
     }
     return lines;
 }
+
+/// What:
+/// `pub fn log_line(text: &str)` writes one line to standard error and ignores a write that fails.
+/// Why:
+/// A closed pipe (`| head`) must not turn a finished removal into a panic in the middle of a run:
+/// `eprintln!` panics when standard error is closed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function logLine(text: string): void { try { process.stderr.write(`${text}\n`); } catch {} }
+/// ```
+pub fn log_line(text: &str) {
+    use std::io::Write;
+    let _ = writeln!(std::io::stderr(), "cargo-shadow lean: {text}");
+}
+
+/// What:
+/// `pub fn summary_line(text: &str)` writes one line to standard output and ignores a write that fails.
+/// Why:
+/// The same reason as `log_line`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function summaryLine(text: string): void
+/// ```
+pub fn summary_line(text: &str) {
+    use std::io::Write;
+    let _ = writeln!(std::io::stdout(), "{text}");
+}
