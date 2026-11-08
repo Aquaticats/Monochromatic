@@ -67,16 +67,26 @@ pub const RECORD_CAP_BYTES: u64 = 2 * GIB;
 pub const RECORD_PROTECT_SECONDS: i64 = DAY_SECONDS;
 
 /// The size cap of one profile directory of an in-tree build (a container build in the checkout's `target/`):
-/// one and a half times what one current build of the largest such configuration measured.
-/// Measured 2026-11-07 (see the plan's section "Measured picks,
-/// 2026-11-07").
-pub const IN_TREE_PROFILE_CAP_BYTES: u64 = 15 * GIB;
+/// twelve gibibytes,
+/// one and a half times the largest newest-compiler group measured.
+/// Measured 2026-11-07 (units of the newest compiler plus the incremental state written since it first ran):
+/// `package/nested-wayland-session/cli/target/debug` 7.35 GiB,
+/// `package/ide/app/target/debug` 4.23 GiB,
+/// `package/ide/app/target/release` 3.98 GiB;
+/// 1.5 times 7.35 GiB is 11.0 GiB,
+/// rounded up.
+pub const IN_TREE_PROFILE_CAP_BYTES: u64 = 12 * GIB;
 
 /// The size cap of one profile directory of a host build tree:
-/// one and a half times what one current build of the largest host configuration measured.
-/// Measured 2026-11-07 (see the plan's section "Measured picks,
-/// 2026-11-07").
-pub const HOST_PROFILE_CAP_BYTES: u64 = 20 * GIB;
+/// twenty-four gibibytes,
+/// one and a half times the largest newest-compiler group measured.
+/// Measured 2026-11-07:
+/// `0b/ab24900891e355/debug` 15.83 GiB (13.17 GiB of units and 2.66 GiB of incremental state),
+/// `75/3315c269a08379/debug` 8.44 GiB,
+/// `74/8a90f0615defdd/debug` 4.82 GiB;
+/// 1.5 times 15.83 GiB is 23.7 GiB,
+/// rounded up.
+pub const HOST_PROFILE_CAP_BYTES: u64 = 24 * GIB;
 
 /// The longest a whole `cargo-shadow lean run` may take:
 /// three hours.

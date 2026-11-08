@@ -147,10 +147,12 @@ pub fn collect_references(root: &Path, deadline: &Deadline) -> Option<HashSet<St
                 if !SKIPPED_DIRECTORIES.contains(&name.as_str()) {
                     stack.push(path);
                 }
-            } else if kind.is_file() && reads(&path) && small_enough(&entry) {
-                if let Ok(text) = fs::read_to_string(&path) {
-                    words_of(&text, &mut words);
-                }
+            } else if kind.is_file()
+                && reads(&path)
+                && small_enough(&entry)
+                && let Ok(text) = fs::read_to_string(&path)
+            {
+                words_of(&text, &mut words);
             }
         }
     }

@@ -3,9 +3,15 @@
 Proposal and measurements,
 2026-11-04T17:45:00-05:00 (measurement round,
 read-only).
-Nothing was deleted and no build configuration was changed.
-The owner picks an option;
-until then this document is the only change.
+Nothing was deleted and no build configuration was changed in that round.
+
+Status,
+2026-11-07T23:40:00-05:00:
+the owner decided in the question tool ("A to F, B allowed (Recommended)")
+and the six mechanisms are built in `package/cargo-shadow/cli`.
+Section "Owner decision and what was built" says what exists,
+section "Measured picks" records the numbers with the owner's veto open,
+and each item of "Open questions for the owner" now names its answer.
 
 Scope:
 every build directory of the monorepo at `/var/home/user/Monochromatic`:
@@ -695,6 +701,144 @@ within grace,
 violating,
 busy or unknown layout.
 
+## Owner decision and what was built
+
+The owner's answers of 2026-11-07 (question tool, recorded at 2026-11-07T22:19:43-05:00 in
+`doc/handover/questions-for-the-owner.md`):
+
+- "A to F, B allowed (Recommended)":
+  all six mechanisms in order,
+  in cargo-shadow (`package/cargo-shadow/cli`),
+  with `doc/decision/cargo-build-dir-host-cache.md` amended so the sweep (B) may read Cargo's fingerprint files,
+  for that sweep only;
+  the tools' first run,
+  under their own locks,
+  cleans what exists today;
+  grace periods and size caps are measured and recorded as coordinator picks with the owner's veto open.
+- "Rust toolchains (Recommended)" and "Podman images, volumes (Recommended)":
+  remove nightlies that no checkout's lock pins,
+  and images and volumes no container uses and no current image tag of this repository names,
+  each after the grace period.
+
+Where each mechanism lives (all in `package/cargo-shadow/cli/src`,
+described in its README, section "Keeping the build folders lean"):
+
+- A, toolchain-keyed build folders:
+  `lean_keyed_folder.rs`,
+  called from `shim.rs` for the child cargo only.
+  Done for host runs.
+  Not done for container runs:
+  `package/ide/app/mise.toml` and `package/nested-wayland-session/cli/mise.toml` are outside cargo-shadow and the owner's
+  answer did not name them,
+  so those two in-tree builds are kept lean by B and E.
+- B, the older-compiler sweep:
+  `lean_unit_reader.rs`,
+  `lean_sweep_plan.rs`,
+  `lean_unit_removal.rs`.
+- C, verified-idle trees:
+  `lean_build_trees.rs`,
+  `lean_idle_trees.rs`.
+- D, run-record retention:
+  `lean_run_records.rs`.
+  The plan assigned D to the producing packages;
+  the owner's answer put all six in cargo-shadow,
+  so the retention runs from `cargo-shadow lean run`.
+  The producing tasks (five packages with TypeScript runners) do not call it themselves.
+  Wiring each producer to call it first is a separate change and is open.
+- E, size caps:
+  `lean_size_caps.rs`.
+  The caps are absolute per profile directory (see the next section),
+  because a cap relative to a directory's own newest-compiler bytes can never bind.
+- F, the timer:
+  `lean_timer_units.rs`,
+  installed by `cargo-shadow lean timer-install`.
+- Also in the same run:
+  `lean_rustup_toolchains.rs` (dated nightlies no checkout pins),
+  `lean_podman_cleanup.rs`,
+  `lean_podman_real.rs` and `lean_container_references.rs` (images and volumes no container uses and no current source names).
+
+The proof of "not in use" is the same for all of them
+(`lean_lock_probe.rs`,
+`lean_proc_scan.rs`,
+`lean_guard.rs`,
+`lean_removal.rs`):
+a profile directory's Cargo locks taken exclusively without waiting,
+no waiter queued in `/proc/locks`,
+a scan of `/proc` finding no use under the entry,
+and the entry's device and inode checked when judged,
+after the claiming rename and just before the unlink.
+Each removal's log line carries the proof.
+The claim is the rename:
+`cargo-shadow lean` takes no lock of its own,
+and it never starts `cargo` or itself (`lean_no_recursion_tests.rs` fails if a lean source does).
+The lock held through a container's bind mount was checked again on 2026-11-07:
+a `flock` taken inside a Fedora container on a file of a bind-mounted directory made the run skip the profile directory
+("busy"),
+and the host's `flock --nonblock` failed while the container held it.
+
+When the timer fires:
+once a day at 04:30 local time and at no other moment.
+`Persistent=false`:
+a run missed because the machine was off is not made up at boot or login.
+The service has no `[Install]` section,
+the timer's `WantedBy=timers.target` only makes the timer itself available when the user's systemd starts,
+and nothing in cargo-shadow starts itself.
+The service runs `<main checkout>/.cache/toolchain-bin/cargo-shadow lean run` with disk weight 5 (never above 10),
+two threads of CPU,
+4 GiB of memory,
+512 tasks,
+and shows nothing on the desktop.
+
+## Measured picks, 2026-11-07
+
+Coordinator picks,
+each beside its measurement,
+with the owner's veto open
+(`package/cargo-shadow/cli/src/lean_policy.rs` holds the same numbers and the same reasoning):
+
+- Grace period (units,
+  toolchains,
+  images,
+  volumes) and the idle period of a tree whose workspace is gone or whose toolchain is retired:
+  seven days.
+  Measured:
+  342 live worktrees were idle (newest write among their top-level entries) a median of 5.4 days,
+  6.9 days at the 75th percentile and 20.3 days at the 90th;
+  dated nightlies were installed at most seven days apart
+  (2026-10-21 to 2026-10-28),
+  and the newest one is under one day old.
+  A worktree or second toolchain left alone for a week is still kept.
+- Idle period of a tree nothing identifies:
+  twenty-one days (the 90th percentile of worktree idleness).
+- Run-record retention:
+  fourteen days and 2 GiB per verification directory,
+  with a one-day protection window.
+  Measured:
+  372 records in six packages,
+  the newest 6.9 days old and the oldest 34.5 days;
+  the fuzz records average about 95 MiB.
+  Fourteen days is the age of the accepted logger decision.
+- Size cap of one in-tree profile directory:
+  12 GiB.
+  Measured newest-compiler groups (units of the newest compiler plus the incremental state written since it first ran):
+  `package/nested-wayland-session/cli/target/debug` 7.35 GiB,
+  `package/ide/app/target/debug` 4.23 GiB,
+  `package/ide/app/target/release` 3.98 GiB,
+  `package/ide/app/target/dylint/debug` 2.09 GiB.
+  One and a half times the largest is 11.0 GiB.
+- Size cap of one host-tree profile directory:
+  24 GiB.
+  Measured:
+  `0b/ab24900891e355/debug` 15.83 GiB,
+  `75/3315c269a08379/debug` 8.44 GiB,
+  `74/8a90f0615defdd/debug` 4.82 GiB.
+  One and a half times the largest is 23.7 GiB.
+- These are measurements of the current builds in place (no new build was run:
+  a build of the two container packages is hours of load,
+  and the owner's rule bans synthetic load).
+  The 2026-11-04 round measured the same configurations at 7.8 and 1.9 GiB for `package/ide/app` and 7.1 and 0.8 GiB for
+  `package/nested-wayland-session/cli`.
+
 ## Mechanisms researched
 
 Cargo (version in use:
@@ -1232,6 +1376,39 @@ standing owner decision.
   under a running build.
 
 ## Open questions for the owner
+
+Answered 2026-11-07 (question tool);
+each item names its answer after the question,
+and the section "Measured picks" holds the numbers.
+
+- Owner of the sweep and of toolchain-keyed directories:
+  `package/cargo-shadow/cli`;
+  setting `CARGO_BUILD_BUILD_DIR` for the child cargo is accepted;
+  reading Cargo's fingerprint files is allowed for the sweep only
+  (amendment of `doc/decision/cargo-build-dir-host-cache.md`).
+- Grace and idle periods:
+  seven days,
+  and twenty-one days for a tree nothing identifies (measured).
+- Bounds and the run-record retention:
+  per-profile caps and fourteen days with 2 GiB (measured).
+- One-time cleanup:
+  the tools' first run,
+  under their own locks.
+- Scope:
+  dated nightlies no checkout's lock pins,
+  and images and volumes no container uses and no current source names,
+  each after the grace period.
+- Container builds:
+  keep intermediates in the tree;
+  A is not applied to them,
+  B and E keep them lean;
+  G is not built.
+- The open items below are not answered:
+  what runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
+  and which wrapper build is installed.
+
+The original questions follow.
+
 
 - Owner of the sweep and of toolchain-keyed directories:
   is `package/cargo-shadow/cli` the component?
