@@ -4491,12 +4491,20 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
+- the summary's skipped count is zero beside lines that say a worktree is already a subvolume,
+  and no counter names an undone conversion:
+  `ConversionReport::on_event` (`worktree/worktree_convert_command.rs`) counts `WouldConvert` and a
+  `Skipped` verdict but neither `AlreadySubvolume` nor `Abandoned`.
+  Measured 2026-11-08T18:54:31-05:00:
+  the third run of `all_worktrees_are_listed_then_converted` printed
+  "2 worktree(s) looked at,
+  0 converted or completed,
+  0 skipped."
+  under two lines saying the worktree is already a subvolume.
+  Not fixed;
+  the owner's wording call:
+  count both in the skipped count,
+  or give each its own counter in the summary;
 - the `node_modules` links that point nowhere are counted (read only,
   nothing relinked,
   2026-11-08T17:10:51-05:00):
