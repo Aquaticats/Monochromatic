@@ -262,10 +262,16 @@ Stages marked window run inside the window and are refused once its maximum has 
     the table of every worktree (timed),
     the window maximum,
     the root holder scan,
-    the wrapper state,
+    the wrapper state
+    (no `busy/` or `push-retries/` file in either commit service state folder:
+    `~/.local/state/cli-git/service` of the releases before the rename
+    and `~/.local/state/monochromatic-git-policy-cli/service` of the renamed wrapper),
     and a fresh `btrfs subvolume list -u` with the print mode of the freeze and the final pass.
 2.  `c06-stop-units` (needs `--assert=c06-stop-units`):
-    stops the user units.
+    stops the user units:
+    every `cli-git@*` and `monochromatic-git-policy-cli@*` socket and service
+    (the earlier sockets keep listening after the rename)
+    and `claude-cpu-watch.service`.
     The window clock starts here and commits fail from here.
 3.  `c07-freeze`:
     the freeze pass of the copy tool as the user
