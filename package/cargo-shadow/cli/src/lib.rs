@@ -989,3 +989,26 @@ pub mod lean_size_caps;
 /// The tests of the size cap.
 #[cfg(test)]
 mod lean_size_caps_tests;
+
+/// Mechanism D:
+/// the retention of verification run records.
+pub mod lean_run_records;
+
+/// The tests of the run-record retention.
+#[cfg(test)]
+mod lean_run_records_tests;
+
+/// The checkouts of a repository,
+/// found from the Git directory's files.
+pub mod lean_checkouts;
+
+/// The tests of the checkout listing.
+#[cfg(test)]
+mod lean_checkouts_tests;
+
+/// The removal of dated nightly toolchains no checkout pins.
+pub mod lean_rustup_toolchains;
+
+/// The tests of the toolchain retirement.
+#[cfg(test)]
+mod lean_rustup_toolchains_tests;
