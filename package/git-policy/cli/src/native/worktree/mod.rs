@@ -85,6 +85,10 @@ pub mod worktree_remove;
 
 pub mod worktree_remove_registry;
 
+/// The stop of a removed worktree's commit service units,
+/// named from the registration before the removal and stopped after it.
+pub mod worktree_removal_stops_units;
+
 /// The one message shape of a failed step on a path:
 /// `<path> <what> (<error>)`.
 pub mod worktree_path_failure_message;

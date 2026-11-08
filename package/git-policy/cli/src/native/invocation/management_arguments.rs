@@ -44,7 +44,7 @@ pub const MANAGEMENT_USAGE: &str = "\
 Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli fix (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli doctor
-       git monochromatic-git-policy-cli service (status | settle-earlier-batches)
+       git monochromatic-git-policy-cli service (status | settle-earlier-batches | stop-units-of-removed-worktrees)
        git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
        git monochromatic-git-policy-cli --help
@@ -64,6 +64,8 @@ Commands:
            settle-earlier-batches: finish the batches an earlier release's commit service left open for this worktree (doctor
            says how many). Run it only when no wrapper of the earlier release is in use in this worktree at that moment; it
            refuses while an earlier socket listens or an earlier helper runs, and says what to do.
+           stop-units-of-removed-worktrees: stop the commit service units of worktrees that no longer exist (doctor says how
+           many; the wrapper stops them itself when it removes a worktree, and this covers the rest).
   doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
            1 when any other hook is found, 2 outside a repository.
   migrate-to-subvolume
@@ -152,6 +154,9 @@ pub enum ManagementAction {
     /// when no earlier
     ///  helper runs or can start.
     SettleEarlierBatches,
+    /// `service stop-units-of-removed-worktrees`:
+    /// stop the commit service units of worktrees that no longer exist.
+    StopUnitsOfRemovedWorktrees,
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,
@@ -446,6 +451,7 @@ pub fn parse_management_arguments(
         return match rest {
             [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
             [word] if word == "settle-earlier-batches" => Ok(ManagementAction::SettleEarlierBatches),
+            [word] if word == "stop-units-of-removed-worktrees" => Ok(ManagementAction::StopUnitsOfRemovedWorktrees),
             _ => Err(ManagementRefusal::Usage),
         };
     }

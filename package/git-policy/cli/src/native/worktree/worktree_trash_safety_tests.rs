@@ -425,6 +425,7 @@ fn unreachable_host() -> crate::service_provision::ProvisionHost {
         service_binary: PathBuf::from("/nonexistent-service"),
         git: PathBuf::from("/nonexistent-git"),
         instance: String::from("fixture-instance"),
+        git_dir: std::path::PathBuf::new(),
         retirement_wait: std::time::Duration::from_millis(10),
     };
 }

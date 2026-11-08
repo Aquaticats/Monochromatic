@@ -65,6 +65,7 @@ fn write_unit(root: &Path, git: &Path) {
         service_binary: PathBuf::from("/opt/tool/monochromatic-git-policy-cli"),
         git: git.to_path_buf(),
         instance: String::from("x"),
+        git_dir: std::path::PathBuf::new(),
         retirement_wait: std::time::Duration::ZERO,
     };
     for (name, text) in unit_texts(&host) {

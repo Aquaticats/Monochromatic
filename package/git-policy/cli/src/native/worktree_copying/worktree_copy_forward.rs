@@ -23,6 +23,7 @@
 use crate::forwarding::{ChildOutcome, exit_code as child_exit_code, run_real_git};
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_remove_plan::RemovePlan;
+use crate::worktree_removal_stops_units::{WorktreeAboutToGo, before_removal, stop_units_of_removed_worktree};
 use crate::worktree_identity::WorktreeIdentity;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -207,11 +208,14 @@ pub fn run_forwarded_git(
     #[cfg(unix)]
     {
         if let Some(facts) = copy {
-            #[cfg(target_os = "linux")]
-            if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
-                return finished;
+            // The instance of a removed worktree is a hash of a directory the removal deletes, so it is named first.
+            let about: Option<WorktreeAboutToGo> = units_of_worktree_about_to_go(facts);
+            let finished: ForwardedRun = run_served(real_git, arguments, overlay, facts);
+            // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
+            if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
+                stop_units_of_removed_worktree(gone);
             }
-            return run_settled(real_git, arguments, overlay, facts);
+            return finished;
         }
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
@@ -220,6 +224,50 @@ pub fn run_forwarded_git(
         let _ = copy;
     }
     return run_plain(real_git, arguments, overlay);
+}
+
+/// What:
+///  The worktree a plain `git worktree remove` names,
+/// as its commit service units know it.
+/// Why:
+///   The units of a removed worktree are stopped once the removal ended (`worktree_removal_stops_units.rs`),
+/// and the name they have is made from the registration the removal deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const about = facts.removePlan && beforeRemoval(commonDir, facts.removePlan);
+/// ```
+#[cfg(unix)]
+fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo> {
+    let plan = facts.remove_plan.as_ref()?;
+    let common_dir: &Path = match &facts.identity {
+        WorktreeIdentity::MainWorktree { common_dir, .. }
+        | WorktreeIdentity::LinkedWorktree { common_dir, .. }
+        | WorktreeIdentity::BareRepository { common_dir, .. } => common_dir.as_path(),
+        WorktreeIdentity::OutsideWorktree => return None,
+    };
+    return before_removal(common_dir, plan);
+}
+
+/// What:
+///  Serve the invocation the way the copy applies to it:
+/// a removal by subvolume destroy when every condition holds,
+/// else the settled run with Git as a child.
+/// Why:
+///   The two ways end in the same `ForwardedRun`,
+/// so what follows a removal is written once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await removeBySubvolume(facts)) ?? (await runSettled(facts));
+/// ```
+#[cfg(unix)]
+fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], facts: &CopyFacts) -> ForwardedRun {
+    #[cfg(target_os = "linux")]
+    if let Some(finished) = remove_by_subvolume(real_git, overlay, facts) {
+        return finished;
+    }
+    return run_settled(real_git, arguments, overlay, facts);
 }
 
 /// What:
