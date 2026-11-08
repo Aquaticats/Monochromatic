@@ -20,6 +20,23 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- Which `index.lock` files the commit service may remove,
+  after the agent measured that a native `git commit -a`,
+  `--only` or `git commit <path>` keeps a lock with the whole index in it while its editor is open,
+  with no open descriptor and no PID file:
+  "Empty locks only (Recommended)":
+  only an empty lock that no readable process holds and no PID file names is removed;
+  a lock with content is waited for to the ceiling,
+  then refused with a message naming it
+  (built in `373ea2efdc`).
+- The ceiling of the signed scratch `git commit` step when the message came with the command:
+  "About 3 s now"
+  (three times the slowest of 14 per-step records,
+  1,002 ms),
+  chosen over the recommended 21 minutes with the con stated:
+  on 2026-11-07's data it would have failed commits whose build took 11 to 406 s.
+  The editor case keeps no ceiling.
+
 - Whether a stop of the commit service may cut a running branch write
   (the 2026-11-04 answer "Never cut a branch write" against the 2026-11-07 answer "C:
   shutdown stops its Gits"):
