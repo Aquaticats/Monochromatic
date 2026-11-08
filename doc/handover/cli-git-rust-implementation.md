@@ -4283,8 +4283,6 @@ The second gate run (5393 tests) then failed `service_provision::tests::a_foreig
 and the note was written before the refusal;
 it is now written after the units start).
 Open:
-a removal Git runs with the wrapper replaced (`worktree remove --force`,
-`worktree prune`) and a worktree deleted without Git leave their units until the command runs;
 the 8 unmapped instances have neither a note nor a journal record that hashes to them
 (units of worktrees that never landed a commit before this release,
 or whose repository was deleted whole),
@@ -4294,6 +4292,32 @@ so they stay;
 and the wiring was checked once against the real user manager in a throwaway repository:
 socket active before the removal,
 inactive after).
+
+Closed on 2026-11-08, the leftovers a person had to remember:
+a removal Git runs with the wrapper replaced (`worktree remove --force`,
+`worktree prune`) and a worktree deleted without Git used to leave their units until someone ran the command.
+A service that starts and finds its own worktree gone now stops its own socket before it serves anything
+(`service_main.rs`,
+`service_units_of_removed_worktrees.rs`):
+it asks the same question of the same note and journal records the sweep and `doctor` use,
+stops the socket with the stop mode that leaves the units requiring it alone,
+removes the note and the socket file,
+and ends with status 0,
+because the service's own end is what stops its service unit and a failure status would make `Restart=on-failure` start it again.
+A worktree on a device that is not mounted is not gone, so its service serves.
+The controls:
+`a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
+`a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
+`a_service_whose_worktree_cannot_be_told_serves`,
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git, then the sweep),
+and the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
+which was red against a service that served the gone worktree.
+What is still unmeasured:
+the self-stop has not run against a real user manager,
+because the controls start no unit and look for the bus in a fixture runtime directory;
+and a socket nobody ever connects to still listens,
+so the automatic stop needs a first connection and the sweep or `doctor` remains for the rest.
+`doctor` counted the leftovers before this change and counts them still.
 
 Pre-existing,
 from the lock-removal pass,

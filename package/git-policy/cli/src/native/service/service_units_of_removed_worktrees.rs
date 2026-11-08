@@ -378,13 +378,15 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn 
 }
 
 /// What:
-/// Stops the socket unit of one instance through the manager and removes the files that said it had units,
-/// when the worktree of that instance is gone;
-/// nothing when it is not.
+/// Stops the socket unit of one instance through the manager,
+/// and removes the files that said it had units,
+/// when the worktree of that instance is gone,
+/// and nothing when it is not.
 /// Why:
 ///   This is what a service of a gone worktree does about itself:
 /// it serves nothing,
-/// and the socket, the note and the socket file go,
+/// and the socket,
+/// the note and the socket file go,
 /// so `doctor` counts nothing left over and the next sweep asks nothing.
 /// Only the socket is stopped,
 /// and with the mode that leaves what requires it alone:

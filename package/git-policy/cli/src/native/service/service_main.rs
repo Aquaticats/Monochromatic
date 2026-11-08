@@ -228,17 +228,23 @@ fn option(arguments: &[String], name: &str) -> Option<String> {
 fn state_dir_of_journal(journal: &Path, instance: &str) -> Option<PathBuf> {
     let state: &Path = journal.parent()?.parent()?.parent()?;
     let expected: PathBuf = state.join(crate::wrapper_names_old_and_new::SERVICE_UNIT.current).join("service").join(instance);
-    return (journal == expected).then(|| state.to_path_buf());
+    if journal != expected {
+        return None;
+    }
+    return Some(state.to_path_buf());
 }
 
 /// What:
 ///  Stops this unit's own socket when the worktree it serves is gone,
 /// and says whether it is gone.
 /// Why:
-///   A removal Git ran with the wrapper replaced (`worktree remove --force`, `worktree prune`) and a worktree deleted without Git
+///   A removal Git ran with the wrapper replaced (`worktree remove --force`,
+/// `worktree prune`),
+/// and a worktree deleted without Git,
 /// leave the socket unit listening and the service unit running for a directory that is gone,
 /// and a service has nothing to commit to there.
-/// The service is what learns first: the manager starts it on the first connection,
+/// The service is what learns first:
+/// the manager starts it on the first connection,
 /// so it stops its own socket instead of serving,
 /// and the note and the socket file go with it (`service_units_of_removed_worktrees.rs`),
 /// which is what makes the leftover stop without a person remembering the sweep.
@@ -263,7 +269,7 @@ fn stop_own_socket_if_the_worktree_is_gone(instance: &str, journal: &Path) -> bo
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
     // A worktree that is there, or one nothing names, costs no bus connection and no question to the manager: the files answer it.
     let Some(gone) = own_worktree_gone(&folders, instance) else { return false };
-    let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok().filter(|text| { return !text.is_empty(); });
+    let address: Option<String> = std::env::var("DBUS_SESSION_BUS_ADDRESS").ok();
     let Some(socket) = session_bus_path(address.as_deref(), Some(runtime_dir.as_path())) else {
         crate::service_warn!(
             "the worktree of this commit service is gone ({}), so it serves nothing, but no session bus was found to stop its socket; `git monochromatic-git-policy-cli doctor` counts it and the sweep stops it",
@@ -369,8 +375,8 @@ pub fn run(arguments: &[String]) -> i32 {
     };
     // The worktree of this unit is read before anything is created or bound: a service of a worktree that no longer exists
     //  has nothing to serve, so it stops its own socket rather than listen for a directory that is gone.
-    let instance: Option<String> = option(arguments, "--instance");
-    if let Some(name) = instance.as_deref()
+    let named_instance: Option<String> = option(arguments, "--instance");
+    if let Some(name) = named_instance.as_deref()
         && stop_own_socket_if_the_worktree_is_gone(name, journal.as_path())
     {
         return EXIT_NOTHING_TO_SERVE;
@@ -410,7 +416,7 @@ pub fn run(arguments: &[String]) -> i32 {
         settings.release = release;
     }
     // The unit instance names the worktree this service is for; a message about any other worktree is refused.
-    settings.instance = instance;
+    settings.instance = named_instance;
     // Every later entry carries the release and the instance.
     crate::service_timing::set_context(settings.release.as_str(), settings.instance.as_deref());
     // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
