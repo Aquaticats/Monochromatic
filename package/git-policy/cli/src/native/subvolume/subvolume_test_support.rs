@@ -331,6 +331,32 @@ pub(crate) fn checkout_with_worktree(name: &str) -> (PathBuf, PathBuf) {
 }
 
 
+/// What:
+///  A checkout with one linked worktree `wt`, after the whole repository moved behind a symbolic link:
+/// the checkout is renamed `moved` and a link is left at its old name,
+/// so every registration still spells the old name while naming the same files.
+/// Why:
+///   A registration that spells the same file through a link is not stale,
+/// which is what this repository looked like on 2026-11-08,
+/// when `/var/home/user/Monochromatic` became a link to `/var/mnt/encrypted/repository/Monochromatic`.
+/// The worktree's tracked files are old and its index is fresh,
+/// so it is quiet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [parent, root, worktree] = checkoutMovedBehindALink('convert-link');
+/// ```
+pub(crate) fn checkout_moved_behind_a_link(name: &str) -> (PathBuf, PathBuf, PathBuf) {
+    let (parent, root) = checkout_with_worktree(name);
+    let moved: PathBuf = parent.join("moved");
+    std::fs::rename(&root, &moved).expect("move the checkout aside");
+    std::os::unix::fs::symlink(&moved, &root).expect("leave a link at the old name");
+    let worktree: PathBuf = std::fs::canonicalize(moved.join("wt")).expect("canonical worktree");
+    backdate(worktree.as_path());
+    git(worktree.as_path(), &["update-index", "--refresh"]);
+    return (parent, moved, worktree);
+}
+
 /// What `git ls-files --debug` reports as the inode of a tracked path.
 pub(crate) fn index_inode(root: &Path, path: &str) -> u64 {
     let text: String = git_text(root, &["ls-files", "--debug", "--", path]);

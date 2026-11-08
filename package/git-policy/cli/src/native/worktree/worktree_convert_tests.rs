@@ -7,7 +7,7 @@
 //! and the guarantee that nothing foreign is deleted.
 
 use super::*;
-use crate::subvolume_test_support::{Hooked, PlainPlatform, backdate, checkout_with_worktree, index_inode};
+use crate::subvolume_test_support::{Hooked, PlainPlatform, backdate, checkout_moved_behind_a_link, checkout_with_worktree, index_inode};
 use crate::test_support::{git, git_text, remove};
 use std::os::unix::fs::MetadataExt;
 
@@ -103,6 +103,58 @@ fn a_dry_run_changes_nothing() {
     assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists());
     assert!(!admin_of(worktree.as_path()).join("index.lock").exists());
     assert!(std::fs::symlink_metadata(converting_path(worktree.as_path())).is_err());
+    remove(parent.as_path());
+}
+
+/// A registration that spells the worktree through a symbolic link names the same worktree,
+/// so the conversion runs:
+/// after a repository has moved behind a link,
+/// every registration still spells the old name.
+#[test]
+fn a_registration_spelled_through_a_link_is_the_same_worktree() {
+    let (parent, _root, worktree) = checkout_moved_behind_a_link("convert-link-registration");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let candidate: Candidate = inspect(worktree.as_path()).expect("the two spellings are one file");
+    assert_eq!(candidate.path, worktree);
+    let (verdict, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(verdict.expect("converted"), Verdict::Converted, "{lines:#?}");
+    assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"));
+    assert_eq!(std::fs::read(worktree.join("README.md")).expect("readme"), b"readme\n");
+    assert_eq!(git_text(worktree.as_path(), &["status", "--porcelain"]), "", "Git still sees a clean worktree");
+    assert!(!admin_of(worktree.as_path()).join(JOURNAL_NAME).exists(), "the journal is gone");
+    remove(parent.as_path());
+}
+
+/// A registration that names another worktree's `.git` file is still refused,
+/// because the two names are not one file.
+#[test]
+fn a_registration_that_names_another_worktree_is_refused() {
+    let (parent, root) = checkout_with_worktree("convert-elsewhere");
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "second"]);
+    let admin: PathBuf = root.join(".git/worktrees/wt");
+    let elsewhere: String = format!("{}/.git\n", root.join("second").display());
+    std::fs::write(admin.join("gitdir"), elsewhere.as_str()).expect("a registration of another worktree");
+    let reason: String = inspect(root.join("wt").as_path()).expect_err("the registration names another worktree");
+    assert!(reason.contains("does not name") && reason.contains("points elsewhere"), "{reason}");
+    let platform: PlainPlatform = PlainPlatform::new();
+    skipped_with(run(&platform, root.join("wt").as_path(), RUN, &Interrupt::never()).0, "points elsewhere");
+    assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "nothing was converted");
+    remove(parent.as_path());
+}
+
+/// A registration whose `.git` file does not exist is refused as dangling,
+/// and nothing is converted.
+#[test]
+fn a_dangling_registration_is_refused() {
+    let (parent, root) = checkout_with_worktree("convert-dangling");
+    let admin: PathBuf = root.join(".git/worktrees/wt");
+    let dangling: String = format!("{}/.git\n", root.join("gone").display());
+    std::fs::write(admin.join("gitdir"), dangling.as_str()).expect("a dangling registration");
+    let reason: String = inspect(root.join("wt").as_path()).expect_err("the registration is dangling");
+    assert!(reason.contains("does not name") && reason.contains("points elsewhere"), "{reason}");
+    let platform: PlainPlatform = PlainPlatform::new();
+    skipped_with(run(&platform, root.join("wt").as_path(), RUN, &Interrupt::never()).0, "points elsewhere");
+    assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "nothing was converted");
     remove(parent.as_path());
 }
 
