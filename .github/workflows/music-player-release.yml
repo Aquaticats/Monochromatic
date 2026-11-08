@@ -813,10 +813,12 @@ jobs:
       BUILD_CPUS: '4'
       # CFS quota of the image builds: BUILD_CPUS whole CPUs of the 100000 microsecond period (podman build has no --cpus).
       BUILD_CPU_QUOTA: '400000'
-      # The process limit is the IDE's bound for 4 CPUs (package/ide/app/bin/container-bounds.ts), and the weight is the lowest podman
-      # accepts (package/container-limit/core; repository rule HXR). The first container start of the job is its probe: a runner
-      # that refuses one of these options fails there, in seconds, and not an hour into the build. podman build has neither option.
-      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024 --blkio-weight=10 --cgroup-conf=io.weight=10'
+      # The process limit is the IDE's bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). There is no disk weight here: hosted
+      # runners do not delegate the cgroup io controller, and run 42447009237 of this workflow (2026-11-08) failed in this job with
+      # `crun: opening file 'io.weight' for writing: No such file or directory`. CONTAINER_LIMIT_DISK_WEIGHT=off tells
+      # package/container-limit/core to leave the weight out of every container a task of this job starts.
+      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024'
+      CONTAINER_LIMIT_DISK_WEIGHT: 'off'
       NOTICES: notices/music-player-${{ needs.detect.outputs.version }}-desktop-third-party-licenses.txt
     steps:
     - name: Checkout
@@ -1363,10 +1365,12 @@ jobs:
       BUILD_CPUS: '4'
       # CFS quota of the image builds: BUILD_CPUS whole CPUs of the 100000 microsecond period (podman build has no --cpus).
       BUILD_CPU_QUOTA: '400000'
-      # The process limit is the IDE's bound for 4 CPUs (package/ide/app/bin/container-bounds.ts), and the weight is the lowest podman
-      # accepts (package/container-limit/core; repository rule HXR). The first container start of the job is its probe: a runner
-      # that refuses one of these options fails there, in seconds, and not an hour into the build. podman build has neither option.
-      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024 --blkio-weight=10 --cgroup-conf=io.weight=10'
+      # The process limit is the IDE's bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). There is no disk weight here: hosted
+      # runners do not delegate the cgroup io controller, and run 42447009237 of this workflow (2026-11-08) failed in this job with
+      # `crun: opening file 'io.weight' for writing: No such file or directory`. CONTAINER_LIMIT_DISK_WEIGHT=off tells
+      # package/container-limit/core to leave the weight out of every container a task of this job starts.
+      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024'
+      CONTAINER_LIMIT_DISK_WEIGHT: 'off'
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd

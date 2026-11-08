@@ -22,6 +22,23 @@
 export const LOWEST_DISK_WEIGHT = 10;
 
 /**
+ Name of the environment variable that turns the disk weight off.
+
+ GitHub-hosted runners do not delegate the cgroup `io` controller to the user that runs `podman`, so a container started
+ with the weight is refused there: run 42447009237 of `.github/workflows/music-player-release.yml` (2026-11-08) failed in
+ the jobs `test-alpine-x86_64` and `test-alpine-aarch64` with `crun: opening file 'io.weight' for writing: No such file
+ or directory`.
+ A workflow whose jobs start containers on such a runner sets this variable to {@link DISK_WEIGHT_OFF}; nothing else
+ reads it, and a developer machine never sets it.
+ */
+export const DISK_WEIGHT_SWITCH = 'CONTAINER_LIMIT_DISK_WEIGHT';
+
+/**
+ The only value of {@link DISK_WEIGHT_SWITCH} that turns the weight off; any other value, an empty one included, keeps it.
+ */
+export const DISK_WEIGHT_OFF = 'off';
+
+/**
  Length of one CFS scheduling period in microseconds, which is also Podman's own default period.
  */
 export const CFS_PERIOD_MICROSECONDS = 100_000;
@@ -58,14 +75,22 @@ export type ImageBuildLimits = Pick<ContainerLimits, 'cpus' | 'memory'>;
  Passing both puts whichever file the host's scheduler reads at {@link LOWEST_DISK_WEIGHT}.
  `podman build` has neither option, so image builds are not covered.
 
- @returns `['--blkio-weight=10', '--cgroup-conf=io.weight=10']`
+ @param environment - where {@link DISK_WEIGHT_SWITCH} is read; the process environment unless a test gives its own
+
+ @returns `['--blkio-weight=10', '--cgroup-conf=io.weight=10']`, or no argument when the switch says off
 
  @example
  ```ts
  const options = diskWeightArguments();
  ```
  */
-export function diskWeightArguments(): readonly string[] {
+export function diskWeightArguments({
+  environment = process.env,
+}: {
+  readonly environment?: Readonly<NodeJS.ProcessEnv>;
+} = {},): readonly string[] {
+  if (environment[DISK_WEIGHT_SWITCH] === DISK_WEIGHT_OFF)
+    return [];
   return [
     `--blkio-weight=${String(LOWEST_DISK_WEIGHT,)}`,
     `--cgroup-conf=io.weight=${String(LOWEST_DISK_WEIGHT,)}`,
@@ -77,7 +102,7 @@ export function diskWeightArguments(): readonly string[] {
 
  @param limits - memory, CPUs and processes sized to the container's job
 
- @returns the `podman run` or `podman create` options
+ @returns the `podman run` or `podman create` options; the weight is left out when {@link DISK_WEIGHT_SWITCH} says off
 
  @example
  ```ts

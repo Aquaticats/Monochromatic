@@ -25,6 +25,15 @@ inputs:
     required: false
     default: 'true'
 
+  install-filter:
+    description: >
+      A `pnpm install --filter` selector, such as `@monochromatic-dev/test-harness-core-matrix...` (the package and its
+      dependencies). When set and `install-dependencies` is `false`, the job installs only that part of the workspace, so
+      the task bodies that import a workspace package by name resolve it without the whole install. Installing the pinned
+      pnpm is implied. Empty means no filtered install.
+    required: false
+    default: ''
+
 runs:
   using: composite
   steps:
@@ -98,7 +107,7 @@ runs:
         & (Join-Path $root 'npm.cmd') --version
 
     - name: Install pnpm
-      if: inputs.pnpm-version != '' || inputs.install-dependencies == 'true'
+      if: inputs.pnpm-version != '' || inputs.install-dependencies == 'true' || inputs.install-filter != ''
       shell: bash
       run: |
         set -euo pipefail
@@ -123,3 +132,10 @@ runs:
       if: inputs.install-dependencies == 'true'
       shell: bash
       run: pnpm install --frozen-lockfile
+
+    - name: Install the filtered part of the workspace
+      if: inputs.install-dependencies != 'true' && inputs.install-filter != ''
+      shell: bash
+      env:
+        INSTALL_FILTER: ${{ inputs.install-filter }}
+      run: pnpm install --frozen-lockfile --filter "$INSTALL_FILTER"

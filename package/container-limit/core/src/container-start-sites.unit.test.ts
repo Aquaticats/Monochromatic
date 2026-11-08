@@ -20,6 +20,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  DISK_WEIGHT_OFF,
+  DISK_WEIGHT_SWITCH,
   diskWeightArguments,
   LOWEST_DISK_WEIGHT,
 } from './index.ts';
@@ -27,7 +29,7 @@ import {
 /**
  What a ledger entry's file does with the container tool.
  */
-type Role = 'starts' | 'builds' | 'passes-limits' | 'reads';
+type Role = 'starts' | 'hosted-runner' | 'builds' | 'passes-limits' | 'reads';
 
 /**
  Words that show a file that starts containers takes the shared weight: a helper from this package or a package that
@@ -42,6 +44,14 @@ const STARTS_MARKERS: readonly string[] = [
   'containerRunArguments',
   'CONTAINER_EXTRA_OPTIONS',
   '--blkio-weight',
+];
+
+/**
+ Words that show a workflow that starts containers on a hosted runner, which cannot set the disk weight: the switch that
+ turns the weight off for every task of the job, which the test below ties to a measured refusal.
+ */
+const HOSTED_RUNNER_MARKERS: readonly string[] = [
+  DISK_WEIGHT_SWITCH,
 ];
 
 /**
@@ -70,12 +80,14 @@ const PASSES_MARKERS: readonly string[] = [
  The comment above each group says why the role holds.
  */
 const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
-  // Workflows: the first container start of each job is its probe, and the options come from one job variable.
+  // Workflows on hosted runners, which refuse the disk weight (run 42447009237 of music-player-release.yml): they carry
+  // a process limit and the switch that turns the weight off, and say why.
   ...[
     '.github/workflows/ide-release.yml',
     '.github/workflows/music-player-release.yml',
-    '.github/workflows/pnpr-publish.yml',
-  ].map((path,) => ({ path, role: 'starts' as const, }),),
+  ].map((path,) => ({ path, role: 'hosted-runner' as const, }),),
+  // The docker run of pnpr-publish.yml, which the runner's root docker daemon accepts with `--blkio-weight`.
+  { path: '.github/workflows/pnpr-publish.yml', role: 'starts' as const, },
   // Task files and scripts that start containers with the limits spelled in the file or taken from a helper.
   ...[
     'mise.toml',
@@ -350,6 +362,7 @@ function filesNamingAContainerProgram(): readonly string[] {
  */
 const markersByRole: Readonly<Record<Role, readonly string[]>> = {
   'starts': STARTS_MARKERS,
+  'hosted-runner': HOSTED_RUNNER_MARKERS,
   'builds': BUILDS_MARKERS,
   'passes-limits': PASSES_MARKERS,
   'reads': [],
@@ -431,7 +444,25 @@ await describe({
       },
     },),
     it({
-      name: 'spells the options of the workflow variable as the shared weight options',
+      name: 'turns the weight off in every workflow job that starts containers on a hosted runner, and says why',
+      fn: async () => {
+        for (const workflow of [
+          '.github/workflows/ide-release.yml',
+          '.github/workflows/music-player-release.yml',
+          '.github/workflows/env-local-json.yml',
+        ]) {
+          /**
+           Text of the workflow.
+           */
+          const text = textOf(workflow,);
+          expect(text,).toContain(`${DISK_WEIGHT_SWITCH}: '${DISK_WEIGHT_OFF}'`,);
+          expect(text,).toContain('run 42447009237',);
+          expect(text,).toContain("crun: opening file 'io.weight' for writing",);
+        }
+      },
+    },),
+    it({
+      name: 'keeps a process limit and no weight option in the option variable of the hosted-runner workflows',
       fn: async () => {
         for (const workflow of [
           '.github/workflows/ide-release.yml',
@@ -445,8 +476,9 @@ await describe({
             .filter((line,) => line.trimStart().startsWith('CONTAINER_EXTRA_OPTIONS:',),);
           expect(values.length,).toBeGreaterThan(0,);
           for (const line of values) {
-            for (const option of diskWeightArguments())
-              expect(line,).toContain(option,);
+            expect(line,).toContain('--pids-limit=',);
+            for (const option of diskWeightArguments({ environment: {}, },))
+              expect(line,).not.toContain(option,);
           }
         }
       },
