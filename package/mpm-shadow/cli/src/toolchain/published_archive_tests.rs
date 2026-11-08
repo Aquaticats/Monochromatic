@@ -205,14 +205,17 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
 
 /// What:
 /// The program a launcher record names is the version-carrying folder below `current`,
-/// so a newer install, which deletes the older folder, leaves another tree's record naming a path that no longer exists.
+/// so a newer install,
+/// which deletes the older folder,
+/// leaves another tree's record naming a path that no longer exists.
 /// Why:
 /// The census of this machine on 2026-11-08 found 284 such records and 891 launcher binaries that predate the code which
 /// follows `current` and rewrites the record.
 /// The rule that launchers are copies of the newest installed `mpm-shadow` changes which binary a launcher is,
 /// not where a record points,
 /// so it does not stop those records appearing;
-/// it stops such a record breaking the run, because the newest launcher follows `current` and rewrites it.
+/// it stops such a record breaking the run,
+/// because the newest launcher follows `current` and rewrites it.
 #[test]
 fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
     let rig = Rig::new();

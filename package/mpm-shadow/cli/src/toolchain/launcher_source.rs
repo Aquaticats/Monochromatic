@@ -3,7 +3,8 @@
 //! the newest installed one,
 //! found through its `current` link in either toolchain root,
 //! and,
-//! when the running program belongs to no install (a build folder, a copy fetched to a scratch path),
+//! when the running program belongs to no install (a build folder,
+//! a copy fetched to a scratch path),
 //! the running program itself.
 //! Also the `/proc/self/exe` read that makes a running program whose file was deleted copyable.
 //! Why:
@@ -58,7 +59,8 @@ const DELETED_SUFFIX: &str = " (deleted)";
 /// The running program's path as the operating system reports it.
 /// Why:
 /// The path itself says whether this shadow is an install,
-/// so the search for the newest installed one starts here, not at the readable file `usable_source` may return.
+/// so the search for the newest installed one starts here,
+/// not at the readable file `usable_source` may return.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -100,12 +102,24 @@ pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, Too
     )));
 }
 
+/// Whether the metadata of the link's own path says it is a symbolic link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isSymbolicLink(metadata: Metadata): boolean
+/// ```
+fn is_symbolic_link(metadata: fs::Metadata) -> bool {
+    return metadata.is_symlink();
+}
+
 /// What:
 /// Whether the directory holds a link named `current`:
 /// the mark of a tool's install directory,
-/// whichever route installed it (`<root>/cargo/<crate>/current`, `<root>/<tool id>/current`).
+/// whichever route installed it (`<root>/cargo/<crate>/current`,
+/// `<root>/<tool id>/current`).
 /// Why:
-/// The install directory is found from the running program's own path, which does not pass through the link,
+/// The install directory is found from the running program's own path,
+/// which does not pass through the link,
 /// so the mark is a child of the directory rather than a name on the way.
 ///
 /// In TS you'd write (pseudocode):
@@ -115,7 +129,7 @@ pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, Too
 fn holds_current_link(directory: &Path) -> bool {
     // A version directory is never called `current` (the version check refuses it), so a link of that name marks the
     // directory above the versions.
-    return fs::symlink_metadata(directory.join(CURRENT_LINK_NAME)).is_ok_and(|metadata| return metadata.is_symlink());
+    return fs::symlink_metadata(directory.join(CURRENT_LINK_NAME)).is_ok_and(is_symbolic_link);
 }
 
 /// What:
@@ -124,14 +138,20 @@ fn holds_current_link(directory: &Path) -> bool {
 /// Why:
 /// An installed program sits at `<root>/<tool id>/<version>/<archive folder>/<name>`
 /// or `<root>/cargo/<crate>/<version>/bin/<name>`,
-/// so it does not pass through the link itself and the link is found beside the versions, not above them.
+/// so it does not pass through the link itself and the link is found beside the versions,
+/// not above them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function installDirectoryAbove(program: string): string | undefined
 /// ```
 fn install_directory_above(program: &Path) -> Option<&Path> {
-    return program.ancestors().skip(1).find(|directory| return holds_current_link(directory));
+    for directory in program.ancestors().skip(1) {
+        if holds_current_link(directory) {
+            return Some(directory);
+        }
+    }
+    return None;
 }
 
 /// What:
@@ -199,14 +219,19 @@ pub fn newest_installed_shadow(scope: &Scope, running: &Path) -> Option<PathBuf>
         let Some(version) = version_named_by(&link) else {
             continue;
         };
-        if newest.as_ref().is_some_and(|(best, _program)| return compare_versions(&version, best).is_le()) {
+        if let Some((best, _program)) = &newest
+            && compare_versions(&version, best).is_le()
+        {
             continue;
         }
         if let Some(program) = find_bin_under(&link, &name.to_string_lossy()) {
             newest = Some((version, program));
         }
     }
-    return newest.map(|(_version, program): (String, PathBuf) | return program);
+    let Some((_version, program)) = newest else {
+        return None;
+    };
+    return Some(program);
 }
 
 /// What:

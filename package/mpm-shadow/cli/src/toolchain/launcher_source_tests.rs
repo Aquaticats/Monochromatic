@@ -18,7 +18,8 @@ fn shadow_program(toolchain_root: &Path, version: &str) -> PathBuf {
 }
 
 /// The program of `mpm-shadow` at `version` as the launcher source names it:
-/// the shortest path, through the root's `current` link,
+/// the shortest path,
+/// through the root's `current` link,
 /// so a launcher made from it stays valid when a newer version replaces the folder behind the link.
 fn shadow_through_current(toolchain_root: &Path, version: &str) -> PathBuf {
     return toolchain_root

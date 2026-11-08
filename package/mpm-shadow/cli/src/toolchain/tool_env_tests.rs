@@ -125,9 +125,11 @@ fn install_jdk(rig: &Rig, version: &str, release: &str) -> PathBuf {
 
 /// What:
 /// `JAVA_HOME` is exported as the directory the JDK was unpacked into,
-/// not as the tool's version directory, which holds nothing but that folder.
+/// not as the tool's version directory,
+/// which holds nothing but that folder.
 /// Why:
-/// Gradle checks that `JAVA_HOME` names a directory holding `bin/java`, `lib` and `conf`;
+/// Gradle checks that `JAVA_HOME` names a directory holding `bin/java`,
+/// `lib` and `conf`;
 /// the fragment named `.../java/temurin-21.0.13+9.0.LTS`,
 /// so `./gradlew --version` stopped with `ERROR: JAVA_HOME is set to an invalid directory`.
 #[test]
@@ -139,7 +141,10 @@ fn a_tool_directory_that_holds_only_the_unpacked_jdk_exports_the_jdk_directory()
     assert!(env_body(&fragment(&rig)).contains(&format!("JAVA_HOME = \"{}\"\n", path_text(&home))), "{}", fragment(&rig));
 }
 
-/// The control: a directory that holds no unpacked folder, or several, is exported as it is named.
+/// The control:
+/// a directory that holds no unpacked folder,
+/// or several,
+/// is exported as it is named.
 #[test]
 fn a_tool_directory_that_is_the_home_itself_is_exported_as_it_is_named() {
     let mut rig = Rig::new();

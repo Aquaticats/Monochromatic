@@ -247,7 +247,8 @@ fn a_python_tool_that_uv_lists_at_another_version_is_a_failed_install() {
 }
 
 /// The positive control of the two tests before it:
-/// a tool `uv tool list` reports at the locked version is installed once, with one read-back.
+/// a tool `uv tool list` reports at the locked version is installed once,
+/// with one read-back.
 #[test]
 fn a_python_tool_that_uv_lists_at_the_locked_version_is_installed() {
     let rig = Rig::new();

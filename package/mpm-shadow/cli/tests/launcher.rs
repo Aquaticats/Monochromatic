@@ -24,7 +24,8 @@ const TOOL_ID: &str = "cargo:monochromatic-demo-tool";
 /// and exits with `TOOL_EXIT` or dies of SIGTERM when `TOOL_KILL` is set.
 const REAL_PROGRAM: &str = "#!/bin/sh\nprintf 'out:'\nfor argument in \"$@\"; do printf '[%s]' \"$argument\"; done\nprintf '\\n'\nprintf 'env:%s\\n' \"$TOOL_ENV\"\necho 'err-from-the-tool' >&2\nif [ -n \"$TOOL_KILL\" ]; then kill -TERM $$; fi\nexit ${TOOL_EXIT:-0}\n";
 
-/// The warning text the launcher prints for the given versions, the lock file it read and the program it starts.
+/// The warning text the launcher prints for the given versions,
+/// the lock file it read and the program it starts.
 fn expected_warning(locked: &str, used: &str, lock_file: &Path, started: &Path) -> String {
     return format!(
         "mpm-shadow: warning: {TOOL_ID} is locked at {locked} in this tree's lock, {}, but {used} runs, because older repository tools are \

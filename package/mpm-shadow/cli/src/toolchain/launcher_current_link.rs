@@ -67,7 +67,8 @@ fn is_current_link(candidate: &&Path) -> bool {
 /// the nearest ancestor that is a link named `current`.
 /// Why:
 /// Both the program a launcher starts and the launcher's own source are found this way:
-/// the link is the boundary of one installed version, whichever route installed it.
+/// the link is the boundary of one installed version,
+/// whichever route installed it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,7 +79,8 @@ pub fn current_link_above(real: &Path) -> Option<&Path> {
 }
 
 /// What:
-/// The version `link` names: the final directory of its target,
+/// The version `link` names:
+/// the final directory of its target,
 /// resolved through the link chain when it can be,
 /// so a `current` that forwards to the other root's `current` names the version behind the chain.
 /// Why:

@@ -168,10 +168,21 @@ fn unsafe_character(text: &str) -> Option<&'static str> {
     return None;
 }
 
+/// Whether a directory entry's own type is a directory (a link to one is not).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isDirectoryEntry(kind: FileType): boolean
+/// ```
+fn is_directory_entry(kind: fs::FileType) -> bool {
+    return kind.is_dir();
+}
+
 /// What:
 /// The directory a tool's own value names:
 /// the resolved path itself,
-/// or, when that directory holds exactly one directory and the tool's first declared program sits in that
+/// or,
+/// when that directory holds exactly one directory and the tool's first declared program sits in that
 /// directory's own `bin`,
 /// that directory.
 /// Why:
@@ -196,7 +207,7 @@ fn tool_home(directory: &Path, first_bin: &str) -> PathBuf {
     };
     let mut inside: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
-        if entry.file_type().is_ok_and(|kind| return kind.is_dir()) {
+        if entry.file_type().is_ok_and(is_directory_entry) {
             inside.push(entry.path());
         }
     }

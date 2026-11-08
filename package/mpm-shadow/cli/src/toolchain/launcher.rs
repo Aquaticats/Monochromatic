@@ -180,7 +180,8 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 /// Why:
 /// The tree's exposed links and postinstall links point here instead of at the real binary,
 /// and the launcher is a copy of the newest installed `mpm-shadow`
-/// (`launcher_source`), never of whichever copy happened to run `install`.
+/// (`launcher_source`),
+/// never of whichever copy happened to run `install`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
