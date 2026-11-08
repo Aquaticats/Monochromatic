@@ -136,6 +136,13 @@ The stores stay where they are:
 `mise`'s own.
 An ancestor process still holds the driver's own environment,
 and a command can still read a secret out of a file.
+A plugin that adds a variable to a command after Pi starts is outside the rule too.
+
+The `mise` session carriers `__MISE_DIFF` and `__MISE_SESSION` stay,
+so they are worth one check before trusting the rule:
+in the environment that carried 38 credential-shaped variables,
+neither carrier held any of those values,
+compared rather than printed.
 
 A provider credential still reaches Pi,
 which is why no provider key is on the allow list:
