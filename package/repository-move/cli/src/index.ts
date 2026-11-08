@@ -19,7 +19,10 @@ export {
   type Runner,
 } from './command-runner.ts';
 export type { StepContext, } from './copy-steps.ts';
-export { diffStep, foundUnchanged, } from './final-diff-step.ts';
+export {
+  diffStep,
+  foundUnchanged,
+} from './final-diff-step.ts';
 export { execFileAsync, } from './exec-file-async.ts';
 export { childFailureOf, } from './json-text-fields.ts';
 export {

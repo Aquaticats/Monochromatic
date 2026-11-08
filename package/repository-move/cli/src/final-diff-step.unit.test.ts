@@ -50,6 +50,11 @@ const SUBVOLUME_PATH = '/source/f000';
 const SUBVOLUME_UUID = '11111111-2222-3333-4444-555555555555';
 
 /**
+ The UUID of the subvolume this snapshot was taken from, which this step does not read.
+ */
+const PARENT_UUID = '-';
+
+/**
  The first-pass snapshot of the subvolume.
  */
 const FIRST_SNAPSHOT = '/snapshots/s000';
@@ -206,7 +211,10 @@ esac
  What one run of the step did.
  */
 type StepRun = {
-  readonly error: unknown;
+  /**
+   The errors the step threw, empty when it threw none.
+   */
+  readonly errors: readonly Error[];
   readonly records: readonly { readonly data: Record<string, string> }[];
   readonly logged: readonly string[];
 };
@@ -288,13 +296,11 @@ async function runStep(
    What the step logged.
    */
   const logged: string[] = [];
+  const searchPath = firstOnPath(scratch.path,);
   /**
-   The search path this run gives its commands, with the stand-in first.
+   The errors the step threw, empty when it threw none.
    */
-  const path = `${scratch.path}:${process.env.PATH ?? ''}`;
-  const savedPath = process.env.PATH;
-  let error: unknown = null;
-  process.env.PATH = path;
+  const errors: Error[] = [];
   try {
     await diffStep({
       context: {
@@ -315,21 +321,44 @@ async function runStep(
           name: SUBVOLUME_NAME,
           path: SUBVOLUME_PATH,
           uuid: SUBVOLUME_UUID,
+          parentUuid: PARENT_UUID,
         },
       },
       firstSnapshot: FIRST_SNAPSHOT,
       snapshot: FINAL_SNAPSHOT,
     },);
   }
-  catch (caught) {
-    error = caught;
+  catch (error) {
+    errors.push(Error.isError(error,) ? error : new Error(String(error,),),);
   }
-  finally {
-    process.env.PATH = savedPath;
-  }
+  searchPath.putBack();
   return {
     scratch,
-    run: { error, records, logged },
+    run: { errors, records, logged },
+  };
+}
+
+/**
+ Puts a folder first on this process's search path.
+
+ @param bin - the folder to put first
+
+ @returns the value that puts the previous search path back
+
+ @example
+ ```ts
+ const searchPath = firstOnPath(bin);
+ searchPath.putBack();
+ ```
+ */
+function firstOnPath(bin: string,): { readonly putBack: () => void } {
+  const previous = process.env.PATH;
+  process.env.PATH = `${bin}:${previous ?? ''}`;
+  return {
+    putBack() {
+      if (previous === undefined) delete process.env.PATH;
+      else process.env.PATH = previous;
+    },
   };
 }
 
@@ -345,7 +374,7 @@ await describe({
           bytesAfterEnd: 0,
         },);
         await scratch[Symbol.asyncDispose]();
-        expect(run.error,).toBeNull();
+        expect(run.errors.length,).toBe(0,);
         expect(run.records.length,).toBe(1,);
         expect(run.records[0]?.data.changed,).toBe('yes',);
         expect(run.records[0]?.data.commands,).toBe(String(ONE_CHANGE,),);
@@ -361,7 +390,7 @@ await describe({
           bytesAfterEnd: 0,
         },);
         await scratch[Symbol.asyncDispose]();
-        expect(run.error,).toBeNull();
+        expect(run.errors.length,).toBe(0,);
         expect(run.records[0]?.data.changed,).toBe('no',);
         expect(run.records[0]?.data.commands,).toBe(String(NO_CHANGE,),);
       },
@@ -375,7 +404,7 @@ await describe({
           bytesAfterEnd: BYTES_AFTER_END,
         },);
         await scratch[Symbol.asyncDispose]();
-        expect(run.error,).toBeNull();
+        expect(run.errors.length,).toBe(0,);
         expect(run.records[0]?.data.changed,).toBe('yes',);
       },
     },),
@@ -388,7 +417,7 @@ await describe({
           bytesAfterEnd: BYTES_AFTER_END,
         },);
         await scratch[Symbol.asyncDispose]();
-        expect(run.error,).toBeInstanceOf(MoveStopError,);
+        expect(run.errors[0],).toBeInstanceOf(MoveStopError,);
         expect(run.records.length,).toBe(0,);
       },
     },),

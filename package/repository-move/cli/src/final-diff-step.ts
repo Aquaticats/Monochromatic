@@ -106,7 +106,10 @@ export async function diffStep(
       '-o',
       'pipefail',
       '-c',
-      diffCommand({ firstSnapshot, snapshot, },),
+      diffCommand({
+        firstSnapshot,
+        snapshot,
+      },),
     ],
     transfer: true,
   },)).split('\n',)

@@ -233,7 +233,11 @@ async function readIfThere(path: string,): Promise<string> {
   try {
     return await readFile(path, 'utf8',);
   }
-  catch {
+  catch (error) {
+    /**
+     A missing file is the answer this reader reports, not a failure.
+     */
+    console.error(`${path} could not be read: ${String(error,)}`,);
     return '';
   }
 }

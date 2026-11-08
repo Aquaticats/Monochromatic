@@ -273,12 +273,8 @@ done
 printf '%s\\n' "$PWD" >> '${calls}'
 ${repair}exit 0
 `,);
-  for (const name of [
-    'mise',
-    'pnpm',
-  ]) {
-    await chmod(join(bin, name,), STAND_IN_MODE,);
-  }
+  await chmod(join(bin, 'mise',), STAND_IN_MODE,);
+  await chmod(join(bin, 'pnpm',), STAND_IN_MODE,);
 }
 
 /**
@@ -320,7 +316,7 @@ async function refreshStage(): Promise<{
   /**
    The stage that refreshes the checkouts.
    */
-  const stage = stages.find((candidate: Stage,) => candidate.id === REFRESH_STAGE_ID,) as Stage | undefined;
+  const stage = stages.find((candidate: Stage,) => candidate.id === REFRESH_STAGE_ID,);
   if (stage === undefined)
     throw new Error(`the cut-over has no stage ${REFRESH_STAGE_ID}`,);
   if (((typeof stage.command) !== 'string') || ((typeof stage.check) !== 'string'))
@@ -368,38 +364,57 @@ async function runStage(
    What the two runs printed.
    */
   const printed: string[] = [];
-  const savedPath = process.env.PATH;
-  process.env.PATH = `${bin}:${savedPath ?? ''}`;
-  try {
-    const commandStatus = await runShell({
-      command: subject.command,
-      outputFile: join(subject.home.path, 'command.out',),
-      seconds: SHELL_DEADLINE_SECONDS,
-      killGrace: SHELL_KILL_GRACE_SECONDS,
-      outputFileEnv: join(subject.home.path, 'command.out',),
-      out: (text: string,) => {
-        printed.push(text,);
-      },
-    },);
-    const checkStatus = await runShell({
-      command: subject.check,
-      outputFile: join(subject.home.path, 'check.out',),
-      seconds: SHELL_DEADLINE_SECONDS,
-      killGrace: SHELL_KILL_GRACE_SECONDS,
-      outputFileEnv: join(subject.home.path, 'check.out',),
-      out: (text: string,) => {
-        printed.push(text,);
-      },
-    },);
-    return {
-      commandStatus,
-      checkStatus,
-      printed: printed.join('',),
-    };
-  }
-  finally {
-    process.env.PATH = savedPath;
-  }
+  const searchPath = firstOnPath(bin,);
+  const commandStatus = await runShell({
+    command: subject.command,
+    outputFile: join(subject.home.path, 'command.out',),
+    seconds: SHELL_DEADLINE_SECONDS,
+    killGrace: SHELL_KILL_GRACE_SECONDS,
+    outputFileEnv: join(subject.home.path, 'command.out',),
+    out: (text: string,) => {
+      printed.push(text,);
+    },
+  },);
+  const checkStatus = await runShell({
+    command: subject.check,
+    outputFile: join(subject.home.path, 'check.out',),
+    seconds: SHELL_DEADLINE_SECONDS,
+    killGrace: SHELL_KILL_GRACE_SECONDS,
+    outputFileEnv: join(subject.home.path, 'check.out',),
+    out: (text: string,) => {
+      printed.push(text,);
+    },
+  },);
+  searchPath.putBack();
+  return {
+    commandStatus,
+    checkStatus,
+    printed: printed.join('',),
+  };
+}
+
+/**
+ Puts a folder first on this process's search path.
+
+ @param bin - the folder to put first
+
+ @returns the value that puts the previous search path back
+
+ @example
+ ```ts
+ const searchPath = firstOnPath(bin);
+ searchPath.putBack();
+ ```
+ */
+function firstOnPath(bin: string,): { readonly putBack: () => void } {
+  const previous = process.env.PATH;
+  process.env.PATH = `${bin}:${previous ?? ''}`;
+  return {
+    putBack() {
+      if (previous === undefined) delete process.env.PATH;
+      else process.env.PATH = previous;
+    },
+  };
 }
 
 /**
@@ -418,7 +433,11 @@ async function readOrEmpty(path: string,): Promise<string> {
   try {
     return await readFile(path, 'utf8',);
   }
-  catch {
+  catch (error) {
+    /**
+     A missing file is the answer this reader reports, not a failure.
+     */
+    console.error(`${path} could not be read: ${String(error,)}`,);
     return '';
   }
 }

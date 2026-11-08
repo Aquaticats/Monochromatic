@@ -533,7 +533,7 @@ systemd-run ${c.userScope} timeout --kill-after=${killGrace} ${scanTime} ${scan}
 /usr/bin/git --no-optional-locks -C ${c.repo} worktree list --porcelain > ${c.wiz}/porcelain-through-link.txt`,
       check: `${ // Git prints the main worktree under its resolved path, so one line of each file spells it as the 860 path where the baseline spells the link path. Only the line where that path stands alone is rewritten, on both sides, so any other difference still differs.
         ''}main_spelling() {
-  sed --expression 's|^worktree ${c.repo}\$|worktree <the main worktree>|' --expression 's|^worktree ${c.finalPath}\$|worktree <the main worktree>|' --expression 's|^${c.repo}\t|<the main worktree>\t|' --expression 's|^${c.finalPath}\t|<the main worktree>\t|' "$1"
+  sed --expression 's|^worktree ${c.repo}$|worktree <the main worktree>|' --expression 's|^worktree ${c.finalPath}$|worktree <the main worktree>|' --expression 's|^${c.repo}\t|<the main worktree>\t|' --expression 's|^${c.finalPath}\t|<the main worktree>\t|' "$1"
 }
 main_spelling ${c.wiz}/baseline-frozen.tsv > ${c.wiz}/baseline-spelling.tsv
 main_spelling ${c.wiz}/through-link.tsv > ${c.wiz}/through-link-spelling.tsv
