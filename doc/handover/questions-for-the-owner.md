@@ -52,6 +52,17 @@ so any of them can be undone.
   `CronDelete`) and `OPA` (`AskUserQuestion`):
   "Move WUC and keep OPA."
   `WUC` moved to the same preamble and `OPA` stays in `AGENTS.md`.
+- How Pi subagents commit,
+  answered after the coordinator explained the read-only `git` shim:
+  "We have to be happy with Pi committing directly on main.
+  We are not building another git wrapper or shim when we're already so busy with one.
+  If it turns out this blows up we'll consider enhancing our own git wrapper."
+- Where Pi's driver lives:
+  "And please promote the driver into a proper repo pkg or task or something."
+- How far to trust a model by its price:
+  "Expensive models are also not necessarily more trustworthy than cheap models."
+- Running Pi for real work without the driver:
+  "Forget about --print on a real coding task."
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
