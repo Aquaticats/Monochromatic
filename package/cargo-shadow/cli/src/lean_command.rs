@@ -27,13 +27,14 @@ use crate::lean_timer_units::install_timer;
 /// What:
 /// `fn mechanism_of(name: MechanismName) -> Mechanism` maps the command-line name to the run's mechanism.
 /// Why:
-/// The grammar and the run keep separate types.
+/// The grammar and the run keep separate types,
+/// and the test of the run's order reads every name the command line takes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const mechanismOf = (name: MechanismName): Mechanism
 /// ```
-fn mechanism_of(name: MechanismName) -> Mechanism {
+pub(crate) fn mechanism_of(name: MechanismName) -> Mechanism {
     return match name {
         MechanismName::Trees => Mechanism::Trees,
         MechanismName::Units => Mechanism::Units,

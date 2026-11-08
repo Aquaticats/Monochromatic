@@ -4,13 +4,17 @@
 //! one a current source names,
 //! one within the grace period,
 //! and the newest of its repository stay.
+//! A multi-tag image is asked for by its tags,
+//! an image that went with another one in the same run counts as gone,
+//! an image a container holds is kept rather than reported as a failure,
+//! and the container list asks for external (Buildah working) containers.
 
-use std::{cell::RefCell, collections::HashSet};
+use std::{cell::RefCell, collections::{HashMap, HashSet}};
 
 use crate::lean_container_references::{collect_references, words_of};
 use crate::lean_identity::Deadline;
 use crate::lean_podman_cleanup::{Image, PodmanApi, PodmanOutcome, Volume, clean_podman, judge_images, judge_volumes};
-use crate::lean_podman_real::{parse_images, parse_volumes};
+use crate::lean_podman_real::{CONTAINER_LIST_ARGUMENTS, parse_images, parse_volumes};
 use crate::lean_test_support::{DAY, NOW};
 use crate::test_scratch::scratch;
 
@@ -25,10 +29,19 @@ struct Fake {
     containers: Vec<String>,
     /// The dangling volumes.
     volumes: Vec<Volume>,
-    /// Image ids asked for.
-    removed_images: RefCell<Vec<String>>,
+    /// The refusal Podman gives for a removal whose first reference is this key.
+    refusals: HashMap<String, String>,
+    /// The references each image removal was given.
+    removal_calls: RefCell<Vec<Vec<String>>>,
     /// Volume names asked for.
     removed_volumes: RefCell<Vec<String>>,
+}
+
+impl Fake {
+    /// A Podman with these image rows and no container.
+    fn with_images(images: Vec<Image>) -> Fake {
+        return Fake { images, containers: Vec::new(), volumes: Vec::new(), refusals: HashMap::new(), removal_calls: RefCell::new(Vec::new()), removed_volumes: RefCell::new(Vec::new()) };
+    }
 }
 
 impl PodmanApi for Fake {
@@ -41,9 +54,15 @@ impl PodmanApi for Fake {
     fn dangling_volumes(&self) -> Result<Vec<Volume>, String> {
         return Ok(self.volumes.clone());
     }
-    fn remove_images(&self, ids: &[String]) -> Result<(), String> {
-        self.removed_images.borrow_mut().extend(ids.iter().cloned());
-        return Ok(());
+    fn remove_image(&self, references: &[String]) -> Result<(), String> {
+        self.removal_calls.borrow_mut().push(references.to_vec());
+        return match references.first() {
+            Some(first) => match self.refusals.get(first) {
+                Some(refusal) => Err(refusal.clone()),
+                None => Ok(()),
+            },
+            None => Ok(()),
+        };
     }
     fn remove_volume(&self, name: &str) -> Result<(), String> {
         self.removed_volumes.borrow_mut().push(name.to_string());
@@ -114,17 +133,61 @@ fn volumes_a_task_names_or_that_are_young_are_kept_and_the_rest_go() {
 }
 
 #[test]
-fn a_cleanup_removes_in_batches_logs_each_proof_and_a_dry_run_asks_for_nothing() {
+fn a_cleanup_removes_each_judged_image_logs_each_proof_and_a_dry_run_asks_for_nothing() {
     let rows: Vec<Image> = (0..60).map(|index| { return image(&format!("id{index:04}"), "<none>", "<none>", 30 * DAY); }).collect();
-    let fake: Fake = Fake { images: rows, containers: Vec::new(), volumes: Vec::new(), removed_images: RefCell::new(Vec::new()), removed_volumes: RefCell::new(Vec::new()) };
+    let fake: Fake = Fake::with_images(rows);
     let mut log: Vec<String> = Vec::new();
     let dry: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, true, &mut log);
     assert_eq!(dry.images.len(), 60);
-    assert!(fake.removed_images.borrow().is_empty());
+    assert!(fake.removal_calls.borrow().is_empty());
     let real: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &mut log);
     assert_eq!(real.images.len(), 60);
-    assert_eq!(fake.removed_images.borrow().len(), 60);
-    assert!(log.iter().any(|line| { return line.starts_with("removing image id0000: podman listed 60 image rows and 0 containers"); }));
+    assert_eq!(fake.removal_calls.borrow().len(), 60);
+    assert!(log.iter().any(|line| { return line.starts_with("removing image id0000 (id0000): podman listed 60 image rows and 0 containers"); }));
+}
+
+#[test]
+fn a_multi_tag_image_is_removed_through_every_tag_and_an_untagged_one_by_its_id() {
+    // Measured 2026-11-08 in a throwaway Podman root (podman 6.1.3): `podman rmi <id>` refuses an image with more than one tag
+    // ("unable to delete image ... by ID with more than one tag"), and `podman rmi <tag> <tag>` untags both and deletes it.
+    let rows: Vec<Image> = vec![
+        image("aaa111", "localhost/gate", "one", 30 * DAY),
+        image("aaa111", "localhost/gate", "two", 30 * DAY),
+        image("zzz999", "localhost/gate", "new", 2 * DAY),
+        image("bbb222", "<none>", "<none>", 30 * DAY),
+    ];
+    let fake: Fake = Fake::with_images(rows);
+    let mut log: Vec<String> = Vec::new();
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &mut log);
+    assert_eq!(outcome.images, vec![String::from("aaa111"), String::from("bbb222")]);
+    assert_eq!(*fake.removal_calls.borrow(), vec![vec![String::from("localhost/gate:one"), String::from("localhost/gate:two")], vec![String::from("bbb222")]]);
+}
+
+#[test]
+fn an_image_that_went_with_another_one_counts_as_gone_and_one_a_container_holds_as_kept() {
+    // Measured refusals of podman 6.1.3 (2026-11-08), verbatim from the first run's log (`~/temp/agent/lean/first-podman.out`).
+    let rows: Vec<Image> = vec![image("ccc333", "<none>", "<none>", 30 * DAY), image("ddd444", "<none>", "<none>", 30 * DAY), image("eee555", "<none>", "<none>", 30 * DAY)];
+    let mut fake: Fake = Fake::with_images(rows);
+    fake.refusals.insert(String::from("ccc333"), String::from("Error: ccc333: image not known"));
+    fake.refusals.insert(
+        String::from("ddd444"),
+        String::from("Error: image used by 1a305ceb3f6f19964bb840be1088592f0686be71c897eca0d77f73b75284a273: image is in use by a container: consider listing external containers and force-removing image"),
+    );
+    fake.refusals.insert(String::from("eee555"), String::from("Error: eee555: something this tool has no reading for"));
+    let mut log: Vec<String> = Vec::new();
+    let outcome: PodmanOutcome = clean_podman(&fake, &HashSet::new(), GRACE, NOW, false, &mut log);
+    assert_eq!(outcome.gone_with_another, vec![String::from("ccc333")], "{} failures", outcome.failures.len());
+    assert!(outcome.kept_images.iter().any(|(id, why)| { return id == "ddd444" && why.contains("container"); }), "{:?}", outcome.kept_images);
+    assert_eq!(outcome.failures.len(), 1, "{:?}", outcome.failures);
+    assert!(outcome.failures[0].contains("eee555"), "{:?}", outcome.failures);
+}
+
+#[test]
+fn the_container_list_asks_podman_for_external_builders() {
+    // A Buildah working container holds its image but does not appear in `podman ps --all`; measured 2026-11-08 in a throwaway root
+    // (buildah 1.45.1, podman 6.1.3): `ps --external` lists it, `--all --external` lists it beside the ordinary containers.
+    assert!(CONTAINER_LIST_ARGUMENTS.contains(&"--all"), "{CONTAINER_LIST_ARGUMENTS:?}");
+    assert!(CONTAINER_LIST_ARGUMENTS.contains(&"--external"), "{CONTAINER_LIST_ARGUMENTS:?}");
 }
 
 #[test]

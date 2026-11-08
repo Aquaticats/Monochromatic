@@ -9,6 +9,13 @@ built in `package/cargo-shadow/cli` and released as cargo-shadow 0.1.5-alpha.5.
 Written 2026-11-07T23:55:00-05:00;
 the first run was still going,
 so the numbers of what it freed are in the section "First run" only as far as they were known.
+Updated 2026-11-08T15:42:45-05:00:
+what the run takes next (the cheap mechanisms first,
+the units pass last),
+the three Podman refusals the first run met,
+and what of each is still unmeasured.
+Both changes are in the sources only,
+so nothing of this is installed or released yet.
 
 ## State
 
@@ -104,24 +111,48 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
 - Every host workspace's next shadow build starts cold at once
   (the keyed folder is new),
   not per toolchain change as the plan framed it.
-- Timer starvation:
-  `lean run` goes trees,
-  units,
-  records,
+- The run's order and the three Podman refusals are fixed in the sources,
+  not released and not installed (2026-11-08,
+  branch `fix/cargo-shadow-lean-pass-order-and-podman-refusals`):
+  `lean run` takes the cheapest mechanism first and the units pass last (run records,
   toolchains,
-  Podman under one three-hour deadline.
-  The units pass did about 700 profile directories in an hour of several thousand,
-  so for the first firings it uses the deadline and Podman (which needs the whole source scan to finish) may be skipped.
-  Cheap mechanisms first,
-  or a budget per mechanism,
-  is open work.
-- Podman removed 251 of 1601 judged.
-  Three causes seen in its errors,
-  each a fix:
-  Buildah working containers are not in `podman ps --all` (it needs `--external`),
-  an image with several tags needs `rmi repository:tag`,
-  and a child image goes with its parent in the same batch (so later ids read "image not known").
-  Nothing was forced.
+  Podman,
+  idle trees,
+  then the older-compiler sweep and the size caps).
+  The order rests on the first run's timestamps:
+  2.5 minutes for records and toolchains together,
+  20.5 minutes for Podman,
+  29 minutes for the idle trees,
+  and hours for the units pass,
+  which that run stopped 40 minutes in after about 700 of several thousand profile directories.
+  A budget per mechanism is still open work;
+  today the deadline cuts the units pass,
+  and the next run starts it again at the front of the profile list.
+  Until a release and `mise run toolchain:install`,
+  the timer keeps running the installed 0.1.5-alpha.7 and its old order.
+- Podman removed 251 of 1,601 judged on the first run.
+  The three refusals its errors showed are answered in the same branch:
+  the container list asks for `--external`,
+  because a Buildah working container holds its image and is invisible to `podman ps --all`;
+  an image is asked for by every `repository:tag` it carries,
+  because `podman rmi <id>` refuses an image with more than one tag;
+  and a refusal that says `image not known` counts the image as gone.
+  Measured 2026-11-08 in a throwaway storage root (`~/temp/agent/podman-probe`,
+  podman 6.1.3,
+  buildah 1.45.1,
+  no real storage touched):
+  `ps --all --external` lists both the external and the ordinary containers,
+  `rmi <id>` refuses a two-tag image while `rmi <tag> <tag>` untags both and deletes it,
+  and removing an image also deletes an ancestor that only that image referenced,
+  which is the direction the first run's `image not known` errors came from.
+  Unmeasured:
+  how many of the 1,601 a fixed run removes,
+  and the time a per-image `podman rmi` costs against the old batches of 25.
+  Nothing is forced,
+  and no image,
+  volume,
+  container,
+  build folder or timer was touched while fixing this.
 
 ## Timer off until the moved checkouts are checked, recorded 2026-11-08T12:43:37-05:00
 
