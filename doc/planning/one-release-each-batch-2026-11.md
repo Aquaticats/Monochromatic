@@ -2063,6 +2063,136 @@ and the same race is in 0.6.0.
   41 worktree-add-timing lines),
   matching the earlier files' sizes.
 
+### Release record: `monochromatic-git-policy-cli` 0.6.1-alpha.2, the commit stalls, the repository-move items and the tokio wrapper (2026-11-07T22:11:47-05:00)
+
+The owner's rules,
+verbatim:
+"I'm authorizing you to bump and publish any updates this session."
+On 2026-11-07 the owner chose "Allow release tasks (Recommended)".
+The alpha goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- Content:
+  the commit-stall fixes and per-step timing (`f2a90d3fe2`),
+  the rules warm guarded against a tight address-space limit (`5083511eed`),
+  the fault-limits test fix,
+  the flakes round (`4aa39d9d06`),
+  tokio T6 and T7 (`40ec469247`),
+  and the repository-move items:
+  the repository link check,
+  keeping push plans while the repository is unreachable,
+  the read-only,
+  permission and frozen messages and the doctor line (`b842b34fff`,
+  `f981e1b493`).
+  Tokio T10 is not in it:
+  the tip of `feat/git-policy-cli-tokio-t10-service` is not an ancestor of the bump commit
+  (`git merge-base --is-ancestor` answered no),
+  and the other seven commits above are.
+- Gate:
+  none run for this release.
+  The newest full container gate on the wrapper's source passed 5319 of 5319 (the merge of `f981e1b493`).
+  `git log f981e1b493..main -- package/git-policy/cli` listed one commit,
+  `6507cee727`,
+  which changes only the pin `monochromatic-lint =0.5.2-alpha.5` to `=0.5.2-alpha.6` in `Cargo.toml` and `Cargo.lock`;
+  nothing under `src` changed,
+  and `git diff f981e1b493 main -- package/linter/monochromatic-lint` is the same two version lines.
+- Dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42439751758`
+  (2026-11-08T02:43:45Z to 02:48:08Z,
+  `success`;
+  the steps "Push the bump to main as a signed commit" and the publish job were skipped).
+  Note (192 characters):
+  "Commits stall less and print per-step timing;
+  push plans survive an unreachable repository;
+  clearer read-only,
+  permission and frozen messages;
+  doctor reports the repository link;
+  flakes fixed."
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42440101875`
+  (2026-11-08T02:48:54Z to 02:53:23Z,
+  `success`),
+  bump commit `82f147ca68`
+  (2026-11-08T02:53:14Z),
+  0.6.1-alpha.1 to 0.6.1-alpha.2.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42440400149`
+  (built from `82f147ca68`,
+  2026-11-08T02:53:21Z to 03:00:17Z,
+  `success`);
+  `native:release:wait` printed
+  `crates.io 0.6.1-alpha.2: skipped, the alpha label is not published to crates.io (only a plain number and -rc.N are)`
+  and the release assets for `aarch64` and `x86_64` Linux.
+  The GitHub release `monochromatic-git-policy-cli-v0.6.1-alpha.2` was published 2026-11-08T03:00:16Z
+  (`isPrerelease` false,
+  `isDraft` false).
+- Lock commit `d3caef90c8` (2026-11-07T22:01:52-05:00):
+  the first `mise run toolchain:update` reported `2 tools moved`:
+  the wrapper and the floating `rust` nightly (`nightly-2026-11-07` to `nightly-2026-11-08`).
+  The lock was restored (patch kept in `~/temp/agent/wrapper-alpha2-release/full-update.patch`;
+  in the main worktree the restore needs `git restore --no-enforce-worktree`),
+  then `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` reported `1 tools moved`.
+  The diff (read whole) changes only that row:
+  the version,
+  the URL and sha256 of each of its four artifact entries
+  (`aarch64` `23811288...20da`,
+  `x86_64` `518ba047...4c06`)
+  and the lock digest.
+  `toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+- Machine-global lock:
+  `mpm update -g cargo:monochromatic-git-policy-cli` reported
+  `updated   cargo:monochromatic-git-policy-cli  0.6.1-alpha.1 -> 0.6.1-alpha.2`,
+  and it also installed the version:
+  the global launcher's `.launch` file now names
+  `.../cargo-monochromatic-git-policy-cli/current/monochromatic-git-policy-cli-0.6.1-alpha.2-x86_64-unknown-linux-gnu/monochromatic-git-policy-cli`,
+  and the global launcher prints `0.6.1-alpha.2`.
+- User boundary:
+  `git --version` prints `git version 2.56.0` and `monochromatic-git-policy-cli 0.6.1-alpha.2, shadowing git at /usr/bin/git`.
+  The lock commit retired the commit service of release `0.6.1-alpha.1`
+  (journal,
+  22:01:52:
+  `retire requested by a client; this service is release "0.6.1-alpha.1" and exits after its batch`)
+  and the unit started again with
+  `started release="0.6.1-alpha.2" protocol=7`.
+  One commit in a throwaway linked worktree landed (`64e8e54a81`),
+  and `monochromatic-git-policy-cli-commit-timing.jsonl` holds its line
+  (`"release":"0.6.1-alpha.2"`,
+  `"outcome":"landed"`,
+  `"totalMs":370`,
+  `"prepareMs":183`,
+  `"buildMs":55`,
+  `"submitMs":98`).
+  The first `git worktree add` into `~/temp/agent` took about seven minutes:
+  the path is on a different btrfs filesystem than the main checkout,
+  so the wrapper copied the ignored build output instead of taking a snapshot
+  (its message says so).
+  Auto-push then pushed the throwaway branch;
+  the remote branch and the worktree are deleted.
+- Latency,
+  `native:perf` (30 samples per scenario,
+  tiny fixtures,
+  no failed sample in any run),
+  alpha.1 binary saved from the global install before it moved,
+  run through `mise run --skip-deps //package/git-policy/cli:native:perf -- --binary <path>` (the later `--binary` wins):
+  the same-binary spread came first (two alpha.1 runs),
+  then three rounds with the arm order alternating.
+  The `commit-service` added median was 19.81 and 21.61 ms in the two spread runs,
+  so the spread of one binary is 1.8 ms;
+  the forwarded added median (mean of the four forwarded commands) was 1.39 and 1.52 ms,
+  a spread of 0.13 ms.
+  Round medians of alpha.1:
+  `commit-service` added 20.13 ms (rounds 20.19,
+  19.93,
+  20.13),
+  forwarded added 1.46 ms.
+  Round medians of alpha.2:
+  `commit-service` added 20.48 ms (rounds 20.96,
+  19.70,
+  20.48),
+  forwarded added 1.59 ms.
+  The differences,
+  0.35 ms and 0.13 ms,
+  are inside the measured spread of one binary,
+  so no change in the added latency is shown.
+  The SSH-signed commit service added median was 30.0 to 32.2 ms on both.
+
 ### Release record: the shadows never start a shadow, `monochromatic-search-shadow` 0.2.3-alpha.1, `monochromatic-pnpm-shadow` 0.1.3-alpha.1, `monochromatic-cargo-shadow` 0.1.5-alpha.3 and `monochromatic-mpm-shadow` 0.2.7-alpha.5 (2026-11-07T15:22:55-05:00)
 
 The owner's rules,
