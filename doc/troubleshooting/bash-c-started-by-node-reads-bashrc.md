@@ -35,7 +35,7 @@ The --norc option inhibits this behavior
 Node gives a child with `stdio: 'pipe'` a socket pair,
 not an anonymous pipe,
 so standard input is a socket and bash takes it for a remote shell.
-The Unix socket is the trigger,
+The Unix socket is the first condition (the second is the inherited `SHLVL`, measured below),
 not the use of Node:
 the same `bash -c` with standard input ignored,
 or fed from a shell pipe,
@@ -66,6 +66,36 @@ in order:
 `unset`.
 From a shell,
 `echo | HOME=<home> PATH=/usr/bin:/bin bash -c 'echo ${FROM_BASHRC:-unset}'` printed `unset`.
+
+## A second condition: the inherited `SHLVL`
+
+Measured 2026-11-07 on this host (bash 5.3.15, Node 26.13.0),
+with a disposable home whose `.bashrc` and `.bash_profile` each write a marker file,
+and `spawnSync('bash', ['-c', 'true'], { env, encoding: 'utf8' })` (standard input a socket):
+
+- `env` of only `PATH` and `HOME`: the marker was written.
+- `env` of the whole `process.env` of a terminal session (`SHLVL=2`): no marker.
+  Removing `SHLVL` from that environment, and nothing else, brought the marker back.
+- `SHLVL` set to each of `''`, `0` and `x`: the marker was written.
+  Set to `1` or `2`: no marker.
+
+So bash reads the startup file when standard input is a socket and the `SHLVL` it inherits is not a positive number.
+I did not read the bash source for this rule;
+the measurement is the evidence.
+A tool started from an interactive terminal inherits a positive `SHLVL` and usually does not trip it,
+while one started by systemd,
+by `sudo` with a scrubbed environment,
+or with an environment built from scratch does.
+A test that wants to show the trigger sets `SHLVL=0` on the child;
+`package/repository-move/cli/src/bash-without-startup-files.unit.test.ts` does,
+and also holds a control that proves a plain `bash -c` reads the startup file in that setup.
+
+The repository's own fix:
+every `bash` the `package/repository-move/cli` source starts passes `--noprofile --norc`,
+and that test fails on any start without both flags.
+`runShell` of that package gives its child `stdin: 'ignore'`,
+so it never tripped;
+the copy tool's `execFile` shells could.
 
 ## Verified workarounds
 
