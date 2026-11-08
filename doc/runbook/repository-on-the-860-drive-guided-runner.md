@@ -659,7 +659,8 @@ watch the status):
   so the sender always finishes,
   and the group exits with the receiver's own status,
   so a dump cut short still fails the step.
-  A test of the printed command was updated with it:
+  A test of the printed command was updated with it
+  (`29062faa43`):
   `move-repository.unit.test.ts` expects the drained pipeline in print mode.
 - A stage after the swap refreshes the moved checkouts
   (`4f6f3c80fd`,
@@ -691,6 +692,10 @@ The copy tool's unit tests import the built package:
 after a source change run `mise run //package/repository-move/cli:buildAndTest`,
 not `test:unit`,
 or the suite tests the previous build.
+On this branch that task and `mise run //package/repository-move/cli:lint` both pass
+(the lint reports 0 warnings and 0 errors,
+with no rule loosened;
+`ddab440fa4` clears the findings the new tests raised).
 
 ### The thaw and rollback commands
 
