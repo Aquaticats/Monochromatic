@@ -65,6 +65,8 @@
 //! const mayRun: boolean = await withDeadline(ceiling, () => earlierSocketListens(procRoot, look) || scan(procRoot, look)) ?? true
 //! ```
 
+use crate::blocking_job::run_blocking_job;
+use crate::lazy_runtime::run_on_runtime;
 use crate::earlier_service_unsure_program::UnsureProgram;
 #[cfg(unix)]
 use crate::earlier_service_unsure_program::{printable, program_of};
@@ -675,26 +677,33 @@ pub fn earlier_service_process_hold(look: ServiceLook, proc_root: &Path) -> Opti
 /// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on a job of the blocking pool,
 /// awaited under the look's ceiling.
 pub(crate) async fn hold_within_ceiling_awaiting(look: ServiceLook, proc_root: PathBuf, scanner: fn(&ServiceLook, &Path) -> Option<Holding>) -> Option<Holding> {
-    todo!("red: the awaited look is not written yet");
+    let ceiling: Duration = look.ceiling;
+    let scan = run_blocking_job(move || { return scanner(&look, proc_root.as_path()); });
+    // A scan that does not answer in time counts as "cannot look"; its job is left behind in the pool (it ends when the kernel lets
+    //  the read go), as the thread it replaces was.
+    return match tokio::time::timeout(ceiling, scan).await {
+        Ok(Ok(hold)) => hold,
+        Ok(Err(error)) => {
+            crate::service_error!("the look at the processes could not run ({error}), so a service of the worktree may be running");
+            Some(Holding::from(Hold::CannotLook))
+        }
+        Err(error) => {
+            crate::service_error!("the look at the processes gave no answer ({error}), so a service of the worktree may be running");
+            Some(Holding::from(Hold::CannotLook))
+        }
+    };
 }
 
 /// `earlier_service_hold` and `earlier_service_process_hold` for a caller that is not a task:
-/// the awaited look run to its end on the process's runtime.
+/// the awaited look run to its end on the process's runtime;
+/// a runtime that cannot start,
+/// or a call from inside it,
+/// counts as a look that cannot be made.
 fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&ServiceLook, &Path) -> Option<Holding>) -> Option<Holding> {
-    let ceiling: Duration = look.ceiling;
-    let root: PathBuf = proc_root.to_path_buf();
-    let (sender, receiver) = std::sync::mpsc::channel::<Option<Holding>>();
-    let started = std::thread::Builder::new().name(String::from("earlier-service-process-look")).spawn(move || {
-        let _sent = sender.send(scanner(&look, root.as_path()));
-    });
-    if let Err(error) = started {
-        crate::service_error!("cannot start the look at the processes ({error}), so a service of the worktree may be running");
-        return Some(Holding::from(Hold::CannotLook));
-    }
-    return match receiver.recv_timeout(ceiling) {
+    return match run_on_runtime(hold_within_ceiling_awaiting(look, proc_root.to_path_buf(), scanner)) {
         Ok(hold) => hold,
         Err(error) => {
-            crate::service_error!("the look at the processes gave no answer ({error}), so a service of the worktree may be running");
+            crate::service_error!("the look at the processes could not be started ({error}), so a service of the worktree may be running");
             Some(Holding::from(Hold::CannotLook))
         }
     };

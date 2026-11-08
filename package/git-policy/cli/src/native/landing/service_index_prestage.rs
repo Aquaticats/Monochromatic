@@ -32,7 +32,9 @@ use crate::service_index_staging::stage_marker_synced;
 use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::thread::JoinHandle;
+use crate::blocking_job::{BlockingJobError, run_blocking_job};
+use crate::lazy_runtime::{run_on_runtime, spawn_on_runtime};
+use tokio::task::JoinHandle;
 
 /// A marked file that is flushed and ready to become the lock.
 #[derive(Debug)]
@@ -52,7 +54,7 @@ pub struct Prestaged {
 pub(crate) struct Slot {
     lock: PathBuf,
     seq: u64,
-    work: JoinHandle<std::io::Result<Prestaged>>,
+    work: JoinHandle<Result<std::io::Result<Prestaged>, BlockingJobError>>,
 }
 
 /// Whether a commit has begun to wait for the marker being made,
@@ -106,13 +108,14 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     }
     discard();
     let work_lock: PathBuf = lock.clone();
-    let spawned = std::thread::Builder::new().name(String::from("cli-git-prestage")).spawn(move || -> std::io::Result<Prestaged> {
+    // The flush can wait on the disk, so the marker is made by a job of the blocking pool, which a task of the runtime awaits.
+    let spawned = spawn_on_runtime(run_blocking_job(move || -> std::io::Result<Prestaged> {
         let marker: String = marker_text(seq, &own_identity).map_err(identity_error)?;
         let (staged, held) = stage_marker_synced(&sync, work_lock.as_path(), seq, marker.as_str())?;
         return Ok(Prestaged { staged, held, marker });
-    });
-    // No thread to make it in is no marker made ahead: the commit stages its own.
-    if let Ok(work) = spawned {
+    }));
+    // No worker to make it on is no marker made ahead: the commit stages its own.
+    if let Some(work) = spawned {
         put_slot(Some(Slot { lock, seq, work }));
     }
 }
@@ -148,9 +151,23 @@ fn remove_if_ours(made: Prestaged) {
     }
 }
 
+/// Waits for the marker being made and gives it;
+/// nothing when it could not be made,
+/// or the job could not run,
+/// or the runtime could not be entered.
+/// The service's landing thread is the one that waits,
+/// outside the runtime.
+fn made_marker(work: JoinHandle<Result<std::io::Result<Prestaged>, BlockingJobError>>) -> Option<Prestaged> {
+    return match run_on_runtime(work) {
+        Ok(Ok(Ok(Ok(made)))) => Some(made),
+        // A marker that could not be made, a job that could not run, a task that was cancelled, a runtime that could not start.
+        _ => None,
+    };
+}
+
 /// Removes a marker that will not be used.
 fn remove_unused(slot: Slot) {
-    if let Ok(Ok(made)) = slot.work.join() {
+    if let Some(made) = made_marker(slot.work) {
         remove_if_ours(made);
     }
 }
@@ -180,7 +197,7 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
         remove_unused(slot);
         return None;
     }
-    let made: Prestaged = slot.work.join().ok()?.ok()?;
+    let made: Prestaged = made_marker(slot.work)?;
     if !still_there(&made) {
         return None;
     }
