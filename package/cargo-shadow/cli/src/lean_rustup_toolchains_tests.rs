@@ -55,13 +55,19 @@ fn toolchain(directory: &Path, name: &str, idle: i64) -> PathBuf {
     return path;
 }
 
-/// Runs the retirement for real over a toolchains directory.
+/// Runs the retirement over a toolchains directory with a process table that holds no process,
+/// so no real process of this machine (any of which may name a real nightly) decides a test.
 fn retire(directory: &Path, pinned: &[&str]) -> (Vec<(String, ToolchainVerdict)>, Vec<String>) {
+    return retire_in(directory, pinned, &directory.join("no-processes"));
+}
+
+/// Runs the retirement over a toolchains directory against the given process table.
+fn retire_in(directory: &Path, pinned: &[&str], proc_root: &Path) -> (Vec<(String, ToolchainVerdict)>, Vec<String>) {
     let installed: Vec<Installed> = installed_toolchains(directory);
     let pinned_set: HashSet<String> = pinned.iter().map(|name| { return (*name).to_string(); }).collect();
     let uninstaller: Recording = Recording { directory, asked: RefCell::new(Vec::new()) };
     let mut log: Vec<String> = Vec::new();
-    let verdicts = retire_nightlies(&installed, &pinned_set, Path::new("/proc"), i32::try_from(std::process::id()).expect("pid"), GRACE, NOW, false, &uninstaller, &Deadline::after(Duration::from_secs(60)), &mut log);
+    let verdicts = retire_nightlies(&installed, &pinned_set, proc_root, i32::try_from(std::process::id()).expect("pid"), GRACE, NOW, false, &uninstaller, &Deadline::after(Duration::from_secs(60)), &mut log);
     return (verdicts, uninstaller.asked.into_inner());
 }
 
@@ -126,12 +132,12 @@ fn a_nightly_within_the_grace_period_is_kept() {
 #[test]
 fn a_nightly_a_process_runs_a_program_from_is_kept() {
     let root = scratch();
-    let used: PathBuf = toolchain(root.path(), "nightly-2026-09-12", 40 * DAY);
+    let used: PathBuf = toolchain(root.path(), "nightly-2031-01-02", 40 * DAY);
     let program: PathBuf = used.join("bin").join("fake-rustc");
     fs::copy("/usr/bin/sleep", &program).expect("copy a program in");
     let child: Child = Command::new(&program).arg("120").spawn().expect("run it");
     let _holder: Sleeper = Sleeper { child };
-    let (verdicts, asked) = retire(root.path(), &[]);
+    let (verdicts, asked) = retire_in(root.path(), &[], Path::new("/proc"));
     assert!(asked.is_empty(), "{verdicts:?}");
     assert!(used.exists());
 }
@@ -139,10 +145,10 @@ fn a_nightly_a_process_runs_a_program_from_is_kept() {
 #[test]
 fn a_nightly_a_process_names_in_its_environment_is_kept() {
     let root = scratch();
-    let named: PathBuf = toolchain(root.path(), "nightly-2026-09-16", 40 * DAY);
-    let child: Child = Command::new("sleep").arg("120").env("RUSTUP_TOOLCHAIN", "nightly-2026-09-16").spawn().expect("run it");
+    let named: PathBuf = toolchain(root.path(), "nightly-2031-01-03", 40 * DAY);
+    let child: Child = Command::new("sleep").arg("120").env("RUSTUP_TOOLCHAIN", "nightly-2031-01-03").spawn().expect("run it");
     let _holder: Sleeper = Sleeper { child };
-    let (verdicts, asked) = retire(root.path(), &[]);
+    let (verdicts, asked) = retire_in(root.path(), &[], Path::new("/proc"));
     assert!(asked.is_empty(), "{verdicts:?}");
     assert!(named.exists());
 }
