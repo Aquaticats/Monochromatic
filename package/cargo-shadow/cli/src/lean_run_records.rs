@@ -25,6 +25,8 @@
 //! export function sweepRunRecords(directory: string, policy: RetentionPolicy, env: GuardEnvironment, now: number, dryRun: boolean): RecordsOutcome
 //! ```
 
+/// The streaming log line.
+use crate::lean_run_report::emit;
 /// Files and sets.
 use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
@@ -203,7 +205,7 @@ pub fn sweep_run_records(
         }
         if let Some(used) = scan.blocks(&record.path) {
             outcome.kept_in_use += 1;
-            log.push(format!("kept run record {}: pid {} uses {} as {}", record.path.display(), used.pid, used.path.display(), used.how));
+            emit(log, format!("kept run record {}: pid {} uses {} as {}", record.path.display(), used.pid, used.path.display(), used.how));
             continue;
         }
         let item = match item_of(&record.path) {
@@ -215,7 +217,7 @@ pub fn sweep_run_records(
         };
         match claim_into_trash(&item, &trash, 0) {
             Ok(claimed) => {
-                log.push(format!("removing run record {} (device {} inode {}): {why}; proof: {}", record.path.display(), item.identity.device, item.identity.inode, scan.describe()));
+                emit(log, format!("removing run record {} (device {} inode {}): {why}; proof: {}", record.path.display(), item.identity.device, item.identity.inode, scan.describe()));
                 match delete_claimed(&claimed, item.identity) {
                     Ok(bytes) => {
                         outcome.removed += 1;

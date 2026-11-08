@@ -131,9 +131,6 @@ fn run_trees(base: &Path, pinned: &HashSet<String>, options: &RunOptions, deadli
     let policy: IdlePolicy = IdlePolicy { idle_seconds: TREE_IDLE_SECONDS, unidentified_idle_seconds: UNIDENTIFIED_TREE_IDLE_SECONDS };
     let mut log: Vec<String> = Vec::new();
     let outcomes = collect_idle_trees(&trees, base, &retired, &policy, environment, now_seconds(), options.dry_run, deadline, &mut log);
-    for line in &log {
-        crate::lean_run_report::log_line(line);
-    }
     let (mut removed, mut bytes, mut kept, mut skipped): (usize, u64, usize, usize) = (0, 0, 0, 0);
     let mut skips: Vec<String> = Vec::new();
     for outcome in &outcomes {

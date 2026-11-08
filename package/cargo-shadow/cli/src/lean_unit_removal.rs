@@ -20,6 +20,8 @@
 //! export function applyRemovals(profile: string, planner: Planner, env: GuardEnvironment, now: number): ProfileOutcome
 //! ```
 
+/// The streaming log line.
+use crate::lean_run_report::emit;
 /// Paths.
 use std::path::{Path, PathBuf};
 
@@ -147,7 +149,7 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
         }
         if let Some(reason) = blocked {
             outcome.kept_in_use += 1;
-            log.push(format!("kept unit {}: {reason}", unit.label));
+            emit(log, format!("kept unit {}: {reason}", unit.label));
             continue;
         }
         let mut moved: Vec<(PathBuf, Identity)> = Vec::new();
@@ -165,7 +167,7 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
         }
         if !failed {
             outcome.units += 1;
-            log.push(format!(
+            emit(log, format!(
                 "removing unit {} ({} paths, compiler {}, last invoked {}): {}; proof: {}",
                 unit.label,
                 moved.len(),
@@ -180,7 +182,7 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
     for directory in &removals.incremental {
         if let Some(used) = guarded.scan.blocks(&directory.path) {
             outcome.kept_in_use += 1;
-            log.push(format!("kept incremental directory {}: pid {} uses {} as {}", directory.path.display(), used.pid, used.path.display(), used.how));
+            emit(log, format!("kept incremental directory {}: pid {} uses {} as {}", directory.path.display(), used.pid, used.path.display(), used.how));
             continue;
         }
         serial += 1;
@@ -188,7 +190,7 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
             Ok(item) => match claim_into_trash(&item, trash, serial) {
                 Ok(target) => {
                     outcome.incremental += 1;
-                    log.push(format!("removing incremental directory {} (modified {}): {}; proof: {}", directory.path.display(), directory.modified, removals.reason, guarded.proof));
+                    emit(log, format!("removing incremental directory {} (modified {}): {}; proof: {}", directory.path.display(), directory.modified, removals.reason, guarded.proof));
                     claimed.push((target, item.identity));
                 }
                 Err(refusal) => outcome.refusals.push(format!("incremental {}: {refusal}", directory.path.display())),

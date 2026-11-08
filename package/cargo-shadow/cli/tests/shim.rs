@@ -116,7 +116,7 @@ fn path_of(directories: &[&Path]) -> String {
 /// Runs the shadow as `cargo` in the crate root with the given CI value.
 fn run_shadow(world: &World, arguments: &[&str], ci: &str, fake_exit: i32) -> Output {
     let path: String = path_of(&[&world.shadow_directory, &world.fake_directory]);
-    return shadow_command(&world)
+    return shadow_command(world)
         .args(arguments)
         .current_dir(world.repository.join(CRATE_DIR))
         .env("PATH", path)

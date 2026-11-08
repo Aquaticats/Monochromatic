@@ -91,9 +91,6 @@ pub fn sweep_and_cap(profiles: &[(PathBuf, u64)], dry_run: bool, deadline: &Dead
         let mut log: Vec<String> = Vec::new();
         let sweep: ProfileOutcome = apply_removals(profile, &OlderCompilerSweep { grace_seconds: GRACE_SECONDS }, environment, now, dry_run, deadline, &mut log);
         let capped: ProfileOutcome = apply_removals(profile, &SizeCap { cap_bytes: *cap, grace_seconds: GRACE_SECONDS, deadline: *deadline }, environment, now, dry_run, deadline, &mut log);
-        for line in &log {
-            crate::lean_run_report::log_line(line);
-        }
         sweep_units += sweep.units;
         sweep_incremental += sweep.incremental;
         sweep_bytes += sweep.bytes;
@@ -164,9 +161,6 @@ pub fn run_toolchains(toolchains: &Path, pinned: &HashSet<String>, dry_run: bool
     let installed = installed_toolchains(toolchains);
     let mut log: Vec<String> = Vec::new();
     let verdicts = retire_nightlies(&installed, pinned, &environment.proc_root, environment.own_pid, GRACE_SECONDS, now_seconds(), dry_run, &RealRustup, deadline, &mut log);
-    for line in &log {
-        crate::lean_run_report::log_line(line);
-    }
     let verb: &str = if dry_run { "would retire" } else { "retired" };
     let mut lines: Vec<String> = Vec::new();
     let mut retired: usize = 0;
@@ -203,9 +197,6 @@ pub fn run_podman(main_checkout: &Path, dry_run: bool, deadline: &Deadline) -> V
     };
     let mut log: Vec<String> = Vec::new();
     let outcome = clean_podman(&RealPodman, &references, GRACE_SECONDS, now_seconds(), dry_run, &mut log);
-    for line in &log {
-        crate::lean_run_report::log_line(line);
-    }
     let verb: &str = if dry_run { "would remove" } else { "removed" };
     let mut lines: Vec<String> = vec![format!(
         "podman: {verb} {} images and {} volumes; kept {} images and {} volumes",

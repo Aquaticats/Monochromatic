@@ -40,8 +40,5 @@ pub fn sweep_records_directory(
     let mut log: Vec<String> = Vec::new();
     let policy: RetentionPolicy = RetentionPolicy { max_age_seconds, max_bytes, protect_seconds };
     let outcome: RecordsOutcome = sweep_run_records(directory, &policy, environment, now_seconds(), dry_run, deadline, &mut log);
-    for line in &log {
-        crate::lean_run_report::log_line(line);
-    }
     return outcome;
 }
