@@ -97,8 +97,12 @@ pub enum ClientFailure {
     OtherRelease,
     /// The repository has no room left.
     RepositoryFull(String),
-    /// The repository cannot be written.
+    /// The repository's filesystem is read-only.
     RepositoryReadOnly(String),
+    /// This account may not write the repository.
+    PermissionDenied(String),
+    /// A repository move has frozen the repository.
+    RepositoryFrozen(String),
     /// The branch changed while the commit was prepared,
     /// `times` times.
     BranchKeepsChanging { branch: String, times: usize },
@@ -197,6 +201,14 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::RepositoryReadOnly(path) => format!(
             "{path} cannot be written to, so this commit was not made. Make the repository writable (check its \
              permissions and whether the disk is mounted read-only) and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::PermissionDenied(path) => format!(
+            "This account has no permission to write {path}, so this commit was not made. Check who owns the repository's files and \
+             folders and their permissions, and run the commit again. {NOTHING_CHANGED}"
+        ),
+        ClientFailure::RepositoryFrozen(path) => format!(
+            "{path} is read-only because a repository move has frozen the repository, so this commit was not made. A repository move \
+             has frozen the repository; it thaws when the move's thaw step runs. Run the commit again after the move finishes. {NOTHING_CHANGED}"
         ),
         ClientFailure::BranchKeepsChanging { branch, times } => format!(
             "The branch {branch} changed {times} times while this commit was being prepared, so it was not made. Run \

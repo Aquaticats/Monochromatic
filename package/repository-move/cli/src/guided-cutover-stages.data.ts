@@ -117,6 +117,21 @@ export async function cutoverStages(
    The rollback text shared by the window stages.
    */
   const thawRollback = 'run the thaw command (unfreezes everything and restarts the stopped units)';
+  /**
+   The repository as kopia's source names it: kopia recorded the source as `/home/user/Monochromatic`
+   (plan item W12), the other spelling of the same folder.
+   */
+  const kopiaSource = c.repo
+    .startsWith('/var/home/',) ? c.repo
+      .slice('/var'.length,) : c.repo;
+  /**
+   The fresh worktree the pnpm check installs into.
+   */
+  const freshWorktree = `${c.repo}/.claude/worktrees/move-check-${stamp}`;
+  /**
+   The seconds the checks after the cut-over may take: the author's bound, the transfer deadline's order.
+   */
+  const afterSeconds = c.fixtureStepTimeoutSeconds;
   return [
     {
       id: 'sudo-cutover',
@@ -517,6 +532,88 @@ echo "window length: $(( $(cat ${c.wiz}/window-end) - $(cat ${c.wiz}/window-star
         * 2),
       root: 'yes',
       unprivileged: 'none: the comparison reads files only root can read',
+    },
+    {
+      id: 'c23-link-check',
+      title: 'After the cut-over: the link check',
+      says: 'W15: the shared check says the repository link is ready, now that the window is closed and writers are back. The Git wrapper\'s doctor prints the same line (git monochromatic-git-policy-cli doctor).',
+      command: `${link}/check.mjs`,
+      check: `grep --fixed-strings 'ready (on the 860)' "$OUTPUT_FILE"`,
+      checkText: 'the installed check says ready (on the 860)',
+      rollback: 'read-only',
+      root: 'no',
+      unprivileged: 'not needed: the check only reads',
+    },
+    {
+      id: 'c24-mise-trust',
+      title: 'After the cut-over: mise trust',
+      says: 'W14: mise keys trust by the canonical path, so the 860 path starts untrusted. Trust the repository through mise itself (nothing is written into mise state by hand), then show the trust of the root, of one package and of one worktree.',
+      command: `cd ${c.repo} && mise trust --all
+cd ${c.repo} && mise trust --show
+cd ${c.repo}/package/repository-move/cli && mise trust --show
+worktree=$(awk '/^worktree /{ print $2 }' ${c.wiz}/porcelain-through-link.txt | sed --quiet 2p)
+if [ -n "$worktree" ]; then cd "$worktree" && mise trust --show; fi`,
+      check: `test "$(grep --count ': trusted' "$OUTPUT_FILE")" -ge 3 && ! grep --fixed-strings 'untrusted' "$OUTPUT_FILE"`,
+      checkText: 'the root, a package and a worktree show trusted and nothing shows untrusted',
+      rollback: 'mise trust --untrust (the trust links of the old path stay as stale files)',
+      timeoutSeconds: afterSeconds,
+      root: 'no',
+      unprivileged: 'not needed: mise state is the user\'s',
+    },
+    {
+      id: 'c25-pnpm-links',
+      title: 'After the cut-over: pnpm links in a fresh worktree',
+      says: `W14: install the dependencies in a fresh worktree (${freshWorktree}) and list every link of node_modules that points nowhere; there must be none. The worktree and its branch stay for you to remove (the rollback text names the commands).`,
+      command: `/usr/bin/git -C ${c.repo} worktree add --quiet ${freshWorktree} -b move-check-${stamp}
+cd ${freshWorktree} && timeout --kill-after=${killGrace} ${String(afterSeconds,)} pnpm install --frozen-lockfile --offline
+cd ${freshWorktree} && find node_modules -xtype l > ${c.wiz}/broken-links.txt
+echo "broken links: $(wc --lines < ${c.wiz}/broken-links.txt)"`,
+      check: `test -d ${freshWorktree}/node_modules && test ! -s ${c.wiz}/broken-links.txt`,
+      checkText: 'node_modules exists and find -xtype l printed nothing',
+      rollback: `/usr/bin/git -C ${c.repo} worktree remove --force ${freshWorktree} && /usr/bin/git -C ${c.repo} branch --delete --force move-check-${stamp} (yours to run; this runner deletes nothing)`,
+      timeoutSeconds: afterSeconds + c.killGraceSeconds,
+      root: 'no',
+      unprivileged: 'not needed: the worktree and the install are the user\'s',
+    },
+    {
+      id: 'c26-kopia-snapshot',
+      title: 'After the cut-over: first kopia snapshot',
+      says: `W12: kopia resolves the link and records the source path as given, so the source is unchanged (${kopiaSource}). Make one snapshot now and read the size of the last snapshots: btrfs send and receive keep modification times, so this one should upload little. The snapshot goes to the same repository the hourly job uses.`,
+      command: `kopia snapshot create ${kopiaSource}
+kopia snapshot list ${kopiaSource} | tail --lines=6`,
+      check: `kopia snapshot list ${kopiaSource} > /dev/null`,
+      checkText: 'kopia lists snapshots of the source (the first run created one)',
+      rollback: 'read-only after the snapshot; a snapshot is removed with kopia snapshot delete (yours to run)',
+      timeoutSeconds: c.firstPassTotalSeconds,
+      root: 'no',
+      unprivileged: 'not needed: kopia runs as the user',
+    },
+    {
+      id: 'c27-container-bind',
+      title: 'After the cut-over: a container bind through the link',
+      says: 'W13: a container with the repository as a read-only bind source, spelled through the link, starts and sees the Git folder. It uses the first image already on this host and pulls nothing; its memory, processor and process counts are capped.',
+      command: `image=$(podman images --noheading --format '{{.Repository}}:{{.Tag}}' | grep --invert-match '<none>' | head --lines=1)
+test -n "$image"
+podman run --rm --pull=never --memory=256m --cpus=1 --pids-limit=64 --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
+echo 'container bind through the link: ok'`,
+      check: `grep --fixed-strings 'container bind through the link: ok' "$OUTPUT_FILE"`,
+      checkText: 'the container saw /repository/.git',
+      rollback: 'the container is removed when it exits (--rm)',
+      timeoutSeconds: afterSeconds,
+      root: 'no',
+      unprivileged: 'not needed: rootless podman',
+    },
+    {
+      id: 'c28-ide-through-link',
+      title: 'After the cut-over: the IDE through the link',
+      says: `W13: open ${c.repo} in the IDE you use (JetBrains, Helium, Lapce, Codex, Emdash, Polypane, t3code) through the link spelling and confirm the file tree and one search read it. Editors only read, and keep whichever spelling they were given. This runner cannot see an IDE, so it asks you to say you did.`,
+      assertion: 'I opened the repository in the IDE through the link and it read the files.',
+      command: `echo "open ${c.repo} in the IDE, then pass --assert=c28-ide-through-link"`,
+      check: 'true',
+      checkText: 'you said you did',
+      rollback: 'nothing changed',
+      root: 'no',
+      unprivileged: 'not needed: nothing is run',
     },
   ];
 }

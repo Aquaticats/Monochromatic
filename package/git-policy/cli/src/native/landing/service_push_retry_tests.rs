@@ -891,3 +891,56 @@ fn a_store_that_could_not_be_listed_at_the_start_is_listed_again_and_its_claim_i
     });
     remove(stage.root.as_path());
 }
+
+/// Moves a Git directory's parent aside,
+/// the way an unmounted drive takes a repository away,
+/// and back.
+fn away(from: &Path, to: &Path) {
+    std::fs::rename(from, to).expect("the directory goes away or comes back");
+}
+
+/// A push plan whose directory is away keeps its plan and doubles its pause at every look,
+/// runs nothing while the directory is away,
+/// and delivers once it is back:
+/// the push is not forgotten and never runs anywhere else.
+#[test]
+fn a_push_plan_whose_directory_is_away_keeps_its_doubling_pause_and_runs_nothing_until_it_is_back() {
+    let (root, git_dir, handlers, mut retries): (PathBuf, PathBuf, Scripted, PushRetries) =
+        scripted_world("push-retry-away", vec![Verdict::Done, Verdict::Retry(String::from("Could not resolve host"))]);
+    let first: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("a retry is planned");
+    let aside: PathBuf = root.join("common-away");
+    away(git_dir.as_path(), aside.as_path());
+    std::thread::sleep(first);
+    let second: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("the plan is kept while the directory is away");
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "nothing ran while the directory was away");
+    assert!(second > first, "the pause doubled: {first:?} then {second:?}");
+    std::thread::sleep(second);
+    let third: Duration = round_of(git_dir.as_path(), &handlers, &mut retries).expect("the plan is still kept");
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "still nothing ran");
+    assert!(third > second, "the pause doubled again: {second:?} then {third:?}");
+    away(aside.as_path(), git_dir.as_path());
+    std::thread::sleep(third);
+    assert_eq!(round_of(git_dir.as_path(), &handlers, &mut retries), None, "the push landed and nothing is left to try");
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 2, "it ran once the directory was back");
+    remove(root.as_path());
+}
+
+/// A wake for a directory that is away runs nothing and touches nothing:
+/// its work stays where it is for the next command,
+/// and runs once the directory is back.
+#[test]
+fn a_wake_for_a_directory_that_is_away_leaves_its_work_for_the_next_command() {
+    let (root, git_dir, handlers, _retries): (PathBuf, PathBuf, Scripted, PushRetries) = scripted_world("push-retry-away-wake", vec![Verdict::Done]);
+    let aside: PathBuf = root.join("common-away");
+    away(git_dir.as_path(), aside.as_path());
+    let drained: Drained = drain_planned(git_dir.as_path(), &handlers, &ClaimTime::read(), &Retrying::none());
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 0, "nothing ran while the directory was away");
+    assert_eq!(drained.wait, None);
+    assert!(drained.changes.is_empty());
+    assert!(aside.exists(), "the directory was not recreated at its old path: {}", git_dir.exists());
+    assert!(!git_dir.exists(), "no directory was made at the old path");
+    away(aside.as_path(), git_dir.as_path());
+    let _wait: Drained = drain_planned(git_dir.as_path(), &handlers, &ClaimTime::read(), &Retrying::none());
+    assert_eq!(handlers.pushes.load(Ordering::SeqCst), 1, "the work ran once the directory was back");
+    remove(root.as_path());
+}
