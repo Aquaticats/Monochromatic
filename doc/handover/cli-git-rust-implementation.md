@@ -3229,6 +3229,164 @@ Also unmeasured:
 how the locked-index fallback behaves while the service lands another commit,
 which is the case that reaches it.
 
+### The refresh of a stale index asks for Git and the real index's lock only when it is stale (2026-11-08T17:50:00-05:00)
+
+The refresh `cd1755d728` added ran `git update-index --refresh` on the real index before the private copies were made,
+and Git takes `index.lock` on every one of those runs,
+even the refresh of an index that already describes the worktree
+(measured on 2026-11-08 in throwaway repositories:
+the lock file is created on every run and renamed over the index
+only when the run writes,
+so an up-to-date index paid the lock and wrote nothing).
+So every commit paid one Git start,
+one hold of the real index's lock and a stat pass of the whole index:
+the six `budget::` controls counted one `update-index` more than their constants,
+and
+`commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+saw the client create and rename the real `index.lock`,
+which that control forbids.
+Both were reproduced on 2026-11-08 with
+`mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast budget:: commit_timing::`
+(7 failures,
+25 passes).
+
+Fixed on branch `fix/git-policy-cli-commit-budget-after-index-refresh` (`b841aa178f`,
+style in `8909ecd6e7`):
+`commit/commit_index_stat_staleness.rs` answers the question in process from the index's own bytes,
+an entry is stale when the stat data it records is not the file's,
+and only then does `refresh_stat_data_when_stale` run Git's refresh.
+The entries of the paths the commit stages from the worktree are left out,
+because `git add` writes their stat data into the private index afresh.
+The question reads the index it is given,
+so a form it does not understand answers "stale" and Git's own refresh decides.
+Entries Git calls racily clean are not asked for:
+three refreshes of an index written in the same second as its entry left the index's bytes identical (the same SHA-1),
+so such a refresh writes nothing the private copies could carry,
+and native `git commit` reads those entries too.
+
+Neither a budget constant nor a control assertion changed:
+the six `budget::` counts are back to the values `cd1755d728` was measured on
+and the upgrade control's statements hold as written.
+Its doc comment now states the boundary it relies on
+(the client takes the real `index.lock` only to write a stale index's stat data,
+before it makes its request),
+and `binary_budget_tests.rs` says why its `update-index` counts are the pre-refresh ones.
+
+Measured on 2026-11-08 with the release build of this branch on this host,
+a throwaway repository whose clean filter sleeps 100 ms per file,
+and this checkout (22,161 entries):
+
+- Fresh index,
+  12 files:
+  the in-process question 0 ms (under a millisecond),
+  Git's own refresh 2 ms.
+- Stale index,
+  12 files (every file with a new inode and its modification time kept):
+  the question 0 ms (it stops at the first stale entry),
+  Git's refresh 1,152 ms and it keeps it.
+  A `git commit` over a copy of the stale index cost 1,368 ms,
+  which is what the code before `cd1755d728` paid inside the scratch step's 3,006 ms ceiling;
+  with the refresh the copies carry the worktree's stat data and the same commit over them costs 216 ms.
+- Fresh index,
+  1,000 files:
+  the question 5 ms,
+  Git's own refresh 8 ms.
+- This checkout's 22,161 entries:
+  the question 47 to 58 ms warm
+  (a whole pass over the same paths,
+  one `lstat` each,
+  56 to 58 ms relative to the worktree root and 96 ms with
+  absolute paths),
+  against `git --no-optional-locks diff-files` 10 ms on the same worktree,
+  whose stat pass Git preloads across threads (`core.preloadIndex`).
+  So the commit pays about the stat pass native `git commit` also makes,
+  single-threaded,
+  and saves one Git start and the real index's lock;
+  against the code before `cd1755d728` it adds that pass.
+- The six `budget::` controls and all 32 `budget::` and `commit_timing::` tests pass
+  (`mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast budget:: commit_timing::`,
+  32 of 32),
+  and the new controls are `commit_index_stat_staleness_tests.rs`
+  (an index Git has just written needs no refresh,
+  a file whose inode changed does,
+  only a change the commit does not stage does,
+  an entry without stat data does,
+  an assume-unchanged entry does not,
+  an unreadable index does,
+  a missing one does not)
+  and `commit_index_stat_refresh_tests.rs`
+  (an up-to-date index is answered without starting Git,
+  a stale one asks it,
+  and a refresh that meets another program's lock is not kept,
+  leaves the index as it was and does not wait for it).
+
+Checked on the final tree at 2026-11-08T18:40:00-05:00:
+the whole native library suite passed (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`,
+4,731 tests run,
+4,731 passed,
+8 skipped),
+the 69 `budget::`,
+`commit_timing::` and `commit::` binary tests passed,
+`native:clippy` and `monochromatic-lint --max-warnings 0` were clean,
+and `native:perf` kept both owner bounds on the release binary:
+`commit-service` paired delta median 22.6 ms,
+p95 318.6 ms,
+max 348.2 ms against the 5,000 ms bound,
+and every forwarded command's added p95 under 2.1 ms against the 2,000 ms bound.
+Two `standards_review_client` tests failed and one ended at the 300 s nextest timeout in a loaded
+7-minute run of the same suite,
+and all twelve of that module pass alone in 3 s,
+so they are host-load flakes that this change does not touch.
+
+Owner question:
+`package/git-policy/cli/SPEC.md:5471` says a commit prepares
+"in parallel with other commits and without the real index lock",
+and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
+The step here takes that lock when the index is stale,
+which the two controls this branch fixed do not see,
+because their repositories have an index Git has just written.
+It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
+and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
+so concurrent commits still never fail on it and nothing waits on it in preparation.
+Two readings are open:
+
+- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
+  which is what this branch does and what keeps the scratch step inside its ceiling.
+- Keep preparation lock-free,
+  and hand the write to the landing,
+  which already holds `index.lock`:
+  it would build its private copy,
+  answer the same in-process staleness question over the live index,
+  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
+  and install that copy.
+  Then nothing outside the landing writes the real index,
+  and the cost moves to the landing,
+  inside its lock,
+  on every commit after the worktree moved.
+  The first commit after the move would still pay the refresh on its private copy in preparation,
+  as the locked-index fallback does today.
+
+Still to do:
+
+- The landing's in-process index reset writes the commit's paths with all-zero stat data
+  (`index/index_reset.rs` `StatData::default()`,
+  as `git reset --no-refresh` does),
+  where native `git commit` leaves the worktree's stat data.
+  The next commit therefore finds those paths stale and refreshes them once,
+  through the question here,
+  one Git start and one hash per path the previous commit landed and this one does not name.
+  Native Git pays nothing for them.
+- The question's pass is single-threaded;
+  preloading it across threads as Git's `core.preloadIndex` does would cut the 56 ms above to about Git's 10 ms.
+- A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
+  (Git answers a held lock at once,
+  measured 0.00 s,
+  and the private index is refreshed instead),
+  and the landing still waits for that lock as it always has,
+  bounded by `LANDING_LOCK_CEILING`.
+- The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
+  `native:perf` compares paired commit deltas and is the run for it.
+
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
 Found 2026-11-08 when the move to the 860 stopped on one

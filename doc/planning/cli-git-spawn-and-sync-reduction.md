@@ -1877,6 +1877,22 @@ with the start.
 The reasons and the numbers are in
 `doc/planning/cli-git-main-commit-within-native-plus-five.md`.
 
+Lowered again on 2026-11-08:
+the `update-index` start of the stat-data refresh is zero unless the real index no longer describes the worktree.
+The refresh `cd1755d728` added to keep the scratch commit inside its ceiling ran
+`git update-index --refresh` on the real index before the private copies were made,
+which is one start in every scenario,
+and Git takes `index.lock` on every such run even when it writes nothing;
+the six constants were left at the counts measured before it,
+so `budget::` failed six times on main's tree.
+`src/native/commit/commit_index_stat_staleness.rs` answers the question in process from the index's bytes,
+so an index that describes the worktree starts no Git and takes no lock,
+and the counts below hold as they were measured before the refresh existed.
+The measurements,
+the reasoning and what is still to do are in
+`doc/handover/cli-git-rust-implementation.md`,
+"The refresh of a stale index asks for Git and the real index's lock only when it is stale".
+
 ## Filesystem identity without `findmnt` (slice S2)
 
 Scope:
