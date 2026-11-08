@@ -962,3 +962,11 @@ mod lean_sweep_tests;
 /// The tests of the removal primitive.
 #[cfg(test)]
 mod lean_removal_tests;
+
+/// Mechanism A:
+/// the toolchain-keyed build folder of a host cargo run.
+pub mod lean_keyed_folder;
+
+/// The tests of the toolchain-keyed build folder.
+#[cfg(test)]
+mod lean_keyed_folder_tests;
