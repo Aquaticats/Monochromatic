@@ -101,10 +101,21 @@ It differs from the client in `doc/agent/drive-pi-as-a-subagent.md` in four ways
   a turn cap,
   or a hard wall time.
 
+The runs recorded in this doc set `PI_TOOLS=read,edit,write,grep,find,ls`,
+`PI_THINKING=xhigh`,
+and `PI_EXTRA_ARGS=--no-session`,
+and the version of the driver used in those runs hard-coded them.
+None is needed:
+unset,
+Pi keeps its own thinking level and every tool,
+and it saves the session,
+which the owner wants kept.
+
 ```ts
 // pi-rpc-agent.ts: drive one Pi subagent through RPC, record everything it does live, accept steers from an inbox folder.
 // usage: node pi-rpc-agent.ts <out-dir> <tag> <cwd> <prompt-file>
-// env: AGENT_DIR (PI_CODING_AGENT_DIR for the child), PI_TOOLS, PI_THINKING, PI_PROVIDER, PI_MODEL, PI_EXTRA_ARGS (space separated),
+// env: AGENT_DIR (PI_CODING_AGENT_DIR for the child), PI_TOOLS and PI_THINKING (both optional), PI_PROVIDER, PI_MODEL,
+//      PI_EXTRA_ARGS (space separated),
 //      WALL_MS (hard kill), IDLE_MS (exit after this long idle once settled with an empty inbox), TURN_CAP
 // Feed: <out-dir>/feed<tag>.jsonl, one compact record per event worth watching.
 // Steers: write any text file into <out-dir>/inbox<tag>/ ; it is sent as a steer while the agent runs, else as a new prompt.
@@ -127,12 +138,13 @@ const IDLE_MS = Number(process.env.IDLE_MS ?? 90_000);
 const TURN_CAP = Number(process.env.TURN_CAP ?? 80);
 const startedAt = Date.now();
 
+// Thinking level and tool allowlist are opt-in: unset, Pi keeps its own default level and every tool.
 const arguments_ = [
-  '--mode', 'rpc', '--no-session',
+  '--mode', 'rpc',
   '--provider', process.env.PI_PROVIDER ?? 'synthetic',
   '--model', process.env.PI_MODEL ?? 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017',
-  '--thinking', process.env.PI_THINKING ?? 'xhigh',
-  '--tools', process.env.PI_TOOLS ?? 'read,edit,write,grep,find,ls',
+  ...(process.env.PI_THINKING ? ['--thinking', process.env.PI_THINKING] : []),
+  ...(process.env.PI_TOOLS ? ['--tools', process.env.PI_TOOLS] : []),
   ...(process.env.PI_EXTRA_ARGS ? process.env.PI_EXTRA_ARGS.split(' ') : []),
 ];
 const environment = { ...process.env, ...(process.env.AGENT_DIR ? { PI_CODING_AGENT_DIR: process.env.AGENT_DIR } : {}) };

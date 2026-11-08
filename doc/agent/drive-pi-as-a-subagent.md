@@ -15,11 +15,20 @@ The dsh equivalent is `doc/agent/drive-dsh-as-a-subagent.md`.
 
 ```sh
 # run from the directory that becomes the working folder
-pi --mode rpc --no-session --provider synthetic --model 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017' \
-  --thinking xhigh --tools read,bash
+pi --mode rpc --provider synthetic --model 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017'
 ```
 
-`--no-session` keeps the run from writing a session file.
+None of `--no-session`,
+`--thinking`,
+or `--tools` is required.
+Pi saves the session by default and the owner keeps that on purpose,
+so the run can be read back or resumed with `--session <path|id>`.
+Most runs recorded in this doc also passed `--no-session` (no session file),
+`--thinking xhigh`,
+and `--tools read,bash`
+to keep each experiment small and repeatable;
+the client script below passes them for that reason.
+Drop them for real work.
 Pi reads JSONL commands from stdin and writes JSONL records to stdout,
 and it exits when stdin closes.
 Keep extensions loaded:
@@ -467,8 +476,9 @@ so the plugin is what changed the level.
 The scenario and persisted-session runs in this doc were started with `--thinking low`.
 `get_state` was not read in those runs,
 so their effective level is inferred to have been `xhigh` from this test.
-Send `set_thinking_level` after startup if the level matters,
-and read `get_state`.
+The owner finds DeepSeek V4.1 Flash works poorly below `xhigh`,
+so leave the level to the plugin:
+pass no `--thinking` and send no `set_thinking_level`.
 The README says a manual change stays in effect until the next session start or model selection.
 That was not tested.
 
