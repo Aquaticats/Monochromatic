@@ -25,13 +25,40 @@ export type PiExit = {
 
 /**
  Why a run ended. `idle` and `stop-file` are the ends a run chooses; the others fail the driver.
+
+ `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from, `pi-not-stopped`
+ means Pi was still alive when every bound on ending it ran out, and `driver-failed` covers the driver's own failures.
  */
-export type EndReason = 'idle' | 'stop-file' | 'prompt-rejected' | 'pi-exited' | 'turn-cap' | 'wall-clock' | 'driver-failed';
+export type EndReason =
+  | 'idle'
+    | 'stop-file'
+    | 'prompt-rejected'
+    | 'pi-exited'
+    | 'turn-cap'
+    | 'wall-clock'
+    | 'driver-failed'
+    | 'model-error'
+    | 'pi-not-stopped';
 
 /**
  Where a run stands: over for a reason, or still going.
  */
 export type RunProgress = EndReason | 'still-running';
+
+/**
+ A failure a run can end with, or the reason there is none. Absence travels as a value rather than as a nullish member, so every
+ place that reads one has to say what it does when nothing failed.
+ */
+export type RunFailure =
+  | { readonly failed: false }
+    | {
+      readonly failed: true;
+
+    /**
+     What failed, in words the summary and the exit status carry.
+     */
+      readonly problem: string;
+    };
 
 /**
  What `summary.json` holds.
@@ -55,6 +82,12 @@ export type RunSummary = {
    */
   readonly sessionStats: unknown;
   readonly lastAssistantText: string;
+
+  /**
+   The error of the last assistant message, when Pi settled on it and nothing after it recovered, which is why the run ended as
+   `model-error`.
+   */
+  readonly modelError?: string;
 
   /**
    Why the feed is incomplete, when writing it failed.
@@ -140,6 +173,16 @@ export type RecordOfPiRun = {
    Keeps what went wrong in the driver itself, for the summary.
    */
   readonly noteDriverFailure: (failure: string,) => void;
+
+  /**
+   Why the feed is incomplete, when writing it failed. A run whose feed failed did not end clean.
+   */
+  readonly feedProblem: () => RunFailure;
+
+  /**
+   The error Pi settled on, when the last assistant message ended in one and nothing after it recovered.
+   */
+  readonly unrecoveredModelError: () => RunFailure;
   readonly observe: (observation: EventObservation,) => void;
   readonly summarize: (ending: RunEnding,) => RunSummary;
 

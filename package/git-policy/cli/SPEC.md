@@ -41,6 +41,62 @@ and prompts.
 Production adapters own operating-system effects.
 Disposable tests replace those adapters without production environment overrides.
 
+## Other processes changing files
+
+No check or lock the wrapper takes excludes another program from changing the same files in the same moment,
+and the wrapper builds nothing further against it:
+a rename or a replacement of a path,
+a write through an open file or a shared mapping,
+and an edit between a check and the step that relies on it are accepted risk in every command and in the commit service.
+The owner's decision of 2026-11-03T00:15:33-05:00 is that a race another program causes is not the wrapper's to close,
+and that using a command or the program means accepting the risk;
+the wrapper states the risk plainly and keeps fixing its own
+ deterministic bugs (`doc/handover/cli-git-rust-implementation.md`,
+"Worktree add and package managers").
+
+The cheap guards stay,
+and each narrows the window without closing it:
+a lock where one is free,
+a second look before a removal,
+an identity compared when an object is opened,
+and a descriptor held on what a removal names.
+
+`README.md` states the risk once for the whole program ("Other processes changing files").
+A command that can change or delete files states it in its own `--help`,
+where it has one,
+and says it once on standard error;
+a command whose own notice states it prints only that one,
+never a second line.
+The commands are:
+
+- `git monochromatic-git-policy-cli migrate-to-subvolume`,
+in a run,
+a `--rollback` and a `--remove-old`:
+the notice comes before the first step that writes,
+keeps,
+swaps or deletes anything (`MIGRATE_RISK_NOTICE`,
+`src/native/subvolume/subvolume_arguments.rs`);
+a `--dry-run` and a refusal change nothing,
+so neither says it.
+- `git monochromatic-git-policy-cli convert-worktree-to-subvolume`,
+in a conversion:
+the notice comes before the first worktree is touched (`RISK_NOTICE`,
+`src/native/worktree/worktree_convert_arguments.rs`);
+a `--dry-run`,
+an `--abandon` and a run that names no worktree say nothing.
+- `git worktree remove`,
+when the wrapper destroys the worktree's subvolume in one step:
+the notice comes after the destroy,
+which cannot be undone,
+and that command's `--help` is Git's own (`DESTROY_NOTICE`,
+`src/native/worktree/worktree_remove.rs`).
+
+The sections that describe those commands carry the same statement beside their guards:
+"Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot of the main checkout,
+and "Cheap worktree creation and removal on btrfs,
+XFS and overlayfs" for the conversion,
+the removal and the migration.
+
 ## Single executable and shipped policies
 
 The release artifact is one executable,
@@ -1350,7 +1406,8 @@ check and the step that relies on it are accepted risk,
 stated in the help text,
 in one notice on standard error before the
 conversion runs,
-and in the README.
+and in the README;
+"Other processes changing files" states it for the whole program.
 The guards that cost little stay:
 the claim,
 the identity checks,
@@ -2728,6 +2785,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the same kind of holder,
   the only
   sample there is.
+  The commit timing log read on 2026-11-08 (1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z) adds no sample of its own:
+  it holds no record of a
+  merge,
+  though 278 merge commits were made in the window,
+  and no `git reset` step,
+  so the reconciliation never ran in it.
+  What it shows is
+  that no wait a holder released came near a minute:
+  the longest was under 23,783 ms of answer time.
   The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
   thread,
   so only the landing has queued commits to spare it for;
@@ -2742,13 +2809,25 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   The settle's whole time
   holds any wait it made,
   so the figure can only overstate it.
+  The commit timing log holds no settle at all (the settling is the management command
+  `service settle-earlier-batches`),
+  so the journal stays its only sample.
 - `LOCK_CEILING` 10 minutes,
-  unmeasured:
-  no wait takes it.
-  It stays as the basis of `FOREIGN_OWNER_PATIENCE`
+  measured on 2026-11-08 from the commit timing log (1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z):
+  the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
+  and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
+  644,710 to 1,200,776 ms,
+  every one stopped).
+  No wait a holder released reached the ten minutes,
+  and the longest of those four is 776 ms past the
+  client's twenty-minute `ANSWER_CEILING`,
+  which bounds the whole wait rather than one step of it.
+  No wait takes it:
+  it stays as the basis of `FOREIGN_OWNER_PATIENCE`
   (`src/native/process/pid_namespace.rs`,
   twice this),
-  which another change owns.
+  which another change owns and whose stated basis (twice the longest a merge waits) no longer holds.
 - `SERVICE_HOLD_CEILING` 10 minutes:
   a forwarded `git add`,
   `rm` or `mv` waits for the service's hold,
@@ -7627,6 +7706,14 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+`indexBuilds`
+(one entry per build of the private commit index,
+in the order built:
+`kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
+and `statDataKept` says whether that build started from a copy of the real index,
+keeping the cached stat data of every entry its tree shares with it;
+a build from the base or the tree alone holds none,
+and the scratch commit then hashes every file of the work tree),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,

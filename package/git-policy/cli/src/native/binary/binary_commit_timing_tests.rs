@@ -222,6 +222,10 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     assert_eq!(record["answeredByRelease"], RELEASE);
     assert_eq!(record["attempts"], 1);
     assert_eq!(record["sends"], 1);
+    // The commit is of one named path, so its private index is built once, from a copy of the real index: the record says
+    // which way that build went, so a slow build is never again left without an answer (an entry per build, in order built).
+    let one_kept_build: serde_json::Value = serde_json::from_str(r#"[{"kind":"first","statDataKept":true}]"#).expect("the one build");
+    assert_eq!(record["indexBuilds"], one_kept_build, "one entry for the one build, and it kept the real index's stat data: {record}");
     assert!(number(record, "connectTries") >= 1, "{record}");
     let phases: u64 = DISJOINT.iter().map(|field| { return number(record, field); }).sum();
     // Each term is cut to whole milliseconds on its own, so the sum falls short of the total by less than one per term.
