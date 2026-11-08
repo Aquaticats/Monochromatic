@@ -20,14 +20,6 @@ import {
 //region Constants
 
 /**
- Wrapper layers removed before stripping stops.
- 
- A command line can spell unbounded `env env env ...` layers,
- and recursion depth must not grow with input length.
- */
-const MAX_WRAPPER_LAYERS = 8;
-
-/**
  Sentinel returned when an option spelling carries no attached command line.
  */
 const NO_ATTACHED_PAYLOAD: unique symbol = Symbol('option spelling carries no attached command line',);
@@ -213,67 +205,10 @@ function wrappedCommandWords({
 }
 
 /**
- Removes one wrapper layer, then continues with the wrapped command.
- 
- @param words - command name followed by its arguments
- 
- @param payloads - collected command lines wrappers split and run
- 
- @param layersLeft - wrapper layers still removable before stripping stops
- 
- @returns words starting at the program the shell ultimately executes
- 
- @example
- ```ts
- unwrapWrapperLayer({ words: ['env', 'X=1', 'git', 'commit'], payloads: [], layersLeft: 8 });
- // ['git', 'commit']
- ```
- */
-function unwrapWrapperLayer({
-  words,
-  payloads,
-  layersLeft,
-}: {
-  readonly words: readonly string[];
-  readonly payloads: string[];
-  readonly layersLeft: number;
-},): readonly string[] {
-  /**
-   Words after dropping shell assignment prefixes.
-   */
-  const withoutAssignments = dropLeadingAssignments(words,);
-  /**
-   Command word that may name a wrapper.
-   */
-  const [first,] = withoutAssignments;
-  if (first === undefined)
-    return [];
-
-  /**
-   Wrapper specification matching the command word, when it is one.
-   */
-  const wrapper = COMMAND_WRAPPERS
-    .find(function wrapperNamed(candidate,): boolean {
-      return candidate
-        .names
-        .has(lastPathSegment(first,),);
-    },);
-  if ((wrapper === undefined) || (layersLeft <= 0))
-    return withoutAssignments;
-
-  return unwrapWrapperLayer({
-    words: wrappedCommandWords({
-      words: withoutAssignments,
-      wrapper,
-      payloads,
-    },),
-    payloads,
-    layersLeft: layersLeft - 1,
-  },);
-}
-
-/**
  Removes every wrapper around the invoked program, keeping the innermost command words.
+ 
+ The loop runs inside a named function expression so the mutable remainder stays out of the
+ function-body scope, where this repository forbids a root `let`.
  
  @param words - command name followed by its arguments
  
@@ -294,11 +229,42 @@ function unwrapWrappers({
   readonly words: readonly string[];
   readonly payloads: string[];
 },): readonly string[] {
-  return unwrapWrapperLayer({
-    words,
-    payloads,
-    layersLeft: MAX_WRAPPER_LAYERS,
-  },);
+  return (function unwrapLayers(): readonly string[] {
+    /**
+     Command words of the outermost layer still to strip.
+     */
+    let remaining = words;
+    for (;;) {
+      /**
+       Words after dropping shell assignment prefixes.
+       */
+      const withoutAssignments = dropLeadingAssignments(remaining,);
+      /**
+       Command word that may name a wrapper.
+       */
+      const [first,] = withoutAssignments;
+      if (first === undefined)
+        return [];
+
+      /**
+       Wrapper specification matching the command word, when it is one.
+       */
+      const wrapper = COMMAND_WRAPPERS
+        .find(function wrapperNamed(candidate,): boolean {
+          return candidate
+            .names
+            .has(lastPathSegment(first,),);
+        },);
+      if (wrapper === undefined)
+        return withoutAssignments;
+
+      remaining = wrappedCommandWords({
+        words: withoutAssignments,
+        wrapper,
+        payloads,
+      },);
+    }
+  })();
 }
 
 //endregion Wrapper stripping

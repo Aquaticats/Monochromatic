@@ -69,7 +69,7 @@ Program wrappers are stripped before the subcommand is read:
 `stdbuf`,
 `timeout`,
 and `xargs`,
-up to eight wrapper layers.
+for every wrapper layer a command line spells.
 A nested shell `-c` script string is analyzed too,
 from a work list rather than by recursion.
 
