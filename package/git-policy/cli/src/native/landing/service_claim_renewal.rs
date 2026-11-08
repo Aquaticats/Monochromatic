@@ -49,7 +49,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use crate::blocking_job::run_blocking_job;
 use crate::lazy_runtime::spawn_on_runtime;
-use std::sync::mpsc::{Receiver, Sender, SyncSender, channel, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, SyncSender, channel, sync_channel};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -638,16 +638,21 @@ impl ClaimRenewal {
 }
 
 /// Stops the task when the renewal goes out of scope,
-/// and waits until it has ended:
-/// a renewal in the middle of its renames finishes them first,
-/// as the thread it replaces was joined.
+/// and waits until it has ended for at most `RENEWAL_STOP_CEILING`:
+/// a renewal in the middle of its renames finishes them first, as the thread it replaces was joined,
+/// but a wait that does not end is never kept ("nothing should ever wait forever").
 impl Drop for ClaimRenewal {
     fn drop(&mut self) {
         let _told = self.control.send(Control::Stop);
         if let Some(ended) = self.ended.take() {
-            // A task that panicked has nothing left to report (its sender is dropped, which ends this wait): the claims it held
-            //  expire with the lease.
-            let _waited = ended.recv();
+            match ended.recv_timeout(self.stop_ceiling) {
+                // A task that panicked has nothing left to report (its sender is dropped, which ends this wait): the claims it held
+                //  expire with the lease.
+                Ok(()) | Err(RecvTimeoutError::Disconnected) => {}
+                Err(RecvTimeoutError::Timeout) => {
+                    crate::service_warn!("the renewal of claims did not stop within {:?}; it is left behind and the claims expire with their lease", self.stop_ceiling);
+                }
+            }
         }
     }
 }
