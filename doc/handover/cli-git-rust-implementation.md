@@ -3135,6 +3135,7 @@ and a stand-in for a subvolume no worktree names that must stay),
 `63dce988a0` lists each folder that holds a worktree
 and removes every stand-in there as an empty directory
 (`worktree/worktree_snapshot_placeholders.rs`),
+`b6a45587dc` proves the registered worktrees' parents are listed when the destination lies elsewhere,
 with the package's controls green,
 Clippy and `monochromatic-lint` too.
 Verified at the user boundary:
