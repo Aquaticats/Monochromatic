@@ -272,7 +272,11 @@ Stages marked window run inside the window and are refused once its maximum has 
     every `cli-git@*` and `monochromatic-git-policy-cli@*` socket and service
     (the earlier sockets keep listening after the rename)
     and `claude-cpu-watch.service`.
+    A rerun merges into the list of stopped units instead of replacing it,
+    and the check fails when `systemctl` itself cannot answer.
     The window clock starts here and commits fail from here.
+    Nothing stops a new activation between this stage and the freeze;
+    `c08-holders-frozen` scans again after the freeze and stops the window when it finds a holder.
 3.  `c07-freeze`:
     the freeze pass of the copy tool as the user
     (the owner of a subvolume sets `ro` on it without root,
