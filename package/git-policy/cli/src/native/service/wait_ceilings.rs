@@ -275,9 +275,11 @@ pub const PLUMBING_STEP_CEILING: Duration = Duration::from_secs(2 * 60);
 /// The longest a bulk Git step that can be run twice (`fast-import`,
 /// `pack-objects`,
 /// `add` and `reset` on a private index,
-///  the commit Git builds in a scratch repository,
 /// ...) runs before the wrapper ends it,
 /// even while it shows signs of work.
+/// The commit Git builds in a scratch repository is not one of them:
+/// it runs with the terminal attached and has its own ceiling,
+/// `SCRATCH_COMMIT_STEP_CEILING`.
 /// Measured:
 /// the longest client-side preparation of the timing log was
 ///  250,280 ms (`prepareMs`,

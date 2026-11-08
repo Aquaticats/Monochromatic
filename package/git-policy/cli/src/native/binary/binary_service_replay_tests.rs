@@ -176,7 +176,7 @@ fn run(scene: &Scene, first: &[(usize, &str)], second: &[(usize, &str)], late: &
         std::fs::write(scene.markers.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
     }
     // The lock is the control's, so the service waits for it exactly as it waits for a foreign Git.
-    std::fs::write(&lock, "").expect("the index lock");
+    std::fs::write(&lock, "a foreign program's lock\n").expect("the index lock");
     std::fs::write(&file, lines_with(first)).expect("first edit");
     let one: Started = start(scene, "one", false);
     one.waiting.recv_timeout(PATIENCE).expect("the first commit waits for the index");
@@ -396,7 +396,7 @@ fn run_one_batch(scene: &Scene, later_arrives_first: bool) -> (Ended, Ended, End
             std::fs::write(directory.join(format!("service-prepared-{number}.release")), "").expect("release of a later arrival");
         }
     }
-    std::fs::write(&lock, "").expect("the index lock");
+    std::fs::write(&lock, "a foreign program's lock\n").expect("the index lock");
     std::fs::write(scene.repo.join(OTHER), "other edit\n").expect("edit of the other file");
     let holder: Started = start_on(scene, "holder", OTHER, None);
     holder.waiting.recv_timeout(PATIENCE).expect("the first commit waits for the index");

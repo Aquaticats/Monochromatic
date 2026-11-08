@@ -5542,18 +5542,29 @@ are in append mode now).
 
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
-  `5083511eed` was merged into it, image tag `localhost/git-policy-native-test:dangling-merge-main-1794102283`
-  (log of that run: `${HOME}/temp/agent/860-w-items-2/m-gate-first.log`; it summarized 5319 tests, 5318 passed, 1 failed).
-  The assertion at `src/native/lock/stale_ref_locks_tests.rs:114` failed with `left: 1`, `right: 2`
-  (the `cleared.len()` check, "2 expected, 1 cleared"),
+  `5083511eed` was merged into it,
+  image tag `localhost/git-policy-native-test:dangling-merge-main-1794102283`
+  (log of that run:
+  `${HOME}/temp/agent/860-w-items-2/m-gate-first.log`;
+  it summarized 5319 tests,
+  5318 passed,
+  1 failed).
+  The assertion at `src/native/lock/stale_ref_locks_tests.rs:114` failed with `left: 1`,
+  `right: 2`
+  (the `cleared.len()` check,
+  "2 expected,
+  1 cleared"),
   and the printed outcome showed `packed-refs.lock` cleared with `Stale(PidGone(24472))`.
   The branch has no diff in `src/native/lock`.
-  The test passed alone on the host (`native:test:host -- stale_ref_locks`, 35 of 35)
+  The test passed alone on the host (`native:test:host -- stale_ref_locks`,
+  35 of 35)
   and in the next full container run (image `localhost/git-policy-native-test:dangling-merge-main-2-1794103009`,
-  5319 of 5319; that run's log is `${HOME}/temp/agent/860-w-items-2/m-gate.log`).
+  5319 of 5319;
+  that run's log is `${HOME}/temp/agent/860-w-items-2/m-gate.log`).
   Cause and failure rate are not measured;
   the merge into main was `f981e1b493`.
-  The two images were removed afterwards, so the tags name the runs only.
+  The two images were removed afterwards,
+  so the tags name the runs only.
 
 ### Questions waiting for the owner
 
@@ -7489,7 +7500,8 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
   (owner:
   "limit unless editor",
   "a ceiling of three times the slowest measured signing time" when the message came with the command,
-  "no ceiling, only the waiting notice" with an editor open):
+  "no ceiling,
+  only the waiting notice" with an editor open):
   - Signing is not the slow part.
     The coordinator's probe on the same day with the owner's real signing setup in a throwaway repository:
     signed commits 16,
@@ -7532,7 +7544,10 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
     Assumption:
     the step is the command's only child at that point,
     the reading `programs_below` already makes.
-    Linux only (`descendants_of` finds nothing elsewhere).
+    Linux only (`descendants_of` finds nothing elsewhere,
+    so elsewhere the step has no ceiling).
+    A `SIGKILL` can leave `tmp_obj_*` files in the real object store,
+    which `git gc` sweeps.
 - An `index.lock` that no process holds
   (owner:
   "Service removes it":
@@ -7576,12 +7591,45 @@ from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/quest
     so an empty lock that no readable process has open was left by a killed Git.
     A lock with content stays as before (waited for to the ceiling,
     then refused with the way to clear it).
+  - Cost on the waiting path:
+    a lock that is not removed is scanned twice at the first look and at each repeat of the notice
+    (the removal's scan,
+    then the wait's own evidence scan),
+    each bounded by `SERVICE_SCAN_BUDGET`;
+    a whole walk measured 313 to 398 ms over about 1,000 processes on 2026-11-07.
+    Passing one scan's result to both is a follow-up.
   - Known gap:
     the instant between the last look at the name and the unlink,
     as in `service_index_reclaim.rs`;
     a second reclaimer of the same physical index in another service instance is not excluded
     (the claim chain is keyed by a service marker,
     which a Git's lock has not).
+  - The first container gate of this branch (`native:test:container`,
+    8 CPUs,
+    8 GiB,
+    2048 processes) ran 5370 tests and failed 11,
+    all in `native_binary` and all the same cause:
+    each wrote an empty `index.lock` as "a foreign holder" and expected the service to wait for it
+    (`commit_timing::a_slow_scratch_commit_says_what_the_command_waits_for` expected the old words "no time limit";
+    `service::a_landing_waits_for_the_index_lock_before_the_branch_moves`;
+    `fault_trace::lock_without_links::a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository`
+    expected the service to leave the empty lock a killed service made;
+    `service_lane::a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree`;
+    five `service_replay` controls;
+    two `wait_notice` controls).
+    The log text of the first is
+    "no ceiling is added:
+    ... it is stopped if it lasts 1260 seconds in all"
+    and of the second "the commit waited for the holder:
+    101.64796ms".
+    These are consequences of the two owner answers,
+    not flakes:
+    the controls now write a lock with content (a person's editor-phase commit) or,
+    for the killed-service case,
+    expect the empty lock to be removed and the commit to land.
+    The same thirteen controls (the eleven and two siblings of `service_replay`) passed in a targeted run on the host
+    with strace;
+    a second container gate follows.
   - Nine existing wait controls failed under the first version of the removal (which removed a lock of any size) and pass
     unchanged under the empty-lock rule;
     the one that wrote an empty lock (`a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback`) now holds a

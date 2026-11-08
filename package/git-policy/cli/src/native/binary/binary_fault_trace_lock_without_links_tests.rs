@@ -10,10 +10,11 @@
 //! so a kill between the two leaves a
 //!  lock without its marker,
 //! which plain Git leaves too.
-//! That lock is never removed unless its holder is proven gone:
-//! a wrapped
-//!  `git add` meets it as Git does and leaves it,
-//! and after the person removes it the next commit lands with nothing lost.
+//! That lock is empty and no process holds it,
+//! so a wrapped `git add` meets it as Git does and leaves it,
+//! and the next commit through a service removes it (owner,
+//! 2026-11-07,
+//! "Service removes it") and lands with nothing lost.
 //!  A kill at any other instant leaves a lock with the whole marker,
 //! which the next landing proves stale and removes.
 //!
@@ -24,7 +25,7 @@
 
 use super::super::commit::remove_settled;
 use super::super::fault::{COMMIT_ARGUMENTS, Effect, Injection, When, staged_repository};
-use super::super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, spawn_watched, unbounded_wrapper};
+use super::super::fault_run::{end_the_pressure, in_batches, run_unsettled, run_watched, unbounded_wrapper};
 use super::super::strace::strace_available;
 use super::super::support::{Fixture, ServiceLaunch, fixture};
 use super::{recovers_after_service_death, took_effect, tracer};
@@ -35,12 +36,6 @@ use std::process::Output;
 
 /// The calls a filesystem that places no file whole refuses.
 const REFUSED_CALLS: &str = "link,linkat,renameat2";
-
-/// How long a commit is given to start its service and meet the lock before the control looks at the lock again:
-/// the service
-///  answers a held lock at once by waiting for it,
-/// so a removal by the service would have happened within this time.
-const SERVICE_MEETS_THE_LOCK: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// The instants a kill is tested at:
 /// the two steps of taking the lock by exclusive creation,
@@ -87,22 +82,16 @@ fn kill_case(point: &str) -> Result<(), String> {
         if !matches!(std::fs::read(&lock), Ok(still) if still.is_empty()) {
             return Err(format!("{label}: nothing but the person may remove a lock without its marker"));
         }
-        // A commit through a new service meets the lock too (the service settles the open batch and waits for the lock); it
-        //  removes nothing, whatever the lock is without.
-        let commit = spawn_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
-        std::thread::sleep(SERVICE_MEETS_THE_LOCK);
-        let after_the_service: std::io::Result<Vec<u8>> = std::fs::read(&lock);
-        if !matches!(&after_the_service, Ok(still) if still.is_empty()) {
-            return Err(format!("{label}: a service must leave a lock without its marker where it is, found {after_the_service:?}"));
+        // A commit through a new service meets the lock too. The service that made it is dead, nothing holds it and it is empty,
+        //  so the owner's answer applies (2026-11-07, "Service removes it"): the new service removes it and the commit lands.
+        let landed: Output = run_watched(&fixture, &mut unbounded_wrapper(&fixture, repo.as_path(), &COMMIT_ARGUMENTS));
+        if landed.status.code() != Some(0) {
+            return Err(format!("{label}: a commit over an empty lock nothing holds must land, exit {:?}: {}", landed.status.code(), String::from_utf8_lossy(landed.stderr.as_slice())));
         }
-        // SAFETY: `kill` takes no pointers; the group is the commit's own, led by the wrapper that `spawn_watched` started.
-        unsafe {
-            libc::kill(-commit.id(), libc::SIGKILL);
+        if lock.exists() {
+            return Err(format!("{label}: the service left the empty lock nothing holds"));
         }
-        let _ended = commit.finish_after_stragglers();
         end_the_pressure(&fixture);
-        // The person's fix, as Git's own message says it.
-        std::fs::remove_file(&lock).map_err(|error| { return format!("{label}: {error}"); })?;
         // The file the refused `git add` left untracked is the control's own, not the person's.
         std::fs::remove_file(repo.join("b.txt")).map_err(|error| { return format!("{label}: {error}"); })?;
     }
@@ -112,9 +101,9 @@ fn kill_case(point: &str) -> Result<(), String> {
 }
 
 /// The service killed holding or taking the lock on such a filesystem leaves a repository that recovers:
-/// a lock without its marker
-/// stays until the person removes it and then the commit lands;
-/// a lock with its whole marker is removed by the next landing.
+/// an empty lock without its marker is removed by the next landing,
+/// which then lands the commit;
+/// a lock with its whole marker is removed by the next landing too.
 #[test]
 fn a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository() {
     if !strace_available() {
