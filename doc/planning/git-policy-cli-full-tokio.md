@@ -4007,6 +4007,11 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   so a ref nobody can write does not leave every later commit waiting on the batch's index lock.
   The stop waits for nothing more than it did,
   so the ref is named once the worktree commits again.
+  Main's own sweep of a dropped batch's scratch reference came in the merge (`f293f8f58d`,
+  `service_scratch_ref_of_a_dropped_batch.rs`),
+  so the drop keeps this commit and then removes that reference;
+  a kept reference that already names another commit is never replaced,
+  and the scratch reference then stays too.
   Controls,
   red first (`70d04ae08a`):
   `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`,

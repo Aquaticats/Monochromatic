@@ -810,8 +810,10 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
 /// the branch stands where it was,
 /// the commit is on the landing's scratch branch,
 /// and the intent is open (`a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
-/// The kept ref is the one the wrapper names for a commit it did not land,
-/// and the person's staged changes are untouched.
+/// The restart keeps that commit on the ref the wrapper names,
+/// and only then removes the scratch branch the killed landing left
+/// (`service_scratch_ref_of_a_dropped_batch.rs`),
+/// so no commit is lost and no reference of the wrapper pins objects for ever.
 #[test]
 fn a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref() {
     let world: World = world("service-land-recover-kept");
@@ -832,9 +834,47 @@ fn a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref(
     let reports: Vec<RecoveryReport> = recover(&world.context);
     let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
     assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
-    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the scratch branch is left as it was");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit is kept on the ref the wrapper names");
     assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of stopped");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/worktree/cli-git-service/"]),
+        "",
+        "the scratch branch goes once its commit is kept"
+    );
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    // Nothing the removed reference held is lost: the kept commit outlives a maintenance that drops unreachable objects.
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]), "commit", "the kept commit is still in the object store after a prune");
+    remove(world.root.as_path());
+}
+
+/// A restart keeps a batch's commit under its number only where nothing is kept there yet:
+/// a kept ref that already names another commit is another batch's work,
+/// so the restart leaves it,
+/// leaves the scratch branch that holds the dropped commit as it is,
+/// and says both.
+#[test]
+fn a_restart_does_not_replace_a_kept_ref_that_names_another_commit() {
+    let world: World = world("service-land-recover-kept-collision");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let stopped: CommitRequest = request(&world, "stopped", "stopped.txt", "stopped\n");
+    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
+    let built: String = match &outcomes[0] {
+        Outcome::Landed { commit } => commit.clone(),
+        other => panic!("{other:?}"),
+    };
+    // A commit an earlier batch was kept under: the same number, another commit.
+    let other: String = git_text(world.repo.as_path(), &["commit-tree", "HEAD^{tree}", "-p", base.as_str(), "-m", "kept from another batch"]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/worktree/cli-git-service/1", built.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", other.as_str()]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), other, "the commit kept under this number is not replaced");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the scratch branch keeps the commit nothing else holds");
     assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
     remove(world.root.as_path());
 }

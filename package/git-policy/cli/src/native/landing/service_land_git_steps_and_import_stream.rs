@@ -40,7 +40,7 @@ use std::path::Path;
 /// const made = await git(['-c', withNoReflog, 'update-ref', '--no-deref', `refs/cli-git/kept/${seq}`, tip]); return made.succeeded ? undefined : made.stderr
 /// ```
 pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
-    let name: String = format!("refs/cli-git/kept/{seq}");
+    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
     let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
     return match made {
         Ok(output) if output.succeeded() => None,

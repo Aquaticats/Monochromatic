@@ -7492,6 +7492,11 @@ The kept write runs only on this drop,
 never during a landing,
 and it is a side-ref write,
 so the stop's own bounds cut it as they cut every other Git of a landing.
+It writes a kept reference only where nothing is kept under that number yet:
+a kept reference that already names another commit is left as it is,
+and so is the batch's scratch reference,
+whose removal waits for the keep
+(`service_scratch_ref_of_a_dropped_batch.rs`).
 A drop whose kept write fails is logged with Git's words and the commit's name,
 and it still drops:
 the drop is what releases the worktree's index lock and forgets the batch,

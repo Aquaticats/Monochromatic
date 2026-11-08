@@ -4354,6 +4354,27 @@ because the drop is what releases the worktree's index lock,
 so a ref nobody can write does not leave every later commit waiting on that lock.
 The kept write is a side-ref write,
 so a stop cuts it like every other Git of a landing.
+Main's own sweep of a dropped batch's scratch reference arrived in the merge (`f293f8f58d`,
+`a3e6bc94e1`,
+`service_scratch_ref_of_a_dropped_batch.rs`):
+that sweep keeps the tip of the scratch reference and then removes the reference,
+and it leaves both alone when the kept reference names another commit,
+a keep Git refused,
+or a reference Git cannot read.
+So the drop now does both:
+this change's keep of the batch's own commit (the only path a commit Git built has,
+since it makes no scratch reference),
+then that sweep.
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` therefore no longer asserts a surviving scratch branch;
+it asserts the kept commit,
+the removed scratch branch,
+and the kept commit's survival of `git prune --expire=now`.
+The unconditional write this branch first had replaced a kept reference that named another commit,
+which the sweep never does,
+so it now asks first (`a_restart_does_not_replace_a_kept_ref_that_names_another_commit`;
+the guard planted out failed it:
+`left: "84ca392e..."`,
+`right: "8402eb0a..."`).
 Controls:
 `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` (unit),
 `a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref` (unit,
@@ -4416,7 +4437,8 @@ one stop",
 `right: 1`).
 The stop itself stays controlled in `worktree_removal_stops_units_tests.rs`.
 
-Closed on 2026-11-08, the leftovers a person had to remember:
+Closed on 2026-11-08,
+the leftovers a person had to remember:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
 `worktree prune`) and a worktree deleted without Git used to leave their units until someone ran the command.
 A service that starts and finds its own worktree gone now stops its own socket before it serves anything
@@ -4427,12 +4449,14 @@ stops the socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
 and ends with status 0,
 because the service's own end is what stops its service unit and a failure status would make `Restart=on-failure` start it again.
-A worktree on a device that is not mounted is not gone, so its service serves.
+A worktree on a device that is not mounted is not gone,
+so its service serves.
 The controls:
 `a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
 `a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
 `a_service_whose_worktree_cannot_be_told_serves`,
-`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git, then the sweep),
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git,
+then the sweep),
 and the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
 which was red against a service that served the gone worktree.
 What is still unmeasured:

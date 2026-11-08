@@ -31,7 +31,7 @@ use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION,
 use crate::service_land_follow::{IndexPaths, build_index, remove_conclusion_state};
 use crate::service_land_start::witness_of;
 use crate::service_index_lock::{IndexLock, Record, remove_stale, try_acquire};
-use crate::service_scratch_ref_of_a_dropped_batch::clear_after_dropped_batch;
+use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, clear_after_dropped_batch, kept_ref, value_of};
 use crate::autostash_carry::carry_stages;
 use crate::service_land_context::LandContext;
 use crate::service_protocol::FailureCode;
@@ -340,29 +340,49 @@ enum JournalOwner {
 /// What:
 ///  Keeps the commit of a batch that recovery drops on `refs/cli-git/kept/<number>`,
 /// the ref the wrapper names for a commit it did not land,
-/// before the batch's intent goes.
+/// before the batch's intent goes,
+/// and never replaces a kept ref that already names another commit.
 /// Why:
 ///   A service stopped inside the branch write never cuts that write:
 /// it ends at its bound with the write still running,
 /// so the landing cannot unwind and keep its commit,
 /// and a service killed between its intent and its branch move leaves the same shape.
-/// The commit is then only on the landing's scratch branch,
-/// which a commit Git built never makes,
-/// and which no message names;
-/// the drop that follows would leave it where nothing points a person.
+///   A commit only Git can build makes no scratch branch for that write to leave behind,
+/// so this is the only place its commit reaches a ref;
+/// where the batch did make one,
+/// the drop keeps the commit here and then removes the scratch branch
+/// (`service_scratch_ref_of_a_dropped_batch.rs`).
+///   A kept ref that already names another commit is work an earlier batch was kept under,
+/// so it is left alone and said;
+/// only a number the clock and the journal deal twice can bring that about.
 /// A write that cannot be made keeps nothing,
 /// and it does not hold up the drop either:
 /// the drop is what releases the worktree's index lock and forgets the batch,
 /// so a commit whose ref cannot be written is still the commit the person runs again.
 fn keep_what_the_branch_does_not_show(git: &GitContext, intent: &Intent) {
-    match keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
-        None => crate::service_log!("batch {} is not on its branch, so its commit {} is kept at refs/cli-git/kept/{}", intent.seq, intent.new, intent.seq),
-        Some(words) => crate::service_error!(
-            "batch {} is not on its branch, and its commit {} could not be kept on refs/cli-git/kept/{} ({words}), so the commit is left where the landing put it",
+    let kept: String = kept_ref(intent.seq);
+    match value_of(git, intent.repository.as_path(), kept.as_str()) {
+        RefValue::Names(named) if named == intent.new => {
+            crate::service_log!("batch {} is not on its branch, and its commit {} is already kept at {kept}", intent.seq, intent.new);
+        }
+        RefValue::Names(named) => crate::service_error!(
+            "batch {} is not on its branch, and {kept} names {named}, so its commit {} is not kept there and is left where the landing put it",
             intent.seq,
-            intent.new,
-            intent.seq
+            intent.new
         ),
+        RefValue::Unasked => crate::service_error!(
+            "batch {} is not on its branch, and {kept} cannot be read, so its commit {} is left where the landing put it",
+            intent.seq,
+            intent.new
+        ),
+        RefValue::Absent => match keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
+            None => crate::service_log!("batch {} is not on its branch, so its commit {} is kept at {kept}", intent.seq, intent.new),
+            Some(words) => crate::service_error!(
+                "batch {} is not on its branch, and its commit {} could not be kept at {kept} ({words}), so the commit is left where the landing put it",
+                intent.seq,
+                intent.new
+            ),
+        },
     }
 }
 
