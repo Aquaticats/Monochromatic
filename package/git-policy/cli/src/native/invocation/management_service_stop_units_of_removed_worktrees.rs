@@ -1,11 +1,11 @@
 //! What:
-//!  `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees`:
+//! `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees`:
 //! stops,
 //! when the person asks,
 //! the commit service units of every worktree that no longer exists,
 //! and the note `doctor` adds about them.
 //! Why:
-//!  Removing a worktree used to leave its socket unit listening and its service unit running
+//! Removing a worktree used to leave its socket unit listening and its service unit running
 //! (`service_units_of_removed_worktrees.rs`);
 //! the wrapper's own removals now stop them,
 //! and this command stops what an earlier release,
@@ -33,11 +33,33 @@ use crate::service_provision_host_and_manager::Manager;
 use crate::service_units_of_removed_worktrees::{SweepOutcome, UnitFolders, UnitWorktree, stop_units_of_gone_worktrees, survey, worktree_of};
 use crate::systemd_dbus::{Bus, EXCHANGE_WAIT, session_bus_path};
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The command as a person types it,
 /// named in every message about it.
 const COMMAND: &str = "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
+
+/// The user's runtime directory the environment names,
+/// nothing when it is unset or empty.
+fn runtime_dir_of(environment: &[(OsString, OsString)]) -> Option<PathBuf> {
+    let value: OsString = environment_value(environment, "XDG_RUNTIME_DIR")?;
+    if value.is_empty() {
+        return None;
+    }
+    return Some(PathBuf::from(value));
+}
+
+/// The worktree an instance belongs to,
+/// as a path for a line of output.
+fn path_of(folders: &UnitFolders<'_>, instance: &str) -> String {
+    return match worktree_of(folders, instance) {
+        UnitWorktree::Known(git_dir) => git_dir.display().to_string(),
+        UnitWorktree::Unmapped => String::from(UNKNOWN_WORKTREE),
+    };
+}
+
+/// What a line says about a worktree the units of which could not be named.
+const UNKNOWN_WORKTREE: &str = "an unknown worktree";
 
 /// The count with its noun,
 /// as "1 removed worktree" or "3 removed worktrees".
@@ -46,7 +68,7 @@ fn worktrees(count: usize) -> String {
 }
 
 /// What:
-///  The note `doctor` adds:
+/// The note `doctor` adds:
 /// how many removed worktrees still have commit service units,
 /// how many instances cannot be told,
 /// and the command that stops the first.
@@ -61,10 +83,9 @@ fn worktrees(count: usize) -> String {
 /// unitsNote(environment) // '' or one line
 /// ```
 pub(crate) fn units_note(environment: &[(OsString, OsString)]) -> String {
-    let Some(runtime) = environment_value(environment, "XDG_RUNTIME_DIR").filter(|value| { return !value.is_empty(); }) else {
+    let Some(runtime_dir) = runtime_dir_of(environment) else {
         return String::new();
     };
-    let runtime_dir: PathBuf = PathBuf::from(runtime);
     let state: Option<PathBuf> = state_dir_of(environment);
     let found = survey(&UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() });
     return note_of(found.gone.len(), found.unmapped.len());
@@ -99,7 +120,7 @@ fn refused(reason: &str) -> Action {
 }
 
 /// What:
-///  Stops the units of every removed worktree through `manager`
+/// Stops the units of every removed worktree through `manager`
 /// and says what was stopped,
 /// what was refused,
 /// and what could not be matched.
@@ -114,21 +135,20 @@ fn refused(reason: &str) -> Action {
 /// ```
 pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Manager) -> Action {
     // Named before the stop, which removes a note the name may come from.
-    let named: Vec<(String, String)> = survey(folders)
-        .gone
-        .into_iter()
-        .map(|instance| {
-            let path: String = match worktree_of(folders, instance.as_str()) {
-                UnitWorktree::Known(git_dir) => git_dir.display().to_string(),
-                UnitWorktree::Unmapped => String::from("an unknown worktree"),
-            };
-            return (instance, path);
-        })
-        .collect();
+    let mut named: Vec<(String, String)> = Vec::new();
+    for instance in survey(folders).gone {
+        let path: String = path_of(folders, instance.as_str());
+        named.push((instance, path));
+    }
     let outcome: SweepOutcome = stop_units_of_gone_worktrees(manager, folders);
     let mut stdout: String = String::new();
     for instance in &outcome.stopped {
-        let path: &str = named.iter().find(|(known, _path)| { return known == instance; }).map_or("an unknown worktree", |(_known, path)| { return path.as_str(); });
+        let mut path: &str = UNKNOWN_WORKTREE;
+        for (known, known_path) in &named {
+            if known == instance {
+                path = known_path.as_str();
+            }
+        }
         stdout.push_str(format!("stopped the commit service units of the removed worktree {path} (instance {instance})\n").as_str());
     }
     if outcome.stopped.is_empty() && outcome.failed.is_empty() {
@@ -153,7 +173,7 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
 }
 
 /// What:
-///  Plans the command from the process's environment:
+/// Plans the command from the process's environment:
 /// connects to the session bus and stops the units.
 /// Why:
 ///   The units belong to the user's manager,
@@ -165,18 +185,21 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>, manager: &mut dyn Man
 /// planStopUnitsOfRemovedWorktrees(environment)
 /// ```
 pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsString)]) -> Action {
-    let Some(runtime) = environment_value(environment, "XDG_RUNTIME_DIR").filter(|value| { return !value.is_empty(); }) else {
+    let Some(runtime_dir) = runtime_dir_of(environment) else {
         return refused("XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose units could be looked at; run it from a login session");
     };
-    let runtime_dir: PathBuf = PathBuf::from(runtime);
     let state: Option<PathBuf> = state_dir_of(environment);
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
     let address: Option<OsString> = environment_value(environment, "DBUS_SESSION_BUS_ADDRESS");
-    let address_text: Option<&str> = address.as_deref().and_then(|value| { return value.to_str(); });
-    let Some(socket) = session_bus_path(address_text, Some(runtime_dir.as_path())).filter(|path| { return path.exists(); }) else {
-        return refused("the user's session bus was not found, so the units cannot be stopped through the manager; run it from a login session");
+    let address_text: Option<&str> = match &address {
+        Some(value) => value.to_str(),
+        None => None,
     };
-    return match Bus::connect(Path::new(&socket), EXCHANGE_WAIT) {
+    let socket: PathBuf = match session_bus_path(address_text, Some(runtime_dir.as_path())) {
+        Some(path) if path.exists() => path,
+        _ => return refused("the user's session bus was not found, so the units cannot be stopped through the manager; run it from a login session"),
+    };
+    return match Bus::connect(socket.as_path(), EXCHANGE_WAIT) {
         Ok(mut bus) => stop_units_action(&folders, &mut bus),
         Err(error) => refused(format!("the user's session bus could not be reached ({error:?})").as_str()),
     };

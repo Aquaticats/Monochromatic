@@ -59,7 +59,8 @@ fn a_directory_that_is_no_registration_names_no_instance() {
     remove(fixture.root.as_path());
 }
 
-/// After a removal that took the Git directory, the socket and the service of that instance are stopped.
+/// After a removal that took the Git directory,
+/// the socket and the service of that instance are stopped.
 #[test]
 fn a_removed_worktrees_units_are_stopped_after_the_removal() {
     let fixture: Fixture = fixture_with_units("removal-units-removed");

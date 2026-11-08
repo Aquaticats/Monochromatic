@@ -3978,6 +3978,70 @@ Remaining:
 ### Worktree add follow-ups
 
 An add of about 60 s is acceptable to the owner and sets no target to stop at ("60s is fine for adding worktrees").
+
+Measured 2026-11-08,
+from `<git-common-dir>/monochromatic-git-policy-cli-worktree-add-timing.jsonl` (192 records) and one
+add and one native add of the same checkout made then (one run each;
+the run-to-run spread is not measured):
+
+- The 58.5 s add of 0.6.1-alpha.3 (record time 2026-11-08T03:54:59.243Z,
+  `totalMs` 58511.678):
+  `repair` 54838 ms,
+`snapshotIoctl` 162 ms,
+`exchange` 510 ms,
+`replacePointer` 1150 ms,
+`prune` 908 ms,
+every other step under 340 ms.
+Inside `repair` (`repairCargo` 54844 ms of wall time;
+the work counters sum worker time):
+`cargoCloneTree` 66305 ms
+over 34 clones of the external `build-dir` (`~/.cargo/config.toml` keys it by workspace path under
+`/var/mnt/encrypted/cargo-build`),
+`cargoClean` 34029 ms over 34 workspaces,
+`cargoRepairWorkspace` 108436 ms over
+35 workspaces,
+`repairPnpm` 6440 ms.
+The cost is the owner's chosen repair ("Reuse deps,
+rebuild own",
+2026-11-03),
+not the btrfs snapshot.
+- Of the 173 records that ran the Cargo repair,
+  `repair` is 89 percent of `totalMs` at the median (range 13 to 99
+percent;
+25 records are under half,
+the slow-snapshot ones);
+an add before it (0.5.20,
+2026-11-03T08:55:46Z) took
+5.8 s with `repair` 1.7 s.
+- An add of this task's worktree at 2026-11-08T04:07:27.263Z under host load average about 50:
+`totalMs` 166028,
+`repair` 145809 (88 percent),
+`snapshotIoctl` 4115,
+every other step together 20.2 s.
+The same repair step took 54.8 s at the 03:54 run:
+it scales with host pressure,
+as the clone and the clean are
+file-by-file work on two filesystems.
+- A native `git worktree add --detach` of the same checkout,
+  at load average 34 to 42 minutes later:
+  73.2 s,
+  so the
+58.5 s add was not slower than native in absolute terms,
+and the wrapper's own non-repair steps were 3.7 s then.
+No opt-out of the repair exists for a person who wants a fast add:
+`RepairSwitch` only records the person's `--quiet` and
+`--no-checkout` (a no-checkout add has nothing to repair),
+and a search of `README.md` found no key that turns it off.
+Not done (proposals for the owner,
+not decided):
+skip the clone and the clean for a workspace whose source has no build
+state;
+start the 35 `cargo metadata` reads of the source at the first step so they overlap the snapshot;
+overlap
+`repairPnpm` and `repairCargo` with the trash disposal (the item above);
+a per-workspace snapshot of the build
+directory when it is a subvolume.
+
 Not done:
 overlap the inline trash disposal with the package repair;
 on a post-snapshot mismatch of a main source,
@@ -3998,6 +4062,35 @@ and once for the whole program in `README.md` and
 a search of both files on 2026-11-03 found no such statement yet.
 
 ### Service follow-ups
+
+Commit service units and removed worktrees (2026-11-08):
+the unit instance is the 128-bit FNV-1a hash of the worktree's real own Git directory (`service_instance.rs`),
+so it cannot be turned back into a path.
+At the start 76 socket units were active (63 listening,
+13 running) and 378 worktrees were registered.
+By the admin-directory test 29 of those units belonged to a removed worktree (23 listening,
+6 running),
+41 to a present one (none of them with a missing checkout),
+and 6 mapped to nothing.
+The wrapper's removal now stops the units,
+provisioning writes a note of the worktree beside the socket,
+and `service stop-units-of-removed-worktrees` stops the rest
+(the sweep was run once on 2026-11-08:
+31 instances stopped,
+8 unmapped left running,
+and every stopped instance's Git directory was verified missing).
+Open:
+a removal Git runs with the wrapper replaced (`worktree remove --force`,
+`worktree prune`) and a worktree deleted without Git leave their units until the command runs;
+the 8 unmapped instances have neither a note nor a journal record that hashes to them
+(units of worktrees that never landed a commit before this release,
+or whose repository was deleted whole),
+so they stay;
+`run_forwarded_git` is wired to the stop without a unit control of its own
+(the stop is controlled in `worktree_removal_stops_units_tests.rs`,
+and the wiring was checked once against the real user manager in a throwaway repository:
+socket active before the removal,
+inactive after).
 
 Pre-existing,
 from the lock-removal pass,

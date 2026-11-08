@@ -1,5 +1,7 @@
 //! Controls for the commit service units of worktrees that no longer exist:
-//! the note, the test of a gone worktree, the survey and the stop.
+//! the note,
+//! the test of a gone worktree,
+//! the survey and the stop.
 //! The manager is a recorder.
 
 use super::*;

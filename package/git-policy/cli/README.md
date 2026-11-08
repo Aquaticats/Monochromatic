@@ -772,6 +772,8 @@ git monochromatic-git-policy-cli doctor
 # Whether the commit service answers, and finish the batches an earlier release's service left open (see below).
 git monochromatic-git-policy-cli service status
 git monochromatic-git-policy-cli service settle-earlier-batches
+# Stop the commit service units of worktrees that no longer exist (see below).
+git monochromatic-git-policy-cli service stop-units-of-removed-worktrees
 # Convert the main checkout into a btrfs subvolume (preview first); see the section below.
 git monochromatic-git-policy-cli migrate-to-subvolume --dry-run
 git monochromatic-git-policy-cli --help
@@ -853,6 +855,44 @@ when it cannot write that condition to standard error.
 Nothing runs it by itself,
 and a commit never waits for it.
 `git monochromatic-git-policy-cli doctor` says on standard error how many such batches the worktree has and names this command.
+
+Each worktree has a commit service socket unit and a service unit,
+named by a hash of the worktree's own Git directory (`monochromatic-git-policy-cli@<hash>.socket` and `.service`).
+A socket unit has no idle exit,
+and the service exits only three hours after its last client,
+so units of a worktree that was removed would run on.
+When the wrapper serves `git worktree remove <path>` (the subvolume destroy,
+or Git's own removal run as a child),
+it reads the worktree's registration first,
+and once the removal ended well and the registration is gone it stops that worktree's socket unit and then its service
+unit through the user manager,
+never by killing a process by name.
+A removal Git refused leaves the units alone,
+a worktree that never committed costs the removal no question to the manager,
+and a manager that cannot be reached is logged and never fails the removal.
+Two forms are not seen afterwards because the process becomes Git
+(`git worktree remove --force` and `git worktree prune`),
+and a worktree deleted without Git leaves its units too.
+`git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
+it takes no options and looks at every unit instance of the user,
+not at one repository.
+Each commit service setup writes the worktree's Git directory beside the socket
+(`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/<hash>.git-dir`),
+which goes away with the units at logout or shutdown;
+for a unit set up before that,
+the `gitdir=` line of a record in the service's journal names the worktree.
+Either text counts only when it hashes to the instance.
+The command stops only an instance whose Git directory is missing while the repository that held it is there
+(a repository on a drive that is not mounted proves nothing),
+says which worktree each stopped instance was,
+and names an instance that maps to nothing without touching it.
+A refused stop is named with the reason and makes the exit status 1;
+running the command again tries it again.
+It starts nothing,
+nothing runs it by itself,
+and no unit it concerns is enabled for login.
+`git monochromatic-git-policy-cli doctor` says on standard error
+how many removed worktrees still have units and names this command.
 
 `git monochromatic-git-policy-cli doctor` takes no options.
 It scans `<git-common-dir>/hooks` and the directory a configured `core.hooksPath` names,

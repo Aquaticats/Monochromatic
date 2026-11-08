@@ -1,10 +1,10 @@
 //! What:
-//!  The commit service units of worktrees that no longer exist:
+//! The commit service units of worktrees that no longer exist:
 //! the note that says which worktree a unit belongs to,
 //! the test of whether that worktree is gone,
 //! and the stop of the units of a gone one through the user manager.
 //! Why:
-//!  A unit instance is named by a hash of its worktree's own Git directory (`service_instance.rs`),
+//! A unit instance is named by a hash of its worktree's own Git directory (`service_instance.rs`),
 //! and a hash names nothing once the directory is gone:
 //! removing a worktree left its socket and service unit running,
 //! and nothing could say whose they were.
@@ -93,7 +93,7 @@ pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
 }
 
 /// What:
-///  Writes the note that names the worktree of an instance,
+/// Writes the note that names the worktree of an instance,
 /// unless it already says so.
 /// Why:
 ///   The note is the one record of whose units these are once the worktree is gone;
@@ -117,7 +117,7 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
 }
 
 /// What:
-///  Writes the note of an instance for the real Git directory of its worktree,
+/// Writes the note of an instance for the real Git directory of its worktree,
 /// and logs a failure.
 /// Why:
 ///   A note that cannot be written only means the units cannot be told apart later;
@@ -139,7 +139,7 @@ pub fn note_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) {
 }
 
 /// What:
-///  Whether the worktree whose own Git directory is `git_dir` is certainly gone:
+/// Whether the worktree whose own Git directory is `git_dir` is certainly gone:
 /// the directory is missing while the place that holds it is there.
 /// Why:
 ///   A repository on a drive that is not mounted has a missing Git directory too,
@@ -177,16 +177,26 @@ fn named_for(instance: &str, text: &str) -> Option<PathBuf> {
     return (instance_of(path.as_path()) == instance).then_some(path);
 }
 
+/// The records of a service journal,
+/// sorted by name.
+fn journal_records(journal: &Path) -> Vec<PathBuf> {
+    let Ok(listing) = std::fs::read_dir(journal) else { return Vec::new() };
+    let mut records: Vec<PathBuf> = Vec::new();
+    for entry in listing.flatten() {
+        let path: PathBuf = entry.path();
+        if path.extension() == Some(std::ffi::OsStr::new("done")) {
+            records.push(path);
+        }
+    }
+    records.sort();
+    return records;
+}
+
 /// The `gitdir=` text of the first record of the instance's service journal that has one,
 /// and names a directory that hashes to the instance.
 fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
     let journal: PathBuf = state_dir.join(SERVICE_UNIT.current).join("service").join(instance);
-    let mut names: Vec<PathBuf> = std::fs::read_dir(journal).ok()?.flatten().map(|entry| { return entry.path(); }).collect();
-    names.sort();
-    for record in names {
-        if record.extension().and_then(|extension| { return extension.to_str(); }) != Some("done") {
-            continue;
-        }
+    for record in journal_records(journal.as_path()) {
         let Ok(text) = std::fs::read_to_string(&record) else { continue };
         for line in text.lines() {
             if let Some(named) = line.strip_prefix("gitdir=")
@@ -200,7 +210,7 @@ fn from_journal(state_dir: &Path, instance: &str) -> Option<PathBuf> {
 }
 
 /// What:
-///  The worktree of an instance:
+/// The worktree of an instance:
 /// its note,
 /// else the Git directory in a record of its service journal,
 /// each only when its text hashes to the instance.
@@ -226,10 +236,25 @@ pub fn worktree_of(folders: &UnitFolders<'_>, instance: &str) -> UnitWorktree {
     return UnitWorktree::Unmapped;
 }
 
+/// Whether one character is a lower-case hexadecimal digit.
+fn is_hexadecimal_digit(character: char) -> bool {
+    return character.is_ascii_digit() || ('a'..='f').contains(&character);
+}
+
 /// Whether a file name's stem is an instance name:
 /// the digits of a hash.
 fn is_instance_name(name: &str) -> bool {
-    return name.len() == INSTANCE_LENGTH && name.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte); });
+    return name.len() == INSTANCE_LENGTH && name.chars().all(is_hexadecimal_digit);
+}
+
+/// The instance a file name of the socket directory belongs to,
+/// when it is a socket file or a note.
+fn instance_of_file_name(name: &str) -> Option<&str> {
+    let stem: &str = match name.strip_suffix(".sock") {
+        Some(socket) => socket,
+        None => name.strip_suffix(NOTE_ENDING)?,
+    };
+    return is_instance_name(stem).then_some(stem);
 }
 
 /// Which instances have a socket file or a note in the runtime directory,
@@ -239,10 +264,7 @@ pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        let stem: Option<&str> = name.strip_suffix(".sock").or_else(|| { return name.strip_suffix(NOTE_ENDING); });
-        if let Some(instance) = stem
-            && is_instance_name(instance)
-        {
+        if let Some(instance) = instance_of_file_name(name.as_str()) {
             found.push(instance.to_owned());
         }
     }
@@ -252,7 +274,7 @@ pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
 }
 
 /// What:
-///  Sorts the instances that have a unit into those whose worktree is gone,
+/// Sorts the instances that have a unit into those whose worktree is gone,
 /// those that map to nothing,
 /// and the count of those whose worktree is still there.
 /// Why:
@@ -285,7 +307,7 @@ fn stop_one(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
 }
 
 /// What:
-///  Stops the socket unit and the service unit of one instance through the manager.
+/// Stops the socket unit and the service unit of one instance through the manager.
 /// Why:
 ///   The socket goes first so a connection cannot start the service again.
 /// A refusal of one stop does not keep the other from being asked,
@@ -316,7 +338,7 @@ fn reason_of(error: &CallError) -> String {
 }
 
 /// What:
-///  Stops the units of every instance whose worktree is gone,
+/// Stops the units of every instance whose worktree is gone,
 /// and removes the note of each one that was stopped.
 /// Why:
 ///   An instance that maps to nothing,

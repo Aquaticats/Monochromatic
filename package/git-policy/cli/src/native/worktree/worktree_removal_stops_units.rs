@@ -1,17 +1,22 @@
 //! What:
-//!  Stops the commit service units of a worktree when the wrapper has removed that worktree:
+//! Stops the commit service units of a worktree when the wrapper has removed that worktree:
 //! the instance is read from the registration before the removal,
-//! and the units are stopped after it, once the registration is gone.
+//! and the units are stopped after it,
+//! once the registration is gone.
 //! Why:
-//!  A unit instance is named by a hash of its worktree's own Git directory (`service_instance.rs`),
+//! A unit instance is named by a hash of its worktree's own Git directory (`service_instance.rs`),
 //! so after the removal nothing could say whose the units were,
-//! and the socket unit, which has no idle exit, kept listening.
+//! and the socket unit,
+//! which has no idle exit,
+//! kept listening.
 //! The name is therefore taken first,
 //! and the stop happens only when the Git directory is certainly gone:
 //! a removal that Git refused leaves the worktree and its units alone.
-//! Both removals the wrapper serves (the subvolume destroy and Git's own removal run as a child) end in `ForwardedRun::Ran(0)`,
+//! Both removals the wrapper serves (the subvolume destroy and Git's own removal run as a child)
+//! end in `ForwardedRun::Ran(0)`,
 //! so one hook covers both;
-//! a removal handed to Git with the process replaced (`--force`, `prune`) cannot be looked at afterwards,
+//! a removal handed to Git with the process replaced (`--force`,
+//! `prune`) cannot be looked at afterwards,
 //! and `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those units.
 //! A failure to stop is logged and never fails the removal the person asked for.
 //!
@@ -46,7 +51,7 @@ pub struct WorktreeAboutToGo {
 }
 
 /// What:
-///  Reads the instance of the worktree a removal names,
+/// Reads the instance of the worktree a removal names,
 /// from its registration in the repository the command runs in.
 /// Why:
 ///   The registration is deleted by the removal,
@@ -76,7 +81,7 @@ pub fn before_removal(common_dir: &Path, plan: &RemovePlan) -> Option<WorktreeAb
 }
 
 /// What:
-///  Whether any unit of the worktree could exist:
+/// Whether any unit of the worktree could exist:
 /// its socket file or its note is there.
 /// Why:
 ///   A worktree that never committed has no unit,
@@ -91,7 +96,7 @@ fn has_units(folders: &UnitFolders<'_>, instance: &str) -> bool {
 }
 
 /// What:
-///  Stops the units of the worktree after a removal,
+/// Stops the units of the worktree after a removal,
 /// when its Git directory is gone and it had units.
 /// Whether the units were stopped.
 /// Why:
@@ -117,7 +122,7 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
 }
 
 /// What:
-///  Stops the units of a removed worktree through the session manager,
+/// Stops the units of a removed worktree through the session manager,
 /// and only logs a failure.
 /// Why:
 ///   The removal the person asked for has already happened,

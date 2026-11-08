@@ -346,8 +346,8 @@ fn plan_doctor(
         common_dir: None,
     };
     let action: Action = doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
-    let noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
-    let noted: Action = with_units_note(noted, environment);
+    let batches_noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
+    let noted: Action = with_units_note(batches_noted, environment);
     return with_leading_notice(noted, resolved.notice.as_deref());
 }
 

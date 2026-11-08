@@ -5,7 +5,8 @@ use crate::service_provision_host_and_manager::Manager;
 use crate::systemd_dbus::CallError;
 use std::sync::{Arc, Mutex};
 
-/// A manager that records every call and answers a stop of one named unit with a failure when a control asks for that.
+/// A manager that records every call
+/// and answers a stop of one named unit with a failure when a control asks for that.
 #[derive(Clone, Default)]
 pub struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
