@@ -142,6 +142,9 @@ fn assert_recovery_keeps_a_damaged_ready_journal(root: &Path, journal: &Path, ca
     assert!(messages.iter().any(|message| { return message.contains("damaged"); }), "{case}: recovery did not call the journal damaged: {messages:?}");
     assert!(journal.exists(), "{case}: the journal of the damaged record was deleted: {messages:?}");
     assert_eq!(live_lock(root), "changed by the killed run", "{case}: recovery acted on a journal whose record is invalid");
+    // The edited manifest is unchanged too (sixth pass, group 8): a recovery that restores it before validating the ready record,
+    // then rejects the record, would split the pair while the assertions above still hold.
+    assert_eq!(fs::read_to_string(root.join(CRATE_DIR).join("Cargo.toml")).expect("manifest"), "manifest", "{case}: recovery acted on the manifest of a journal whose record is invalid");
 }
 
 /// Rewrites the ready record with the given file lines (name and length) and the matching end line.
@@ -268,8 +271,12 @@ fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_rea
     let report = crate::journal::recover_report(root.path(), &|_before: &[crate::crates::LockSnapshot], _live: &[crate::crates::LockSnapshot]| { return Vec::new(); });
 
     assert!(!report.mandatory_failure && !journal.exists(), "the control did not complete: {:?}", report.messages);
-    let durable: Vec<String> = crate::bounded_run::take_trace_for_test().into_iter().filter(|event| { return event.starts_with("durable "); }).collect();
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test();
+    let durable: Vec<String> = events.iter().filter(|event| { return event.starts_with("durable "); }).cloned().collect();
     assert_eq!(durable, vec!["durable Cargo.lock".to_string(), "durable Cargo.toml".to_string()], "the recovery did not make both outputs durable before completing");
+    // The recovery's order too (sixth pass, group 8): both output barriers, then the marker, its parent barrier, and removal.
+    let ordered: Vec<String> = events.into_iter().filter(|event| { return event.starts_with("durable ") || event.starts_with("marker ") || event.starts_with("cleanup "); }).collect();
+    assert_eq!(ordered, vec!["durable Cargo.lock", "durable Cargo.toml", "marker renamed", "marker parent synced", "cleanup attempted"], "the recovery did not finish in the order outputs, marker, marker barrier, removal: {ordered:?}");
 }
 
 /// Acceptance row V5 (certification,
@@ -282,7 +289,7 @@ fn the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_rea
 #[test]
 fn an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report() {
     use crate::failpoints::{Point, arm, fires};
-    for (fault, mandatory) in [(Point::RecoverDurability, true), (Point::CompletionSync, true), (Point::FinishCleanup, false)] {
+    for (fault, mandatory) in [(Point::RecoverDurability, true), (Point::OutputFileSync, true), (Point::OutputDirectorySync, true), (Point::CompletionSync, true), (Point::FinishCleanup, false)] {
         let root = repository("same lock", "manifest");
         let journal = unready_journal_with_manifest(root.path(), "same lock", "manifest");
         arm(fault);

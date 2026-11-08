@@ -102,11 +102,17 @@ pub fn acknowledge(journal: &Path) -> Result<String, String> {
         return Err("the acknowledgement could not be written (injected failure); nothing was acknowledged".to_string());
     }
     atomic_write(&resolved.join(ACKNOWLEDGED_FILE), &text).explained_with_tail(format_args!("the acknowledgement could not be written"), "; nothing was acknowledged")?;
+    // The barrier is the real directory sync, and a test replaces its result, so a failure takes the path of a failure of the kernel
+    // (sixth pass, group 13).
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
-        return Err("the acknowledgement could not be made durable (injected failure); it counts only once it is, so run the command again".to_string());
-    }
-    sync_directory(&resolved).explained_with_tail(format_args!("the acknowledgement could not be made durable"), "; it counts only once it is, so run the command again")?;
+    let durable: std::io::Result<()> = if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDurability) {
+        Err(std::io::Error::other("injected acknowledgement durability failure"))
+    } else {
+        sync_directory(&resolved)
+    };
+    #[cfg(not(test))]
+    let durable: std::io::Result<()> = sync_directory(&resolved);
+    durable.explained_with_tail(format_args!("the acknowledgement could not be made durable"), "; it counts only once it is, so run the command again")?;
     return Ok(format!(
         "acknowledged {}: you asserted that every process or worker of that run that can modify the workspace has stopped; the next cargo-shadow run settles the journal",
         resolved.display()

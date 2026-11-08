@@ -4,14 +4,15 @@
  @module
  */
 
+import { randomUUID, } from 'node:crypto';
 import {
+  link,
   readdir,
-  readFile,
   rename,
   unlink,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { setInterval as everyInterval, } from 'node:timers/promises';
+import { setTimeout as wait, } from 'node:timers/promises';
 import type { ConnectionToPi, } from './connection-to-pi.ts';
 import {
   FEED_PREVIEW_CHARACTERS,
@@ -25,17 +26,9 @@ import type {
   RecordOfPiRun,
   RunProgress,
 } from './driver-types.ts';
+import { answerMillisecondsBefore, } from './deadline.ts';
 import { preview, } from './previews-of-pi-messages.ts';
-
-/**
- The polling interval stopped, which it never does by itself.
- */
-export class WatchEndedWithoutReasonError extends Error {
-  /**
-   The name printed with the message.
-   */
-  override readonly name = 'WatchEndedWithoutReasonError';
-}
+import { readOrdinaryFile, } from './read-ordinary-file.ts';
 
 /**
  What watching a run needs.
@@ -49,54 +42,204 @@ export type WatchRequest = {
 };
 
 /**
- Delivers one inbox message. The file goes only once Pi has it; a refused or unanswered one stays readable under a dot name,
- which the watch skips, so it is neither lost nor sent again.
+ The code the operating system gave a failure, when it gave one.
+
+ @param error - what was caught
+
+ @returns the code, or nothing when the failure carries none
+ */
+function codeOf(error: unknown,): string {
+  if (((typeof error) !== 'object') || (error === null)
+    || (!('code' in error))) {
+    return '';
+  }
+  return ((typeof error.code) === 'string') ? error.code : '';
+}
+
+/**
+ Publishes a kept failure under one name, without ever replacing a file already there: a link fails when its name is taken, so
+ the caller tries the next number.
+
+ @param claim - where the message now is
+
+ @param target - the name this attempt would keep it under
+
+ @returns what this attempt achieved, so the caller knows whether to try another name
+ */
+async function publishFailure({
+  claim,
+  target,
+}: {
+  readonly claim: string;
+  readonly target: string
+},): Promise<'published' | 'name-taken' | 'kept-by-rename'> {
+  try {
+    await link(
+      claim,
+      target,
+    );
+    await unlink(claim,);
+    return 'published';
+  }
+  catch (error) {
+    /**
+     What the operating system said about this name.
+     */
+    const code = codeOf(error,);
+    if (code === 'EEXIST') {
+      return 'name-taken';
+    }
+    if ((code === 'EPERM') || (code === 'EACCES')) {
+      // A folder cannot be linked, and holding one of Pi's messages is not at stake in it.
+      await rename(
+        claim,
+        target,
+      );
+      return 'kept-by-rename';
+    }
+    throw error;
+  }
+}
+
+/**
+ Claims one inbox entry by renaming it, so that a producer publishing a newer message under the same name cannot be deleted or
+ kept in its place. The claim's own name starts with a dot, so no later look at the inbox takes it for a message.
 
  @param watch - watch request
 
- @param name - message's file name
+ @param name - message's name
+
+ @returns where the message now is
  */
-async function deliverMessage({
+async function claimMessage({
   watch,
   name,
 }: {
   readonly watch: WatchRequest;
   readonly name: string
+},): Promise<string> {
+  /**
+   Where the claim goes, under a name of its own that does not grow with the message's own, so any name a producer may publish
+   stays claimable.
+   */
+  const claimed = join(
+    watch.inbox,
+    `.claimed-${randomUUID()}`,
+  );
+  await rename(
+    join(
+      watch.inbox,
+      name,
+    ),
+    claimed,
+  );
+  return claimed;
+}
+
+/**
+ Keeps a message that did not reach Pi, so it stays readable and is never sent again. Publication never replaces an earlier
+ kept failure: a link fails when its name is taken, so the next number is tried instead.
+
+ @param watch - watch request
+
+ @param name - message's name
+
+ @param claim - where the message now is
+ */
+async function keepFailure({
+  watch,
+  name,
+  claim,
+}: {
+  readonly watch: WatchRequest;
+  readonly name: string;
+  readonly claim: string
 },): Promise<void> {
   /**
-   The message file.
+   The most numbered names to try before giving up: there are always fewer kept failures than names in the inbox.
    */
-  const path = join(
-    watch.inbox,
-    name,
-  );
+  const attempts = (await readdir(watch.inbox,)).length + 2;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    /**
+     The name this attempt would keep the failure under.
+     */
+    const target = join(
+      watch.inbox,
+      (attempt === 1) ? `.failed-${name}` : `.failed-${name}.${String(attempt,)}`,
+    );
+    /**
+     What this attempt achieved.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one name after another until one is free, and a kept failure must never replace another; see doc/lint/sequential-awaits.md
+    const outcome = await publishFailure({
+      claim,
+      target,
+    },);
+    if ((outcome === 'published') || (outcome === 'kept-by-rename')) {
+      return;
+    }
+  }
+  throw new Error(`every name for a kept failure of ${name} is taken`,);
+}
+
+/**
+ Delivers one claimed inbox message. The claim goes once Pi has it; a refused or unanswered one is kept under a dot name, which
+ the watch skips, so it is neither lost nor sent again.
+
+ @param watch - watch request
+
+ @param name - message's name
+
+ @param claim - where the message now is
+ */
+async function deliverMessage({
+  watch,
+  name,
+  claim,
+}: {
+  readonly watch: WatchRequest;
+  readonly name: string;
+  readonly claim: string
+},): Promise<void> {
   /**
-   The message.
+   The message, which must be an ordinary file: a named pipe would wait for a writer.
    */
-  const text = await readFile(
-    path,
-    'utf8',
-  );
+  const text = await readOrdinaryFile(claim,);
   /**
    How the message reaches Pi: a steer while it works, a new prompt while it rests.
    */
   const sentAs = watch.record
     .isRunning() ? 'steer' : 'prompt';
   /**
-   Pi's answer.
+   Pi's answer, waited for only as long as the run has left.
    */
   const answer = await watch.connection
-    .send({ command: {
-      type: sentAs,
-      message: text,
-    }, },);
-  await (answer.success === true ? unlink(path,) : rename(
-    path,
-    join(
-      watch.inbox,
-      `.failed-${name}`,
-    ),
-  ));
+    .send({
+      command: {
+        type: sentAs,
+        message: text,
+      },
+      answerMilliseconds: answerMillisecondsBefore(watch.deadline,),
+    },);
+  if (answer.success === true) {
+    try {
+      await unlink(claim,);
+    }
+    catch (error) {
+      watch.record
+        .note({
+          kind: 'problem',
+          problem: `Pi took ${name}, but its file could not be removed: ${String(error,)}`,
+        },);
+    }
+  }
+  else {
+    await keepFailure({
+      watch,
+      name,
+      claim,
+    },);
+  }
   watch.record
     .note({
       kind: 'inbox',
@@ -112,7 +255,7 @@ async function deliverMessage({
 }
 
 /**
- Delivers one inbox entry, or sets it aside when it cannot be read, such as a folder dropped there by mistake.
+ Delivers one inbox entry, or keeps it aside when it cannot be read, such as a folder dropped there by mistake.
 
  @param watch - watch request
 
@@ -126,27 +269,49 @@ async function deliverOrSetAside({
   readonly name: string
 },): Promise<void> {
   try {
-    await deliverMessage({
+    /**
+     Where the entry moved to when it was claimed.
+     */
+    const claim = await claimMessage({
       watch,
       name,
     },);
+    try {
+      await deliverMessage({
+        watch,
+        name,
+        claim,
+      },);
+    }
+    catch (error) {
+      watch.record
+        .note({
+          kind: 'problem',
+          problem: `could not deliver ${name}: ${String(error,)}`,
+        },);
+      try {
+        await keepFailure({
+          watch,
+          name,
+          claim,
+        },);
+      }
+      catch (keepError) {
+        // The message stays where the claim put it, under a dot name, so it is neither lost nor sent again.
+        watch.record
+          .note({
+            kind: 'problem',
+            problem: `could not keep ${name}: ${String(keepError,)}`,
+          },);
+      }
+    }
   }
   catch (error) {
     watch.record
       .note({
         kind: 'problem',
-        problem: `could not deliver ${name}: ${String(error,)}`,
+        problem: `could not take ${name}: ${String(error,)}`,
       },);
-    await rename(
-      join(
-        watch.inbox,
-        name,
-      ),
-      join(
-        watch.inbox,
-        `.failed-${name}`,
-      ),
-    );
   }
 }
 
@@ -175,6 +340,11 @@ async function progressAgainstLimits(
   if (Date.now() >= wallDeadline) {
     return 'wall-clock';
   }
+  if (watch.record
+    .unrecoveredModelError()
+    .failed) {
+    return 'model-error';
+  }
   if ((await readdir(watch.options
     .runFolder,)).includes(STOP_FILE_NAME,)) {
     return 'stop-file';
@@ -186,7 +356,7 @@ async function progressAgainstLimits(
 }
 
 /**
- Lists the messages ready to read. A name starting with a dot is still being written, or was refused.
+ Lists the messages ready to read. A name starting with a dot is still being written, is being delivered, or was refused.
 
  @param inbox - inbox folder
 
@@ -221,13 +391,12 @@ function idleLongEnough(watch: WatchRequest,): boolean {
 
 /**
  Checks the limits and delivers the next inbox message, on every tick, until something ends the run. One message per tick keeps
- them in order, each after Pi has answered the one before.
+ them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
+ stalled answer cannot keep the stop file or the wall clock from being seen.
 
  @param watch - watch request
 
  @returns why the run ended
-
- @throws WatchEndedWithoutReasonError when the interval stops, which it never does by itself
 
  @example
  ```ts
@@ -235,16 +404,17 @@ function idleLongEnough(watch: WatchRequest,): boolean {
  ```
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
-  for await (const wallDeadline of everyInterval(
-    POLL_MILLISECONDS,
-    watch.deadline,
-  )) {
+  /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
+     deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
+  for (;;) {
+    // The wait is what keeps the driver up between looks: it is the only handle a run has while Pi says nothing.
+    await wait(POLL_MILLISECONDS,);
     /**
      Where the run stands against its limits.
      */
     const progress = await progressAgainstLimits({
       watch,
-      wallDeadline,
+      wallDeadline: watch.deadline,
     },);
     if (progress !== 'still-running') {
       return progress;
@@ -263,5 +433,5 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       return 'idle';
     }
   }
-  throw new WatchEndedWithoutReasonError('The polling interval stopped before the run ended.',);
+  /* oxlint-enable eslint/no-await-in-loop */
 }

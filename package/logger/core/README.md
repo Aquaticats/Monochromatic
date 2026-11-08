@@ -134,11 +134,16 @@ Availability is verified when the logger instance is created,
 Every sink is verified concurrently,
  each under its own time limit when host timers exist (`verifyTimeoutMs`,
  default `DEFAULT_VERIFY_TIMEOUT_MS`,
- 5000 ms);
- a sink that does not answer in time counts as unavailable,
- so one hung backend probe cannot starve the others.
-Records emitted while an async sink is
-still being verified are replayed to that sink when it becomes available.
+ 5000 ms).
+The limit bounds how long startup waits,
+ not whether a sink keeps its records:
+ a probe that has not answered when the limit elapses keeps running,
+ its sink stays unavailable until it answers,
+ and a positive answer still attaches the sink and replays what was held for it.
+So one hung backend probe cannot starve the others,
+ and a backend that a busy host merely delayed loses nothing.
+Records emitted while a sink is
+still being verified are held and replayed to that sink when it becomes available.
 That startup buffer holds at most `STARTUP_BUFFER_CAP` records (10000,
  exported);
  past the cap the oldest buffered record is dropped,
@@ -342,13 +347,20 @@ File,
    `console.log` or all required level methods exist,
    so this is reachable only through `createLogger` with sinks that all fail verification
 - A sink is dropped when its `verify` reports unavailable,
-   runs past `verifyTimeoutMs` in hosts with timers,
+   rejects,
+   throws,
    or its flush hook rejects;
-   remaining sinks continue,
-   and a late verify answer after the limit is ignored
+   remaining sinks continue
+- A verify that runs past `verifyTimeoutMs` in hosts with timers drops nothing:
+   startup stops waiting for that probe,
+   records stay held for it,
+   and its answer decides the sink whenever it arrives.
+   The report naming that wait says so,
+   names the sink,
+   and names the `verifyTimeoutMs` option that changes it
 - Individual `write` failures are handled per sink and do not disable the backend
-- Records logged before every sink has answered buffer under `STARTUP_BUFFER_CAP`;
-   on overflow the oldest is dropped and the count is reported as one `warn` record after initialization,
+- Records logged while any sink still has no verdict are held under `STARTUP_BUFFER_CAP`;
+   on overflow the oldest is dropped and the count is reported as one `warn` record once every sink has a verdict,
    never silently
 
 ## Callback failure observation

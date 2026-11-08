@@ -137,7 +137,7 @@ fn a_tree_pinning_an_older_repository_tool_keeps_the_newer_install_runs_it_and_i
     assert_eq!(report_old.unchanged, vec![PUBLISHED.to_string()]);
     assert_eq!(binstall_lines(&rig).len(), 1);
     assert!(!version_directory(&rig.scope.toolchain_root, "monochromatic-mpm-shadow", "0.4.0").exists());
-    assert_eq!(report_old.warnings, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4")]);
+    assert_eq!(report_old.warnings, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4", &scope_old.lock_file)]);
     assert!(report_old.warnings[0].contains("older repository tools are never kept"), "{report_old:?}");
     assert!(report_old.warnings[0].contains(&format!("`mpm update {PUBLISHED}`")), "{report_old:?}");
 
@@ -221,7 +221,7 @@ fn install_update_outdated_and_bin_warn_on_standard_error_with_their_own_verb() 
         let lines = older_lock_warning_lines(verb, &rig.scope, Some(OsFamily::Linux));
         assert_eq!(
             lines,
-            vec![format!("toolchain {verb}: warning: {}", older_lock_message(PUBLISHED, "0.4.0", "0.4.4"))],
+            vec![format!("toolchain {verb}: warning: {}", older_lock_message(PUBLISHED, "0.4.0", "0.4.4", &rig.scope.lock_file))],
             "{verb}"
         );
     }
@@ -232,7 +232,7 @@ fn status_prints_the_warning_and_stays_silent_when_the_lock_and_the_install_matc
     let rig = Rig::new();
     tree_with_installed(&rig, "0.4.0", "0.4.4");
     let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("status runs");
-    let warning = format!("toolchain list: warning: {}\n", older_lock_message(PUBLISHED, "0.4.0", "0.4.4"));
+    let warning = format!("toolchain list: warning: {}\n", older_lock_message(PUBLISHED, "0.4.0", "0.4.4", &rig.scope.lock_file));
     assert!(report.text.contains(&warning), "{}", report.text);
 
     let matching = Rig::new();
@@ -254,7 +254,7 @@ fn a_third_party_tool_and_another_operating_system_never_warn() {
     let scope: &Scope = &rig.scope;
     assert_eq!(older_lock_warnings(scope, &lock.tools, Some(OsFamily::Macos)), Vec::<String>::new(), "the tool is limited to Linux");
     let linux = older_lock_warnings(scope, &lock.tools, Some(OsFamily::Linux));
-    assert_eq!(linux, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4")]);
+    assert_eq!(linux, vec![older_lock_message(PUBLISHED, "0.4.0", "0.4.4", &rig.scope.lock_file)]);
 }
 
 /// Two pre-releases of one version,

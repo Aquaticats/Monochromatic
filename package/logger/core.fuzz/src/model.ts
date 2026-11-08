@@ -61,13 +61,14 @@ export type SinkModel = {
    */
   available: boolean;
   /**
+   Whether a verdict arrived for the sink's verification. An undecided sink
+   keeps its records held, because its probe may still answer.
+   */
+  decided: boolean;
+  /**
    Flush-hook calls made so far, to read the next scripted outcome.
    */
   flushCalls: number;
-  /**
-   Whether a verify settled true before init completed.
-   */
-  verified: boolean;
 };
 
 /**
@@ -83,7 +84,7 @@ export type ModelState = {
    */
   readonly flushesWithinDeadline: boolean[];
   /**
-   Whether a marker record was due at init completion.
+   Whether a marker record was due when the held records were released.
    */
   markerDue: boolean;
   /**
@@ -91,6 +92,14 @@ export type ModelState = {
    */
   dropped: number;
   initialized: boolean;
+  /**
+   Whether the records held for undecided sinks were already released.
+   */
+  released: boolean;
+  /**
+   Sinks whose verification has not answered yet; their records stay held.
+   */
+  undecided: number;
   readonly sinks: SinkModel[];
   /**
    Startup buffer as the logger keeps it before init completes.
@@ -130,14 +139,16 @@ export function emptyModel({ sinkCount, }: { readonly sinkCount: number; },): Mo
     initialized: false,
     markerDue: false,
     pendingNever: [],
+    released: false,
+    undecided: sinkCount,
     sinks: Array.from(
       { length: sinkCount, },
       function toSinkModel(): SinkModel {
         return {
           attempts: [],
           available: false,
+          decided: false,
           flushCalls: 0,
-          verified: false,
         };
       },
     ),
@@ -205,6 +216,58 @@ function attempt(
 }
 
 /**
+ Releases the records held for sinks without a verdict and, when the buffer
+ overflowed, marks the one marker record due. The logger does this the moment
+ its last sink has a verdict, which can precede or follow startup's own end.
+
+ @param state - Model state to mutate.
+
+ @param scripts - Sink scripts.
+
+ @param cap - Startup buffer cap the logger was built with.
+ */
+function releaseKeptRecords(
+  {
+    state,
+    scripts,
+    cap,
+  }: {
+    readonly state: ModelState;
+    readonly scripts: readonly SinkScript[];
+    readonly cap: number;
+  },
+): void {
+  if (state.released || (state.undecided > 0))
+    return;
+  state.released = true;
+  state.startup
+    .length = 0;
+  if (state.dropped === 0)
+    return;
+  state.markerDue = true;
+  /**
+   Marker record the logger writes; the message is asserted separately, so
+   only its level matters to the attempt list.
+   */
+  const marker: LogRecord = {
+    level: 'warn',
+    message: `${state.dropped} startup record${(state.dropped === 1) ? '' : 's'} dropped before a backend verified (buffer cap ${cap})`,
+    timestamp: 0,
+  };
+  for (const [sink, model,] of state.sinks
+    .entries()) {
+    if (model.available) {
+      attempt({
+        state,
+        scripts,
+        sink,
+        record: marker,
+      },);
+    }
+  }
+}
+
+/**
  Folds one event into the model.
 
  @param state - Model state to mutate.
@@ -234,7 +297,7 @@ export function foldEvent(
   },
 ): void {
   if (event.kind === 'log') {
-    if (!state.initialized) {
+    if (state.undecided > 0) {
       if (state.startup
         .length
         >= cap) {
@@ -268,48 +331,41 @@ export function foldEvent(
     if ((event.outcome === 'reject') || (event.outcome === 'throw')
       || (event.outcome === 'never'))
       state.breadcrumbs += 1;
-    if (event.outcome !== 'resolve-true')
+    // A probe that never answers leaves its sink undecided: the logger keeps
+    // that sink's records for an answer that may still arrive.
+    if (event.outcome === 'never')
       return;
-    model.verified = true;
-    model.available = true;
-    state.startup
-      .forEach(function replay(record,) {
-        attempt({
-          state,
-          scripts,
-          sink: event.sink,
-          record,
+    model.decided = true;
+    state.undecided -= 1;
+    if (event.outcome === 'resolve-true') {
+      model.available = true;
+      state.startup
+        .forEach(function replay(record,) {
+          attempt({
+            state,
+            scripts,
+            sink: event.sink,
+            record,
+          },);
         },);
-      },);
+    }
+    // A backend that reports itself unavailable is an election, not a
+    // failure: it costs no report, and the records held for it are dropped
+    // the way records for an unavailable sink always were.
+    releaseKeptRecords({
+      cap,
+      scripts,
+      state,
+    },);
     return;
   }
   if (event.kind === 'init-complete') {
     state.initialized = true;
-    state.startup
-      .length = 0;
-    if (state.dropped === 0)
-      return;
-    state.markerDue = true;
-    /**
-     Marker record the logger writes; the message is asserted separately, so
-     only its level matters to the attempt list.
-     */
-    const marker: LogRecord = {
-      level: 'warn',
-      message: `${state.dropped} startup record${(state.dropped === 1) ? '' : 's'} dropped before a backend verified (buffer cap ${cap})`,
-      timestamp: 0,
-    };
-    for (const [sink, model,] of state.sinks
-      .entries()) {
-      if (model.available) {
-        attempt({
-          state,
-          scripts,
-          sink,
-          record: marker,
-        },);
-      }
-    }
+    releaseKeptRecords({
+      cap,
+      scripts,
+      state,
+    },);
     return;
   }
   foldFlush({

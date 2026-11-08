@@ -447,7 +447,15 @@ from the brief and the plan:
 - W13 stage `c27-container-bind` starts a fresh container with a read-only bind through the link;
   the plan's test was to start one
   existing `created` container with worktree binds (`podman ps --all --filter status=created` lists them);
-  do that by hand too.
+  done by hand at 2026-11-08T16:21:32-05:00:
+  `podman start --attach c42af057a886`,
+  which binds `catalog-regenerate-every-lock/package/ide/app` through the repository link,
+  exited 0 and `cargo metadata` printed its packages,
+  so the bind resolves.
+  The container is gone afterwards,
+  which matches its created twin `7cf22bd2610a` reporting `AutoRemove` true.
+  Of the five created containers,
+  only those two have binds that still exist.
 - The mount unit's new stop block runs `luksClose` unconditionally when the mount is not a mount point,
   so a stop with no mapper now
   fails where the old stop hid it;

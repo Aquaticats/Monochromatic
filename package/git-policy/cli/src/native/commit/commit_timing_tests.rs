@@ -350,6 +350,25 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
     remove(root.as_path());
 }
 
+/// The record states how each build of the private index was made and whether it kept the real index's cached stat data,
+/// in the order built,
+/// so the build of a slow first preparation is told apart from a rebuild after the branch moved,
+/// and both are in the record without verbose mode.
+#[test]
+fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
+    use crate::commit_index_builds::{IndexBuildKind, note_index_build};
+    let root: PathBuf = fixture("timing-index-builds");
+    let (timing, _covered) = filled(root.as_path());
+    note_index_build(IndexBuildKind::First, true);
+    note_index_build(IndexBuildKind::Retry, false);
+    timing.finish(0);
+    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let value: serde_json::Value = parsed(text.as_str());
+    let expected: serde_json::Value = serde_json::from_str(r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#).expect("the list of two builds");
+    assert_eq!(value["indexBuilds"], expected, "every build of the private index is stated in the order built: {value}");
+    remove(root.as_path());
+}
+
 /// A proof is never undone by a later notice,
 /// and a notice that proves an earlier unproven wait counts.
 #[test]

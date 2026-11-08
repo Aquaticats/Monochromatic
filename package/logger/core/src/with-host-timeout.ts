@@ -43,3 +43,40 @@ export async function withHostTimeout<const Result>({
     promise,
   },);
 }
+
+/**
+ Tells a host deadline apart from the awaited operation's own failure.
+
+ The timeout utility builds its message from the same label and limit, so a
+ caller that has to react differently to a deadline, such as keeping a slow
+ probe's answer instead of retiring its sink, recognizes it without duplicating
+ the race. A caught value is the deadline when its message is exactly the one
+ that label and limit produce.
+
+ @param error - Caught value from {@link withHostTimeout}.
+
+ @param ms - Deadline the caller passed.
+
+ @param label - Operation label the caller passed.
+
+ @returns Whether the caught value is this deadline elapsing.
+
+ @example
+ ```ts
+ const label = 'sink 0 verify';
+ try { await withHostTimeout({ promise: probe, ms: 5_000, label }); }
+ catch (error) { if (isHostDeadlineElapsed({ error, label, ms: 5_000 })) { /* probe still running *\/ } }
+ ```
+ */
+export function isHostDeadlineElapsed({
+  error,
+  label,
+  ms,
+}: {
+  readonly error: unknown;
+  readonly label: string;
+  readonly ms: number;
+},): boolean {
+  return Error.isError(error,)
+    && (error.message === `Timed out after ${String(ms,)}ms: ${label}`);
+}
