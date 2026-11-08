@@ -3152,8 +3152,9 @@ each of which took three snapshots.
 With one snapshot each and a stage as an empty subvolume,
 the same filter under 8 CPUs,
 10 GiB and 3000 tasks puts both in their neighbours' wave:
-6.219 s and 0.670 s beside a 6.234 s control,
-26 of 26 passed.
+6.219 s and 0.670 s beside a 6.234 s control in the first run,
+and 1.640 s and 0.250 s beside a 1.421 s control in a second one at load 24.9,
+26 of 26 passed in both.
 Verified at the user boundary:
 with the built binary as `git` in a throwaway btrfs checkout,
 a stage of another add in the worktrees folder leaves no stand-in in the new worktree,
