@@ -21,6 +21,8 @@
 //! export function cleanPodman(api: PodmanApi, references: Set<string>, graceSeconds: number, now: number, dryRun: boolean, log: string[]): PodmanOutcome
 //! ```
 
+/// The streaming log line.
+use crate::lean_run_report::emit;
 /// Sets.
 use std::collections::{HashMap, HashSet};
 
@@ -268,7 +270,7 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
             let proof: String = format!("podman listed {} image rows and {} containers (any state); none of the containers uses it, no current source names a tag of it, it is not the newest of its repository, and it is older than {grace_seconds} s", images.len(), containers.len());
             for batch in remove.chunks(REMOVAL_BATCH) {
                 for id in batch {
-                    log.push(format!("removing image {id}: {proof}"));
+                    emit(log, format!("{} image {id}: {proof}", if dry_run { "would remove" } else { "removing" }));
                 }
                 if dry_run {
                     outcome.images.extend(batch.iter().cloned());
@@ -287,7 +289,7 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
             let (remove, keep) = judge_volumes(&volumes, references, grace_seconds, now);
             outcome.kept_volumes = keep;
             for name in remove {
-                log.push(format!("removing volume {name}: podman reports it dangling (no container in any state mounts it), no current source names it, older than {grace_seconds} s"));
+                emit(log, format!("{} volume {name}: podman reports it dangling (no container in any state mounts it), no current source names it, older than {grace_seconds} s", if dry_run { "would remove" } else { "removing" }));
                 if dry_run {
                     outcome.volumes.push(name);
                     continue;

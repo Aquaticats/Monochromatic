@@ -21,6 +21,8 @@
 //! export function retireNightlies(toolchainsDirectory: string, pinned: Set<string>, ...): Outcome[]
 //! ```
 
+/// The streaming log line.
+use crate::lean_run_report::emit;
 /// Files,
 /// sets and paths.
 use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
@@ -325,6 +327,7 @@ fn judge(
     }
     let bytes: u64 = tree_bytes(&toolchain.path, deadline).bytes;
     if dry_run {
+        emit(log, format!("would retire toolchain {} ({bytes} bytes): no checkout's lock pins it, no process names or uses it", toolchain.directory_name));
         return ToolchainVerdict::Retired { bytes };
     }
     let judged: Identity = match identity_of(&toolchain.path) {
@@ -335,7 +338,7 @@ fn judge(
     if identity_of(&toolchain.path).ok() != Some(judged) {
         return ToolchainVerdict::Skip(String::from("the directory changed identity before the removal"));
     }
-    log.push(format!(
+    emit(log, format!(
         "retiring toolchain {} (device {} inode {}, {bytes} bytes): no checkout's lock pins it, no process names or uses it, last changed {} s ago; proof: {} ; pinned names considered: {}",
         toolchain.directory_name,
         judged.device,

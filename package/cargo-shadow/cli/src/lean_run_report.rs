@@ -132,3 +132,19 @@ pub fn summary_line(text: &str) {
     use std::io::Write;
     let _ = writeln!(std::io::stdout(), "{text}");
 }
+
+/// What:
+/// `pub fn emit(log: &mut Vec<String>, line: String)` writes a removal's log line to standard error at once and keeps it.
+/// Why:
+/// The proof of "not in use" must reach the log when the removal happens,
+/// not when a pass of hours ends,
+/// so a run that is stopped has still said what it did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function emit(log: string[], line: string): void { logLine(line); log.push(line); }
+/// ```
+pub fn emit(log: &mut Vec<String>, line: String) {
+    log_line(&line);
+    log.push(line);
+}

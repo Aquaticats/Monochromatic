@@ -23,6 +23,8 @@
 //! export function collectIdleTrees(base: string, policy: IdlePolicy, env: GuardEnvironment, now: number, dryRun: boolean): TreeOutcome[]
 //! ```
 
+/// The streaming log line.
+use crate::lean_run_report::emit;
 /// Paths and sets.
 use std::{collections::HashSet, path::{Path, PathBuf}};
 
@@ -176,7 +178,7 @@ fn collect_one(tree: &Tree, reason: &str, trash: &Path, environment: &GuardEnvir
         Err(refusal) => return TreeVerdict::Skip(refusal.to_string()),
     };
     drop(held);
-    log.push(format!(
+    emit(log, format!(
         "removing tree {} (device {} inode {}): {reason}; proof: {}",
         tree.path.display(),
         item.identity.device,
@@ -221,7 +223,7 @@ pub fn collect_idle_trees(
     let trash: PathBuf = base.join(TRASH_DIRECTORY_NAME);
     if !dry_run {
         for failure in empty_trash(&trash) {
-            log.push(format!("could not finish an earlier run's deletion in {}: {failure}", trash.display()));
+            emit(log, format!("could not finish an earlier run's deletion in {}: {failure}", trash.display()));
         }
     }
     for tree in trees {
@@ -246,6 +248,7 @@ pub fn collect_idle_trees(
         }
         if dry_run {
             let bytes: u64 = tree_bytes(&tree.path, deadline).bytes;
+            emit(log, format!("would remove tree {} ({bytes} disk bytes): {reason}", tree.path.display()));
             outcomes.push(TreeOutcome { tree: tree.path.clone(), verdict: TreeVerdict::Removed { reason, bytes } });
             continue;
         }
