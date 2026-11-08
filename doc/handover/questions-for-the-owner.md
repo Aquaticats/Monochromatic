@@ -274,55 +274,6 @@ and nothing waits on it,
 alpha.2 included.
 No further wrapper campaign starts until you lift the pause.
 
-## Open: two older questions that never reached this file (not asked yet)
-
-Found by an audit of stale open items on 2026-11-07.
-- Container disk weight
-  (`doc/handover/cli-git-rust-implementation.md` lines 5408 to 5413):
-  "about twenty other packages and two workflows start containers at the default weight;
-  the weight constant has several copies;
-  `vm-builder`'s rootful privileged bootc-image-builder run has no CPU,
-  memory or process limits."
-  The six packages in your answer "Both flags in all six" are done.
-  Should the rest get the lowest disk weight and limits too?
-- A pull's queries
-  (`doc/planning/cli-git-merge-auto-resolution.md` line 2492):
-  "Whether the pull's queries are to be answered in process to bring a fast-forwarding pull toward native Git's time."
-  Measured in a debug build:
-  a fast-forwarding pull through the wrapper takes 128 ms against native's 12 ms,
-  86 ms of it in Git queries an in-process reader could answer;
-  far under the 5 s bound.
-
-## Open: port the wrapper package's TypeScript to Rust now? (not asked yet)
-
-You paused "the TypeScript port" on 2026-11-04 in favour of layout and lint fixes.
-A proposal is now written and reviewed cross-vendor,
-with no code changed:
-`doc/planning/git-policy-cli-typescript-to-rust.md` (merged `9460b145ad`).
-It covers all 145 TypeScript files (34,741 lines:
-the container gate,
-mutation campaigns,
-latency benchmark and end-to-end suite;
-nothing must stay JavaScript)
-as four sidecar crates beside the wrapper,
-deleted in an import-graph order checked by simulation,
-each step proven against the TypeScript's recorded results first.
-Accepting the plan does not lift the pause;
-the first question is whether to lift it,
-and when (after the layout move,
-or now).
-If yes,
-the proposal's section on owner choices lists eleven choices,
-each with a recommended first option and the reason for every adjacent pair;
-the ones with the widest effect:
-the shared mutation engine as a Rust crate in the existing `package/mutation-test/cli-cargo-mutants` (recommended),
-one sidecar crate per kind (`cli.container-tests`,
-`cli.mutation`,
-`cli.e2e`,
-`cli.bench`),
-and the number of seeds in the committed end-to-end seed corpus.
-Saying "accept the recommendations" answers all eleven.
-
 ## Coordinator picks made 2026-11-07 with your veto open (not asked yet)
 
 Each is built and in main;
@@ -410,204 +361,39 @@ saying nothing keeps it.
   (the LFS image link rewrite),
   since that rewrite is the policy's whole purpose.
 
-## Open: how long may a commit's own signed `git commit` step run? (not asked yet)
+## Open: lean build folders, after the first run (not asked yet)
 
-Your global config signs every commit,
-so the wrapper builds each commit with a real `git commit` in a scratch repository
-(branch `feat/git-policy-cli-commit-timing-names-every-step`,
-not merged yet).
-That step runs with the terminal attached,
-unwatched and with no ceiling.
-That is why the commit that took 248 s on 2026-11-07 showed no waiting notice.
-Your rule says "nothing should ever wait forever or indefinitely",
-but an editor can legitimately stay open in that step when no message was given.
-The coordinator will add a waiting notice that names the step either way;
-the question is the ceiling.
-- A:
-  when the message came with the command (`-m`,
-  `-F`,
-  `-C`),
-  a ceiling from measured signing times (three times the worst seen);
-  with an editor,
-  no ceiling,
-  only the waiting notice.
-- B:
-  a ceiling in both cases,
-  generous for the editor case.
-- C:
-  no ceiling;
-  the waiting notice only.
-
-## Open: may the repository's own lint run fail when the closure check skips a package? (not asked yet)
-
-Your decision record says
-"A package whose prerequisites are missing on the machine is skipped,
-and the linter says so."
-(`doc/decision/rust-closure-lint-dylint.md:150`).
-In practice,
-on 2026-11-07,
-that skip hid five packages' closure findings (a cold cargo cache),
-and the run still exited 0,
-so a green lint did not mean "no findings".
-`monochromatic-lint` 0.5.2-alpha.5 already fails a run whose cargo is stale or broken;
-the skips for a cold cargo cache,
-missing `rustc-dev`,
-a driver gap,
-or a missing package prerequisite are unchanged.
-The new root task `mise run fetch:rust-dependencies` warms the cache.
-- A:
-  keep the decision as written (skip with a message,
-  exit 0).
-- B:
-  keep skipping on other machines,
-  but the repository's own lint tasks fetch first and then fail on any skip,
-  naming the package and the command that fixes it.
-- C:
-  fail on every skip everywhere.
-
-## Open: must fenced Rust examples inside docs carry rustdoc? (not asked yet)
-
-The linter's `rust/require-rustdoc` also checks Rust in fenced code blocks inside Markdown,
-and 200 such warnings remain
-(per-file list `~/temp/agent/lint2/fenced-rustdoc-warnings.txt`):
-`doc/audit` 133 (mostly fuzz reproductions),
-`doc/planning` 41 (design sketches),
-`.agents/skills/dum-dum-non-ts/SKILL.md` 24 (deliberately undocumented "Bad" examples,
-whose lesson documenting would break),
-`doc/research` 2.
-Exempting any of them loosens a lint rule,
-which needs your approval.
-- A:
-  exempt fenced Rust in Markdown from `rust/require-rustdoc` everywhere
-  (code files keep the rule).
-- B:
-  exempt only the "Bad" examples
-  (a marker on those fences),
-  and document the other 176 by hand.
-- C:
-  no exemption;
-  document all 200,
-  including the "Bad" examples.
-
-## Open: may an agent time a signed commit with your real signing setup? (not asked yet)
-
-A commit on 2026-11-07 (request `72c24f69`) spent 241 s in its build step,
-and 18 landed commits today spent 20 to 406 s there.
-Your global Git config signs every commit (`commit.gpgsign true`,
-`gpg.format ssh`),
-so each build runs one `ssh-keygen -Y sign`,
-exactly as native Git would.
-The commit-stall agent could not name the slow step from the records,
-and when it tried to time a signed commit with your real setup in a throwaway repository
-(with `SSH_ASKPASS` and `DISPLAY` as the commit service has them,
-against a native `git commit` as the control),
-the auto-mode classifier refused it as credential exploration.
-Neither the agent nor the coordinator will run that without your word.
-Meanwhile the wrapper is being taught to record each Git step's duration,
-so the next slow commit names its step without touching the key.
-- A:
-  allow the timing probe (it signs throwaway commits with your key and prints only durations).
-- B:
-  do not;
-  wait for the per-step records.
-
-## Open: may the service remove an index.lock that no process holds? (not asked yet)
-
-Four commits on 2026-11-07 stopped after up to 20 minutes behind one `index.lock`
-(size 0,
-no Git PID file,
-no process found holding it;
-who created it is not known:
-no retained record names it,
-and neither journal shows an out-of-memory or systemd kill between 12:50 and 13:10,
-though a direct kill such as a tool timeout is not journaled).
-An agent finally removed it by hand.
-The fix on branch `fix/git-policy-cli-commits-never-stall-on-an-unproven-lock` (gate 5205 of 5205,
-not merged yet)
-stops such a commit after 1 minute instead of 10,
-names the holder when one is alive,
-refuses at once the commits queued behind the same lock,
-and keeps every withdrawn commit on a side ref.
-Today a lock with no provable holder is never removed
-(the `flock`-on-the-lock rule from the index reclamation work,
-`doc/handover/cli-git-rust-implementation.md` "Index reclamation");
-the person is told within seconds and removes it.
-- A (today):
-  keep it;
-  the person removes it.
-- B:
-  after a complete scan of every readable process finds no holder and there is no PID file,
-  the service removes it and lands the commit.
-  Limit:
-  processes in other user namespaces and a native `git commit --only` in its hook phase cannot be seen,
-  so B can remove a lock that is in fact held.
-
-## Open: what a stop of the commit service does to the Git a commit it is preparing has started (not asked yet)
-
-From the tokio work,
-step T7 (branch `feat/git-policy-cli-tokio-steps-6-onward`,
-gate 5224 of 5224;
-the plan `doc/planning/git-policy-cli-full-tokio.md`,
-open choice 12).
-The owner's earlier pick for choice 6 was "Only that operation's children (Recommended)".
-- A (built):
-  the service's stop has its own handling and signals no commit's Git;
-  that Git runs on after the service stops and holds its index lock until it ends.
-- B:
-  the stop signals every child of every operation
-  (the recipient rule the owner declined;
-  needs a bounded table with a proof).
-- C:
-  the stop handler only records the stop,
-  and the service's own shutdown signals the children it is waiting for,
-  through a registry
-  (not designed yet).
-The agent's ranking:
-C > A > B;
-C ends no stray Git and still treats the stop as an operation of its own,
-A is what the earlier rule says as worded,
-B is the rule the owner declined.
-Choosing C starts its design;
-saying nothing keeps A.
-
-Also open to veto,
-from the same step:
-`std::thread::sleep` stays in exactly one place,
-`sleep_for` in `push/start_retry.rs`,
-the pause before a forwarded command's start is retried,
-because a forwarded command builds no runtime
-(guarded by `binary_forwarded_command_makes_no_thread_tests.rs`);
-the T13 lint against `thread::sleep` allows that one function.
-
-## Open: may the decision records get the linter's whitespace-only line breaks? (not asked yet)
-
-The repository-wide lint pass left `doc/decision/` alone (rule:
-never edit `doc/decision/` without the owner's approval):
-1,785 findings in 172 files.
-A probe on a scratch copy:
-32 files change,
-31 of them whitespace only;
-`music-player-third-party-licenses.md` would also gain `>` markers in a blockquote,
-which is a linter defect being fixed now (branch `fix/monochromatic-lint-fix-changes-only-whitespace`).
-The choice:
-allow the whitespace-only reflow of `doc/decision/` after that fix,
-or leave the decision records as they are and exclude them from the line-break rule
-(an exclusion loosens the rule,
-which also needs approval).
-
-## Open: how the repository linter stays at zero (not asked yet)
-
-Nothing ran the repository linter before today:
-the commit path checks one Markdown rule at `warn`;
-CI's step fails with `monochromatic-lint: command not found` and is skipped by its budget gate in 394 of 400 runs;
-`mise run lint` is run by nothing.
-Proposal with five options and the ranking A > C > B > D > E:
-`doc/planning/repository-linter-stays-at-zero.md`
-(recommendation:
-a check-only commit policy for all Markdown rules,
-then a required whole-tree CI workflow).
-A commit-time check adds to the commit path,
-which the owner's 5 s rule bounds.
+Built and run 2026-11-07 to 2026-11-08 (cargo-shadow 0.1.5-alpha.7;
+details and per-removal proof in `doc/handover/cargo-shadow-lean-build-folders.md`).
+The first run freed 128.1 GiB on the 860,
+retired 12 of 17 dated nightlies (52.95 GB to 22.47 GB)
+and removed 251 Podman images and 27 volumes;
+the daily timer runs at 04:30 and never at login.
+- Question:
+  should images held only by exited containers be removed too?
+  Today a container in any state keeps its image.
+- Coordinator picks,
+  veto open:
+  - an old build tree of a live worktree
+    (the folder Cargo used before the toolchain-keyed folders existed)
+    is retired after the 7-day idle period once a keyed folder exists for the same workspace;
+    without this nothing ever removes those trees,
+    and most of the 6,884 trees the first run kept are these;
+  - the size caps (E) read the same fingerprint fields as the sweep (B);
+    your amendment said "for that sweep only",
+    and the agent extended the reader to the caps because they evict by the same units;
+  - grace 7 days,
+    unidentified trees 21 days,
+    run records 14 days and 2 GiB per folder,
+    caps 12 GiB in a checkout and 24 GiB in the shared build folder,
+    each measured (`doc/planning/lean-build-dirs.md`).
+- Work queued without a question:
+  the timer runs its mechanisms under one 3-hour limit,
+  so a long units pass starves the Podman pass (cheap mechanisms first);
+  Podman refused 1,350 of 1,601 judged images for three fixable reasons
+  (working containers need `--external`,
+  multi-tag images need `rmi repository:tag`,
+  children vanish with their parent).
 
 ## Open: where a blank at the end of a row goes in the IDE (not asked yet; the owner asked to focus on the Git wrapper)
 
