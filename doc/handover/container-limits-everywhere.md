@@ -195,6 +195,77 @@ are the five workflows that start containers (the handover said two).
 - `package/git-policy/**`: the wrapper's runners already use the shared helpers; the owner named the package as
   being changed by two other agents.
 
-## Progress
+## Result (branch `feat/container-limits-everywhere`, 2026-11-08)
 
-- Inventory written (this file).
+Every site in the inventory now carries the lowest disk weight (containers) or a memory and CPU bound (builds),
+through `@monochromatic-dev/container-limit-core`, except the sites listed under "Not edited" and "Open".
+
+### Evidence
+
+- Tests, each red before the change and green after (red shown by running against the unchanged source or without the
+  implementation): `package/container-limit/core/src/index.unit.test.ts`,
+  `package/vm-builder/cli/src/container-arguments.unit.test.ts`,
+  `package/config/pnpr/src/container-limits.unit.test.ts`,
+  `package/test-harness/core-matrix/src/container-limits.unit.test.ts`,
+  `package/mutation-test/cli/src/host/image.unit.test.ts`,
+  `package/monorepo-task/core-exec/src/playwright-image-steps.unit.test.ts` (the build step's expected argv),
+  `package/repository-move/cli/src/guided-container-bind-limits.unit.test.ts`.
+- The ledger `package/container-limit/core/src/container-start-sites.unit.test.ts` lists every tracked file that names
+  `podman` or `docker` as a program.
+  It was shown to fail twice: a listed file with its helper name removed, and a new tracked file with
+  `spawn('podman')` that is not listed.
+- A real `podman run` with `containerLimitArguments({ memory: '256m', cpus: 1, pidsLimit: 64 })` on `podman` 6.1.3
+  printed inside the container `memory.max=268435456`, `pids.max=64`, `cpu.max=100000 100000`,
+  `io.bfq.weight=default 10`, `io.weight=default 10`.
+- A real image build through `container-image-build-if-inputs-changed.ts` (the matrix build helper that every
+  `containerImageBuild` caller reaches) succeeded with the default bound; the image was removed afterwards.
+- A real run of `mise run //package/music-player/desktop-app:gen:icons` (image build with the build bound, then eight
+  `rsvg-convert` containers and the icon tools at 2g, 2 CPUs, 128 processes and the weight) ran to the end; it
+  regenerated `asset/music-player.icns`, which was restored from `HEAD`.
+- `mise run //package/test-harness/core:test:browser` started its container with
+  `--memory=2g --cpus=2 --pids-limit=2048 --blkio-weight=10 --cgroup-conf=io.weight=10`, and failed inside it with
+  `Cannot find module '/.local/share/pnpm/store/v11/links/@playwright/test/...'`: the worktree's `node_modules` links
+  into the global pnpm store under the home directory, which the container does not mount.
+  The failure does not involve the limits; the same mount is used with or without them.
+
+### Gates
+
+Passed: lint, types and tests of `container-limit-core`, `vm-builder-cli`, `monorepo-task-core-exec`,
+`monorepo-task-cli`, `mutation-test-cli` (types, tests, build), `repository-move-cli`,
+`test-harness-core-matrix` (lint, types, `test`); lint and types of `mutation-test-cli-cargo-mutants`,
+`config-pnpr`; `test:bin` of `ide/app`; `lint:scripts:types` of `browserslist-core-rust`, `forbidden-strings-cli`,
+`monochromatic-lint`; `lint:types` of `git-policy-cli` (read only).
+
+Failures that this branch did not cause:
+- `mutation-test-cli-cargo-mutants` `test:unit`: the product golden `linter-semantic` (and `linter-reject-unknown-scope`)
+  lists `src/rust_file_engine_syntax.rs` among the semantic scope's files, which `package/linter/monochromatic-lint/bin/mutation-scopes.ts`
+  no longer emits there (commits `00bb13db2c` and `40e24c8cda` came after golden commit `a49dd27a52`).
+  The branch changes no file of the linter and no argument list of a golden.
+  The timing test `acquireCampaignLock refuses at once` measured 15268 ms against a 5000 ms bound inside the suite run
+  and passed when `campaign-lock.unit.test.ts` ran alone: a contention or ordering defect until measured otherwise,
+  cause not measured.
+- `config-pnpr` `test:unit`: three `real workspace` tests fail because the checked-in `config.yaml` lacks
+  `@monochromatic-dev/repository-link-check` and `@monochromatic-dev/repository-move-cli` (171 published names, file
+  holds 169); `container-limit-core` is not among them.
+- `mutation-test-cli` `lint`: two errors and six warnings in `src/host/shards.ts`, `src/host/selection.ts` and
+  `src/scratch-parent.ts`, files this branch does not touch.
+- `monorepo-task-core-exec` `lint:parse` reads changed files, including the deleted `disk-weight.ts`, and fails on the
+  uncommitted deletion; it passes once the deletion is committed.
+
+### Releases
+
+None is needed.
+The packages whose behaviour changed are repository task scripts and runners installed from this checkout
+(`task-run` is built from source in CI), not rows of `toolchain.lock.json`.
+The lock rows of crates this branch touches (`monochromatic-nested-wayland-session`, `monochromatic-search-shadow`)
+change only in `mise.toml`, which the published crates do not use.
+
+### Open
+
+- The `bootc-image-builder` run and the rootful build in `vm-builder` have the new argument lists and unit tests, and
+  have not been run: both need `sudo`, and no root step was taken.
+  Owner decision needed: run `mise run //package/vm-builder/cli:run` as root once, to see that `--pids-limit=2048`,
+  `--memory=12g` and `--cpus=8` do not stop `osbuild`.
+- The workflow flags are unproven on a hosted runner (the runners ship `podman` 4.9).
+- Sizes marked "adopted" in the inventory are documented siblings, not measurements.
+- `package-paused/` and `package/git-policy/**` are unchanged.
