@@ -4232,9 +4232,11 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   the Android-target `cargo check` is blocked by a compile error in `turso_sync_engine` 0.8.2 under nightly-2026-11-01
   ("cycle detected when computing when turso_parser::ast::Select needs async drop"),
   not yet reported upstream or worked around.
-- `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` was a pre-existing
-  failure when last
-  recorded (unsure whether fixed).
+- `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` no longer fails:
+  it passed in three consecutive single-test runs and in every full package run on 2026-11-08
+  (`monochromatic-mpm-shadow` 0.2.7-alpha.6 plus branch `feat/mpm-shadow-launchers-from-newest-install`),
+  and the earlier failure was not reproduced,
+  so nothing was changed for it.
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
