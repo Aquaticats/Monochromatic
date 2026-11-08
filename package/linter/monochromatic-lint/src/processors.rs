@@ -98,6 +98,28 @@ impl VirtualSource {
         return false;
     }
 
+    /// What:
+    ///  Whether the nearest enclosing fence carries the marker that exempts it from `rust/require-rustdoc`.
+    /// Why:
+    ///  The owner decided on 2026-11-07 that deliberately undocumented "Bad" examples may opt out,
+    ///  and only the fence that holds the code decides,
+    ///  never an outer fence that merely quotes it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function skipsRustdoc(source): boolean { return nearestFence(source)?.infoString.includes(MARKER) ?? false; }
+    /// ```
+    pub fn skips_rustdoc(&self) -> bool {
+        let mut current: Option<&Arc<Mapping>> = Some(&self.mapping);
+        while let Some(mapping) = current {
+            if let Guard::Fence { skips_rustdoc, .. } = mapping.guard {
+                return skips_rustdoc;
+            }
+            current = mapping.parent.as_ref();
+        }
+        return false;
+    }
+
     /// Map a whole atomic fix,
     ///  or refuse it without returning a partial edit group.
     pub fn project_fix(&self, fix: &Fix) -> Result<Fix, ProcessorError> {
