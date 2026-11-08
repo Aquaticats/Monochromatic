@@ -100,8 +100,10 @@ fn listed_names(directory: &File) -> std::io::Result<Vec<OsString>> {
 ///  carry.
 /// Why:
 ///   The inode number and the directory type are the whole test;
-/// the removal itself is what refuses a folder that holds any entry,
-///  so a stand-in that gained content is never discarded.
+/// an entry that cannot be examined is no stand-in and stays,
+/// and
+///  the removal itself is what refuses a folder that holds any entry,
+/// so a stand-in that gained content is never discarded.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -123,6 +125,12 @@ fn is_stand_in(directory: &File, name: &OsStr) -> bool {
 /// a path that reaches the
 ///  snapshot through a link or another mount is an error,
 /// so no entry is ever removed from the tree such a link points at.
+/// The name of a stand-in can be replaced between the look at it and its removal,
+/// since another add exchanges its
+///  stage name with the empty folder Git made.
+/// The empty-directory removal is what keeps every file of that case too:
+/// a folder that holds anything is
+///  refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

@@ -392,10 +392,11 @@ fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() 
 /// what btrfs shows at an entry naming a subvolume a snapshot does not carry.
 fn placeholder_names(directory: &File) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(crate::fs_beneath::handle_path(directory)).expect("listing").flatten() {
-        let found: std::fs::Metadata = entry.metadata().expect("metadata of a listed entry");
+    for entry in std::fs::read_dir(crate::fs_beneath::handle_path(directory)).expect("listing") {
+        let listed: std::fs::DirEntry = entry.expect("a listed entry");
+        let found: std::fs::Metadata = listed.metadata().expect("metadata of a listed entry");
         if found.is_dir() && found.ino() == 2 {
-            names.push(entry.file_name().to_string_lossy().into_owned());
+            names.push(listed.file_name().to_string_lossy().into_owned());
         }
     }
     names.sort();
@@ -435,7 +436,9 @@ fn source_with_a_staging_add(root: &Path) -> (PathBuf, PathBuf) {
 fn btrfs_a_snapshot_carries_no_placeholder_of_another_adds_stage() {
     let Some(root) = btrfs_fixture("snapshot-stage-placeholder") else { return };
     let (repo, worktrees) = source_with_a_staging_add(root.as_path());
-    // Two adds are made while the third one stages; the second one's snapshot also sees the first one's stage.
+    // Two adds are made while the third one stages;
+    // the second one's snapshot also sees the first one's stage,
+    // and both stages stay until the source is removed.
     for name in ["topic", "second"] {
         let (destination, admin, pointer) = no_checkout_worktree_at(repo.as_path(), worktrees.join(name).as_path());
         let plan: AddPlan = plan_to(destination);
@@ -444,8 +447,30 @@ fn btrfs_a_snapshot_carries_no_placeholder_of_another_adds_stage() {
         take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect("snapshot");
         let carried: File = open_root(stage.join(".claude/worktrees").as_path()).expect("the snapshot's worktrees folder");
         assert_eq!(placeholder_names(&carried), Vec::<String>::new(), "the worktree {name} carries a placeholder for a stage it does not hold");
-        crate::subvolume_remove::remove_tree(stage.as_path()).expect("the stage of this control");
     }
+    remove(root.as_path());
+}
+
+/// The parent of a registered worktree is listed even when the destination lies outside the source:
+/// the stand-in of a stage
+///  in flight below that parent goes,
+/// and the destination is no folder of the snapshot.
+#[test]
+fn btrfs_a_stage_below_a_registered_worktrees_parent_goes_with_the_destination_outside_the_source() {
+    let Some(root) = btrfs_fixture("snapshot-placeholder-registered-parent") else { return };
+    let (repo, worktrees) = source_with_a_staging_add(root.as_path());
+    // One worktree registered inside the source, whose parent is the worktrees folder,
+    // and a destination beside the source.
+    let (own_root, _own_admin, _own_pointer) = no_checkout_worktree_at(repo.as_path(), worktrees.join("own").as_path());
+    assert!(own_root.starts_with(repo.as_path()), "the worktree lies inside the source");
+    let (destination, admin, pointer) = no_checkout_worktree_at(repo.as_path(), root.join("topic").as_path());
+    assert!(!destination.starts_with(repo.as_path()), "the destination lies outside the source");
+    let plan: AddPlan = plan_to(destination);
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-topic");
+    take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect("snapshot");
+    let carried: File = open_root(stage.join(".claude/worktrees").as_path()).expect("the snapshot's worktrees folder");
+    assert_eq!(placeholder_names(&carried), Vec::<String>::new(), "the stand-in below the registered worktree's parent goes");
     remove(root.as_path());
 }
 
