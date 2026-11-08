@@ -124,7 +124,7 @@ each with a differential test file beside it.
 - `repo_read_layout`:
   the location,
   Git paths and object format,
-  with the checks listed below.
+  with the checks the Declined cases paragraph lists.
 - `repo_read_object`,
   `repo_read_pack`,
   `repo_read_odb`:

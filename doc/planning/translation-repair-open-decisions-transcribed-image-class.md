@@ -171,7 +171,8 @@ cheap;
 no
     model has to be told anything;
 now measurable rather than hypothetical,
-    since the population it protects is enumerated above.
+    since the population it protects is enumerated under the Measured overnight,
+and it changes the options heading.
     Cons:
 rests on the aligner,
 the component with the worst track record in

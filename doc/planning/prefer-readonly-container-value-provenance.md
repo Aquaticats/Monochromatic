@@ -209,7 +209,7 @@ Nothing is removed,
  so `const stack = [root,]; stack[0].label = x` keeps its attribution through the
 element path,
  and `const held = { inner: root, }; held.inner.label = x` keeps its through the value path.
-Both wrong-offer programs recorded above depend on those paths going away,
+Both wrong-offer programs in `Why the narrow fix is unsound` depend on those paths going away,
  and under this they do not.
 
 Three probes decide whether the record can be kept sound,

@@ -184,7 +184,7 @@ A background helper started by an older program keeps running from its versioned
 ## Step 1 as built
 
 Recorded 2026-11-04T22:36:12-05:00 on the branch `feat/git-policy-cli-program-rename`;
-the sections above stay as decided.
+the sections from `What the owner decided` to `Older installs` stay as decided.
 
 ### Mechanism
 
@@ -558,7 +558,7 @@ and closed the other three fixes (the process command line and the folder identi
     and a stopped socket with a leftover file costs no bus trip.
   - Cost:
     measured after the sixth review,
-    see below.
+    see `Cost of the stop while an earlier helper runs`.
 - The review's defect:
   an old-release wrapper in the same worktree can write its units again and start its socket between the
   adoption's look and the end of the recovery,
@@ -965,7 +965,7 @@ the earlier counterpart is handled where stated):
   they move with the folder.
 - Scratch and cache names (`REPOSITORY_SCRATCH_NAME`,
   now paired with its earlier name,
-  see below;
+  see the `REPOSITORY_SCRATCH` pair under `Earlier names after the rename audit`;
   the state
   and cache folders of `foundation/scratch_location.rs` and
   `invocation/git_version_cache.rs`,
@@ -1152,7 +1152,7 @@ prefixes `cli-git-mutpar` and `localhost/cli-git-concurrent-e2e`.
   entry `cargo:monochromatic-git-policy-cli`:
   `bins` becomes `["monochromatic-git-policy-cli"]`,
   `options.postinstall.link.sourceBin` the same,
-  and the comment above the entry names the new program.
+  and the comment on the `cargo:monochromatic-git-policy-cli` entry names the new program.
   `package/git-policy/cli/bin/native-release-bins.unit.test.ts` stops accepting the earlier executable from then on
   (remove `earlierExecutables`).
 - The root `mise.toml` task `changeset:version`:

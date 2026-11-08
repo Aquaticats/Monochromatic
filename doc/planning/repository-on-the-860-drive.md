@@ -331,7 +331,7 @@ and where the text is.
     `btrfs device add` refuses a device that holds a filesystem unless forced
     (`btrfs-device(8)`:
     "A device with existing filesystem detected by blkid ... will prevent device addition and has to be forced").
-    Option D below is corrected.
+    Option D is corrected.
 
 [claude-mcp]: https://code.claude.com/docs/en/mcp
 
@@ -640,7 +640,7 @@ programs that call `realpath` or `canonicalize` see the first.
   `package/pi-plugin` 11,
   `package/git-policy` 10.
   Historical records stay as written (rule WR6);
-  none is a runtime dependency except those listed below.
+  none is a runtime dependency except the items in the list under `Commands and counts`.
 - User units:
   `rg --follow --files-with-matches --ignore-case 'Monochromatic' ~/.config/systemd/user` printed 4 paths
   (`claude-cpu-watch.service` and its `default.target.wants` link,
@@ -1326,7 +1326,7 @@ M3 does not fit.
 - The parent `repository` does not exist on the NVMe.
   A program that resolves the link and then creates the resolved path must first create `repository` under the
   unmounted mountpoint,
-  which the mountpoint guard refuses (next section).
+  which the mountpoint guard refuses (the `The mountpoint guard` section).
 - The directory groups the repository with its received snapshots,
   so the 860's top level gains one entry,
   not three.
@@ -1354,7 +1354,7 @@ and immutable.
   `/sysroot/ostree/deploy/default/var` is a different subvolume from the live `/var`,
   which is `dm-1[/var]` in `findmnt`).
 - Root-owned mode 0755 stops every user-level program from creating anything under the unmounted mountpoint
-  (fixture result in the next section).
+  (fixture result under `Fixture results: what a process sees in each state`).
 - Immutable (`chattr +i`) additionally stops root-run programs and `chmod`.
   Whether the flag survives the mount is the owner's root test below;
   it is not claimed here.
@@ -1409,7 +1409,7 @@ the mounted 860,
 with no `i` flag.
 
 Whether a mount can be placed over an immutable directory is proven before any login depends on it,
-in the loop-file test F7 below.
+in the loop-file test F7.
 The next login then repeats the proof with the real mount:
 `mount-860.service` mounts at login and notifies on failure.
 If the real mount fails with the flag set,
@@ -2475,7 +2475,7 @@ so nothing is discarded.
 The table exists for two checks:
 any row with an unfinished operation or a held `index.lock` is settled by its owner before the freeze,
 and the table taken on the staged tree must equal this one byte for byte (the paths are equal because the
-verification below runs under a bind mount).
+verification in the `Verification of the real copy` section runs under a bind mount).
 
 Measured scan before the freeze was designed,
 run from 2026-11-07T06:15:00-05:00 to 2026-11-07T06:26:00-05:00 in a bounded scope with the first version of the script
@@ -2643,7 +2643,7 @@ section "Copy methods") in two passes,
 as root,
 for every subvolume in the reconciled inventory;
 plain directories (the 5 plain-directory worktrees inside the main checkout,
-and the 16 external worktrees) are handled as described below.
+and the 16 external worktrees) are handled in the steps and the `External worktrees under ~/worktrees` paragraph.
 
 The root steps of this section,
 the fixture test and the cut-over run through
@@ -2657,13 +2657,14 @@ runs the steps in order,
 and stops at the first failure.
 It was exercised against a btrfs test double for control flow (seven cases listed in the review table,
 item 9);
-the real `btrfs send` and `receive` are unverified until the root fixture test below.
+the real `btrfs send` and `receive` are unverified until the root fixture test under
+`Fixture test before the real run (root, throwaway loop files)`.
 
 What the script does for each subvolume (main first,
 then the nested ones in sorted order):
 
 1.  A pre-flight:
-    the inventory (see below),
+    the inventory (see `Inventory (review item 2)`),
     the destination's free space,
     a state folder with mode 0700.
 2.  `btrfs subvolume snapshot -r <source> <snapshot folder>/<name>`,

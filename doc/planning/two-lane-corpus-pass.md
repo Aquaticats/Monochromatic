@@ -66,7 +66,8 @@ including the ones a reviewer raised that turned out to be wrong.
 ### Confirmed and fixed, second round
 
 Landed as `306fad00e`,
-which closes every item in this section and the one below it.
+which closes every item in the `Confirmed and fixed, second round` and
+`The state each item was in when it was found` sections.
 
 `LaneSliceText` now states an `outcome` of `decided`,
 `not-evaluated`,

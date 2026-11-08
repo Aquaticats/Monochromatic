@@ -14,7 +14,7 @@ This record keeps the names of its time.
 Status:
  executed 2026-07-15,
  all eleven batches landed.
-Decisions below were made by the user during a grilling session on 2026-07-15.
+The decisions under the `Decisions` heading were made by the user during a grilling session on 2026-07-15.
 Deviations and residue are recorded at the end of this doc.
 
 ## Motivation and reframing

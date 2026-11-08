@@ -273,7 +273,7 @@ All conditional on keeping TypeScript on Node.
   Whether old records are ever collected is not documented on that page (unverified).
   Running each config evaluation in a child process gives fresh transitive imports,
   bounded memory,
-  isolation of the module singletons listed above,
+  isolation of the module singletons listed in "Other process-lifetime caches that matter for a daemon",
   and a real cancellation point (kill the child);
   a dynamic `import()` cannot be aborted (unverified,
   recall).
@@ -1837,7 +1837,8 @@ Commands that need root are marked `sudo`.
   Reason:
   freezer,
   kill,
-  and delegation files used below are v2 interfaces (`SRC/linux/cgroup-v2.rst:1025-1064`,
+  and the delegation files in the `Sandbox (required: at least cgroups)` section are v2 interfaces
+  (`SRC/linux/cgroup-v2.rst:1025-1064`,
   `:537-590`).
 - **Daemon runs in a delegated cgroup.**
   Detect:

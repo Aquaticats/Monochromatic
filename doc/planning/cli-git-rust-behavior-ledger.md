@@ -36,7 +36,7 @@ and the four authoring packages
 are deleted from the working tree by the
 retirement commits.
 The last commit that contains them is `f4fc1fa213ece65672e4314983a75266837892f9`.
-Every `src/...ts:NN` and `SPEC.md:NN` citation below resolves in that commit
+Every `src/...ts:NN` and `SPEC.md:NN` citation in this ledger resolves in that commit
 (`git show f4fc1fa213ece65672e4314983a75266837892f9:package/git-policy/cli/src/<path>`),
 including the `SPEC.md` sections that the retirement rewrites.
 

@@ -161,7 +161,7 @@ Answers are cited by the interview question that produced them.
   No `pi.notify`,
   no footer status.
   Interactive visibility is an open probe,
-  recorded below.
+  recorded in the Verification plan section.
 - Q38 and Q44:
   `/accounts` renders a transcript-visible,
   non-model-visible status list.
@@ -391,7 +391,7 @@ because both claims shaped a recommendation.
   taken from OpenAI's error table.
   The observed failure carries a human message without that code.
   The trigger
-  is therefore defined in the failover state machine below as a three-part disjunction:
+  is therefore defined in the Failover state machine section as a three-part disjunction:
   the raw code captured
   from the provider stream event,
   an HTTP 429 status captured from the response hook,
