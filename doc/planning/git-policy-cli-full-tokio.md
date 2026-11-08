@@ -3839,7 +3839,8 @@ The loops of the service (the landing loop,
 the work loop),
 their sleeps,
 the inotify wait and the client's and the provision's sleeps are not converted:
-they wait for the conversion of the Git leaf (see "What T11 did not convert, and why").
+they wait for the conversion of the Git leaf (see "What T11 did not convert,
+and why").
 
 #### The design of choice 12
 
@@ -4050,7 +4051,8 @@ no `skipped` line).
 The first gate of the branch (`16bb774ce3`,
 5370 run,
 3 failed) is the shutdown that ended in-process services (above).
-Host: the lib suite minus the two askpass controls (they need `GIT_ASKPASS` unset,
+Host:
+the lib suite minus the two askpass controls (they need `GIT_ASKPASS` unset,
 the owner's rule sets it empty) 4640 passed.
 Latency (`native:perf`'s own tool,
 three alternating rounds against the binary before T11,
