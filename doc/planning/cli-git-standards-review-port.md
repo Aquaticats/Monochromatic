@@ -113,7 +113,7 @@ Nothing else leaves the machine.
 
 ### What it writes
 
-- One log entry (fields below) appended to the log.
+- One log entry (the review entry fields) appended to the log.
 - Two scratch files,
   `~/temp/agent/shadow-review/<sha12>.diff` and `.candidate`,
   which only the full-review route reads.
