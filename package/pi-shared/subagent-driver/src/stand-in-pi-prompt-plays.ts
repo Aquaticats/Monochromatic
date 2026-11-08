@@ -50,7 +50,7 @@ const LINE_SEPARATOR = String.fromCodePoint(LINE_SEPARATOR_CODE_POINT,);
 /**
  The behaviour chosen by the test.
  */
-export const scenario = env.STAND_IN_PI_SCENARIO ?? 'normal';
+export const scenario: string = env.STAND_IN_PI_SCENARIO ?? 'normal';
 
 /**
  How many prompts have arrived.
@@ -83,8 +83,19 @@ export function emit(record: PiRecord,): void {
  answer({ id: 'c1', },);
  ```
  */
-export function answer({ id, data = {}, }: { readonly id: unknown; readonly data?: PiRecord; },): void {
-  emit({ type: 'response', id, success: true, data, },);
+export function answer({
+  id,
+  data = {},
+}: {
+  readonly id: unknown;
+  readonly data?: PiRecord
+},): void {
+  emit({
+    type: 'response',
+    id,
+    success: true,
+    data,
+  },);
 }
 
 /**
@@ -99,9 +110,16 @@ function finishRun(text: string,): void {
     type: 'message_end',
     message: {
       role: 'assistant',
-      content: [{ type: 'text', text, },],
+      content: [{
+        type: 'text',
+        text,
+      },],
       stopReason: 'stop',
-      usage: { input: 1, output: 1, cost: { total: 0, }, },
+      usage: {
+        input: 1,
+        output: 1,
+        cost: { total: 0, },
+      },
     },
   },);
   emit({ type: 'agent_end', },);
@@ -118,13 +136,25 @@ async function emitFinalReplyInTwoPieces(text: string,): Promise<void> {
    The record's bytes.
    */
   const bytes = Buffer.from(
-    `${JSON.stringify({ type: 'message_end', message: { role: 'assistant', content: [{ type: 'text', text, },], }, },)}\n`,
+    `${JSON.stringify({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{
+          type: 'text',
+          text,
+        },],
+      },
+    },)}\n`,
   );
   /**
    Where the record is cut.
    */
   const cutAt = bytes.indexOf(Buffer.from('é',),) + SPLIT_OFFSET_AFTER_CHARACTER_START;
-  stdout.write(bytes.subarray(0, cutAt,),);
+  stdout.write(bytes.subarray(
+    0,
+    cutAt,
+  ),);
   await wait(SPLIT_WRITE_MILLISECONDS,);
   stdout.write(bytes.subarray(cutAt,),);
 }
@@ -133,74 +163,149 @@ async function emitFinalReplyInTwoPieces(text: string,): Promise<void> {
  Scenarios that take time over a prompt.
  */
 const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Map<string, (id: unknown,) => Promise<void>>([
-  ['crash-later', async function crashLater(id,) {
-    answer({ id, },);
-    await wait(LATE_CRASH_MILLISECONDS,);
-    exit(CRASH_STATUS,);
-  },],
-  ['split-record', async function splitRecord(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-    await emitFinalReplyInTwoPieces(`café line${LINE_SEPARATOR}separator`,);
-    emit({ type: 'agent_settled', },);
-  },],
+  [
+    'crash-later',
+    async function crashLater(id,) {
+      answer({ id, },);
+      await wait(LATE_CRASH_MILLISECONDS,);
+      exit(CRASH_STATUS,);
+    },
+  ],
+  [
+    'split-record',
+    async function splitRecord(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      await emitFinalReplyInTwoPieces(`café line${LINE_SEPARATOR}separator`,);
+      emit({ type: 'agent_settled', },);
+    },
+  ],
 ],);
 
 /**
  What the other scenarios do with a prompt. A scenario missing from both maps finishes a normal run.
  */
 const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string, (id: unknown,) => void>([
-  ['reject', function rejectPrompt(id,) {
-    emit({ type: 'response', id, success: false, error: 'no key for this provider', },);
-  },],
-  ['reject-inbox', function rejectLaterPrompts(id,) {
-    if (seen.prompts > 1) {
-      emit({ type: 'response', id, success: false, error: 'refused', },);
-      return;
-    }
-    answer({ id, },);
-    finishRun('done',);
-  },],
-  ['handled', function handlePrompt(id,) {
-    answer({ id, data: { disposition: 'handled', }, },);
-  },],
-  ['never-settles', function neverSettle(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-  },],
-  ['settle-gap', function endWithoutSettling(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-    emit({ type: 'agent_end', },);
-  },],
-  ['many-turns', function startManyTurns(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-    for (let turn = 0; turn < MANY_TURNS; turn += 1) {
-      emit({ type: 'turn_start', },);
-    }
-  },],
-  ['dialog', function askDialog(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-    emit({ type: 'extension_ui_request', id: 'dialog-1', method: 'select', title: 'Pick one', message: 'Which?', },);
-    emit({ type: 'extension_ui_request', id: 'notice-1', method: 'notify', message: 'hello', },);
-  },],
-  ['tools', function useTools(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-    emit({ type: 'tool_execution_start', toolName: 'bash', args: { command: 'ls', }, },);
-    emit({ type: 'tool_execution_end', toolName: 'bash', isError: false, result: 'ok', },);
-    emit({ type: 'tool_execution_start', toolName: 'bash', args: { command: 'false', }, },);
-    emit({ type: 'tool_execution_end', toolName: 'bash', isError: true, result: 'failed', },);
-    emit({ type: 'auto_retry_start', },);
-    emit({ type: 'agent_settled', },);
-  },],
-  ['noise', function writeNoise(id,) {
-    answer({ id, },);
-    stdout.write('this line is not JSON\n',);
-    finishRun('after the noise',);
-  },],
+  [
+    'reject',
+    function rejectPrompt(id,) {
+      emit({
+        type: 'response',
+        id,
+        success: false,
+        error: 'no key for this provider',
+      },);
+    },
+  ],
+  [
+    'reject-inbox',
+    function rejectLaterPrompts(id,) {
+      if (seen.prompts > 1) {
+        emit({
+          type: 'response',
+          id,
+          success: false,
+          error: 'refused',
+        },);
+        return;
+      }
+      answer({ id, },);
+      finishRun('done',);
+    },
+  ],
+  [
+    'handled',
+    function handlePrompt(id,) {
+      answer({
+        id,
+        data: { disposition: 'handled', },
+      },);
+    },
+  ],
+  [
+    'never-settles',
+    function neverSettle(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+    },
+  ],
+  [
+    'settle-gap',
+    function endWithoutSettling(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      emit({ type: 'agent_end', },);
+    },
+  ],
+  [
+    'many-turns',
+    function startManyTurns(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      for (let turn = 0; turn < MANY_TURNS; turn += 1) {
+        emit({ type: 'turn_start', },);
+      }
+    },
+  ],
+  [
+    'dialog',
+    function askDialog(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      emit({
+        type: 'extension_ui_request',
+        id: 'dialog-1',
+        method: 'select',
+        title: 'Pick one',
+        message: 'Which?',
+      },);
+      emit({
+        type: 'extension_ui_request',
+        id: 'notice-1',
+        method: 'notify',
+        message: 'hello',
+      },);
+    },
+  ],
+  [
+    'tools',
+    function useTools(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      emit({
+        type: 'tool_execution_start',
+        toolName: 'bash',
+        args: { command: 'ls', },
+      },);
+      emit({
+        type: 'tool_execution_end',
+        toolName: 'bash',
+        isError: false,
+        result: 'ok',
+      },);
+      emit({
+        type: 'tool_execution_start',
+        toolName: 'bash',
+        args: { command: 'false', },
+      },);
+      emit({
+        type: 'tool_execution_end',
+        toolName: 'bash',
+        isError: true,
+        result: 'failed',
+      },);
+      emit({ type: 'auto_retry_start', },);
+      emit({ type: 'agent_settled', },);
+    },
+  ],
+  [
+    'noise',
+    function writeNoise(id,) {
+      answer({ id, },);
+      stdout.write('this line is not JSON\n',);
+      finishRun('after the noise',);
+    },
+  ],
 ],);
 
 /**
