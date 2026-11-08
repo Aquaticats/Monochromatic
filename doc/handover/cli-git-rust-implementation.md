@@ -3093,6 +3093,10 @@ Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-ru
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
 
+- The wizard skill emits TypeScript root scripts (owner:
+  "Wizard writes TypeScript").
+- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
+  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
 Only these wait on the repository move's last stages:
 the merge named first in the list of ordered work,
 the checksum and the IDE check themselves,
@@ -4708,9 +4712,39 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (unsure;
   check `package/git-policy/cli/target/verification/` and the sibling handovers before assuming none ran).
   Campaigns are run by the main agent only.
-- Controls for `subvolume_platform.rs:76` and `:80` that need no btrfs landed (`b9826f2d3f`);
-  other btrfs-only tests still skip in the gate container,
-  so a btrfs host run of the ladder is a standing gap.
+- Controls for `subvolume_platform.rs:76` and `:80` that need no btrfs landed (`b9826f2d3f`).
+- The btrfs-only controls the gate container cannot run did run for real on a btrfs host
+  (`mise run //package/git-policy/cli:native:test:host:btrfs`,
+  2026-11-08T17:44:09-05:00,
+  commits `d128b8658c` and `3819c082cb`,
+  plus the commit that makes the control needing a filesystem that is not btrfs name itself),
+  and all passed:
+  the 86 library controls that go through `btrfs_fixture`
+  (96 tests ran in that target because the filter also names their modules;
+  96 passed,
+  0 failed)
+  and the 36 binary-level controls that call `on_btrfs_or_acknowledged`
+  (36 ran,
+  36 passed).
+  Fixtures were made in `${HOME}/temp/agent/cli-git-btrfs-fixtures` by `CLI_GIT_TEST_ROOT`.
+  The one `BTRFS CONTROL NOT RUN` line in those logs is
+  `off-btrfs-ioctls`,
+  which needs a filesystem that is not btrfs and so has nothing to check here;
+  it names itself rather than passing in silence.
+  Every other control ran:
+  with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` unset a control that cannot run fails
+  with the filesystem it found,
+  and the same filter pointed at a tmpfs fixture root failed two controls that way,
+  which is the proof the green run was on btrfs.
+- A skip no longer hides in a green gate log.
+  The gate's nextest run now passes `--success-output=final`
+  (`package/git-policy/cli/bin/native-test-containerfile.ts`,
+  `runArguments`),
+  so the captured `stderr` of a passing test reaches the gate log;
+  `rg 'BTRFS CONTROL NOT RUN' <gate log>` lists every control that did not run,
+  with its reason
+  (why the line is otherwise invisible:
+  `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - Older umbrella items from October,
   still unchecked in the former queue,
   with no later closing record found (all unsure):
@@ -8896,6 +8930,10 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   (`doc/troubleshooting/systemd-run-collect-reports-success-for-a-failed-unit.md`).
   Host checks:
   `mise run //package/git-policy/cli:native:test:host -- <filter>`,
+  `native:test:host:btrfs`
+  (the btrfs controls,
+  on a fixture root that must be on btrfs;
+  run it on this machine before merging work that touches the worktree ladder),
   `native:clippy`,
   `native:perf`
   (30 paired samples against direct Git,
