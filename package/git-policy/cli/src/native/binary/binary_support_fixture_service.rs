@@ -187,8 +187,8 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 ///   A Unix socket's name must fit `SUN_LEN`,
 /// which is 108 bytes,
 /// and a fixture root under a deep checkout does not.
-/// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN" on a long
-///  checkout and passed on a short one (2026-11-08),
+/// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
+///  on a long checkout and passed on a short one (2026-11-08),
 ///  so a test depended on how deep the repository sat.
 /// The service's own socket already lives in such a directory, and this is the one place that makes it.
 ///
