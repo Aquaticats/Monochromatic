@@ -3059,6 +3059,24 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
+### A snapshot worktree add leaves another add's stage behind as an empty placeholder
+
+Found 2026-11-08 when the move to the 860 stopped on one
+(`doc/troubleshooting/btrfs-snapshot-keeps-an-empty-placeholder-for-a-nested-subvolume.md`):
+five worktrees hold an empty inode-2 folder named `.claude/worktrees/.cli-git-worktree-copy-<id>`.
+A snapshot add stages its snapshot at that name inside the main checkout
+(`worktree/worktree_ladder_run.rs:210-213`),
+so a worktree snapshotted from main meanwhile gets a placeholder for it,
+and `remove_stubs` (`worktree/worktree_snapshot.rs:237-243`) removes only the registered worktrees' placeholders and the destination's folder.
+To build after the move:
+remove every placeholder the new snapshot holds below the parents of the registered worktrees and of the destination
+(a listing of those folders,
+inode 2 and empty,
+removed as an empty directory),
+with a test that adds two worktrees while a third add is staging.
+Read from the code and matched against the five names;
+not reproduced yet.
+
 ### Verify 0.5.26 against native Git
 
 Measured with 0.5.27 installed (`~/temp/agent/tools/observe-main-commit.ts`,
