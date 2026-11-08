@@ -3442,7 +3442,7 @@ not yet merged (see "Gate of T10").
   `service_provision*.rs`) belongs to the synchronous commit command,
   so it waits for T11.
 
-#### Threads of the service and their stacks
+#### Threads of the service and their stacks (before the worker cap; with it an idle service has 6, see "the worker cap")
 
 Measured with the release binary on this 28-CPU host,
 one service,
@@ -3560,6 +3560,157 @@ not measured:
 the instance check's path resolution now hops to the blocking pool before the request is queued,
 and the first connection pays the start of a pool thread.
 The bar (every paired delta far under five seconds) holds.
+
+#### Step T10, the worker cap, the sweep, the refusal paths and the bounded stop, 2026-11-08T04:00:00-05:00
+
+The coordinator's rulings on the three picks and the owed control,
+applied on the same branch after main (W3 included) was merged into it.
+
+Two answers first.
+An existing fault-point suite does kill the service at each landing step and prove recovery:
+`service/service_fault.rs` arms a `SIGKILL` at `after-objects`,
+`after-intent`,
+`after-ref`,
+`after-index` and `before-ack`,
+and at two instants of the index lock (`lock-created-unmarked`,
+`lock-marked-unsynced`),
+and `binary/binary_service_replay_tests.rs` and `binary_fault_trace_lock_without_links_tests.rs` restart the service and check the repository.
+Those prove recovery from an end at a named point.
+An allocation failure ends the process with an abort at any instruction,
+and in a Git program the landing starts,
+which no named point reaches;
+the address-space sweep samples that.
+And "9 of 10 pass" meant 9 of the 10 tests the filter `fault_limits connections_held_open` selected,
+not 9 of 10 runs of the one test:
+the one failing test was run once.
+
+- The sweep lowers the running service's `RLIMIT_AS` with `prlimit` (`rustix::process::prlimit` exists in the locked 1.1.x;
+  the control uses the test support's `LimitKind::lift_for`,
+  which calls `prlimit`),
+  after the service has greeted.
+  The first design,
+  the mapped size plus a headroom from none up to the reserve,
+  never stopped a commit (every headroom landed):
+  the service's heap is mostly free by then,
+  and the Git programs it starts inherit a limit far above what they need.
+  The sweep now sets the limit to each of eleven parts of the mapped size plus the reserve.
+  The first limits that bite are the ones under which the Git programs of the landing cannot map their own space;
+  whether the service's own allocation also fails in some of them was not measured.
+  The test keeps `refused > 0` and `landed > 0` and checks recovery after every limit
+  (`a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  passed in the gate below).
+  Main's `a_service_that_ends_before_it_listens_leaves_a_recoverable_repository` keeps the below-start case.
+- The refusal paths of a connection are controlled with a system that refuses every thread
+  (`service/service_server_connection_handling_tests.rs`,
+  each in a child with no thread to start):
+  a message about a Git directory is answered `Unavailable` (with a positive control that the same message is `Rejected` where threads exist),
+  a withdrawal that the pool cannot decide reaches the landing thread's queue,
+  and a beat's note is left out.
+  The existing `a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_is_raised` lowers `RLIMIT_NPROC` on the running service and ran in the gate (not skipped).
+- tokio's `spawn_blocking` panics with "OS can't spawn worker thread" when no thread can start and none is idle.
+  Every blocking call of the service and the landing goes through `run_blocking_job`,
+  which catches that panic (`foundation/blocking_job.rs`);
+  a search of `service/`,
+  `landing/` and `foundation/` finds no other `spawn_blocking`,
+  `block_in_place` or `tokio::fs`.
+  The search found one way in that the code did not control:
+  hyper-util's own resolver calls `tokio::task::spawn_blocking` inside its `call`,
+  in the standards-review call that the service's work loop drives with `block_on`,
+  so the panic would have unwound into the work loop's thread.
+  The call now uses `PoolResolver` (`standards_review/standards_review_client_name_lookup_on_the_blocking_pool.rs`),
+  which looks the name up through `run_blocking_job` and gives an error;
+  its control is the lookup in a child with no thread to start.
+- The worker cap is `SERVICE_WORKER_CAP` = 4 (`service/service_main.rs`,
+  with the measurement beside it).
+  Four rounds alternating release binaries that differ only in the constant,
+  added median of a commit through the service:
+  uncapped 19.0,
+  18.4,
+  18.4,
+  18.5 ms (spread 0.6);
+  2 workers 25.6,
+  22.7,
+  23.0,
+  22.4 (4.9 above the uncapped mean,
+  outside the spread);
+  4 workers 18.4,
+  18.3,
+  18.1,
+  18.7;
+  8 workers 18.6,
+  18.6,
+  18.2,
+  18.5.
+  The signed commit and the forwarded commands show the same shape.
+  An idle service has 6 threads (two of its own and four workers) with or without 32 more connections,
+  where it had 27.
+  The smallest address-space limit under which the service starts is 93 MiB at every cap and 27 MiB before T10:
+  the cap does not move it;
+  the runtime plan's 64 MiB reserve does (a plan whose workers do not fit leaves the current-thread stand-in,
+  and a service with no worker thread ends with status 4).
+  The 110 MiB the container gate reported is the same figure on the gate's host and build.
+- `Drop` of a claim renewal waits for its task for at most `RENEWAL_STOP_CEILING`,
+  which is `WORST_CASE_WITH_MARGIN` (about 18.1 s:
+  the owner's three times the longest delay of a check and a rename seen,
+  and a renewal is one rename).
+  One renewal measured far less than a thousandth of that in its control.
+  On the timeout the task is left behind,
+  a warning is logged,
+  and the claim expires by its lease;
+  the rename the task finishes later finds the claim moved on and changes nothing,
+  because a renewal renames only from the name it last wrote.
+  The coordinator's suggested design (the task releases the claim itself on a stop message) was not needed for that:
+  the existing settlement already finds a claim by its id and generation and asks again when a renewal renamed it meanwhile.
+  The control keeps the blocking pool busy so the renewal's job waits for a thread,
+  and shows the drop returns at the ceiling (red first:
+  it waited until the pool freed).
+  The running renewal moved to `landing/service_claim_renewal_running.rs`,
+  which depends on the renewer and not the reverse (the file had passed the line limit).
+
+#### Gate of T10 after the rulings
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `2c88301e85`, which has main at `f981e1b493` (W3) merged in:
+5344 run,
+5343 passed (3 slow),
+1 failed,
+11 skipped;
+host Clippy clean,
+package lint 0 errors and 0 warnings (the closure check ran;
+no `skipped` line).
+The service-memory sweep,
+the process-limit control,
+the thread cap control and the bounded drop control passed.
+The failure,
+recorded as open and not rerun:
+`commit_timing::a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait`,
+`assertion left == right failed: the record says what kind of holder the wait was for` with `left: "unproven"` and `right: "proven-alive"`
+(the service's answer line named `lock_holder="Process 80482"` and `lock_found="foreign no-marker size=281 age_ms=8036"`,
+`lock_wait_ms=4004`;
+the wrapper's record carries the holder kind from the words the service sent,
+and `proven-alive` needs the text `(proven by `).
+The gate before the rulings (an uncapped runtime,
+the same test) passed it,
+so the cap,
+the resolver,
+the bounded drop,
+the sweep and the main merge are all candidates;
+none is measured.
+
+Latency of the final binary against the one before T10 (three alternating rounds;
+`${HOME}/temp/agent/t10-perf2/`),
+added median of a commit through the service:
+before 19.9,
+18.4,
+18.6 ms (spread 1.5),
+after 19.7,
+19.0,
+18.2 ms (spread 1.5);
+signed commit 31.1,
+30.3,
+31.0 before and 30.2,
+30.1,
+31.5 after;
+forwarded commands 1.2 to 1.9 ms before and after.
 
 ### Where the remaining steps stand after T5
 
