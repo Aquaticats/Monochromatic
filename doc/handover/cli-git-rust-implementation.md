@@ -4220,12 +4220,24 @@ and each is fixed now:
   the assertion `no scratch branch is left` failed before the fix with
   `left: "669dd3b87f7152d5ae8dd95da13779a8a92b7c0b commit refs/worktree/cli-git-service/1"`,
   and `right: ""`.
+  A landing that fails after its objects exist and before its intent is written is covered too (`a5149a6301`):
+  the failed landing itself keeps the commit and removes the scratch branch,
+  since no restart can land a batch no record names.
+  Control:
+  `a_landing_that_fails_before_its_intent_keeps_the_commit_and_removes_its_scratch_branch`
+  fails the import's marks file by making the journal directory unwritable,
+  which leaves the batch's objects and no intent,
+  and checks that the scratch branch goes and the commit is kept.
+  Red first:
+  the assertion `no scratch branch is left` failed with
+  `left: "8739469b3585d5e9d29e4f5608ac70dbe5ef607b commit refs/worktree/cli-git-service/1"` and `right: ""`.
   Open:
-  a kill between the import of the objects and the intent write (`write_intent` in `service_land.rs`)
-  leaves the reference with no journal record at all,
-  so no restart can prove that landing gone and nothing removes it.
-  A sweep needs a record that names the batch before the import (for example a `<seq>.objects` marker),
-  or a sweep run by a landing of the same worktree,
+  a `SIGKILL` between the import of the objects and the intent write leaves the reference with no journal record,
+  and nothing runs to clear it:
+  `after-objects` is one of `service_fault::FAULT_POINTS`,
+  and the binary-level control that kills a service there and restarts it does not check the reference.
+  Clearing it needs a sweep by something that knows the worktree (the next landing of the same worktree,
+  or a marker the landing writes before the import),
   because a service instance cannot turn its instance hash back into a worktree path.
 - The `claimed/` scan that was quadratic for a drain of N claims (`7ae9113b61`).
   `claim_next_of` listed and sorted `pending` for each claim,
@@ -4234,12 +4246,16 @@ and each is fixed now:
   The claim phase now takes one listing (`claim_all_of`),
   and the held claims share one listing that is refilled only when a renewal renamed a file or a claim is gone.
   Control:
-  `a_drain_of_many_claims_lists_the_state_directories_once` counts the listings the code itself makes,
+  `a_drain_of_many_claims_lists_the_state_directories_once` counts the listings the code makes through the one
+  listing function both scans now share,
   in a control build only,
   at three sizes of the same drain.
   Red first:
-  `the listings of a drain do not grow with its claims: [(4, 10), (24, 30), (96, 102)]`;
-  one count now serves all three.
+  `the listings of a drain do not grow with its claims: [(4, 10), (24, 30), (96, 102)]`,
+  one listing per claim plus six.
+  The old `current_name` listed `claimed` with its own `read_dir` at every check and settlement,
+  which that count did not see and which the fix removes
+  (`service_claim_renewal.rs` has no listing of its own now).
   Untouched:
   `enqueue` still lists `claimed` and `recovering` to answer "already known",
   so a producer that enqueues N items costs N listings,
