@@ -130,7 +130,11 @@ struct Case {
 /// and the repository must recover.
 fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, verify: bool) -> Case {
     let fixture: Fixture = fixture(label);
-    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { limits: service.to_vec(), ..ServiceLaunch::default() };
+    // A service limited to a size at which it aborts before it listens (the limit falls within a signal stack's size below its
+    //  mapped size, so its last thread aborts: measured at 174 MiB on 2026-11-07, and the value moves with every build) is not a
+    //  failure of this control: `may_abort` already allows an abort at the limit, the commit then lands through a service that
+    //  starts afterwards or does not land, and the recovery after it still runs with an unlimited service.
+    *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch { limits: service.to_vec(), may_fail_to_start: may_abort && !service.is_empty(), ..ServiceLaunch::default() };
     let repo: PathBuf = staged_repository(&fixture, "repo");
     let output: Output = limited_commit(&fixture, repo.as_path(), wrapper);
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
@@ -452,6 +456,24 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     let (landed, refused): (usize, usize) = sweep("as-service", values.as_slice(), service_memory, true);
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
     assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
+}
+
+/// A service whose address-space limit is below the smallest under which it greets a client ends before it listens:
+/// no commit
+///  lands,
+/// and the repository recovers with a fresh service that has no limit.
+/// Why:
+///  The sweep above meets this case by chance at the one limit just under the service's mapped size,
+/// which moves with every build
+///  (174 MiB for the build of 2026-11-07);
+/// this control meets it at every build.
+#[test]
+fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
+    let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
+    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(starts_at - 1);
+    let case: Case = run_case("as-service-below-start", service.as_slice(), wrapper.as_slice(), true, true);
+    assert!(!case.landed, "a service under {} MiB cannot run, so no commit can have landed through it", starts_at - 1);
+    assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
 }
 
 /// How many times the service is started under a limit it cannot run under,

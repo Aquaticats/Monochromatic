@@ -7384,27 +7384,86 @@ Measured and decided on branch `feat/git-policy-cli-commit-timing-names-every-st
 
 - A stopped push never leaves a ref lock whose holder the wrapper saw.
   Git's handler removes a lock's pid file and then the lock,
-  so a kill between the two left an unproven lock (the container gate left `refs/remotes/origin/main.lock`, 29.9 s under load).
-  The stop now claims the locks a running tree member holds before it signals (pinned by device, inode and birth),
+  so a kill between the two left an unproven lock (the container gate left `refs/remotes/origin/main.lock`,
+  29.9 s under load).
+  The stop now claims the locks a running tree member holds before it signals (pinned by device,
+  inode and birth),
   and the sweep removes exactly that file once the member has ended (`Proof::ClaimedBeforeStop`).
-  Controls: `lock::git_stop_lock_tests` (a kill between the two unlinks, bounded and watched) and two ledger controls.
-- The commit Git builds in the scratch repository prints a waiting notice (names the `git commit`, signing, the signer, no limit).
+  Controls:
+  `lock::git_stop_lock_tests` (a kill between the two unlinks,
+  bounded and watched) and two ledger controls.
+- The commit Git builds in the scratch repository prints a waiting notice (names the `git commit`,
+  signing,
+  the signer,
+  no limit).
   Adding a ceiling stays the owner's question.
-- Rules warm: the service warms the compiled forbidden-strings rules after the first landing of a repository,
-  after a landing that changes a rules path, after a restart (the repository is remembered), and on a client `warm` message
+- Rules warm:
+  the service warms the compiled forbidden-strings rules after the first landing of a repository,
+  after a landing that changes a rules path,
+  after a restart (the repository is remembered),
+  and on a client `warm` message
   sent after a worktree-moving command changed the rules text.
-  Measured with a 30-file fixture holding the repository's real rules and configuration, five samples per arm,
+  Measured with a 30-file fixture holding the repository's real rules and configuration,
+  five samples per arm,
   paired against the binary from before the change (release builds):
-  - first commit after a checkout that changed the rules text: before 1313 ms and 1293 ms (medians of two runs),
-    after with the warm settled 45 ms, immediately after the checkout 1401 ms;
-  - first commit after a fresh cache and a service restart: before 1253 ms and 1263 ms,
-    after with the warm settled 45 ms, immediately after the service started 1376 ms.
+  - first commit after a checkout that changed the rules text:
+    before 1313 ms and 1293 ms (medians of two runs),
+    after with the warm settled 45 ms,
+    immediately after the checkout 1401 ms;
+  - first commit after a fresh cache and a service restart:
+    before 1253 ms and 1263 ms,
+    after with the warm settled 45 ms,
+    immediately after the service started 1376 ms.
   - The commit that races the warm is about 100 ms slower than before (both compile),
     which is larger than the spread of the unchanged binary (10 to 20 ms between medians).
-    Neither first commit exceeded 5 s here; the earlier 20 s was observed under load.
-    Next step if a commit that races a warm is over the owner's bound: the client waits for the warm under way instead of compiling a second time.
-  - Wrapped `checkout` that leaves the rules unchanged: 7.9, 8.2, 8.2 and 8.0 ms (before, after, before, after; same-binary spread 0.3 ms mad).
-    A checkout that changes the rules text costs 10 to 15 ms more (config load, hash, one connection).
+    Neither first commit exceeded 5 s here;
+    the earlier 20 s was observed under load.
+    Next step if a commit that races a warm is over the owner's bound:
+    the client waits for the warm under way instead of compiling a second time.
+  - Wrapped `checkout` that leaves the rules unchanged:
+    7.9,
+    8.2,
+    8.2 and 8.0 ms (before,
+    after,
+    before,
+    after;
+    same-binary spread 0.3 ms mad).
+    A checkout that changes the rules text costs 10 to 15 ms more (config load,
+    hash,
+    one connection).
+
+### The address-space sweep of the service has one lethal value per build (2026-11-07)
+
+`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository` failed on main after the merge
+`f2a90d3fe2` and passed before it.
+The cause was not the rules warm.
+The service maps 177932 kB before that merge and 178188 kB after
+(3 threads in both),
+and the test's bisect over limits probes 173 MiB before and 174 MiB after (`starts_at` 46 and 47).
+A limit of 174 MiB is 12 kB short of the last thread's signal stack:
+`pthread_create` succeeds,
+then std aborts in `library/std/src/sys/pal/unix/stack_overflow/handler_signal.rs`
+("failed to allocate an alternative stack"),
+before the service listens.
+A scan of every MiB from 168 to 180 over a journal holding a finished batch:
+before the merge all alive,
+after it only 174 dead,
+every run.
+Any build whose mapped size lies within about 12 kB above a MiB boundary has that one lethal value,
+so it moves with every build (T10's work-loop change will move it again) and the bisect meets it only by chance.
+The fixture panicked on a service that ended before it listened;
+`run_case` now launches a service-limited case with
+`may_fail_to_start` (the abort is allowed by `may_abort`,
+and the recovery with an unlimited service still runs).
+A planted defect (a lock left in the repository after a commit that did not land) still fails the control ("4 of 5 limits left the repository unrecovered").
+`a_service_that_ends_before_it_listens_leaves_a_recoverable_repository` meets the case at every build.
+Found on the way:
+the rules warm needs about 349 MiB of address space above what the service maps (peak 252 to 503 MiB),
+so under a limit between about 50 and 600 MiB it would abort the service in the middle of a landing.
+`landing/service_rules_precompile.rs` now skips every warm (landing,
+start,
+`warm` message) when the address space left is below 512 MiB,
+reading the limit and `/proc/self/statm` without a heap allocation.
 
 ### Design stance
 
