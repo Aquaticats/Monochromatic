@@ -98,66 +98,42 @@
   open choice 12 (what a stop of the service does to the Git child of a commit it is preparing),
   with a ranking.
 - T10 (the service),
-  2026-11-07T20:40:00-05:00:
+  2026-11-08T04:00:00-05:00:
   branch `feat/git-policy-cli-tokio-t10-service` in `.claude/worktrees/git-policy-cli-tokio-t10-service`,
-  from main at `f2a90d3fe2`,
-  NOT merged:
-  its container gate has one failure,
-`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`
-(`no address-space limit stopped a commit ... service starts at 110, commit lands at 110`),
-which is T10's own (the runtime is built at the acceptor with a 64 MiB reserve,
-  so the band the sweep needs is empty),
-not the lethal-limit failure main had (fixed at `5083511eed`,
-  merged into the branch at `325e2608ea`;
-the failure persists after it).
-The choice is the coordinator's:
-the plan,
-"Step T10,
-  Gate of T10".
-  Done in it:
-  the landing's per-thread state in a task-local scope,
-  the acceptor and every connection as tasks,
-  the renewals,
-  the background syncs,
-  the pre-staged marker and the process look as blocking jobs awaited by tasks.
-  Details,
-  thread counts and stacks,
-  controls,
-  gate and latency:
+  head `2c88301e85`,
+  with main (W3 included) merged in;
+  NOT merged into main:
+  the gate of the head has one failure,
+  `commit_timing::a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait`
+  (`left: "unproven"`,
+  `right: "proven-alive"`;
+  open,
+  not rerun;
+  text and candidates in the plan,
+  "Gate of T10 after the rulings").
+  The coordinator's rulings are applied:
+  the worker cap (4,
+  measured),
+  the service-memory sweep that lowers the running service's limit,
+  the positive controls for the refusal paths of a connection and the resolver fix,
+  and the bounded stop of a claim renewal.
+  Details:
   the plan,
-  "Step T10".
-  Left in T10 (the coordinator's order is W3 first,
-  then main merged):
-  the work loop thread and its `std::sync::mpsc` queue (`service/service_server_work_loop.rs`,
-  `landing/service_work.rs`),
-  which are W3's files;
-  the synchronous landing loop (T11 makes it `async`,
-  because its Git steps use the synchronous bridges that refuse a call from inside the runtime) with its sleeps,
-  its inotify wait and its queues;
-  `Drop` of a claim renewal waits for its task with no bound (the same wait as the thread join before it).
+  "Step T10" and "Step T10,
+  the worker cap,
+  the sweep,
+  the refusal paths and the bounded stop".
+  Left in T10:
+  the work loop thread and its `std::sync::mpsc` queue,
+  the synchronous landing loop with its sleeps,
+  its inotify wait and its queues (T11).
   Open failures to read before trusting a green run:
-  the five tests of `foundation::kept_names_in_the_git_directories::tests` that fold with the real `/proc`
-  (`both_spellings_are_folded_into_the_current_one_with_every_byte`,
-  `both_spellings_in_a_linked_worktrees_directory_fold_there_too`,
-  `both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice`,
-  `every_entry_of_both_folders_survives_under_the_current_name`,
-  `every_line_of_both_logs_survives_under_the_current_name`)
-  failed together once in a host run with `names the earlier release gave its saved data still sit beside the new names ...
-  because the sockets and processes of the earlier helper could not be looked at in time`
-  (the scan of the real `/proc` answered `CannotLook` after 0.02 s,
-  so it was not the ceiling),
-  and one of them passed on a later single run (it was rerun once before this rule was applied,
-  so there is no second sample to trust);
-  the container gate of the same tree passed all of them.
-  The cause is not measured:
-four later runs with a print at each of the scan's failure paths (the pool refusing a thread,
-the ceiling,
-the runtime not starting,
-a command line that could not be proven) passed with no print,
-and the scan runs only when a kept name exists under its earlier spelling
-(`foundation/earlier_names_folded_into_current.rs`,
-  `fold_kept_names`),
-so an ordinary command builds no runtime for it.
+  the five tests of `foundation::kept_names_in_the_git_directories::tests` that fold with the real `/proc` failed together once in a host run
+  (`could not be looked at in time`,
+  0.02 s;
+  four instrumented repeats passed,
+  no cause measured;
+  the scan runs only when a kept name exists under its earlier spelling).
 - Not started:
   T11 (callers),
   T12 (parallel runner),
