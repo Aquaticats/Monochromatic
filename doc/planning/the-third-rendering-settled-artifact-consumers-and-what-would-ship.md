@@ -308,7 +308,7 @@ So a reading carries either wording plus the decider that settled it,
 or a named silence,
 and never a `text` key holding nothing.
 
-This corrects one line of the decision recorded earlier in this document.
+This corrects one line of the decision under `Decided that the shipped text is derived once`.
 That line said any terminal other than `consolidated` yields the standing text.
 Taken literally it returns the empty string at `no-standing-text`.
 The archive is the floor underneath both declines instead:
