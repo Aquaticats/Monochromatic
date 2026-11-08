@@ -55,7 +55,7 @@ Neither module is wired into the commit refusal (`Unported::CommitTransaction` i
 - `5d5ca284c1` `fix(git-policy-cli): make the early-signal test's child a direct sleep and add a pre-spawn relay regression test`
   (on `feat/cli-git-native-signals-fix`,
   not on this lane's branch;
-  see `Early-signal test flake` below)
+  see the `Early-signal test flake` section)
 - `4a525a744c` `test(git-policy-cli): gate the relay statics lock to unix, where the tests that use it are compiled`
   (same branch,
   follows `5d5ca284c1`)

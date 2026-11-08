@@ -1879,7 +1879,7 @@ medians at 120 to 140 W were 1996,
 which channels drive the cooler was not checked).
 So the fan settings were never matched between the boards,
 and the old board had the faster fans.
-Read the 120 to 140 W result above as:
+Read the old board's 120 to 140 W result as:
 the new board holds 80 degrees at fan
 speeds well below the old maximum,
 not as a controlled comparison.

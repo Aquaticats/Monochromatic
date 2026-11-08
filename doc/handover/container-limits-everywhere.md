@@ -285,7 +285,7 @@ never by gaining flags.
 - `.github/workflows/music-player-release.yml` (`podman run` at the lines that read `--memory="$BUILD_MEMORY"`,
   the
   smoke test and the runtime image checks) and `.github/workflows/ide-release.yml:298` to `:308`:
-  see the workflow decisions below.
+  see the "Workflow decisions" section.
 
 ### Image builds (`podman build`, no weight option exists)
 

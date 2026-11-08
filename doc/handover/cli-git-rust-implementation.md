@@ -825,7 +825,7 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   so the reviewer works and the input was too heavy.
   A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
   (`~/temp/agent/issue-6261/sol-review-after-fixes/`).
-  The fourth run answered (see the release blockers below) and
+  The fourth run answered (see the release blockers entry dated 2026-11-07T02:03:01-05:00) and
   its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`;
   no cross-vendor review of that fix has
   run.
@@ -3252,7 +3252,7 @@ then the rung's own snapshot.
 The new worktree then lists `.cli-git-worktree-copy-<id>` at inode 2 on a device of its own:
 empty,
 and `btrfs subvolume show` answers `Not a Btrfs subvolume` for it.
-The cause is the one read above:
+The cause is the one the `worktree/worktree_snapshot.rs:237-243` reading gives:
 `remove_stubs` named the registered worktrees and the destination,
 and a stage container in flight is neither.
 An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:
@@ -4727,20 +4727,25 @@ The controls:
 `a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
 `a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
 `a_service_whose_worktree_cannot_be_told_serves`,
-`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git, then the sweep),
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git,
+then the sweep),
 the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
-and, for the serving loop,
+and,
+for the serving loop,
 `a_service_whose_worktree_is_deleted_while_it_serves_ends_and_asks_for_its_socket_to_be_stopped`,
 `a_service_whose_worktree_is_there_keeps_serving` and
 `a_service_whose_worktree_is_on_a_device_that_is_not_mounted_keeps_serving`
 (`service_server_own_worktree_tests.rs`),
 the first of which failed for 60 seconds against a loop that did not ask.
 Measured against a real user manager on 2026-11-08,
-with a throwaway `systemd --user` of the probe's own (its own runtime, state and config directories,
-its own bus from its own `dbus.socket`, the host session's units untouched):
+with a throwaway `systemd --user` of the probe's own (its own runtime,
+state and config directories,
+its own bus from its own `dbus.socket`,
+the host session's units untouched):
 a commit landed through a real socket-activated service there,
 the worktree's Git directory was then deleted,
-and the serving service stopped its own socket 60 seconds later (the check interval, one wake),
+and the serving service stopped its own socket 60 seconds later (the check interval,
+one wake),
 removed the note and the socket file,
 logged the line and ended with status 0 and no restart,
 with no connection able to start anything afterwards;
