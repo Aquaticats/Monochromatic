@@ -266,6 +266,7 @@ historical context only:
      `fuzz/src/generators.rs:1292-1300` ALWAYS wraps the quantified
      atom in `(?:...)` non-capturing group:
      ```rust
+     //! The fuzz target's quantifier renderer that always wraps the atom in a group
      Node::Quant(body, kind) => {
          out.push_str("(?:");
          body.render(out);

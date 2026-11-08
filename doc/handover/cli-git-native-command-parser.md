@@ -149,7 +149,9 @@ compile only under `cfg(test)`.
 ### Tokenizer functions and types
 
 ```rust
+//! The option tokenizer's entry point
 // package/git-policy/cli/src/native/command/command_options.rs
+/// Tokenizes one argument region in a single forward pass like Git's own option parser.
 pub fn parse_options(
     arguments: &[OsString],
     table: &[OptionSpec],

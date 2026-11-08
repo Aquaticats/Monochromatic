@@ -11423,6 +11423,7 @@ for the next verifier
 it goes in `log_window_event`):
 
 ```rust
+//! The scratch build's hook record of pointer input that winit delivered
 // package/desktop-app/ide/src/native/frame_trace.rs
         WindowEvent::MouseInput { state, button, .. } => {
             tracing::debug!(
