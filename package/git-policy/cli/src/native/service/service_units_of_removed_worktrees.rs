@@ -19,6 +19,10 @@
 //! The units are stopped through the manager,
 //! never by killing a process by name,
 //! and nothing here starts a unit.
+//! A service that starts and finds its own worktree gone stops its own socket before it serves anything,
+//! so a removal that Git ran with the wrapper replaced,
+//! or a worktree deleted without Git,
+//! takes its units with it at the first connection rather than at the next sweep a person remembers.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -306,10 +310,40 @@ pub fn survey(folders: &UnitFolders<'_>) -> Survey {
     return found;
 }
 
+/// What:
+/// The Git directory of an instance whose worktree is gone,
+/// and nothing when it is still there,
+/// when it cannot be told whose the units are,
+/// or when the place that held the directory is not there either.
+/// Why:
+///   This is the question a service asks about itself before it serves:
+/// a service of a worktree that no longer exists has nothing to commit to,
+/// and the files of its socket and its note are the only record of whose they are.
+/// The answer is the same one the survey and the sweep give,
+/// so a service and the sweep never disagree about a gone worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ownWorktreeGone(folders, instance) // '/repo/.git/worktrees/topic' or undefined
+/// ```
+pub fn own_worktree_gone(folders: &UnitFolders<'_>, instance: &str) -> Option<PathBuf> {
+    let UnitWorktree::Known(git_dir) = worktree_of(folders, instance) else { return None };
+    return worktree_is_gone(git_dir.as_path()).then_some(git_dir);
+}
+
 /// One stop,
 /// where a unit the manager does not hold is stopped already.
 fn stop_one(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
     return match manager.stop(unit) {
+        Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
+        other => other,
+    };
+}
+
+/// One stop of the named unit and of nothing that requires it,
+/// where a unit the manager does not hold is stopped already.
+fn stop_one_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+    return match manager.stop_alone(unit) {
         Err(CallError::Manager { name, .. }) if name == NO_SUCH_UNIT => Ok(()),
         other => other,
     };
@@ -332,6 +366,42 @@ pub fn stop_units(manager: &mut dyn Manager, instance: &str) -> Result<(), CallE
     let socket: Result<(), CallError> = stop_one(manager, socket_unit_instance(instance).as_str());
     let service: Result<(), CallError> = stop_one(manager, service_unit_instance(instance).as_str());
     return socket.and(service);
+}
+
+/// One stop of an instance's socket through the manager,
+/// and the files that said the instance had units.
+fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<(), CallError> {
+    manager.within(EXCHANGE_WAIT);
+    stop_one_alone(manager, socket_unit_instance(instance).as_str())?;
+    forget_stopped_instance(folders.runtime_dir, instance);
+    return Ok(());
+}
+
+/// What:
+/// Stops the socket unit of one instance through the manager,
+/// and removes the files that said it had units,
+/// when the worktree of that instance is gone,
+/// and nothing when it is not.
+/// Why:
+///   This is what a service of a gone worktree does about itself:
+/// it serves nothing,
+/// and the socket,
+/// the note and the socket file go,
+/// so `doctor` counts nothing left over and the next sweep asks nothing.
+/// Only the socket is stopped,
+/// and with the mode that leaves what requires it alone:
+/// the service's own end is what stops its service unit,
+/// and a stop of that unit from inside the service would signal this process mid-sentence.
+/// The socket goes first so no connection starts the service again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await stopOwnSocketOfAGoneWorktree(folders, instance, manager) // the Git directory, or undefined
+/// ```
+pub fn stop_own_socket_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str, manager: &mut dyn Manager) -> Result<Option<PathBuf>, CallError> {
+    let Some(gone) = own_worktree_gone(folders, instance) else { return Ok(None) };
+    stop_own_socket(folders, instance, manager)?;
+    return Ok(Some(gone));
 }
 
 /// The manager's failure in words.

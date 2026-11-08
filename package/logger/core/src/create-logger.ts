@@ -1,6 +1,10 @@
 import { reportLoggerInternalError, } from './error-format.ts';
 import { createPendingWrites, } from './pending-writes.ts';
-import { withHostTimeout, } from './with-host-timeout.ts';
+import { watchSinkProbes, } from './sink-probe-watch.ts';
+import {
+  isHostDeadlineElapsed,
+  withHostTimeout,
+} from './with-host-timeout.ts';
 
 import type {
   Level,
@@ -24,22 +28,26 @@ export const DEFAULT_FLUSH_DEADLINE_MS = 5_000;
  Default per-sink `verify()` time limit in milliseconds. Measured on
  2026-09-06: the default logger's five shipped verifies complete together in
  about 2.4 ms locally, so this leaves three orders of magnitude for a slow
- but working backend probe (a network filesystem, a busy IndexedDB) while a
- verify that never answers (a hung mount, an IndexedDB open blocked by
- another tab) cannot stall startup when the host exposes timers.
+ but working backend probe (a network filesystem, a busy IndexedDB).
+ The limit bounds how long startup waits for a probe before logging proceeds;
+ it never decides whether a sink's records are kept, because a probe that
+ answers after the limit still attaches its sink and receives the records kept
+ for it. A probe that never answers (a hung mount, an IndexedDB open blocked by
+ another tab) therefore costs one bounded wait and no records.
  Override per logger through the `verifyTimeoutMs` option of
  {@link createLogger}.
  */
 export const DEFAULT_VERIFY_TIMEOUT_MS = 5_000;
 
 /**
- Most records the logger buffers before its sinks have verified. Startup
- lasts at most {@link DEFAULT_VERIFY_TIMEOUT_MS} when the host exposes timers,
- so this bounds the memory a burst during that window can claim; on overflow
- the oldest buffered record
+ Most records the logger buffers for sinks whose verification has not answered
+ yet. Startup waits at most {@link DEFAULT_VERIFY_TIMEOUT_MS} per sink, so this
+ bounds the memory a burst during that window can claim; a probe that answers
+ later keeps that bound for the wait until its records are replayed or dropped.
+ On overflow the oldest buffered record
  is dropped so the newest (usually most diagnostic) context survives, and
  one synthetic `warn` record naming the dropped count is written to every
- available sink once initialization completes.
+ available sink once every sink has a verdict.
  */
 export const STARTUP_BUFFER_CAP = 10_000;
 
@@ -47,10 +55,13 @@ export const STARTUP_BUFFER_CAP = 10_000;
  Sink paired with its current availability inside one logger instance.
  Availability starts `false` (not-yet-verified reads as unavailable,
  identical to a verified failure) and flips `true` once the sink's own
- `verify` confirms its backend.
+ `verify` confirms its backend. `decided` records whether that verdict has
+ arrived at all, so the logger knows whether a record is still owed to the
+ sink.
  */
 type SinkEntry = {
   available: boolean;
+  decided: boolean;
   readonly sink: Sink;
 };
 
@@ -62,14 +73,16 @@ type SinkEntry = {
  apply it to fake sinks to exercise the orchestration directly.
  
  Verification runs eagerly at construction and never blocks callers:
- records emitted while an async sink is still verifying buffer internally
- and replay to that sink the moment it verifies. Every sink verifies
+ records emitted while an async sink is still verifying are kept for it and
+ replay the moment it answers. Every sink verifies
  concurrently under its own time limit (`verifyTimeoutMs`, default
  {@link DEFAULT_VERIFY_TIMEOUT_MS}) when the host exposes timers, so one
  backend that never answers cannot starve the others in those runtimes. A sink
- whose `verify` resolves `false`, throws, or runs past the limit is dropped
- and receives no records; an answer that arrives after the limit is
- ignored. A rejected `write` is the sink's own concern and does not disable
+ whose `verify` resolves `false` or throws is dropped and receives no records.
+ Running past the limit drops nothing: the logger stops waiting for that probe
+ so startup can continue, and applies its answer whenever it arrives, so a
+ backend that a busy host merely delayed still receives the records logged
+ meanwhile. A rejected `write` is the sink's own concern and does not disable
  the backend.
  
  With host timers, `flush()` always resolves: one deadline (`flushDeadlineMs`,
@@ -88,8 +101,9 @@ type SinkEntry = {
  resolves anyway; raise it for slow but working backends such as network
  filesystems.
  
- @param verifyTimeoutMs - Milliseconds one sink's `verify()` may take before
- the sink counts as unavailable; raise it for a slow but working probe.
+ @param verifyTimeoutMs - Milliseconds startup waits for one sink's `verify()`
+ before logging proceeds without it; raise it for a slow but working probe.
+ The limit never decides whether a sink receives the records kept for it.
  
  @returns Logger plus its eager `initPromise`; callers need not await
  `initPromise` before logging, since startup records replay on verify.
@@ -129,15 +143,16 @@ export function createLogger(
   const entries: SinkEntry[] = sinks.map(function toEntry(sink,): SinkEntry {
     return {
       available: false,
+      decided: false,
       sink,
     };
   },);
 
   /**
-   Log records emitted before every sink has completed startup verification.
-   Records stay here only during initialization; each sink that later
-   verifies as available receives a replay, while already-available sinks
-   still receive writes immediately.
+   Log records emitted while at least one sink's verification has not
+   answered. Each such sink receives a replay when it answers, while
+   already-available sinks still receive writes immediately; the buffer is
+   released once every sink has a verdict.
    */
   const startupRecords: LogRecord[] = [];
 
@@ -152,25 +167,30 @@ export function createLogger(
    Instance-local aggregate flags. `initialized` flips true once the eager
    `initialize()` settles; `hasAvailableSink` reflects whether any sink
    survives verification and is recomputed by `recomputeAvailability`;
-   `droppedStartupRecords` counts startup-buffer overflow drops for the
-   post-initialization marker record.
+   `undecidedEntries` counts sinks whose verification has not answered yet, so
+   records for them stay buffered; `droppedStartupRecords` counts startup-buffer
+   overflow drops for the release marker record.
    */
   const state: {
     droppedStartupRecords: number;
     hasAvailableSink: boolean;
     initialized: boolean;
+    startupRecordsReleased: boolean;
+    undecidedEntries: number;
   } = {
     droppedStartupRecords: 0,
     hasAvailableSink: false,
     initialized: false,
+    startupRecordsReleased: false,
+    undecidedEntries: entries.length,
   };
 
   /**
-   Buffers a pre-initialization record under {@link STARTUP_BUFFER_CAP},
-   dropping the oldest buffered record (and counting the drop) when the cap
-   is reached.
+   Buffers a record logged while at least one sink has no verdict yet, under
+   {@link STARTUP_BUFFER_CAP}, dropping the oldest buffered record (and counting
+   the drop) when the cap is reached.
    
-   @param record - Record logged before every sink has verified.
+   @param record - Record logged while a sink's verification is outstanding.
    */
   function bufferStartupRecord({ record, }: { readonly record: LogRecord; },): void {
     if (startupRecords.length >= STARTUP_BUFFER_CAP) {
@@ -210,11 +230,12 @@ export function createLogger(
   }
 
   /**
-   Marks a sink unavailable after its verification fails or throws. Write
-   failures never reach here: a rejected write is the sink's own concern and
-   leaves the backend available, so one transient hiccup does not retire it.
+   Marks a sink unavailable after its verification answered negative, threw, or
+   a flush hook failed. Write failures never reach here: a rejected write is the
+   sink's own concern and leaves the backend available, so one transient hiccup
+   does not retire it.
    
-   @param entryIndex - Sink entry index whose backend failed verification.
+   @param entryIndex - Sink entry index whose backend is no longer usable.
    */
   function markEntryUnavailable({ entryIndex, }: { readonly entryIndex: number; },): void {
     /**
@@ -223,6 +244,11 @@ export function createLogger(
     const entry = getSinkEntry({ entryIndex, },);
     entry.available = false;
     recomputeAvailability();
+    if (!entry.decided)
+      concludeEntry({
+        available: false,
+        entryIndex,
+      },);
   }
 
   /**
@@ -258,7 +284,7 @@ export function createLogger(
   }
 
   /**
-   Replays buffered startup records to a sink that just became available.
+   Replays records kept for a sink that just became available.
    
    @param entryIndex - Newly available sink entry index.
    */
@@ -272,14 +298,15 @@ export function createLogger(
   }
 
   /**
-   Applies a verification result to a sink and replays startup records on
-   success.
+   Records one sink's verdict: its availability, the fact that it no longer
+   needs records kept, the replay of those records when it answered available,
+   and, once every sink has a verdict, the release of the kept records.
    
-   @param entryIndex - Sink entry index whose verification completed.
+   @param entryIndex - Sink entry index whose verdict arrived.
    
-   @param available - Whether the backend verified successfully.
+   @param available - Whether the backend reported itself usable.
    */
-  function setEntryAvailability(
+  function concludeEntry(
     {
       entryIndex,
       available,
@@ -289,54 +316,47 @@ export function createLogger(
     },
   ): void {
     /**
-     Sink entry whose availability is changing.
+     Sink entry whose verdict is arriving.
      */
     const entry = getSinkEntry({ entryIndex, },);
+    if (entry.decided)
+      return;
+    entry.decided = true;
     entry.available = available;
+    state.undecidedEntries -= 1;
     recomputeAvailability();
     if (available)
       replayStartupRecordsToEntry({ entryIndex, },);
+    releaseStartupRecords();
   }
 
   /**
-   Runs one sink's verification under the verify time limit when host timers
-   exist, and records the result, replaying buffered startup records on
-   success. A rejected verification, a synchronous throw from the verifier,
-   or a timed verify that runs past `verifyTimeoutMs` drops the sink;
-   a late answer after the limit
-   is never observed, so it cannot flip availability afterwards.
-   
-   @param entryIndex - Sink entry index to verify.
+   Frees the kept records and reports their overflow once every sink has a
+   verdict. While one verdict is outstanding the records stay, so a probe that
+   answers late still receives everything logged meanwhile.
    */
-  async function verifyAndApply({ entryIndex, }: { readonly entryIndex: number; },): Promise<void> {
-    try {
-      /**
-       Sink entry whose verifier is about to run.
-       */
-      const entry = getSinkEntry({ entryIndex, },);
-      setEntryAvailability({
-        available: await withHostTimeout({
-          label: `sink ${entryIndex} verify`,
-          ms: verifyTimeoutMs,
-          promise: entry.sink
-            .verify(),
-        },),
-        entryIndex,
-      },);
-    }
-    catch (error: unknown) {
-      reportLoggerInternalError({
-        context: `sink verification failed for entry ${entryIndex}`,
-        error,
-      },);
-      markEntryUnavailable({ entryIndex, },);
-    }
+  function releaseStartupRecords(): void {
+    if ((state.undecidedEntries > 0) || state.startupRecordsReleased)
+      return;
+    state.startupRecordsReleased = true;
+    startupRecords.length = 0;
+    emitDroppedStartupMarker();
+  }
+
+  /**
+   Counts the records held for sinks that have no verdict yet, which a failing
+   sink takes with it.
+
+   @returns Number of records still kept.
+   */
+  function keptRecordCount(): number {
+    return startupRecords.length;
   }
 
   /**
    Writes one synthetic `warn` record to every available sink when the
-   startup buffer overflowed, so the loss is never silent. Runs once, after
-   initialization, when the dropped count is known and final.
+   startup buffer overflowed, so the loss is never silent. Runs once, when
+   every sink has a verdict, because only then is the dropped count final.
    */
   function emitDroppedStartupMarker(): void {
     /**
@@ -370,28 +390,31 @@ export function createLogger(
    Initializes all sink backends by verifying their availability. Runs once
    at construction. Every verifier runs concurrently, each under the verify
    time limit, so one backend that never answers cannot starve the rest or
-   keep `initialized` from flipping. Completion order does not affect
-   correctness: a record's immediate-write set (sinks already available when
-   it was logged) and its replay set (sinks that become available later) are
-   disjoint, so each available sink receives each record exactly once
-   whichever verify settles first.
+   keep `initialized` from flipping. A verifier that runs past its limit keeps
+   running and reports later; `initialized` only means startup stopped waiting.
+   Completion order does not affect correctness: a record's immediate-write set
+   (sinks already available when it was logged) and its replay set (sinks that
+   become available later) are disjoint, so each available sink receives each
+   record exactly once whichever verify settles first.
    */
   async function initialize(): Promise<void> {
     if (state.initialized)
       return;
 
-    await Promise.all(
-      entries.map(function verifyEntry(
-        _entry,
-        entryIndex,
-      ) {
-        return verifyAndApply({ entryIndex, },);
+    await watchSinkProbes({
+      ms: verifyTimeoutMs,
+      ports: {
+        conclude: concludeEntry,
+        keptCount: keptRecordCount,
+        markUnavailable: markEntryUnavailable,
+      },
+      sinks: entries.map(function toSink(entry,) {
+        return entry.sink;
       },),
-    );
+    },);
 
     state.initialized = true;
-    startupRecords.length = 0;
-    emitDroppedStartupMarker();
+    releaseStartupRecords();
   }
 
   /**
@@ -410,8 +433,9 @@ export function createLogger(
    */
   function createMethod(level: Level,): (message: string,) => void {
     return function logAtLevel(message: string,): void {
-      if ((!state.hasAvailableSink) && state
-        .initialized)
+      if (state.initialized
+        && (state.undecidedEntries === 0)
+        && (!state.hasAvailableSink))
         throw new Error('No logging backends available',);
 
       /**
@@ -423,7 +447,7 @@ export function createLogger(
         timestamp: Date.now(),
       };
 
-      if (!state.initialized)
+      if (state.undecidedEntries > 0)
         bufferStartupRecord({ record, },);
 
       /**
@@ -522,9 +546,11 @@ export function createLogger(
       /**
        Whether the timeout utility's own deadline caused this failure.
        */
-      const deadlineElapsed = Error.isError(error)
-        ? error.message === `Timed out after ${flushDeadlineMs}ms: logger flush`
-        : false;
+      const deadlineElapsed = isHostDeadlineElapsed({
+        error,
+        label: 'logger flush',
+        ms: flushDeadlineMs,
+      },);
       reportLoggerInternalError({
         context: deadlineElapsed
           ? `flush deadline of ${flushDeadlineMs}ms elapsed; abandoning in-flight sink work`

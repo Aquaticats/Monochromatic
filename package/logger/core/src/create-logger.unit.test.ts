@@ -1,4 +1,19 @@
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+} from 'node:fs/promises';
+import { homedir, } from 'node:os';
+import { join, } from 'node:path';
+
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
+import {
+  createFileSink,
+  NO_LOG_RETENTION_SWEEP,
+} from '@monochromatic-dev/logger-core/node';
 import {
   describe,
   expect,
@@ -53,6 +68,108 @@ const DEADLINE_TEST_TIMEOUT_MS = 2_000;
  */
 function neverSettles(): Promise<never> {
   return Promise.withResolvers<never>().promise;
+}
+
+/**
+ Disposable destination for the real file sink, under the agent scratch
+ directory so no test probes or sweeps shared log state.
+ 
+ @returns Async-disposable destination root.
+ */
+async function scratchDestination() {
+  /**
+   Agent scratch root, made private before fixtures are created inside it.
+   */
+  const scratch = join(
+    homedir(),
+    'temp',
+    'agent',
+  );
+  await mkdir(
+    scratch,
+    {
+      recursive: true,
+      mode: 0o700,
+    },
+  );
+  await chmod(scratch, 0o700,);
+  const path = await mkdtemp(join(
+    scratch,
+    'logger-create-',),
+  );
+  return {
+    path,
+    async [Symbol.asyncDispose](): Promise<void> {
+      await rm(
+        path,
+        {
+          recursive: true,
+          force: true,
+        },
+      );
+    },
+  };
+}
+
+/**
+ Reads every message the JSONL sink files under one destination hold, in file
+ name order then line order.
+ 
+ @param directory - log destination to read.
+ 
+ @returns Record messages the file sink persisted.
+ */
+async function persistedMessages(directory: string,): Promise<string[]> {
+  /**
+   Sink files under the destination, including day subdirectories.
+   */
+  const entries = await readdir(
+    directory,
+    {
+      recursive: true,
+      withFileTypes: true,
+    },
+  );
+  /**
+   Log file paths, sorted so the read order is deterministic.
+   */
+  const paths = entries.toSorted(function byPath(left, right,) {
+    return left.parentPath
+      .localeCompare(right.parentPath,)
+      || left.name
+        .localeCompare(right.name,);
+  },)
+    .filter(function isLogFile(entry,) {
+      return entry.isFile() && entry.name
+        .endsWith('.log.jsonl',);
+    },)
+    .map(function toPath(entry,) {
+      return join(
+        entry.parentPath,
+        entry.name,
+      );
+    },);
+  /**
+   File contents, read together rather than one await per file.
+   */
+  const contents = await Promise.all(paths.map(async function readLogFile(path,) {
+    return await readFile(
+      path,
+      'utf8',
+    );
+  },),);
+  /**
+   Message of every persisted record, in read order.
+   */
+  const collected: string[] = [];
+  for (const content of contents) {
+    for (const line of content.split('\n',)) {
+      if (line === '')
+        continue;
+      collected.push((JSON.parse(line,) as LogRecord).message,);
+    }
+  }
+  return collected;
 }
 
 /**
@@ -123,18 +240,33 @@ function deadlineBreadcrumbMessages({ warn, }: { readonly warn: RecordedCalls; }
 }
 
 /**
- Counts the sink-verification breadcrumbs (a verify that rejected, threw, or
- ran past the verify time limit).
+ Collects the sink-verification failure breadcrumbs, one per sink whose probe
+ rejected or threw.
  
  @param warn - Stubbed console.warn.
  
- @returns Number of verification breadcrumbs observed.
+ @returns Failure breadcrumb messages, in call order.
  */
-function verifyBreadcrumbs({ warn, }: { readonly warn: RecordedCalls; },): number {
+function verifyFailureBreadcrumbs({ warn, }: { readonly warn: RecordedCalls; },): string[] {
   return breadcrumbMessages({
-    needle: 'sink verification failed',
+    needle: 'verification failed',
     warn,
-  },).length;
+  },);
+}
+
+/**
+ Collects the sink-verification deadline breadcrumbs, one per sink whose probe
+ had not answered inside its time limit.
+ 
+ @param warn - Stubbed console.warn.
+ 
+ @returns Deadline breadcrumb messages, in call order.
+ */
+function verifyDeadlineBreadcrumbs({ warn, }: { readonly warn: RecordedCalls; },): string[] {
+  return breadcrumbMessages({
+    needle: 'had not answered within',
+    warn,
+  },);
 }
 
 /**
@@ -148,6 +280,21 @@ function verifyTrueAfter({ delayMs, }: { readonly delayMs: number; },): Verify {
   return async function verifyLater(): Promise<boolean> {
     await wait(delayMs,);
     return true;
+  };
+}
+
+/**
+ Builds a verifier that answers `false` after a delay, standing in for a backend
+ that only proves unusable once its probe finishes.
+ 
+ @param delayMs - Milliseconds before the verifier resolves.
+ 
+ @returns Verify function resolving `false` after the delay.
+ */
+function verifyFalseAfter({ delayMs, }: { readonly delayMs: number; },): Verify {
+  return async function verifyLater(): Promise<boolean> {
+    await wait(delayMs,);
+    return false;
   };
 }
 
@@ -196,6 +343,8 @@ type RecordingSink = {
  
  @param flush - Optional flush hook the logger should drain.
  
+ @param name - Diagnostic name the logger quotes in verification breadcrumbs.
+ 
  @param writeDelayMs - Milliseconds each write parks before recording, to
  keep a record pending across a `flush()`.
  
@@ -207,9 +356,11 @@ function recordingSink(
       return Promise.resolve(true,);
     },
     flush,
+    name,
     writeDelayMs = 0,
   }: {
     readonly flush?: SinkFlush;
+    readonly name?: string;
     readonly verify?: Verify;
     readonly writeDelayMs?: number;
   } = {},
@@ -234,6 +385,7 @@ function recordingSink(
   // an optional property cannot be assigned an explicit `undefined`.
   const sink: Sink = {
     ...((flush === undefined) ? {} : { flush, }),
+    ...((name === undefined) ? {} : { name, }),
     verify,
     write,
   };
@@ -908,7 +1060,7 @@ await describe({
             },),
 
             it({
-              name: 'a verify that never settles no longer starves the sinks after it',
+              name: 'a verify that never settles leaves its sink unused and reports the deadline instead of failing it',
               timeout: DEADLINE_TEST_TIMEOUT_MS,
               fn: async ({ sinon, },) => {
                 const warn = sinon.stub(
@@ -916,6 +1068,7 @@ await describe({
                   'warn',
                 );
                 const wedged = recordingSink({
+                  name: 'wedged backend',
                   verify: function verifyForever(): Promise<boolean> {
                     return neverSettles();
                   },
@@ -939,13 +1092,15 @@ await describe({
                   .toEqual(['after init',],);
                 expect(messages({ recording: wedged, },),)
                   .toEqual([],);
-                expect(verifyBreadcrumbs({ warn, },),)
-                  .toBe(1,);
+                expect(verifyFailureBreadcrumbs({ warn, },),)
+                  .toHaveLength(0,);
+                expect(verifyDeadlineBreadcrumbs({ warn, },),)
+                  .toHaveLength(1,);
               },
             },),
 
             it({
-              name: 'a verify that answers after the time limit stays unavailable',
+              name: 'a verify that answers after the time limit still receives the records kept for it',
               timeout: DEADLINE_TEST_TIMEOUT_MS,
               fn: async ({ sinon, },) => {
                 sinon.stub(
@@ -953,6 +1108,7 @@ await describe({
                   'warn',
                 );
                 const slow = recordingSink({
+                  name: 'slow backend',
                   verify: verifyTrueAfter({ delayMs: SHORT_DEADLINE_MS * 3, },),
                 },);
                 const {
@@ -962,17 +1118,150 @@ await describe({
                   sinks: [slow.sink,],
                   verifyTimeoutMs: SHORT_DEADLINE_MS,
                 },);
+                logger.info('before the answer',);
                 await initPromise;
-            // Let the late answer arrive, then log and drain.
+            // Logged while the answer is still outstanding, so it is kept for the sink.
+                logger.info('after the deadline',);
                 await wait(SHORT_DEADLINE_MS * 4,);
-                expect(function logAfterLateAnswer() {
-                  logger.info('late',);
-                },)
-                  .toThrow('No logging backends available',);
                 await logger.flush();
 
                 expect(messages({ recording: slow, },),)
+                  .toEqual([
+                    'before the answer',
+                    'after the deadline',
+                  ],);
+              },
+            },),
+
+            it({
+              name: 'a verify that answers false after the time limit is dropped without a failure report',
+              timeout: DEADLINE_TEST_TIMEOUT_MS,
+              fn: async ({ sinon, },) => {
+                const warn = sinon.stub(
+                  console,
+                  'warn',
+                );
+                const unavailable = recordingSink({
+                  name: 'unavailable backend',
+                  verify: verifyFalseAfter({ delayMs: SHORT_DEADLINE_MS * 3, },),
+                },);
+                const {
+                  logger,
+                  initPromise,
+                } = createLogger({
+                  sinks: [unavailable.sink,],
+                  verifyTimeoutMs: SHORT_DEADLINE_MS,
+                },);
+                logger.info('held one',);
+                logger.info('held two',);
+                await wait(SHORT_DEADLINE_MS * 5,);
+                await initPromise;
+
+                expect(messages({ recording: unavailable, },),)
                   .toEqual([],);
+                expect(verifyFailureBreadcrumbs({ warn, },),)
+                  .toHaveLength(0,);
+                expect(verifyDeadlineBreadcrumbs({ warn, },),)
+                  .toHaveLength(1,);
+              },
+            },),
+
+            it({
+              name: 'the deadline report names the sink, the limit, and the records kept for it',
+              timeout: DEADLINE_TEST_TIMEOUT_MS,
+              fn: async ({ sinon, },) => {
+                const warn = sinon.stub(
+                  console,
+                  'warn',
+                );
+                const wedged = recordingSink({
+                  name: 'wedged backend',
+                  verify: function verifyForever(): Promise<boolean> {
+                    return neverSettles();
+                  },
+                },);
+                const { initPromise, } = createLogger({
+                  sinks: [wedged.sink,],
+                  verifyTimeoutMs: SHORT_DEADLINE_MS,
+                },);
+                await initPromise;
+
+                const reported = verifyDeadlineBreadcrumbs({ warn, },);
+                expect(reported,)
+                  .toHaveLength(1,);
+                expect(reported[0],)
+                  .toContain('wedged backend sink (entry 0)',);
+                expect(reported[0],)
+                  .toContain(`${SHORT_DEADLINE_MS}ms`,);
+                expect(reported[0],)
+                  .toContain('kept',);
+                expect(reported[0],)
+                  .toContain('verifyTimeoutMs',);
+              },
+            },),
+
+            it({
+              name: 'a log call made while a verdict is outstanding is kept rather than throwing',
+              timeout: DEADLINE_TEST_TIMEOUT_MS,
+              fn: async ({ sinon, },) => {
+                sinon.stub(
+                  console,
+                  'warn',
+                );
+                const late = recordingSink({
+                  verify: verifyTrueAfter({ delayMs: SHORT_DEADLINE_MS * 3, },),
+                },);
+                const {
+                  logger,
+                  initPromise,
+                } = createLogger({
+                  sinks: [late.sink,],
+                  verifyTimeoutMs: SHORT_DEADLINE_MS,
+                },);
+                await initPromise;
+
+                expect(function logWhilePending() {
+                  logger.info('pending verdict',);
+                },)
+                  .not.toThrow();
+                await wait(SHORT_DEADLINE_MS * 4,);
+                await logger.flush();
+
+                expect(messages({ recording: late, },),)
+                  .toEqual(['pending verdict',],);
+              },
+            },),
+
+            it({
+              name: 'a blocked event loop that outlasts the verify deadline still writes the record the file sink kept',
+              timeout: DEADLINE_TEST_TIMEOUT_MS,
+              fn: async () => {
+                await using destination = await scratchDestination();
+                const {
+                  logger,
+                  initPromise,
+                } = createLogger({
+                  sinks: [createFileSink({
+                    directory: destination.path,
+                    retention: NO_LOG_RETENTION_SWEEP,
+                  },),],
+                  verifyTimeoutMs: SHORT_DEADLINE_MS,
+                },);
+                logger.info('written after a blocked loop',);
+            // The probe's filesystem work finishes in the thread pool while the loop
+            // sleeps, and the deadline timer still fires first once it resumes.
+                Atomics.wait(
+                  new Int32Array(new SharedArrayBuffer(4,),),
+                  0,
+                  0,
+                  SHORT_DEADLINE_MS * 4,
+                );
+                await initPromise;
+                await wait(SHORT_DEADLINE_MS * 4,);
+                await logger.flush();
+
+                expect(await persistedMessages(destination.path,),)
+                  .toEqual(['written after a blocked loop',],);
               },
             },),
 

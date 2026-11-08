@@ -688,6 +688,16 @@ reads that fragment.
   `android-sdk/23.0` becomes `<toolchain root>/android-sdk/23.0`.
   The lock holds the value with `{version}` already replaced,
   so a version bump moves the path on the next `install`.
+  A value that names a directory holding exactly one directory,
+  and that inner directory holds the tool's first declared program in its own `bin`,
+  is written as that inner directory:
+  an Adoptium archive unpacks the whole JDK into `jdk-<release>` below the tool's version directory,
+  and Gradle refuses a `JAVA_HOME` one level above it
+  (`ERROR: JAVA_HOME is set to an invalid directory`).
+  With the layout on the machine,
+  `JAVA_HOME` becomes `.../java/temurin-21.0.13+9.0.LTS/jdk-21.0.13+9`
+  and `ANDROID_HOME` keeps the SDK root,
+  which holds six directories.
   Any other value is a literal (`nightly-2026-11-01`).
   A literal that itself contains a `/` would be read as a path;
   no tool declares one.
@@ -870,7 +880,14 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
   naming the package and what was observed.
   `uv tool install --force <package>==<locked>`,
   or a wheel whose SHA-256 the lock records,
-  is trusted on the exit status of `uv`.
+  is read back with the `uv tool list` that `list` uses,
+  for the same reason:
+  a tool that is still absent,
+  or listed at another version,
+  fails the install
+  with the package,
+  the locked version,
+  what the listing said and the directory `uv tool dir` names.
 - `archive` tools are downloaded,
   checked against the lock's SHA-256,
   and only then unpacked with `tar` or `unzip`.
@@ -1048,9 +1065,16 @@ whichever route installed them.
   but for a release archive the program below it sits in a folder whose name carries the version,
   so a launcher record that names that path would dangle;
   see "The launcher" for how the launcher follows `current` instead.
-- A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file;
-  on Linux the launcher it makes afterwards is copied through `/proc/self/exe`.
-  Elsewhere no deleted running program can be read,
+- A running `mpm-shadow` that installs a newer `mpm-shadow` has just deleted its own file.
+  That no longer stops the launchers:
+  they are copied from the newest install,
+  through its `current` link,
+  so nothing reads the running file.
+  Only a shadow that belongs to no install (a build folder,
+  a copy fetched to a scratch path) is read from its own
+  file,
+  through `/proc/self/exe` on Linux;
+  elsewhere such a deleted running program cannot be read,
   and the sync reports an error that names the vanished path and says to run the command again with the new copy.
 - `list` counts an installed version that is newer than the locked one as satisfied,
   not drift.
@@ -1058,8 +1082,11 @@ whichever route installed them.
   in the same words everywhere:
 
   ```text
-  <tool id> is locked at <locked> in this tree but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mpm update <tool id>` or merge main
+  <tool id> is locked at <locked> in this tree's lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade this tree's lock with `mpm update <tool id>` or merge main
   ```
+
+  The lock file is named because a launcher and a shell read whichever lock their own record names,
+  so a warning from another checkout's launcher looks stale until the file it read is visible.
 
   `install` and `list` print it as `toolchain <verb>: warning: ...` in their report on standard output;
   `install --lockfile-only`,
@@ -1104,7 +1131,7 @@ the newest finished copy wins wherever it is.
   in the same words everywhere the tree's sentence appears:
 
   ```text
-  <tool id> is locked at <locked> in this machine's global lock but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g <tool id>`
+  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g <tool id>`
   ```
 
 #### Older managed copies
@@ -1155,8 +1182,18 @@ A bare symlink to the binary has nowhere to check the tree's lock,
 so the exposed link of a repository-published tool (`.cache/toolchain-bin/<bin>`)
 and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point at a launcher in `.cache/toolchain-launchers/<bin>`.
 
-- The launcher is a hard link of the `mpm-shadow` that ran `install` (a copy across file systems),
-  with a `<bin>.launch` record beside it naming the tool id,
+- The launcher is a hard link of the newest installed `mpm-shadow` (a copy across file systems),
+  whichever copy ran `install`:
+  the running program's install directory is found from its own path (the nearest ancestor that holds a `current` link),
+  and the program under that link in whichever of the two toolchain roots names the newest version is copied
+  (`src/toolchain/launcher_source.rs`).
+  A program that belongs to no install (a build folder) is copied as it is.
+  Before this rule the launcher was a hard link of whichever `mpm-shadow` ran `install`,
+  so an installer older than the newest installed one placed a launcher
+  that followed no `current` and rewrote no record:
+  that is how the machine-global `git` launcher stayed a `0.2.7-alpha.2` copy and started a deleted `0.6.0` folder
+  (`doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`).
+  The record beside it names the tool id,
   the tree's lock file,
   the real binary
   and which scope made it (the warning names that scope's upgrade command).
@@ -1217,10 +1254,13 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   A launcher sets no arrival marker and checks none:
   a launcher in front of a shadow is the intended arrangement (`.cache/cargo-shadow-bin/cargo`),
   and the shadow behind it decides (it stops when a shadow that started the launcher's process is the one that reached it).
-  The launcher file is a hard link of the `mpm-shadow` that last ran `install` in that tree,
-  so a tree that has not run `install` since this rule shipped still has the older launcher binary,
-  which exits 127 for a deleted folder until `mise run toolchain:install` or `mpm install` runs in that tree
-  (that run rewrites the record from `current`).
+  A tree that has not run `install` since these rules shipped still has the launcher binary it had,
+  and such a binary exits 127 for a record that names a deleted folder until `mise run toolchain:install`
+  or `mpm install` runs in that tree
+  (that run places the newest binary and rewrites the record from `current`).
+  The rule above fixes the binary a launcher is placed *with*,
+  not the ones already on disk:
+  a census on 2026-11-08 found 891 of 1132 launcher binaries without the follow-`current` and record-rewriting code.
 - When no program of that name exists under `current` either,
   the launcher exits 127 without starting anything:
   it checks that the program is a file before it starts it,

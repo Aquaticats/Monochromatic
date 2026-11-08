@@ -337,6 +337,22 @@ in the user journal),
 confirm it keeps every live checkout's folders,
 and wait until the cut-over stages from `c22-verify-final-checksum` to `c28-ide-through-link` are recorded done.
 
+Enabled again at 2026-11-08T16:19:00-05:00,
+before those stages finished,
+after the owner questioned the wait.
+The stages read the repository,
+and nothing in the move's sources names the build folders,
+so the wait had no reason behind it.
+The dry run read 6,923 trees,
+would remove 18 (26.31 GiB) and kept 6,905:
+each of the 18 names a source that is gone or names no workspace,
+and each is past its idle limit.
+This time enabling it started no run;
+the next is 04:30.
+It still runs the installed 0.1.5-alpha.7,
+without the fixes merged in `a5b31ab7de`,
+until the next release.
+
 ## Incident in the build
 
 At 2026-11-07T23:19 an early debug build of `cargo-shadow lean run --only units` was started in a disposable fixture
