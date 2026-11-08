@@ -266,9 +266,11 @@ No version bump is needed.
 
 The `test-alpine` job of `.github/workflows/music-player-release.yml` runs as part of the release workflow,
 on a push to main that bumps the version and on manual dispatch;
-the release waits on it through the `checksums` job, so a failing test blocks the release.
+the release waits on it through the `checksums` job,
+so a failing test blocks the release.
 It no longer runs on pull requests or on every push that touches the player
-(until 2026-10-22 it was the standalone workflow `.github/workflows/music-player-alpine.yml`, which did).
+(until 2026-10-22 it was the standalone workflow `.github/workflows/music-player-alpine.yml`,
+which did).
 Each architecture runs natively (`ubuntu-latest` and `ubuntu-24.04-arm`) and:
 
 1. builds `Containerfile.alpine` (targets `build` and `smoke`),
@@ -360,7 +362,8 @@ Measured on branch pushes of 2026-10-15 (the repository cap is 10 GB):
 
 Implemented on 2026-10-15 as the job `build-desktop-musl` of `.github/workflows/music-player-release.yml`
 (`doc/decision/music-player-releases.md` records the result and the measurements);
-this section is the specification it was built from, kept as written.
+this section is the specification it was built from,
+kept as written.
 Its job `build-desktop` builds glibc tarballs `music-player-<version>-linux-x64.tar.gz` and
 `music-player-<version>-linux-arm64.tar.gz`
 (`doc/decision/music-player-releases.md`).

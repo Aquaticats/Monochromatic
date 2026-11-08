@@ -218,12 +218,35 @@ where
 /// the error is the reason no runtime could be built.
 static RUNTIME: std::sync::OnceLock<Result<BuiltRuntime, String>> = std::sync::OnceLock::new();
 
+/// The most workers (and blocking-pool threads) the runtime may have,
+/// where the process asked for a cap before the runtime was built;
+/// `usize::MAX` for no cap.
+static WORKER_CAP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(usize::MAX);
+
+/// What:
+///  Holds the runtime this process builds to at most `cap` workers and `cap` blocking-pool threads.
+/// Why:
+///  The commit service lives for hours and one runs per worktree,
+/// so its idle threads are a cost of the budget-sized default (`service/service_main.rs`,
+/// `SERVICE_WORKER_CAP`);
+/// it asks before it needs the runtime.
+/// A runtime that is already built is not resized (tokio cannot),
+/// so a call after the first use changes nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// capWorkers(2)
+/// ```
+pub fn cap_workers(cap: usize) {
+    WORKER_CAP.store(cap, std::sync::atomic::Ordering::SeqCst);
+}
+
 /// Plans from this process's budget and limits and builds.
 fn build_for_this_process() -> Result<BuiltRuntime, String> {
     cap_malloc_arenas();
     let host: crate::parallel_budget::HostResources = crate::parallel_budget::HostResources::read();
     let limits: crate::runtime_limits::RuntimeLimits = crate::runtime_limits::RuntimeLimits::read();
-    let plan: RuntimePlan = crate::runtime_plan::plan_runtime(&host, &limits);
+    let plan: RuntimePlan = crate::runtime_plan::capped_at(crate::runtime_plan::plan_runtime(&host, &limits), WORKER_CAP.load(std::sync::atomic::Ordering::SeqCst));
     return build_with_deadline(plan, BUILD_DEADLINE, multi_thread).map_err(error_text);
 }
 

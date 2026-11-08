@@ -28,45 +28,51 @@ fn record(name: &str) -> (std::path::PathBuf, File) {
 /// nothing is made on the caller's thread.
 #[test]
 fn a_published_landing_queues_and_the_background_thread_flushes() {
-    let (root, file) = record("durable-published");
-    let before = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
-    let events = events_of(|| {
-        let deferral = begin(false);
-        flush_file(&file, "x").expect("queued");
-        deferral.settle(true);
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-published");
+        let before = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+        let events = events_of(|| {
+            let deferral = begin(false);
+            flush_file(&file, "x").expect("queued");
+            deferral.settle(true);
+        });
+        assert_eq!(events, vec![String::from("sync-queued:x")]);
+        drain();
+        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the background thread flushed it");
+        remove(root.as_path());
     });
-    assert_eq!(events, vec![String::from("sync-queued:x")]);
-    drain();
-    assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the background thread flushed it");
-    remove(root.as_path());
 }
 
 /// A landing that publishes nothing flushes what it queued before `settle` returns.
 #[test]
 fn an_unpublished_landing_forces_what_it_queued() {
-    let (root, file) = record("durable-unpublished");
-    let events = events_of(|| {
-        let deferral = begin(false);
-        flush_file(&file, "x").expect("queued");
-        deferral.settle(false);
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-unpublished");
+        let events = events_of(|| {
+            let deferral = begin(false);
+            flush_file(&file, "x").expect("queued");
+            deferral.settle(false);
+        });
+        assert_eq!(events, vec![String::from("sync-queued:x"), String::from("sync-waited:x")]);
+        remove(root.as_path());
     });
-    assert_eq!(events, vec![String::from("sync-queued:x"), String::from("sync-waited:x")]);
-    remove(root.as_path());
 }
 
 /// A deferral dropped without settling (a panic in the landing) forces its queue too,
 /// and ends the deferral.
 #[test]
 fn a_dropped_deferral_forces_and_ends() {
-    let (root, file) = record("durable-dropped");
-    let events = events_of(|| {
-        let deferral = begin(false);
-        flush_file(&file, "x").expect("queued");
-        drop(deferral);
-        flush_file(&file, "y").expect("made now");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-dropped");
+        let events = events_of(|| {
+            let deferral = begin(false);
+            flush_file(&file, "x").expect("queued");
+            drop(deferral);
+            flush_file(&file, "y").expect("made now");
+        });
+        assert_eq!(events, vec![String::from("sync-queued:x"), String::from("sync-waited:x"), String::from("sync-waited:y")]);
+        remove(root.as_path());
     });
-    assert_eq!(events, vec![String::from("sync-queued:x"), String::from("sync-waited:x"), String::from("sync-waited:y")]);
-    remove(root.as_path());
 }
 
 /// Outside a landing a flush is made where it is asked for,
@@ -82,17 +88,19 @@ fn a_flush_outside_a_landing_is_made_now() {
 /// The index is flushed only when the landing was told it is hardened.
 #[test]
 fn the_index_is_flushed_only_when_it_is_hardened() {
-    let (root, file) = record("durable-index");
-    let events = events_of(|| {
-        let deferral = begin(false);
-        flush_index(&file, "index").expect("skipped");
-        deferral.settle(true);
-        let hardened = begin(true);
-        flush_index(&file, "index").expect("made now");
-        hardened.settle(true);
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, file) = record("durable-index");
+        let events = events_of(|| {
+            let deferral = begin(false);
+            flush_index(&file, "index").expect("skipped");
+            deferral.settle(true);
+            let hardened = begin(true);
+            flush_index(&file, "index").expect("made now");
+            hardened.settle(true);
+        });
+        assert_eq!(events, vec![String::from("sync-waited:index")]);
+        remove(root.as_path());
     });
-    assert_eq!(events, vec![String::from("sync-waited:index")]);
-    remove(root.as_path());
 }
 
 /// What:
@@ -116,12 +124,14 @@ fn the_index_is_flushed_only_when_it_is_hardened() {
 /// ```
 #[test]
 fn a_landing_begun_without_the_index_named_reports_it_unhardened() {
-    // `let deferral = begin(false);` starts the landing on this thread; `false` says `core.fsync` did not name the index.
-    let deferral = begin(false);
-    // The answer while the landing runs is the one it was told.
-    assert!(!index_is_hardened(), "core.fsync did not name the index, so it is not flushed");
-    // `settle(true)` ends the landing as one that published a commit; nothing was queued, so nothing is handed over.
-    deferral.settle(true);
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        // `let deferral = begin(false);` starts the landing on this thread; `false` says `core.fsync` did not name the index.
+        let deferral = begin(false);
+        // The answer while the landing runs is the one it was told.
+        assert!(!index_is_hardened(), "core.fsync did not name the index, so it is not flushed");
+        // `settle(true)` ends the landing as one that published a commit; nothing was queued, so nothing is handed over.
+        deferral.settle(true);
+    });
 }
 
 /// What:
@@ -149,17 +159,19 @@ fn a_landing_begun_without_the_index_named_reports_it_unhardened() {
 /// ```
 #[test]
 fn a_landing_begun_with_the_index_named_reports_it_hardened_and_the_default_returns_when_it_ends() {
-    // `begin(true)` says `core.fsync` named the index.
-    let hardened = begin(true);
-    assert!(index_is_hardened(), "core.fsync named the index, so it is flushed");
-    hardened.settle(true);
-    assert!(index_is_hardened(), "no landing runs, so the default (flushed) holds");
-    // A landing begun with `false` changes the answer; ending it, here by dropping it unsettled, restores the default.
-    let unhardened = begin(false);
-    assert!(!index_is_hardened(), "the landing was told the index is not named");
-    // `drop(x)` ends `x` early, as a panic in the landing would; the deferral's `Drop` forces its queue and ends it.
-    drop(unhardened);
-    assert!(index_is_hardened(), "a dropped landing leaves the default behind");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        // `begin(true)` says `core.fsync` named the index.
+        let hardened = begin(true);
+        assert!(index_is_hardened(), "core.fsync named the index, so it is flushed");
+        hardened.settle(true);
+        assert!(index_is_hardened(), "no landing runs, so the default (flushed) holds");
+        // A landing begun with `false` changes the answer; ending it, here by dropping it unsettled, restores the default.
+        let unhardened = begin(false);
+        assert!(!index_is_hardened(), "the landing was told the index is not named");
+        // `drop(x)` ends `x` early, as a panic in the landing would; the deferral's `Drop` forces its queue and ends it.
+        drop(unhardened);
+        assert!(index_is_hardened(), "a dropped landing leaves the default behind");
+    });
 }
 
 /// The variable that names the directory the helper below works in;
@@ -248,5 +260,35 @@ fn a_landing_whose_syncs_cannot_start_a_thread_makes_them_where_it_is_and_does_n
     assert!(output.status.success(), "the helper panicked or failed: {said}");
     assert!(!said.contains("failed to spawn thread"), "{said}");
     assert_eq!(std::fs::read_to_string(root.join("done")).expect("the helper finished").trim(), "3", "the background batch was made here, handle by handle: {said}");
+    remove(root.as_path());
+}
+
+/// The names of the threads this process has,
+/// read from `/proc`.
+fn thread_names_of_this_process() -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for task in std::fs::read_dir("/proc/self/task").expect("the tasks of this process").flatten() {
+        if let Ok(name) = std::fs::read_to_string(task.path().join("comm")) {
+            names.push(name.trim_end().to_string());
+        }
+    }
+    return names;
+}
+
+/// The syncs a publishing landing queued are made by a job of the runtime's blocking pool,
+/// not by a thread the module started for them.
+#[test]
+fn the_background_syncs_are_made_without_a_thread_of_their_own() {
+    let (root, file) = record("durable-no-own-thread");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let before = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+        drain();
+        assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the queued sync was made");
+    });
+    let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| return name == "cli-git-durable").collect();
+    assert!(own.is_empty(), "the background syncs started a thread of their own: {own:?}");
     remove(root.as_path());
 }

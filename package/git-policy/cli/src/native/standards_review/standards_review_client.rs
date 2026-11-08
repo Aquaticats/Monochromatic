@@ -47,6 +47,7 @@
 
 /// The measuring of a call's quiet gap,
 /// beside the call.
+use crate::standards_review_client_name_lookup_on_the_blocking_pool::PoolResolver;
 use crate::thread_quiet::QuietMeasurement;
 use std::future::Future;
 use std::pin::Pin;
@@ -229,14 +230,14 @@ impl<T: hyper_util::client::legacy::connect::Connection> hyper_util::client::leg
 #[derive(Clone)]
 struct MarkingConnector {
     /// The connector underneath.
-    inner: hyper_util::client::legacy::connect::HttpConnector,
+    inner: hyper_util::client::legacy::connect::HttpConnector<PoolResolver>,
     /// Where the movement is recorded.
     progress: Arc<Progress>,
 }
 
 impl tower_service::Service<hyper::Uri> for MarkingConnector {
     type Response = Marking<hyper_util::rt::TokioIo<tokio::net::TcpStream>>;
-    type Error = <hyper_util::client::legacy::connect::HttpConnector as tower_service::Service<hyper::Uri>>::Error;
+    type Error = <hyper_util::client::legacy::connect::HttpConnector<PoolResolver> as tower_service::Service<hyper::Uri>>::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -352,7 +353,7 @@ fn error_chain(error: &dyn std::error::Error) -> String {
 async fn exchange(gateway: &Gateway<'_>, body: &str, progress: Arc<Progress>) -> Result<Reply, String> {
     use http_body_util::BodyExt as _;
     let tls: rustls::ClientConfig = client_config(gateway.trusted_pem)?;
-    let mut http = hyper_util::client::legacy::connect::HttpConnector::new();
+    let mut http = hyper_util::client::legacy::connect::HttpConnector::new_with_resolver(PoolResolver);
     http.enforce_http(false);
     http.set_nodelay(true);
     let connector = hyper_rustls::HttpsConnectorBuilder::new()

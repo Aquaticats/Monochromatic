@@ -68,13 +68,27 @@ const ALTERNATES_LIMIT: u64 = 1 << 20;
 ///  open to the owner's veto.
 const PACKED_REFS_LIMIT: u64 = 256 << 20;
 
+#[cfg(test)]
 thread_local! {
-    /// How many loose paths the readers of this thread have looked at.
+    /// How many loose paths the readers of this thread have looked at,
+    /// counted by the controls only.
     /// It is per thread,
     /// so that a control which shows a packed
     ///  object costs none cannot be disturbed by another test's reads.
     static LOOSE_LOOKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
+
+/// Counts one loose path looked at,
+/// for the controls;
+/// the release executable counts nothing.
+#[cfg(test)]
+fn note_loose_look() {
+    LOOSE_LOOKS.set(LOOSE_LOOKS.get() + 1);
+}
+
+/// The release executable does not count loose looks.
+#[cfg(not(test))]
+fn note_loose_look() {}
 
 /// The loose paths the readers of this thread have looked at so far.
 #[cfg(test)]
@@ -274,7 +288,7 @@ impl ObjectDatabase {
         let hex: String = to_hex(name);
         for root in &self.roots {
             let path: PathBuf = root.join(&hex[..2]).join(&hex[2..]);
-            LOOSE_LOOKS.set(LOOSE_LOOKS.get() + 1);
+            note_loose_look();
             let Ok(metadata) = std::fs::symlink_metadata(&path) else {
                 continue;
             };

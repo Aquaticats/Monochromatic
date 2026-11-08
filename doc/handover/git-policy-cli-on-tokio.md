@@ -97,8 +97,45 @@
 - Written for the owner:
   open choice 12 (what a stop of the service does to the Git child of a commit it is preparing),
   with a ranking.
+- T10 (the service),
+  2026-11-08T05:40:00-05:00:
+  merged into main by the commit `merge(git-policy-cli): step T10 ...` of 2026-11-08.
+  Gate of the head `4e3bde33c0`:
+  5349 of 5349 passed,
+  Clippy and lint clean.
+  The failure of the second gate (`commit_timing::a_commit_that_reaches_a_foreign_index_holder_late_is_attributed_to_that_wait`) was the record's holder kind decided by the last notice;
+  cause by instrumentation,
+  safety answer (no lock is touched) and fix:
+  the plan,
+  "The holder kind of the timing record".
+  Worker cap 4,
+  lowered-limit sweep,
+  refusal-path controls,
+  resolver fix and bounded renewal stop:
+  the plan,
+  "Step T10,
+  the worker cap,
+  the sweep,
+  the refusal paths and the bounded stop".
+  Left for T11:
+  the work loop thread and its `std::sync::mpsc` queue,
+  the synchronous landing loop with its sleeps,
+  its inotify wait and its queues,
+  and the owner's pick for open choice 12 ("C:
+  shutdown stops its Gits (Recommended)",
+  2026-11-07T22:19:43-05:00):
+  the stop handler only records the stop and the service's shutdown signals the Gits it waits on through a registry,
+  with bounded waits then `SIGKILL`,
+  a commit's work kept on its side ref,
+  and the red test that a stop during a long commit Git leaves no Git and no `index.lock` within the bound.
+  Open failures to read before trusting a green run:
+  the five tests of `foundation::kept_names_in_the_git_directories::tests` that fold with the real `/proc` failed together once in a host run
+  (`could not be looked at in time`,
+  0.02 s;
+  four instrumented repeats passed,
+  no cause measured;
+  the scan runs only when a kept name exists under its earlier spelling).
 - Not started:
-  T10 (the service),
   T11 (callers),
   T12 (parallel runner),
   T13 (removal,

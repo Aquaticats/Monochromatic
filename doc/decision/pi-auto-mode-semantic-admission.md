@@ -3,10 +3,16 @@
 ## Current Luna decision
 
 On 2026-10-16,
-the user clarified that fifteen seconds is an implementation guideline, not an enforced review deadline.
-Elapsed preparation, conversion, classification, or provider time must not alone reject evidence,
-cancel a request, or trigger manual confirmation.
-Keep the duration as a performance target and retain original cancellation, freshness,
+the user clarified that fifteen seconds is an implementation guideline,
+not an enforced review deadline.
+Elapsed preparation,
+conversion,
+classification,
+or provider time must not alone reject evidence,
+cancel a request,
+or trigger manual confirmation.
+Keep the duration as a performance target and retain original cancellation,
+freshness,
 and actual transport-failure handling.
 This supersedes the hard preparation-inclusive fifteen-second cutoff recorded in earlier decisions.
 
@@ -17,27 +23,47 @@ Human confirmation summaries likewise describe the proposed tool calls without m
 Original responses remain local where required for operation ownership and currentness.
 
 The user also reaffirmed parsing Bash locally and sending only its structural operation data to Luna.
-The incumbent shell parser owns quoting, substitution, command boundaries, and shell control structure.
-Review projections must preserve arguments, paths, redirections, nested execution, and unresolved syntax facts
+The incumbent shell parser owns quoting,
+substitution,
+command boundaries,
+and shell control structure.
+Review projections must preserve arguments,
+paths,
+redirections,
+nested execution,
+and unresolved syntax facts
 needed to assess permission without asking Luna to parse a raw Bash script.
 Source text remains local for execution and original-operation identity.
 This implements the previously recorded parser-first boundary at the current native request path.
 
 On 2026-10-16,
 the user limited automatic approval review to permission boundaries.
-Tool-use, formatting, naming, and workflow conventions remain instructions for the coding agent;
+Tool-use,
+formatting,
+naming,
+and workflow conventions remain instructions for the coding agent;
 violating such a convention alone does not require consent or prohibit an otherwise authorized operation.
-For example, preferring `read` over `sed` does not turn local file inspection into an approval request.
-Explicit restrictions on access or effects, destructive or external actions outside existing authorization,
+For example,
+preferring `read` over `sed` does not turn local file inspection into an approval request.
+Explicit restrictions on access or effects,
+destructive or external actions outside existing authorization,
 and genuinely required consent remain approval concerns.
 An explicit prohibition on reading a named file remains enforceable even though reading is ordinarily benign.
 Both clause interpretation and complete-operation review must apply this distinction to the actual operation.
 This supersedes treating every instruction-compliance defect as an execution-permission defect.
-It does not change the selected model, score cutoff, operation identity, currentness, or cancellation checks.
+It does not change the selected model,
+score cutoff,
+operation identity,
+currentness,
+or cancellation checks.
 
-The user also limited Luna's input to the visible conversation, proposed operation,
+The user also limited Luna's input to the visible conversation,
+proposed operation,
 and readable project policy files even when those files have not appeared in the transcript.
-Pi's hidden system prompts, tool metadata, tool-use guidance, and skill catalog are excluded from model review.
+Pi's hidden system prompts,
+tool metadata,
+tool-use guidance,
+and skill catalog are excluded from model review.
 Selection follows original source provenance before clause indexing;
 removing text only from shared context would still leak excluded instructions through individual questions.
 Local provenance receipts may remain for operation ownership and currentness checks.
@@ -66,7 +92,9 @@ selected conversation,
 every prepared command and argument,
 and the original assessment budget.
 It uses the existing `0.60` selected-option cutoff for `approve` and `deny`;
-`unknown`, invalid responses, and unavailable assessments leave manual review as the last fallback.
+`unknown`,
+invalid responses,
+and unavailable assessments leave manual review as the last fallback.
 A clause's unresolved prerequisite estimate is not an established missing authorization.
 The final model must apply the actual conditions of each rule to the user's actual operation.
 Established governing prohibitions remain terminal.

@@ -490,6 +490,12 @@ EL4:
 Suppressions with rationale are healthy;
  bare ones are debt.
 
+QCR:
+ Credential and config seams:
+ read the resolver implementation and its stores
+ before porting or questioning them;
+declared field names like `apiKeyEnv` hide the source.
+
 ### Before claiming inability
 
 CB1:

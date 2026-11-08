@@ -47,17 +47,22 @@ const ENTRY_BUDGET: usize = 1_000_000;
 /// as the readers of `repo_read_tree.rs` follow it.
 const TREE_DEPTH_LIMIT: usize = 256;
 
-thread_local! {
-    /// How many name comparisons the proofs of this thread have made,
-    /// which a control reads to show the work grows with the
-    ///  directory and not with its square.
-    static NAME_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+/// Counts one name comparison of this landing's proofs,
+/// which a control reads to show the work grows with the directory and not with its square;
+/// the release executable counts nothing.
+#[cfg(test)]
+fn note_name_step() {
+    crate::landing_state_carried_by_its_task::with_the_landing_state(|state| state.name_steps.set(state.name_steps.get() + 1));
 }
 
-/// The name comparisons the proofs of this thread have made so far.
+/// The release executable does not count name comparisons.
+#[cfg(not(test))]
+fn note_name_step() {}
+
+/// The name comparisons the proofs of this landing have made so far.
 #[cfg(test)]
 pub(crate) fn name_steps() -> u64 {
-    return NAME_STEPS.with(std::cell::Cell::get);
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| return state.name_steps.get());
 }
 
 /// The commit's header facts the landing needs.
@@ -289,11 +294,11 @@ impl Proof<'_> {
         //  two directories and not with their product.
         let mut by_name: HashMap<&[u8], &TreeEntry> = HashMap::with_capacity(before.len());
         for candidate in &before {
-            NAME_STEPS.set(NAME_STEPS.get() + 1);
+            note_name_step();
             by_name.insert(candidate.name.as_slice(), candidate);
         }
         for entry in wanted {
-            NAME_STEPS.set(NAME_STEPS.get() + 1);
+            note_name_step();
             let same_name: Option<&&TreeEntry> = by_name.get(entry.name.as_slice());
             if matches!(same_name, Some(candidate) if candidate.id == entry.id && candidate.mode == entry.mode) || entry.mode == MODE_GITLINK {
                 continue;

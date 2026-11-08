@@ -539,3 +539,80 @@ fn a_notice_that_arrives_on_the_withdrawal_connection_ends_the_wait_at_the_answe
     assert!(blocker.is_some_and(|text| { return text.contains("inside a write"); }));
     assert!(waited >= ceiling + extra_wait && waited < ceiling + extra_wait + Duration::from_secs(6), "{waited:?}");
 }
+
+/// Runs the client on a thread and returns what it ended with and the trace it kept.
+fn traced_client(config: ClientConfig) -> std::thread::JoinHandle<(Result<Submitted, ClientFailure>, git_policy_cli::commit_timing::SubmitTrace)> {
+    return std::thread::spawn(move || {
+        let mut notices: Vec<u8> = Vec::new();
+        let mut trace: git_policy_cli::commit_timing::SubmitTrace = git_policy_cli::commit_timing::SubmitTrace::default();
+        let answered = git_policy_cli::service_client::submit_traced(&config, &request(), &mut notices, &mut trace);
+        return (answered, trace);
+    });
+}
+
+/// A fake service that sends `notices` in order,
+/// then lands the commit,
+/// and the trace the client kept.
+fn trace_after(label: &str, notices: Vec<ServiceMessage>) -> git_policy_cli::commit_timing::SubmitTrace {
+    let name: String = address(label);
+    let service: UnixListener = listen(name.as_str());
+    let waiting = traced_client(config(name.as_str()));
+    let (stream, _) = service.accept().expect("the client connects");
+    greet(&stream);
+    read_request(&stream);
+    for notice in &notices {
+        (&stream).write_all(&line(notice)).expect("a notice");
+    }
+    let commit: String = "c".repeat(40);
+    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    let (answered, trace) = waiting.join().expect("client thread");
+    assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
+    return trace;
+}
+
+/// The notice that names a holder proven alive.
+fn proven_notice() -> ServiceMessage {
+    return ServiceMessage::Waiting { text: git_policy_cli::index_lock_evidence::proven_holder_line(4242, true, Some("git commit"), Path::new("/r/.git/index.lock")) };
+}
+
+/// What the service says when its landing is inside a write,
+/// which says nothing of any holder.
+fn inside_write_notice() -> ServiceMessage {
+    return ServiceMessage::InsideWrite { text: String::from("monochromatic-git-policy-cli: this commit is inside a write of the commit service, `git update-ref --stdin`, begun 0 seconds ago.\n") };
+}
+
+/// A wait for a holder proven alive is recorded as one,
+/// whatever the service says after it:
+/// the landing's own notice that it is inside a write comes the moment the holder lets go,
+/// and says nothing of the holder.
+#[test]
+fn a_holder_proven_alive_stays_proven_when_the_landing_says_it_is_inside_a_write() {
+    let trace = trace_after("kind-after-inside-write", vec![proven_notice(), inside_write_notice()]);
+    assert_eq!(trace.holder_kind, Some("proven-alive"));
+    assert_eq!(trace.waiting_notices, 2, "both notices are counted");
+}
+
+/// A later notice that names no proof (the way out of a wait that reached its ceiling) does not undo the proof either.
+#[test]
+fn a_holder_proven_alive_stays_proven_when_a_later_notice_names_no_proof() {
+    let way_out: ServiceMessage = ServiceMessage::Waiting { text: String::from("monochromatic-git-policy-cli: to end it, stop PID 4242 or wait for it to finish.\n") };
+    let trace = trace_after("kind-after-way-out", vec![proven_notice(), way_out]);
+    assert_eq!(trace.holder_kind, Some("proven-alive"));
+}
+
+/// An unproven wait that a later notice proves is recorded as proven:
+/// the proof counts when it comes.
+#[test]
+fn an_unproven_wait_that_a_later_notice_proves_is_recorded_as_proven() {
+    let unproven: ServiceMessage = ServiceMessage::Waiting { text: git_policy_cli::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None) };
+    let trace = trace_after("kind-unproven-then-proven", vec![unproven, proven_notice()]);
+    assert_eq!(trace.holder_kind, Some("proven-alive"));
+}
+
+/// A notice that the landing is inside a write is not about a holder:
+/// alone it leaves the kind of holder unrecorded.
+#[test]
+fn a_notice_that_the_landing_is_inside_a_write_records_no_holder_kind() {
+    let trace = trace_after("kind-inside-write-alone", vec![inside_write_notice()]);
+    assert_eq!(trace.holder_kind, None);
+}

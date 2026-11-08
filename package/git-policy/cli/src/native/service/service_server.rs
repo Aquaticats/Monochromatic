@@ -28,9 +28,10 @@ pub use crate::service_server_work_loop::work_loop;
 pub use crate::service_server_socket_binding::{Bind, INHERITED_DESCRIPTOR, bind, socket_passed_in};
 #[cfg(test)]
 use crate::service_server_socket_binding::ensure_socket_passed_in;
-use crate::service_server_queue_types_and_send::{GroupKey, Job, Queued, id_of_queued, index_of_queued, place_in_groups, send};
+use crate::service_server_queue_types_and_send::{GroupKey, Job, Queued, id_of_queued, index_of_queued, place_in_groups};
 use crate::service_server_land_group::{land_group, settle_open_batches};
-use crate::service_server_connection_handling::handle_connection;
+use crate::service_server_connection_handling::ConnectionShared;
+use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
 use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
@@ -44,10 +45,10 @@ use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::NEVER_ENDED_STEP_SLOW_AFTER;
 use crate::service_protocol::{
-    FailureCode, PROTOCOL_VERSION, RELEASE, ServiceMessage,
+    FailureCode, RELEASE, ServiceMessage,
 };
 use std::collections::HashMap;
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::UnixListener;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::sync::Arc;
@@ -172,9 +173,6 @@ fn start_thread_or_exit(what: &str, body: impl FnOnce() + Send + 'static) {
 /// since a client that withdrew sends nothing more for its request.
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 
-/// How long the acceptor waits after a connection it could not give a thread.
-const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
-
 /// What:
 ///  Runs the service until it is told to retire.
 /// Why:
@@ -190,6 +188,14 @@ const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
 /// await serve(listener, context)
 /// ```
 pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
+    // The loop is the one landing: what a landing remembers (its board, its queued syncs, its unsettled locks) belongs to this
+    //  scope and ends with it, and no other thread of the service reads it (`landing_state_carried_by_its_task.rs`).
+    crate::landing_state_carried_by_its_task::in_a_landing_with((listener, context, settings), serve_in_a_landing);
+}
+
+/// `serve`,
+/// inside the scope of the landing's state.
+fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext, &ServeSettings)) {
     let serving_since: Instant = Instant::now();
     let idle: Duration = settings.idle;
     let _reports = settle_open_batches(context, settings.instance.as_deref());
@@ -217,39 +223,24 @@ pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSett
     // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
     let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
     crate::service_busy_step_record_on_this_thread::use_on_this_thread(Arc::clone(&board));
-    let connection_board: Arc<LandingBoard> = Arc::clone(&board);
     // The plan of the pushes waiting for a new try is kept in this instance's own journal, so a restarted service rebuilds it.
     let plan_directory: PathBuf = context.journal.join(PLAN_DIRECTORY);
     // The repositories this instance was woken for are kept in the journal the same way, so a restarted service looks at them.
     let watch_directory: PathBuf = context.journal.join(WATCH_DIRECTORY);
     let watch_instance: Option<String> = settings.instance.clone();
     start_thread_or_exit("the after-commit work", move || { work_loop(&work_receiver, &handlers, &worker_busy, PushRetries::restored_from_environment(plan_directory.as_path()), ClaimWatch::restored(watch_directory.as_path(), watch_instance.as_deref())); });
-    let announced_release: String = settings.release.clone();
-    let connection_busy: Arc<AtomicUsize> = Arc::clone(&busy);
-    let instance: Option<String> = settings.instance.clone();
-    start_thread_or_exit("the acceptor of connections", move || {
-        for connection in listener.incoming().flatten() {
-            let queue: Sender<Job> = acceptor_queue.clone();
-            let work: Sender<Wake> = work_sender.clone();
-            let release: String = announced_release.clone();
-            let counted: Arc<AtomicUsize> = Arc::clone(&connection_busy);
-            let record: Arc<LandingBoard> = Arc::clone(&connection_board);
-            let mine: Option<String> = instance.clone();
-            // A connection the service cannot give a thread is told so and closed; the acceptor goes on, because a panic here
-            //  would end the acceptor and leave a service that is running and answers no one.
-            let notice: Option<UnixStream> = connection.try_clone().ok();
-            let spawned = std::thread::Builder::new().spawn(move || { handle_connection(connection, &queue, &work, &counted, &record, release.as_str(), mine.as_deref()); });
-            if let Err(error) = spawned {
-                crate::service_error!("no thread for a connection, which is closed after telling the client: {error}");
-                if let Some(stream) = notice {
-                    send(&stream, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(announced_release.clone()) });
-                    send(&stream, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Unavailable });
-                }
-                // Starting a thread keeps failing while the pressure lasts; waiting a moment keeps the acceptor from spinning on it.
-                std::thread::sleep(ACCEPT_BACKOFF);
-            }
-        }
-    });
+    // Every connection is a task of the runtime, so a waiting client holds no thread (`service_server_accept_connections_as_tasks.rs`).
+    start_acceptor_or_exit(
+        listener,
+        ConnectionShared {
+            queue: acceptor_queue,
+            work: work_sender,
+            busy: Arc::clone(&busy),
+            board: Arc::clone(&board),
+            release: settings.release.clone(),
+            instance: settings.instance.clone(),
+        },
+    );
     // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is
     //  still claimed in the journal (`claim_batch`), because equal readings and counts that overtake another's are possible.
     let clock_seed: u64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {

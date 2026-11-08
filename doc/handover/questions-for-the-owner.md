@@ -20,6 +20,71 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- How the repository linter stays at zero
+  (`doc/planning/repository-linter-stays-at-zero.md`):
+  "None for now.
+  Focus on the git wrapper.
+  Open a gh issue about this instead."
+  Nothing is built;
+  the issue carries the options.
+- The linter's own fuzz seeds:
+  "Ignore the seed folder (Recommended)":
+  one ignore entry for exactly `package/linter/monochromatic-lint.fuzz/seed/`.
+- Lean build folders (`doc/planning/lean-build-dirs.md`):
+  "A to F,
+  B allowed (Recommended)":
+  all six mechanisms in order,
+  in cargo-shadow;
+  the decision record `doc/decision/cargo-build-dir-host-cache.md` is amended so the sweep (B) may read Cargo's fingerprint files,
+  for that sweep only;
+  the tools' first run under their own locks cleans what exists today;
+  grace periods and size caps are measured and recorded as coordinator picks with the owner's veto open.
+- What else the cleanup covers:
+  "Rust toolchains (Recommended)" and "Podman images,
+  volumes (Recommended)":
+  nightlies no checkout's lock pins,
+  and images and volumes no container uses and no current image tag of the repository names,
+  each after the grace period.
+- Not asked yet:
+  where a blank at the end of a row goes in the IDE.
+  On reading the tests,
+  `a_hanging_blank_at_the_end_of_the_text_leaves_no_empty_row` fails at its own guard
+  ("no fixture produced an empty tail,
+  so the test proves nothing about it"),
+  because Parley 0.12 no longer adds the empty row the test was written to rule out;
+  the failing assertion of `the_fixtures_wrap_as_described` is not recorded.
+  The question is to be re-framed from a run of both tests before it is asked.
+
+- A closure-check skip in the repository's own lint:
+  "Fetch then warn."
+  (the owner's own words,
+  not one of the offered options):
+  the repository's lint tasks fetch Rust dependencies first,
+  and a skip that remains is reported as a warning naming the package and the command that fixes it.
+- Fenced Rust examples inside Markdown:
+  "B:
+  exempt only \"Bad\" examples (Recommended)":
+  a marker on those fences exempts them from `rust/require-rustdoc`,
+  and the other 176 are documented by hand.
+- The decision records' line breaks:
+  "Allow whitespace-only reflow (Recommended)":
+  the fixer runs over `doc/decision/` once,
+  with a word-level diff proving only whitespace changed.
+- Container disk weight and limits for the remaining users:
+  "All of them (Recommended)":
+  every container start gets the lowest disk weight and limits sized to its job,
+  through one shared constant,
+  including `vm-builder`'s rootful run.
+
+- Porting the wrapper package's 145 TypeScript files to Rust
+  (`doc/planning/git-policy-cli-typescript-to-rust.md`):
+  "After the layout move (Recommended)":
+  the pause lifts once the layout move's steps 2 to 6 land,
+  with the plan's recommended option for each of its eleven choices.
+- Answering a pull's Git queries in process
+  (128 ms against native's 12 ms on a fast-forwarding pull):
+  "Not now (Recommended)".
+
 - How long a commit's signed `git commit` step may run:
   "A:
   limit unless editor (Recommended)":
@@ -35,6 +100,23 @@ so any of them can be undone.
   (throwaway commits in a throwaway repository,
   durations printed only,
   native `git commit` as the control).
+  Result (coordinator,
+  native `/usr/bin/git`,
+  display and askpass variables removed):
+  signed 16,
+  13,
+  13 ms;
+  unsigned 9,
+  9,
+  8 ms;
+  signed with no agent socket 27,
+  10,
+  11 ms.
+  Signing costs about 5 ms and needs no agent,
+  passphrase or display,
+  so the 20 to 406 s build steps were something else in the scratch `git commit` step;
+  the per-step timing records of release 0.6.1-alpha.2 name it on the next slow commit.
+  Two wider probes (the key's passphrase state and the commit service's environment) were refused by the auto-mode check as credential exploration and were not retried.
 - An `index.lock` no process holds:
   "Service removes it":
   after a complete scan of every readable process finds no holder and there is no Git PID file,

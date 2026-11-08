@@ -940,14 +940,16 @@ fn the_ownership_check_tells_the_holders_own_file_from_a_replacement_with_the_sa
 /// the failed check read as "another program's lock" and the lock was abandoned with this process's name in it.
 #[test]
 fn a_check_that_cannot_be_made_leaves_the_lock_and_marks_it_unsettled() {
-    let (root, index) = index_in("index-lock-unreadable-drop");
-    let platform: Platform = Platform { inspect: unreadable, ..SYSTEM };
-    let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 81, &|_| {}).expect("taken");
-    drop(lock);
-    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(81));
-    assert_eq!(unsettled_locks(), before + 1);
-    remove(root.as_path());
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, index) = index_in("index-lock-unreadable-drop");
+        let platform: Platform = Platform { inspect: unreadable, ..SYSTEM };
+        let before: usize = unsettled_locks();
+        let lock = acquire_on(&platform, &index, 81, &|_| {}).expect("taken");
+        drop(lock);
+        assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(81));
+        assert_eq!(unsettled_locks(), before + 1);
+        remove(root.as_path());
+    });
 }
 
 /// The same under a release:
@@ -1291,14 +1293,16 @@ fn vanished_removal(path: &Path) -> std::io::Result<()> {
 /// the failure was dropped and a lock naming this live process stayed for the whole life of the process.
 #[test]
 fn an_owned_lock_that_cannot_be_removed_is_unsettled() {
-    let (root, index) = index_in("index-lock-unremovable-owned");
-    let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
-    let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 100, &|_| {}).expect("taken");
-    drop(lock);
-    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(100));
-    assert_eq!(unsettled_locks(), before + 1);
-    remove(root.as_path());
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, index) = index_in("index-lock-unremovable-owned");
+        let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
+        let before: usize = unsettled_locks();
+        let lock = acquire_on(&platform, &index, 100, &|_| {}).expect("taken");
+        drop(lock);
+        assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(100));
+        assert_eq!(unsettled_locks(), before + 1);
+        remove(root.as_path());
+    });
 }
 
 /// The same under a release:
@@ -1307,18 +1311,20 @@ fn an_owned_lock_that_cannot_be_removed_is_unsettled() {
 /// and the lock is counted as unsettled.
 #[test]
 fn a_release_whose_lock_cannot_be_removed_is_unsettled() {
-    let (root, index) = index_in("index-lock-unremovable-release");
-    let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
-    let before: usize = unsettled_locks();
-    let lock = acquire_on(&platform, &index, 101, &|_| {}).expect("taken");
-    let built: PathBuf = index.with_file_name("index.built");
-    std::fs::write(&built, "new index").expect("built");
-    let error = lock.release_with(&built).expect_err("the removal failed");
-    assert_eq!(error.raw_os_error(), Some(libc::EACCES));
-    assert_eq!(std::fs::read_to_string(&index).expect("index"), "new index", "the index was installed");
-    assert!(unsettled_locks() > before);
-    assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(101));
-    remove(root.as_path());
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, index) = index_in("index-lock-unremovable-release");
+        let platform: Platform = Platform { release: refused_removal, ..SYSTEM };
+        let before: usize = unsettled_locks();
+        let lock = acquire_on(&platform, &index, 101, &|_| {}).expect("taken");
+        let built: PathBuf = index.with_file_name("index.built");
+        std::fs::write(&built, "new index").expect("built");
+        let error = lock.release_with(&built).expect_err("the removal failed");
+        assert_eq!(error.raw_os_error(), Some(libc::EACCES));
+        assert_eq!(std::fs::read_to_string(&index).expect("index"), "new index", "the index was installed");
+        assert!(unsettled_locks() > before);
+        assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("the lock stays"), own_marker(101));
+        remove(root.as_path());
+    });
 }
 
 /// A lock that is already gone when the holder removes it is removed:
@@ -1747,23 +1753,25 @@ fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() 
 /// a second wait for it tells nothing the first did not.
 #[test]
 fn a_lock_that_outlasted_one_wait_is_refused_at_once_to_the_next_commit() {
-    let (root, index) = index_in("index-lock-refused-once");
-    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
-    let first_ceiling: Duration = Duration::from_millis(400);
-    let began: Instant = Instant::now();
-    assert!(acquire_within(&SYSTEM, &index, 21, first_ceiling, &|_| {}).is_err());
-    assert!(began.elapsed() >= first_ceiling, "{:?}", began.elapsed());
-    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
-    let next_began: Instant = Instant::now();
-    // The next commit's own ceiling is far longer than the control runs.
-    let next = acquire_within(&SYSTEM, &index, 22, NOTICE_EVERY * 6, &|note| { heard.lock().expect("lock").push(note); });
-    let next_waited: Duration = next_began.elapsed();
-    assert!(next.is_err());
-    assert!(next_waited < NOTICE_EVERY, "the second commit waited {next_waited:?} for a lock that had already outlasted a wait");
-    let said: Vec<Announce> = heard.lock().expect("lock").clone();
-    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held")); }), "{said:?}");
-    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("earlier commit")); }), "{said:?}");
-    remove(root.as_path());
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, index) = index_in("index-lock-refused-once");
+        std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+        let first_ceiling: Duration = Duration::from_millis(400);
+        let began: Instant = Instant::now();
+        assert!(acquire_within(&SYSTEM, &index, 21, first_ceiling, &|_| {}).is_err());
+        assert!(began.elapsed() >= first_ceiling, "{:?}", began.elapsed());
+        let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+        let next_began: Instant = Instant::now();
+        // The next commit's own ceiling is far longer than the control runs.
+        let next = acquire_within(&SYSTEM, &index, 22, NOTICE_EVERY * 6, &|note| { heard.lock().expect("lock").push(note); });
+        let next_waited: Duration = next_began.elapsed();
+        assert!(next.is_err());
+        assert!(next_waited < NOTICE_EVERY, "the second commit waited {next_waited:?} for a lock that had already outlasted a wait");
+        let said: Vec<Announce> = heard.lock().expect("lock").clone();
+        assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held")); }), "{said:?}");
+        assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("earlier commit")); }), "{said:?}");
+        remove(root.as_path());
+    });
 }
 
 /// A lock that is another file than the one that outlasted a wait is waited for in full.

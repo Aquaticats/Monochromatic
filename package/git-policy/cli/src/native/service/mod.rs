@@ -88,6 +88,10 @@ pub mod service_server_land_group;
 /// Handles one client connection of the commit service.
 pub mod service_server_connection_handling;
 
+/// The acceptor of connections:
+/// one task that starts a task per connection.
+pub mod service_server_accept_connections_as_tasks;
+
 /// Gets the listening socket of the commit service.
 pub mod service_server_socket_binding;
 

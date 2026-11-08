@@ -1,8 +1,11 @@
 # Nested Wayland session fixture: build a minimal Smithay compositor, distribute via cargo
 
 Tracks issue #272 ("Build minimal nested Wayland session for GUI testing").
-The follow-up, issue #273 (headless-surfaceless mode), was delivered in 0.5.0 as the opt-in `--headless` flag
-and the issue is closed; see "Headless-surfaceless mode in the first version".
+The follow-up,
+issue #273 (headless-surfaceless mode),
+was delivered in 0.5.0 as the opt-in `--headless` flag
+and the issue is closed;
+see "Headless-surfaceless mode in the first version".
 
 ## Decision
 
@@ -21,7 +24,8 @@ Distribute it through crates.io so `mise` installs it with the `cargo:` backend,
 Document `cargo-binstall` in the package README so a prebuilt binary can be fetched without a source build.
 
 Headless-surfaceless rendering (no parent display,
- for bare CI) was deferred at first and then added as an opt-in mode (0.5.0, `--headless`);
+ for bare CI) was deferred at first and then added as an opt-in mode (0.5.0,
+`--headless`);
 the nested window stays the default.
 This decision refines issue #272's suggested shape in specifics,
  not intent.
@@ -190,14 +194,17 @@ modules,
 
 ### Headless-surfaceless mode in the first version
 
-Rejected for the first version, accepted as a later opt-in mode.
+Rejected for the first version,
+accepted as a later opt-in mode.
 The nested-winit path inherits the parent's EGL device and is anvil's known-good pattern.
 Headless-surfaceless must select the DRM render node and match the client's dmabuf modifiers with no parent
 device to inherit from,
  which is the fiddliest and highest-risk part.
 Shipping nested-winit first de-risked the core tool.
 
-Delivered in 0.5.0 (issue #273, closed) as `--headless`, with these decisions:
+Delivered in 0.5.0 (issue #273,
+closed) as `--headless`,
+with these decisions:
 
 - **Opt-in only.**
   The nested window is the default in every case,
@@ -216,7 +223,8 @@ Delivered in 0.5.0 (issue #273, closed) as `--headless`, with these decisions:
   only the display and render backend differ.
 - **Render node.**
   Smithay's `EGLSurfacelessDisplay` opens on a render node chosen by Mesa
-  (on the development host the integrated AMD GPU, `/dev/dri/renderD129`),
+  (on the development host the integrated AMD GPU,
+  `/dev/dri/renderD129`),
   renders into an offscreen target,
   and builds the dmabuf version 4 default feedback from the formats and modifiers that render node advertises
   (325 format and modifier pairs on that host),
@@ -229,7 +237,10 @@ Delivered in 0.5.0 (issue #273, closed) as `--headless`, with these decisions:
   `EGLDisplay::new` on a device (`EGL_EXT_platform_device`) opens a chosen render node,
   and the `EGL_MESA_device_software` device is Mesa's `llvmpipe`.
   Measured on the development host:
-  both render nodes (`renderD128`, PCI `1002:7480`, and `renderD129`, PCI `1002:164e`) rendered offscreen and
+  both render nodes (`renderD128`,
+  PCI `1002:7480`,
+  and `renderD129`,
+  PCI `1002:164e`) rendered offscreen and
   imported a Slint client's dmabufs,
   and `llvmpipe` rendered the same client through `wl_shm` buffers,
   because a software device has no render node to put in the dmabuf version 4 feedback.
@@ -302,7 +313,8 @@ covers prebuilt-binary installs on the `cargo` path,
 - Headless-surfaceless dmabuf (render-node selection and modifier matching) was the concentrated risk,
    and it
   was deferred to issue #273 precisely because of that.
-  Issue #273 closed with the mode working on the development host (two AMD GPUs, Mesa radeonsi).
+  Issue #273 closed with the mode working on the development host (two AMD GPUs,
+  Mesa radeonsi).
   Other GPU vendors and drivers were not tried.
 - Smithay pre-1.0 churn,
    mitigated by pinning crates.io 0.7.0 rather than git HEAD.

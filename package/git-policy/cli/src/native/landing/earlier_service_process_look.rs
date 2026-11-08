@@ -65,6 +65,7 @@
 //! const mayRun: boolean = await withDeadline(ceiling, () => earlierSocketListens(procRoot, look) || scan(procRoot, look)) ?? true
 //! ```
 
+use crate::scan_awaited_under_a_ceiling::scan_under_ceiling_to_its_end;
 use crate::earlier_service_unsure_program::UnsureProgram;
 #[cfg(unix)]
 use crate::earlier_service_unsure_program::{printable, program_of};
@@ -672,28 +673,26 @@ pub fn earlier_service_process_hold(look: ServiceLook, proc_root: &Path) -> Opti
     return hold_within_ceiling(look, proc_root, scan_processes);
 }
 
-/// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on the thread of their own.
+/// The answer of a look that could not be made:
+/// a service of the worktree may be running.
+fn cannot_look() -> Option<Holding> {
+    return Some(Holding::from(Hold::CannotLook));
+}
+
+/// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on a job of the blocking pool,
+/// awaited under the look's ceiling,
+/// run to its end on the process's runtime.
 fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&ServiceLook, &Path) -> Option<Holding>) -> Option<Holding> {
     let ceiling: Duration = look.ceiling;
-    let root: PathBuf = proc_root.to_path_buf();
-    let (sender, receiver) = std::sync::mpsc::channel::<Option<Holding>>();
-    let started = std::thread::Builder::new().name(String::from("earlier-service-process-look")).spawn(move || {
-        let _sent = sender.send(scanner(&look, root.as_path()));
-    });
-    if let Err(error) = started {
-        crate::service_error!("cannot start the look at the processes ({error}), so a service of the worktree may be running");
-        return Some(Holding::from(Hold::CannotLook));
-    }
-    return match receiver.recv_timeout(ceiling) {
-        Ok(hold) => hold,
-        Err(error) => {
-            crate::service_error!("the look at the processes gave no answer ({error}), so a service of the worktree may be running");
-            Some(Holding::from(Hold::CannotLook))
-        }
-    };
+    return scan_under_ceiling_to_its_end(look, ceiling, proc_root, scanner, cannot_look);
 }
 
 /// Whether a service of the worktree may be running or may start.
 pub fn service_of_instance_may_run(look: ServiceLook, proc_root: &Path) -> bool {
     return earlier_service_hold(look, proc_root).is_some();
 }
+
+/// The awaited look is controlled in the test module.
+#[cfg(test)]
+#[path = "earlier_service_process_look_tests.rs"]
+mod tests;
