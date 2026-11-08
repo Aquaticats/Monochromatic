@@ -26,6 +26,7 @@ use crate::pid_namespace::current_pid_namespace;
 use crate::process_start::{ProcessStart, linux_start, now_ms};
 use crate::process_use::{UseScan, UseTarget, processes_using_through};
 use crate::stale_ref_lock_found::PidFile;
+pub use crate::stale_ref_lock_own_ended::{ClaimedLock, OwnEnded};
 use crate::stale_ref_lock_nested_numbers::nested_holders_of;
 use crate::stopped_git_locks::pid_named_by;
 use crate::stale_ref_lock_walk::pid_file_beside;
@@ -157,6 +158,12 @@ pub enum Proof {
     /// The staging file `packed-refs.new` has no lock beside it,
     /// and Git creates it only while holding that lock.
     OrphanStaging,
+    /// A member of the tree this wrapper stopped was seen holding the lock,
+    /// by the pid file beside it,
+    /// before the stop signalled it,
+    /// and that member has ended;
+    /// the lock is the same file.
+    ClaimedBeforeStop(i64),
 }
 
 /// What a judgement concluded.
@@ -176,31 +183,6 @@ pub enum Verdict {
     /// Removable,
     /// on this proof.
     Stale(Proof),
-}
-
-/// What:
-///  The processes the wrapper itself started,
-/// stopped and saw end,
-/// and when the first of them started.
-/// Why:
-///   A pid file that such a process wrote holds a number of the wrapper's own PID namespace,
-/// whatever view of the machine the
-///  judge has (a container has a view of its own),
-/// and the wrapper knows the process is gone.
-/// This is the one proof that
-///  needs no inference about namespaces,
-/// and it covers only locks born after the child started.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type OwnEnded = { pids: number[]; since: Date };
-/// ```
-#[derive(Clone, Debug)]
-pub struct OwnEnded {
-    /// The numbers of the processes of the stopped tree that have ended.
-    pub pids: Vec<i64>,
-    /// The wall-clock time read before the stopped child started.
-    pub since: SystemTime,
 }
 
 /// The evidence a judgement may use,
@@ -276,7 +258,7 @@ impl Judge {
 
     /// The pid file beside `lock`,
     /// as evidence about this lock's holder.
-    fn pid_file_state(lock: &Path, lock_born: Option<SystemTime>) -> PidFile {
+    pub(crate) fn pid_file_state(lock: &Path, lock_born: Option<SystemTime>) -> PidFile {
         let pid_path: PathBuf = pid_file_beside(lock);
         let Some(pid) = pid_named_by(pid_path.as_path()) else {
             return PidFile::Absent;
@@ -474,7 +456,11 @@ impl Judge {
         }
         let newest: SystemTime = newest_time(born, &identity);
         // A lock whose pid file names a process this wrapper stopped and saw end needs no margin: its holder is known to be gone.
-        let own: bool = matches!(&pid_file, PidFile::Names(pid) if self.names_ended_own_child(*pid, born));
+        let claimed: Option<i64> = match self.own_ended.as_ref() {
+            Some(own) => own.holder_of_claimed(lock, &identity),
+            None => None,
+        };
+        let own: bool = claimed.is_some() || matches!(&pid_file, PidFile::Names(pid) if self.names_ended_own_child(*pid, born));
         if !own && SystemTime::now().duration_since(newest).unwrap_or_default() < self.margin {
             return verdict_with(Verdict::TooNew, pid_file.clone(), identity, born);
         }
@@ -487,6 +473,10 @@ impl Judge {
         }
         if let Some(user) = scan.users.first() {
             return verdict_with(Verdict::Held(format!("process {} ({}) has the file open", user.pid, user.command.clone().unwrap_or_default())), pid_file.clone(), identity, born);
+        }
+        // A holder the wrapper itself saw hold this very file, and then saw end, needs no inference about the processes it cannot look into.
+        if let Some(pid) = claimed {
+            return verdict_with(Verdict::Stale(Proof::ClaimedBeforeStop(pid)), pid_file.clone(), identity, born);
         }
         if let Some(reason) = self.unreadable_git(&scan) {
             return verdict_with(Verdict::Unproven(format!("a Git process of this account could not be looked into ({reason}), so it may hold the lock")), pid_file.clone(), identity, born);

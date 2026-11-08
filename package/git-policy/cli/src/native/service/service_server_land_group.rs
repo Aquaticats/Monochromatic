@@ -78,6 +78,11 @@ impl BatchTimes {
     }
 }
 
+/// The repository-relative path a change names.
+fn path_of_change(change: &crate::service_protocol::Change) -> String {
+    return change.path.clone();
+}
+
 /// Writes the log line for an answered request:
 /// the phases of its wait,
 /// from the acceptance of its connection to the answer.
@@ -85,6 +90,8 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
     let queued: Duration = times.group_began.saturating_duration_since(arrival.accepted + arrival.read);
     // What the Git steps and tools since the previous answer showed; the answer that finds them takes them.
     let quiet: Vec<(String, Duration)> = crate::quiet_ledger::drain();
+    // The Git steps since the previous answer, with their offsets from this request's acceptance.
+    let (steps, steps_dropped): (Vec<crate::transaction_step_durations::StepFigure>, usize) = crate::transaction_step_durations::drain_steps(arrival.accepted);
     let line: String = answered_line(&Answered {
         request: request.id.as_str(),
         reference: request.reference.as_str(),
@@ -100,6 +107,8 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         answer: times.landed_at.elapsed(),
         total: arrival.accepted.elapsed(),
         quiet: quiet.as_slice(),
+        steps: steps.as_slice(),
+        steps_dropped,
     });
     // A request that was answered with a failure is a warning, so `journalctl --priority=warning` finds the commits that failed.
     let priority: Priority = if outcome.starts_with("failed") { Priority::Warning } else { Priority::Info };
@@ -230,6 +239,9 @@ pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mu
             for (position, ((request, stream, arrival), outcome)) in fresh.iter().zip(outcomes).enumerate() {
                 let word: &str = match outcome {
                     Outcome::Landed { commit } => {
+                        // The compiled rules of the repository are warmed on the blocking pool, off this thread and off the answer's path.
+                        let paths: Vec<String> = request.changes.iter().map(path_of_change).collect();
+                        crate::service_rules_precompile::after_landing(context.journal.as_path(), request.repository.as_path(), paths.as_slice());
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"

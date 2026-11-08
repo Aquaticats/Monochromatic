@@ -685,34 +685,40 @@ fn a_newer_repository_pin_adds_the_stale_binary_hint() {
         .parse()
         .expect("major component is numeric");
     // One major version ahead of this build, so a release bump cannot make the control stale.
-    let pin: String = format!("{}.0.0", major + 1);
-    let fixture: Fixture = Fixture::new();
-    fixture.write("a.rs", "fn main() {}\n");
-    fixture.write(
-        LOCK_NAME,
-        format!("{TOOL_TABLE}\nversion = \"{pin}\"\n").as_str(),
-    );
-    fixture.write(
-        CONFIG,
-        r#"[{ "files": ["**/*.rs"], "rules": { "rust/no-anonymous-functions": { "severity": "off" } } }]"#,
-    );
-    let tool_id: &str = TOOL_TABLE
-        .strip_prefix("[[tools.\"")
-        .and_then(|rest| return rest.strip_suffix("\"]]"))
-        .expect("the tool table header wraps the tool identity");
-    let stale: Run = run(&fixture.path, &[], b"");
-    assert_eq!((stale.status, stale.stdout.as_str()), (2, ""));
-    assert_eq!(
-        stale.stderr,
-        format!(
-            "{PROGRAM}: Configuration {0}/{1}: Unknown built-in rule rust/no-anonymous-functions. ({PROGRAM} {2}) The resolved binary may be stale: {0}/{3} pins {4} {pin}, newer than this binary.\n",
-            fixture.path.display(),
-            CONFIG,
-            env!("CARGO_PKG_VERSION"),
+    // A release pin and a pre-release pin, both one major version ahead of this build, which is itself a
+    // pre-release while the package is in its alpha series.
+    for pin in [
+        format!("{}.0.0", major + 1),
+        format!("{}.0.0-alpha.1", major + 1),
+    ] {
+        let fixture: Fixture = Fixture::new();
+        fixture.write("a.rs", "fn main() {}\n");
+        fixture.write(
             LOCK_NAME,
-            tool_id
-        )
-    );
+            format!("{TOOL_TABLE}\nversion = \"{pin}\"\n").as_str(),
+        );
+        fixture.write(
+            CONFIG,
+            r#"[{ "files": ["**/*.rs"], "rules": { "rust/no-anonymous-functions": { "severity": "off" } } }]"#,
+        );
+        let tool_id: &str = TOOL_TABLE
+            .strip_prefix("[[tools.\"")
+            .and_then(|rest| return rest.strip_suffix("\"]]"))
+            .expect("the tool table header wraps the tool identity");
+        let stale: Run = run(&fixture.path, &[], b"");
+        assert_eq!((stale.status, stale.stdout.as_str()), (2, ""));
+        assert_eq!(
+            stale.stderr,
+            format!(
+                "{PROGRAM}: Configuration {0}/{1}: Unknown built-in rule rust/no-anonymous-functions. ({PROGRAM} {2}) The resolved binary may be stale: {0}/{3} pins {4} {pin}, newer than this binary.\n",
+                fixture.path.display(),
+                CONFIG,
+                env!("CARGO_PKG_VERSION"),
+                LOCK_NAME,
+                tool_id
+            )
+        );
+    }
 }
 
 /// A repository pin older than the running binary measures no staleness,

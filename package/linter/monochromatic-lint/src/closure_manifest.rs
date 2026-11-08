@@ -11,7 +11,8 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type Prerequisite = { kind: 'pkg-config'; modules: string[] } | { kind: 'executables'; names: string[] }
-//!   | { kind: 'qmake' } | { kind: 'ide-runtime-artifacts' } | { kind: 'android-ndk' };
+//!   | { kind: 'qmake' } | { kind: 'ide-runtime-artifacts' } | { kind: 'libghostty-offline-inputs' }
+//!   | { kind: 'android-ndk' };
 //! function readPrerequisites(directory: Path): Prerequisite[]; // throws string
 //! ```
 
@@ -42,13 +43,14 @@ pub const PREREQUISITES_FILE: &str = "monochromatic-lint.prerequisites.jsonc";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const KINDS = ['pkg-config', 'executables', 'qmake', 'ide-runtime-artifacts', 'android-ndk'] as const;
+/// const KINDS = ['pkg-config', 'executables', 'qmake', 'ide-runtime-artifacts', 'libghostty-offline-inputs', 'android-ndk'] as const;
 /// ```
 pub const KINDS: &[&str] = &[
     "pkg-config",
     "executables",
     "qmake",
     "ide-runtime-artifacts",
+    "libghostty-offline-inputs",
     "android-ndk",
 ];
 
@@ -81,6 +83,9 @@ pub enum Prerequisite {
     /// The IDE's runtime and licenses artifacts are prepared,
     ///  and the build directory links to them.
     IdeRuntimeArtifacts,
+    /// The Ghostty source tree and the Zig packages that `libghostty-vt-sys` builds from are fetched,
+    ///  and the build reads them from there instead of downloading.
+    LibghosttyOfflineInputs,
     /// The Android NDK is installed and the cross-compilation variables are set.
     AndroidNdk,
 }
@@ -197,6 +202,10 @@ pub fn parse_prerequisites(source: &str) -> Result<Vec<Prerequisite>, String> {
             "ide-runtime-artifacts" => {
                 only_true(&key, &entry.value)?;
                 found.push(Prerequisite::IdeRuntimeArtifacts);
+            }
+            "libghostty-offline-inputs" => {
+                only_true(&key, &entry.value)?;
+                found.push(Prerequisite::LibghosttyOfflineInputs);
             }
             "android-ndk" => {
                 only_true(&key, &entry.value)?;

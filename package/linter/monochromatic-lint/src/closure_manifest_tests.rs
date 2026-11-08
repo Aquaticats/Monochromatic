@@ -24,6 +24,7 @@ fn accepts_every_kind_in_order() {
           "executables": ["zig"],
           "qmake": true,
           "ide-runtime-artifacts": true,
+          "libghostty-offline-inputs": true,
           "android-ndk": true,
         }"#,
     )
@@ -35,6 +36,7 @@ fn accepts_every_kind_in_order() {
             Prerequisite::Executables(vec![String::from("zig")]),
             Prerequisite::Qmake,
             Prerequisite::IdeRuntimeArtifacts,
+            Prerequisite::LibghosttyOfflineInputs,
             Prerequisite::AndroidNdk,
         ]
     );
@@ -109,7 +111,12 @@ fn refuses_empty_and_non_string_lists() {
 /// A flag kind takes only the literal `true`.
 #[test]
 fn refuses_other_values_for_flag_kinds() {
-    for kind in ["qmake", "ide-runtime-artifacts", "android-ndk"] {
+    for kind in [
+        "qmake",
+        "ide-runtime-artifacts",
+        "libghostty-offline-inputs",
+        "android-ndk",
+    ] {
         for value in ["false", "1", "\"yes\"", "[]", "{}"] {
             let source: String = format!("{{\"{kind}\": {value}}}");
             assert!(parse_prerequisites(source.as_str()).is_err(), "{source}");

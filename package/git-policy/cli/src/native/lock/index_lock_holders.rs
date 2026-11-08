@@ -226,6 +226,63 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
 /// ```
 #[cfg(unix)]
 pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping(proc_root, device, inode, self_pid, ScanLimit { deadline, processes: None });
+}
+
+/// The sort key that puts the highest process number first;
+/// a name that is not a number sorts last.
+#[cfg(unix)]
+fn newest_first(entry: &(u64, String)) -> std::cmp::Reverse<u64> {
+    return std::cmp::Reverse(entry.0);
+}
+
+/// Where a scan of the processes ends early:
+/// at a time,
+/// after a number of processes,
+/// or both;
+/// neither means the whole walk.
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ScanLimit {
+    /// The moment after which no further process is looked at.
+    pub deadline: Option<std::time::Instant>,
+    /// How many processes are looked at at most,
+    /// so a control can cut a scan without racing a clock.
+    pub processes: Option<usize>,
+}
+
+/// Whether a scan that has looked at `reached` processes must stop now.
+#[cfg(unix)]
+fn limit_reached(limit: &ScanLimit, reached: usize) -> bool {
+    if let Some(most) = limit.processes
+        && reached >= most
+    {
+        return true;
+    }
+    return limit.deadline.is_some_and(past);
+}
+
+/// Whether a moment is behind now.
+#[cfg(unix)]
+fn past(moment: std::time::Instant) -> bool {
+    return std::time::Instant::now() >= moment;
+}
+
+/// What:
+///  `scan_proc_fd_holders_until` with its limit given whole:
+/// a time,
+/// a number of processes,
+/// or both.
+/// Why:
+///   A scan that reached the limit ends,
+/// and the evidence says how far it got.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await scanProcFdHolders({ device, inode, procRoot, selfPid, limit: { processes: 5 } });
+/// ```
+#[cfg(unix)]
+pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
@@ -246,10 +303,18 @@ pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, sel
             pids.push(name);
         }
     }
+    // Newest number first: the holder of a lock made a moment ago is usually a recent process, so a scan that is cut short has
+    //  looked at the likeliest ones. Process numbers wrap, so this is a hedge and the bound (`SERVICE_SCAN_BUDGET`) is the fix.
+    let mut numbered: Vec<(u64, String)> = Vec::new();
+    for name in pids.drain(..) {
+        numbered.push((name.parse::<u64>().unwrap_or(0), name));
+    }
+    numbered.sort_by_key(newest_first);
+    for (_number, name) in numbered {
+        pids.push(name);
+    }
     for (reached, pid) in pids.iter().enumerate() {
-        if let Some(limit) = deadline
-            && std::time::Instant::now() >= limit
-        {
+        if limit_reached(&limit, reached) {
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }
@@ -293,15 +358,23 @@ fn trimmed(text: String) -> String {
 
 /// How long the commit service's scan for the processes that have a lock open may take.
 ///
-/// Measured on 2026-11-03 on this host with 858 processes:
-/// listing every process's open descriptors (`ls -l /proc/[0-9]*/fd`,
-///  the same walk) took 0.10 s in each of three runs,
-/// so the budget is two and a half times a whole walk.
-/// A scan that runs
-///  out returns what it found;
-/// the holder then reads as one nothing proves alive,
-/// which is waited for the short backoff.
-pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
+/// Measured on 2026-11-07 on this host at load average 37 to 52:
+/// one walk of every process's open descriptors (list each
+///  `/proc/<pid>/fd` and `stat` each link,
+/// as the scan does) over 1,000 processes and 54,500 descriptors took 313,
+/// 360 and 398 ms.
+///  The earlier budget,
+/// 250 ms,
+/// was measured on 2026-11-03 over 858 processes with `ls` (0.10 s) and was shorter than a whole walk
+///  on today's host,
+/// so a live holder past the cut read as an owner nothing proves alive.
+/// Two seconds is the smallest whole number
+///  of seconds that is at least five times the longest walk (1.99 s);
+/// a scan that still runs out returns what it found,
+/// newest
+///  process first,
+/// and the next look begins again.
+pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// The scan for open holders that the commit service makes:
 /// the host's,

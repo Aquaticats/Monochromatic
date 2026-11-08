@@ -122,6 +122,12 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
             ("path", Value::from(path.to_string_lossy().as_ref())),
         ]),
+        ClientMessage::Warm { git_dir, repository } => object(vec![
+            ("type", Value::from("warm")),
+            ("version", Value::from(PROTOCOL_VERSION)),
+            ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
+            ("repository", Value::from(repository.to_string_lossy().as_ref())),
+        ]),
         ClientMessage::Work { git_dir, review_key } => {
             let mut entries: Vec<(&str, Value)> = vec![
                 ("type", Value::from("work")),

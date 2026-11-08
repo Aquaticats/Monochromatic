@@ -28,7 +28,10 @@ import { parseArgs } from 'node:util';
 
 import { enableSshSigning } from './native-perf-git.ts';
 import { makeRoot } from './native-perf-root.ts';
-import { makeFixture } from './native-perf-shape.ts';
+import {
+  makeFixture,
+  sampleEditsOf,
+} from './native-perf-shape.ts';
 import {
   assertServiceAnswers,
   makeService,
@@ -90,6 +93,10 @@ const { values } = parseArgs({
     'trace-directory': { type: 'string' },
     // Drop each repository's pack, index and packed-refs pages from the page cache before every sample, on both sides.
     cold: { type: 'boolean' },
+    // How many tracked text files every commit sample edits and commits by name (the size of the commit), default one.
+    files: { type: 'string', },
+    'new-files': { type: 'string', },
+    'change-rules': { type: 'boolean', },
     // Milliseconds to wait after each round, so the work a commit leaves running after its answer is over before the next one.
     pause: { type: 'string' },
   },
@@ -191,12 +198,6 @@ function fixture(name: string): Promise<string> {
 }
 
 /**
- The tracked file every commit sample edits: one of the thirty generated files, or the root `README.md` that the shaped
- fixtures track (`DPL` keeps one at the root of this repository).
- */
-const editedFile = values.shape === undefined ? 'file-0.txt' : 'README.md';
-
-/**
  Fixture repository that the direct samples run in.
  */
 const directRepository = await fixture('direct-repo');
@@ -204,6 +205,18 @@ const directRepository = await fixture('direct-repo');
  Fixture repository that the wrapped samples run in.
  */
 const wrappedRepository = await fixture('wrapped-repo');
+
+/**
+ The tracked files every commit sample edits: the one file of the default run, or the first `--files` tracked text files.
+ */
+const edits = await sampleEditsOf({
+  ...(values.files === undefined ? {} : { files: values.files, }),
+  ...(values['new-files'] === undefined ? {} : { added: values['new-files'], }),
+  ...(values['change-rules'] === true ? { changeRules: true, } : {}),
+  root,
+  shaped: values.shape !== undefined,
+  directory: directRepository,
+});
 
 /**
  Throwaway SSH signing key of this run, made in the scratch root; never the person's key.
@@ -324,25 +337,14 @@ async function* measureScenarios(): AsyncGenerator<ScenarioMeasurement> {
   })) {
     yield measure({
       name: wantedArm.name,
-      async prepare({
-        directory,
-        sample,
-      }) {
-        await writeFile(
-          join(
-            directory,
-            editedFile,
-          ),
-          `edit ${String(sample)} ${String(Math.random())}\n`,
-        );
-      },
+      prepare: edits.prepare,
       command({ sample }) {
         return [
           'commit',
           '--quiet',
           `--message=perf ${String(sample)}`,
           '--',
-          editedFile,
+          ...edits.pathsOf(sample),
         ];
       },
       kind: 'commit',

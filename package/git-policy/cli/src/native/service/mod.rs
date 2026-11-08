@@ -98,6 +98,9 @@ pub mod service_main;
 /// The wrapper's side of a commit through the commit service.
 pub mod service_client;
 
+/// The client's one-way request to a running service to compile a repository's rules.
+pub mod service_warm_request;
+
 /// Connecting to the service,
 /// reading one line from it,
 /// and asking an older service to retire.

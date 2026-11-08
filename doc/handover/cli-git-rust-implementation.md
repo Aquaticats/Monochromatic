@@ -3514,6 +3514,138 @@ in a disposable repository with fsmonitor set in its own config;
 fsmonitor is now off globally,
 so main no longer shows it.
 
+### Commits that stalled on an unproven index.lock (2026-11-07)
+
+Branch `fix/git-policy-cli-commits-never-stall-on-an-unproven-lock`.
+Four commits of worktree `repository-passes-monochromatic-lint` ended `stopped` after 678 to 1,229 s
+(batches `1794071191963902` to `905`,
+kept refs `refs/cli-git/kept/1794071191963902` to `906`).
+Observed (service journal `monochromatic-git-policy-cli@1c9eb51b40dabe448a44433445ab12c6.service`,
+the worktree agent's transcript):
+one `index.lock` of size 0 with no PID file,
+made at 13:04:20.578-05:00 and the same file (device,
+inode,
+change time) at 14:06:35,
+62 looks per wait,
+every look read as `foreign no-marker`,
+and each commit refused after its own 600 s ceiling,
+the later ones queued behind the earlier ones' waits (batch 903 `queued_ms` 463,454,
+batch 904 580,364),
+which is where the 20 minutes came from.
+The third client's `answerWaitMs` 1,200,776 is exactly `ANSWER_CEILING`:
+it withdrew on its own bound as well.
+The "orphaned `git commit` (pid 1303971)" of the brief was not the holder:
+the agent's `ps` at about 14:06 listed it as a `git commit --message docs(cargo-shadow-cli)...` of age 2:03,
+a wrapper client of its own retry unit `commit-rest`,
+started about 14:04,
+an hour after the lock was made,
+and waiting behind it.
+No process that held the lock was seen at any time;
+the agent's `ps` filter for `git commit|git add|git status` at 14:06 showed only that client.
+Mechanism shown in a throwaway repository with Git 2.56:
+a `git commit -- <path>` held up in a clean filter holds a size 0 `index.lock`
+with the lock open (and `index~pid.lock` under `core.lockfilePid`),
+and `kill -9` leaves that file with no process and the same size and time.
+So the likeliest shape is a Git that was killed within a moment of making the lock,
+without the PID file the wrapper's own Gits write,
+which is a stale lock;
+that is an inference,
+the creator is not identified by any retained record.
+The agent's hung `git status --short` (tool timeout,
+exit 143,
+13:01:30 to 13:04:12) ended eight seconds before the lock was made:
+a candidate,
+not shown.
+The five kept commits are the only record of the work and nothing was lost:
+every path they carry is on the branch now,
+as the kept blob or through the later commit `f9d0aaebfc`.
+They were one to seven files,
+not large commits.
+The scan defect is real but not shown to have caused this:
+the service's scan walked processes upward and stopped at 250 ms
+(`SERVICE_SCAN_BUDGET`,
+measured on 2026-11-03 over 858 processes) where a whole walk on 2026-11-07 took 313 to 398 ms over 1,000 processes
+and 54,500 descriptors,
+so a live holder past the cut would have read as unproven;
+and hundreds of processes of other user namespaces are unreadable.
+Fixed on the branch:
+scan bound of five times the longest walk with the newest numbers first,
+the holder's PID,
+program,
+start time and `kill` command in the line the person reads and at the ceiling,
+`LANDING_LOCK_CEILING` (one minute:
+five times the longest self-released foreign wait,
+8 s,
+three waits only),
+the refusal at once of the commits queued behind a lock that already outlasted one wait (`service_index_refused_lock.rs`),
+and a summary of the unreadable processes in the unproven line.
+The coordinator searched both journals around the lock's creation for kills:
+the system journal 12:50 to 13:10 (`oom|Killed process|killed|SIGKILL|out of memory`) has only `btrfs-cleaner-io-weight.service` TERM kills,
+and the user journal 12:58 to 13:06 (`oom|Killed|SIGKILL|code=killed|status=9`) has nothing.
+That rules out an out-of-memory or systemd kill,
+not a direct kill (a tool timeout or `kill -9` is not journaled);
+the creator stays unidentified.
+Open,
+for the owner or the next agent:
+whether a size 0 lock that no readable process has open,
+with no PID file,
+may be removed by the service (today never:
+the owner picked "kept" for locks without a PID file);
+the merge,
+the settling of earlier batches and the index reconciliation after a landing still wait `LOCK_CEILING` (10 minutes,
+unmeasured);
+a native `git commit --only` in its hook phase holds the lock with no descriptor open and no PID file,
+and processes of other user namespaces are unreadable,
+so such a holder stays unprovable by descriptor.
+
+### Timing record names every step; the other lock waits; the staged-additions lead (2026-11-07)
+
+Branch `feat/git-policy-cli-commit-timing-names-every-step`,
+cut from `5f5bb6a6d1`.
+The commit timing record now has `steps` (every Git step with program and subcommand,
+offset and duration in ms,
+at most 64) and `stepsDropped`;
+the service's `answered` line ends with `steps="name@offset+duration;..."` and `steps_dropped`.
+The commit Git builds in the scratch repository (`commit/commit_preparation.rs`,
+`run_native_commit`) ran with the terminal attached and no watch,
+which is why the 248 s commit had no notice and no `git commit` key in `quietMs`;
+its entry is now the only record of its time,
+signing included.
+That step is still unbounded and unwatched (an editor may be open in it):
+a wait with no ceiling,
+open for the owner.
+The merge,
+the settling of earlier batches and the index reconciliation take ceilings derived from their measurements (`wait_ceilings.rs`);
+none of the three logs a duration except the settle (`settle_ms`,
+longest 172 ms of 3,630),
+so merge and reconciliation take the landing's ceiling.
+The staged-additions lead:
+`git read-tree --reset`,
+`git update-index --add` and `git diff-index` are issued in the prepare phase,
+not the build,
+by `initialize_commit_index` and `carry_selected_staged_additions` (`commit/commit_index.rs`,
+`commit_staged_additions.rs`,
+`private_index_stage.rs`),
+when the real index differs from the base tree or the commit names staged additions;
+they cost about 100 ms together (43 to 66,
+13, 17) and native Git does the
+same work inside its one process.
+Sampling the stacks of a slow first commit of that shape (`eu-stack`,
+100 ms) put most samples in `forbidden_regex::parallel::build_rules`
+(`RuntimeRules` compile of the rules list):
+the compile runs once per distinct rules text and release (`~/.cache/forbidden-strings/v<version>/`),
+1.7 s warm
+and about 20 s on the first commit of a fresh cache under load;
+the production cache held three entries of the current version today,
+so it is a cost of the first
+commit after a change of the rules text or a new release,
+not of every commit.
+Open:
+precompile the rules for a repository off the commit's path (the service after a landing,
+or at install);
+that touches the service's work loop and the scanner
+adapter and waits for the coordinator.
+
 ### Plain commit with unmerged files finishes the merge
 
 Branch `fix/git-policy-cli-plain-commit-finishes-conflicted-merge`,
@@ -7240,6 +7372,34 @@ Answered by the question tool on 2026-11-03 and not yet in main's SPEC
 "Leave out wrapper refs (Recommended)" for `git push --mirror` (everything except `refs/cli-git/*`,
 with a line saying so);
 "Amend the pending commit (Recommended)" for an amend while commits are pending.
+
+### Push stop, scratch commit notice and rules warm (2026-11-07)
+
+Measured and decided on branch `feat/git-policy-cli-commit-timing-names-every-step`:
+
+- A stopped push never leaves a ref lock whose holder the wrapper saw.
+  Git's handler removes a lock's pid file and then the lock,
+  so a kill between the two left an unproven lock (the container gate left `refs/remotes/origin/main.lock`, 29.9 s under load).
+  The stop now claims the locks a running tree member holds before it signals (pinned by device, inode and birth),
+  and the sweep removes exactly that file once the member has ended (`Proof::ClaimedBeforeStop`).
+  Controls: `lock::git_stop_lock_tests` (a kill between the two unlinks, bounded and watched) and two ledger controls.
+- The commit Git builds in the scratch repository prints a waiting notice (names the `git commit`, signing, the signer, no limit).
+  Adding a ceiling stays the owner's question.
+- Rules warm: the service warms the compiled forbidden-strings rules after the first landing of a repository,
+  after a landing that changes a rules path, after a restart (the repository is remembered), and on a client `warm` message
+  sent after a worktree-moving command changed the rules text.
+  Measured with a 30-file fixture holding the repository's real rules and configuration, five samples per arm,
+  paired against the binary from before the change (release builds):
+  - first commit after a checkout that changed the rules text: before 1313 ms and 1293 ms (medians of two runs),
+    after with the warm settled 45 ms, immediately after the checkout 1401 ms;
+  - first commit after a fresh cache and a service restart: before 1253 ms and 1263 ms,
+    after with the warm settled 45 ms, immediately after the service started 1376 ms.
+  - The commit that races the warm is about 100 ms slower than before (both compile),
+    which is larger than the spread of the unchanged binary (10 to 20 ms between medians).
+    Neither first commit exceeded 5 s here; the earlier 20 s was observed under load.
+    Next step if a commit that races a warm is over the owner's bound: the client waits for the warm under way instead of compiling a second time.
+  - Wrapped `checkout` that leaves the rules unchanged: 7.9, 8.2, 8.2 and 8.0 ms (before, after, before, after; same-binary spread 0.3 ms mad).
+    A checkout that changes the rules text costs 10 to 15 ms more (config load, hash, one connection).
 
 ### Design stance
 

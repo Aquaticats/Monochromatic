@@ -118,13 +118,16 @@ pub fn ide_setup(directory: &Path) -> Result<Vec<(String, String)>, String> {
         ));
     }
     let build: PathBuf = directory.join("target").join(BUILD_DIRECTORY);
+    // The IDE's build.rs takes the parent of the nearest ancestor named `build` of OUT_DIR as the profile directory,
+    // reads `runtime` in it and `crate-licenses.json` beside it,
+    // for Cargo's layouts `build/ide-<hash>/out` and `build/ide/<hash>/out` alike.
     link(
-        &build.join("debug").join("build").join("runtime"),
-        Path::new("../../../debug/runtime"),
+        &build.join("debug").join("runtime"),
+        Path::new("../../debug/runtime"),
     )?;
     link(
-        &build.join("debug").join("crate-licenses.json"),
-        Path::new("../../crate-licenses.json"),
+        &build.join("crate-licenses.json"),
+        Path::new("../crate-licenses.json"),
     )?;
     return Ok(vec![(
         String::from("CARGO_BUILD_BUILD_DIR"),

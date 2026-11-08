@@ -54,6 +54,8 @@ mod closure_manifest;
 mod closure_packages;
 /// Machine prerequisite checks of the closure check.
 mod closure_probe;
+/// The libghostty offline inputs that the terminal's fetch task prepared.
+mod closure_probe_ghostty;
 /// The prerequisites that prepare a build:
 ///  the IDE artifacts and the Android cross-compilation.
 mod closure_probe_platform;

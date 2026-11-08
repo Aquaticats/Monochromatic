@@ -1695,3 +1695,102 @@ fn a_new_pid_namespace_over_the_old_proc_is_told_from_the_view() {
 }
 
 //endregion
+
+
+/// What the person is told about a holder proven alive:
+/// its number,
+/// its program,
+/// when it started,
+/// and the way out.
+/// Why:
+///  On 2026-11-07 a commit waited for a lock held by a live `git commit` and was told only that the owner "cannot be proven alive".
+///  A holder the wrapper can see is named with what a person needs to end it if it is stuck:
+/// the PID,
+/// the program,
+/// the start time and the command.
+#[test]
+fn a_holder_proven_alive_is_named_with_its_program_start_time_and_the_way_out() {
+    let (root, index) = index_in("index-lock-named-holder");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    // The PID file names this process, which runs and started before the lock was made.
+    let pid: u32 = std::process::id();
+    std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {pid}\n")).expect("PID file");
+    let program: String = std::fs::read_to_string("/proc/self/comm").expect("own name").trim().to_string();
+    let started_at_ms: f64 = match crate::process_start::resolve_process_start(i64::from(pid)) {
+        crate::process_start::ProcessStart::Running { started_at_ms, .. } => started_at_ms,
+        other => panic!("this process runs: {other:?}"),
+    };
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let refused = acquire_within(&SYSTEM, &index, 20, Duration::from_millis(200), &|note| { heard.lock().expect("lock").push(note); });
+    assert!(refused.is_err(), "the holder never let go");
+    let said: Vec<String> = heard.lock().expect("lock").iter().filter_map(|note| {
+        return match note { Announce::Waiting(text) => Some(text.clone()), Announce::Holder(_) => None };
+    }).collect();
+    let first: &String = said.first().expect("the wait said what it waits for");
+    assert!(first.contains(format!("PID {pid} ({program})").as_str()), "{first}");
+    // The start time is read again from the system when the line is made, and the system derives it from the uptime, so two readings
+    //  differ by a few milliseconds: the line's time is compared with this one within a second.
+    let named: &str = first.split("started ").nth(1).and_then(|rest| { return rest.split(';').next(); }).expect("the line names a start time");
+    let named_ms: i64 = named.parse::<jiff::Timestamp>().expect("an ISO time").as_millisecond();
+    assert!((named_ms - started_at_ms as i64).abs() < 1000, "{first}");
+    assert!(first.contains(format!("kill {pid}").as_str()), "{first}");
+    remove(root.as_path());
+}
+
+/// A lock that already outlasted one commit's wait is refused at once to the commits queued behind it.
+/// Why:
+///  Four commits of one worktree each waited a full ceiling for the same lock one after another,
+/// 678 to 1,229 s each,
+/// because
+///  every queued commit began its own wait.
+/// The lock is the same file;
+/// a second wait for it tells nothing the first did not.
+#[test]
+fn a_lock_that_outlasted_one_wait_is_refused_at_once_to_the_next_commit() {
+    let (root, index) = index_in("index-lock-refused-once");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let first_ceiling: Duration = Duration::from_millis(400);
+    let began: Instant = Instant::now();
+    assert!(acquire_within(&SYSTEM, &index, 21, first_ceiling, &|_| {}).is_err());
+    assert!(began.elapsed() >= first_ceiling, "{:?}", began.elapsed());
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let next_began: Instant = Instant::now();
+    // The next commit's own ceiling is far longer than the control runs.
+    let next = acquire_within(&SYSTEM, &index, 22, NOTICE_EVERY * 6, &|note| { heard.lock().expect("lock").push(note); });
+    let next_waited: Duration = next_began.elapsed();
+    assert!(next.is_err());
+    assert!(next_waited < NOTICE_EVERY, "the second commit waited {next_waited:?} for a lock that had already outlasted a wait");
+    let said: Vec<Announce> = heard.lock().expect("lock").clone();
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held")); }), "{said:?}");
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("earlier commit")); }), "{said:?}");
+    remove(root.as_path());
+}
+
+/// A lock that is another file than the one that outlasted a wait is waited for in full.
+#[test]
+fn a_new_lock_is_waited_for_after_the_one_that_outlasted_a_wait_is_gone() {
+    let (root, index) = index_in("index-lock-refused-then-replaced");
+    std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
+    let ceiling: Duration = Duration::from_millis(400);
+    assert!(acquire_within(&SYSTEM, &index, 23, ceiling, &|_| {}).is_err());
+    std::fs::remove_file(lock_path_of(&index)).expect("the holder lets go");
+    std::fs::write(lock_path_of(&index), "another foreign").expect("another program's lock");
+    let began: Instant = Instant::now();
+    assert!(acquire_within(&SYSTEM, &index, 24, ceiling, &|_| {}).is_err());
+    assert!(began.elapsed() >= ceiling, "a different lock was refused at once: {:?}", began.elapsed());
+    remove(root.as_path());
+}
+
+/// The landing's wait for a foreign lock is the longest self-released wait with a margin of five,
+/// in whole minutes,
+/// the way every
+///  other ceiling of `wait_ceilings.rs` is derived.
+#[test]
+fn the_landing_ceiling_follows_the_longest_measured_foreign_wait() {
+    use crate::wait_ceilings::{LANDING_LOCK_CEILING, LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT};
+    const MARGIN: u32 = 5;
+    const MINUTE: Duration = Duration::from_secs(60);
+    let wanted: Duration = LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT * MARGIN;
+    assert!(LANDING_LOCK_CEILING >= wanted, "{LANDING_LOCK_CEILING:?}");
+    assert!(LANDING_LOCK_CEILING < wanted + MINUTE, "{LANDING_LOCK_CEILING:?}");
+}
