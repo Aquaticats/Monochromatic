@@ -4,12 +4,14 @@
 //! Why:
 //!  `avoidable_closure` needs the types and captures that only the compiler knows,
 //!  so the linter asks the compiler through `cargo dylint` after the per-file rules have run.
-//!  A package whose prerequisites are missing on the machine is skipped with a message on standard error,
+//!  A package whose prerequisites are missing on the machine is skipped with a warning finding that names the package
+//!  and the command that fixes it,
+//!  so a skip is counted like any warning and never hides behind a green run,
 //!  and a package that cannot be checked for any other reason fails the run with status 2.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type ClosureOutcome = { findings: Diagnostic[]; notes: string[]; messages: string[] };
+//! type ClosureOutcome = { findings: Diagnostic[]; skips: Diagnostic[]; notes: string[] };
 //! function runClosureStep(plans: FilePlan[], cwd: Path, fix: boolean): ClosureOutcome;
 //! ```
 
@@ -29,7 +31,7 @@ use crate::{
     closure_packages::{ClosurePackage, group_packages},
     closure_probe::{PackageSetup, Readiness, prepare},
     closure_report::{Parsed, parse_records},
-    diagnostic::Diagnostic,
+    diagnostic::{Diagnostic, Severity},
     run_failure::{file_start, processing_failure},
     run_paths::display_name,
     run_plan::FilePlan,
@@ -43,36 +45,98 @@ use std::{
 /// What:
 ///  What the step adds to a run.
 /// Why:
-///  Findings join the run's JSONL,
-///  notes join the `--debug` notes,
-///  and messages are always written to standard error because a skipped package must be visible.
+///  Findings and skips both join the run's JSONL,
+///  notes join the `--debug` notes;
+///  skips are kept apart from findings so that a caller can tell a package that was not checked
+///  from a package that was checked and reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ClosureOutcome = { findings: Diagnostic[]; notes: string[]; messages: string[] };
+/// type ClosureOutcome = { findings: Diagnostic[]; skips: Diagnostic[]; notes: string[] };
 /// ```
 #[derive(Debug, Default)]
 pub struct ClosureOutcome {
     /// Findings of the check,
     ///  including processing failures.
     pub findings: Vec<Diagnostic>,
+    /// One warning finding per package that was not checked,
+    ///  each naming the package and the command that fixes the gap.
+    pub skips: Vec<Diagnostic>,
     /// Execution notes for `--debug`.
     pub notes: Vec<String>,
-    /// Lines for standard error without the program prefix.
-    pub messages: Vec<String>,
 }
 
 /// What:
-///  Format a skip message.
+///  Build the warning finding of a package that was not checked.
 /// Why:
-///  One wording keeps the messages searchable by the rule name.
+///  The owner decided on 2026-11-07 that a skip is a warning and never a silent message,
+///  because a cold-cache skip once hid five packages' findings behind a green run;
+///  the finding sits at the start of the package's `Cargo.toml`,
+///  one wording keeps the findings searchable by the rule name,
+///  and the severity is fixed because the configured severity belongs to the closure reports.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function skipMessage(subject: string, reason: string): string;
+/// function skipFinding(manifest: string, subject: string, reason: string): Diagnostic;
 /// ```
-fn skip_message(subject: &str, reason: &str) -> String {
-    return format!("{RULE} skipped {subject}: {reason}.");
+fn skip_finding(manifest: &str, subject: &str, reason: &str) -> Diagnostic {
+    return Diagnostic::new(
+        RULE,
+        Severity::Warn,
+        format!(
+            "{RULE} skipped {subject}: {reason}. Nothing in this package was checked by this rule, so a run without findings says nothing about its closures."
+        ),
+        String::from(manifest),
+        file_start(),
+    );
+}
+
+/// What:
+///  The packages that are checked with one Dylint library.
+/// Why:
+///  A missing driver belongs to a library,
+///  and a named loop is the selection that `filter` would make with a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function packagesOfLibrary(packages: ClosurePackage[], library: Path): ClosurePackage[];
+/// ```
+fn packages_of_library<'packages>(
+    packages: &'packages [ClosurePackage],
+    library: &Path,
+) -> Vec<&'packages ClosurePackage> {
+    let mut chosen: Vec<&ClosurePackage> = Vec::<&ClosurePackage>::new();
+    for package in packages {
+        if package.library.as_path() == library {
+            chosen.push(package);
+        }
+    }
+    return chosen;
+}
+
+/// What:
+///  Skip each of several packages for one reason.
+/// Why:
+///  A machine-wide gap or a missing driver costs every package of a group,
+///  and the warning must name each package so that the report shows how much went unchecked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function skipPackages(packages: ClosurePackage[], reason: string, cwd: Path): Diagnostic[];
+/// ```
+fn skip_packages(packages: &[&ClosurePackage], reason: &str, cwd: &Path) -> Vec<Diagnostic> {
+    let mut skips: Vec<Diagnostic> = Vec::<Diagnostic>::new();
+    for package in packages {
+        let Some(directory) = package.manifest.parent() else {
+            continue;
+        };
+        skips.push(skip_finding(
+            display_name(&package.manifest, cwd).as_str(),
+            display_name(directory, cwd).as_str(),
+            reason,
+        ));
+    }
+    return skips;
 }
 
 /// What:
@@ -152,7 +216,9 @@ fn check_package(
         }
     };
     if let Some(reason) = dependencies_missing(cargo, &package.manifest) {
-        outcome.messages.push(skip_message(&subject, &reason));
+        outcome
+            .skips
+            .push(skip_finding(manifest_name.as_str(), &subject, &reason));
         return outcome;
     }
     let setup: PackageSetup = match prepare(
@@ -163,7 +229,9 @@ fn check_package(
     ) {
         Readiness::Ready(ready) => ready,
         Readiness::Skipped(reason) => {
-            outcome.messages.push(skip_message(&subject, &reason));
+            outcome
+                .skips
+                .push(skip_finding(manifest_name.as_str(), &subject, &reason));
             return outcome;
         }
     };
@@ -207,8 +275,8 @@ fn check_package(
 /// ```
 fn absorb(total: &mut ClosureOutcome, part: ClosureOutcome) {
     total.findings.extend(part.findings);
+    total.skips.extend(part.skips);
     total.notes.extend(part.notes);
-    total.messages.extend(part.messages);
 }
 
 /// What:
@@ -323,10 +391,11 @@ pub fn run_closure_step_at(
         Ok(_) => rustc_dev_missing(cargo),
     };
     if let Some(reason) = machine_gap {
-        outcome.messages.push(skip_message(
-            &format!("all {} package(s)", grouping.packages.len()),
-            &reason,
-        ));
+        let everything: Vec<&ClosurePackage> =
+            grouping.packages.iter().collect::<Vec<&ClosurePackage>>();
+        outcome
+            .skips
+            .extend(skip_packages(everything.as_slice(), reason.as_str(), cwd));
         return outcome;
     }
     let gaps: DriverGaps = driver_gaps(
@@ -338,9 +407,11 @@ pub fn run_closure_step_at(
     );
     outcome.notes.extend(gaps.notes);
     for gap in &gaps.gaps {
+        let affected: Vec<&ClosurePackage> =
+            packages_of_library(grouping.packages.as_slice(), &gap.library);
         outcome
-            .messages
-            .push(skip_message(gap.subject.as_str(), gap.reason.as_str()));
+            .skips
+            .extend(skip_packages(affected.as_slice(), gap.reason.as_str(), cwd));
     }
     let targets: Targets = targets_of(plans);
     let search: OsString = std::env::var_os("PATH").unwrap_or_default();
@@ -354,26 +425,6 @@ pub fn run_closure_step_at(
         );
     }
     return outcome;
-}
-
-/// What:
-///  Put the step's messages before the rest of a run's standard error.
-/// Why:
-///  The messages are not debug output,
-/// so they appear on every run;
-/// each line carries the program prefix.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function withMessages(stderr: string, messages: string[], program: string): string;
-/// ```
-pub fn with_messages(standard_error: &str, messages: &[String], program: &str) -> String {
-    let mut text: String = String::new();
-    for message in messages {
-        text.push_str(format!("{program}: {message}\n").as_str());
-    }
-    text.push_str(standard_error);
-    return text;
 }
 
 /// Step controls stay outside release artifacts.

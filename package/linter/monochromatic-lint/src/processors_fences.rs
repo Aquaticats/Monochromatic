@@ -23,6 +23,33 @@ use satteri_ast::mdast::{MdastNodeType, decode_code_data};
 /// Share exact parent snapshots between sibling fences.
 use std::sync::Arc;
 
+/// The info-string word that exempts a fence from `rust/require-rustdoc`.
+///  It follows `rust` after a space (```` ```rust monochromatic-lint-skip-rustdoc ````),
+///  which GitHub still renders as Rust,
+///  and a comma form (```` ```rust,monochromatic-lint-skip-rustdoc ````) is accepted too.
+pub(crate) const SKIP_RUSTDOC_MARKER: &str = "monochromatic-lint-skip-rustdoc";
+
+/// Whether a character separates the words of an info string.
+fn is_word_separator(character: char) -> bool {
+    return character == ',' || character.is_whitespace();
+}
+
+/// Whether a text holds [`SKIP_RUSTDOC_MARKER`] as a whole word.
+///  A longer word that merely contains the marker does not count.
+fn has_marker_word(text: &str) -> bool {
+    for word in text.split(is_word_separator) {
+        if word == SKIP_RUSTDOC_MARKER {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Whether a fence's language word or the rest of its info string carries [`SKIP_RUSTDOC_MARKER`].
+fn info_string_has_marker(language: &str, meta: &str) -> bool {
+    return has_marker_word(language) || has_marker_word(meta);
+}
+
 /// Extract selected Rust fences;
 ///  unlabeled fences become Rust only inside authored Rustdoc.
 pub(crate) fn fences(parent: &Arc<Mapping>, rustdoc: bool) -> Result<Vec<Mapping>, ProcessorError> {
@@ -68,7 +95,10 @@ pub(crate) fn fences(parent: &Arc<Mapping>, rustdoc: bool) -> Result<Vec<Mapping
             parent,
             virtual_name,
             ProcessorLanguage::Rust,
-            Guard::Fence { marker },
+            Guard::Fence {
+                marker,
+                skips_rustdoc: info_string_has_marker(language, parsed.text(data.meta)),
+            },
             marker,
         );
         let written: &str = &parent.text[marker..node_end];
@@ -115,7 +145,9 @@ pub(crate) fn fence_text(
     // All explicit Rust fences are selected irrespective of their rustdoc attributes.
     for mapping in fences(parent, true)? {
         // Require both the fence variant and its original marker in one let-chain.
-        if let Guard::Fence { marker: candidate } = mapping.guard
+        if let Guard::Fence {
+            marker: candidate, ..
+        } = mapping.guard
             && candidate == marker
         {
             return Ok(Some(mapping.text));

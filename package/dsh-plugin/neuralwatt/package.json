@@ -45,6 +45,7 @@
     }
   },
   "dependencies": {
+    "@monochromatic-dev/agent-harness-shared-neuralwatt-listing": "workspace:*",
     "@monochromatic-dev/caught-value-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*"
   },

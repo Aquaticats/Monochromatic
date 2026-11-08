@@ -114,6 +114,9 @@ loop has an internal tripwire for exactly this inconsistency
 (`resharp-engine/src/ldfa.rs:842-846`):
 
 ```rust
+//! The assertion that the forward scan finds an end for the start that the reverse scan proposed,
+//! followed by the guarded match push;
+//! the reproduction reaches the case where it finds none.
 debug_assert_ne!(
     NO_MATCH, l_max_end,
     "find_all: forward scan found no end for reverse-proposed start 0"

@@ -98,6 +98,13 @@ not mis-answered.
 `find_anchored` (`resharp-engine/src/lib.rs:1899-1909`):
 
 ```rust
+//! The anchored search of the regex:
+//! the empty input and the lookbehind case are handled first,
+//! and the rest is a forward scan from offset zero.
+
+/// Finds the match that starts at offset zero,
+/// or none,
+/// and rejects a pattern with a lookbehind as unsupported.
 pub fn find_anchored(&self, input: &[u8]) -> Result<Option<Match>, Error> {
     if input.is_empty() { return Ok(self.empty_input_match()); }
     let inner = &mut *self.inner.lock().unwrap_or_else(|e| e.into_inner());

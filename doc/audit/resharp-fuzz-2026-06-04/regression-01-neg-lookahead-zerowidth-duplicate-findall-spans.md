@@ -34,6 +34,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the duplicated zero-width span:
+//! the negative lookahead of the begin anchor emits the empty match at offset one twice,
+//! which the parent commit did not.
+
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 let re = Regex::with_options(r"(?!\A)", RegexOptions::default()).unwrap();
 let fa: Vec<(usize, usize)> = re.find_all(b"ab").unwrap().iter().map(|m| (m.start, m.end)).collect();
@@ -110,6 +115,10 @@ The commit added a zero-width fast path to `mk_neg_lookahead`
 (`resharp-algebra/src/lib.rs:3554`):
 
 ```rust
+//! The constructor of a negative lookahead after the change that added a branch for bodies of zero width.
+
+/// Builds the node for a negative lookahead of `body`,
+/// with a direct lowering when the body has zero width and the old lowering otherwise.
 pub fn mk_neg_lookahead(&mut self, body: NodeId, rel: u32) -> NodeId {
     let (_, p_max) = self.get_min_max_length(body);
     if p_max == 0 {

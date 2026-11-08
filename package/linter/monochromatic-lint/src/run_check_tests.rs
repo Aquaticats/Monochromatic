@@ -105,6 +105,63 @@ fn markdown_fences_are_checked_as_virtual_rust_at_host_positions() {
     assert_eq!(budget.severity, Severity::Error);
 }
 
+/// A fence marked with `monochromatic-lint-skip-rustdoc` is exempt from `rust/require-rustdoc`,
+///  an unmarked fence of the same code still warns,
+///  and the marker withholds nothing else from the marked fence.
+#[test]
+fn a_marked_fence_skips_require_rustdoc_and_an_unmarked_fence_still_warns() {
+    let fixture: Fixture = Fixture::new();
+    let config: &str = r#"[
+      { "files": ["**/*.md/*.rs"], "rules": { "rust/require-rustdoc": { "severity": "warn" }, "rust/max-lines": { "severity": "error", "max": 0 } } }
+    ]"#;
+    let source: &str = concat!(
+        "# Title\n\n",
+        "```rust monochromatic-lint-skip-rustdoc\n",
+        "fn marked() {}\n",
+        "```\n\n",
+        "```rust\n",
+        "fn unmarked() {}\n",
+        "```\n"
+    );
+    let findings: Vec<Diagnostic> = check(&fixture.path, config, "doc/a.md", source);
+    let mut pairs: Vec<(String, usize)> = located(findings.as_slice());
+    pairs.sort();
+    assert_eq!(
+        pairs,
+        [
+            (String::from("rust/max-lines"), 4),
+            (String::from("rust/max-lines"), 8),
+            // The unmarked fence owes both file docs and function docs.
+            (String::from("rust/require-rustdoc"), 8),
+            (String::from("rust/require-rustdoc"), 8),
+        ],
+        "the marked fence reports no missing rustdoc, the unmarked one reports it, and both keep the line budget"
+    );
+}
+
+/// The marker is one whole word of the info string,
+///  after a space or a comma,
+///  and a word that only contains it exempts nothing.
+#[test]
+fn the_fence_marker_is_a_whole_word_after_a_space_or_a_comma() {
+    let fixture: Fixture = Fixture::new();
+    let config: &str = r#"[
+      { "files": ["**/*.md/*.rs"], "rules": { "rust/require-rustdoc": { "severity": "warn" } } }
+    ]"#;
+    for (opener, exempt) in [
+        ("```rust monochromatic-lint-skip-rustdoc", true),
+        ("```rust,monochromatic-lint-skip-rustdoc", true),
+        ("```rust,ignore monochromatic-lint-skip-rustdoc", true),
+        ("```rust monochromatic-lint-skip-rustdoc-not", false),
+        ("```rust not-monochromatic-lint-skip-rustdoc", false),
+        ("```rust", false),
+    ] {
+        let source: String = format!("# Title\n\n{opener}\nfn item() {{}}\n```\n");
+        let findings: Vec<Diagnostic> = check(&fixture.path, config, "doc/a.md", source.as_str());
+        assert_eq!(findings.is_empty(), exempt, "{opener}: {findings:?}");
+    }
+}
+
 /// A virtual path no block selects,
 ///  or one a block ignores,
 ///  is not checked;

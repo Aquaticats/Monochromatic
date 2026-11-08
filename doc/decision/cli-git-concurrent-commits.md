@@ -181,14 +181,19 @@ broad when absent.
 
 Implemented 2026-11-03 (delegated pick 2 of `doc/planning/cli-git-shipped-limits-audit.md`;
 the coordinator picked while the
-owner was away, open to the owner's veto):
-a proven-alive owner is waited for with no bound, which the code had not done (it stopped at 1800 seconds);
+owner was away,
+open to the owner's veto):
+a proven-alive owner is waited for with no bound,
+which the code had not done (it stopped at 1800 seconds);
 a dead owner ends the wait at once instead of after the backoff (a deviation from the line above);
-an evidence-free owner first got a fixed 1000 ms instead of the quadratic backoff with jitter, and the diagnostic;
+an evidence-free owner first got a fixed 1000 ms instead of the quadratic backoff with jitter,
+and the diagnostic;
 the coordinator's
-follow-up pick under the same delegation (2026-11-03, open to the owner's veto)
+follow-up pick under the same delegation (2026-11-03,
+open to the owner's veto)
 replaced that with the same unbounded wait a
-proven-alive owner gets, with a line that says what is known and how to remove the lock if no program uses the
+proven-alive owner gets,
+with a line that says what is known and how to remove the lock if no program uses the
 repository,
 because the person's own `git commit` with its editor open holds `index.lock` with no proof and would otherwise make
 ours fail;
@@ -199,8 +204,11 @@ ours fail;
 Pushes are single-flight per branch.
 A landed commit joins an in-flight push covering its OID or pushes the branch tip itself,
 and exits only once the remote contains its OID.
-A push that the remote refuses as stale is reconciled by a merge made from objects, signed when the repository signs
-commits, and published with a plain push; since 2026-10-19 the branch and a clean worktree are then fast-forwarded to
+A push that the remote refuses as stale is reconciled by a merge made from objects,
+signed when the repository signs
+commits,
+and published with a plain push;
+since 2026-10-19 the branch and a clean worktree are then fast-forwarded to
 it.
 The specification is the "Auto-push" section of `package/git-policy/cli/SPEC.md`.
 
@@ -288,9 +296,13 @@ Evidence:
   it no longer blocks every invocation while another commit runs.
 - Every read of live `HEAD` in the transaction uses the recorded preparation base or the landed OID.
 - Recovery searches the target ref's reflog for its nonce instead of checking only the newest entry.
-- Superseded as of 2026-11-03T02:57:19-05:00: no settlement lock exists any more.
-  Concurrent adds never wait for one another; the destination comes from the command line, and journals and stage
-  claims name their owner process (`package/git-policy/cli/SPEC.md`, "Linked-worktree ignored-state synchronization").
+- Superseded as of 2026-11-03T02:57:19-05:00:
+  no settlement lock exists any more.
+  Concurrent adds never wait for one another;
+  the destination comes from the command line,
+  and journals and stage
+  claims name their owner process (`package/git-policy/cli/SPEC.md`,
+  "Linked-worktree ignored-state synchronization").
   The text that follows is the historical record.
 - The worktree-copy settlement lock is held only by forwarded commands that,
   after alias resolution,
@@ -378,10 +390,14 @@ Evidence:
   Rules:
   `package/git-policy/cli/SPEC.md` "Locks".
   Retired (note added 2026-11-01):
-  the Rust wrapper has no trust registry, so this lock, the `NODE_OPTIONS` preload and `os.userInfo()` no longer exist;
+  the Rust wrapper has no trust registry,
+  so this lock,
+  the `NODE_OPTIONS` preload and `os.userInfo()` no longer exist;
   `trust [--yes]`,
    `untrust` and `status` only print the retirement
-  (`package/git-policy/cli/SPEC.md`, the retired-forms paragraph, and `src/native/management_arguments.rs`).
+  (`package/git-policy/cli/SPEC.md`,
+  the retired-forms paragraph,
+  and `src/native/management_arguments.rs`).
 - Trust provenance readers follow "Locks",
   added 2026-09-26 (veto open):
   config loading,
@@ -399,7 +415,8 @@ Evidence:
   `package/git-policy/cli/SPEC.md` "Recursive enrollment and revocation".
   Retired (note added 2026-11-01):
   that SPEC section no longer exists and there are no trust provenance readers;
-  configuration is data, read without a registry
+  configuration is data,
+  read without a registry
   (`package/git-policy/cli/SPEC.md` line 21 records the retirement of the trust registry).
 - Git feature degradation is detected by exercising each feature,
   added 2026-09-26 (veto open):
@@ -611,7 +628,9 @@ Refusing `--amend` on published commits was rejected
 because it would change amend behavior in every repository,
 including solo use.
 
-Narrowed 2026-10-19 (user, by question; the original decision above stays as the record):
+Narrowed 2026-10-19 (user,
+by question;
+the original decision above stays as the record):
 auto-push never fails for want of a conflict-free merge,
 so commits landed on top of an amend of an already-published commit are merged into the remote branch,
 and the replaced commit stays in the remote history beside the amended one.

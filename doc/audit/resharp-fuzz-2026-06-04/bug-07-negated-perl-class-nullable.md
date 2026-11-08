@@ -19,6 +19,12 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the nullable negated class:
+//! in ASCII mode,
+//! `\D` matches the empty input.
+
+/// The regex type,
+/// its options and the Unicode mode that selects ASCII classes.
 use resharp::{Regex, RegexOptions, UnicodeMode};
 let re = Regex::with_options(r"\D", RegexOptions::default().unicode(UnicodeMode::Ascii)).unwrap();
 assert_eq!(re.is_match(b"").unwrap(), false); // FAILS: resharp returns true

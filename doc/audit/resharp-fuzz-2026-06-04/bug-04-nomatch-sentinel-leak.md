@@ -18,6 +18,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the no-match sentinel leak:
+//! `find_all` returns a match whose end is the sentinel value.
+
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 let opts = RegexOptions::default()
     .case_insensitive(true).ignore_whitespace(true)
@@ -66,6 +70,7 @@ Every returned `Match` satisfies `start <= end <= haystack.len()`.
 `l_max_end` can still be `NO_MATCH`:
 
 ```rust
+//! The two places in the engine that push a match without checking that the end is not the sentinel.
 // engine.rs:1009
 matches.push(Match { start: nulls[i], end: l_max_end });
 // engine.rs:1022

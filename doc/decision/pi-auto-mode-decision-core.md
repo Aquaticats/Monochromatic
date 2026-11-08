@@ -3,8 +3,15 @@
 Accepted on 2026-10-15 after the
 [whole-system review](../planning/pi-auto-mode-whole-system-review.md).
 The user authorized replacement and explicitly requested avoiding overengineering.
-One decision owner will select current context, assess it, resolve policy, and apply scoped confirmation.
-Retain the native owners of prepared arguments, operation identity, source freshness, cancellation, and execution.
+One decision owner will select current context,
+assess it,
+resolve policy,
+and apply scoped confirmation.
+Retain the native owners of prepared arguments,
+operation identity,
+source freshness,
+cancellation,
+and execution.
 Separate bypass execution from semantic program-profile admission.
 
 Use existing functions and dependencies wherever their behavior satisfies the contract.

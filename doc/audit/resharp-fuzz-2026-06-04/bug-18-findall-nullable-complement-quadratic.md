@@ -23,6 +23,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the quadratic `find_all` on a nullable complement:
+//! the time grows with the square of the input.
+
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 let re = Regex::with_options("~(a+)", RegexOptions::default()).unwrap();
 let hay = vec![b'a'; 98304];
@@ -116,7 +120,12 @@ per-position scan.
 position:
 
 ```rust
+//! The slow path of `find_all` for nullable patterns:
+//! every position starts a fresh forward scan over the rest of the input,
+//! so the work is quadratic.
 // resharp-engine/src/lib.rs:1794
+/// Finds the matches of a nullable pattern by scanning forward from every candidate start,
+/// advancing one byte after an empty match or a miss.
 fn find_all_nullable_slow(fwd, b, input, matches) -> Result<(), Error> {
     let mut pos = 0;
     while pos < input.len() {

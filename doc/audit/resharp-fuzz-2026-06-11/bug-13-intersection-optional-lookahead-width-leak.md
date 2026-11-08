@@ -51,7 +51,10 @@ rather than inferred.
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the width leak of an optional lookahead under intersection:
+//! the first span is one byte wide where it must have zero width.
 // stock resharp v0.6.12, default config
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 
 let re = Regex::with_options(r"a?&(?=a)?", RegexOptions::default()).unwrap();

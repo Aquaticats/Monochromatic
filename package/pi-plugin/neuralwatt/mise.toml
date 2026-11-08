@@ -1,0 +1,82 @@
+[tasks.build]
+extends = "build"
+
+[tasks."build:js"]
+extends = "build:js"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
+
+[tasks."watch:build"]
+extends = "watch:build"
+
+[tasks."watch:build:js"]
+extends = "watch:build:js"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
+
+[tasks.lint]
+extends = "lint"
+
+[tasks."lint:types"]
+extends = "lint:types"
+
+[tasks."lint:oxlint"]
+extends = "lint:oxlint"
+
+[tasks."format:oxlint"]
+extends = "format:oxlint"
+
+[tasks."test:unit"]
+extends = "test:unit"
+depends = ["build"]
+
+[tasks."verify:extension"]
+depends = ["build"]
+run = "node src/mise.verify-extension.ts"
+
+[tasks."install:global"]
+description = "Install this extension into the global pi settings without changing anything outside packages"
+shell = "node --input-type=module-typescript -e"
+run = '''
+import { execFile } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { promisify } from 'node:util'
+import { resolve, join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { getAgentDir } from '@earendil-works/pi-coding-agent'
+class GlobalInstallationError extends Error {
+  constructor(message) { super(message); this.name = 'GlobalInstallationError' }
+}
+const run = promisify(execFile)
+const entry = new URL(import.meta.resolve('@earendil-works/pi-coding-agent'))
+const cli = fileURLToPath(new URL('./cli.js', entry))
+const hostRoot = fileURLToPath(new URL('../', entry))
+const settingsPath = join(getAgentDir(), 'settings.json')
+const before = JSON.parse(await readFile(settingsPath, 'utf8'))
+const packagePath = resolve('.')
+const { isLocalPath, resolvePath } = await import(new URL('./utils/paths.js', entry))
+const result = await run(process.execPath, [cli, 'install', packagePath], { env: { ...process.env, PI_PACKAGE_DIR: hostRoot } })
+process.stdout.write(result.stdout)
+process.stderr.write(result.stderr)
+const after = JSON.parse(await readFile(settingsPath, 'utf8'))
+const { packages: previousPackages, ...previousSettings } = before
+const { packages: installedPackages, ...installedSettings } = after
+if (JSON.stringify(previousSettings) !== JSON.stringify(installedSettings)) {
+  throw new GlobalInstallationError('Pi package installation changed non-package settings; inspect the settings diff before continuing.')
+}
+function isThisPackage(value) {
+  const source = typeof value === 'string' ? value : value?.source
+  return typeof source === 'string' && isLocalPath(source) && resolvePath(source, dirname(settingsPath), { trim: true }) === packagePath
+}
+if (!installedPackages.some(isThisPackage)) {
+  throw new GlobalInstallationError('Pi package installation did not declare this package; inspect the packages list before continuing.')
+}
+const unrelatedBefore = previousPackages.filter(function unrelated(value) { return !isThisPackage(value) })
+const unrelatedAfter = installedPackages.filter(function unrelated(value) { return !isThisPackage(value) })
+if (JSON.stringify(unrelatedBefore) !== JSON.stringify(unrelatedAfter)) {
+  throw new GlobalInstallationError('Pi package installation changed unrelated package declarations; inspect the settings diff before continuing.')
+}
+console.log('PASS global install: unrelated settings and other packages preserved')
+'''

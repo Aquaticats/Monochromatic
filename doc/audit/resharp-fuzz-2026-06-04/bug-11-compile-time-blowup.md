@@ -18,6 +18,10 @@
 ## Minimal reproducers
 
 ```rust
+//! Reproduction of the compile-time blowup:
+//! two patterns whose construction takes several seconds each.
+
+/// The regex type whose construction is slow.
 use resharp::Regex;
 // each of these blocks for several seconds inside Regex::new:
 let _ = Regex::new(r"[\w]{3,5}[\w]([^a]&a+)");        // about 4 seconds

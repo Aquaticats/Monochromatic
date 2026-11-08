@@ -249,10 +249,16 @@ How to pick a preset through the HTTP API was not tested.
 
 ## See also
 
-`doc/agent/drive-pi-as-a-subagent.md` covers the same job for Pi in RPC mode.
+`doc/agent/drive-pi-as-a-subagent.md` covers the same job for Pi in RPC mode,
+and its "Compared with driving dsh" section weighs the two.
 
 ## Not verified
 
+- Two sessions running at once inside one web server.
+  The ACP README says one connection can run several sessions at once,
+  and `session/list` showed 340 persisted sessions.
+  Every run here executed one session at a time,
+  so concurrent execution in one server is documented and not tested.
 - ACP and headless beyond their `--help` text.
 - `session/follow` and the WebSocket stream.
 - Choosing a permission preset or model per session through the API.

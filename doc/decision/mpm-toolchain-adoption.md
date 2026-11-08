@@ -107,7 +107,9 @@ This is the "MPM plus focused native providers" composition the vet recommended,
 - The restore manifest in `mpm`'s own TOML dump format
  (`mpm.packages.toml`,
  generated from the typed tool plan).
- Superseded: the manifest and `mpm.managers.toml` are deleted, and `mpm-shadow` installs every locked tool itself.
+ Superseded:
+  the manifest and `mpm.managers.toml` are deleted,
+  and `mpm-shadow` installs every locked tool itself.
 - Machine inventory (`mpm installed`),
  outdated detection (`mpm outdated`),
  upgrade coordination (`mpm upgrade`),
@@ -216,12 +218,17 @@ The maintainer's "no pinning" wording is recorded as:
 ## Tool plan and generated artifacts
 
 Amended at the cutover:
- `mpm-shadow`, not file-enforcer, owns the toolchain policy and the lock.
- People edit `toolchain.plan.jsonc` (repository root; the machine-global one sits beside the global lock);
+ `mpm-shadow`,
+not file-enforcer,
+owns the toolchain policy and the lock.
+ People edit `toolchain.plan.jsonc` (repository root;
+the machine-global one sits beside the global lock);
  `mpm-shadow update` is the only writer of `toolchain.lock.json`,
  `mpm-shadow install --lockfile-only --frozen-lockfile` is the offline drift gate,
  and `mpm.packages.toml` and `mpm.managers.toml` are deleted
- (`file-enforcer-rust-rewrite.md`, "Toolchain (mpm-shadow)"; `package/mpm-shadow/cli/README.md`).
+ (`file-enforcer-rust-rewrite.md`,
+"Toolchain (mpm-shadow)";
+`package/mpm-shadow/cli/README.md`).
  The TypeScript description that follows is the state before the cutover.
 
 `file-enforcer` owned the typed toolchain policy
@@ -248,7 +255,8 @@ Amended at the cutover:
 
 The sync entry point was `toolchain:sync`
  (with `bootstrap` and `prepare:android` kept as thin aliases so existing callers keep working);
- it is now `toolchain:install`, which runs `mpm-shadow install`.
+ it is now `toolchain:install`,
+which runs `mpm-shadow install`.
 
 ## Migration
 
@@ -268,7 +276,8 @@ The sync entry point was `toolchain:sync`
  regenerate `mise.toml` with file-enforcer,
  retire `mise.lock`,
  and repoint the `bootstrap` task.
- (Historical: since the Rust file-enforcer cutover `mise.no-env.toml` is the hand-written `mise.toml`
+ (Historical:
+   since the Rust file-enforcer cutover `mise.no-env.toml` is the hand-written `mise.toml`
  and nothing generates it.)
 5. Repoint CI version reads
  (`task-cli-setup` inputs and the `mise.lock` scrapers in release workflows)
@@ -293,7 +302,10 @@ The maintainer extended this decision to the machine-global toolchain
 - The typed plan,
  `toolchain.lock.json`,
  and the mpm manifests live machine-locally
- (since the cutover: `toolchain.plan.jsonc` and `toolchain.lock.json`, no manifests; the owner converts the global plan)
+ (since the cutover:
+  `toolchain.plan.jsonc` and `toolchain.lock.json`,
+  no manifests;
+  the owner converts the global plan)
  in
  `${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/`,
  so no personal inventory is committed here.
@@ -321,7 +333,8 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  and removed the TypeScript prune from `toolchain:sync`.
 
 - Owner:
- the crate `monochromatic-mpm-shadow` (`package/mpm-shadow/cli`, binary `mpm-shadow`).
+ the crate `monochromatic-mpm-shadow` (`package/mpm-shadow/cli`,
+  binary `mpm-shadow`).
  The artifact is deliberately not named `mpm`;
  the toolchain plan links it as `mpm` into a gitignored directory that comes first on PATH,
  the way `cli-git-native` is linked as `git`.
@@ -341,7 +354,8 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  (the shipped `cargo` manager's plain `cargo install`,
  which `mpm.packages.toml` routes these crates to,
  and local builds fill both).
- The kept version is the one cargo's install record (`.crates.toml`, which `cargo binstall` updates and `.crates2.json` does not) names as installed,
+ The kept version is the one cargo's install record (`.crates.toml`,
+  which `cargo binstall` updates and `.crates2.json` does not) names as installed,
  or the newest cached version when the record does not name the crate
  (a library dependency such as `monochromatic-jsonc-edit`).
  A crate with a longer name that shares the prefix is a different crate and is judged on its own versions.
@@ -369,49 +383,85 @@ The maintainer then chose a shadow of `mpm` written in Rust with clap,
  stale versions of third-party tools under `<toolchainRoot>/<id>/<version>`
  and their `downloads/` archives.
 - Status (2026-10-29):
- `monochromatic-mpm-shadow` 0.1.0 is published, with Trusted Publishing configured,
+ `monochromatic-mpm-shadow` 0.1.0 is published,
+  with Trusted Publishing configured,
  and released through CI as `monochromatic-mpm-shadow-v0.1.0` with Linux archives
- (`doc/runbook/publish-crate-first-time.md`, section on this crate).
+ (`doc/runbook/publish-crate-first-time.md`,
+  section on this crate).
  The plan entry `cargo:monochromatic-mpm-shadow` links it as `mpm` under `.cache/mpm-shadow-bin`,
  which `file-enforcer.config.ts` puts ahead of `.cache/toolchain-bin` on PATH.
  `mpm.managers.toml` carries the pinned extension manager `cargo-binstall-monochromatic-mpm-shadow`,
  and `mpm --config mpm.managers.toml --cargo-binstall-monochromatic-mpm-shadow install monochromatic-mpm-shadow`
  installs the release archive's binary through `cargo binstall`.
- Moved at the cutover (2026-10-31): the plan entry is now `mpm-shadow`, a release archive of this repository
+ Moved at the cutover (2026-10-31):
+  the plan entry is now `mpm-shadow`,
+  a release archive of this repository
  that floats (`@latest` with `options.tagPrefix`) so the lock records its SHA-256 for the bootstrap;
  `.config/mise/conf.d/20-env.toml` holds the `PATH` entries;
  `mpm.managers.toml` and the extension install command are gone (`mpm-shadow install` runs `cargo binstall` itself).
 
 ## Our seven tools install from GitHub release archives (2026-11-07)
 
-- The seven locked tools of this repository (`monochromatic-lint`, `monochromatic-git-policy-cli`,
- `monochromatic-cargo-shadow`, `monochromatic-pnpm-shadow`, `monochromatic-search-shadow`,
- `monochromatic-file-enforcer-cli`, `monochromatic-nested-wayland-session`) moved from `cargo-binstall` to the
- `archive` route of this repository's GitHub releases, the way `mpm-shadow` already was
- (`"request": "github:Aquaticats/Monochromatic@latest"`, `"route": "archive"`, commit `c048f3a566`, 2026-11-07T08:24:40-05:00).
- Reason: later releases carry `-alpha.N` and skip crates.io, so `cargo-binstall` could not find them
+- The seven locked tools of this repository (`monochromatic-lint`,
+  `monochromatic-git-policy-cli`,
+ `monochromatic-cargo-shadow`,
+  `monochromatic-pnpm-shadow`,
+  `monochromatic-search-shadow`,
+ `monochromatic-file-enforcer-cli`,
+  `monochromatic-nested-wayland-session`) moved from `cargo-binstall` to the
+ `archive` route of this repository's GitHub releases,
+  the way `mpm-shadow` already was
+ (`"request": "github:Aquaticats/Monochromatic@latest"`,
+  `"route": "archive"`,
+  commit `c048f3a566`,
+  2026-11-07T08:24:40-05:00).
+ Reason:
+  later releases carry `-alpha.N` and skip crates.io,
+  so `cargo-binstall` could not find them
  (`doc/planning/crates-io-footprint.md`).
-- Owner, 2026-11-07, asked what this record should say now that the move is done, answered verbatim:
- "GitHub, but I'm still not seeing the research I asked you to do on some sort of workspace protocol.
- I know we can't use it as is because we cannot use cargo workspaces, but I'll need the research to make a decision on
- where to go after GitHub releases. I'm also wondering if pnpm's new rust management capabilities can help."
-- So for these seven, GitHub release archives replace the 2026-11-04 answer recorded in
+- Owner,
+  2026-11-07,
+  asked what this record should say now that the move is done,
+  answered verbatim:
+ "GitHub,
+  but I'm still not seeing the research I asked you to do on some sort of workspace protocol.
+ I know we can't use it as is because we cannot use cargo workspaces,
+  but I'll need the research to make a decision on
+ where to go after GitHub releases.
+  I'm also wondering if pnpm's new rust management capabilities can help."
+- So for these seven,
+  GitHub release archives replace the 2026-11-04 answer recorded in
  `package/mpm-shadow/cli/README.md` ("The point of cargo-binstall is for us to not manually point to gh releases ourselves!").
- Other Cargo tools keep "Cargo tools: repository provider via `cargo-binstall`" (section "Ownership split").
-- Where they go after GitHub releases was open: the owner decides after research on a `workspace:`-like protocol and on
- pnpm's Rust support (owner, 2026-11-05: "The best solution is obviously a workspace: protocol or something.
- The second best solution is floating git. The third best solution is GitHub package registry.",
+ Other Cargo tools keep "Cargo tools:
+  repository provider via `cargo-binstall`" (section "Ownership split").
+- Where they go after GitHub releases was open:
+  the owner decides after research on a `workspace:`-like protocol and on
+ pnpm's Rust support (owner,
+  2026-11-05:
+  "The best solution is obviously a workspace:
+  protocol or something.
+ The second best solution is floating git.
+  The third best solution is GitHub package registry.",
  `doc/planning/crates-io-footprint.md`).
 - Answered 2026-11-07T09:32:48-05:00 after the research `doc/research/rust-workspace-protocol-and-pnpm-rust.md`
- (Cargo has the local half of `workspace:` as `path` plus `version`, and its publish half only through a registry that
- already holds each dependency; pnpr can be that registry, run end to end on a throwaway pnpr; pnpm's Cargo support
- links no independent crate roots and installs no tool; GitHub Packages holds no crates).
- Asked where the seven tools' program files come from once pnpr serves crates, the owner picked
+ (Cargo has the local half of `workspace:` as `path` plus `version`,
+  and its publish half only through a registry that
+ already holds each dependency;
+  pnpr can be that registry,
+  run end to end on a throwaway pnpr;
+  pnpm's Cargo support
+ links no independent crate roots and installs no tool;
+  GitHub Packages holds no crates).
+ Asked where the seven tools' program files come from once pnpr serves crates,
+  the owner picked
  "GitHub releases (Recommended)" over "pnpr npm packages":
- the tools keep installing from each GitHub release's archives, and pnpr holds the crates other code depends on
+ the tools keep installing from each GitHub release's archives,
+  and pnpr holds the crates other code depends on
  (the earlier answer "deploy all releases on pnpr" stands for crates).
- Asked which version of each tool the repository installs, the owner picked "Newest release (Recommended)"
- over "Checkout's version": the lock keeps `@latest` and the daily timer moves it.
+ Asked which version of each tool the repository installs,
+  the owner picked "Newest release (Recommended)"
+ over "Checkout's version":
+  the lock keeps `@latest` and the daily timer moves it.
 
 ## Exit and rollback
 

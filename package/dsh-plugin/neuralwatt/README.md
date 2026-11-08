@@ -57,6 +57,13 @@ beside `neuralwatt` keep standing untouched.
 
 ## Model mapping
 
+The mapping itself lives in the shared core
+`@monochromatic-dev/agent-harness-shared-neuralwatt-listing`
+(`package/agent-harness-shared/neuralwatt-listing`),
+extracted from this package on 2026-11-07
+so the pi plugin projects the same facts;
+this section documents the behavior the shared mapping serves.
+
 Each listing entry maps to one pi-ai model profile:
 
 - Entries the listing marks deprecated,
@@ -161,7 +168,14 @@ declares a hand-written `neuralwatt` block under `llm-pi-ai` `providers` must
 drop that block;
 the plugin's route replaces it.
 Credentials resolve the
-`NEURALWATT_API_KEY` environment name exactly as the hand-written block did.
+`NEURALWATT_API_KEY` credential reference exactly as the hand-written block did.
+That name is a credential reference,
+not an environment requirement:
+ it addresses a record in the DSH credentials service
+(`$DSH_HOME/.credentials.yaml`,
+written from the web Models page),
+and the launching environment is only the fallback source
+(`doc/agent/drive-dsh-as-a-subagent.md`).
 
 The plugin writes its `neuralwatt` block into the profile's own
 `cordis.patch.yml`,
@@ -178,11 +192,11 @@ uninstalling the bundle leaves it behind,
 and dropping it is a hand edit.
 
 ```ts
-// package/dsh-plugin/neuralwatt/src/constants.ts
+// package/agent-harness-shared/neuralwatt-listing/src/constants.ts
 export const NEURALWATT_API_KEY_ENV = 'NEURALWATT_API_KEY';
 ```
 
-`src/constants.ts` names the route key,
+`@monochromatic-dev/agent-harness-shared-neuralwatt-listing`'s `src/constants.ts` names the route key,
 wire protocol,
 endpoint base,
 listing

@@ -28,6 +28,13 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the end anchor followed by the begin anchor:
+//! on the empty input the pattern must match,
+//! and the reverse order,
+//! which is correct,
+//! is the control.
+
+/// The regex type whose `is_match` answers wrongly.
 use resharp::Regex;
 let re = Regex::new(r"\z\A").unwrap();
 assert_eq!(re.is_match(b"").unwrap(), true);   // FAILS: returns false
@@ -77,6 +84,8 @@ empty language when the head is an end-anchor and the tail cannot be nullable at
 end:
 
 ```rust
+//! The concatenation rule that reduces an end anchor followed by anything not nullable at the end to the empty language,
+//! which is wrong when the tail is the begin anchor on an empty input.
 if self.get_kind(head) == Kind::End
     && !tail.is_lookbehind(self)
     && !self.is_nullable(tail, Nullability::END)

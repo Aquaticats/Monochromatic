@@ -25,6 +25,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the flipped nullability of the word boundary assertions on the empty input,
+//! once under composition with a zero-width repeat.
+
+/// The regex type whose `is_match` answers wrongly.
 use resharp::Regex;
 // \b is FALSE on the empty string (no word char to bound), so \b a{0} \b matches nothing.
 assert_eq!(Regex::new(r"\ba{0}\b").unwrap().is_match(b"").unwrap(), false); // FAILS: true
