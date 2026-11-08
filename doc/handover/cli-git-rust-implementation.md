@@ -3059,19 +3059,31 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
-### Work waiting for a free Pi slot (2026-11-08T15:04:00-05:00)
+### Work waiting for a free Pi slot (2026-11-08T15:56:45-05:00)
 
 The owner:
 "Pi doesn't have a limit to number of concurrent subagents.
 In practice it's 16."
-All 16 are in use on 2026-11-08,
-each with a prompt and run folder under `${HOME}/temp/agent/pi-runs/`.
-Started next,
-as slots free:
+Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
+A read-only audit listed the open work that can start
+(`queue-audit-report.md` in that folder).
+Every item it lists has its own record,
+so this list only names what is left to start from it:
 
-- `logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify`,
-  printed once by `mise run //package/music-player/desktop-e2e:lint` while the host was under load on 2026-11-08.
-  Cause not measured.
+- Removing the loaded units and the install folder of the pre-rename 0.5.34 wrapper,
+  recorded in the paragraph on old `cli-git@` units.
+  The folder stays until the owner says it may go.
+- A hosted run of the container-limit workflow flags,
+  recorded in `doc/handover/container-limits-everywhere.md`.
+
+Waiting on the repository move's last stages rather than on a slot:
+
+- One `podman start` of a created container through the repository link,
+  recorded in `doc/handover/repository-move-dangling-link-items.md`.
+- Enabling `cargo-shadow-lean.timer` again after one dry run against the moved checkouts,
+  recorded in `doc/handover/cargo-shadow-lean-build-folders.md`.
+- Converting the worktrees that are still ordinary folders,
+  which refuses any worktree an agent is working in.
 
 Ordered behind other work rather than waiting for a slot:
 
