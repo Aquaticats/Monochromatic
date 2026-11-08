@@ -2912,8 +2912,12 @@ Still open from the fifth-pass list:
 - `mise run //package/cargo-shadow/cli:lint:clippy` (release,
   all targets,
   warnings denied): exit 0.
-- The release `test` gate was not run in this session;
-  the debug nextest task above is the run this session reports.
+- The release `test` gate was started and stopped after ten minutes with 73 of 800 tests passed:
+  the host carried a load average of about 125 on 8 CPUs from other sessions' suites,
+  and two scope tests had been running for five minutes each.
+  It is not reported as passing or failing;
+  the debug nextest task above is the run this session reports,
+  and the release gate remains open.
 - Nothing was released,
   locked or installed,
   and nothing was merged into main.
