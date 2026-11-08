@@ -4333,6 +4333,51 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
+- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
+  it should count what would convert (small fix,
+  not done);
+- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
+  and read the migration journal without following
+  a link (`Journal::load` uses `read_to_string`);
+- the `node_modules` links that point nowhere are counted (read only,
+  nothing relinked,
+  2026-11-08T17:10:51-05:00):
+  of 358 registered worktrees,
+  239 hold a `node_modules` that could be read and 110 hold none,
+  9 registrations named a folder that did not exist while the sweep ran,
+  and 172 of the 239 hold at least one dangling link,
+  16,177 links in all,
+  over 50,310 `node_modules` folders and 489,365 symlinks,
+  with no walk refused or failed.
+  The registry moved under the sweep:
+  an earlier run at 16:49,
+  before the counter also covered a `node_modules` that is itself a symlink and a walk that failed,
+  found 228 readable worktrees,
+  153 of them dangling and 16,139 links.
+  Other sessions created and removed worktrees between the two runs,
+  so that difference mixes the counter's wider reach with their churn,
+  and both totals are snapshots of one moment rather than a fixed property of the checkout.
+  A sample of 304 of the 16,177 links resolved by text names the pnpm global store's
+  `<name>/<version>/<hash>` folder for 254 of them and a local `node_modules/.pnpm/<name>@<version>` folder for 50,
+  and by `find -xtype l` none of those targets resolves;
+  the counts cluster at 3,
+  4 and 11 links,
+  and at 289 to 328.
+  The main checkout holds 11,
+  in `package/file-enforcer/core`,
+  `package/test-fixture/file-enforcer-perf`,
+  `package/search-fetch/pi-plugin` and `package/search-fetch/mcp`.
+  The sweep was `find <worktree>/node_modules -xtype l`,
+  plus the same over every `package/*/*/node_modules` folder,
+  and the counter was first shown to report a planted broken link,
+  a root `node_modules` that is itself a dangling symlink,
+  a `node_modules` that is a symlink to the folder holding a broken link,
+  and a walk refused for permission;
+  its script and listing are `${HOME}/temp/agent/node-modules-dangling-count/`
+  (`report.jsonl` has every dangling path and any failed walk).
+  It does not read a worktree's creation date or the wrapper version that made it,
+  so these totals say nothing about which repair each worktree predates.
+  Relinking a worktree another session owns still waits on the owner's word.
 - count existing worktrees whose `node_modules` links are broken (made from main after main moved to pnpm's global
   virtual store,
   before the package repair shipped in 0.5.21) and ask the owner before relinking worktrees that belong to other
@@ -4822,14 +4867,67 @@ and each is fixed now:
   Red first:
   the assertion `no scratch branch is left` failed with
   `left: "8739469b3585d5e9d29e4f5608ac70dbe5ef607b commit refs/worktree/cli-git-service/1"` and `right: ""`.
-  Open:
-  a `SIGKILL` between the import of the objects and the intent write leaves the reference with no journal record,
-  and nothing runs to clear it:
+  A `SIGKILL` between the import of the objects and the intent write left the reference with no journal record,
+  and nothing ran to clear it:
   `after-objects` is one of `service_fault::FAULT_POINTS`,
-  and the binary-level control that kills a service there and restarts it does not check the reference.
-  Clearing it needs a sweep by something that knows the worktree (the next landing of the same worktree,
-  or a marker the landing writes before the import),
-  because a service instance cannot turn its instance hash back into a worktree path.
+  and a service instance cannot turn its instance hash back into a worktree path,
+  so recovery had nothing to look the reference up by.
+  The landing now leaves that lookup before the reference can exist (`b90c2b88be`,
+  `417c103ee0`):
+  `<seq>.scratch` in the service's journal,
+  one unsynced file published whole,
+  naming the worktree root and the worktree's own Git directory (`service_scratch_ref_marker_of_a_batch.rs`).
+  Recovery sweeps it (`recover_selected` in `service_land_finish.rs`,
+  over this service's own journal only,
+  before the service accepts a connection and again before each landing):
+  a batch an open intent names is left to that intent,
+  and for every other record the commit the reference holds is kept at `refs/cli-git/kept/<seq>` first,
+  the reference is removed,
+  and the record goes only when the reference is gone.
+  A keep Git refused,
+  a kept reference that names another commit,
+  a reference Git cannot read and a record that cannot be read all leave the reference and the record where they are,
+  and the journal then keeps that batch number out of use (`244f0014fc`),
+  because the next import of that number would move the reference.
+  A landing that ends still drops its own record,
+  so a healthy commit writes one small unsynced file and removes it,
+  and `clear_after_dropped_batch` now answers whether the reference is gone
+  (the restart's own intent recovery ignores the answer).
+  Controls:
+  `a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch`
+  ends a landing at the `after-objects` test hook,
+  the disk state a `SIGKILL` there leaves,
+  and checks that the branch did not move,
+  no intent exists,
+  recovery reports nothing to settle,
+  the scratch reference is gone,
+  the commit is at `refs/cli-git/kept/1` with the batch's own subject,
+  it survives `git prune --expire=now`,
+  and the record is gone;
+  `a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_record` proves the safe side.
+  Red first:
+  the assertion `no scratch branch is left` failed with
+  `left: "fff5276fdafe0d71b9b4d763141701c3386f6c7f commit refs/worktree/cli-git-service/1"` and `right: ""`.
+  The binary-level control (`a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once`)
+  now reads both side namespaces at every point it kills the service at:
+  it failed before the fix with
+  `left: [("refs/worktree/cli-git-service/1794175649293749", "e293acc4bb497cf3d8aa36ebe367bea9351eea78")]`,
+  `right: []`,
+  and it now checks that no scratch reference survives the restart,
+  and that the killed batch's commit is kept (with its own message) exactly at the points before the branch moved.
+  Limits:
+  the record is not flushed,
+  so a power loss rather than a kill can lose it and leave the reference where it was,
+  which is the answer for anything that cannot be proven safe;
+  references left in an earlier release's journal directory (`cli-git/service/<instance>`) are not swept,
+  because the record only ever exists in this release's journal;
+  a record whose landing is still in flight on a second service instance of the same worktree
+  (an upgrade handover,
+  which shares one journal) is swept like a dropped batch:
+  its commit is kept before the reference goes,
+  and the landing that continues deletes a reference that is already gone.
+  The recovery of open intents takes the same risk there today,
+  so this adds no new one.
 - The `claimed/` scan that was quadratic for a drain of N claims (`7ae9113b61`).
   `claim_next_of` listed and sorted `pending` for each claim,
   and `current_name` listed the whole of `claimed` for each claim it checked or settled,
@@ -4847,16 +4945,47 @@ and each is fixed now:
   The old `current_name` listed `claimed` with its own `read_dir` at every check and settlement,
   which that count did not see and which the fix removes
   (`service_claim_renewal.rs` has no listing of its own now).
+  The same backlog,
+  cost from the producer's side,
+  is fixed too (`c533c6837a`):
+  `enqueue` listed `claimed` and `recovering` to answer "already known" for every item,
+  so a producer of N items cost N listings.
+  `enqueue_all` answers a whole round from one listing per directory,
+  `enqueue` is that round of one item,
+  and the commit's handoff builds its records and queues them in one round (`service_handoff.rs`).
+  Control:
+  `a_producer_of_many_items_lists_the_state_directories_once` counts the listings at rounds of 4,
+  24 and 96 items.
+  Red first:
+  `the listings of a producer's round do not grow with its items: [(4, 8), (24, 48), (96, 192)]`.
+  The round's listing is taken once at its start,
+  so an item another consumer claims after it is queued again,
+  where the per-item listing of the old code narrowed that window;
+  nothing reads the queue back,
+  so the window is written into `enqueue_all`'s contract.
   Untouched:
-  `enqueue` still lists `claimed` and `recovering` to answer "already known",
-  so a producer that enqueues N items costs N listings,
-  and the one shared listing of a round is refilled when a renewal renamed a claim it must settle.
+  the one shared listing of a drain round is refilled when a renewal renamed a claim it must settle.
 
 `started` and `ready` service lines now carry distinct journal times;
 lines of a retiring older service still share one stream timestamp (nothing to fix).
 
 ### Gate and tooling
 
+- `native:test:binary:host` fails nine controls on this machine for reasons that predate the branch
+  and are the host,
+  not the code (measured 2026-11-08 on a clean checkout of `8520518962`,
+  the commit the two leftovers above were fixed on):
+  the five `budget::*` controls that count Git starts report one extra
+  `git update-index --refresh` (`starts of git update-index: observed 1, budget 0`),
+  `fixture_guard::a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_is_serving`
+  and `service_mode::the_same_start_with_the_real_git_listens` fail because the fixture's socket path
+  under `CARGO_TARGET_DIR` (`/var/mnt/encrypted/cargo-build/toolchain/<toolchain>/<two>/<hash>/tmp/...`)
+  is longer than `SUN_LEN` (`path must be shorter than SUN_LEN`,
+  and the service ends before it listens),
+  and `commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+  reports the client's own lock rename.
+  The container gate is the authority for all nine;
+  a host run of the rest of that suite passed 720 of 729 (three skipped) with the full lib suite at 4725 of 4725.
 - Gate-slot and campaign-lock claim files are merged,
   with the 2026-11-03 liveness and signal fixes (see "Open review findings" for what remains).
 - Mutation campaigns for wrapper code merged since the last recorded campaigns (conversion,
@@ -4905,21 +5034,104 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (why the line is otherwise invisible:
   `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - Older umbrella items from October,
-  still unchecked in the former queue,
-  with no later closing record found (all unsure):
-  the scanner pathname mutation scope on Windows without a timeout
-  (`doc/handover/scanner-native-verification.md`);
-  the Windows checks and release-artifact performance gates that trail the cutover;
-  long fuzz campaigns;
-  mutation campaigns of non-core modules (hooks plumbing,
-  auto-push,
-  automatic maintenance,
-  signals);
-  the linter cutover task,
-  the slice 6 convergence mutation rerun and the post-cutover non-core campaigns
-  (the coordinator's task list names them as 24,
-  25 and 29);
-  reconcile each against Git state and either close it with evidence or move it here.
+  reconciled against Git state on 2026-11-08T16:49:36-05:00 (read only;
+  no campaign,
+  fuzz run or Windows check was started).
+  Each entry gives its verdict and where its evidence or its open work lives.
+- The scanner's pathname mutation scope on Windows is paused,
+  not closed.
+  `doc/handover/scanner-native-verification.md`,
+  "Windows rerun paused on 2026-11-01",
+  records that the rerun was stopped before any command ran in the guest,
+  because the owner said "Ignore Win and mac until I say so.",
+  and that the guest was destroyed with nothing run.
+  The one timeout the 2026-10-06 Windows campaign ended with is still unverified
+  (the timeout mutant in `count_prefix_parts`,
+  `src/path_name_bytes.rs` line 59,
+  as that section locates it),
+  so the item resumes there in that section when the owner lifts the pause.
+- The Windows checks are paused by that same sentence:
+  `doc/handover/cli-git-native-pathbytes.md` records its Windows checks unrun because the target is not installed,
+  and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
+  Windows branch without ever running it.
+  The release-artifact performance gate is closed instead of paused.
+  It is the `native:perf` task,
+  which measures the added latency of the release binary against paired direct Git within the limits its
+  description states (added p95 under 2,000 ms on forwarded commands,
+  every paired delta under 5,000 ms on commits),
+  and its figures are recorded in
+  `doc/planning/one-release-each-batch-2026-11.md`,
+  the release record of 2026-11-07T22:11:47-05:00,
+  under its "Latency" bullet,
+  with the same-binary spread the comparison needs.
+  A search of `doc/` and `.github/workflows` for `release-artifact`,
+  `release performance` and `perf` found no other definition of that gate,
+  so `native:perf` is the gate the older item named.
+- Long fuzz campaigns stay open.
+  Neither recorded pause names them:
+  one covers Windows and macOS ("Ignore Win and mac until I say so."),
+  the other covers wrapper mutation campaigns
+  (`doc/handover/questions-for-the-owner.md`,
+  the entry of 2026-11-07 about the campaign that ran against that pause).
+  Every lane defers them to this list
+  (`doc/handover/cli-git-native-interop.md`,
+  `doc/handover/cli-git-native-capture.md`,
+  `doc/handover/cli-git-native-pathbytes.md`,
+  each under "Trailing gates").
+  The one recorded start left no result:
+  unit `cli-git-fuzz-campaign` ran
+  `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900` three times on 2026-10-15,
+  and each exited 1 (11:38,
+  11:45 and 12:53:55,
+  the last after 57 minutes and 20 seconds of wall clock,
+  from `journalctl --user --unit=cli-git-fuzz-campaign`),
+  its log `fuzz-campaign-20261015.log` is gone from `${HOME}/temp/agent`,
+  and no crash or total from it appears in `doc/` or in the fuzz sidecar's records,
+  which is everything searched.
+  The journal does not show which step failed,
+  so it does not say whether fuzzing ever started.
+  `doc/handover/cli-git-native-replay-core.md` is where the campaign's next result goes;
+  it is started by that same command.
+- Mutation campaigns of non-core modules are paused by the owner's 2026-11-04 pause:
+  the owner asked "We're not close to doing mutation runs though,
+  right?
+  Don't we still have a lot of things to fix before doing them?",
+  and `doc/handover/questions-for-the-owner.md` adds "No further wrapper campaign starts until you lift the
+  pause."
+  in its entry of 2026-11-07 about the campaign that ran against that pause.
+  Hook plumbing is done anyway:
+  the post-landing campaign over `landed_disposal.rs`,
+  `post_commit_hook.rs` and `post_landing.rs` recorded 19 mutants,
+  16 caught,
+  3 unviable,
+  0 missed and 0 timeouts
+  (`doc/handover/cli-git-native-post-landing.md`,
+  "Mutation"),
+  and that record says nothing remains for the mutation of hook plumbing.
+  The pause still holds the auto-push timeouts to rerun at a larger limit
+  (`doc/handover/cli-git-native-auto-push.md`,
+  "Trailing gates",
+  "Not yet rerun at 300 seconds")
+  and the signals and automatic-maintenance scope
+  (`doc/handover/cli-git-native-signals.md`,
+  "Trailing gates").
+- The linter cutover task is closed.
+  It landed on 2026-10-10 as the fast-forward merge `b111c0ca39`,
+  the five incumbent packages were deleted in `5bc05682e`,
+  and `main` holds both,
+  while the root lint and format tasks have run `monochromatic-lint` since `0b49ae109e`.
+  The durable record is `doc/handover/unified-linter-cutover.md`.
+- The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
+  2026-11-04 pause.
+  The rerun was waiting on a multi-pass control,
+  and the two controls the record asked for exist now:
+  `commit_convergence_tests::stored_states_compare_equal_exactly_when_the_corrected_bytes_match` drives
+  `snapshots_equal` through two corrections,
+  and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
+  Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
+  so the pause is the only thing that keeps this open,
+  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
+  so what those numbers cover beyond this item is unverified here.
 - macOS is not a release target (the GitHub release carries Linux assets only);
   the `native_binary` tests still fail there (`/dev/full` is absent,
   several fixture spawns fail with NotFound);

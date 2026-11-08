@@ -29,6 +29,10 @@ import {
   finalEndReason,
 } from './end-reasons.ts';
 import {
+  type EnvironmentWithoutCredentials,
+  stripCredentialsFromEnvironment,
+} from './environment-without-credentials.ts';
+import {
   DRIVER_USAGE,
   DriverOptionsError,
 } from './parse-driver-options.ts';
@@ -279,6 +283,16 @@ export async function supervisePiRun(
     'feed.jsonl',
   ), },);
   /**
+   What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
+   `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not
+   what a command can reach: the credential stores stay where they are.
+   */
+  const givenToPi: EnvironmentWithoutCredentials = stripCredentialsFromEnvironment({ environment, },);
+  record.note({
+    kind: 'environment',
+    removedNames: givenToPi.removedNames,
+  },);
+  /**
    Declines a dialog, which would otherwise wait for an answer forever.
 
    @param id - dialog's identifier
@@ -297,7 +311,7 @@ export async function supervisePiRun(
     piArguments: piCommandLine(options,),
     workingFolder: options.workingFolder,
     environment: {
-      ...environment,
+      ...givenToPi.environment,
       [NESTED_RUN_VARIABLE]: '1',
     },
     standardErrorFile: join(
