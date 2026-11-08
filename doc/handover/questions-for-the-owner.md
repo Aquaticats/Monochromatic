@@ -135,6 +135,14 @@ saying nothing keeps it.
   section 5.1,
   rule 2),
   so the fixer never adds a character to your text.
+- An equivalent mutant that no test can kill
+  (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
+  a function that already returns 0)
+  stays recorded as equivalent,
+  so the linter's `--syntax-only` mutation campaign reports one miss every run
+  until `mutation:coverage` learns to skip recorded equivalent mutants
+  (record:
+  `doc/handover/monochromatic-lint-layout-and-workflow-mutants.md`).
 - The wrapper's own `markdown/autofix` commit policy keeps applying its one content fix
   (the LFS image link rewrite),
   since that rewrite is the policy's whole purpose.
