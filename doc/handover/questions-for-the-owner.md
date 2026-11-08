@@ -523,7 +523,38 @@ or adopt the CSS rule (the tests change).
   The 860 move is run by the coordinator,
   not handed to the owner;
   its runner becomes TypeScript (sent to the preparation agent).
-  The wizard skill itself is to emit TypeScript (queued).
+  The coordinator read that as a request to convert the wizard skill to TypeScript and queued the conversion.
+  The queued item is withdrawn,
+  on the owner's later words:
+  "No,
+  why would there be a wizard skill at all?"
+  Nothing was built.
+  The skill was third-party
+  (`mattpocock/skills`,
+  in `~/.agents/skills/wizard` since 2026-08-18,
+  outside this repository).
+  The owner then:
+  "Remove and Blocklist the wizard skill."
+  and
+  "But do keep matt's other skills."
+  Done:
+  `skills remove wizard --global` took out the install and its lock entry,
+  leaving the pack's other 31 lock entries;
+  the dead link in `~/.pi/agent/skills` and the local copy under `~/.claude/skills/synced` are deleted;
+  Claude Code's user setting `skillOverrides` holds `wizard: off`
+  (the `Skill` tool then refuses it);
+  Pi's user setting `skills` holds `!**/wizard/**`
+  (real Pi offers 27 skills before and after,
+  and none is named `wizard`;
+  on a disposable home the control offered both a `wizard` and another skill,
+  and the exclusion left only the other).
+  Still open for the owner:
+  the owner's claude.ai account still holds the skill
+  (manifest entry `skill_013SXR5gmg1zWJZpmYLYuP1m`),
+  so account sync may bring the local copy back,
+  where both settings keep it off.
+  A headless browser stopped at claude.ai's `Just a moment...` page,
+  so only the owner can delete it there.
 - The plugin bundle drift check (options A,
   B,
   C):

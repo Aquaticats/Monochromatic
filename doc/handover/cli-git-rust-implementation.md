@@ -3069,11 +3069,12 @@ each with a prompt and run folder under `${HOME}/temp/agent/pi-runs/`.
 Started next,
 as slots free:
 
-- The wizard skill emits TypeScript root scripts (owner:
-  "Wizard writes TypeScript").
-- A host run of the btrfs-only ladder tests that skip in the gate container (see `### Gate and tooling`).
 - Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
   still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
+
+- `logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify`,
+  printed once by `mise run //package/music-player/desktop-e2e:lint` while the host was under load on 2026-11-08.
+  Cause not measured.
 
 Ordered behind other work rather than waiting for a slot:
 
