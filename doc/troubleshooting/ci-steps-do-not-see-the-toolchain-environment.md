@@ -139,11 +139,61 @@ that stays a property of the lock.
 It installs no `rustComponents`:
 nothing in that job compiles with them.
 
-The skip itself stays in `sync_tools` (`package/mpm-shadow/cli/src/toolchain/sync.rs`),
-so any toolchain this repository did not install itself keeps missing the components and targets its lock row
+The skip itself stayed in `sync_tools` (`package/mpm-shadow/cli/src/toolchain/sync.rs`),
+so any toolchain this repository did not install itself kept missing the components and targets its lock row
 declares.
-The fix belongs there:
-reconcile the declared components and targets even when the toolchain's version is current,
+The fix went there:
+the declared components and targets are reconciled even when the toolchain's version is current,
 rather than only on the install path.
-That reaches CI with a new `mpm-shadow` release and the lock row that pins it,
-which is why the workflow carries the two lines meanwhile.
+
+### The fix
+
+For a tool `sync_tools` observes as current it now runs
+`rustup component list --installed --toolchain <version>` and
+`rustup target list --installed --toolchain <version>`,
+adds only the declared parts `rustup` does not list,
+and counts that tool as installed with one line per added part:
+
+```text
+toolchain install: 1 installed, 0 unchanged, 0 failed
+toolchain install: rust: nightly-2026-11-08 was already installed; added the declared target wasm32-unknown-unknown, which `rustup target list --installed` did not show
+```
+
+A listing or an add that fails fails that tool,
+so a missing standard library can no longer hide behind "unchanged".
+A component counts as installed when the listing spells it with a host triple:
+`clippy-x86_64-unknown-linux-gnu` is the lock's `clippy`,
+as `rustup component list --installed` prints the triple it was built for.
+
+On a machine that already holds every declared part the whole cost is the two listings.
+Measured on 2026-11-08 on this machine,
+a no-change `mpm-shadow install` of a one-tool lock
+(the `rust` tool,
+`nightly-2026-11-08`,
+all four declared components and both Android targets present)
+took 20.6 ms median with the released 0.2.7-alpha.6,
+which runs `rustup toolchain list` alone,
+and 55.8 ms median with the fix,
+which runs the same call plus the two listings:
+7 alternating runs each,
+spread 20.2 to 23.1 ms and 54.3 to 57.8 ms,
+and each listing on its own takes about 19 ms.
+The added time is two more `rustup` starts,
+not work proportional to the toolchain.
+
+### What the workflow keeps until a release with the fix is locked
+
+The Rust step of `music-player-release.yml` installs the triples itself,
+with the two lines
+`mapfile -t targets <<< "$lock_targets"` and
+`rustup target add --toolchain "$toolchain" "${targets[@]}"`.
+They can go once `toolchain.lock.json` pins an `mpm-shadow` release that carries this fix,
+because `task-run prepare:android` then adds the row's triples itself.
+The `jq` read above them and the `rustup target list --installed` guard below them exist only to feed and
+prove those two lines,
+so removing them is one decision about the whole block and its comment,
+not three.
+That release also installs the lock's four `rustComponents` in this job for the first time,
+which nothing there compiles with;
+the block's comment says the opposite today
+and has to change with the two lines.
