@@ -145,7 +145,7 @@ fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
         "clippy-x86_64-unknown-linux-gnu\nrust-src\n",
         0,
     );
-    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "aarch64-linux-android\n", 0);
+    rig.runner.answer("rustup target list --installed --toolchain nightly-2026-10-30", "x86_64-unknown-linux-gnu\naarch64-linux-android\n", 0);
     let report = sync_tools(&rig.context(), None);
     assert_eq!(report.unchanged, vec!["rust".to_string()]);
     assert!(report.installed.is_empty(), "{report:?}");
@@ -159,7 +159,7 @@ fn a_current_toolchain_that_already_has_its_declared_parts_is_left_alone() {
 }
 
 #[test]
-fn a_failed_component_or_target_add_fails_the_tool_instead_of_reporting_it_unchanged() {
+fn a_failed_target_add_fails_the_tool_and_keeps_the_component_it_added_to_the_report() {
     let mut rig = Rig::new();
     keep_only(&mut rig, &["rust"]);
     rig.runner.answer("rustup toolchain list", LOCKED_TOOLCHAIN_LINE, 0);
@@ -168,10 +168,14 @@ fn a_failed_component_or_target_add_fails_the_tool_instead_of_reporting_it_uncha
     rig.runner.fail("rustup target add aarch64-linux-android", "error: component 'rust-std' for target 'aarch64-linux-android' is unavailable");
     let report = sync_tools(&rig.context(), None);
     assert!(!report.unchanged.contains(&"rust".to_string()), "a failed add was reported as unchanged: {report:?}");
+    assert!(report.installed.is_empty(), "a tool with a failed add is not installed: {report:?}");
     assert_eq!(report.failed.len(), 1, "{report:?}");
     assert_eq!(report.failed[0].0, "rust");
     assert!(report.failed[0].1.contains("is unavailable"), "{:?}", report.failed);
+    assert_eq!(report.reconciled.len(), 1, "the component added before the failure stays reported: {report:?}");
+    assert!(report.reconciled[0].contains("added the declared component clippy"), "{:?}", report.reconciled);
     let text = format_sync_report(&report);
+    assert!(text.contains("added the declared component clippy"), "{text}");
     assert!(text.contains("rust failed: rustup target add (aarch64-linux-android) failed for rust"), "{text}");
 }
 

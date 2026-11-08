@@ -73,95 +73,19 @@ pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), T
 }
 
 /// What:
-/// Which `rustup` subcommand lists and adds one part of a Rust toolchain:
-/// a component,
-/// or a target.
-/// Why:
-/// The lock keeps components and targets in two rows and `rustup` answers each row with its own
-/// subcommand,
-/// so the subcommand word travels with the name instead of being rebuilt at each call.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RustPartKind = 'component' | 'target';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RustPartKind {
-    /// One entry of the lock's `rustComponents` row.
-    Component,
-    /// One entry of the lock's `rustTargets` row.
-    Target,
-}
-
-/// The methods of `RustPartKind`.
-impl RustPartKind {
-    /// What:
-    /// The `rustup` subcommand word that lists and adds this kind of part:
-    /// `component` or `target`.
-    /// Why:
-    /// `list --installed` and `add` have the same shape for both kinds,
-    /// so this word is the whole difference between the two calls.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// function subcommand(kind: RustPartKind): 'component' | 'target'
-    /// ```
-    fn subcommand(self) -> &'static str {
-        // What: `match` picks one of the enum's two variants; the value after `=>` is the word `rustup` takes.
-        // Why: the listing and the add of a part both go through here, so the word is written once.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // return kind === 'component' ? 'component' : 'target';
-        // ```
-        return match self {
-            RustPartKind::Component => "component",
-            RustPartKind::Target => "target",
-        };
-    }
-}
-
-/// What:
-/// One part of a Rust toolchain the lock declares:
-/// a component such as `clippy`,
-/// or a target triple such as `aarch64-linux-android`.
-/// Why:
-/// The installer and the reconciler need the kind (to pick the subcommand) and the name together.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type RustPart = { kind: RustPartKind; name: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RustPart {
-    /// What:
-    /// Which `rustup` subcommand adds this part.
-    /// Why:
-    /// The name alone does not say whether `rustup` wants `component add` or `target add`.
-    pub kind: RustPartKind,
-    /// What:
-    /// The name as the lock declares it (`clippy`,
-    /// `aarch64-linux-android`).
-    /// Why:
-    /// This is the text handed to `rustup add`,
-    /// so it must stay exactly as the lock spells it.
-    pub name: String,
-}
-
-/// What:
-/// The names `rustup <kind> list --installed --toolchain <version>` prints,
-/// one per line with the empty lines dropped.
+/// The names `rustup <listing subcommand> list --installed --toolchain <version>` prints,
+/// one per line with the empty lines dropped,
+/// for the `component` row or the `target` row of a toolchain.
 /// Why:
 /// Asking `rustup` what it holds is what lets a sync on a complete machine add nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function installedRustNames(ctx: Context, tool: LockedTool, kind: RustPartKind): string[]
+/// function installedNames(ctx: Context, tool: LockedTool, listing: 'component' | 'target'): string[]
 /// ```
-fn installed_rust_names(ctx: &Context, tool: &LockedTool, kind: RustPartKind) -> Result<Vec<String>, ToolchainError> {
-    let subcommand: &str = kind.subcommand();
-    let request: RunRequest = ctx.request("rustup", &[subcommand, "list", "--installed", "--toolchain", &tool.version]);
-    let what: String = format!("rustup {subcommand} list --installed");
+fn installed_names(ctx: &Context, tool: &LockedTool, listing: &str) -> Result<Vec<String>, ToolchainError> {
+    let request: RunRequest = ctx.request("rustup", &[listing, "list", "--installed", "--toolchain", &tool.version]);
+    let what: String = format!("rustup {listing} list --installed");
     // What: `run_checked` starts `rustup` and turns a non-zero exit into an error naming this step.
     // Why: a listing that fails cannot prove which parts are installed, so the tool is reported as failed
     // rather than as unchanged.
@@ -212,30 +136,20 @@ fn installed_rust_names(ctx: &Context, tool: &LockedTool, kind: RustPartKind) ->
 }
 
 /// What:
-/// Whether `installed` already holds the name `declared`,
-/// as the same text or as that text plus a suffix
-/// (`clippy` is installed when the listing shows `clippy-x86_64-unknown-linux-gnu`).
+/// Whether `installed` holds `name` as that exact text.
 /// Why:
-/// `rustup component list --installed` spells a component with the host triple it was built for,
-/// while the lock declares the bare name,
-/// and a target triple is always printed bare.
+/// `rustup target list --installed` prints one bare triple per line,
+/// so a longer name that merely starts with a declared one
+/// (`wasm32-wasip1-threads` for a declared `wasm32-wasip1`)
+/// is a different standard library and must not count as the declared target.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function lists(installed: string[], declared: string): boolean
+/// function listsExactly(installed: string[], name: string): boolean
 /// ```
-fn lists(installed: &[String], declared: &str) -> bool {
-    // What: `format!` builds an owned `String` (the siblings are `&str` for a borrowed slice of text and
-    // `String::new()` for an empty one) holding the declared name and a hyphen.
-    // Why: a listed name that starts with it is the same part built for some triple.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const withHyphen = declared + '-';
-    // ```
-    let with_hyphen: String = format!("{declared}-");
-    for name in installed {
-        if name == declared || name.starts_with(&with_hyphen) {
+fn lists_exactly(installed: &[String], name: &str) -> bool {
+    for listed in installed {
+        if listed == name {
             return true;
         }
     }
@@ -243,96 +157,149 @@ fn lists(installed: &[String], declared: &str) -> bool {
 }
 
 /// What:
-/// The declared components and targets `rustup` does not report as installed for this toolchain:
-/// components first,
-/// each row in the lock's order.
+/// Whether `installed` holds the component `name`,
+/// either as that bare name (`rust-src`)
+/// or as that name plus one of the toolchain's target triples
+/// (`clippy` is installed when the listing shows `clippy-x86_64-unknown-linux-gnu`).
 /// Why:
-/// This is the list a sync adds,
-/// and it is empty on a machine whose toolchain already carries everything the lock declares,
-/// which is why such a run adds nothing.
+/// `rustup component list --installed` spells a component with the target triple it was built for,
+/// while the lock declares the bare name,
+/// and only a suffix that is one of the toolchain's own targets names the same component:
+/// `rustc-dev-x86_64-unknown-linux-gnu` is not the component `rustc`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function missingRustParts(ctx: Context, tool: LockedTool): RustPart[]
+/// function listsComponent(installed: string[], name: string, targets: string[]): boolean
 /// ```
-pub fn missing_rust_parts(ctx: &Context, tool: &LockedTool) -> Result<Vec<RustPart>, ToolchainError> {
-    let mut missing: Vec<RustPart> = Vec::new();
-    // What: `.clone().unwrap_or_default()` copies the declared list out of the lock entry (`.clone()` duplicates
-    // the owned data) and substitutes an empty list when the row is absent (`.unwrap_or_default()`, the sibling
-    // of `.unwrap_or(value)` for a fallback that is the type's own default).
-    // Why: the loop below moves each name into the result, so it cannot borrow the lock entry.
+fn lists_component(installed: &[String], name: &str, targets: &[String]) -> bool {
+    for listed in installed {
+        if listed == name {
+            return true;
+        }
+        // What: `strip_prefix(name + "-")` returns the text after that prefix as a borrowed `&str`,
+        // or `None` when the listed name does not start with it
+        // (`Option` is Rust's `string | undefined`; the siblings of `None` are `Some(value)`).
+        // Why: the leftover text is what must be one of the toolchain's target triples.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const suffix = listed.startsWith(name + '-') ? listed.slice(name.length + 1) : undefined;
+        // ```
+        let suffix: &str = match listed.strip_prefix(&format!("{name}-")) {
+            Some(rest) => rest,
+            None => continue,
+        };
+        if lists_exactly(targets, suffix) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+/// The names one option row of the lock declares,
+/// or an empty list when the row is absent.
+/// Why:
+/// Both loops below treat "absent" and "empty" the same,
+/// which is the row the sync has nothing to ask `rustup` about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function declaredNames(row: string[] | undefined): string[]
+/// ```
+fn declared_names(row: &Option<Vec<String>>) -> Vec<String> {
+    // What: `.clone()` copies the declaration's list out of the lock entry; `.unwrap_or_default()` then
+    // substitutes an empty list when the row is absent (its sibling `.unwrap_or(value)` takes a value).
+    // Why: the loops move each name out of the list, so they cannot borrow the lock entry.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const components: string[] = tool.declaration.options?.rustComponents ?? [];
+    // return [...(row ?? [])];
     // ```
-    let components: Vec<String> = tool.declaration.options.rust_components.clone().unwrap_or_default();
-    if !components.is_empty() {
-        let installed: Vec<String> = installed_rust_names(ctx, tool, RustPartKind::Component)?;
-        for name in components {
-            if !lists(&installed, &name) {
-                // What: `RustPart { kind, name }` builds the record that carries the subcommand and the name.
-                // Why: `reconcile_rust_parts` runs `rustup add` from these two fields.
-                //
-                // In TS you'd write (pseudocode):
-                // ```ts
-                // missing.push({ kind: 'component', name });
-                // ```
-                missing.push(RustPart { kind: RustPartKind::Component, name });
-            }
-        }
-    }
-    let targets: Vec<String> = tool.declaration.options.rust_targets.clone().unwrap_or_default();
-    if !targets.is_empty() {
-        let installed: Vec<String> = installed_rust_names(ctx, tool, RustPartKind::Target)?;
-        for name in targets {
-            if !lists(&installed, &name) {
-                missing.push(RustPart { kind: RustPartKind::Target, name });
-            }
-        }
-    }
-    return Ok(missing);
+    return row.clone().unwrap_or_default();
+}
+
+/// What:
+/// Runs `rustup <listing> add <name> --toolchain <version>` and records the sentence the report prints.
+/// Why:
+/// Both rows add a part the same way,
+/// and the sentence has to name the part and the listing that missed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function addPart(ctx: Context, tool: LockedTool, listing: 'component' | 'target', name: string, added: string[]): void
+/// ```
+fn add_part(ctx: &Context, tool: &LockedTool, listing: &str, name: &str, added: &mut Vec<String>) -> Result<(), ToolchainError> {
+    let request: RunRequest = ctx.request("rustup", &[listing, "add", name, "--toolchain", &tool.version]);
+    let what: String = format!("rustup {listing} add ({name})");
+    run_checked(ctx, &request, &what, &tool.declaration.id)?;
+    // What: `format!` builds the sentence the report prints in place of counting the tool unchanged.
+    // Why: the reader has to learn which part was added to a toolchain that was already at its version.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // added.push(`${id}: ${version} was already installed; added the declared ${listing} ${name}`);
+    // ```
+    added.push(format!(
+        "{}: {} was already installed; added the declared {listing} {name}, which `rustup {listing} list --installed` did not show",
+        tool.declaration.id, tool.version
+    ));
+    return Ok(());
 }
 
 /// What:
 /// Adds every declared component and target `rustup` does not have for this toolchain,
-/// and returns one sentence per part it added.
+/// one sentence per part added into `added`,
+/// and returns the error of the first listing or add that failed.
 /// Why:
 /// A toolchain another program installed at the locked version never reaches `install_tool`,
 /// so the lock's `rustComponents` and `rustTargets` rows need a second place that applies them;
 /// asking `rustup` first keeps a sync on a complete machine free of any add.
+/// The sentences stay with the caller when a later add fails,
+/// so parts this run did add are still reported.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function reconcileRustParts(ctx: Context, tool: LockedTool): string[]
+/// function reconcileRustParts(ctx: Context, tool: LockedTool, added: string[]): void  // throws
 /// ```
-pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool) -> Result<Vec<String>, ToolchainError> {
-    let mut added: Vec<String> = Vec::new();
-    // What: `?` returns early with the error when the missing-part lookup fails.
-    // Why: a toolchain whose listing cannot be read is a failed tool, not an unchanged one.
+pub fn reconcile_rust_parts(ctx: &Context, tool: &LockedTool, added: &mut Vec<String>) -> Result<(), ToolchainError> {
+    let components: Vec<String> = declared_names(&tool.declaration.options.rust_components);
+    let targets: Vec<String> = declared_names(&tool.declaration.options.rust_targets);
+    if components.is_empty() && targets.is_empty() {
+        return Ok(());
+    }
+    // What: `?` returns early with the error when the listing fails.
+    // Why: a toolchain whose listings cannot be read is a failed tool, not an unchanged one.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const missing = missingRustParts(ctx, tool);  // throws
+    // let installedTargets = installedNames(ctx, tool, 'target');  // throws
     // ```
-    for part in missing_rust_parts(ctx, tool)? {
-        let subcommand: &str = part.kind.subcommand();
-        let request: RunRequest = ctx.request("rustup", &[subcommand, "add", &part.name, "--toolchain", &tool.version]);
-        let what: String = format!("rustup {subcommand} add ({})", part.name);
-        run_checked(ctx, &request, &what, &tool.declaration.id)?;
-        // What: `format!` builds the sentence the report prints in place of counting the tool unchanged.
-        // Why: the reader has to learn which part was added to a toolchain that was already at its version.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // added.push(`${id}: ${version} was already installed; added the declared ${subcommand} ${name}`);
-        // ```
-        added.push(format!(
-            "{}: {} was already installed; added the declared {subcommand} {}, which `rustup {subcommand} list --installed` did not show",
-            tool.declaration.id, tool.version, part.name
-        ));
+    let mut installed_targets: Vec<String> = installed_names(ctx, tool, "target")?;
+    // The components come second only because the check for them needs the toolchain's targets.
+    if !components.is_empty() {
+        let installed_components: Vec<String> = installed_names(ctx, tool, "component")?;
+        let mut added_component: bool = false;
+        for name in components {
+            if lists_component(&installed_components, &name, &installed_targets) {
+                continue;
+            }
+            add_part(ctx, tool, "component", &name, added)?;
+            added_component = true;
+        }
+        // A component add can bring a target's standard library with it (`rust-std-<triple>`), so the target
+        // listing is read again before any target is judged missing.
+        if added_component && !targets.is_empty() {
+            installed_targets = installed_names(ctx, tool, "target")?;
+        }
     }
-    return Ok(added);
+    for name in targets {
+        if lists_exactly(&installed_targets, &name) {
+            continue;
+        }
+        add_part(ctx, tool, "target", &name, added)?;
+    }
+    return Ok(());
 }
 
 /// What:

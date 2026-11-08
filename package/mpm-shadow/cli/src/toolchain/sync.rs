@@ -242,12 +242,14 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             // A toolchain another program installed is already at its version, so the install path (the only place
             // that applied the lock's component and target rows) never runs; the rows are reconciled here instead,
             // which asks `rustup` what it holds and adds nothing on a machine that already has every part.
-            match reconcile_rust_parts(ctx, tool) {
-                Ok(added) if !added.is_empty() => {
-                    report.reconciled.extend(added);
-                    report.installed.push(tool.declaration.id.clone());
-                }
-                Ok(_) => report.unchanged.push(tool.declaration.id.clone()),
+            let mut added: Vec<String> = Vec::new();
+            let reconciled: Result<(), ToolchainError> = reconcile_rust_parts(ctx, tool, &mut added);
+            let added_anything: bool = !added.is_empty();
+            // Parts added before a later failure still happened, so their sentences stay in the report.
+            report.reconciled.extend(added);
+            match reconciled {
+                Ok(()) if added_anything => report.installed.push(tool.declaration.id.clone()),
+                Ok(()) => report.unchanged.push(tool.declaration.id.clone()),
                 Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
             }
             continue;
