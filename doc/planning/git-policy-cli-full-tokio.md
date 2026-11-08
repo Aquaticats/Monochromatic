@@ -3827,6 +3827,258 @@ signed commit 27.2,
 25.7 after;
 forwarded commands 1.0 to 1.9 ms either way.
 
+### Step T11, a stop ends the Gits the service waits on, and the service queues on tokio, 2026-11-07T23:40:00-05:00
+
+Branch `feat/git-policy-cli-tokio-t11`,
+from main at `d4eb891f37`,
+main merged in at `7c3cd01c49` (clean).
+The owner's pick for choice 12 ("C:
+shutdown stops its Gits (Recommended)",
+2026-11-07T22:19:43-05:00) is built.
+The loops of the service (the landing loop,
+the work loop),
+their sleeps,
+the inotify wait and the client's and the provision's sleeps are not converted:
+they wait for the conversion of the Git leaf (see "What T11 did not convert, and why").
+
+#### The design of choice 12
+
+- The handler only records the stop (`service/service_signal.rs`):
+  it stores the signal in an atomic (`process/stop_of_the_service_noticed_by_its_children.rs`),
+  writes the exit line as before,
+  writes one byte to a non-blocking pipe,
+  and arms `alarm` for the last resort.
+  A second stop signal ends the process at once by the default action.
+  A process that could not make the pipe ends in the handler as before.
+- The service's own shutdown is a task of the runtime (`service/service_server_shutdown_after_a_stop.rs`):
+  it reads the byte,
+  raises a level that every waiter holds an arm of,
+  waits for the unfinished work to reach zero for at most `SETTLE_CEILING`,
+  and ends the process by the recorded signal
+  (default disposition and `raise`,
+  so the exit still reads as "killed by SIGTERM").
+  It starts only in a process that prepared to notice a stop:
+  the first version of this commit ended the in-process services of the controls
+  (three `hung_write_tests` failed in the first container gate with exit code 1 and no text;
+  the fix and a control are in the branch).
+- No table of children (owner:
+  "Use as few locks as possible."):
+  every wait owns its child and ends it.
+  The watched steps (`output_watched_within`,
+  that is every Git the landing runs) end their child in `watch_loop`,
+  through `stop_process` (the grace,
+  the kill after it,
+  the sweep of the locks the child left),
+  the push and the query (`bounded_push.rs`,
+  `bounded_query.rs`) look at the arm at each of their existing ticks and stop with the existing `stop_push`,
+  and the Git step of a commit under a signal guard ends in `process/child_awaited_until_it_exits_or_the_service_is_stopped.rs`.
+  The shutdown only counts the work in flight (an atomic,
+  raised before the stop is read,
+  so a start is either refused or counted).
+- A step begun after the stop is refused,
+  except a step the landing thread starts while it unwinds:
+  that is how the commit's work is kept.
+  A refused push is answered as a stopped push (the queued line,
+  retried by the next service),
+  a refused step as `EndedByStop`.
+- The landing treats a stopped step like a step ended at its ceiling
+  (`service_land_git_steps_and_import_stream.rs`,
+  `run`):
+  `StepTooSlow`,
+  the sentence kept for the clients,
+  the built commit kept on `refs/cli-git/kept/<n>` by the existing `keep_unlanded`,
+  the scratch branch removed,
+  and the service's own `index.lock` given up when the lock guard drops.
+  The loop lands nothing more once the stop is recorded;
+  the work loop starts no round.
+- Bounds (each beside its measurement or the owner's figure):
+  `SETTLE_CEILING` = `STOP_CEILING` (3 times the longest delay measured,
+  the owner's "3x worst case") plus `STOP_GRACE` plus one second for the unwinding,
+  24.096 s;
+  `LAST_RESORT` (the alarm) = `SETTLE_CEILING` plus `STOP_GRACE`,
+  29.096 s;
+  the manager's default stop timeout is 90 s and this crate's unit sets none,
+  a control proves both are below it.
+
+#### Controls
+
+Red first (`9ff3110660`):
+`binary_service_stop_ends_its_gits_tests.rs`,
+a real service with a stand-in Git that stalls at the branch move with the service's lock held,
+`SIGTERM` sent to the service.
+Before the wiring three of four failed (`no Git is left running after 10 ms`,
+`ended after 10 ms` for the Git that ignores `SIGTERM`,
+and no commit on a side ref);
+the idle one passed.
+After the wiring all four pass:
+no Git and no `index.lock` within the bound,
+the commit on `refs/cli-git/kept/<n>` and the branch unmoved,
+a Git that ignores `SIGTERM` killed after `STOP_GRACE` and before `SETTLE_CEILING` (6.0 s in the run),
+an idle service ended at once by the signal.
+Unit controls:
+the stop module (counting,
+refusal and its count,
+first signal only,
+arm told only when the shutdown tells,
+the settle bound reached,
+the bounds below the manager's timeout,
+noticing only after preparing),
+a push,
+a query and a commit step running when the stop is told
+(ended,
+queued or reported as ended by the stop),
+a push begun after the stop not started,
+and the queue wait.
+Planted control:
+the arm of every piece of work removed (`begin_unfinished_work` giving none) failed the arm control at once and the push and commit-step controls only at their 60-second child (reverted).
+The existing control that the signal guard does not relay a service's stop to a commit's child is kept (the relay still does not;
+the shutdown ends the Gits).
+One failure found by an existing control:
+the shutdown logged through standard error,
+which blocks on a full pipe,
+and `a_service_stopped_while_standard_error_is_a_full_pipe_still_exits` failed (10 s);
+the shutdown now writes its one line without waiting (`send_without_waiting`).
+
+#### Judgment calls open to the owner's veto
+
+- A stop ends a branch write too (the landing's `Unbounded` step),
+  with `SIGTERM` first,
+  the kill after `STOP_GRACE`,
+  and a wait past the grace while a member is in uninterruptible sleep.
+  The owner's 2026-11-04 "Never cut a branch write (Recommended)" was about the wrapper's own ceilings while the service lives;
+  choice 12 says the service's stop stops the Gits it waits on.
+  A cut `update-ref` leaves its lock to the sweep and the branch where it was,
+  the batch's intent stays open and recovery reads it,
+  and the commit is on its side ref.
+- A landing that waits for a foreign index lock (`service_index_attempts.rs`,
+  another agent's file) is not woken by the stop:
+  its group is unfinished work,
+  so the service ends at `SETTLE_CEILING` at the latest.
+- The stop does not drain the queued durability syncs (as before;
+  a signal ended the service at once).
+- A client whose group was stopped gets `StepTooSlow` when its connection is still open when the process ends,
+  and a closed connection otherwise;
+  the commit is on its side ref either way.
+
+#### What changed for the queues
+
+The two queues of the service,
+the landing's requests and the after-commit wakes,
+are `tokio::sync::mpsc` unbounded channels
+(`service/service_server.rs`,
+`service_server_connection_handling.rs`,
+`service_server_work_loop.rs`);
+a task sends without a thread,
+and the loops that read them wait on the runtime's own timer and wake through `service/service_queue_received_on_the_runtime.rs`
+(an item,
+the bound,
+or the end of the queue).
+`std::sync::mpsc` is gone from the service's two queues.
+It remains in `landing/service_durable.rs` (the barrier),
+`landing/service_claim_renewal_running.rs`,
+`commit/native_commit_waiting_notice.rs`,
+`push/child_watch.rs` (the left-running waiter),
+`standards_review/standards_review_run.rs`,
+`markdown/markdown_linter_guard.rs` and `foundation/lazy_runtime.rs`.
+
+#### What T11 did not convert, and why
+
+- The landing loop,
+  the work loop and their sleeps stay threads.
+  Every Git step they run goes through `run_git` and its siblings,
+  which are synchronous and enter the runtime through `run_on_runtime`,
+  and that bridge refuses a call from inside the runtime (a blocking-pool thread included:
+  `Handle::try_current` is `Ok` there).
+  A task that ran a round would meet `RuntimeError::Nested` at its first Git.
+  Counted on this tree:
+  79 production files name `run_git`,
+  `run_git_checked`,
+  `output_watched`,
+  `output_of_blocking` or `run_on_runtime`,
+  and `run_git` or `run_git_checked` has 203 production mentions.
+  The order that works is leaf first:
+  an `async` `run_git` beside the synchronous one,
+  then `transaction_git` callers one folder at a time,
+  then the landing's steps,
+  then the loop.
+  Letting a blocking-pool thread call the bridge was judged and not done:
+  it needs a thread-local marker for "this thread is a pool job"
+  and it removes the refusal that has found real defects.
+- The remaining production sleeps and bounded receives
+  (`rg 'thread::sleep|park_timeout|recv_timeout'` outside tests and `binary/`):
+  `landing/service_index_hold.rs:147`,
+  `landing/service_index_attempts.rs:300` and `landing/service_index_wait.rs:118`,
+  `:309`,
+  `landing/service_land_follow.rs:280`,
+  `lock/index_holder_wait.rs:236`,
+  `push/auto_push.rs:278`,
+  `push/start_retry.rs:200` (the forwarded command's start pause,
+  by design),
+  `transaction/transaction_phase.rs:391`,
+  `transaction/transaction_git.rs:162` (`run_git_pausing`),
+  `service/service_client.rs:290`,
+  `service/service_client_reach_service.rs:137`,
+  `:204`,
+  `service/service_provision_earlier_service_retirement.rs:243`,
+  `commit/native_commit_waiting_notice.rs:160`,
+  `standards_review/standards_review_run.rs:533`,
+  `:543`,
+  `markdown/markdown_linter_guard.rs:222`,
+  `process/thread_quiet.rs:299` and `foundation/name_held_while_one_thread_publishes_it.rs:189`.
+  The client and provision sleeps belong to the synchronous commit command and the provisioning,
+  which become `async` with the commit command (T11 as the plan wrote it),
+  and the inotify wait (`landing/service_index_watch.rs`) belongs to the landing's lock wait (`service_index_attempts.rs`,
+  which the signed-ceiling branch edits).
+- Files the signed-ceiling branch edits were not touched:
+  `landing/service_index_reclaim.rs`,
+  `landing/service_index_attempts.rs`,
+  `commit/native_commit*`.
+
+#### Gate of T11
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`,
+unit `t11-gate2`,
+log `${HOME}/temp/agent/t11/gate2.log`) of the tree at `fc12edecb4`,
+main merged in:
+5371 run,
+5371 passed (3 slow),
+11 skipped,
+no failure;
+container Clippy clean;
+package lint (host) 0 errors and 0 warnings (the closure check ran,
+no `skipped` line).
+The first gate of the branch (`16bb774ce3`,
+5370 run,
+3 failed) is the shutdown that ended in-process services (above).
+Host: the lib suite minus the two askpass controls (they need `GIT_ASKPASS` unset,
+the owner's rule sets it empty) 4640 passed.
+Latency (`native:perf`'s own tool,
+three alternating rounds against the binary before T11,
+`${HOME}/temp/agent/t11/perf/`;
+the container gates ran on the host through all of it,
+which the alternation covers),
+added median of a commit through the service:
+before 19.6,
+19.9,
+23.6 ms (spread 4.0),
+after 22.4,
+20.3,
+26.0 ms;
+after minus before is 2.8,
+0.4 and 2.4 ms by round,
+mean 1.9 ms against the same-binary spread of 4.0 ms,
+so within the spread and not a measured regression;
+signed commit 28.4,
+28.1,
+30.3 before and 30.0,
+28.3,
+35.4 after;
+forwarded commands 1.4 to 2.2 ms either way.
+Two before runs of the earlier (idle host) pair gave 20.6 and 20.1 ms added.
+The bar (every paired delta far under five seconds) holds.
+The after binary was built before the fix of the shutdown's start;
+the fix changes nothing a commit through the service runs.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -4335,6 +4587,9 @@ and "never discard user data" (a commit whose Git is stopped keeps its work on i
 as withdrawals do).
 Red tests first:
 a stop during a long-running commit Git leaves no Git process and no `index.lock` behind within the bound.
+
+Built in T11 (2026-11-07T23:40:00-05:00):
+see "Step T11".
 
 ## Cross-vendor review
 
