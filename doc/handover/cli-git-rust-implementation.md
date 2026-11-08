@@ -4079,6 +4079,15 @@ and `service stop-units-of-removed-worktrees` stops the rest
 31 instances stopped,
 8 unmapped left running,
 and every stopped instance's Git directory was verified missing).
+The container gate of this branch (5393 tests,
+one run) failed two controls,
+both deterministic results of the first version of this change and fixed in the next commit:
+`never_starts_at_login_tests::provisioning_writes_only_in_the_runtime_unit_directory_and_links_nothing`
+(the note was written outside the unit directory,
+so it now lives in a folder of the unit directory that the manager reads as no unit),
+and `service_lock_inventory_tests::a_lock_stands_only_in_a_file_on_the_inventory`
+(the test recorder held a `Mutex`,
+so it now holds `Rc<RefCell<..>>`).
 Open:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
 `worktree prune`) and a worktree deleted without Git leave their units until the command runs;

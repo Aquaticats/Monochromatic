@@ -876,9 +876,10 @@ and a worktree deleted without Git leaves its units too.
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
-Each commit service setup writes the worktree's Git directory beside the socket
-(`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli/<hash>.git-dir`),
-which goes away with the units at logout or shutdown;
+Each commit service setup writes the worktree's Git directory into the folder it writes its unit files to
+(`$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/<hash>.git-dir`),
+which the manager reads as no unit,
+and which goes away with the units at logout or shutdown;
 for a unit set up before that,
 the `gitdir=` line of a record in the service's journal names the worktree.
 Either text counts only when it hashes to the instance.

@@ -3,38 +3,39 @@
 
 use crate::service_provision_host_and_manager::Manager;
 use crate::systemd_dbus::CallError;
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// A manager that records every call
 /// and answers a stop of one named unit with a failure when a control asks for that.
 #[derive(Clone, Default)]
 pub struct Recorder {
-    calls: Arc<Mutex<Vec<String>>>,
+    calls: Rc<RefCell<Vec<String>>>,
     /// The failure a stop of the named unit is answered with.
-    refuse: Arc<Mutex<Option<(String, CallError)>>>,
+    refuse: Rc<RefCell<Option<(String, CallError)>>>,
 }
 
 impl Recorder {
     /// Makes a stop of `unit` fail with `failure`.
     pub fn refuse_stop_of(&self, unit: &str, failure: CallError) {
-        *self.refuse.lock().expect("lock") = Some((unit.to_owned(), failure));
+        *self.refuse.borrow_mut() = Some((unit.to_owned(), failure));
     }
 
     /// The stops asked for,
     /// in order,
     /// as `stop <unit>`.
     pub fn stops(&self) -> Vec<String> {
-        return self.calls.lock().expect("lock").iter().filter(|call| { return call.starts_with("stop"); }).cloned().collect();
+        return self.calls.borrow().iter().filter(|call| { return call.starts_with("stop"); }).cloned().collect();
     }
 
     /// Every call asked for,
     /// in order.
     pub fn calls(&self) -> Vec<String> {
-        return self.calls.lock().expect("lock").clone();
+        return self.calls.borrow().clone();
     }
 
     fn answer(&self, unit: &str) -> Result<(), CallError> {
-        return match self.refuse.lock().expect("lock").clone() {
+        return match self.refuse.borrow().clone() {
             Some((named, failure)) if named == unit => Err(failure),
             _ => Ok(()),
         };
@@ -43,36 +44,36 @@ impl Recorder {
 
 impl Manager for Recorder {
     fn within(&mut self, wait: std::time::Duration) {
-        self.calls.lock().expect("lock").push(format!("within {}", wait.as_secs()));
+        self.calls.borrow_mut().push(format!("within {}", wait.as_secs()));
     }
 
     fn reload(&mut self) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(String::from("reload"));
+        self.calls.borrow_mut().push(String::from("reload"));
         return Ok(());
     }
 
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("reset-failed {unit}"));
+        self.calls.borrow_mut().push(format!("reset-failed {unit}"));
         return Ok(());
     }
 
     fn start(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("start {unit}"));
+        self.calls.borrow_mut().push(format!("start {unit}"));
         return Ok(());
     }
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("stop {unit}"));
+        self.calls.borrow_mut().push(format!("stop {unit}"));
         return self.answer(unit);
     }
 
     fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(format!("stop-alone {unit}"));
+        self.calls.borrow_mut().push(format!("stop-alone {unit}"));
         return self.answer(unit);
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
-        self.calls.lock().expect("lock").push(format!("state {unit}"));
+        self.calls.borrow_mut().push(format!("state {unit}"));
         return Ok(None);
     }
 }

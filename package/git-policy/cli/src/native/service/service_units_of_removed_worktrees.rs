@@ -11,7 +11,7 @@
 //! A socket unit has no idle exit,
 //! and the service exits only three hours after its last client.
 //! So provisioning writes the Git directory beside the socket
-//! (`<runtime>/monochromatic-git-policy-cli/<instance>.git-dir`,
+//! (`<runtime>/systemd/user/monochromatic-git-policy-cli-worktree-notes/<instance>.git-dir`,
 //! which lives as long as the units do),
 //! and a unit whose note is missing is mapped from the `gitdir=` line of its service journal's records,
 //! only when the text hashes to the instance.
@@ -28,7 +28,7 @@
 use crate::diagnostic_log::warn;
 use crate::private_storage::create_private_directory_all;
 use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_unit_instance};
-use crate::service_provision_host_and_manager::Manager;
+use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
 use crate::service_provision_unit_file_ownership_and_writes::write_atomically;
 use crate::systemd_dbus::{CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
@@ -87,9 +87,16 @@ pub struct SweepOutcome {
     pub survey: Survey,
 }
 
+/// The folder of the notes,
+/// inside the directory the manager reads the wrapper's unit files from,
+/// where provisioning already writes and nothing else of the wrapper does.
+/// The manager looks only at unit names in that directory,
+/// so a folder of this name is no unit and starts nothing.
+pub const NOTES_FOLDER: &str = "monochromatic-git-policy-cli-worktree-notes";
+
 /// The note file of an instance.
 pub fn note_path(runtime_dir: &Path, instance: &str) -> PathBuf {
-    return runtime_dir.join(SOCKET_DIRECTORY).join(format!("{instance}{NOTE_ENDING}"));
+    return runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).join(format!("{instance}{NOTE_ENDING}"));
 }
 
 /// What:
@@ -112,7 +119,7 @@ pub fn record_worktree(runtime_dir: &Path, instance: &str, git_dir: &Path) -> st
     if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
         return Ok(());
     }
-    create_private_directory_all(runtime_dir.join(SOCKET_DIRECTORY).as_path())?;
+    create_private_directory_all(runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path())?;
     return write_atomically(path.as_path(), text.as_str());
 }
 
@@ -247,27 +254,29 @@ fn is_instance_name(name: &str) -> bool {
     return name.len() == INSTANCE_LENGTH && name.chars().all(is_hexadecimal_digit);
 }
 
-/// The instance a file name of the socket directory belongs to,
-/// when it is a socket file or a note.
-fn instance_of_file_name(name: &str) -> Option<&str> {
-    let stem: &str = match name.strip_suffix(".sock") {
-        Some(socket) => socket,
-        None => name.strip_suffix(NOTE_ENDING)?,
-    };
+/// The instance a file name belongs to when it ends with `ending` after an instance name.
+fn instance_before<'a>(name: &'a str, ending: &str) -> Option<&'a str> {
+    let stem: &str = name.strip_suffix(ending)?;
     return is_instance_name(stem).then_some(stem);
 }
 
-/// Which instances have a socket file or a note in the runtime directory,
-/// sorted.
-pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(runtime_dir.join(SOCKET_DIRECTORY)) else { return Vec::new() };
-    let mut found: Vec<String> = Vec::new();
+/// Adds the instances that the files of `folder` ending with `ending` name.
+fn add_instances_of(folder: &Path, ending: &str, found: &mut Vec<String>) {
+    let Ok(listing) = std::fs::read_dir(folder) else { return };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if let Some(instance) = instance_of_file_name(name.as_str()) {
+        if let Some(instance) = instance_before(name.as_str(), ending) {
             found.push(instance.to_owned());
         }
     }
+}
+
+/// Which instances have a socket file in the socket directory or a note in the notes folder,
+/// sorted.
+pub fn instances_with_units(runtime_dir: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    add_instances_of(runtime_dir.join(SOCKET_DIRECTORY).as_path(), ".sock", &mut found);
+    add_instances_of(runtime_unit_dir(runtime_dir).join(NOTES_FOLDER).as_path(), NOTE_ENDING, &mut found);
     found.sort();
     found.dedup();
     return found;
