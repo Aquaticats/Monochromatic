@@ -258,6 +258,8 @@ It does not start the cut-over.
 ### The cutover command
 
 Run it only when no agent works in a worktree.
+Stop `kopia-snapshot-all.timer` first and start it again afterwards:
+`c03-holders-before` refuses the hourly kopia run and `c06-stop-units` does not stop it.
 It refuses unless the first pass,
 the external pass one,
 the size table and the mount option are recorded as done.
@@ -373,9 +375,9 @@ Stages marked window run inside the window and are refused once its maximum has 
 `repository-move-cutover-1` stopped at `c01-pre-freeze-table` before the window:
 36 of 375 rows were `missing`,
 registrations in `.git/worktrees` whose folders had been deleted
-(35 under `/var/mnt/encrypted/temp/agent`,
+(34 under `/var/mnt/encrypted/temp/agent`,
 removed with the old agent scratch the owner chose to delete,
-and one under `/var/home/user/temp/agent`).
+and 2 under `/var/home/user/temp/agent`).
 `git worktree prune --dry-run --verbose` listed exactly those 36 as "gitdir file points to non-existent location";
 with the encrypted drive confirmed mounted and the folders confirmed absent,
 `git worktree prune` removed them and a second dry run listed none.
@@ -408,6 +410,159 @@ Start the session that drives the runner from a folder outside the repository
 (`--add-dir` the repository),
 and keep that session's shell out of the repository:
 a `cd` into it carries over to the next command and makes the shell a holder.
+
+#### What the cut-over of 2026-11-08T07:19:28-05:00 to 2026-11-08T11:03:25-05:00 met
+
+The window opened at 07:19:28 and the release stage finished at 11:03:25,
+about 11 minutes before its maximum.
+The source of the move tool could not change while the tree was frozen,
+so two stages were recorded by hand and one was helped by a labelled script.
+The scripts named here are in `${HOME}/temp/agent/860-move/`.
+
+The holders found across the attempts,
+in order:
+this session and its shells,
+Codex,
+`dsh`,
+`adb`,
+Zed,
+the terminal shells,
+`atop`,
+the commit service's made-ahead lock file,
+two missed shells,
+and kopia.
+The owner on the second-to-last of those and the last:
+"Sorry I forgot to quit the 2nd Claude Code session.
+You can temporarily disable the kopia job if you need to."
+
+Measured stage times,
+in minutes:
+`c10-final-pass` about 10 per attempt,
+`c10b-verify-final` 13.5,
+`c11-external-final` 7,
+`c12-verify-staged` 29.5,
+`c13b-rsync` 63.5,
+`c14-sharing` 28.5,
+`c15-counts` 3,
+`c16-root-owned` 2,
+`c17-externals` 25,
+`c20-through-link` 32.
+
+`c05-fresh-inventory` compared the freeze lines with every `btrfs send` line,
+which counted the `--no-data` comparison beside each real send.
+Fixed in `e388bcf2ed`,
+with a test shown failing both ways
+(a correct plan rejected;
+the comparison removed).
+
+`c06-stop-units` called `xargs --arguments-file`.
+The option is `--arg-file`,
+so the stage stopped nothing,
+and `|| echo` hid that from its test.
+Fixed in `dd88b4def4`,
+with one unit per `systemctl` call,
+because `systemctl` refuses a whole list when any unit in it is not loaded.
+The failed attempt left `window-start`,
+which was renamed `window-start.aborted-c06-xargs` so the clock restarted.
+A sweep of every long option in the dry-run text against each tool's `--help` found no other wrong option;
+short options and option values were not checked.
+
+`c10-final-pass` stopped with status 141 (SIGPIPE) at `f210` and at later subvolumes,
+in the `btrfs send --no-data | btrfs receive --dump` of `package/repository-move/cli/src/final-diff-step.ts`.
+The first explanation given to the owner,
+that the diff exceeded the runner's output limit,
+was wrong:
+the limit is 64 MiB (`CHILD_OUTPUT_MIB` in `package/repository-move/cli/src/constants.ts`),
+the `f210` diff was 3,035,324 bytes,
+and the same step succeeded for `f210` on the next run.
+So the stop is intermittent and its cause is not established.
+Every stop was on a diff of roughly 9,000 to 16,500 commands;
+small diffs never stopped.
+The candidate to test on the snapshots with `PIPESTATUS`:
+`receive --dump` exits at the end-of-stream marker while `send` is still writing,
+and `pipefail` reports that as a failure.
+The workaround,
+`resume-final-pass.ts`,
+counted the commands again in a separate pipeline on each stop,
+wrote `fNNN.diff.json` with `changed: yes` and the real count,
+and reran the stage.
+A record saying `changed: yes` can only add verification,
+because a copy is skipped only for `changed: no`.
+The records it wrote,
+with their command counts:
+`f216` 16,317,
+`f221` 8,895,
+`f235` 16,302,
+`f238` 16,533,
+`f246` 16,317,
+`f263` 15,932,
+`f267` 16,311.
+The tool wrote the record of `f210` itself on the retry (15,967 commands).
+
+The check of `c17-externals` can never pass:
+under `bash -e -o pipefail`,
+`grep --invert-match` exits 1 when it selects no lines,
+which is what an empty compare or one holding only `*deleting` lines gives,
+and a real difference fails it by design.
+On throwaway compare files of those three kinds the shipped check exited 1,
+1 and 1,
+and the corrected one (`{ grep ... || true; } | head`) exited 0,
+0 and 1.
+Rerunning the 25-minute compare did not fit the window,
+so `finish-c17-record.ts` wrote `done/cutover/c17-externals` by hand,
+and the record's third line says so,
+after these held:
+the stage's compare file was empty for its logged `rsync` runs,
+all with status 0;
+`tr-s406` was missing from the logged `rsync` lines,
+so it was compared separately,
+with status 0 and no lines;
+and a positive control with the same options on real trees
+(`tr-w400/doc` against the copy of `tr-s406/doc`)
+gave status 0 and 2,574 lines,
+2 of them content differences.
+Not established:
+whether the stage's own loop compared `tr-s406`
+(17 folders exist and 16 `sudo` lines were logged).
+A control on a scratch pair failed with `rsync` status 3,
+because `rsync` under `sudo` refuses the symlink at `/var/home/user/temp`;
+it says nothing about the move.
+
+The check of `c20-through-link` can never pass through a link:
+it is a plain `cmp` against the frozen baseline,
+and Git prints the main worktree under its resolved path.
+Both pairs differed by exactly one line,
+the main worktree's,
+by spelling alone:
+same commit `dd88b4def4`,
+same state hash,
+same counts.
+`git fsck --full` exited 0 and printed only `dangling` lines and the scan's own lines.
+The stage took 32 minutes and 12 remained,
+so `finish-c20-record.ts` wrote `done/cutover/c20-through-link` by hand,
+and the record's third line says so,
+after a comparison allowing only that exact spelling passed
+and a planted difference on another line was caught in each file.
+
+Open in `package/repository-move/cli`,
+each with a failing test first:
+
+- The check of `c17-externals`,
+  over the empty compare,
+  the compare holding only `*deleting` lines,
+  and a real difference.
+- The check of `c20-through-link`,
+  allowing only the main worktree's spelling,
+  with a test that a change on any other line still fails it.
+- `final-diff-step.ts` must not stop on a complete dump,
+  once the status 141 has been measured.
+- Every other check in `guided-cutover-stages.data.ts`,
+  read for the same `grep` trap.
+
+Delete `resume-final-pass.ts`,
+`finish-c17-record.ts`,
+`finish-c20-record.ts`,
+`check-c17-evidence.ts` and `read-c20-differences.ts` once those fixes land.
 
 ### The thaw and rollback commands
 
@@ -651,8 +806,12 @@ After `cutover`:
 2.  `ls -ld /var/home/user/Monochromatic` prints a line starting with `l` and ending with
     `-> /var/mnt/encrypted/repository/Monochromatic`.
 3.  `ls /var/home/user/repository-move-state/wizard/window-end` exists and the release stage printed `window length:`.
-4.  `cmp /var/home/user/repository-move-state/wizard/baseline-frozen.tsv /var/home/user/repository-move-state/wizard/through-link.tsv`
-    prints nothing.
+4.  `/var/home/user/repository-move-state/wizard/baseline-frozen.tsv` and `through-link.tsv` in the same folder
+    differ in exactly one line,
+    the main worktree's,
+    and only by the spelling of its path
+    (`/var/home/user/Monochromatic` in the baseline,
+    `/var/mnt/encrypted/repository/Monochromatic` through the link).
 5.  `~/.local/share/monochromatic-dev/repository-link/repository-link-check` prints `ready (on the 860)`.
 
 Still the coordinator's,
