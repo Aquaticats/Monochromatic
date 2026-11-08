@@ -5,7 +5,10 @@
 //! the summary line and exit statuses.
 
 use super::*;
+use crate::add_timing::{begin_work, end_work};
+use crate::side_by_side_threads::in_thread_scope;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
+use crate::worktree_copy_after_lock::TrashBesideRepair;
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
@@ -341,6 +344,49 @@ fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invo
         add_plan: None,
         repair: crate::package_repair::RepairSwitch::default(),
     };
+}
+
+/// The disposal of a snapshot's trash runs and is joined before the add ends:
+/// what it did is recorded as work of its own,
+/// the wait for it is a step of its own,
+/// and a disposal that fails is reported instead of failing the add.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_the_adds() {
+    use crate::fs_beneath::ObjectId;
+    use crate::worktree_trash::TrashManifest;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    /// How many times the stand-in emptied the trash.
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    /// The stand-in records the work as the shipped job does,
+    /// and leaves the trash where it is.
+    fn refuse(_state: (&GitContext, &PendingTrash)) -> Result<(), String> {
+        let began: std::time::Instant = begin_work();
+        CALLS.fetch_add(1, Ordering::SeqCst);
+        end_work("disposeTrash", began);
+        return Err(String::from("the trash stays"));
+    }
+    let root: PathBuf = fixture("lifecycle-trash-disposal");
+    let (main, common) = source(root.as_path());
+    let pending: PendingTrash = PendingTrash {
+        destination: main.clone(),
+        git_dir: common.clone(),
+        manifest: TrashManifest { name: "ab".repeat(20), trash: ObjectId { device: 7, inode: 1, birth: None }, entries: Vec::new() },
+        quiet: true,
+    };
+    let after: AfterLock = AfterLock { source_root: None, created: Vec::new(), trash: Some(pending.clone()) };
+    let invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
+    let mut stderr: Vec<u8> = Vec::new();
+    crate::add_timing::begin(common.clone());
+    in_thread_scope(TrashBesideRepair { invocation: &invocation, after: &after, pending: &pending, stderr: &mut stderr, dispose: refuse });
+    crate::add_timing::finish(0);
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "the trash was emptied once, and the add waited for it");
+    assert_eq!(stderr, Vec::<u8>::new(), "the person's stream carries the repair, and a disposal that fails says so in the log");
+    let written: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
+    let record: serde_json::Value = serde_json::from_str(written.trim_end()).expect("the record is one JSON object");
+    assert_eq!(record["work"]["disposeTrash"]["calls"], 1, "{record}");
+    assert_eq!(record["steps"]["disposeTrashWait"]["calls"], 1, "the wait is a step of its own: {record}");
+    remove(root.as_path());
 }
 
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.

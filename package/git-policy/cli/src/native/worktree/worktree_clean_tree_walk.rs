@@ -20,7 +20,7 @@ use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_index::StatFields;
 use crate::subvolume_index_files::fields_of;
 use crate::worktree_clean_content::{ContentJudge, ConversionEnvironment, Place};
-use crate::worktree_clean_stat_verdicts::{CleanRefusal, CleanRefusalKind, StatEntry, StatVerdict, changed_file, metadata_verdict, stat_finding};
+use crate::worktree_clean_stat_verdicts::{CleanRefusal, StatEntry, StatVerdict, changed_file, file_changed, metadata_verdict, stat_finding};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
@@ -116,40 +116,69 @@ pub struct ContentTarget<'a> {
 /// function treeDiffersFromIndexByContent(target: ContentTarget, entries: StatEntry[], indexed: IndexEntry[], indexSeconds: number): string | undefined;
 /// ```
 pub fn tree_differs_from_index_by_content(target: &ContentTarget<'_>, entries: &[StatEntry], indexed: &[IndexEntry], index_seconds: u32) -> Option<String> {
+    return match tree_fields_by_content(target, entries, indexed, index_seconds) {
+        Ok(_fields) => None,
+        Err(refusal) => Some(refusal.reason),
+    };
+}
+
+/// What:
+///  The first refusal of a tracked file of the worktree against its index entry,
+/// settling by content the entries the
+///  stat data cannot vouch for,
+/// and the stat fields of every file,
+/// in one walk.
+/// Why:
+///   The snapshot rung installs the index it proved,
+/// so the walk that judges the files also returns the stat fields that index carries,
+///  and a file whose stat data is stale or racy is hashed instead of refused;
+/// the conversion reads its proof through the same
+///  walk.
+/// A file that really differs,
+/// or one a content conversion could change,
+/// is refused with the reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function treeFieldsByContent(target: ContentTarget, entries: StatEntry[], indexed: IndexEntry[], indexSeconds: number): StatFields[] | { refused };
+/// ```
+pub fn tree_fields_by_content(target: &ContentTarget<'_>, entries: &[StatEntry], indexed: &[IndexEntry], index_seconds: u32) -> Result<Vec<StatFields>, CleanRefusal> {
     if entries.len() != indexed.len() {
-        return Some(String::from("the index entries and their stat data are not the same files"));
+        return Err(CleanRefusal::unreadable(String::from("the index entries and their stat data are not the same files")));
     }
     let held: std::fs::File = match open_root(target.root) {
         Ok(opened) => opened,
-        Err(error) => return Some(format!("{} cannot be opened without following a link ({error})", target.root.display())),
+        Err(error) => return Err(CleanRefusal::unreadable(format!("{} cannot be opened without following a link ({error})", target.root.display()))),
     };
     let mut judge: ContentJudge<'_> = ContentJudge::new(&held, target.git_dir, target.common_dir, target.environment, target.format);
     let mut cached: Option<(Vec<std::ffi::OsString>, std::fs::File)> = None;
+    let mut fields: Vec<StatFields> = Vec::with_capacity(entries.len());
     for (entry, committed) in entries.iter().zip(indexed) {
         if entry.path != committed.path {
-            return Some(String::from("the index entries and their stat data are not the same files"));
+            return Err(CleanRefusal::unreadable(String::from("the index entries and their stat data are not the same files")));
         }
         let shown: String = String::from_utf8_lossy(entry.path.as_slice()).into_owned();
-        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Some(format!("{shown} is not a plain path")) };
-        let Some((name, parents)) = names.split_last() else { return Some(format!("{shown} is not a plain path")) };
+        let Ok(names) = plain_components(Path::new(OsStr::from_bytes(entry.path.as_slice()))) else { return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
+        let Some((name, parents)) = names.split_last() else { return Err(CleanRefusal::unreadable(format!("{shown} is not a plain path"))) };
         if cache_misses(&cached, parents) {
-            let Ok(directory) = open_directory_beneath(&held, parents) else { return Some(format!("{shown} is missing from the worktree or reached through a link")) };
+            let Ok(directory) = open_directory_beneath(&held, parents) else { return Err(file_changed(format!("{shown} is missing from the worktree or reached through a link"))) };
             cached = Some((parents.to_vec(), directory));
         }
-        let Some((_known, directory)) = cached.as_ref() else { return Some(format!("{shown} is missing from the worktree")) };
-        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Some(format!("{shown} is missing from the worktree")) };
+        let Some((_known, directory)) = cached.as_ref() else { return Err(file_changed(format!("{shown} is missing from the worktree"))) };
+        let Ok(metadata) = entry_metadata_at(directory, name.as_os_str()) else { return Err(file_changed(format!("{shown} is missing from the worktree"))) };
         match metadata_verdict(entry, &metadata, index_seconds) {
             StatVerdict::Agrees => {}
-            StatVerdict::Differs(reason) => return Some(reason),
+            StatVerdict::Differs(reason) => return Err(file_changed(reason)),
             StatVerdict::Unproven(_reason) => {
                 let place: Place<'_> = Place { directory, parents, name: name.as_os_str() };
                 if let Err(reason) = judge.agrees(&place, entry, committed.id.as_slice(), index_seconds) {
-                    return Some(reason);
+                    return Err(file_changed(reason));
                 }
             }
         }
+        fields.push(fields_of(&metadata));
     }
-    return None;
+    return Ok(fields);
 }
 
 /// What:
@@ -246,41 +275,6 @@ impl<'a> StatCursor<'a> {
             Err(_refused) => None,
         };
     }
-}
-
-/// What:
-///  Judge every tracked file below the held directory `root` against its index entry and return the stat fields of each,
-/// in
-///  entry order,
-/// in one walk.
-/// Why:
-///   The snapshot's index takes the stat fields of the snapshot's own files,
-/// and the snapshot is proven equal to the source's
-///  index by the same stat data;
-/// the same `statx` serves both,
-/// so the files are looked at once,
-/// and the fields are the ones the
-///  verdict was given on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const fields = treeFieldsBeneath(root, entries, indexSeconds); // throws a CleanRefusal
-/// ```
-pub fn tree_fields_beneath(root: &std::fs::File, entries: &[StatEntry], index_seconds: u32) -> Result<Vec<StatFields>, CleanRefusal> {
-    let mut cursor: StatCursor<'_> = StatCursor::new(root);
-    let mut fields: Vec<StatFields> = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let metadata: std::fs::Metadata = match cursor.metadata(entry.path.as_slice()) {
-            Ok(found) => found,
-            Err(reason) if reason.ends_with("is not a plain path") => return Err(CleanRefusal::unreadable(reason)),
-            Err(reason) => return Err(CleanRefusal::new(CleanRefusalKind::FileChanged, reason)),
-        };
-        if let Some(refusal) = stat_finding(entry, &metadata, index_seconds) {
-            return Err(refusal);
-        }
-        fields.push(fields_of(&metadata));
-    }
-    return Ok(fields);
 }
 
 /// What:

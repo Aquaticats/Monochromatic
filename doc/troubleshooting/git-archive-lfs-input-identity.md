@@ -71,6 +71,11 @@ The research branch owns this runnable task:
 mise run //package/monorepo-task/core-exec:research:rust:corpus-audit
 ```
 
+That branch is `research/depot-reuse-20261018`,
+created on 2026-10-18 (commit `6a235b5892`),
+when the package was still `package/dev-script/task-util`;
+`main`'s `package/monorepo-task/core-exec/mise.toml` declares no `research:*` task.
+
 Its positive catalog comprises direct Git-blob matches and content-addressed LFS materializations.
 Its failing catalog contains 1,464 direct raw-blob equality comparisons:
 those archive members differ from their frozen pointer blobs.

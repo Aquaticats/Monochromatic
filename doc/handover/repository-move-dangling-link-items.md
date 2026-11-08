@@ -460,10 +460,18 @@ from the brief and the plan:
   so a stop with no mapper now
   fails where the old stop hid it;
   a guard `[ -e /dev/mapper/crypt_sda ]` is the owner's call.
-- The startup gate and the doctor line read `HOME` from the process environment,
-  the entry gate from the invocation's environment
-  (rule HOM);
-  threading `environment` to `recover_for_command` is left undone.
+- The startup gate and the doctor line read `HOME` from the process environment while the entry gate read the
+  invocation's environment (rule HOM);
+  done in `a31518394e` and `2b9567c8ad`:
+  `recover_for_command` now takes the environment and resolves the home through
+  `child_environment::environment_home`,
+  `prepare_guarded_command`,
+  `recover_before_read_only` and `plan_direct` pass it down,
+  and `plan_doctor` binds the invocation's home into the doctor's filesystem section.
+  The control plants an identity file in the home the invocation names,
+  with a link the worktree sits under,
+  and requires the stop the old process-environment read answered as `Clear`
+  (`invocation/startup_gate_tests.rs`).
 - `mise trust --show` prints `<path>: trusted` or `<path>: untrusted` (checked in this worktree),
   which `c24-mise-trust` greps.
 

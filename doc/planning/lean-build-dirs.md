@@ -7,7 +7,8 @@ Nothing was deleted and no build configuration was changed in that round.
 
 Status,
 2026-11-07T23:40:00-05:00:
-the owner decided in the question tool ("A to F, B allowed (Recommended)")
+the owner decided in the question tool ("A to F,
+B allowed (Recommended)")
 and the six mechanisms are built in `package/cargo-shadow/cli`.
 Section "Owner decision and what was built" says what exists,
 section "Measured picks" records the numbers with the owner's veto open,
@@ -703,10 +704,12 @@ busy or unknown layout.
 
 ## Owner decision and what was built
 
-The owner's answers of 2026-11-07 (question tool, recorded at 2026-11-07T22:19:43-05:00 in
+The owner's answers of 2026-11-07 (question tool,
+recorded at 2026-11-07T22:19:43-05:00 in
 `doc/handover/questions-for-the-owner.md`):
 
-- "A to F, B allowed (Recommended)":
+- "A to F,
+  B allowed (Recommended)":
   all six mechanisms in order,
   in cargo-shadow (`package/cargo-shadow/cli`),
   with `doc/decision/cargo-build-dir-host-cache.md` amended so the sweep (B) may read Cargo's fingerprint files,
@@ -715,15 +718,18 @@ The owner's answers of 2026-11-07 (question tool, recorded at 2026-11-07T22:19:4
   under their own locks,
   cleans what exists today;
   grace periods and size caps are measured and recorded as coordinator picks with the owner's veto open.
-- "Rust toolchains (Recommended)" and "Podman images, volumes (Recommended)":
+- "Rust toolchains (Recommended)" and "Podman images,
+  volumes (Recommended)":
   remove nightlies that no checkout's lock pins,
   and images and volumes no container uses and no current image tag of this repository names,
   each after the grace period.
 
 Where each mechanism lives (all in `package/cargo-shadow/cli/src`,
-described in its README, section "Keeping the build folders lean"):
+described in its README,
+section "Keeping the build folders lean"):
 
-- A, toolchain-keyed build folders:
+- A,
+  toolchain-keyed build folders:
   `lean_keyed_folder.rs`,
   called from `shim.rs` for the child cargo only.
   Done for host runs.
@@ -731,25 +737,30 @@ described in its README, section "Keeping the build folders lean"):
   `package/ide/app/mise.toml` and `package/nested-wayland-session/cli/mise.toml` are outside cargo-shadow and the owner's
   answer did not name them,
   so those two in-tree builds are kept lean by B and E.
-- B, the older-compiler sweep:
+- B,
+  the older-compiler sweep:
   `lean_unit_reader.rs`,
   `lean_sweep_plan.rs`,
   `lean_unit_removal.rs`.
-- C, verified-idle trees:
+- C,
+  verified-idle trees:
   `lean_build_trees.rs`,
   `lean_idle_trees.rs`.
-- D, run-record retention:
+- D,
+  run-record retention:
   `lean_run_records.rs`.
   The plan assigned D to the producing packages;
   the owner's answer put all six in cargo-shadow,
   so the retention runs from `cargo-shadow lean run`.
   The producing tasks (five packages with TypeScript runners) do not call it themselves.
   Wiring each producer to call it first is a separate change and is open.
-- E, size caps:
+- E,
+  size caps:
   `lean_size_caps.rs`.
   The caps are absolute per profile directory (see the next section),
   because a cap relative to a directory's own newest-compiler bytes can never bind.
-- F, the timer:
+- F,
+  the timer:
   `lean_timer_units.rs`,
   installed by `cargo-shadow lean timer-install`.
 - Also in the same run:
@@ -1403,9 +1414,9 @@ and the section "Measured picks" holds the numbers.
   A is not applied to them,
   B and E keep them lean;
   G is not built.
-- The open items below are not answered:
-  what runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
-  and which wrapper build is installed.
+- The two open items below were answered on 2026-11-08;
+  their answers sit beside the questions,
+  and section "Open" of `doc/handover/cargo-shadow-lean-build-folders.md` holds the measurements.
 
 The original questions follow.
 
@@ -1435,12 +1446,37 @@ The original questions follow.
 - What runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
   and whether it should stop at the
   source.
+  Answered 2026-11-08:
+  `cargo package` verifies by unpacking the crate into the workspace's build tree and compiling it
+  (measured:
+  `<base>/75/4a9477468c27be/package/tiny-probe-0.1.0` with `CARGO_BUILD_BUILD_DIR=<base>/{workspace-path-hash}`),
+  and the invokers are 16 `run: cargo package` and 16 `run: cargo publish --dry-run` steps of
+  `.github/workflows/cargo-publish.yml` (one of each per crate job),
+  the release preflight of `package/crate-release/cli` (a `cargo publish --dry-run` that does verify),
+  and each crate's manual `package`/`publish:dry-run` task.
+  The "about 90 times per crate" figure is not reproducible as a run count:
+  the hash-shaped host build trees hold 6,763 unpacked crate directories over 45 distinct versions,
+  25 of them the wrapper's,
+  and the copies multiply because each worktree's build tree is cloned.
+  Whether to stop at the source is the owner's call;
+  `--no-verify` on the two verifying steps would remove the only compile of the packaged crate.
 - Which wrapper build is installed:
   the source skips `target/**/incremental`,
   `target/verification` and the caches,
   and
-  the brief's 49.5 GB is within a percent of its listed total minus incremental state (49.2 GB);
-  not verified.
+  the brief's 49.5 GB is within a percent of its listed total minus incremental state (49.2 GB).
+  Answered 2026-11-08:
+  the installed and locked build is `monochromatic-git-policy-cli` 0.6.1-alpha.4
+  (`toolchain.lock.json`,
+  route `archive`;
+  the launcher record `.cache/toolchain-launchers/monochromatic-git-policy-cli.launch` names that payload),
+  and it carries the whole rule,
+  which entered at version 0.5.14
+  (`5e773a62f4`,
+  2026-11-02)
+  and first shipped in `monochromatic-git-policy-cli-v0.5.18`.
+  Which build ran for the brief's own measurement is not established;
+  its 49.5 GB matches a build that left out incremental state only.
 
 ## Review
 

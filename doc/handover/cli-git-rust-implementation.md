@@ -1,5 +1,30 @@
 # cli-git implementation handover
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
+Note 2026-11-08:
+`doc/planning/cli-git-commits-never-fail.md` is not in this tree;
+it lived on a lane branch and its newest revision is `1fc759ba80` (2026-11-04).
+`doc/planning/cli-git-commits-never-fail-review-history-archive.md` never landed either.
+`doc/planning/cli-git-closure-lint-suppressions.md` was folded into
+`package/git-policy/cli/doc/closure-lint-suppressions.md`
+on 2026-11-04 by `4b1abb1430`,
+and the drafts `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+and `doc/closure-lint-suppressions-service-landing-and-runner-folders.md`
+never entered the tree.
+`doc/runbook/repository-on-the-860-drive-guided-root-script.sh` was replaced by
+`doc/runbook/repository-on-the-860-drive-guided-runner.md`
+on 2026-11-07 by `eb10f2fdb2`.
+`package/file-enforcer/core/src/watch/notify.ts` went with the TypeScript file-enforcer
+on 2026-10-31 by `e7b5130459`.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -3068,6 +3093,10 @@ Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-ru
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
 
+- The wizard skill emits TypeScript root scripts (owner:
+  "Wizard writes TypeScript").
+- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
+  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
 Only these wait on the repository move's last stages:
 the merge named first in the list of ordered work,
 the checksum and the IDE check themselves,
@@ -4177,16 +4206,28 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
 - count existing worktrees whose `node_modules` links are broken (made from main after main moved to pnpm's global
   virtual store,
   before the package repair shipped in 0.5.21) and ask the owner before relinking worktrees that belong to other
   sessions.
+
+Two small fixes this section listed are done:
+- the dry-run summary counted none of the "would convert" lines it printed;
+  fixed in `cdf10486fd`:
+  a dry run now says how many it would convert or complete,
+  and the control counts the lines it listed and requires the summary to name that many
+  (`worktree_convert_command_tests.rs`,
+  `all_worktrees_are_listed_then_converted`);
+- the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers are swept in `d4c213edf0`
+  (`4b4c6db031` names the field check and satisfies the package lint):
+  every journal write sweeps its own administrative directory first,
+  and a file goes only when `process_birth_identity` proves the process its name records is gone,
+  so the journal,
+  the claim files and a file of a running process stay
+  (`worktree_convert_safety_tests.rs`);
+  the other half of this line was already done when it was written:
+  `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
+  and the same test file plants a symlink at the name.
 
 ### Worktree add follow-ups
 
@@ -4246,21 +4287,130 @@ No opt-out of the repair exists for a person who wants a fast add:
 `--no-checkout` (a no-checkout add has nothing to repair),
 and a search of `README.md` found no key that turns it off.
 Not done (proposals for the owner,
-not decided):
+not decided),
+with what each would save measured where it was cheap:
 skip the clone and the clean for a workspace whose source has no build
-state;
-start the 35 `cargo metadata` reads of the source at the first step so they overlap the snapshot;
+state:
+already the code's behaviour
+(`plan_build_state` answers `Nothing` when neither side holds build state,
+`package_repair_cargo.rs`),
+so it saves nothing more,
+and every workspace the measurement of 2026-11-08 in this section recorded did hold state;
+start the 35 `cargo metadata` reads of the source at the first step so they overlap the snapshot:
+`cargo metadata --offline --no-deps` took 1.36 s cold and 70 ms warm for a 400-member fixture workspace,
+against a `cargo clean` of about 11 s for the same workspace,
+so its ceiling is the metadata part of `repairCargo`,
+hidden only as far as the snapshot lasts (median 360 ms in the fixture's add records,
+162 and 4115 ms in the real repository's records of 2026-11-08);
 overlap
-`repairPnpm` and `repairCargo` with the trash disposal (the item above);
+`repairPnpm` and `repairCargo` with the trash disposal (the overlap that landed):
+that is the first item of the `Done` list in this section;
+it took a median 4504 ms off the critical path;
 a per-workspace snapshot of the build
-directory when it is a subvolume.
+directory when it is a subvolume:
+on one 150203-entry tree a `btrfs subvolume snapshot` took 2242 to 12593 ms (median 5270) where a file-by-file reflink
+copy of it,
+  which is what the repair's clone does,
+  took 27136 to 45477 ms (median 42775,
+about an eighth of the copy),
+so against the `cargoCloneTree` 66305 ms of worker time recorded on 2026-11-08 it is an estimated 58 s of worker time saved and
+some wall time,
+since those clones already run beside each other.
+
+Done (2026-11-08,
+`b1e1818bab`
+on `perf/git-policy-cli-worktree-add-remaining-work`):
+
+- The inline trash disposal runs beside the package repair.
+  The ladder hands the trash out in `LadderResult.trash` (`PendingTrash` in `worktree_trash_dispose.rs`);
+  `worktree_copy.rs` starts the disposal on a scoped thread,
+  repairs the created worktrees on the calling thread,
+  and waits before the command ends,
+  so the person waits for the slower of the two.
+  The wait is a step of its own (`disposeTrashWait`) and the disposal is worker time (`disposeTrash`),
+  because a thread's work is summed per thread like every repair tool's.
+  A disposal that fails,
+  or stops unexpectedly,
+  is a log line and never the add's failure.
+- A post-snapshot mismatch of a main source keeps the snapshot and takes the restore path.
+  The snapshot's own index is one instant with the files it copied,
+  so `install_index` reads it,
+  installs it,
+  and the copy is reset to the new `HEAD` with `read-tree --reset -u` and `clean --force -d` (`restore_dirty`),
+  which rewrites only the paths that differ instead of the whole worktree.
+  The install moved before `replace_git_pointer` in `take_snapshot`,
+  so the snapshot's own `.git`,
+  and with it its index,
+  is still there to read.
+  A linked worktree's index lies outside it and is not in the snapshot,
+  so a linked source that changed is still refused and Git's own checkout completes that worktree.
+- The snapshot rung settles entries its stat data cannot vouch for by content,
+  as the conversion does,
+  instead of falling to the slow route.
+  `tree_fields_by_content` is now the one walk that judges the tracked files of a copy and returns the stat fields the
+  installed index carries;
+  `tree_fields_beneath` is gone,
+  and the conversion's proof (`tree_differs_from_index_by_content`) reads through the same walk.
+
+Measured 2026-11-08 with the add's own timing record,
+on a disposable btrfs fixture of 400 workspace members and 150 thousand entries in a pruned cache
+(`target/incremental`),
+so that both the repair and the disposal are real;
+the record's own timestamps run from 2026-11-08T20:33:19.173Z to 2026-11-08T20:46:47.573Z,
+and the host's load average was 60 to 240 through the runs.
+The fixture and the harness are outside the repository,
+in `~/temp/agent/wt-add-measure`;
+both binaries are the release executable of this crate,
+the same checkout at `1a907ccfb9` before the change and with it after.
+
+- The run-to-run spread on unchanged input came first,
+  five adds of the old binary:
+  `totalMs` ranged 16591 to 26541,
+  median 20691.
+  That spread is the host's fsync latency inside the add's durable steps and not its file work:
+  `claimStage` ranged 30 to 5571 ms in those five runs and reached 23057 ms in one later run,
+  `recordBinding` reached 13805 ms and `installIndexFile` 14788 ms.
+- Fifteen interleaved pairs followed,
+  one add of each binary per pair,
+  alternating which went first,
+  on the same unchanged input:
+  `totalMs` median 19832 before and 16603 after,
+  and the median of the fifteen per-pair differences 4133 ms in the after binary's favour
+  (two pairs ran the other way,
+  by 27360 and 28534 ms,
+  on the fsync stalls above).
+- The disposal left the critical path:
+  before,
+  the person waited for it inside `disposeTrash`,
+  a median of 4504 ms (range 3598 to 9440);
+  after,
+  `disposeTrashWait` was 0 ms in all fifteen runs (at most 0.001).
+- The work it does did not shrink,
+  it moved:
+  the disposal took a median 5865 ms as worker time after (range 4902 to 9915) against 4504 ms inline,
+  about 30 percent slower while it shares the disk with the repair,
+  and the repair took a median 12766 ms before and 14034 ms after,
+  about 10 percent slower beside the disposal,
+  and still outlasted the disposal in every run,
+  which is why the wait is zero.
+- Five more pairs confirmed it with the binary built from the final commit of this branch
+  (`aaf0e711d0`,
+  whose file split changes no behaviour):
+  `totalMs` medians 15303 before and 14275 after,
+  the wait 0 ms in every run,
+  and a per-pair median of 2332 ms.
+  The disposal itself took 3294 to 10050 ms there and the repair about 1 s longer beside it,
+  so the person's saving is the disposal's duration less that contention,
+  which is what separates 2332 ms from the 4504 ms median of the fifteen pairs.
+- A smaller fixture cross-checked the mechanism (160 members,
+  200 thousand cache entries):
+  `totalMs` median 7514 over five adds of the old binary (7065 to 8802),
+  against 6077 and 6794 in two adds of the new one,
+  with the wait 3237 and 2999 ms and the disposal 5871 and 5658 ms beside a repair of 2632 and 2657 ms.
+  There the disposal was the longer of the two,
+  so the saving is the repair's length.
 
 Not done:
-overlap the inline trash disposal with the package repair;
-on a post-snapshot mismatch of a main source,
-keep the snapshot and take the restore path instead of the full copy;
-make the snapshot rung settle racily clean entries by content (as the conversion does) instead of falling to the slow
-route;
 parallelism audit of loops over independent items (branch `perf/git-policy-cli-parallel-independent-work` merged the
 first round;
 the audit's remaining findings are not recorded here).
@@ -4315,6 +4465,65 @@ a wait notice on standard error where real Git printed none)
 now compares standard error without wait notices,
 as the pull and merge isolation controls already did (commit `43aea63140`;
 the five sequencer controls passed on the host).
+Whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
+(today it stays on its scratch branch with the open intent):
+decided and built (2026-11-08,
+branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`,
+red control `70d04ae08a`).
+What was read before the change:
+a start of the service settles only an earlier release's shared journal,
+not its own;
+the next batch settles its own (`settle_open_batches` in `service_server_land_group.rs`),
+and that drop (`recover_selected` in `service_land_finish.rs`) left the commit on `refs/worktree/cli-git-service/<seq>`
+alone,
+which a commit only Git can build never has.
+So the drop now writes `refs/cli-git/kept/<seq>` at the batch's own `new` before the intent goes
+(`keep_what_the_branch_does_not_show`),
+through the one function that names that ref (`keep_on_a_side_ref`,
+which `keep_unlanded` uses too),
+and the stop waits for nothing more than it did.
+Limits,
+both deliberate:
+the ref exists only once a commit in that worktree has settled the batch,
+so the client that saw the stop still gets "the commit service stopped before it confirmed this commit",
+which names `git log -1` and `git status` and not the kept ref;
+and a kept write that fails is logged with Git's words and the commit's name and still drops,
+because the drop is what releases the worktree's index lock,
+so a ref nobody can write does not leave every later commit waiting on that lock.
+The kept write is a side-ref write,
+so a stop cuts it like every other Git of a landing.
+Main's own sweep of a dropped batch's scratch reference arrived in the merge (`f293f8f58d`,
+`a3e6bc94e1`,
+`service_scratch_ref_of_a_dropped_batch.rs`):
+that sweep keeps the tip of the scratch reference and then removes the reference,
+and it leaves both alone when the kept reference names another commit,
+a keep Git refused,
+or a reference Git cannot read.
+So the drop now does both:
+this change's keep of the batch's own commit (the only path a commit Git built has,
+since it makes no scratch reference),
+then that sweep.
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` therefore no longer asserts a surviving scratch branch;
+it asserts the kept commit,
+the removed scratch branch,
+and the kept commit's survival of `git prune --expire=now`.
+The unconditional write this branch first had replaced a kept reference that named another commit,
+which the sweep never does,
+so it now asks first (`a_restart_does_not_replace_a_kept_ref_that_names_another_commit`;
+the guard planted out failed it:
+`left: "84ca392e..."`,
+`right: "8402eb0a..."`).
+Controls:
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` (unit),
+`a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref` (unit,
+the route with no scratch branch),
+and `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`
+(real service stopped inside the write,
+then the next commit).
+Planted control:
+removing the call failed both unit controls at once (2026-11-08,
+the same command);
+the binary control was not re-run with the call removed.
 Open:
 whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
 (today it stays on its scratch branch with the open intent),
@@ -4353,14 +4562,21 @@ Open:
 the 8 unmapped instances have neither a note nor a journal record that hashes to them
 (units of worktrees that never landed a commit before this release,
 or whose repository was deleted whole),
-so they stay;
-`run_forwarded_git` is wired to the stop without a unit control of its own
-(the stop is controlled in `worktree_removal_stops_units_tests.rs`,
-and the wiring was checked once against the real user manager in a throwaway repository:
-socket active before the removal,
-inactive after).
+so they stay.
+`run_forwarded_git`'s wiring to the stop was listed here as open for want of a unit control of its own;
+it has one in `b26020e703`:
+`run_forwarded_git_with_unit_stop` takes the stop,
+so `worktree_copy_forward_tests.rs` removes a linked worktree through a forwarded `git worktree remove --force`
+and requires the one stop its registration names,
+and removing the wiring fails that control
+("one removal,
+one stop",
+`left: 0`,
+`right: 1`).
+The stop itself stays controlled in `worktree_removal_stops_units_tests.rs`.
 
-Closed on 2026-11-08, the leftovers a person had to remember:
+Closed on 2026-11-08,
+the leftovers a person had to remember:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
 `worktree prune`) and a worktree deleted without Git used to leave their units until someone ran the command.
 A service that finds its own worktree gone now stops its own socket before it serves anything (`service_main.rs`)
@@ -4378,7 +4594,8 @@ stops the socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
 and ends with status 0,
 because the service's own end is what stops its service unit and a failure status would make `Restart=on-failure` start it again.
-A worktree on a device that is not mounted is not gone, so its service serves.
+A worktree on a device that is not mounted is not gone,
+so its service serves.
 The controls:
 `a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
 `a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
@@ -4404,6 +4621,10 @@ the worktree whose mount point was left empty and whose repository had gone was 
 The throwaway manager needed its bus to be the manager's own (`dbus.socket`),
 because `systemd --user` takes `$XDG_RUNTIME_DIR/bus` and ignores `DBUS_SESSION_BUS_ADDRESS`,
 which is why the first attempt could not reach a manager at all.
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git,
+then the sweep),
+and the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
+which was red against a service that served the gone worktree.
 What is still unmeasured:
 the controls start no unit,
 so the composition of the loop's stop with a manager is checked only by that measurement,
@@ -4518,9 +4739,39 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   (unsure;
   check `package/git-policy/cli/target/verification/` and the sibling handovers before assuming none ran).
   Campaigns are run by the main agent only.
-- Controls for `subvolume_platform.rs:76` and `:80` that need no btrfs landed (`b9826f2d3f`);
-  other btrfs-only tests still skip in the gate container,
-  so a btrfs host run of the ladder is a standing gap.
+- Controls for `subvolume_platform.rs:76` and `:80` that need no btrfs landed (`b9826f2d3f`).
+- The btrfs-only controls the gate container cannot run did run for real on a btrfs host
+  (`mise run //package/git-policy/cli:native:test:host:btrfs`,
+  2026-11-08T17:44:09-05:00,
+  commits `d128b8658c` and `3819c082cb`,
+  plus the commit that makes the control needing a filesystem that is not btrfs name itself),
+  and all passed:
+  the 86 library controls that go through `btrfs_fixture`
+  (96 tests ran in that target because the filter also names their modules;
+  96 passed,
+  0 failed)
+  and the 36 binary-level controls that call `on_btrfs_or_acknowledged`
+  (36 ran,
+  36 passed).
+  Fixtures were made in `${HOME}/temp/agent/cli-git-btrfs-fixtures` by `CLI_GIT_TEST_ROOT`.
+  The one `BTRFS CONTROL NOT RUN` line in those logs is
+  `off-btrfs-ioctls`,
+  which needs a filesystem that is not btrfs and so has nothing to check here;
+  it names itself rather than passing in silence.
+  Every other control ran:
+  with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` unset a control that cannot run fails
+  with the filesystem it found,
+  and the same filter pointed at a tmpfs fixture root failed two controls that way,
+  which is the proof the green run was on btrfs.
+- A skip no longer hides in a green gate log.
+  The gate's nextest run now passes `--success-output=final`
+  (`package/git-policy/cli/bin/native-test-containerfile.ts`,
+  `runArguments`),
+  so the captured `stderr` of a passing test reaches the gate log;
+  `rg 'BTRFS CONTROL NOT RUN' <gate log>` lists every control that did not run,
+  with its reason
+  (why the line is otherwise invisible:
+  `doc/troubleshooting/nextest-hides-a-passing-tests-output.md`).
 - Older umbrella items from October,
   still unchecked in the former queue,
   with no later closing record found (all unsure):
@@ -5087,10 +5338,14 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   installed;
   about +0.2 ms per call.
   Open:
-  cargo-shadow's install-step cargo starts without the arrival marker;
   `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` failed twice
   (it needs a freed time-namespace number reused,
   shared by every session on the host).
+  The install step's cargo now carries the arrival marker too
+  (`cargo_run_tests::the_cargo_of_an_install_step_arrives_with_the_marker_of_the_shadow_that_started_it`,
+  fixed in `04f4eaa607`,
+  test first in `f6b8c106fa`);
+  it is in the sources only until cargo-shadow is released and installed.
   Round 21 itself is merged (`4c31f33751`) and installed as `cargo-shadow` 0.1.5-alpha.2 (lock `62d3f69165`);
   its worktree and branch are removed.
 - Repository-wide `monochromatic-lint`:
@@ -6028,6 +6283,13 @@ are in append mode now).
   and a thread census right after the start found all threads in place in every sample,
   so the window is closed by the fix on code reading and the log line alone;
   a failure that keeps the service's own log would settle it.
+  Done 2026-11-08 on `fix/git-policy-cli-flaky-tests-and-unbounded-fixtures` (`9e81f1d134`):
+  a fixture's commit services write their standard error into `service.log` beside the fixture root,
+  as well as into the test's own stream (`binary_support_fixture_service_log.rs`),
+  and every failure of a fault control carries the last 8 KiB of it,
+  so the next failure says which service refused or ended,
+  and what it said.
+  The control of that promise is `fault_limits::a_failure_carries_what_the_fixture_service_logged`.
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
@@ -6061,6 +6323,27 @@ are in append mode now).
   Found 2026-11-07 by the same study:
   `zbus` 5.19.0 and 6.x did not compile on `nightly-2026-11-01`
   (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
+  and do compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate).
+  `package/nested-wayland-session/cli` locks `zbus` 5.19.0,
+  so it may not build on the pinned toolchain;
+  not built yet.
+  The study's agent is bisecting the nightly and checking newer ones.
+- Residual unbounded fixture waits:
+  found and fixed 2026-11-08 on the same branch (`8cea539717`).
+  Two controls started a shell that waits for a release file with no bound:
+  `foundation::scratch_location::tests::a_write_to_a_scratch_file_after_it_was_emptied_lands_at_the_start_and_leaves_no_hole`,
+  and `process::output_capture::tests::a_write_after_the_files_were_emptied_lands_at_the_start_and_leaves_no_hole`.
+  A test that fails before writing the file leaves a loop and its sleeps behind in a removed fixture,
+  which is the leak the push-progress control records at 87 minutes.
+  Both now ask `while_test_lives` at each turn,
+  so the wait ends when the fixture goes or the test process ends,
+  and the child leads a process group killed with the test thread (`spawn_owned`).
+  Swept the rest and left them:
+  every other wait in the crate is bounded by a counter,
+  by the product's own bound,
+  or by `while_test_lives`,
+  and no test starts the wrapper outside a fixture.
+
   and did compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate);
   the one broken nightly is rust-lang/rust issue 165263,
   reverted by PR 165266
@@ -6113,6 +6396,62 @@ are in append mode now).
   the merge into main was `f981e1b493`.
   The two images were removed afterwards,
   so the tags name the runs only.
+  Cause found 2026-11-08 in that retained gate log,
+  which holds the whole outcome:
+  the second lock stayed with `Unproven("a Git process of this account could not be looked into (PID 24494 fd: Permission denied (os error 13)), so it may hold the lock")`.
+  A process denies `/proc/<pid>/fd` to its own account while its command name stays readable when it is not dumpable.
+  Measured in a fixture on 2026-11-08:
+  a same-account process with `prctl(PR_SET_DUMPABLE, 0)` reads exactly that way,
+  and `kwin_wayland` is the same shape on this host (`doc/troubleshooting/amdgpu-fdinfo-vram-attribution.md`).
+  So another program's Git anywhere in the container vetoed a clearance the control was about.
+  The shipped rule stays:
+  the third judgement step of `SPEC.md` makes an unreadable Git of the account unproven,
+  and it keeps its own control:
+  `an_unreadable_git_process_stops_a_proof`,
+  with a planted table.
+  Fixed in the controls instead:
+  `Judge.scan_scope` names the process numbers a scan for open holders may consider,
+  `None` (the wrapper's own reading) being every process of the table.
+  The controls name the processes they plant,
+  and the two controls that plant a live holder name it.
+  The red control is `an_unreadable_git_of_another_program_does_not_stop_a_fixtures_clearance`,
+  which forks a non-dumpable Git-named process of this account beside a fixture:
+  it failed before the fix with the recorded reason text (`131a30d3bd`),
+  and passes after it (`1b41c61748`).
+  Not identified:
+  which program of that container owned PID 24494,
+  or what made it non-dumpable.
+  Measured and ruled out as a cause of an unreadable descriptor directory:
+  a process caught in `execve`,
+  one traced with `strace`,
+  a zombie,
+  one inside a nested user namespace,
+  one with `no_new_privs`,
+  and the container's seccomp filter (its own processes stay readable).
+  No fixture of this crate sets `PR_SET_DUMPABLE`.
+  Open for the owner:
+  whether an unreadable Git that started after the lock was made should stop a proof at all.
+  The proof would rest on a process holding no descriptor it never opened,
+  which a child that inherited the lock's descriptor breaks,
+  so no such rule was shipped.
+- Three `landing::service_index_lock::claim_tests` tests failed in one host full-suite run on
+  `fix/git-policy-cli-home-gate-forwarded-stop-and-conversion-journal`
+  (2026-11-08T16:30:00-05:00,
+  4710 tests,
+  run stopped after the failure):
+  `a_landing_takes_a_stale_lock_under_a_claim_without_waiting` ("the acquisition waited for its ceiling"),
+  `a_landing_waits_for_the_reclaimer_that_holds_a_claim`,
+  and `a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped`.
+  Measured:
+  the whole `service_index_lock::claim_tests` module passes alone (27 of 27,
+  `native:test:host -- service_index_lock::claim_tests`),
+  and the same three passed in a full-suite run of the same worktree an hour earlier,
+  so the failure follows the suite's own concurrency and not a source change.
+  This is the failure the merged-gate record above called a one-time host failure;
+  it has now recurred,
+  and the cause inside the claim tests is not measured.
+  Not the four fixes on that branch:
+  none of them is in `landing/`.
 
 ### Questions waiting for the owner
 
@@ -6147,11 +6486,30 @@ are in append mode now).
   no longer
   needed (needs the owner's word for deletions);
   the stale integration branch named under "Unmerged branches and worktrees of this effort" goes with them.
-- Test services that crash on purpose left hundreds of coredumps a day;
-  fixtures expected to abort were told to set `RLIMIT_CORE` 0
-  (test harness only).
-  Whether that landed is unconfirmed:
-  check `coredumpctl` after 0.5.26.
+- Test services that crash on purpose:
+  checked 2026-11-08 by reading `coredumpctl`,
+  and clean.
+  `coredumpctl list` holds 8397 entries.
+  Of the wrapper's abort records since 2026-11-03,
+  300 kept no core file (`COREFILE` `none`),
+  among them the library and binary fixtures on the host,
+  and inside the container,
+  the aborts of that day's fault-control runs included.
+  The 4 that kept one (`present`) came from harnesses outside this crate,
+  which start the service themselves:
+  `~/temp/agent/native-perf-*` on 2026-11-07T20:19:08 to 20:21:59,
+  and `~/temp/agent/limit-scan-*` at 20:11:56.
+  Each was a stack overflow of a service thread.
+  Three build-script probe binaries under `.../build/monochromatic-git-policy-cli/*/out/` did the same,
+  on 2026-11-04.
+  `/var/lib/systemd/coredump` holds 2104 files,
+  and none of them belongs to a test fixture.
+  Both harnesses already keep the control that holds the promise:
+  `a_process_a_test_starts_may_not_write_a_core_dump`,
+  and `a_process_a_binary_test_starts_may_not_write_a_core_dump`.
+  Left for whoever owns those harnesses:
+  set the limit where they start a service,
+  since they abort outside the test harness and outside its limit.
 
 ### Final re-review
 
@@ -8599,6 +8957,10 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   (`doc/troubleshooting/systemd-run-collect-reports-success-for-a-failed-unit.md`).
   Host checks:
   `mise run //package/git-policy/cli:native:test:host -- <filter>`,
+  `native:test:host:btrfs`
+  (the btrfs controls,
+  on a fixture root that must be on btrfs;
+  run it on this machine before merging work that touches the worktree ladder),
   `native:clippy`,
   `native:perf`
   (30 paired samples against direct Git,

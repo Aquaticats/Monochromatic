@@ -134,6 +134,9 @@ It observed valid geometry at the wrong lifecycle boundary.
 
 The executable regression is
 `package/music-player/desktop-app/src/ui_binding_tests.rs:150-214`.
+That file is gone:
+commit `f36cef6b43` (2026-10-11) replaced the page-tab window this regression drove,
+and `ui_binding_tests.rs` went with it.
 It creates the generated `AppWindow`,
 installs the Rust row-membership adapter,
 selects LED controls,
@@ -211,6 +214,7 @@ so it does not keep the render loop active.
 
 `package/music-player/desktop-app/src/ui_led_rows.rs` groups complete reports and publishes only first and last row
 membership.
+That adapter file was removed by the same `f36cef6b43` (2026-10-11) redesign.
 The Slint plate does not wait for this adapter:
 it is a rounded rectangle whose width and height bind directly to the complete LED control bounds.
 This removes plate flicker and stale path geometry while retaining measured 9-unit exposed cap corners.

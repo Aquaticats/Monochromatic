@@ -1,5 +1,23 @@
 # cli-git native candidates and scanner adapter
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
+Note 2026-10-29:
+`package/rust-module` no longer exists.
+Its packages were placed with their products by `592d78b143`,
+for example `package/forbidden-strings/core`
+`package/jsonc-edit/core-rust`
+`package/xml-edit/core-rust`
+`package/catalog-specifier/core-rust`
+and `package/browserslist/core-rust`.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -17,6 +35,8 @@ the runner scripts this document names under `package/git-policy` (`cli/bin`,
 Read every `.mjs` file name here as the same
 name ending in `.ts`;
 the driver `old-format-fixtures` is `old-format-driver`.
+Those folders are `package/git-policy/cli/bin`,
+`package/git-policy/cli/native-interop` and `package/git-policy/cli.fuzz/bin`.
 
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
