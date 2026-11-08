@@ -420,9 +420,6 @@ export async function supervisePiRun(
   }
   await record.close();
   /**
-   What the caller reads.
-   */
-  /**
    The error Pi settled on, when nothing after it recovered.
    */
   const modelError = record.unrecoveredModelError();
