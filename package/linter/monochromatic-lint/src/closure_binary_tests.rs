@@ -282,26 +282,26 @@ fn a_package_without_cargo_toml_runs_nothing() {
     );
 }
 
-/// A cold cache is a note on standard error and exit status 0,
+/// A cold cache is a warning finding that names the package and the command that fills the cache,
+/// counts against `--max-warnings` like any warning,
 /// and nothing is fetched.
 #[test]
-fn a_cold_cache_is_a_skip_note_and_exit_zero() {
+fn a_cold_cache_is_a_warning_finding_and_exit_zero() {
     let fixture: Fixture = Fixture::new();
     let stub = scenario(&[("metadata.status", "101")]);
     let output: Run = run(&fixture, &stub, &["my pkg"]);
-    assert_eq!((output.status, output.stdout.as_str()), (0, ""));
+    assert_eq!(output.status, 0, "a warning alone is not an error");
+    let found: Vec<Value> = records(&output.stdout);
+    assert_eq!(found.len(), 1, "{}", output.stdout);
+    assert_eq!(found[0]["code"], CLOSURE_RULE);
+    assert_eq!(found[0]["severity"], "warn");
+    assert_eq!(found[0]["filename"], "my pkg/Cargo.toml");
+    let message: &str = found[0]["message"].as_str().expect("text");
     assert!(
-        output
-            .stderr
-            .starts_with("monochromatic-lint: rust/avoidable-closure skipped my pkg:"),
-        "{}",
-        output.stderr
+        message.starts_with("rust/avoidable-closure skipped my pkg:"),
+        "{message}"
     );
-    assert!(
-        output.stderr.contains("cargo fetch --locked"),
-        "{}",
-        output.stderr
-    );
+    assert!(message.contains("cargo fetch --locked"), "{message}");
     assert!(
         !stub
             .calls()
@@ -309,17 +309,22 @@ fn a_cold_cache_is_a_skip_note_and_exit_zero() {
             .any(|call| return call.contains("fetch")),
         "the linter never fetches"
     );
-    let silent: Run = run(&fixture, &stub, &["--silent", "my pkg"]);
-    assert_eq!(silent.status, 0);
-    assert!(
-        silent.stderr.contains("skipped"),
-        "a skip is not a finding, so --silent keeps it"
+    assert_eq!(
+        run(&fixture, &stub, &["--max-warnings", "0", "my pkg"]).status,
+        1,
+        "the skip counts as a warning"
     );
+    assert_eq!(
+        run(&fixture, &stub, &["--max-warnings", "1", "my pkg"]).status,
+        0
+    );
+    let silent: Run = run(&fixture, &stub, &["--silent", "my pkg"]);
+    assert_eq!((silent.status, silent.stdout.as_str()), (0, ""));
 }
 
-/// A missing prerequisite is a skip note and exit status 0.
+/// A missing prerequisite is a warning finding that names the program and exit status 0.
 #[test]
-fn a_missing_prerequisite_is_a_skip_note_and_exit_zero() {
+fn a_missing_prerequisite_is_a_warning_finding_and_exit_zero() {
     let fixture: Fixture = Fixture::new();
     fixture.write(
         "my pkg/monochromatic-lint.prerequisites.jsonc",
@@ -329,10 +334,11 @@ fn a_missing_prerequisite_is_a_skip_note_and_exit_zero() {
     let output: Run = run(&fixture, &stub, &["my pkg"]);
     assert_eq!(output.status, 0);
     assert!(
-        output.stderr.contains("no-such-program-xyz"),
+        output.stdout.contains("no-such-program-xyz"),
         "{}",
-        output.stderr
+        output.stdout
     );
+    assert_eq!(records(&output.stdout)[0]["severity"], "warn");
     assert!(
         !stub
             .calls()
@@ -408,7 +414,7 @@ fn a_non_diagnostic_cargo_failure_exits_two() {
     );
 }
 
-/// A machine without the tools skips every package with one note and exit status 0.
+/// A machine without the tools skips every package with one warning finding each and exit status 0.
 #[test]
 fn a_machine_without_cargo_dylint_skips_everything() {
     let fixture: Fixture = Fixture::new();
@@ -421,10 +427,17 @@ fn a_machine_without_cargo_dylint_skips_everything() {
     ]);
     let output: Run = run(&fixture, &stub, &["my pkg"]);
     assert_eq!(output.status, 0);
+    let found: Vec<Value> = records(&output.stdout);
+    assert_eq!(found.len(), 1, "{}", output.stdout);
+    assert_eq!(found[0]["severity"], "warn");
+    assert_eq!(found[0]["filename"], "my pkg/Cargo.toml");
     assert!(
-        output.stderr.contains("skipped all 1 package(s)"),
+        found[0]["message"]
+            .as_str()
+            .expect("text")
+            .starts_with("rust/avoidable-closure skipped my pkg:"),
         "{}",
-        output.stderr
+        output.stdout
     );
 }
 
@@ -440,7 +453,11 @@ fn a_stale_installed_cargo_fails_the_run_with_status_two() {
     ]);
     let output: Run = run(&fixture, &stub, &["my pkg"]);
     assert_eq!(output.status, 2, "{}", output.stderr);
-    assert!(!output.stderr.contains("skipped all"), "{}", output.stderr);
+    assert!(
+        !output.stdout.contains("skipped my pkg"),
+        "{}",
+        output.stdout
+    );
     assert!(
         output.stdout.contains("mise run toolchain:install"),
         "{}",
@@ -512,33 +529,34 @@ fn run_on_machine(
     };
 }
 
-/// A missing Dylint driver that the cargo cache cannot build is a skip note with the warm command and exit status 0,
+/// A missing Dylint driver that the cargo cache cannot build is a warning finding with the warm command
+/// and exit status 0,
 /// as for a cold dependency cache,
 /// and nothing is fetched or run.
 #[test]
-fn a_missing_driver_is_a_skip_note_and_exit_zero() {
+fn a_missing_driver_is_a_warning_finding_and_exit_zero() {
     let fixture: Fixture = Fixture::new();
     let stub = scenario(&COLD_DRIVER);
     let output: Run = run_on_machine(&fixture, &stub, None, &["my pkg"]);
-    assert_eq!((output.status, output.stdout.as_str()), (0, ""));
+    assert_eq!(output.status, 0, "{}", output.stderr);
+    let found: Vec<Value> = records(&output.stdout);
+    assert_eq!(found.len(), 1, "{}", output.stdout);
+    assert_eq!(found[0]["severity"], "warn");
+    assert_eq!(found[0]["filename"], "my pkg/Cargo.toml");
+    let message: &str = found[0]["message"].as_str().expect("text");
     assert!(
-        output
-            .stderr
-            .starts_with("monochromatic-lint: rust/avoidable-closure skipped all 1 package(s):"),
-        "{}",
-        output.stderr
+        message.starts_with("rust/avoidable-closure skipped my pkg:"),
+        "{message}"
     );
     assert!(
-        output.stderr.contains(
+        message.contains(
             "`env --unset=CARGO_NET_OFFLINE cargo dylint --path lib --manifest-path my pkg/Cargo.toml -- --locked`"
         ),
-        "{}",
-        output.stderr
+        "{message}"
     );
     assert!(
-        output.stderr.contains("which this linter does not do"),
-        "{}",
-        output.stderr
+        message.contains("which this linter does not do"),
+        "{message}"
     );
     let calls: Vec<String> = stub.calls();
     assert!(
@@ -548,11 +566,7 @@ fn a_missing_driver_is_a_skip_note_and_exit_zero() {
         "{calls:?}"
     );
     let silent: Run = run_on_machine(&fixture, &stub, None, &["--silent", "my pkg"]);
-    assert_eq!(silent.status, 0);
-    assert!(
-        silent.stderr.contains("skipped"),
-        "a skip is not a finding, so --silent keeps it"
-    );
+    assert_eq!((silent.status, silent.stdout.as_str()), (0, ""));
 }
 
 /// With a current driver on the same machine the run goes ahead,
@@ -695,11 +709,16 @@ fn host_real_run_over_wg_quicker_exempt() {
         .expect("the executable runs");
     let stderr: String = String::from_utf8_lossy(&linted.stderr).into_owned();
     assert_eq!(linted.status.code(), Some(0), "{stderr}");
-    assert!(
-        !stderr.contains("skipped"),
-        "the package was skipped: {stderr}"
-    );
     let findings: Vec<Value> = records(&String::from_utf8(linted.stdout).expect("UTF-8"));
+    for finding in &findings {
+        assert!(
+            !finding["message"]
+                .as_str()
+                .expect("text")
+                .contains(" skipped "),
+            "the package was skipped: {finding}"
+        );
+    }
     assert!(!findings.is_empty(), "the real lint reported nothing");
     for finding in &findings {
         assert_eq!(finding["code"], CLOSURE_RULE);

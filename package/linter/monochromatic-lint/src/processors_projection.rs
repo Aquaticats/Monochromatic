@@ -115,7 +115,7 @@ fn edit_to_parent(
 /// Prove the same native container yields exactly the intended virtual rewrite.
 fn verify(mapping: &Mapping, parent: &Arc<Mapping>, expected: &str) -> Result<(), ProcessorError> {
     let extracted: Result<Option<String>, ProcessorError> = match mapping.guard {
-        Guard::Fence { marker } => crate::processors_fences::fence_text(parent, marker),
+        Guard::Fence { marker, .. } => crate::processors_fences::fence_text(parent, marker),
         Guard::Docs { anchor } => crate::processors_docs::doc_text(parent, anchor),
         Guard::Prepared => Ok(Some(crate::processors_prepare::prepared_text(parent))),
         Guard::Step => {

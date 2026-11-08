@@ -287,6 +287,34 @@ override or nested configuration changes this:
 the declaration is part of the rule,
 and `--rules` shows it as `"suppressible":false`.
 
+### Exempting a fenced example from `rust/require-rustdoc`
+
+A directive cannot withhold `rust/require-rustdoc`,
+but a documentation example that is undocumented on purpose,
+such as a "Bad" example in a style guide,
+can opt out through its fence.
+Put the word `monochromatic-lint-skip-rustdoc` in the fence's info string after `rust`:
+
+````markdown
+```rust monochromatic-lint-skip-rustdoc
+fn deliberately_undocumented() {}
+```
+````
+
+GitHub renders the block as Rust,
+because the language is the first word of the info string.
+The comma form (`rust,monochromatic-lint-skip-rustdoc`) works as well,
+and the word may follow other attributes (`rust,ignore monochromatic-lint-skip-rustdoc`).
+The word must stand alone,
+so `monochromatic-lint-skip-rustdoc-not` exempts nothing.
+Only `rust/require-rustdoc` is withheld from the marked fence:
+`rust/max-lines` still applies to it,
+and an unmarked fence in the same file is checked as before.
+The nearest enclosing fence decides,
+so a marker on an outer fence that quotes another fence does not exempt the quoted one.
+The owner chose this form on 2026-11-07 (exempt only "Bad" examples),
+and every other fenced Rust example is documented by hand.
+
 ### Findings about directives
 
 These findings are always errors,
@@ -404,7 +432,7 @@ the linter groups the Rust files that select the rule by their owning `Cargo.tom
 and checks each package once:
 
 1. It skips the package,
-   with a message on standard error,
+   with a warning finding,
    when a prerequisite is missing (see "Prerequisite manifest").
 2. It runs `cargo dylint --path <library> --manifest-path <Cargo.toml> -- --locked --message-format json`
    with `CARGO_NET_OFFLINE=true` and `DYLINT_RUSTFLAGS` set to request `avoidable_closure` and
@@ -443,17 +471,20 @@ The check needs the shared nightly toolchain with `rustc-dev`,
 `cargo-dylint` and `dylint-link`.
 Without them,
 or without `cargo` itself,
-every package is skipped with one message.
+every package is skipped with one warning finding each.
 The only evidence of a missing `cargo-dylint` is cargo's own `no such command` for `dylint`.
 Any other failure of `cargo dylint --version`,
 including the statuses 126 and 127 of a launcher that cannot start its program,
 is a `cargo` that is broken or older than `toolchain.lock.json`,
 and it fails the run with status `2`,
 with what cargo printed and the command `mise run toolchain:install`,
-because a skip that exits `0` would hide the stale install:
+because a skip that exits `0` would hide the stale install.
+A skip is reported as a finding of the rule `rust/avoidable-closure` at warning severity,
+at the start of the package's `Cargo.toml`,
+and its message names the package and the command that fixes the gap:
 
-```text
-monochromatic-lint: rust/avoidable-closure skipped all 24 package(s): ...
+```jsonl
+{"code":"rust/avoidable-closure","severity":"warn","filename":"package/x/Cargo.toml","message":"rust/avoidable-closure skipped package/x: ..."}
 ```
 
 The linter never fetches.
@@ -484,10 +515,14 @@ no `rustup`,
 no known driver directory) skips nothing
 and shows only under `--debug`;
 the run then decides as before.
-A skip is not a finding:
-the exit status is unaffected,
-`--silent` keeps the message,
-and `--max-warnings` does not count it.
+A skip is a warning finding like any other:
+the exit status stays `0` unless `--max-warnings` is exceeded,
+`--max-warnings` counts it,
+and `--quiet` and `--silent` hide it with the other warnings.
+The repository's own `lint:monochromatic-lint` task runs `mise run fetch:rust-dependencies` first,
+so a skip that remains there means a package that fetching could not fill.
+The owner decided this on 2026-11-07 ("Fetch then warn"):
+a cold-cache skip once hid five packages' findings behind a green run.
 
 A `cargo` that starts and exits 126 or 127 is not a skip.
 Those are the statuses of a program that exists and cannot be started,
@@ -566,7 +601,7 @@ The kinds:
   which are set for the build,
   and the check compiles for `aarch64-linux-android`.
 
-A missing prerequisite skips the package with a message that names it.
+A missing prerequisite skips the package with a warning finding that names it.
 There is no kind that runs a `mise` task:
 preparing a package can need containers and network,
 which a linter does not start,

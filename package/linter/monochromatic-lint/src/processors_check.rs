@@ -40,7 +40,10 @@ pub(crate) fn check(
     let parsed: RustSource =
         RustSource::new(String::from(input.filename()), String::from(input.source()));
     let mut findings: Vec<Diagnostic> = Vec::new();
-    if let Some(severity) = settings.rustdoc {
+    // A fence marked by its author is a deliberately undocumented example, so only this rule is withheld from it.
+    if let Some(severity) = settings.rustdoc
+        && !input.skips_rustdoc()
+    {
         findings.extend(check_rustdoc(&parsed, severity));
     }
     let mut output: Vec<Diagnostic> = Vec::new();
