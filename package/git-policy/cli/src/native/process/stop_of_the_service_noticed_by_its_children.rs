@@ -261,6 +261,12 @@ pub struct StopArm {
 }
 
 impl StopArm {
+    /// Whether the stop was told,
+    /// for a wait that already looks at its child at an interval of its own.
+    pub fn is_told(&self) -> bool {
+        return *self.level.borrow();
+    }
+
     /// Resolves when the stop was told;
     /// resolves at once when it already was.
     pub async fn stop_told(&mut self) {

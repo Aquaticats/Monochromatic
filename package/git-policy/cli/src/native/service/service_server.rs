@@ -32,6 +32,7 @@ use crate::service_server_queue_types_and_send::{GroupKey, Job, Queued, id_of_qu
 use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
+use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
 use crate::service_index_prestage::{PrestageGuard, start as start_prestage};
@@ -241,6 +242,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             instance: settings.instance.clone(),
         },
     );
+    // The service's own shutdown: a stop is recorded by the handler and ended here, after the Gits the service waits on are ended.
+    crate::service_server_shutdown_after_a_stop::start_shutdown_after_a_stop_or_exit();
     // Microseconds, so that instances started at different times count from different numbers; the number each batch takes is
     //  still claimed in the journal (`claim_batch`), because equal readings and counts that overtake another's are possible.
     let clock_seed: u64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
@@ -269,6 +272,11 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 return;
             }
         };
+        // Nothing is landed after a stop was recorded: the landing in flight unwinds and the shutdown ends the process; a request that
+        //  arrives now is not answered, and its client asks again when the service is started (the journal knows what landed).
+        if is_stopping() {
+            continue;
+        }
         let mut jobs: Vec<Job> = vec![first];
         while jobs.len() < MAX_BATCH {
             match receiver.try_recv() {
@@ -320,6 +328,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             }
         }
         for (_, queued_group) in groups {
+            // The shutdown waits for this landing and refuses one that would begin after the stop.
+            let Ok(_landing_in_flight) = begin_unfinished_work(false, "a landing") else {
+                break;
+            };
             let index: Option<std::path::PathBuf> = queued_group.first().map(index_of_queued);
             // A request whose client was answered "withdrawn" while this thread was stuck in a write is dropped here, and the
             //  rest are marked as being landed, under one lock (`service_busy.rs`).

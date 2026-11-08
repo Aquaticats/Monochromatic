@@ -64,6 +64,8 @@ use std::process::{Command, ExitStatus};
 /// The Git child's end,
 /// with the exit-code mapping the wrapper's exit uses.
 use crate::forwarding::ChildOutcome;
+/// What ends the child when the service is stopped.
+use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -419,7 +421,11 @@ pub struct SignalGuard {
 ///   The owner's rule (2026-11-07,
 /// "Only that operation's children"):
 /// a stop of the service is an operation of its own and does
-///  not reach the Git child of a commit that the service happens to be preparing.
+///  not reach the Git child of a commit that the service happens to be preparing through this relay;
+/// the service's own shutdown ends the Gits it waits on (owner,
+/// 2026-11-07T22:19:43-05:00,
+/// "C: shutdown stops its Gits (Recommended)";
+/// `stop_of_the_service_noticed_by_its_children.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -595,10 +601,30 @@ fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
 /// not lost.
 #[cfg(unix)]
 async fn run_relayed(command: &mut Command, relaying: bool) -> io::Result<ChildOutcome> {
+    // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
+    let mut unfinished: Unfinished = match begin_unfinished_work(false, "a Git step of a commit") {
+        Ok(counted) => counted,
+        Err(refusal) => return Err(crate::child_watch::refused_while_stopping(&refusal)),
+    };
+    let mut stop: Option<StopArm> = unfinished.take_arm();
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
     let mut owned = adopt(started);
     let published: bool = relaying && publish(owned.id());
-    let waited: io::Result<ExitStatus> = owned.wait().await;
+    let waited: io::Result<ExitStatus> = match stop.as_mut() {
+        None => owned.wait().await,
+        Some(arm) => {
+            tokio::select! {
+                biased;
+                () = arm.stop_told() => {
+                    // The child is ended with the grace every stop of a child has, and the caller is told why.
+                    crate::bounded_push::stop_push(owned, crate::bounded_push::STOP_GRACE, crate::stopped_git_locks::LockLedger::none()).await;
+                    retire(published);
+                    return Err(crate::child_watch::ended_by_the_stop("a Git step of a commit"));
+                }
+                finished = owned.wait() => finished,
+            }
+        }
+    };
     // The child is reaped, so a signal that finds the descriptor still pointing at it fails with `ESRCH`; the descriptor is
     //  repointed before the next child all the same.
     retire(published);

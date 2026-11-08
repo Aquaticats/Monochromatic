@@ -38,7 +38,8 @@ enum Reaction {
 /// A Git for the service that stalls the landing at its branch move,
 /// with the index held by the service,
 /// until it is ended:
-/// it writes its own process number to the returned file when the move starts.
+/// it writes its own process number to the returned file when the move starts,
+/// and only the first `update-ref` stalls, so the step that keeps the commit after the stop runs.
 fn stalling_git(fixture: &Fixture, reaction: Reaction) -> (PathBuf, PathBuf) {
     let entered: PathBuf = fixture.root.join("landing-entered");
     let program: PathBuf = fixture.root.join("stalling-git");
@@ -49,7 +50,7 @@ fn stalling_git(fixture: &Fixture, reaction: Reaction) -> (PathBuf, PathBuf) {
     executable(
         program.as_path(),
         format!(
-            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ]; then\n    {trap}echo $$ > '{}'\n    while {}; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ] && [ ! -e '{0}' ]; then\n    {trap}echo $$ > '{0}'\n    while {1}; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
             entered.display(),
             while_test_lives(fixture.root.as_path())
         )

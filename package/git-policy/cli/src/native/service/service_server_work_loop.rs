@@ -19,6 +19,7 @@ use crate::service_retry::RetrySchedule;
 use crate::service_claim_watch::ClaimWatch;
 use crate::push_retry::PushRetries;
 use crate::service_work::{GitHandlers, Wake};
+use crate::stop_of_the_service_noticed_by_its_children::is_stopping;
 use crate::service_work_run_round::run_round;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
@@ -104,6 +105,12 @@ pub fn work_loop(receiver: &Receiver<Wake>, handlers: &GitHandlers, busy: &Atomi
                 Err(RecvTimeoutError::Disconnected) => return,
             },
         };
+        // After a stop is recorded no round starts: the claims this thread holds run out and the next service runs them again, and
+        //  the wakes that still arrive are read and dropped until the shutdown ends the process.
+        if is_stopping() {
+            while receiver.recv().is_ok() {}
+            return;
+        }
         busy.fetch_add(1, Ordering::SeqCst);
         // The wake that ended the wait, then every wake already queued behind it.
         let mut wakes: Vec<Wake> = first.into_iter().collect();

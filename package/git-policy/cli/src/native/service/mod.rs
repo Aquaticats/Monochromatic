@@ -72,6 +72,12 @@ pub mod service_timing;
 /// The line the commit service writes when a signal ends it.
 pub mod service_signal;
 
+/// The service's own shutdown after a stop:
+/// it tells the waiters,
+/// waits a bounded time for the Gits and the landing in flight,
+/// and ends the process by the signal.
+pub mod service_server_shutdown_after_a_stop;
+
 /// The commit service's loop.
 pub mod service_server;
 
