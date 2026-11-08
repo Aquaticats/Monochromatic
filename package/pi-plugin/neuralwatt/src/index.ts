@@ -28,7 +28,7 @@ import { createNeuralWattApiKeyAuth, } from './credential.ts';
 import { createNeuralWattProvider, } from './provider.ts';
 
 export {
-  effortsDictOf,
+  hasEffortsDict,
   mapNeuralWattModelCost,
   NEURALWATT_OPENAI_COMPLETIONS_COMPAT,
   projectNeuralWattModel,
@@ -84,9 +84,12 @@ export default function neuralWattProviderExtension(
    */
   const l = tagged({ tag: 'pi-plugin-neuralwatt', },);
   /**
-   Credential seam and the provider carrying it.
+   Credential seam the provider resolves per request.
    */
   const apiKeyAuth = createNeuralWattApiKeyAuth({ logger: l, },);
+  /**
+   Provider carrying the snapshot catalog and its lifecycle teardown hook.
+   */
   const {
     provider,
     abortInFlightRefresh,
@@ -108,8 +111,8 @@ export default function neuralWattProviderExtension(
         tag: onNeuralWattSessionStart.name,
         l,
       },);
-      if (event.reason !== 'startup'
-        && event.reason !== 'reload') {
+      if ((event.reason !== 'startup')
+        && (event.reason !== 'reload')) {
         rl.debug(
           `catalog refresh skipped: session start reason "${event.reason}" is not one this route refreshes on`,
         );
@@ -120,11 +123,12 @@ export default function neuralWattProviderExtension(
          Registry-driven refresh, which reaches this provider's
          `refreshModels` with pi's own publication context.
          */
-        const result = await ctx.modelRegistry.refresh({
-          providers: [NEURALWATT_ROUTE],
-          allowNetwork: true,
-          force: true,
-        },);
+        const result = await ctx.modelRegistry
+          .refresh({
+            providers: [NEURALWATT_ROUTE],
+            allowNetwork: true,
+            force: true,
+          },);
         for (const [failedProvider, error,] of result.errors) {
           rl.warn(
             `catalog refresh reported a failure for "${failedProvider}": ${caughtValueText(error,)}`,

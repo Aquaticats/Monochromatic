@@ -15,9 +15,16 @@
  @module
  */
 
-import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
-import { readEnvLocalJson, } from '@monochromatic-dev/env-local-json-core/ts';
-import { NEURALWATT_API_KEY_ENV, } from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
+import {
+  NEURALWATT_API_KEY_ENV,
+} from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
+import {
+  caughtValueText,
+} from '@monochromatic-dev/caught-value-core/ts';
+import {
+  readEnvLocalJson,
+  type EnvLocalJsonEnvironment,
+} from '@monochromatic-dev/env-local-json-core/ts';
 import {
   tagged,
   type Logger,
@@ -26,10 +33,15 @@ import type {
   ApiKeyAuth,
   ApiKeyCredential,
   AuthContext,
-  AuthResult,
 } from '@earendil-works/pi-ai';
-import { dirname, join, resolve as resolvePath, } from 'node:path';
-import { fileURLToPath, } from 'node:url';
+import {
+  dirname,
+  join,
+  resolve as resolvePath,
+} from 'node:path';
+import {
+  fileURLToPath,
+} from 'node:url';
 import {
   ENV_LOCAL_JSON_PATH_VARIABLE,
   NEURALWATT_CREDENTIAL_GUIDANCE,
@@ -43,9 +55,9 @@ import {
  */
 export type NeuralWattCredentialSource =
   | 'pi-credential'
-  | 'encrypted-store'
-  | 'environment'
-  | 'none';
+    | 'encrypted-store'
+    | 'environment'
+    | 'none';
 
 /**
  Outcome of one credential resolution:
@@ -54,9 +66,9 @@ export type NeuralWattCredentialSource =
  */
 export type NeuralWattCredentialResolution = {
   /**
-   Resolved key, `undefined` when no home carries one.
+   Resolved key, absent when no home carries one.
    */
-  readonly key: string | undefined;
+  readonly key?: string;
   /**
    Home that answered, `none` when none did.
    */
@@ -73,13 +85,13 @@ export type NeuralWattCredentialResolution = {
  */
 export type NeuralWattStoreRead = {
   /**
-   Stored value, `undefined` when the store carried none.
+   Stored value, absent when the store carried none.
    */
-  readonly value: string | undefined;
+  readonly value?: string;
   /**
-   Store path, `undefined` when no store was read.
+   Store path, absent when no store was read.
    */
-  readonly path: string | undefined;
+  readonly path?: string;
 };
 
 /**
@@ -90,11 +102,11 @@ export type NeuralWattCredentialSources = {
   /**
    Value pi resolved from `--api-key` or its `auth.json`.
    */
-  readonly credentialKey: string | undefined;
+  readonly credentialKey?: string;
   /**
    Value the runtime environment carries under the credential name.
    */
-  readonly environmentKey: string | undefined;
+  readonly environmentKey?: string;
   /**
    Reads the encrypted store lazily, per resolve, with no caching.
    */
@@ -106,29 +118,18 @@ export type NeuralWattCredentialSources = {
 //region Resolution chain
 
 /**
- First non-blank candidate, so whitespace never counts as a value.
-
- @param candidate - raw value read from one home
-
- @returns the trimmed value when one is present
- */
-function firstNonBlank(
-  candidate: string | undefined,
-): string | undefined {
-  if (candidate === undefined)
-    return undefined;
-  const trimmed = candidate.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
-}
-
-/**
  Resolve the credential across the accepted homes in owner-accepted order.
- A blank value is absence,
+ Trimming happens at each home,
  so whitespace never masquerades as a key.
 
  @param sources - home values and the lazy store read
 
- @returns the first non-blank key and the home it came from
+ @returns the first real key and the home it came from
+
+ @example
+ ```typescript
+ const resolution = await resolveNeuralWattCredential({ sources });
+ ```
  */
 export async function resolveNeuralWattCredential({
   sources,
@@ -138,8 +139,10 @@ export async function resolveNeuralWattCredential({
   /**
    pi credential already resolved at the request boundary.
    */
-  const credentialKey = firstNonBlank(sources.credentialKey,);
-  if (credentialKey !== undefined)
+  const credentialKey = sources.credentialKey
+    ?.trim();
+  if ((credentialKey !== undefined)
+    && (credentialKey.length > 0))
     return {
       key: credentialKey,
       source: 'pi-credential',
@@ -148,24 +151,30 @@ export async function resolveNeuralWattCredential({
    Encrypted store read, attempted fresh on every resolution.
    */
   const stored = await sources.readStoreValue();
-  const storedKey = firstNonBlank(stored.value,);
-  if (storedKey !== undefined)
+  /**
+   Stored key, trimmed like every other home.
+   */
+  const storedKey = stored.value
+    ?.trim();
+  if ((storedKey !== undefined)
+    && (storedKey.length > 0))
     return {
       key: storedKey,
       source: 'encrypted-store',
-      ...(stored.path === undefined ? {} : { storePath: stored.path, },),
+      ...(stored.path === undefined ? {} : { storePath: stored.path, }),
     };
   /**
    Environment value, the launch-time fallback.
    */
-  const environmentKey = firstNonBlank(sources.environmentKey,);
-  if (environmentKey !== undefined)
+  const environmentKey = sources.environmentKey
+    ?.trim();
+  if ((environmentKey !== undefined)
+    && (environmentKey.length > 0))
     return {
       key: environmentKey,
       source: 'environment',
     };
   return {
-    key: undefined,
     source: 'none',
   };
 }
@@ -173,6 +182,34 @@ export async function resolveNeuralWattCredential({
 //endregion Resolution chain
 
 //region Store path derivation
+
+/**
+ Collect the ancestor directories of one starting directory, nearest first,
+ ending at the filesystem root.
+
+ @param start - absolute directory the walk starts in
+
+ @returns every ancestor, the starting directory included
+ */
+function collectAncestors({
+  start,
+}: {
+  readonly start: string;
+},): string[] {
+  /**
+   Ancestors collected nearest first.
+   */
+  const directories: string[] = [];
+  for (
+    let current = start;
+    ;
+    current = dirname(current,)
+  ) {
+    directories.push(current,);
+    if (dirname(current,) === current)
+      return directories;
+  }
+}
 
 /**
  Derive the repository's `.env.local.json` from this package's own location,
@@ -186,7 +223,12 @@ export async function resolveNeuralWattCredential({
  @param fileExists - existence probe, injectable for tests
 
  @returns the store path when it validates as a file,
- `undefined` otherwise, never a hard error
+ otherwise a result with the path absent, never a hard error
+
+ @example
+ ```typescript
+ const { path } = await deriveRepoEnvLocalJsonPath({ moduleUrl, fileExists });
+ ```
  */
 export async function deriveRepoEnvLocalJsonPath({
   moduleUrl,
@@ -194,35 +236,46 @@ export async function deriveRepoEnvLocalJsonPath({
 }: {
   readonly moduleUrl: string;
   readonly fileExists: (path: string) => Promise<boolean>;
-},): Promise<string | undefined> {
+},): Promise<{ path?: string }> {
   /**
-   Directory holding the calling module, walked upward for the package root.
+   Ancestors of the calling module, probed for the package manifest below.
    */
-  let directory = dirname(fileURLToPath(moduleUrl,),);
-  for (;;) {
-    if (await fileExists(join(directory, 'package.json',),))
-      break;
-    /**
-     Parent directory, compared against the current one to detect the
-     filesystem root.
-     */
-    const parent = dirname(directory,);
-    if (parent === directory)
-      return undefined;
-    directory = parent;
-  }
+  const ancestors = collectAncestors({
+    start: dirname(fileURLToPath(moduleUrl,),),
+  },);
+  /**
+   Manifest probes, one per ancestor, resolved together so the walk never
+   awaits inside a loop.
+   */
+  const manifests = await Promise.all(ancestors.map(function probe(directory,) {
+    return fileExists(join(
+      directory,
+      'package.json',
+    ),);
+  },),);
+  /**
+   Index of the nearest ancestor carrying a package manifest.
+   */
+  const packageRootIndex = manifests.indexOf(true,);
+  /**
+   Nearest manifest-bearing ancestor, absent when the walk found none.
+   */
+  const packageRoot = ancestors[packageRootIndex];
+  if ((packageRootIndex === (-1))
+    || (packageRoot === undefined))
+    return {};
   /**
    Repository store candidate: `package/pi-plugin/neuralwatt` sits three
    levels below the repository root.
    */
   const candidate = resolvePath(
-    directory,
+    packageRoot,
     '..',
     '..',
     '..',
     '.env.local.json',
   );
-  return await fileExists(candidate,) ? candidate : undefined;
+  return await fileExists(candidate,) ? { path: candidate, } : {};
 }
 
 //endregion Store path derivation
@@ -248,6 +301,11 @@ export async function deriveRepoEnvLocalJsonPath({
 
  @throws whatever `readEnvLocalJson` throws when an explicit path misbehaves;
  callers log and fall through
+
+ @example
+ ```typescript
+ const stored = await readNeuralWattStoreValue({ environment, moduleUrl, fileExists });
+ ```
  */
 export async function readNeuralWattStoreValue({
   environment,
@@ -255,7 +313,7 @@ export async function readNeuralWattStoreValue({
   fileExists,
   signal,
 }: {
-  readonly environment: Readonly<Record<string, string | undefined>>;
+  readonly environment: EnvLocalJsonEnvironment;
   readonly moduleUrl: string;
   readonly fileExists: (path: string) => Promise<boolean>;
   readonly signal?: AbortSignal;
@@ -264,32 +322,44 @@ export async function readNeuralWattStoreValue({
    Reader environment with the credential name hidden,
    so the store wins the accepted order over a stale environment value.
    */
-  const readerEnvironment = { ...environment, };
-  delete readerEnvironment[NEURALWATT_API_KEY_ENV];
+  const readerEnvironment = Object.fromEntries(Object.entries(environment,)
+    .filter(
+    function keepsNonCredential([name,]) {
+      return name !== NEURALWATT_API_KEY_ENV;
+    },
+    ),);
   /**
    Non-blank store path override the library would honor on its own.
    */
-  const override = firstNonBlank(environment[ENV_LOCAL_JSON_PATH_VARIABLE],);
+  const override = environment[ENV_LOCAL_JSON_PATH_VARIABLE]
+    ?.trim();
   /**
-   Derived repository store, offered only when no override exists and the
-   candidate validates as a file.
+   Derived repository store, sought only when no override exists.
    */
-  const derived = override === undefined
-    ? await deriveRepoEnvLocalJsonPath({ moduleUrl, fileExists, },)
-    : undefined;
+  const derived = ((override !== undefined) && (override.length > 0))
+    ? {}
+    : await deriveRepoEnvLocalJsonPath({
+      moduleUrl,
+      fileExists,
+    },);
   /**
    Store read, discovery-only when neither an override nor a derived path
    applies.
    */
   const result = await readEnvLocalJson({
     keys: [NEURALWATT_API_KEY_ENV],
-    env: { ...readerEnvironment, },
-    ...(derived === undefined ? {} : { path: derived, },),
-    ...(signal === undefined ? {} : { signal, },),
+    env: readerEnvironment,
+    ...(derived.path === undefined ? {} : { path: derived.path, }),
+    ...(signal === undefined ? {} : { signal, }),
   },);
+  /**
+   Stored value under the credential name, absent when the store carried
+   none.
+   */
+  const value = result.values[NEURALWATT_API_KEY_ENV];
   return {
-    value: result.values[NEURALWATT_API_KEY_ENV],
-    path: result.loaded ? result.path : undefined,
+    ...(value === undefined ? {} : { value, }),
+    ...(result.path === undefined ? {} : { path: result.path, }),
   };
 }
 
@@ -308,13 +378,31 @@ export async function readNeuralWattStoreValue({
 async function defaultFileExists(
   path: string,
 ): Promise<boolean> {
+  /**
+   Runtime filesystem probe, imported lazily so browser-shaped consumers
+   never load it.
+   */
   const { stat, } = await import('node:fs/promises',);
-  try {
-    return (await stat(path,)).isFile();
-  } catch {
-    return false;
-  }
+  return stat(path,)
+    .then(
+    function isRegularFile(result,) {
+      return result.isFile();
+    },
+    function statRefused() {
+      return false;
+    },
+    );
 }
+
+/**
+ pi status labels for the home that answered, keyed by source.
+ */
+const SOURCE_LABELS: Record<NeuralWattCredentialSource, string> = {
+  'pi-credential': NEURALWATT_CREDENTIAL_NAME,
+  'encrypted-store': 'encrypted env store',
+  'environment': NEURALWATT_API_KEY_ENV,
+  'none': 'no credential',
+};
 
 /**
  pi status label naming the winning home without exposing the key.
@@ -328,16 +416,9 @@ async function defaultFileExists(
 function sourceLabel(
   resolution: NeuralWattCredentialResolution,
 ): string {
-  switch (resolution.source) {
-    case 'pi-credential':
-      return NEURALWATT_CREDENTIAL_NAME;
-    case 'encrypted-store':
-      return resolution.storePath ?? 'encrypted env store';
-    case 'environment':
-      return NEURALWATT_API_KEY_ENV;
-    case 'none':
-      return 'no credential';
-  }
+  if (resolution.source === 'encrypted-store')
+    return resolution.storePath ?? SOURCE_LABELS['encrypted-store'];
+  return SOURCE_LABELS[resolution.source];
 }
 
 /**
@@ -368,7 +449,7 @@ export function createNeuralWattApiKeyAuth({
   fileExists = defaultFileExists,
 }: {
   readonly logger: Logger;
-  readonly environment?: Readonly<Record<string, string | undefined>>;
+  readonly environment?: EnvLocalJsonEnvironment;
   readonly moduleUrl?: string;
   readonly fileExists?: (path: string) => Promise<boolean>;
 },): NonNullable<ApiKeyAuth> {
@@ -381,11 +462,15 @@ export function createNeuralWattApiKeyAuth({
   },);
   return {
     name: NEURALWATT_CREDENTIAL_NAME,
-    resolve: async function resolveNeuralWattApiKey(input: {
-      readonly ctx: AuthContext;
-      readonly credential?: ApiKeyCredential;
-      readonly signal: AbortSignal;
-    },): Promise<AuthResult | undefined> {
+    /**
+     Resolve the credential through the accepted chain at request time.
+
+     @param input - pi's auth context, stored credential, and abort signal
+
+     @returns the resolved key with its home label,
+     or `undefined` when no home answers
+     */
+    resolve: async function resolveNeuralWattApiKey(input) {
       /**
        Logger tagged for this resolve, so records name the entry point.
        */
@@ -396,11 +481,15 @@ export function createNeuralWattApiKeyAuth({
       /**
        Environment value under the credential name, through pi's own env seam.
        */
-      const environmentKey = await input.ctx.env(NEURALWATT_API_KEY_ENV,);
+      const environmentKey = await input.ctx
+        .env(NEURALWATT_API_KEY_ENV,);
       /**
        Store read that logs and falls through instead of failing the request.
+
+       @returns the stored value and path when a store answered,
+       otherwise an empty result
        */
-      const readStoreValue = async function readStoreValue(): Promise<NeuralWattStoreRead> {
+      async function readStoreValue(): Promise<NeuralWattStoreRead> {
         try {
           return await readNeuralWattStoreValue({
             environment,
@@ -412,20 +501,23 @@ export function createNeuralWattApiKeyAuth({
           rl.warn(
             `encrypted store read failed, falling through to the environment: ${caughtValueText(error,)}`,
           );
-          return {
-            value: undefined,
-            path: undefined,
-          };
+          return {};
         }
-      };
+      }
+      /**
+       pi credential key, narrowed before the sources object is built so no
+       optional slot receives an explicit undefined.
+       */
+      const credentialKey = input.credential
+        ?.key;
       /**
        Resolved key and the home it came from.
        */
       const resolution = await resolveNeuralWattCredential({
         sources: {
-          credentialKey: input.credential?.key,
-          environmentKey,
           readStoreValue,
+          ...(credentialKey === undefined ? {} : { credentialKey, }),
+          ...(environmentKey === undefined ? {} : { environmentKey, }),
         },
       },);
       if (resolution.key === undefined) {

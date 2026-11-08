@@ -20,7 +20,6 @@ import {
   type NeuralWattEffortsDict,
   type NeuralWattModelFacts,
   type NeuralWattModelPricing,
-  type NeuralWattReasoningEfforts,
 } from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
 import type {
   Model,
@@ -48,41 +47,42 @@ export type NeuralWattPiModel = Model<typeof NEURALWATT_API>;
 /**
  Compat switches the route pins on every projected model.
  `supportsDeveloperRole: false` keeps the system prompt on role `system`
- because `mimo-v2.6-pro` answers `400 unsupported_message_role` to
- `developer`
+ because `mimo-v2.6-pro` answers `400 unsupported_message_role` to `developer`
  (`doc/troubleshooting/neuralwatt-rejects-developer-role.md`);
  the effort pins keep `reasoning_effort` on its documented top-level parameter
  (`package/dsh-plugin/neuralwatt/README.md`, "Thinking level dispatch").
  */
-export const NEURALWATT_OPENAI_COMPLETIONS_COMPAT = {
+export const NEURALWATT_OPENAI_COMPLETIONS_COMPAT: OpenAICompletionsCompat = {
   supportsDeveloperRole: false,
   supportsReasoningEffort: true,
   thinkingFormat: 'openai',
-} as const satisfies OpenAICompletionsCompat;
+};
 
 //endregion Compat switches
 
 //region Efforts narrowing
 
 /**
- The offered efforts dict one facts entry may carry,
- or absence when the entry declares nothing.
+ Whether the reasoning declaration is the offered efforts dict.
+ The non-reasoning declaration and a silent entry both project as
+ non-reasoning,
+ mirroring the DSH adapter's fallback with no base catalog entry.
 
- @param reasoningEfforts - reasoning declaration read from the facts
+ @param facts - serviceable model facts one listing entry earned
 
- @returns the dict when the facts declare one,
- `undefined` for the non-reasoning declaration and for a silent entry
+ @returns `true` only for the dict form of the reasoning declaration
+
+ @example
+ ```typescript
+ if (hasEffortsDict(facts)) {
+   // facts.reasoningEfforts is the offered dict here
+ }
+ ```
  */
-export function effortsDictOf({
-  reasoningEfforts,
-}: {
-  readonly reasoningEfforts: NeuralWattReasoningEfforts | undefined;
-},): NeuralWattEffortsDict | undefined {
-  if (reasoningEfforts === undefined)
-    return undefined;
-  if (typeof reasoningEfforts === 'boolean')
-    return undefined;
-  return reasoningEfforts;
+export function hasEffortsDict(
+  facts: NeuralWattModelFacts,
+): facts is NeuralWattModelFacts & { readonly reasoningEfforts: NeuralWattEffortsDict } {
+  return (typeof facts.reasoningEfforts) === 'object';
 }
 
 //endregion Efforts narrowing
@@ -97,11 +97,16 @@ export function effortsDictOf({
  @param pricing - per-million pricing the facts carry
 
  @returns the four cost rates pi's model shape requires
+
+ @example
+ ```typescript
+ const cost = mapNeuralWattModelCost({ pricing: facts.pricing });
+ ```
  */
 export function mapNeuralWattModelCost({
   pricing,
 }: {
-  readonly pricing: NeuralWattModelPricing | undefined;
+  readonly pricing?: NeuralWattModelPricing;
 },): ModelCost {
   return {
     input: pricing?.inputPerMillion ?? NEURALWATT_COST_RATE_ZERO,
@@ -124,6 +129,11 @@ export function mapNeuralWattModelCost({
  @param facts - serviceable model facts one listing entry earned
 
  @returns the pi chat model the provider serves
+
+ @example
+ ```typescript
+ const model = projectNeuralWattModel({ facts });
+ ```
  */
 export function projectNeuralWattModel({
   facts,
@@ -131,24 +141,32 @@ export function projectNeuralWattModel({
   readonly facts: NeuralWattModelFacts;
 },): NeuralWattPiModel {
   /**
-   Offered efforts dict, or absence for a non-reasoning or silent entry.
+   Fields every projected model carries, independent of the reasoning
+   declaration; typed so the literal wire protocol survives object widening.
    */
-  const efforts = effortsDictOf({ reasoningEfforts: facts.reasoningEfforts, },);
-  return {
+  const base: Omit<NeuralWattPiModel, 'reasoning'> = {
     id: facts.id,
     name: facts.name,
     api: NEURALWATT_API,
     provider: NEURALWATT_ROUTE,
     baseUrl: NEURALWATT_BASE_URL,
     input: [...facts.input],
-    cost: mapNeuralWattModelCost({ pricing: facts.pricing, },),
-    reasoning: efforts !== undefined,
+    cost: mapNeuralWattModelCost((facts.pricing === undefined ? {} : { pricing: facts.pricing, }),),
     contextWindow: facts.contextWindow ?? PI_SCHEMA_DEFAULT_CONTEXT_WINDOW,
     maxTokens: facts.maxTokens ?? PI_SCHEMA_DEFAULT_MAX_TOKENS,
-    ...(efforts === undefined ? {} : {
-      thinkingLevelMap: expandThinkingLevelMap({ efforts, },),
-    },),
     compat: NEURALWATT_OPENAI_COMPLETIONS_COMPAT,
+  };
+  if (hasEffortsDict(facts))
+    return {
+      ...base,
+      reasoning: true,
+      thinkingLevelMap: expandThinkingLevelMap({
+        efforts: facts.reasoningEfforts,
+      },),
+    };
+  return {
+    ...base,
+    reasoning: false,
   };
 }
 
@@ -158,6 +176,11 @@ export function projectNeuralWattModel({
  @param facts - serviceable model facts the listing mapping produced
 
  @returns pi chat models in listing order
+
+ @example
+ ```typescript
+ const models = projectNeuralWattModels({ facts: mapNeuralWattListing({ listing }) });
+ ```
  */
 export function projectNeuralWattModels({
   facts,
