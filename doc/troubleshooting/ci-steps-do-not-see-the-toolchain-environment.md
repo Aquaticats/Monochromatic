@@ -188,21 +188,24 @@ add it once.
 
 On a machine that already holds every declared part the whole cost is the two listings.
 Measured on 2026-11-08 on this machine,
-a no-change `mpm-shadow install` of a one-tool lock
+on a throwaway scope holding one tool
 (the `rust` tool,
 `nightly-2026-11-08`,
-all four declared components and both Android targets present)
-took 21.0 ms median from a build of the commit before the fix,
-which runs `rustup toolchain list` alone,
-and 60.6 ms from the fix build.
-9 rounds interleaved the three arms,
-and the control arm was timed twice,
-once as its own binary and once as a second series of the same executable,
+all four declared components and both Android targets present),
+9 rounds interleaved a no-change `mpm-shadow install` from a build of the commit before the fix with the
+same install from the fix build,
+and the control executable ran as two separate arms,
 which is the harness's noise floor:
-medians 21.0 and 21.6 ms,
-so the two listings account for the whole 39.6 ms difference,
-and each listing on its own takes about 21 ms.
-That cost is two more `rustup` starts plus a scan of the printed names,
+medians 30.2 ms and 28.9 ms for the two control arms,
+77.2 ms for the fix build,
+and 29.8 ms and 28.7 ms for the two listings timed on their own.
+An earlier session with a build of the first version of the fix read 21.0,
+21.6,
+60.6,
+21.2 and 21.9 ms the same way,
+so the absolute values move with the host's load while the difference stays the two listings:
+here the two control arms sat 1.3 ms apart and the fix build 47.0 ms above them.
+That difference is two more `rustup` starts plus a scan of the printed names,
 so it grows with the number of declared parts and listed names,
 not with the size of the toolchain.
 
