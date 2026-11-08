@@ -537,15 +537,28 @@ fn a_new_transaction_does_not_start_beside_a_scope_with_a_member_until_it_ends()
         return;
     }
     let root = repository();
-    let Some((scope, _journal)) = journal_with_a_scope_that_has_a_member(root.path()) else {
+    let Some((scope, journal)) = journal_with_a_scope_that_has_a_member(root.path()) else {
         return;
     };
+    let journals_before: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
+    let record_before: String = fs::read_to_string(journal.join("groups")).expect("the record");
+    let snapshot_before: String = fs::read_to_string(journal.join("0.lock")).expect("the snapshot");
 
     let refused = crate::journal::begin(root.path(), &[snapshot("second")], false);
+    // While the member is alive, the refused admission changed nothing and a second attempt is refused again: a first refusal
+    // that deleted the blocking journal would otherwise let the control below succeed for the wrong reason (sixth pass, group 11).
+    let retained: Vec<PathBuf> = crate::journal_support::journal_dirs(root.path());
+    let record_after: String = fs::read_to_string(journal.join("groups")).expect("the record");
+    let snapshot_after: String = fs::read_to_string(journal.join("0.lock")).expect("the snapshot");
+    let refused_again = crate::journal::begin(root.path(), &[snapshot("second")], false);
     end_scope(&scope);
     let started = crate::journal::begin(root.path(), &[snapshot("second")], false);
 
     assert!(refused.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "a transaction started beside a live member, or the refusal does not name it: {:?}", refused.as_ref().err());
+    assert_eq!(retained, journals_before, "the refused admission removed or changed a journal");
+    assert_eq!(record_after, record_before, "the refused admission changed the blocking record");
+    assert_eq!(snapshot_after, snapshot_before, "the refused admission changed the blocking snapshot");
+    assert!(refused_again.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "the second admission beside the same live member was not refused: {:?}", refused_again.as_ref().err());
     assert!(started.is_ok(), "the control: with the member gone the transaction was still refused: {:?}", started.err());
 }
 //endregion

@@ -103,6 +103,15 @@ pub mod commit_index_copying;
 /// for the timing record.
 pub mod commit_index_builds;
 
+/// The refresh of an index's stat data before the scratch commit,
+/// so its ceiling does not end a commit over a moved worktree.
+pub mod commit_index_stat_refresh;
+
+/// The selection a commit names:
+/// the choices that shape its private index,
+/// its `git add` arguments and the interactive selection.
+pub mod commit_index_selection;
+
 /// Native `git commit` in the shadow,
 /// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;

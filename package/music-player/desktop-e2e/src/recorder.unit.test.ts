@@ -22,9 +22,10 @@ import {
   CheckFailureError,
   SafetyStopError,
 } from './errors.ts';
+import type { EvidenceState, } from './failure-evidence.ts';
 import {
   createRecorder,
-  type EvidenceState,
+  type Recorder,
 } from './recorder.ts';
 
 /**
@@ -44,6 +45,23 @@ function statesOf(count: number,): readonly EvidenceState[] {
       route: `route-${number}`,
       unfolded: (number % 2) === 0,
     };
+  },);
+}
+
+/**
+ Attaches a session that keeps no files of its own, for a test about its states or the failure text alone.
+
+ @param recorder - the recorder
+
+ @param label - session label
+
+ @param states - what the session's log holds now
+ */
+function attachStates(recorder: Recorder, label: string, states: readonly EvidenceState[],): void {
+  recorder.attach({
+    label,
+    readStates: async () => states,
+    readSessionFiles: async () => [],
   },);
 }
 
@@ -163,7 +181,7 @@ await describe({
       fn: async ({ expect, }) => {
         const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
         const recorder = createRecorder({ only: '', evidenceDir, },);
-        recorder.attach({ label: 'wide', readStates: async () => statesOf(30,), },);
+        attachStates(recorder, 'wide', statesOf(30,),);
         await recorder.verify({
           id: 'settings/licenses-row',
           title: 'the licenses row opens',
@@ -200,7 +218,7 @@ await describe({
           route: 'Player',
           unfolded: true,
         }),);
-        recorder.attach({ label: 'wide', readStates: async () => [...changes, ...ticks,], },);
+        attachStates(recorder, 'wide', [...changes, ...ticks,],);
         await recorder.verify({
           id: 'a/ticks',
           title: 'fails while a track plays',
@@ -219,11 +237,100 @@ await describe({
       },
     },),
     it({
+      name: 'keeps the session\'s own files beside the failure file and names each where it came from',
+      fn: async ({ expect, }) => {
+        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        const recorder = createRecorder({ only: '', evidenceDir, },);
+        recorder.attach({
+          label: 'wide',
+          readStates: async () => statesOf(2,),
+          readSessionFiles: async () => [
+            { kind: 'kept', name: 'unit.log', source: '/work/run/wide.log', text: 'the app said nothing new\n', },
+            { kind: 'kept', name: 'cpu.stat', source: '/sys/fs/cgroup/x.service/cpu.stat', text: 'usage_usec 4815161\n', },
+          ],
+        },);
+        await recorder.verify({
+          id: 'play/enter-plays-row',
+          title: 'Enter plays the row',
+          body: async () => {
+            throw new CheckFailureError('timed out waiting for now-playing',);
+          },
+        },);
+        const [outcome,] = recorder.outcomes();
+        const failure = await readFile(outcome?.evidence ?? '', 'utf8',);
+        const log = await readFile(join(evidenceDir, 'play--enter-plays-row.unit.log',), 'utf8',);
+        const cpuStat = await readFile(join(evidenceDir, 'play--enter-plays-row.cpu.stat',), 'utf8',);
+        await rm(evidenceDir, { recursive: true, force: true, },);
+        expect(log,).toBe('the app said nothing new\n',);
+        expect(cpuStat,).toBe('usage_usec 4815161\n',);
+        expect(failure,).toContain('the session\'s own files, beside this one:',);
+        expect(failure,).toContain('play--enter-plays-row.unit.log <- /work/run/wide.log',);
+        expect(failure,).toContain('play--enter-plays-row.cpu.stat <- /sys/fs/cgroup/x.service/cpu.stat',);
+      },
+    },),
+    it({
+      name: 'says in the failure file why a file the session names was not kept',
+      fn: async ({ expect, }) => {
+        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        const recorder = createRecorder({ only: '', evidenceDir, },);
+        recorder.attach({
+          label: 'wide',
+          readStates: async () => statesOf(1,),
+          readSessionFiles: async () => [
+            {
+              kind: 'missing',
+              name: 'io.pressure',
+              source: 'music-player-e2e-4242-wide.service',
+              reason: 'systemd names no control group for the unit',
+            },
+          ],
+        },);
+        await recorder.fail({
+          id: 'session/wide',
+          title: 'the wide session ran to its end',
+          detail: 'the unit had already stopped',
+        },);
+        const failure = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
+        const files = await readdir(evidenceDir,);
+        await rm(evidenceDir, { recursive: true, force: true, },);
+        expect(files,).toEqual([
+          'session--wide.failure.txt',
+        ],);
+        expect(failure,).toContain('session--wide.io.pressure not kept: systemd names no control group for the unit',);
+      },
+    },),
+    it({
+      name: 'keeps the states when the session cannot hand over its files',
+      fn: async ({ expect, }) => {
+        const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
+        const recorder = createRecorder({ only: '', evidenceDir, },);
+        recorder.attach({
+          label: 'wide',
+          readStates: async () => statesOf(3,),
+          readSessionFiles: async () => {
+            throw new Error('systemctl is not running',);
+          },
+        },);
+        await recorder.verify({
+          id: 'a/unreadable',
+          title: 'fails while the files cannot be read',
+          body: async () => {
+            throw new CheckFailureError('the check failed',);
+          },
+        },);
+        const failure = await readFile(recorder.outcomes()[0]?.evidence ?? '', 'utf8',);
+        await rm(evidenceDir, { recursive: true, force: true, },);
+        expect(failure,).toContain('the check failed',);
+        expect(failure,).toContain('seq=3 reason=reason-3',);
+        expect(failure,).not.toContain('the session\'s own files',);
+      },
+    },),
+    it({
       name: 'records a failure outside any check, whatever the filter selects, with its evidence',
       fn: async ({ expect, }) => {
         const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
         const recorder = createRecorder({ only: 'settings', evidenceDir, },);
-        recorder.attach({ label: 'wide', readStates: async () => statesOf(3,), },);
+        attachStates(recorder, 'wide', statesOf(3,),);
         await recorder.fail({
           id: 'session/wide',
           title: 'the wide session ran to its end',
@@ -267,6 +374,7 @@ await describe({
           readStates: async () => {
             throw new Error('the log file is gone',);
           },
+          readSessionFiles: async () => [],
         },);
         await recorder.verify({
           id: 'a/gone',
@@ -286,7 +394,7 @@ await describe({
       fn: async ({ expect, }) => {
         const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
         const recorder = createRecorder({ only: 'a/', evidenceDir, },);
-        recorder.attach({ label: 'wide', readStates: async () => statesOf(3,), },);
+        attachStates(recorder, 'wide', statesOf(3,),);
         await recorder.verify({ id: 'a/ok', title: 'passes', body: async () => undefined, },);
         recorder.skip({ id: 'a/skipped', title: 'cannot run', reason: 'no way', },);
         await recorder.verify({
@@ -307,8 +415,8 @@ await describe({
       fn: async ({ expect, }) => {
         const evidenceDir = await mkdtemp(join(scratchRoot(), 'e2e-evidence-',),);
         const recorder = createRecorder({ only: '', evidenceDir, },);
-        recorder.attach({ label: 'first', readStates: async () => statesOf(2,), },);
-        recorder.attach({ label: 'second', readStates: async () => statesOf(1,), },);
+        attachStates(recorder, 'first', statesOf(2,),);
+        attachStates(recorder, 'second', statesOf(1,),);
         await recorder.verify({
           id: 'a/second',
           title: 'fails in the second session',

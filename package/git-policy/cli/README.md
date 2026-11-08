@@ -664,6 +664,19 @@ an identity check on what is removed),
 but
 they narrow the window and do not close it.
 
+A command that can change or delete files states the risk in its own `--help`,
+where it has one,
+and says it once on standard error;
+a command whose own line already states it never prints a second one:
+`git monochromatic-git-policy-cli migrate-to-subvolume` before it first writes,
+keeps,
+swaps or deletes anything (a `--dry-run` and a refusal change nothing and say nothing);
+`git monochromatic-git-policy-cli convert-worktree-to-subvolume` before it touches the first worktree
+(a `--dry-run`,
+an `--abandon` and a run that names no worktree say nothing);
+and `git worktree remove` once it has destroyed the worktree's subvolume in one step
+(its `--help` is Git's own).
+
 ## Requirements
 
 - Linux with glibc 2.39 or newer.
@@ -1220,6 +1233,16 @@ then run the deletion again.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`,
 which the kernel allows for an empty subvolume root.
+
+Risk you accept by running it:
+it replaces or deletes files of the checkout while other programs may be changing the same files
+(see "Other processes changing files"),
+and a program that writes through an open file or a mapping,
+or that renames or replaces a path,
+between a check and the step that relies on it can lose that change.
+Stop the programs working inside the checkout first.
+The command says so once on standard error before it changes anything,
+and in `--help`.
 
 ### Converting nested worktrees to subvolumes
 

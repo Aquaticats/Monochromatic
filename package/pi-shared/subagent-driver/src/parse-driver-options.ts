@@ -5,6 +5,7 @@
  */
 
 import { parseArgs, } from 'node:util';
+import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import type { DriverOptions, } from './driver-types.ts';
 
 /**
@@ -93,6 +94,47 @@ function requiredPositiveNumber({
 }
 
 /**
+ Reads an option that must be a duration above zero whose milliseconds, and whose deadline from now, stay finite. A limit that
+ becomes infinite is no limit at all.
+
+ @param value - option's value as parsed
+
+ @param name - option's name for the message
+
+ @returns option's number of seconds
+
+ @throws DriverOptionsError when option is missing, not a number above zero, or too large to be a deadline
+
+ @example
+ ```ts
+ const seconds = requiredSeconds({ value: '60', name: 'wall-seconds', },);
+ ```
+ */
+function requiredSeconds({
+  value,
+  name,
+}: {
+  readonly value: unknown;
+  readonly name: string
+},): number {
+  /**
+   The option's seconds.
+   */
+  const seconds = requiredPositiveNumber({
+    value,
+    name,
+  },);
+  /**
+   The milliseconds the driver computes a deadline from, which is what any timer receives.
+   */
+  const milliseconds = seconds * MILLISECONDS_PER_SECOND;
+  if ((!Number.isFinite(milliseconds,)) || (!Number.isFinite(Date.now() + milliseconds,))) {
+    throw new DriverOptionsError(`--${name} must be a number of seconds whose milliseconds stay finite; it was "${String(seconds,)}".\nUsage: ${DRIVER_USAGE}`,);
+  }
+  return seconds;
+}
+
+/**
  Reads the command line.
 
  @param commandLine - arguments after the program name
@@ -154,11 +196,11 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
       },),
       ...(values.session === undefined ? {} : { session: values.session, }),
       piArguments: values['pi-argument'] ?? [],
-      wallSeconds: requiredPositiveNumber({
+      wallSeconds: requiredSeconds({
         value: values['wall-seconds'],
         name: 'wall-seconds',
       },),
-      idleSeconds: requiredPositiveNumber({
+      idleSeconds: requiredSeconds({
         value: values['idle-seconds'],
         name: 'idle-seconds',
       },),
