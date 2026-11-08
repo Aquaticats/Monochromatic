@@ -2744,3 +2744,75 @@ not to crates.io.
   0.15 ms lower forwarded and 4.9 ms lower signed;
   each is inside the measured spread of one binary,
   so no change in the added latency is shown.
+
+### Release record: `monochromatic-git-policy-cli` 0.6.1-alpha.4, commits survive a moving branch and stops let branch writes finish (2026-11-08T00:58:51-05:00)
+
+Released by the coordinator.
+
+- Contents:
+  moved-branch rebuilds until a 20-minute ceiling instead of failing after five builds,
+  and a retry index that copies the real index,
+  so unchanged LFS files are not cleaned again (`373ea2efdc`);
+  removal of an empty `index.lock` that no process holds
+  (owner:
+  "Empty locks only (Recommended)");
+  the signed scratch `git commit` step's ceiling of 3,006 ms when the message came with the command
+  (owner:
+  "About 3 s now";
+  `d0bcc86ca3`);
+  tokio step T11 (`f87cc69f8d`);
+  commit-service units that stop with their worktree (`68cab5c681`);
+  a stop that lets a running branch write finish,
+  with `KillMode=mixed` and `TimeoutStopSec=35s` in the unit
+  (owner:
+  "B:
+  let a branch write finish (Recommended)";
+  `25bb55058a`).
+- Gate:
+  every wrapper merge above is an ancestor of the branch of `25bb55058a`,
+  whose container gate passed 5423 tests with none failing,
+  and `git log 25bb55058a..main -- package/git-policy/cli` listed nothing before the dry run and before the real run.
+- Runs:
+  dry run 42451314698 succeeded;
+  release run 42451919767 made the bump commit `7fb3d07f2f`;
+  publish run 42452207471;
+  `native:release:wait` printed `PUBLISHED`,
+  the crates.io step skipped for the alpha label,
+  and both Linux archives on the GitHub release `monochromatic-git-policy-cli-v0.6.1-alpha.4`.
+- Lock:
+  `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` reported 1 tool moved;
+  the diff (10 lines) changed only that row and the digest;
+  committed as `44756d1894`;
+  `mpm update -g cargo:monochromatic-git-policy-cli` moved the global lock from alpha.3 to alpha.4.
+- At the user boundary:
+  `git --version` prints `monochromatic-git-policy-cli 0.6.1-alpha.4`;
+  the journal shows the alpha.3 service retiring and `started release="0.6.1-alpha.4"`;
+  the lock commit itself landed through alpha.4 in one attempt (3,430 ms total,
+  354 ms build,
+  including the service restart);
+  the unit reads `KillMode=mixed` and `TimeoutStopUSec=35s`.
+- `native:perf`
+  (30 samples per scenario,
+  each run in a scope with `CPUQuota=400%`,
+  `MemoryMax=4G`):
+  two alpha.3 runs,
+  then three rounds with the order alternating.
+  Commit through the service,
+  added median:
+  alpha.3 20.4,
+  20.2,
+  21.2,
+  21.7,
+  20.1 ms;
+  alpha.4 21.9,
+  19.7,
+  22.5 ms.
+  The difference of round medians (0.7 ms) is inside alpha.3's own range over five runs (1.6 ms).
+  Signed commit:
+  alpha.3 26.6 to 27.9 ms,
+  alpha.4 25.6 to 26.5 ms.
+  Forwarded `status`:
+  1.6 to 2.0 ms for both.
+  No change in added latency is shown.
+  Raw runs:
+  `~/temp/agent/wrapper-alpha4-release/perf/`.
