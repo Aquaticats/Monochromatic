@@ -922,3 +922,43 @@ mod workspace_tests;
 /// The tests of the limits a run's scope keeps from its caller.
 #[cfg(test)]
 mod inherited_limits_tests;
+
+/// The device and inode of an entry,
+/// the clock and the deadline of the lean-folder tools.
+pub mod lean_identity;
+
+/// The non-blocking take of a Cargo profile directory's build locks.
+pub mod lean_lock_probe;
+
+/// The scan of `/proc` for processes using a path.
+pub mod lean_proc_scan;
+
+/// The one way the lean-folder tools remove an entry.
+pub mod lean_removal;
+
+/// Disk sizes of trees.
+pub mod lean_sizes;
+
+/// The proof that a profile directory is not in use.
+pub mod lean_guard;
+
+/// The reader of a profile directory's units.
+pub mod lean_unit_reader;
+
+/// The removal of units under the shared protocol.
+pub mod lean_unit_removal;
+
+/// The decision of the sweep of older compilers.
+pub mod lean_sweep_plan;
+
+/// Fixtures of the lean-folder tests.
+#[cfg(test)]
+mod lean_test_support;
+
+/// The tests of the sweep and the protocol under it.
+#[cfg(test)]
+mod lean_sweep_tests;
+
+/// The tests of the removal primitive.
+#[cfg(test)]
+mod lean_removal_tests;
