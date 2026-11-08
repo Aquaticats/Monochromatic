@@ -118,3 +118,43 @@ pub fn add_incremental(profile: &Path, name: &str, modified: i64) -> PathBuf {
 pub fn real_environment() -> crate::lean_guard::GuardEnvironment {
     return crate::lean_guard::GuardEnvironment::real();
 }
+
+/// What:
+/// `pub fn age_everything(path: &Path, seconds: i64)` sets the modification time of a tree and everything in it.
+/// Why:
+/// Idleness is read from file times,
+/// and a fixture is made old in one call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function ageEverything(path: string, seconds: number): void
+/// ```
+pub fn age_everything(path: &Path, seconds: i64) {
+    if fs::symlink_metadata(path).expect("metadata").is_dir() {
+        for entry in fs::read_dir(path).expect("read the directory") {
+            age_everything(&entry.expect("entry").path(), seconds);
+        }
+    }
+    set_time(path, seconds);
+}
+
+/// What:
+/// `pub fn make_tree(base: &Path, relative: &str, ledger: Option<&Path>) -> PathBuf` makes a build tree with one profile
+/// directory holding one unit,
+/// and a ledger naming the workspace when one is given.
+/// Why:
+/// The idle-tree tests start from it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function makeTree(base: string, relative: string, ledger?: string): string
+/// ```
+pub fn make_tree(base: &Path, relative: &str, ledger: Option<&Path>) -> PathBuf {
+    let tree: PathBuf = base.join(relative);
+    let profile: PathBuf = make_profile(&tree, "debug");
+    add_old_unit(&profile, "alpha", "00000000000000aa", 111, NOW - 100 * DAY);
+    if let Some(root) = ledger {
+        fs::write(tree.join(".cargo-shadow-workspace"), format!("{}\n", root.display())).expect("ledger");
+    }
+    return tree;
+}

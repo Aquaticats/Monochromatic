@@ -970,3 +970,22 @@ pub mod lean_keyed_folder;
 /// The tests of the toolchain-keyed build folder.
 #[cfg(test)]
 mod lean_keyed_folder_tests;
+
+/// The trees of a host build base.
+pub mod lean_build_trees;
+
+/// Mechanism C:
+/// the collection of verified-idle trees.
+pub mod lean_idle_trees;
+
+/// The tests of the idle-tree collection.
+#[cfg(test)]
+mod lean_idle_trees_tests;
+
+/// Mechanism E:
+/// the size cap of a profile directory.
+pub mod lean_size_caps;
+
+/// The tests of the size cap.
+#[cfg(test)]
+mod lean_size_caps_tests;
