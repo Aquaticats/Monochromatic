@@ -28,7 +28,7 @@ That finding is what the ranking now rests on.
 
 This document is long and append-only,
  so what follows is where things stand.
-Everything below this section is the record of getting here,
+Everything from the `What was measured` heading onward is the record of getting here,
  including claims that were made
 and withdrawn.
 
@@ -2074,8 +2074,9 @@ It was also wrong about the verdict.
 It dies when the call returns,
  and nothing outside can reach `config.row` through it afterwards,
  so withholding nothing is correct rather than a gap.
-The three rows below the fold confirm the ways it could stop being correct are already
- covered:
+The three rows `storeIntoEnclosingLocalThenLeak`,
+ `storeIntoEnclosingLocalThenWrite` and `returnStoringClosure` confirm the ways it could stop being correct
+ are already covered:
  leaking the local afterwards reports,
  because `discoverAliasOrigins` registered `captured` as carrying the parameter's slot;
  writing through it reports as a mutation;
