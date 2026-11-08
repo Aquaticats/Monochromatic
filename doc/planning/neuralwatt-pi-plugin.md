@@ -327,8 +327,11 @@ Named suites and gates.
 ## Pre-ship probes
 
 - `maxTokensField`:
-  whether the API accepts pi's unknown-host default
-  `max_completion_tokens` or requires `max_tokens`.
+  probed 2026-11-08T03:39:59Z on `nw-small` with the owner-minted key:
+  the API accepts both `max_completion_tokens` and `max_tokens`
+  (status 200 for each),
+  so pi's auto-detected default stands unpinned
+  and the pin list keeps only verified differences.
 - With-pin and without-pin reasoning dispatch positive control,
   settling the discrepancy between the DSH README's silent-drop claim
   and pi-ai 1.5.0 auto-detecting `thinkingFormat: "openai"`
