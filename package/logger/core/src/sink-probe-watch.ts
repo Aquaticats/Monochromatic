@@ -11,7 +11,6 @@
 import {
   reportVerificationDeadline,
   reportVerificationFailure,
-  reportVerificationUnavailable,
 } from './sink-verification-reports.ts';
 import {
   isHostDeadlineElapsed,
@@ -86,22 +85,10 @@ async function applyLateVerdict(
     /**
      Verdict the probe reported after the deadline elapsed.
      */
-    const available = await probe;
-    /**
-     Records held for this sink when its verdict arrives, which its conclusion releases.
-     */
-    const kept = ports.keptCount();
     ports.conclude({
-      available,
+      available: await probe,
       entryIndex,
     },);
-    if (!available) {
-      reportVerificationUnavailable({
-        entryIndex,
-        kept,
-        sink,
-      },);
-    }
   }
   catch (error: unknown) {
     reportVerificationFailure({

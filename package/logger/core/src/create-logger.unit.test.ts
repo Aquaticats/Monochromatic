@@ -1134,38 +1134,35 @@ await describe({
             },),
 
             it({
-              name: 'a verify that fails after the time limit is dropped with exactly one report of its kept records',
+              name: 'a verify that answers false after the time limit is dropped without a failure report',
               timeout: DEADLINE_TEST_TIMEOUT_MS,
               fn: async ({ sinon, },) => {
                 const warn = sinon.stub(
                   console,
                   'warn',
                 );
-                const failing = recordingSink({
-                  name: 'failing backend',
+                const unavailable = recordingSink({
+                  name: 'unavailable backend',
                   verify: verifyFalseAfter({ delayMs: SHORT_DEADLINE_MS * 3, },),
                 },);
                 const {
                   logger,
                   initPromise,
                 } = createLogger({
-                  sinks: [failing.sink,],
+                  sinks: [unavailable.sink,],
                   verifyTimeoutMs: SHORT_DEADLINE_MS,
                 },);
-                logger.info('kept one',);
-                logger.info('kept two',);
+                logger.info('held one',);
+                logger.info('held two',);
                 await wait(SHORT_DEADLINE_MS * 5,);
                 await initPromise;
 
-                const failures = verifyFailureBreadcrumbs({ warn, },);
-                expect(messages({ recording: failing, },),)
+                expect(messages({ recording: unavailable, },),)
                   .toEqual([],);
-                expect(failures,)
+                expect(verifyFailureBreadcrumbs({ warn, },),)
+                  .toHaveLength(0,);
+                expect(verifyDeadlineBreadcrumbs({ warn, },),)
                   .toHaveLength(1,);
-                expect(failures[0],)
-                  .toContain('failing backend sink (entry 0)',);
-                expect(failures[0],)
-                  .toContain('the 2 records logged before it answered are dropped',);
               },
             },),
 

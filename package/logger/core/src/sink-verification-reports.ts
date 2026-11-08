@@ -97,38 +97,6 @@ export function reportVerificationFailure({
 }
 
 /**
- Reports a sink whose verifier ran to completion and reported its backend
- unusable, naming the records kept for it and the sinks that keep logging.
-
- @param entryIndex - Sink entry index whose backend is unusable.
-
- @param sink - Sink whose backend is unusable, named in the report.
-
- @param kept - Records held for the sink when its verdict arrived.
-
- @example
- ```ts
- reportVerificationUnavailable({ entryIndex: 0, sink, kept: 0 });
- ```
- */
-export function reportVerificationUnavailable({
-  entryIndex,
-  sink,
-  kept,
-}: {
-  readonly entryIndex: number;
-  readonly sink: Sink;
-  readonly kept: number;
-},): void {
-  reportLoggerCondition({
-    message: `${sinkLabel({
-      entryIndex,
-      sink,
-    },)} verification failed: its probe reported the backend unavailable, so ${lostRecordsClause({ kept, },)}, and logging continues through the remaining sinks.`,
-  },);
-}
-
-/**
  Reports a probe that had not answered inside its limit, stating that the sink
  keeps its records and can still attach, plus the setting that changes the wait.
 
