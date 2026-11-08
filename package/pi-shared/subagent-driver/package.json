@@ -1,0 +1,38 @@
+{
+  "license": "LGPL-3.0-or-later",
+  "name": "@monochromatic-dev/pi-shared-subagent-driver",
+  "description": "Runs one Pi agent unattended over RPC: sends the prompt, declines dialogs, enforces its limits, records a feed and a summary, and delivers steering messages from an inbox folder.",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "module": "dist/final/node/index.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/final/node/index.d.mts",
+      "default": "./dist/final/node/index.mjs"
+    },
+    "./ts": "./src/index.ts",
+    "./ts/*": "./src/*"
+  },
+  "bin": {
+    "drive-pi-subagent": "dist/final/node/drive-pi-subagent.mjs"
+  },
+  "devDependencies": {
+    "@monochromatic-dev/config-rolldown": "workspace:*",
+    "@monochromatic-dev/config-typescript": "workspace:*",
+    "@monochromatic-dev/test-harness-core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  },
+  "files": [
+    "dist/final",
+    "src",
+    "LICENSES",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aquaticat/Monochromatic.git",
+    "directory": "package/pi-shared/subagent-driver"
+  }
+}
