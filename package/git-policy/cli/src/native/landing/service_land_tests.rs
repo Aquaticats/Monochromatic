@@ -756,6 +756,43 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     remove(world.root.as_path());
 }
 
+/// A batch whose branch never moved keeps its commit on `refs/cli-git/kept/<number>` when a restart drops its intent.
+/// This is the shape a stop of the service leaves when the branch write outlasts the stop bound:
+///  the stop never cuts that write,
+/// the service ends inside it,
+/// so the landing cannot unwind and keep the commit itself,
+/// the branch stands where it was,
+/// the commit is on the landing's scratch branch,
+/// and the intent is open (`a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+/// The kept ref is the one the wrapper names for a commit it did not land,
+/// and the person's staged changes are untouched.
+#[test]
+fn a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref() {
+    let world: World = world("service-land-recover-kept");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let stopped: CommitRequest = request(&world, "stopped", "stopped.txt", "stopped\n");
+    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
+    let built: String = match &outcomes[0] {
+        Outcome::Landed { commit } => commit.clone(),
+        other => panic!("{other:?}"),
+    };
+    // The branch writes only at the end of its transaction, which also deletes the scratch branch: a kill inside it
+    //  leaves the branch where it was and the commit on the scratch branch, with the intent already written.
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/worktree/cli-git-service/1", built.as_str()]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the commit is on the scratch branch the landing made");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the scratch branch is left as it was");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit is kept on the ref the wrapper names");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of stopped");
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    remove(world.root.as_path());
+}
+
 /// An instance takes over the open batches of its own worktree even when the batch used an index outside the Git
 ///  directory (`GIT_INDEX_FILE`):
 /// the worktree is named by the Git directory the request carried,
