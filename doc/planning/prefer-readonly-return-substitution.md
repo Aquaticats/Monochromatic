@@ -213,7 +213,7 @@ Widening that would mean widening what substitution tracks,
 
 ### Reading this document
 
-The three corrections worth knowing before trusting any measurement quoted below:
+The three corrections worth knowing before trusting any measurement quoted from the `What was measured` heading onward:
  "Correction:
 none of the guards has a program that isolates it",
  "Correction to the correction:
@@ -546,7 +546,7 @@ The sweep measured zero offers suppressed workspace-wide,
 
 A type error on an applied suggestion would not have been enough to claim this.
 A suggestion that fails to compile is self-limiting,
- and reporting one as unsoundness is the same inference shape retracted earlier in this document.
+ and reporting one as unsoundness is the same inference shape retracted in "What the caller-side gap costs".
 The bar used here is the one set in "What this proposal does not establish":
  the applied annotation compiles clean,
  and the caller observes a mutation the annotation denies.
@@ -590,7 +590,8 @@ reference-position classification would misreport every assignment-established a
 entangled by design.
 
 What is left reporting is not a nesting question either,
- which is worth stating because the probe above
+ which is worth stating because the re-run under
+"The structural false offer no longer reproduces, re-measured 2026-08-07"
 invites that reading.
  Measured against the flat equivalent:
  `config.rows.at(0,)` read for a property is
@@ -1343,7 +1344,7 @@ What each direction has to survive:
       since nothing in this change touches the upstream checker crash.
      A parent read surviving means a third root walk exists that neither fix found.
 -    Opacity falling.
-     Each lost finding must name a call into one of the three packages above.
+     Each lost finding must name a call into `@earendil-works/pi-coding-agent`, `h3@2.0.1-rc.26`, or `yaml@3.0.0-1`.
      This has to be checked against the authored call text,
       because the internal provenance string `callable without an effect summary` does not
       reach the rendered message:
@@ -1912,8 +1913,8 @@ Against `sweep-after-43`,
 So both halves of this work moved zero workspace findings in total.
 
 One prediction confirmed along the way.
-The previous section explained a zero omission count as a warm cache serving the
- callables that panic.
+The section titled "The omission count is cache-dependent, not a floor" explained a zero
+ omission count as a warm cache serving the callables that panic.
 This run reports five again.
 Nothing about those callables changed;
  what changed is that reverting the narrowing changed the analyzer bundle,
@@ -2034,8 +2035,9 @@ Every commit since the previous capture is this work,
 
 ## What a nested store actually measures
 
-The record above said `storeIntoEnclosingLocal` reports nothing because the origins
- belong to the enclosing callable and the classification never sees them together.
+The record in "What the store classification changed" said `storeIntoEnclosingLocal` reports
+ nothing because the origins belong to the enclosing callable and the classification never
+ sees them together.
 That was written from reasoning rather than measurement,
  and a reviewer named the competing mechanism:
  `activeCallableBodyNodes` returns descendants of the outer body filtered by
@@ -2396,7 +2398,7 @@ The sentinel cannot separate them either:
 
 By induction over the fixed point every opaque slot carries at least one fact,
  the merged-list rule and a per-slot union rule coincide,
- and the silence described above is unreachable.
+ and the silence described in "Whether an opaque slot can exist with nothing recorded against it" is unreachable.
 
 Measurement agrees.
 The wording a provenance-free parameter would produce,
@@ -3691,7 +3693,7 @@ Handing a callable over by storing it differs from handing it over as an argumen
  holds it,
  not in what it captured.
 
-Two claims in the section above needed correcting once it was measured.
+Two claims in "The escaping closure is a false offer, falsified" needed correcting once it was measured.
 
 The first is
  "what the closure DOES inside cannot matter".
@@ -4088,7 +4090,7 @@ A capture disagreeing with expectation is not evidence about the change until th
 
 The shapes staged after the escaping-closure fix landed were measured before anything was
  built on them,
- which is what the previous section's lesson asks for.
+ which is what the lesson in "It read 1966, so the standing baseline was measuring something else" asks for.
 All six record nothing:
 
 ```text
@@ -4229,7 +4231,7 @@ Nothing measured the design decision the whole change rests on.
 
 `relayCallable` and `handCaptureToRelay` exist for that reason,
  and with them the mutant dies on one line and only that line.
-This is the same lesson as the four post-landing defects recorded earlier,
+This is the same lesson as the four post-landing defects recorded in "Where the queue stands",
  arriving one layer higher:
  a mutation check asks whether the assertions discriminate the mechanism they name,
  and no assertion named this one.
@@ -5817,8 +5819,8 @@ function handInvokedResultBack(invokedThrough: Config,): Row {
 ```
 
 The first falsification attempt for this was **invalid**,
- in the same way the callback-parameter one
- earlier in this document was invalid.
+ in the same way the callback-parameter one under
+"Why my falsification did not count, and the rule that follows" was invalid.
  Applying the annotation to `invokedThrough`,
  type-checking
  clean and writing through the returned row does change the caller's row,
@@ -6431,7 +6433,7 @@ The inspection took `call.arguments` alone.
 
 ### And one at the edge of what #75 settled
 
-Recorded above under its own heading,
+Recorded under "A default callback is nobody's to defer to",
  since it is a different relation:
  a callback relation defers to
  the caller because the caller supplies the callback,
@@ -6674,7 +6676,8 @@ So the substitution walk answers for a direct and an aliased callee and fails fo
 
 The two defaulted forms fail for what look like two different reasons,
  and the inline-versus-named
- reading that would have explained one of them is refuted by the pair above.
+ reading that would have explained one of them is refuted by the
+`storeSinglePassDefault` and `storeInlinePassDefault` rows.
  For the named form,
  the
  value walk hands back an identifier and `packagedActualCallables` keeps only values that are
@@ -7239,7 +7242,7 @@ Open,
 -    **#54**,
       declined with the reason recorded.
 
-The instrument note from the null sweep applies to everything above:
+The instrument note from the null sweep applies to every fix in this section:
  each of these fixes withholds
  silently,
  so a sweep can only fail them and never confirm them,
@@ -7963,7 +7966,7 @@ Runtime lands in the series at 7m58s,
 
 **Offers held at 31 and the prediction that they would fall was wrong again.**
  Its premise had already been
- withdrawn in the section above,
+ withdrawn in "Withdrawing sweep six's premise, before the capture was read",
  before the capture was read,
  so this is a prediction failing on a reason
  already recorded rather than a new surprise.
