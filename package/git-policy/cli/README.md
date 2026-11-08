@@ -4347,8 +4347,21 @@ and `KillMode=mixed` makes the manager kill whatever is left of the unit at that
 (or when `TimeoutStopSec` has passed).
 A branch write that outlives the bound is therefore cut by the manager,
 the branch stays where it was,
-the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>`,
+the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>` when the landing made one,
+but on no ref at all when only Git could build it,
+which asks for a hook,
+an editor,
+a signature or an unusual head,
 and the batch's open intent is what recovery reads.
+The next commit in that worktree settles the intent before it lands:
+it keeps the commit on `refs/cli-git/kept/<seq>`,
+the ref this wrapper names for work it did not land,
+and removes the intent,
+so `git for-each-ref refs/cli-git/kept/` shows the commit from then on.
+Until such a commit comes,
+the commit is on the scratch branch alone,
+or on no ref at all when the landing made none,
+and the client that saw the stop is told only that the service stopped before it could confirm the commit.
 `TimeoutStopSec` is written into the unit from the stop bounds (`STOP_TIMEOUT_SECONDS`),
 above the service's last-resort alarm,
 so the host's default stop timeout never decides
