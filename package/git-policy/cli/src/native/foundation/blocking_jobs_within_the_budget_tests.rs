@@ -117,7 +117,8 @@ fn a_job_that_panics_gives_its_place_back() {
 /// the jobs do not run,
 /// each one says plainly that it did not run,
 /// and the place of a refused job is given back so the next job is refused too instead of waiting for it.
-/// A place held inside the job would be lost with it: the pool queues the job before it asks for a thread,
+/// A place held inside the job would be lost with it:
+/// the pool queues the job before it asks for a thread,
 /// and a refused
 ///  thread leaves it queued with nothing to run it.
 #[test]

@@ -26,8 +26,14 @@ const ONE_PLACE: usize = 1;
 /// One lane per item,
 /// so items may finish in any order.
 fn single_lanes(count: usize) -> Arc<[Vec<usize>]> {
-    let lanes: Vec<Vec<usize>> = (0..count).map(|index: usize| { return vec![index]; }).collect();
+    let lanes: Vec<Vec<usize>> = (0..count).map(lane_of_one_item).collect();
     return Arc::from(lanes);
+}
+
+/// The lane of an item that must not wait for another:
+/// itself alone.
+fn lane_of_one_item(index: usize) -> Vec<usize> {
+    return vec![index];
 }
 
 /// A run whose items all end with their index times ten.
@@ -47,7 +53,8 @@ impl OrderedWork<u64, u64> for SleepAndSay {
     }
 }
 
-/// Every event, as text,
+/// Every event,
+/// as text,
 /// in the order the consumer saw them.
 #[derive(Default)]
 struct SeenText {
@@ -116,7 +123,8 @@ impl OrderedEvents<bool> for CountArrived {
     }
 }
 
-/// The items run at the same time: a serial run can never pass a point all of them must reach.
+/// The items run at the same time:
+/// a serial run can never pass a point all of them must reach.
 #[test]
 fn items_run_at_the_same_time() {
     let mut arrived: CountArrived = CountArrived::default();

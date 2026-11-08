@@ -12,7 +12,8 @@
 //! "Blocking files,
 //! fsync and the runtime's own shutdown").
 //! A blocking job of the pool must own what it reads,
-//!  which the scoped threads of `parallel_runner.rs` need not: this form therefore takes the items,
+//!  which the scoped threads of `parallel_runner.rs` need not:
+//! this form therefore takes the items,
 //! the lanes and the work as
 //!  values the caller shares,
 //! and the calling task stays free while the jobs run.
@@ -113,7 +114,8 @@ impl From<BlockingJobError> for OrderedRunError {
 }
 
 /// One item,
-/// with what its job owns: the items,
+/// with what its job owns:
+/// the items,
 /// the work,
 /// where it says its lines,
 /// and which item it is.
@@ -245,7 +247,8 @@ impl Drop for CountedOut {
 /// Why:
 ///  Counting the jobs,
 /// and not the open sending ends,
-/// is what ends the consumer: a job the system refused a thread
+/// is what ends the consumer:
+/// a job the system refused a thread
 ///  for was swallowed by the pool's queue with everything it held,
 /// a sending end included (`blocking_jobs_within_the_budget.rs`
 /// says how that is
@@ -307,9 +310,9 @@ where
     cursor.advance(on_event);
     loop {
         tokio::select! {
-            message = receiver.recv() => {
-                if let Some(message) = message {
-                    cursor.tell(message, on_event);
+            arrived = receiver.recv() => {
+                if let Some(said) = arrived {
+                    cursor.tell(said, on_event);
                 }
             }
             () = still_running.changed.notified(), if still_running.running.load(Ordering::SeqCst) > 0 => {}

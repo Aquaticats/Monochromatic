@@ -73,12 +73,18 @@ struct TheBudget {
 /// const budget = makeTheBudget(); // { places: new Semaphore(n), allowed: n }
 /// ```
 fn budget() -> &'static TheBudget {
-    return BUDGET.get_or_init(|| {
-        let host: HostResources = HostResources::read();
-        let limits: RuntimeLimits = RuntimeLimits::read();
-        let allowed: usize = budgeted_workers(&host, &limits).min(HELD_TO.load(Ordering::SeqCst)).max(1);
-        return TheBudget { places: Arc::new(Semaphore::new(allowed)), allowed };
-    });
+    return BUDGET.get_or_init(decide_the_budget);
+}
+
+/// The budget this process makes on its first need:
+/// the places the budget for parallel work and the limits leave,
+/// and no more than the cap the process asked
+///  for.
+fn decide_the_budget() -> TheBudget {
+    let host: HostResources = HostResources::read();
+    let limits: RuntimeLimits = RuntimeLimits::read();
+    let allowed: usize = budgeted_workers(&host, &limits).min(HELD_TO.load(Ordering::SeqCst)).max(1);
+    return TheBudget { places: Arc::new(Semaphore::new(allowed)), allowed };
 }
 
 /// What:
@@ -126,7 +132,8 @@ pub fn hold_blocking_jobs_to(cap: usize) {
 /// so a burst of work queues here and never starts threads the budget did not
 ///  count.
 /// The place is held by this frame and not moved into the job,
-/// and that is measured, not a preference:
+/// and that is measured,
+/// not a preference:
 /// when the
 ///  system refuses a thread,
 /// `spawn_blocking` panics after it has queued the job,
