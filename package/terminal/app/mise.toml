@@ -36,13 +36,18 @@ LIBCLANG_PATH = "/usr/lib64"
 #   to /var/home/user while the build runs from the physical path; process.cwd()
 #   resolves physically, matching the spawned codegen exe's path-space.
 # - containerCargo(args): build the image when missing, then run the cargo
-#   subcommand in podman with memory/cpu caps bounding the Ghostty + Slint compile.
+#   subcommand in podman with memory, CPU, process and disk-weight caps bounding the Ghostty + Slint compile.
 # - runCargo(args): host branch when hostOk, else container.
 # Its imported bindings (execFileSync, globSync) are reused by inline follow-ups,
 # so those must not reimport them.
 cargo_dispatch = """
 const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()

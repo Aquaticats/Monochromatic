@@ -68,6 +68,11 @@ SLINT_ENABLE_EXPERIMENTAL_FEATURES = "1"
 cargo_dispatch = """
 const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 12 GiB and 4 CPUs are this package's Alpine guard bound (the Alpine task below), and 1024 processes is the IDE's bound for 4 CPUs
+// (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const cargoContainerBound = { memory: '12g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'libpipewire-0.3', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && pkgConfigOk()
@@ -76,7 +81,7 @@ const hostEnv = () => {
   const resourceDir = clangDirs[clangDirs.length - 1]
   return { ...process.env, LIBCLANG_PATH: '/usr/lib64', BINDGEN_EXTRA_CLANG_ARGS: `-resource-dir=${resourceDir}` }
 }
-const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: [], env: [], program: 'cargo' }
+const defaultContainer = { image: 'localhost/monochromatic/music-player', containerfile: 'Containerfile', cargoVolume: 'music-player-cargo', limits: containerLimitArguments(cargoContainerBound), env: [], program: 'cargo' }
 // CACHYOS_IMAGE is the CachyOS image this host's CPU level supports (cachyos-v4, -v3 or plain), resolved by the repository's
 // cachyos-image command; it throws on a host that is not x86-64, because these images have no Alpine variant.
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
@@ -133,7 +138,7 @@ const gnuContainer = {
   image: 'localhost/monochromatic/music-player-windows-gnu',
   containerfile: 'Containerfile.windows-gnu',
   cargoVolume: 'music-player-cargo-windows-gnu',
-  limits: ['--memory=6g', '--cpus=4'],
+  limits: containerLimitArguments({ ...cargoContainerBound, memory: '6g' }),
   env: ['-e', 'CARGO_TARGET_DIR=/work/target/windows-gnu'],
 }
 const runWindowsGnu = (cargoArgs) => {
@@ -239,7 +244,8 @@ const { execFileSync } = await import('node:child_process')
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('music-player-windows-gnu'), ...rustToolchainBuildArguments(), '--memory=4g', '-t', 'localhost/monochromatic/music-player-windows-gnu', '-f', 'Containerfile.windows-gnu', '.'], { stdio: 'inherit' })
+const { imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+execFileSync('podman', ['build', ...cachyosBuildArguments('music-player-windows-gnu'), ...rustToolchainBuildArguments(), ...imageBuildLimitArguments({ memory: '4g', cpus: 4 }), '-t', 'localhost/monochromatic/music-player-windows-gnu', '-f', 'Containerfile.windows-gnu', '.'], { stdio: 'inherit' })
 """
 
 [tasks."build:windows-gnu"]
@@ -405,6 +411,11 @@ run = """
 const { execFileSync } = await import('node:child_process')
 const { mkdirSync } = await import('node:fs')
 const { join, resolve } = await import('node:path')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// The bounds are the music-player release job's own: 12 GiB and 4 CPUs for the builds, 4 GiB for the smoke run, and the IDE's 1024 processes for 4 CPUs.
+const buildBound = { memory: '12g', cpus: 4, pidsLimit: 1024 }
+const smokeBound = { ...buildBound, memory: '4g' }
 const packageDir = process.cwd()
 const musicPlayer = resolve(packageDir, '..')
 const compositor = resolve(packageDir, '../../nested-wayland-session/cli')
@@ -412,15 +423,15 @@ const cache = join(packageDir, 'target', 'alpine-cache')
 for (const sub of ['cargo', 'target-app', 'target-nws', 'scratch', 'smoke-out', 'context']) { mkdirSync(join(cache, sub), { recursive: true }) }
 const podman = (args) => execFileSync('podman', args, { stdio: 'inherit' })
 for (const target of ['build', 'smoke']) {
-  podman(['build', '--target', target, '--tag', `music-player-alpine-${target}`, '--file', 'Containerfile.alpine', join(cache, 'context')])
+  podman(['build', ...imageBuildLimitArguments(buildBound), '--target', target, '--tag', `music-player-alpine-${target}`, '--file', 'Containerfile.alpine', join(cache, 'context')])
 }
-const bounds = ['--memory=12g', '--cpus=4', '--security-opt', 'label=disable']
+const bounds = [...containerLimitArguments(buildBound), '--security-opt', 'label=disable']
 const appMounts = ['--volume', `${musicPlayer}:/src:ro`, '--volume', `${join(cache, 'cargo')}:/cargo`, '--volume', `${join(cache, 'target-app')}:/target`]
 const appEnv = ['--env', 'CARGO_HOME=/cargo', '--env', 'CARGO_TARGET_DIR=/target', '--env', 'CARGO_INCREMENTAL=0', '--env', 'CARGO_PROFILE_DEV_DEBUG=0', '--env', 'SLINT_EMIT_DEBUG_INFO=1', '--env', 'SLINT_ENABLE_EXPERIMENTAL_FEATURES=1']
 podman(['run', '--rm', ...bounds, ...appMounts, '--volume', `${join(cache, 'scratch')}:/src/desktop-app/target`, ...appEnv, '--workdir', '/src/desktop-app', 'music-player-alpine-build', 'cargo', 'nextest', 'run', '--locked', '--features', 'alsa-fallback', '--no-fail-fast'])
 podman(['run', '--rm', ...bounds, ...appMounts, ...appEnv, '--workdir', '/src/desktop-app', 'music-player-alpine-build', 'cargo', 'build', '--locked', '--features', 'alsa-fallback'])
 podman(['run', '--rm', ...bounds, '--volume', `${compositor}:/src:ro`, '--volume', `${join(cache, 'cargo')}:/cargo`, '--volume', `${join(cache, 'target-nws')}:/target`, '--env', 'CARGO_HOME=/cargo', '--env', 'CARGO_TARGET_DIR=/target', '--env', 'CARGO_INCREMENTAL=0', '--env', 'CARGO_PROFILE_RELEASE_LTO=false', '--env', 'CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16', '--workdir', '/src', 'music-player-alpine-build', 'cargo', 'build', '--release', '--locked'])
-podman(['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', `${join(cache, 'target-app', 'debug', 'music-player')}:/opt/music-player/music-player:ro`, '--volume', `${join(cache, 'target-nws', 'release', 'monochromatic-nested-wayland-session')}:/opt/music-player/nws:ro`, '--volume', `${join(packageDir, 'fixture')}:/opt/music-player/fixture:ro`, '--volume', `${join(cache, 'smoke-out')}:/tmp/smoke-out`, 'music-player-alpine-smoke', 'music-player-smoke'])
+podman(['run', '--rm', ...containerLimitArguments(smokeBound), '--security-opt', 'label=disable', '--volume', `${join(cache, 'target-app', 'debug', 'music-player')}:/opt/music-player/music-player:ro`, '--volume', `${join(cache, 'target-nws', 'release', 'monochromatic-nested-wayland-session')}:/opt/music-player/nws:ro`, '--volume', `${join(packageDir, 'fixture')}:/opt/music-player/fixture:ro`, '--volume', `${join(cache, 'smoke-out')}:/tmp/smoke-out`, 'music-player-alpine-smoke', 'music-player-smoke'])
 console.error(`smoke screenshots and logs: ${join(cache, 'smoke-out')}`)
 """
 
@@ -591,10 +602,13 @@ const { mkdirSync } = await import('node:fs')
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('icon-tools'), '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
+// One-shot tool containers take the bound of vm-builder's image:check commands (2 GiB, 2 CPUs, 128 processes; adopted, not measured).
+const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+const toolBound = { memory: '2g', cpus: 2, pidsLimit: 128 }
+execFileSync('podman', ['build', ...cachyosBuildArguments('icon-tools'), ...imageBuildLimitArguments(toolBound), '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
 const img = 'localhost/monochromatic/icon-tools'
 const mount = `${process.cwd()}:/work`
-const inContainer = (toolArgs) => execFileSync('podman', ['run', '--rm', '--security-opt', 'label=disable', '-v', mount, '-w', '/work', img, ...toolArgs], { stdio: 'inherit' })
+const inContainer = (toolArgs) => execFileSync('podman', ['run', '--rm', ...containerLimitArguments(toolBound), '--security-opt', 'label=disable', '-v', mount, '-w', '/work', img, ...toolArgs], { stdio: 'inherit' })
 mkdirSync('dist/icons', { recursive: true })
 for (const size of [16, 32, 48, 64, 128, 256, 512, 1024]) {
   inContainer(['rsvg-convert', '-w', String(size), '-h', String(size), 'asset/icon.svg', '-o', `dist/icons/icon-${size}.png`])
@@ -702,12 +716,15 @@ const { existsSync, mkdirSync } = await import('node:fs')
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-execFileSync('podman', ['build', ...cachyosBuildArguments('sign'), '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
+// One-shot tool containers take the bound of vm-builder's image:check commands (2 GiB, 2 CPUs, 128 processes; adopted, not measured).
+const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+const toolBound = { memory: '2g', cpus: 2, pidsLimit: 128 }
+execFileSync('podman', ['build', ...cachyosBuildArguments('sign'), ...imageBuildLimitArguments(toolBound), '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
 const exe = process.env.MP_WIN_EXE ?? 'dist/music-player.exe'
 if (!existsSync(exe)) { throw new Error(`Windows exe not found at ${exe}. Build on x13-win then copy target/release/music-player.exe to ${exe}. Build task: //package/music-player/desktop-app:build`) }
 const out = 'dist/music-player-signed.exe'
 const ts = process.env.MP_WIN_TIMESTAMP_URL ?? 'http://time.certum.pl'
-const pre = ['run', '--rm', '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'localhost/monochromatic/sign']
+const pre = ['run', '--rm', ...containerLimitArguments(toolBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'localhost/monochromatic/sign']
 if (process.env.MP_WIN_PKCS11_MODULE !== undefined) {
   console.log('signing with organization OV cert via PKCS#11')
   execFileSync('podman', [...pre, 'osslsigncode', 'sign', '-pkcs11module', process.env.MP_WIN_PKCS11_MODULE, '-pkcs11cert', process.env.MP_WIN_PKCS11_CERT, '-key', process.env.MP_WIN_PKCS11_KEY, '-n', 'Music Player', '-ts', ts, '-in', exe, '-out', out], { stdio: 'inherit' })
