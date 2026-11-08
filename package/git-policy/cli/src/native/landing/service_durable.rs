@@ -50,7 +50,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 /// One sync waiting for its turn:
 /// a handle on the file or directory,
 /// and what it is for.
-struct Pending {
+pub(crate) struct Pending {
     /// A handle on the same file or directory the record lives in;
     /// a flush through it flushes the file itself.
     handle: File,

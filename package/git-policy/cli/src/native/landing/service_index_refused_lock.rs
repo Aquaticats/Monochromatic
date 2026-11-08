@@ -29,7 +29,7 @@ use std::time::Duration;
 /// The lock that outlasted a wait,
 /// and how long that wait was.
 #[derive(Clone, Copy, Debug)]
-struct Refused {
+pub(crate) struct Refused {
     /// Device,
     /// inode and change time of the lock file.
     identity: LockMetadata,

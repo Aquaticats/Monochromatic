@@ -100,6 +100,10 @@ pub mod service_rules_precompile;
 /// so the commits queued behind it are not made to wait again.
 pub mod service_index_refused_lock;
 
+/// The state one landing keeps,
+/// carried by the task that runs the landing and not by a thread.
+pub mod landing_state_carried_by_its_task;
+
 /// The marker the service writes into the index lock and the questions asked of a marker.
 pub mod service_index_marker;
 

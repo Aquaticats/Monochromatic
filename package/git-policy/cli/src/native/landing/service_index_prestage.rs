@@ -49,7 +49,7 @@ pub struct Prestaged {
 }
 
 /// The marker being made or made for one lock path and one batch.
-struct Slot {
+pub(crate) struct Slot {
     lock: PathBuf,
     seq: u64,
     work: JoinHandle<std::io::Result<Prestaged>>,
