@@ -3114,7 +3114,8 @@ remove every placeholder the new snapshot holds below the parents of the registe
 (a listing of those folders,
 inode 2 and empty,
 removed as an empty directory),
-with a test that adds two worktrees while a third add is staging.
+with a control that takes one add while two stages of adds in flight sit in the worktrees folder,
+and a second that a stand-in for a subvolume no worktree names stays.
 Reproduced 2026-11-08T15:29:10-05:00 by a control:
 no race is needed.
 One call of the same snapshot ioctl another add makes at its stage name beside its destination,
@@ -3129,15 +3130,30 @@ An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:
 the subvolume it stands for stays in the source,
 with its files.
 Done on branch `fix/git-policy-cli-snapshot-add-removes-every-placeholder`:
-`eb28d26f52` is the failing control
-(the two adds while a third stages,
-and a stand-in for a subvolume no worktree names that must stay),
+`eb28d26f52` is the first failing control,
 `63dce988a0` lists each folder that holds a worktree
 and removes every stand-in there as an empty directory
 (`worktree/worktree_snapshot_placeholders.rs`),
 `b6a45587dc` proves the registered worktrees' parents are listed when the destination lies elsewhere,
+`336b4bf5d1` cuts both controls to one snapshot each:
+`btrfs_a_snapshot_removes_the_stand_ins_of_stages_and_keeps_the_one_no_worktree_names`
+and `btrfs_a_stage_below_a_registered_worktrees_parent_goes_with_the_destination_outside_the_source`,
 with the package's controls green,
 Clippy and `monochromatic-lint` too.
+A control's whole cost is the btrfs transaction commit each snapshot forces:
+measured with the disk quiet,
+an empty subvolume costs 2.2 ms to make and 1.1 ms to remove,
+while a snapshot of 51 files costs 433 ms.
+Other sessions' commits queue behind it,
+so the owner's rerun on 2026-11-08 put the suite's btrfs controls in waves of 34 s,
+56 s,
+64 s and 86 s and aborted the two controls here at 120.6 s and 122.0 s,
+each of which took three snapshots.
+With one snapshot each and a stage as an empty subvolume,
+the same filter under 8 CPUs,
+10 GiB and 3000 tasks puts both in their neighbours' wave:
+6.219 s and 0.670 s beside a 6.234 s control,
+26 of 26 passed.
 Verified at the user boundary:
 with the built binary as `git` in a throwaway btrfs checkout,
 a stage of another add in the worktrees folder leaves no stand-in in the new worktree,
