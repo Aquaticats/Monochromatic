@@ -31,7 +31,10 @@ import {
 import { join, } from 'node:path';
 
 import { generateDomainXml, } from './domain-xml.ts';
-import { diskWeightArguments, } from './disk-weight.ts';
+import {
+  bootcConverterArguments,
+  imageBuildArguments,
+} from './container-arguments.ts';
 import { exec, } from './exec.ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 
@@ -177,21 +180,18 @@ async function buildImage(): Promise<void> {
   await run({
     cmd: 'sudo',
     args: [
-      'podman',
-      'build',
-      '--tag',
-      IMAGE_TAG,
-      '--file',
-      join(
-        PACKAGE_DIR,
-        'Containerfile',
-      ),
-      '--ignorefile',
-      join(
-        PACKAGE_DIR,
-        '.containerignore',
-      ),
-      MONOREPO_ROOT,
+      ...imageBuildArguments({
+        imageTag: IMAGE_TAG,
+        containerfile: join(
+          PACKAGE_DIR,
+          'Containerfile',
+        ),
+        ignorefile: join(
+          PACKAGE_DIR,
+          '.containerignore',
+        ),
+        contextDirectory: MONOREPO_ROOT,
+      },),
     ],
   },);
 }
@@ -222,25 +222,11 @@ async function convertToQcow2(): Promise<void> {
   await run({
     cmd: 'sudo',
     args: [
-      'podman',
-      'run',
-      '--rm',
-      ...diskWeightArguments(),
-      '--privileged',
-      '--security-opt',
-      'label=type:unconfined_t',
-      '--volume',
-      `${OUTPUT_DIR}:/output`,
-      '--volume',
-      '/var/lib/containers/storage:/var/lib/containers/storage',
-      '--volume',
-      `${diskConfigDir}:/config:ro`,
-      'quay.io/centos-bootc/bootc-image-builder:latest',
-      '--type',
-      'qcow2',
-      '--config',
-      '/config/disk.toml',
-      IMAGE_TAG,
+      ...bootcConverterArguments({
+        outputDirectory: OUTPUT_DIR,
+        diskConfigDirectory: diskConfigDir,
+        imageTag: IMAGE_TAG,
+      },),
     ],
   },);
 }

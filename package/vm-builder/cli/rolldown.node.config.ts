@@ -16,14 +16,14 @@ import {
  `src/exec.ts` is a second entry only so that `dist/final/node/exec.mjs`
  exists for the unit tests, which import built output; the bin bundle
  runs sudo/podman at import time and cannot be imported by a test.
- `src/disk-weight.ts` is a third entry for the same reason: the unit test reads the container disk weight from
- `dist/final/node/disk-weight.mjs`.
+ `src/container-arguments.ts` is a third entry for the same reason: the unit test reads the rootful containers'
+ arguments from `dist/final/node/container-arguments.mjs`.
  */
 const config: NodeFlavorConfig = nodeConfig({
   input: [
     './src/build-and-import.ts',
     './src/exec.ts',
-    './src/disk-weight.ts',
+    './src/container-arguments.ts',
   ],
 },);
 
