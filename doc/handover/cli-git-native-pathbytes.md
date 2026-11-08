@@ -1,5 +1,14 @@
 # cli-git native `pathBytes` through the commit path
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
