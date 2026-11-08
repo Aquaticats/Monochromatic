@@ -46,6 +46,10 @@ pub mod repository_link_gate;
 /// The line the doctor prints about the link to the 860 drive.
 pub mod repository_link_doctor_line;
 
+/// Whether a repository move has frozen a repository,
+/// read from the move's own record.
+pub mod repository_move_freeze;
+
 /// The one table of fixture states both the TypeScript and the Rust check run.
 #[cfg(test)]
 #[path = "repository_link_shared_table_tests.rs"]

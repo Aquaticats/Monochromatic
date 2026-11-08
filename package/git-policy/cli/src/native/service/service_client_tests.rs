@@ -50,3 +50,18 @@ fn an_empty_or_damaged_line_decodes_to_no_message() {
     assert!(decode_service("").is_err(), "an empty line is not a message");
     assert_eq!(read_message(&mut reader_after(b"not a message\n")), None);
 }
+
+/// A read-only failure is the frozen-move one only when the move's record covers the repository:
+/// with no record,
+/// or a record of another place,
+/// it stays the plain read-only one.
+#[test]
+fn a_read_only_failure_is_the_frozen_move_one_only_when_the_move_record_covers_the_repository() {
+    let state: std::path::PathBuf = crate::test_support::fixture("client-read-only-freeze");
+    assert_eq!(read_only_failure("/work/repo", None), ClientFailure::RepositoryReadOnly(String::from("/work/repo")), "no state folder");
+    assert_eq!(read_only_failure("/work/repo", Some(state.as_path())), ClientFailure::RepositoryReadOnly(String::from("/work/repo")), "no manifest");
+    std::fs::write(state.join("freeze-manifest.tsv"), "0a1b\t/work/repo\n").expect("manifest");
+    assert_eq!(read_only_failure("/work/repo/package/x", Some(state.as_path())), ClientFailure::RepositoryFrozen(String::from("/work/repo/package/x")));
+    assert_eq!(read_only_failure("/work/other", Some(state.as_path())), ClientFailure::RepositoryReadOnly(String::from("/work/other")), "a repository the move did not freeze");
+    crate::test_support::remove(state.as_path());
+}

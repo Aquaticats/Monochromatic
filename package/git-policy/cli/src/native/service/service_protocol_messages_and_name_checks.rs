@@ -261,8 +261,10 @@ impl CommitRequest {
 pub enum FailureCode {
     /// The repository has no room.
     RepositoryFull,
-    /// The repository cannot be written.
+    /// The repository's filesystem is read-only (the operating system's `EROFS`).
     RepositoryReadOnly,
+    /// This account may not write the repository (the operating system's `EACCES`).
+    PermissionDenied,
     /// Another program holds the repository's index.
     IndexInUse,
     /// The request is not one the service accepts.
@@ -285,6 +287,7 @@ impl FailureCode {
         return match self {
             Self::RepositoryFull => "repository-full",
             Self::RepositoryReadOnly => "repository-read-only",
+            Self::PermissionDenied => "repository-permission-denied",
             Self::IndexInUse => "index-in-use",
             Self::Rejected => "rejected",
             Self::BranchKeepsChanging => "branch-keeps-changing",
@@ -296,9 +299,10 @@ impl FailureCode {
 
     /// Every code,
     /// so a test reaches all of them.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::RepositoryFull,
         Self::RepositoryReadOnly,
+        Self::PermissionDenied,
         Self::IndexInUse,
         Self::Rejected,
         Self::BranchKeepsChanging,

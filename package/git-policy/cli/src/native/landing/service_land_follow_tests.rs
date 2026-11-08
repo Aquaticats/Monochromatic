@@ -555,3 +555,19 @@ fn the_private_copy_is_owner_only_and_a_no_change_keeps_the_live_mode() {
     drop(held);
     remove(root.as_path());
 }
+
+/// A read-only filesystem and a permission error are different failures,
+/// by the error number and by Git's words,
+/// so the person is told which one it is.
+#[test]
+fn a_read_only_filesystem_is_kept_apart_from_a_permission_error() {
+    assert_eq!(storage_failure(&std::io::Error::from_raw_os_error(libc::EROFS)), FailureCode::RepositoryReadOnly);
+    assert_eq!(storage_failure(&std::io::Error::from_raw_os_error(libc::EACCES)), FailureCode::PermissionDenied);
+    assert_eq!(storage_failure(&std::io::Error::from_raw_os_error(libc::ENOSPC)), FailureCode::RepositoryFull);
+    let said = |words: &str| {
+        return classify(&GitOutput { code: Some(128), stdout: Vec::new(), stderr: words.as_bytes().to_vec() });
+    };
+    assert_eq!(said("error: could not write config file: Read-only file system"), FailureCode::RepositoryReadOnly);
+    assert_eq!(said("fatal: Unable to create '/r/.git/index.lock': Permission denied"), FailureCode::PermissionDenied);
+    assert_eq!(said("fatal: something else"), FailureCode::Unavailable);
+}
