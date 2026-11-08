@@ -3069,9 +3069,6 @@ each with a prompt and run folder under `${HOME}/temp/agent/pi-runs/`.
 Started next,
 as slots free:
 
-- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
-  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
-
 - `logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify`,
   printed once by `mise run //package/music-player/desktop-e2e:lint` while the host was under load on 2026-11-08.
   Cause not measured.
@@ -4258,10 +4255,23 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   the `native_binary` tests still fail there (`/dev/full` is absent,
   several fixture spawns fail with NotFound);
   the lib tests pass on `m1`.
-- Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment;
-  the Android-target `cargo check` is blocked by a compile error in `turso_sync_engine` 0.8.2 under nightly-2026-11-01
-  ("cycle detected when computing when turso_parser::ast::Select needs async drop"),
-  not yet reported upstream or worked around.
+- Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
+  Closed 2026-11-08T15:41:28-05:00:
+  the Android-target build is no longer blocked.
+  Under `nightly-2026-11-01`,
+  `turso_sync_engine` 0.8.2 failed to compile
+  ("cycle detected when computing when turso_parser::ast::Select needs async drop",
+  the same compiler cycle as the `zbus` entry above).
+  On the pinned `nightly-2026-11-08`,
+  `mise run //package/music-player/android-app:lint:clippy`
+  (clippy `--release --all-targets` with warnings denied,
+  through `cargo ndk` for arm64-v8a and x86_64)
+  compiled `turso_parser`, `turso_core`, `turso_sync_engine` and `turso` 0.8.3 and exited 0,
+  `Finished release profile` in 39.53 s for arm64-v8a and 29.21 s for x86_64.
+  The lock moved from turso 0.8.2 to 0.8.3 in the daily lock update `d61dc1934a`,
+  so both the toolchain and the version this entry named have changed since it was written.
+  Nothing was reported upstream and nothing needs to be:
+  the cycle was the compiler's, not this crate's.
 - `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` was a pre-existing
   failure when last
   recorded (unsure whether fixed).
@@ -5739,14 +5749,30 @@ are in append mode now).
   The same variable set on the command alone passed in 4 s with no notice and no positive control,
   so the notice hypothesis is still untested.
   Open until a failure keeps its output.
-- Found 2026-11-07 by the same study:
-  `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
+- Closed 2026-11-08T15:41:28-05:00:
+  `package/nested-wayland-session/cli` compiles on the pinned `nightly-2026-11-08`
+  (`rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`),
+  so the `zbus` failure this entry recorded is gone.
+  Found 2026-11-07 by the same study:
+  `zbus` 5.19.0 and 6.x did not compile on `nightly-2026-11-01`
   (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
-  and do compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate).
-  `package/nested-wayland-session/cli` locks `zbus` 5.19.0,
-  so it may not build on the pinned toolchain;
-  not built yet.
-  The study's agent is bisecting the nightly and checking newer ones.
+  and did compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate);
+  the one broken nightly is rust-lang/rust issue 165263,
+  reverted by PR 165266
+  (`doc/planning/rust-nightly-always-latest.md`,
+  `doc/research/wrapper-git-free-jobs-and-published-crates.md`).
+  Evidence on the pin:
+  `mise run //package/nested-wayland-session/cli:lint` (`cargo check` in the package's container)
+  finished with `Checking zbus v6.2.1` and `Checking monochromatic-nested-wayland-session v0.6.3`, exit 0,
+  and `lint:clippy` (`clippy --release --all-targets` with warnings denied) finished in 56.48 s.
+  The package locks `zbus` 6.2.1 now, not the 5.19.0 this entry named:
+  the daily lock update `d61dc1934a` moved it,
+  and `b159cc5228` ported every D-Bus use to zbus 6's async API.
+  The container image had to be rebuilt first:
+  `mise run //package/nested-wayland-session/cli:image` builds only when the tag is missing,
+  so the image still held `nightly-2026-11-07`,
+  and a cargo task on this pin ran the previous nightly until the rebuild
+  without naming the toolchain it used.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
