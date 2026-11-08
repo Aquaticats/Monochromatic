@@ -151,18 +151,24 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   Both sides of a worktree add are read with the same `cargo` from the person's `PATH`
   (`read_workspace` for the worktree,
   `cargoMetadataSource` for the source),
-  so without the shadow the repair clones an empty hash folder into an empty hash folder,
-  the next shadow build uses the keyed folder,
-  and that folder is not there:
-  it starts cold.
+  so without the shadow the repair clones a hash folder into a hash folder.
+  For this workspace the hash side held 2 KiB,
+  which is nothing to carry,
+  and only the keyed side (929 MiB) is what a shadow build reads;
+  another workspace's hash folder could hold real state,
+  which would then be carried,
+  but the shadow still reads the keyed folder.
+  So what the repair cannot do without the shadow is carry the source checkout's keyed state,
+  and no build state at all in the case measured.
   The measurement left that 2 KiB hash folder in the real build base;
   nothing was built into it and nothing else was touched.
-  What a change would be,
-  if the owner wants one:
-  the repair could ask for the keyed folder itself,
-  which means the wrapper reading cargo-shadow's keying rule,
-  or it could carry whichever of the two build directories holds newer state.
-  Neither is done.
+  A change would need the repair to ask for the keyed folder,
+  which means the Git wrapper carrying cargo-shadow's keying rule;
+  that crosses the boundary that keeps the rule in cargo-shadow,
+  so it is named here for the coordinator and the owner and not proposed as this branch's work.
+  The alternative,
+  carrying whichever of the two build folders holds newer state,
+  keeps the rule where it is and still needs an owner decision.
 - Containers in any state use their image:
   an image an exited container holds is kept.
   Whether exited containers should go too is a question for the owner.
@@ -177,28 +183,35 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   it compiled
   `<base>/75/4a9477468c27be/package/tiny-probe-0.1.0`,
   so the unpacked copy lives inside the workspace's own build tree and no new tree is made.
-  The host build base holds 2,131 `package/tmp-crate` directories and 46 distinct unpacked crate versions
+  The hash-shaped trees of the host build base hold 2,131 `package/tmp-crate` directories
+  and 6,763 unpacked crate directories over 45 distinct crate versions
   (`find /var/mnt/encrypted/cargo-build -maxdepth 4 -mindepth 4 -type d -path '*/package/*'`);
   25 of those versions are `monochromatic-git-policy-cli`,
-  which has 70 distinct versions in Git history and 69 release tags,
-  so the order-of-magnitude figure is the number of released versions of a crate that were packaged in one tree,
-  not a loop that runs 90 times.
-  Who runs it:
-  `cargo package` once and `cargo publish --dry-run` once per crate job of `.github/workflows/cargo-publish.yml`
-  (18 and 16 steps in that file,
-  and every `publish --dry-run` there passes `--no-verify`,
-  so the dry run does not verify a second time),
-  one `cargo publish --dry-run --locked --allow-dirty` per release from `package/crate-release/cli`,
-  and the manual `package`/`publish:dry-run` task of each crate.
-  Whether it should stop at the source is the owner's call:
-  the only verify left is the `cargo package` step,
-  which is the one place the packaged crate is compiled against the registry,
-  and
-  `--no-verify` there would remove it.
-  What can stop at the source without losing that check is the copy:
-  the worktree copy rule still carries `target/package` into every new worktree,
-  and that is how 25 unpacked wrapper versions became 4,165 copies across the hash-shaped host trees
-  the find above covers.
+  which has 70 distinct versions in Git history and 69 release tags.
+  The order-of-magnitude figure is therefore somewhere between the versions of a crate that were packaged
+  and the trees those copies reached;
+  which of the two the "about 90" counted is not established,
+  and neither is a loop that runs 90 times.
+  The copies reach many trees because the Cargo repair clones a workspace's build tree into each new worktree,
+  which is how 25 versions became 4,165 `monochromatic-git-policy-cli-*` directories.
+  Who runs it,
+  counted in the files rather than observed in a log:
+  `.github/workflows/cargo-publish.yml` has 16 `run: cargo package` steps and 16 `run: cargo publish --dry-run` steps,
+  one of each per crate job,
+  and every one of the dry runs there passes `--no-verify`,
+  so the workflow does not verify twice;
+  `package/crate-release/cli` runs one `cargo publish --dry-run --locked --allow-dirty` per release,
+  without `--no-verify`,
+  so that one does verify;
+  and each crate has a manual `package` and `publish:dry-run` task.
+  Whether it should stop at the source is the owner's call,
+  and it has two verifies to judge:
+  the workflow's `cargo package` step and the release preflight's `cargo publish --dry-run`.
+  Both compile the packaged crate,
+  which is the check that a `--no-verify` would remove.
+  What can stop at the source without losing either check is the copy:
+  the build trees these runs fill are cloned into every new worktree by the Cargo repair,
+  and nothing skips `package/` in a tree that is cloned.
 - Which wrapper build an add uses
   (the plan's second open question):
   the installed and locked one,
@@ -213,11 +226,26 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   2026-11-02)
   and first shipped in `monochromatic-git-policy-cli-v0.5.18`.
   The brief's 49.5 GB per add is within a percent of its listed total minus incremental state only (49.2 GB),
-  which is the arithmetic of a build that predates 0.5.18:
-  with `target/verification` (6.2 GiB) also left out
-  the same add would have written about 43 GB.
+  which is what a build before 0.5.18 would have written;
+  a build carrying this rule would also have left out `target/verification` (6.2 GiB),
+  so about 43 GB.
+  That subtraction compares two measurements of different things and settles nothing on its own.
   Which build ran for that measurement is still not established;
   what a new add uses is 0.6.1-alpha.4.
+- The proof of "not in use" has a stated limit,
+  and the scoped sweep inherits it unchanged.
+  `scan_processes` counts a process whose `/proc/<pid>/cwd` cannot be read as unreadable and does not inspect it
+  (`package/cargo-shadow/cli/src/lean_proc_scan.rs`),
+  and `blocks` consults only the uses it found,
+  so a record a process of another user holds can be removed.
+  The sweep of one package's directory printed this line on 2026-11-08:
+  426 processes read,
+  681 unreadable (other users),
+  58 in other mount namespaces judged by identity,
+  0 uses under the root.
+  The removal messages name that line as the proof,
+  so a reader can see the uncertainty;
+  whether a record held by another user's process may go is the owner's call.
 - The timer:
   `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` to
   `~/.config/systemd/user` and enables the timer.
