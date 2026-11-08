@@ -360,7 +360,7 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     static CALLS: AtomicUsize = AtomicUsize::new(0);
     /// The stand-in records the work as the shipped job does,
     /// and leaves the trash where it is.
-    fn refuse(_state: (&GitContext, &PendingTrash)) -> Result<(), String> {
+    fn refuse(_state: (&GitContext, &PendingTrash, &crate::shared_notice_stream::NoticeStream<'_>)) -> Result<(), String> {
         let began: std::time::Instant = begin_work();
         CALLS.fetch_add(1, Ordering::SeqCst);
         end_work("disposeTrash", began);
@@ -378,8 +378,10 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     let invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(main.as_path()));
     let mut stderr: Vec<u8> = Vec::new();
     crate::add_timing::begin(common.clone());
-    in_thread_scope(TrashBesideRepair { invocation: &invocation, after: &after, pending: &pending, stderr: &mut stderr, dispose: refuse });
+    let stream: crate::shared_notice_stream::NoticeStream<'_> = std::sync::Mutex::new(&mut stderr);
+    in_thread_scope(TrashBesideRepair { invocation: &invocation, after: &after, pending: &pending, stream: &stream, dispose: refuse });
     crate::add_timing::finish(0);
+    drop(stream);
     assert_eq!(CALLS.load(Ordering::SeqCst), 1, "the trash was emptied once, and the add waited for it");
     assert_eq!(stderr, Vec::<u8>::new(), "the person's stream carries the repair, and a disposal that fails says so in the log");
     let written: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");

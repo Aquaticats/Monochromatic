@@ -11,6 +11,14 @@
 //! the trash and the repair touch different directories and neither needs the
 //!  other's result,
 //! so they run side by side and the person waits for the slower of the two.
+//! Both write to the stream the
+//!  command was given,
+//! through its one lock (`shared_notice_stream.rs`),
+//! so the person reads the whole report on the
+//!  stream they chose.
+//! The disposal runs there instead of on a thread when the repair has nothing to do,
+//! because a thread
+//!  nothing runs beside buys nothing.
 //! The code sits in a file of its own so
 //!  `worktree_copy.rs` stays under the line limit,
 //! and that file re-exports what its caller needs.
@@ -21,31 +29,26 @@
 //! await finishTrashAndRepair(after); // the disposal on a thread beside the repair
 //! ```
 
-use crate::add_timing::{begin_step, begin_work, end_step, end_work};
-use crate::diagnostic_log::warn;
+use crate::add_timing::{begin_step, end_step};
+use crate::call_catching_panics::call_catching_panics;
 use crate::scoped_start::{Started, start_or_run_with};
+use crate::shared_notice_stream::{NoticeStream, SharedNoticeStream};
 use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
 use crate::transaction_git::GitContext;
 use crate::worktree_copy::Invocation;
 #[cfg(target_os = "linux")]
 use crate::package_repair::{RepairEnvironment, RepairRequest, repair_worktree};
 #[cfg(target_os = "linux")]
-use crate::worktree_trash::{PendingTrash, dispose_pending_trash};
+use crate::worktree_copy_after_lock_disposal::{Disposal, dispose_timed, nothing_to_repair, report_disposal};
+#[cfg(target_os = "linux")]
+use crate::worktree_trash::PendingTrash;
 use std::io::Write;
 use std::path::PathBuf;
 
-/// Tag used for diagnostics from this module.
-const TAG: &str = "worktreeCopyAfterLock";
-
 /// The thread the last disposal ran on,
-/// so a control can tell a thread of its own from the calling thread.
-/// Why:
-///  Whether a thread is started where nothing runs beside it is not visible in what the disposal does,
-/// only in the thread
-///  that does it,
-/// and a timing threshold would say nothing on a busy host.
-#[cfg(test)]
-pub(crate) static DISPOSED_ON: std::sync::Mutex<Option<std::thread::ThreadId>> = std::sync::Mutex::new(None);
+/// for the controls that tell a thread of its own from the calling thread.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) use crate::worktree_copy_after_lock_disposal::DISPOSED_ON;
 
 /// What:
 ///  What is left to do once the ignored state is in place:
@@ -109,79 +112,23 @@ fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn W
 }
 
 /// What:
-///  Empty the trash a snapshot left,
-/// or hand it to the commit service,
-/// timed as the work `disposeTrash` because
-///  it runs on a thread of its own;
-/// the reason is what the person is told when it cannot be emptied.
-/// Why:
-///   The work is timed per thread,
-/// as every repair tool is,
-/// so the record still says how long the emptying took
-///  beside the step that waited for it.
-/// The notices go to the process's standard error,
-/// which is where the add's own notices go,
-/// and `--quiet`
-///  silences them as it does the rest.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function disposeTimed([git, pending]: [GitContext, PendingTrash]): string | undefined;
-/// ```
-#[cfg(target_os = "linux")]
-fn dispose_timed((context, pending): (&GitContext, &PendingTrash)) -> Result<(), String> {
-    let began: std::time::Instant = begin_work();
-    #[cfg(test)]
-    if let Ok(mut last) = DISPOSED_ON.lock() {
-        *last = Some(std::thread::current().id());
-    }
-    let mut notices: Box<dyn Write + Send> = if pending.quiet { Box::new(std::io::sink()) } else { Box::new(std::io::stderr()) };
-    let outcome: Result<(), String> = dispose_pending_trash(context, pending.destination.as_path(), pending.git_dir.as_path(), Some(&pending.manifest), &mut notices);
-    end_work("disposeTrash", began);
-    return outcome;
-}
-
-/// What:
-///  Say what the disposal of a snapshot's trash left,
-/// once,
-/// with the reason it could not empty it.
-/// Why:
-///   The worktree is whole either way,
-/// so a trash that stays is reported and never fails the add;
-/// the work item
-///  written for it means the commit service empties it later.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function reportDisposal(outcome: ThreadResult<string | undefined>): void;
-/// ```
-#[cfg(target_os = "linux")]
-fn report_disposal(outcome: std::thread::Result<Result<(), String>>) {
-    match outcome {
-        Ok(Ok(())) => {}
-        Ok(Err(reason)) => warn(TAG, format!("monochromatic-git-policy-cli: {reason}").as_str()),
-        // The work item the hand-over wrote means the service empties the trash when it next runs for that worktree; a control
-        // that saw no record gets this sentence too, which names the worktree by the path it was made at.
-        Err(_panic) => warn(TAG, "monochromatic-git-policy-cli: the directories left out of the new worktree were not emptied, because the disposal stopped unexpectedly; the trash stays inside the new worktree"),
-    }
-}
-
-/// What:
 ///  The trash of a snapshot beside the package repair of the worktrees the command created,
-/// with the stream the repair
-///  writes to.
+/// with the stream both of them
+///  report to.
 /// Why:
 ///   The two touch different directories and neither needs the other's result;
 /// a `ScopeBody` names the borrows the
 ///  thread reads,
-/// and the calling thread keeps the caller's writer.
+/// and the stream is one borrow both threads write through its one lock,
+/// so both lines reach the
+///  person's stream.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// class TrashBesideRepair implements ScopeBody { run(scope) { ... } }
 /// ```
 #[cfg(target_os = "linux")]
-pub(crate) struct TrashBesideRepair<'a> {
+pub(crate) struct TrashBesideRepair<'a, 'stream> {
     /// The command whose worktree holds the trash and whose repair runs here.
     pub(crate) invocation: &'a Invocation,
     /// What the command created,
@@ -189,16 +136,17 @@ pub(crate) struct TrashBesideRepair<'a> {
     pub(crate) after: &'a AfterLock,
     /// The trash to empty.
     pub(crate) pending: &'a PendingTrash,
-    /// The stream the repair writes its findings to.
-    pub(crate) stderr: &'a mut dyn Write,
+    /// The stream the repair writes its findings to and the disposal its notices,
+    /// behind its one lock.
+    pub(crate) stream: &'a NoticeStream<'stream>,
     /// The job that empties the trash:
     /// `dispose_timed` in the shipped program,
     /// and a recording stand-in in a control.
-    pub(crate) dispose: fn((&GitContext, &PendingTrash)) -> Result<(), String>,
+    pub(crate) dispose: Disposal,
 }
 
 #[cfg(target_os = "linux")]
-impl<'env> ScopeBody<'env> for TrashBesideRepair<'env> {
+impl<'env, 'a: 'env, 'stream: 'env> ScopeBody<'env> for TrashBesideRepair<'a, 'stream> {
     type Output = ();
 
     /// Start the disposal,
@@ -208,10 +156,11 @@ impl<'env> ScopeBody<'env> for TrashBesideRepair<'env> {
     /// what it did
     ///  beside the repair is not time the person waited for.
     fn run<'scope>(self, scope: &'scope std::thread::Scope<'scope, 'env>) {
-        let state: (&GitContext, &PendingTrash) = (&self.invocation.context, self.pending);
+        let state: (&GitContext, &PendingTrash, &NoticeStream<'stream>) = (&self.invocation.context, self.pending, self.stream);
         let started: Started<'scope, Result<(), String>> = start_or_run_with(scope, state, self.dispose);
         let repair_entered: bool = begin_step("repair");
-        repair_created(self.invocation, self.after, self.stderr);
+        let mut findings = SharedNoticeStream { held: self.stream, quiet: false };
+        repair_created(self.invocation, self.after, &mut findings);
         end_step(repair_entered);
         let wait_entered: bool = begin_step("disposeTrashWait");
         let outcome: std::thread::Result<Result<(), String>> = started.join();
@@ -223,25 +172,40 @@ impl<'env> ScopeBody<'env> for TrashBesideRepair<'env> {
 /// What:
 ///  Empty the trash a snapshot left beside the package repair of the worktrees the command created,
 /// or repair them
-///  alone when it left none.
+///  alone when it left none,
+/// or empty the trash here when there is nothing to repair beside it.
 /// Why:
 ///   The person waits for the slower of the two instead of for both,
 /// and an add with nothing to repair still
 ///  empties its trash before the command ends.
+/// A disposal that runs here writes to the stream the command was given as it
+///  happens,
+/// and its panic is reported instead of failing the add,
+/// as the thread's was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// pending ? await Promise.all([dispose(pending), repair(after)]) : repair(after);
 /// ```
 #[cfg(target_os = "linux")]
-pub(crate) fn finish_trash_and_repair(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn Write) {
+pub(crate) fn finish_trash_and_repair(invocation: &Invocation, after: &AfterLock, stderr: &mut (dyn Write + Send)) {
     let Some(pending) = after.trash.as_ref() else {
         let repair_entered: bool = begin_step("repair");
         repair_created(invocation, after, stderr);
         end_step(repair_entered);
         return;
     };
-    in_thread_scope(TrashBesideRepair { invocation, after, pending, stderr, dispose: dispose_timed });
+    let held: &mut (dyn Write + Send) = stderr;
+    let stream: NoticeStream<'_> = std::sync::Mutex::new(held);
+    // A thread with nothing running beside it is a thread only waited for, so the disposal runs here instead.
+    if nothing_to_repair(invocation, after) {
+        let wait_entered: bool = begin_step("disposeTrashWait");
+        let outcome: std::thread::Result<Result<(), String>> = call_catching_panics((&invocation.context, pending, &stream), dispose_timed);
+        end_step(wait_entered);
+        report_disposal(outcome);
+        return;
+    }
+    in_thread_scope(TrashBesideRepair { invocation, after, pending, stream: &stream, dispose: dispose_timed });
 }
 
 /// Trash-beside-repair controls stay out of the release executable.
