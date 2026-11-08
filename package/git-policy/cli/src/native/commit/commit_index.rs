@@ -36,6 +36,9 @@ use crate::transaction_journal::TransactionMode;
 /// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
 use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
+/// The note of how each build was made,
+/// which the commit's timing record takes.
+use crate::commit_index_builds::{IndexBuildKind, note_index_build};
 /// The stat-data refresh that keeps the scratch commit inside its ceiling.
 use crate::commit_index_stat_refresh::refresh_stat_data;
 /// The selection a commit names,
@@ -129,7 +132,8 @@ pub fn initialize_commit_index(
     selection: &IndexSelection,
 ) -> Result<(), GitFailure> {
     // A repository nothing was ever staged in has no index file, which Git reads as an empty index.
-    if !real_index.exists() {
+    let real_index_present: bool = real_index.exists();
+    if !real_index_present {
         run_git_checked(
             context,
             &indexed_request(cwd, &["read-tree".to_string(), "--empty".to_string()], Some(real_index), None),
@@ -139,7 +143,7 @@ pub fn initialize_commit_index(
     // commit does not read and hash the whole work tree inside its three-second step (`commit_index_stat_refresh.rs`);
     // the real index keeps the refresh, so the commit after this one does not pay it again.
     let refreshed: bool = refresh_stat_data(context, cwd, real_index);
-    stage_into_the_private_index(context, cwd, real_index, indexes, selection)?;
+    stage_into_the_private_index(context, cwd, real_index, real_index_present, indexes, selection)?;
     if !refreshed {
         // The real index could not be written: another program held `index.lock`, or the step was ended at its ceiling.
         // The private index is refreshed here instead, so the scratch commit still finds the work tree's stat data and is
@@ -156,6 +160,8 @@ pub fn initialize_commit_index(
 ///   The refresh of the real index's stat data has to come before the copies and the refresh of the private index after
 /// them,
 /// so the copies are one step and its two refreshes are the other (`initialize_commit_index`).
+/// `real_index_present` is asked by the caller before it makes an empty index for a repository that has none,
+/// because the file exists by the time this runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -165,6 +171,7 @@ fn stage_into_the_private_index(
     context: &GitContext,
     cwd: &Path,
     real_index: &Path,
+    real_index_present: bool,
     indexes: &CaptureIndexes,
     selection: &IndexSelection,
 ) -> Result<(), GitFailure> {
@@ -172,6 +179,8 @@ fn stage_into_the_private_index(
     if selection.mode == TransactionMode::Index {
         copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
             .map_err(copy_index_failure)?;
+        // The commit's index is a copy of the real one, so its entries carry the stat data a real index had to keep.
+        note_index_build(IndexBuildKind::First, real_index_present);
         if selection.stage_tracked_changes {
             // Whole-tree update of tracked paths, exactly what `commit -a` stages, captured once at invocation.
             private_git(
@@ -196,8 +205,8 @@ fn stage_into_the_private_index(
         // slower way, from the base alone.
         let seeded: bool = seeds_private_index(indexes.captured_index.as_path());
         // A private index built without the real index's stat data makes the scratch commit hash every file (233 MB of LFS content
-        //  here), so which way it was built is on record for the next slow build.
-        crate::diagnostic_log::debug("initializeCommitIndex", format!("private index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
+        //  here), so which way it was built goes into the commit's timing record, which is written on every commit.
+        note_index_build(IndexBuildKind::First, seeded);
         if seeded {
             copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
                 .map_err(copy_index_failure)?;
@@ -252,11 +261,11 @@ fn stage_into_the_private_index(
 pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
     let mut arguments: Vec<String> = vec![String::from("read-tree")];
     let seeded: bool = real_index.exists() && seeds_private_index(real_index);
+    note_index_build(IndexBuildKind::Retry, seeded);
     // The real index's stat data is refreshed before the copy below, for the reason the first preparation gives
     // (`initialize_commit_index`): a rebuild runs when other commits land, so it is the one that can least afford to read
     // the whole work tree again.
     let refreshed: bool = real_index.exists() && refresh_stat_data(context, cwd, real_index);
-    crate::diagnostic_log::debug("initializeRetryIndex", format!("retry index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
     if seeded {
         copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
         arguments.push(String::from("--reset"));

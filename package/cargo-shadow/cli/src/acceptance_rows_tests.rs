@@ -192,7 +192,7 @@ fn the_acknowledge_subcommand_acknowledges_the_journal_the_refusal_named() {
     let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
     fs::write(journal.join("groups"), "pgroup starting\n").expect("record");
     let named: String = crate::journal_recover::survivor_note(&journal).expect("blocked");
-    assert!(named.contains(&format!("cargo-shadow acknowledge {}", journal.display())), "{named}");
+    assert!(named.contains(&format!("cargo-shadow acknowledge {}", crate::arrival::shell_quote(&journal.display().to_string()))), "the printed repair is not quoted for a shell: {named}");
 
     let refused = crate::cli::run_cli(vec!["cargo-shadow".to_string(), "acknowledge".to_string(), root.path().join("nowhere").display().to_string()]);
     let code = crate::cli::run_cli(vec!["cargo-shadow".to_string(), "acknowledge".to_string(), journal.display().to_string()]);
@@ -280,4 +280,42 @@ fn an_inventory_that_could_not_be_read_is_reported_as_unknown_and_never_taken_as
     assert!(notice.contains("could not all be read") && notice.contains("unknown"), "{notice}");
     assert_eq!(fs::read_dir(&kept).expect("lists").count(), 3, "a kept file was removed");
     drop(transaction);
+}
+
+/// Acceptance row "Weaker path" (sixth pass,
+/// group 13,
+/// the CLI protocol):
+/// the acknowledgement command works as printed when the journal path needs a shell quote:
+/// the quoted word in the printed command is exactly the journal path when a shell reads it,
+/// and the command line accepts that path.
+/// While the workspace lock is held the command refuses and publishes nothing.
+#[test]
+fn the_acknowledge_command_works_as_printed_with_a_quoted_path_and_refuses_while_the_workspace_is_locked() {
+    let root = repository("original");
+    // Both journals are planted before either announces a child: a journal that announces one blocks the next admission.
+    let journal: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
+    let other: PathBuf = plant(root.path(), &[snapshot("original")], &[]);
+    fs::write(journal.join("groups"), "pgroup starting\n").expect("record");
+    fs::write(other.join("groups"), "pgroup starting\n").expect("record");
+    let spaced: PathBuf = journal.with_file_name("journal with a space");
+    fs::rename(&journal, &spaced).expect("a journal path that needs a quote");
+
+    let named: String = crate::journal_recover::survivor_note(&spaced).expect("blocked");
+    let command: &str = named.split("run: ").nth(1).unwrap_or_else(|| { panic!("the repair command is missing: {named}"); }).trim();
+    let quoted: &str = command.strip_prefix("cargo-shadow acknowledge ").unwrap_or_else(|| { panic!("the repair command is not the acknowledgement: {command}"); });
+    let read_by_shell = std::process::Command::new("/bin/sh").arg("-c").arg(format!("printf '%s' {quoted}")).output().expect("a shell reads the printed word");
+    assert!(read_by_shell.status.success(), "the printed word does not run as printed: {quoted}");
+    assert_eq!(String::from_utf8_lossy(&read_by_shell.stdout), spaced.display().to_string(), "the printed command does not name the journal byte for byte: {quoted}");
+
+    let code = crate::cli::run_cli(vec!["cargo-shadow".to_string(), "acknowledge".to_string(), spaced.display().to_string()]);
+    assert_eq!(code, 0, "the command line refused the path the printed command names");
+
+    // The CLI takes the workspace lock: with the lock held it refuses and publishes nothing.
+    let held = crate::journal_transaction::take_workspace(root.path()).expect("the lock is tried").expect("the lock is free");
+    let refused = crate::cli::run_cli(vec!["cargo-shadow".to_string(), "acknowledge".to_string(), other.display().to_string()]);
+    assert!(!other.join("acknowledged").exists(), "an acknowledgement was published while the workspace lock was held");
+    drop(held);
+    assert_ne!(refused, 0, "the command acknowledged a journal while another holder had the workspace lock");
+    let after = crate::cli::run_cli(vec!["cargo-shadow".to_string(), "acknowledge".to_string(), other.display().to_string()]);
+    assert_eq!(after, 0, "the command did not acknowledge once the lock was free");
 }

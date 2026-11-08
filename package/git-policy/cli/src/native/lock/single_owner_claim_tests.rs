@@ -181,12 +181,12 @@ fn a_file_that_is_not_a_claim_stops_the_claimant_untouched() {
 #[test]
 fn a_claim_an_earlier_release_wrote_is_read_as_a_claim() {
     let earlier = |text: String| -> String { return text.replacen("monochromatic-git-policy-cli ", "cli-git ", 1); };
-    let released: String = earlier(encode(&Record::Released));
+    let released: String = earlier(encode(&ClaimRecord::Released));
     assert!(released.starts_with("cli-git owner-claim v1\n"), "{released}");
-    assert_eq!(decode(released.as_str()), Some(Record::Released));
-    let owned: Record = Record::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:42"), namespace: None };
+    assert_eq!(decode(released.as_str()), Some(ClaimRecord::Released));
+    let owned: ClaimRecord = ClaimRecord::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:42"), namespace: None };
     assert_eq!(decode(earlier(encode(&owned)).as_str()), Some(owned));
-    assert!(encode(&Record::Released).starts_with("monochromatic-git-policy-cli owner-claim v1\n"), "new claims are written in the current spelling");
+    assert!(encode(&ClaimRecord::Released).starts_with("monochromatic-git-policy-cli owner-claim v1\n"), "new claims are written in the current spelling");
     let directory: PathBuf = fixture("claim-earlier-release");
     std::fs::write(path_of(directory.as_path(), prefix(), FIRST), released).expect("an earlier release's released claim");
     let claim: OwnerClaim = held(take_claim(directory.as_path(), prefix()));
@@ -199,7 +199,7 @@ fn a_claim_an_earlier_release_wrote_is_read_as_a_claim() {
 #[test]
 fn an_owner_in_another_pid_namespace_is_alive_while_its_claim_is_young() {
     let directory: PathBuf = fixture("claim-foreign");
-    let record: Record = Record::Owned { pid: unused_pid_for_tests(), birth: String::from(NO_SUCH_BIRTH), namespace: Some(String::from("pid:[not-this-namespace]")) };
+    let record: ClaimRecord = ClaimRecord::Owned { pid: unused_pid_for_tests(), birth: String::from(NO_SUCH_BIRTH), namespace: Some(String::from("pid:[not-this-namespace]")) };
     std::fs::write(path_of(directory.as_path(), prefix(), FIRST), encode(&record)).expect("planted claim");
     let owner: BusyOwner = busy(take_claim(directory.as_path(), prefix()));
     assert_eq!(owner.pid, unused_pid_for_tests());
@@ -211,9 +211,9 @@ fn an_owner_in_another_pid_namespace_is_alive_while_its_claim_is_young() {
 #[test]
 fn the_text_of_a_claim_round_trips() {
     for record in [
-        Record::Released,
-        Record::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:42"), namespace: None },
-        Record::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:43"), namespace: Some(String::from("pid:[1]")) },
+        ClaimRecord::Released,
+        ClaimRecord::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:42"), namespace: None },
+        ClaimRecord::Owned { pid: i64::from(std::process::id()), birth: String::from("linux:43"), namespace: Some(String::from("pid:[1]")) },
     ] {
         assert_eq!(decode(encode(&record).as_str()), Some(record));
     }
@@ -255,7 +255,7 @@ fn a_claimant_with_a_stale_listing_withdraws_when_a_newer_generation_exists() {
 #[test]
 fn a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes() {
     let directory: PathBuf = fixture("claim-foreign-expired");
-    let record: Record = Record::Owned { pid: unused_pid_for_tests(), birth: String::from(NO_SUCH_BIRTH), namespace: Some(String::from("pid:[not-this-namespace]")) };
+    let record: ClaimRecord = ClaimRecord::Owned { pid: unused_pid_for_tests(), birth: String::from(NO_SUCH_BIRTH), namespace: Some(String::from("pid:[not-this-namespace]")) };
     let claim: PathBuf = path_of(directory.as_path(), prefix(), FIRST);
     std::fs::write(&claim, encode(&record)).expect("planted claim");
     std::fs::File::options().write(true).open(&claim).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");

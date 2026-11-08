@@ -128,22 +128,34 @@ fn exited(error: &std::io::Error) -> bool {
 }
 
 /// What:
-///  The device and inode a path names after following links,
-///  as numbers.
+///  The mount number and the inode a descriptor record names,
+///  read from the text the kernel writes for it.
 /// Why:
-///   A descriptor link resolves to the open file itself.
+///   `/proc/<pid>/fdinfo/<n>` holds `mnt_id` and `ino` of the open file,
+///  and reading it touches no file system but the kernel's own:
+/// `stat` on the `/proc/<pid>/fd/<n>` link resolves the file on its disk and waits there as long as that disk does,
+///  so one stalled device held eight controls for over two minutes on 2026-11-08.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { dev, ino } = await stat(path, { bigint: true });
+/// const { mnt_id, ino } = parseFdinfo(await readFile(`/proc/${pid}/fdinfo/${n}`, 'utf8'));
 /// ```
 #[cfg(unix)]
-fn followed_identity(path: &Path) -> std::io::Result<(u64, u64)> {
-    /// The Unix metadata accessors,
-    ///  for the device and inode.
-    use std::os::unix::fs::MetadataExt;
-    let metadata: std::fs::Metadata = std::fs::metadata(path)?;
-    return Ok((metadata.dev(), metadata.ino()));
+fn described_identity(record: &Path) -> std::io::Result<(u64, u64)> {
+    let text: String = std::fs::read_to_string(record)?;
+    let mut mount: Option<u64> = None;
+    let mut held: Option<u64> = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix("mnt_id:") {
+            mount = value.trim().parse::<u64>().ok();
+        } else if let Some(value) = line.strip_prefix("ino:") {
+            held = value.trim().parse::<u64>().ok();
+        }
+    }
+    return match (mount, held) {
+        (Some(found), Some(described)) => Ok((found, described)),
+        _ => Err(std::io::Error::other("the descriptor record names no mount and inode")),
+    };
 }
 
 /// What:
@@ -158,9 +170,9 @@ fn followed_identity(path: &Path) -> std::io::Result<(u64, u64)> {
 /// async function scanProcess({ procRoot, pid, device, inode }): Promise<{ holds: boolean; partial?: string }>;
 /// ```
 #[cfg(unix)]
-fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, Option<String>) {
-    let fd_directory: PathBuf = proc_root.join(pid).join("fd");
-    let listing: std::fs::ReadDir = match std::fs::read_dir(&fd_directory) {
+fn scan_process(proc_root: &Path, pid: &str, mount: u64, inode: u64) -> (bool, Option<String>) {
+    let records: PathBuf = proc_root.join(pid).join("fdinfo");
+    let listing: std::fs::ReadDir = match std::fs::read_dir(&records) {
         Ok(found) => found,
         Err(error) if exited(&error) => return (false, None),
         Err(error) => return (false, Some(format!("PID {pid}: {error}"))),
@@ -171,9 +183,9 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, 
         let Ok(entry) = item else {
             continue;
         };
-        match followed_identity(entry.path().as_path()) {
-            Ok((found_device, found_inode)) => {
-                if found_device == device && found_inode == inode {
+        match described_identity(entry.path().as_path()) {
+            Ok((found_mount, found_inode)) => {
+                if found_mount == mount && found_inode == inode {
                     holds = true;
                 }
             }
@@ -207,8 +219,8 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, 
 /// async function scanProcFdHolders({ device, inode, procRoot, selfPid }): Promise<LockHolderEvidence>;
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid: u32) -> HolderEvidence {
-    return scan_proc_fd_holders_until(proc_root, device, inode, self_pid, None);
+pub fn scan_proc_fd_holders(proc_root: &Path, mount: u64, inode: u64, self_pid: u32) -> HolderEvidence {
+    return scan_proc_fd_holders_until(proc_root, mount, inode, self_pid, None);
 }
 
 /// What:
@@ -225,8 +237,8 @@ pub fn scan_proc_fd_holders(proc_root: &Path, device: u64, inode: u64, self_pid:
 /// await scanProcFdHolders({ device, inode, procRoot, selfPid, deadline });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_until(proc_root: &Path, device: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
-    return scan_proc_fd_holders_stopping(proc_root, device, inode, self_pid, ScanLimit { deadline, processes: None });
+pub fn scan_proc_fd_holders_until(proc_root: &Path, mount: u64, inode: u64, self_pid: u32, deadline: Option<std::time::Instant>) -> HolderEvidence {
+    return scan_proc_fd_holders_stopping(proc_root, mount, inode, self_pid, ScanLimit { deadline, processes: None });
 }
 
 /// The sort key that puts the highest process number first;
@@ -282,7 +294,7 @@ fn past(moment: std::time::Instant) -> bool {
 /// await scanProcFdHolders({ device, inode, procRoot, selfPid, limit: { processes: 5 } });
 /// ```
 #[cfg(unix)]
-pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
+pub fn scan_proc_fd_holders_stopping(proc_root: &Path, mount: u64, inode: u64, self_pid: u32, limit: ScanLimit) -> HolderEvidence {
     let mut evidence: HolderEvidence = HolderEvidence {
         method: "proc-fd",
         holders: Vec::new(),
@@ -295,6 +307,12 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, 
             return evidence;
         }
     };
+    if mount == 0 {
+        evidence.partial.push(String::from(
+            "the kernel reported no mount number for the lock, so no descriptor can be matched to it",
+        ));
+        return evidence;
+    }
     let own: String = self_pid.to_string();
     let mut pids: Vec<String> = Vec::new();
     for item in listing.flatten() {
@@ -318,7 +336,7 @@ pub fn scan_proc_fd_holders_stopping(proc_root: &Path, device: u64, inode: u64, 
             evidence.partial.push(format!("stopped at the time bound after {reached} of {} processes", pids.len()));
             break;
         }
-        let (holds, partial) = scan_process(proc_root, pid.as_str(), device, inode);
+        let (holds, partial) = scan_process(proc_root, pid.as_str(), mount, inode);
         if holds && let Ok(number) = pid.parse::<i64>() {
             let command: Option<String> = std::fs::read_to_string(proc_root.join(pid).join("comm"))
                 .ok()
@@ -382,8 +400,8 @@ pub const SERVICE_SCAN_BUDGET: std::time::Duration = std::time::Duration::from_s
 pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {
-        let _ = lock_path;
-        return scan_proc_fd_holders_until(Path::new("/proc"), device, inode, std::process::id(), Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET));
+        let _ = device;
+        return scan_proc_fd_holders_until(Path::new("/proc"), crate::process_use::mount_of(lock_path), inode, std::process::id(), Some(std::time::Instant::now() + SERVICE_SCAN_BUDGET));
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -403,8 +421,8 @@ pub fn scan_platform_holders_bounded(lock_path: &Path, device: u64, inode: u64) 
 pub fn scan_platform_holders(lock_path: &Path, device: u64, inode: u64) -> HolderEvidence {
     #[cfg(target_os = "linux")]
     {
-        let _ = lock_path;
-        return scan_proc_fd_holders(Path::new("/proc"), device, inode, std::process::id());
+        let _ = device;
+        return scan_proc_fd_holders(Path::new("/proc"), crate::process_use::mount_of(lock_path), inode, std::process::id());
     }
     #[cfg(target_os = "macos")]
     {

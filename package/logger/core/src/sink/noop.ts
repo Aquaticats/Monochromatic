@@ -46,6 +46,7 @@ function write(_record: LogRecord,): Promise<void> {
  */
 export function createNoopSink(): Sink {
   return {
+    name: 'noop',
     verify,
     write,
   };

@@ -796,8 +796,24 @@ the fix shipped in 0.2.7-alpha.2 (`doc/planning/one-release-each-batch-2026-11.m
 "Release record:
 `monochromatic-mpm-shadow` 0.2.7-alpha.2").
 
-### Not fixed here
+### The same read reaches the `uv` route (2026-11-08)
 
-The `uv tool install` route (`install_mpm_uvx`) still trusts the exit status of `uv` and does not read the tool back.
-No defect of that kind was observed for it,
-so it was left as it was.
+The `uv tool install` route (`install_mpm_uvx`) trusted the exit status of `uv` when this file was written.
+No defect of that kind had been observed for `uv`,
+and the route was left as it was.
+It now reads the tool back with the same `uv tool list` that `list` reads
+(`read_back_installed_uv_tool` in `package/mpm-shadow/cli/src/toolchain/install_managers.rs`),
+on both the requirement and the wheel branch,
+and a tool that is absent or listed at another version fails the install
+naming the package,
+the locked version,
+what the listing said,
+and the directory `uv tool dir` names.
+The tests are `a_python_tool_that_uv_installed_but_does_not_list_is_a_failed_install`,
+`a_python_tool_that_uv_lists_at_another_version_is_a_failed_install`,
+the positive controls `a_python_tool_that_uv_lists_at_the_locked_version_is_installed` and
+`a_wheel_bootstrap_is_downloaded_verified_and_only_then_handed_to_uv`
+(all in `install_tests.rs`),
+and `sync_warns_before_replacing_a_different_installed_version` (`sync_tests.rs`),
+whose fake `uv tool list` now answers the locked version after the install.
+No release was dispatched from the branch that carries it.

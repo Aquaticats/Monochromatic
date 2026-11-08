@@ -286,6 +286,7 @@ export function createFileSink({
 
   return {
     flush,
+    name: 'file',
     verify,
     write,
   };

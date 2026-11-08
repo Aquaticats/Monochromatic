@@ -74,7 +74,7 @@ pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, 
 /// await keepOnASideRef(git, repository, seq, tip); return `kept at refs/cli-git/kept/${seq}`
 /// ```
 pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
-    let name: String = format!("refs/cli-git/kept/{seq}");
+    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
     if keep_on_a_side_ref(git, repository, seq, tip).is_some() {
         return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
