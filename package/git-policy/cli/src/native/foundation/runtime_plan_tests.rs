@@ -68,3 +68,20 @@ fn the_smaller_limit_wins() {
     };
     assert_eq!(plan_runtime(&large, &limits), RuntimePlan::MultiThread { workers: 5, blocking_threads: 5 });
 }
+
+/// A cap lowers the workers and the blocking pool of a larger plan together.
+#[test]
+fn a_cap_lowers_the_workers_and_the_blocking_pool_of_a_larger_plan() {
+    let plan: RuntimePlan = RuntimePlan::MultiThread { workers: 25, blocking_threads: 25 };
+    assert_eq!(capped_at(plan, 4), RuntimePlan::MultiThread { workers: 4, blocking_threads: 4 });
+}
+
+/// A plan smaller than the cap stands,
+/// and so does the current-thread plan:
+/// a cap only ever lowers.
+#[test]
+fn a_cap_never_raises_a_plan_and_leaves_the_current_thread_plan() {
+    let small: RuntimePlan = RuntimePlan::MultiThread { workers: 2, blocking_threads: 2 };
+    assert_eq!(capped_at(small, 8), small);
+    assert_eq!(capped_at(RuntimePlan::CurrentThread, 8), RuntimePlan::CurrentThread);
+}

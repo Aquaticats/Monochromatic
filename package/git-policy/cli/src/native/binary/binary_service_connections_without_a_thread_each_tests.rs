@@ -106,3 +106,27 @@ fn connections_held_open_cost_the_service_no_thread_each() {
     drop(first);
     super::commit::remove_settled(&fixture);
 }
+
+/// An idle service has the threads of its cap and no more:
+/// the workers up to the cap,
+/// the blocking pool up to the cap,
+/// and its two own (the thread that lands and the work loop),
+/// however many CPUs the host has.
+#[test]
+fn an_idle_service_has_at_most_the_threads_of_its_cap() {
+    let fixture: Fixture = fixture("service-threads-cap");
+    let name: String = format!("service-threads-cap-{}", std::process::id());
+    let service: Held = start(&fixture, name.as_str());
+    let first: UnixStream = connect(name.as_str()).expect("the first connection");
+    assert!(matches!(greeting(&first), ServiceMessage::Welcome { .. }));
+    let threads: usize = threads_of(service.0.id());
+    let most: usize = git_policy_cli::service_main::SERVICE_WORKER_CAP * 2 + SERVICE_OWN_THREADS;
+    assert!(threads <= most, "an idle service has {threads} threads, above its cap's {most}");
+    drop(first);
+    super::commit::remove_settled(&fixture);
+}
+
+/// The threads a service has of its own besides the runtime's:
+/// the one that lands batches,
+/// and the work loop.
+const SERVICE_OWN_THREADS: usize = 2;
