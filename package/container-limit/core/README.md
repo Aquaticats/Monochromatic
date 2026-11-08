@@ -26,6 +26,14 @@ imports nothing for that reason.
   `podman build` has no `--cpus`, no `--pids-limit` and no weight option (probed on `podman` 6.1.3 with
   `podman build --help`), so an image build cannot be put at the lowest disk weight.
 
+- `DISK_WEIGHT_SWITCH` (`CONTAINER_LIMIT_DISK_WEIGHT`) and `DISK_WEIGHT_OFF` (`off`): when the variable has that value
+  `diskWeightArguments()` and `containerLimitArguments()` leave the weight out.
+  GitHub-hosted runners do not delegate the cgroup `io` controller, so a container started with the weight is refused
+  there (run 42447009237 of `.github/workflows/music-player-release.yml`, 2026-11-08:
+  `crun: opening file 'io.weight' for writing: No such file or directory`).
+  `ide-release.yml`, `music-player-release.yml` and `env-local-json.yml` set the variable for their jobs;
+  a developer machine never does.
+
 `docker run` has `--blkio-weight` and no `--cgroup-conf`, so `.github/workflows/pnpr-publish.yml` keeps a literal
 `--blkio-weight=10`; `src/container-start-sites.unit.test.ts` reads it and fails when it differs from the constant.
 
