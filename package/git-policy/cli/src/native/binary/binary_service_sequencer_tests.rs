@@ -19,7 +19,7 @@
 
 use super::commit::{git_text, remove_settled};
 use super::service_commit::{Running, start, through_service};
-use super::support::{Fixture, direct, fixture, git};
+use super::support::{Fixture, direct, fixture, git, without_wait_notices};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -179,7 +179,10 @@ fn masked(text: &str) -> String {
     return lines.join("\n");
 }
 
-/// The outcome of one run in `repo`.
+/// The outcome of one run in `repo`,
+/// its standard error without the wait notices a slow step may print (`without_wait_notices`):
+/// the control compares the wrapper's words with real Git's,
+/// not how fast the host was.
 fn outcome(fixture: &Fixture, repo: &Path, run: &Output) -> Outcome {
     let markers: Vec<String> = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "MERGE_MSG", "COMMIT_EDITMSG"]
         .iter()
@@ -189,7 +192,7 @@ fn outcome(fixture: &Fixture, repo: &Path, run: &Output) -> Outcome {
     return Outcome {
         code: run.status.code(),
         stdout: masked(String::from_utf8_lossy(&run.stdout).as_ref()),
-        stderr: String::from_utf8_lossy(&run.stderr).into_owned(),
+        stderr: String::from_utf8_lossy(without_wait_notices(run.stderr.as_slice()).as_slice()).into_owned(),
         tree: git_text(fixture, repo, &["rev-parse", "HEAD^{tree}"]),
         parents: git_text(fixture, repo, &["rev-list", "--parents", "-1", "HEAD"]).split_whitespace().count() - 1,
         message: git_text(fixture, repo, &["log", "-1", "--format=%an <%ae>|%B"]),
