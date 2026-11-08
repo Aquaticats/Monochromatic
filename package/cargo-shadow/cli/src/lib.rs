@@ -1057,3 +1057,7 @@ pub mod lean_command;
 
 /// Named reads of paths and text shared by the lean-folder tools.
 pub mod lean_text;
+
+/// The tests of the ban on the lean-folder tools starting cargo or themselves.
+#[cfg(test)]
+mod lean_no_recursion_tests;
