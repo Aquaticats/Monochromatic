@@ -5683,6 +5683,13 @@ are in append mode now).
   and a thread census right after the start found all threads in place in every sample,
   so the window is closed by the fix on code reading and the log line alone;
   a failure that keeps the service's own log would settle it.
+  Done 2026-11-08 on `fix/git-policy-cli-flaky-tests-and-unbounded-fixtures` (`9e81f1d134`):
+  a fixture's commit services write their standard error into `service.log` beside the fixture root,
+  as well as into the test's own stream (`binary_support_fixture_service_log.rs`),
+  and every failure of a fault control carries the last 8 KiB of it,
+  so the next failure says which service refused or ended,
+  and what it said.
+  The control of that promise is `fault_limits::a_failure_carries_what_the_fixture_service_logged`.
 - `lfs_hang::two_worktrees_committing_at_once_with_a_slow_upload_both_finish_without_waiting_for_each_other` failed
   once in a full
   binary run,
@@ -5717,6 +5724,22 @@ are in append mode now).
   so it may not build on the pinned toolchain;
   not built yet.
   The study's agent is bisecting the nightly and checking newer ones.
+- Residual unbounded fixture waits:
+  found and fixed 2026-11-08 on the same branch (`8cea539717`).
+  Two controls started a shell that waits for a release file with no bound:
+  `foundation::scratch_location::tests::a_write_to_a_scratch_file_after_it_was_emptied_lands_at_the_start_and_leaves_no_hole`,
+  and `process::output_capture::tests::a_write_after_the_files_were_emptied_lands_at_the_start_and_leaves_no_hole`.
+  A test that fails before writing the file leaves a loop and its sleeps behind in a removed fixture,
+  which is the leak the push-progress control records at 87 minutes.
+  Both now ask `while_test_lives` at each turn,
+  so the wait ends when the fixture goes or the test process ends,
+  and the child leads a process group killed with the test thread (`spawn_owned`).
+  Swept the rest and left them:
+  every other wait in the crate is bounded by a counter,
+  by the product's own bound,
+  or by `while_test_lives`,
+  and no test starts the wrapper outside a fixture.
+
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
@@ -5747,6 +5770,44 @@ are in append mode now).
   the merge into main was `f981e1b493`.
   The two images were removed afterwards,
   so the tags name the runs only.
+  Cause found 2026-11-08 in that retained gate log,
+  which holds the whole outcome:
+  the second lock stayed with `Unproven("a Git process of this account could not be looked into (PID 24494 fd: Permission denied (os error 13)), so it may hold the lock")`.
+  A process denies `/proc/<pid>/fd` to its own account while its command name stays readable when it is not dumpable.
+  Measured in a fixture on 2026-11-08:
+  a same-account process with `prctl(PR_SET_DUMPABLE, 0)` reads exactly that way,
+  and `kwin_wayland` is the same shape on this host (`doc/troubleshooting/amdgpu-fdinfo-vram-attribution.md`).
+  So another program's Git anywhere in the container vetoed a clearance the control was about.
+  The shipped rule stays:
+  the third judgement step of `SPEC.md` makes an unreadable Git of the account unproven,
+  and it keeps its own control:
+  `an_unreadable_git_process_stops_a_proof`,
+  with a planted table.
+  Fixed in the controls instead:
+  `Judge.scan_scope` names the process numbers a scan for open holders may consider,
+  `None` (the wrapper's own reading) being every process of the table.
+  The controls name the processes they plant,
+  and the two controls that plant a live holder name it.
+  The red control is `an_unreadable_git_of_another_program_does_not_stop_a_fixtures_clearance`,
+  which forks a non-dumpable Git-named process of this account beside a fixture:
+  it failed before the fix with the recorded reason text (`131a30d3bd`),
+  and passes after it (`1b41c61748`).
+  Not identified:
+  which program of that container owned PID 24494,
+  or what made it non-dumpable.
+  Measured and ruled out as a cause of an unreadable descriptor directory:
+  a process caught in `execve`,
+  one traced with `strace`,
+  a zombie,
+  one inside a nested user namespace,
+  one with `no_new_privs`,
+  and the container's seccomp filter (its own processes stay readable).
+  No fixture of this crate sets `PR_SET_DUMPABLE`.
+  Open for the owner:
+  whether an unreadable Git that started after the lock was made should stop a proof at all.
+  The proof would rest on a process holding no descriptor it never opened,
+  which a child that inherited the lock's descriptor breaks,
+  so no such rule was shipped.
 
 ### Questions waiting for the owner
 
@@ -5781,11 +5842,30 @@ are in append mode now).
   no longer
   needed (needs the owner's word for deletions);
   the stale integration branch named under "Unmerged branches and worktrees of this effort" goes with them.
-- Test services that crash on purpose left hundreds of coredumps a day;
-  fixtures expected to abort were told to set `RLIMIT_CORE` 0
-  (test harness only).
-  Whether that landed is unconfirmed:
-  check `coredumpctl` after 0.5.26.
+- Test services that crash on purpose:
+  checked 2026-11-08 by reading `coredumpctl`,
+  and clean.
+  `coredumpctl list` holds 8397 entries.
+  Of the wrapper's abort records since 2026-11-03,
+  300 kept no core file (`COREFILE` `none`),
+  among them the library and binary fixtures on the host,
+  and inside the container,
+  the aborts of that day's fault-control runs included.
+  The 4 that kept one (`present`) came from harnesses outside this crate,
+  which start the service themselves:
+  `~/temp/agent/native-perf-*` on 2026-11-07T20:19:08 to 20:21:59,
+  and `~/temp/agent/limit-scan-*` at 20:11:56.
+  Each was a stack overflow of a service thread.
+  Three build-script probe binaries under `.../build/monochromatic-git-policy-cli/*/out/` did the same,
+  on 2026-11-04.
+  `/var/lib/systemd/coredump` holds 2104 files,
+  and none of them belongs to a test fixture.
+  Both harnesses already keep the control that holds the promise:
+  `a_process_a_test_starts_may_not_write_a_core_dump`,
+  and `a_process_a_binary_test_starts_may_not_write_a_core_dump`.
+  Left for whoever owns those harnesses:
+  set the limit where they start a service,
+  since they abort outside the test harness and outside its limit.
 
 ### Final re-review
 
