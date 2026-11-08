@@ -135,6 +135,20 @@ saying nothing keeps it.
   section 5.1,
   rule 2),
   so the fixer never adds a character to your text.
+- After the repository move,
+  the wrapper checks on every Git command that the repository link still leads to the 860
+  (W2,
+  merged `b842b34fff`),
+  so a dangling link gives a plain message instead of creating things in the wrong place.
+  Measured cost:
+  about 1.0 ms per forwarded command (median,
+  `status`;
+  0.8 ms for `rev-parse`),
+  beyond the same-binary spread;
+  nothing before the move.
+  Cheaper forms (skip the check for read-only commands,
+  or trust a cached answer across commands) would let a dangling link go unnoticed,
+  so the full check stays.
 - An equivalent mutant that no test can kill
   (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
   a function that already returns 0)
