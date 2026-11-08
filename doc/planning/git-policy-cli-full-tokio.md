@@ -3353,6 +3353,169 @@ so every stop now waits up to its ceiling and tests sized to the old five-second
   is unmeasured
   until then and is a few milliseconds by construction.
 
+### Step T10, the service on tokio, 2026-11-07T20:40:00-05:00
+
+Branch `feat/git-policy-cli-tokio-t10-service`, from main at `f2a90d3fe2`, not yet merged (see "Gate of T10").
+
+#### What changed
+
+- The landing's per-thread state is carried by the landing's scope (owner's choice 4, "Rewrite per-thread state").
+  `landing/landing_state_carried_by_its_task.rs` holds one `LandingState` of `Cell`s and `RefCell`s in a `tokio::task_local!`,
+  entered once by `serve` (`in_a_landing_with`) and readable by `on_the_landing_state(arguments, named_function)`;
+  a task entered with `in_a_landing_task` carries it across workers.
+  Ten production `thread_local!` items of the service and landing folders went into it:
+  the board and the detail of a never-ended write,
+  the ceiling step,
+  the abandoned claims,
+  the refused lock,
+  the unsettled locks,
+  the pre-staged marker,
+  and the three of the queued syncs.
+  Outside a scope nothing is remembered and a read answers its default,
+  which is what a thread-local gave a thread that never began a landing;
+  the wrapper's own commands never enter a scope (the index lock is the service's alone in production;
+  `landing_reset_copy` in `index/index_reset_support.rs` is a test helper).
+  The two counters only controls read (`name_steps`, `loose_looks`) are counted in test builds only.
+  What stays a thread-local, with the reason:
+  `#[cfg(test)]` fault hooks (they set a value on the test thread and the code under test runs there),
+  the panic hook's count in `invocation/panic_notice.rs` (a hook runs on the thread that panics, so the thread is the right owner),
+  `worktree/add_timing.rs` (`ACTIVE`, the wrapper's `worktree add`, with worker threads that share a `Mutex`; T12),
+  `repo_read/repo_read_tree.rs` (`SHARED_LISTS`, an `Rc` cache of the wrapper's reads; T11).
+- Connections are tasks.
+  `service/service_server_accept_connections_as_tasks.rs` starts one acceptor task on the process's runtime
+  (`spawn_on_runtime`; no worker thread ends the service with status 4 and a plain line, as the start of a thread did)
+  and a task per connection;
+  `handle_connection` is `async` on `tokio::net::UnixStream` halves,
+  the request line is read under `REQUEST_READ_TIMEOUT`,
+  `Reply` is an unbounded `tokio::sync::mpsc` sender (never waits, so the landing thread cannot block on a client),
+  and `write_until_answered_noting` is an `async fn` whose beat is `tokio::time::timeout` on the channel.
+  The board's file reads, the withdrawal decision (files in the journal),
+  and the instance name of a Git directory (a path resolution) run on the blocking pool (`run_blocking_job`),
+  by the plan's rule "by what a call can wait on".
+  A pool that cannot start a thread answers the client `Unavailable` (instance check),
+  hands a withdrawal to the landing thread (as for a request that began to land),
+  or leaves out one beat's note (the beat is still written).
+- A claim renewal is a task (`landing/service_claim_renewal.rs`):
+  `select!` over the control channel and `sleep_until`,
+  the renames on the blocking pool with the renewer going there and back,
+  and `Drop` still waits until the task has ended (the same wait as the join it replaces;
+  it is not bounded, which is open below).
+- The landing's background syncs are a task that hands each batch to the blocking pool (`landing/service_durable.rs`);
+  `drain` still waits for a barrier (the exit path's wait for durability).
+- The marker made ahead is a blocking job awaited by a task (`service_index_prestage.rs`);
+  the look at the processes is a blocking job awaited under its ceiling (`landing/scan_awaited_under_a_ceiling.rs`).
+- Three closure-lint suppressions were added for the two tokio methods that accept only a callable
+  (`package/git-policy/cli/doc/closure-lint-suppressions.md`).
+
+#### What did not change, and why
+
+- `serve` is still a synchronous loop on the main thread.
+  Its Git steps reach the runtime through the synchronous bridges (`run_on_runtime`),
+  which refuse a call from inside the runtime;
+  an `async` landing loop is T11 (callers `async`, bridges gone).
+  Its sleeps (`landing/service_land_follow.rs`,
+  `service_index_hold.rs`,
+  `service_index_wait.rs`,
+  `service_index_attempts.rs`,
+  `lock/index_holder_wait.rs`),
+  the inotify wait and the `std::sync::mpsc` queues to the landing and the work loop stay with it.
+- The work loop thread (`service/service_server_work_loop.rs`) and `landing/service_work.rs`,
+  `service_work_handlers_replanning_and_acceptance.rs` are the coordinator's W3 files and were not touched.
+- The client side of the service (`service/service_client*.rs`,
+  `service_provision*.rs`) belongs to the synchronous commit command,
+  so it waits for T11.
+
+#### Threads of the service and their stacks
+
+Measured with the release binary on this 28-CPU host,
+one service,
+idle (`${HOME}/temp/agent/t10-threads.py`):
+before T10 four threads (the main thread that lands,
+the work loop,
+the acceptor,
+one more) and one thread more for each open connection (36 with 32 connections);
+after T10 27 threads (the main thread,
+the work-loop thread and 25 runtime workers) whatever the number of connections (27 with 32 connections).
+The workers are the runtime plan's (`foundation/runtime_plan.rs`),
+built when the acceptor starts (before, the first Git step of the first landing built it):
+workers up to the budget,
+fewer under an address-space limit,
+`RLIMIT_NPROC` or `pids.max`,
+each with a 2 MiB stack (`THREAD_STACK_BYTES`) and 64 KiB more of address space,
+and the blocking pool grows on demand up to the plan's `blocking_threads` with the same stack.
+The main thread has the system's 8 MiB stack and the work-loop thread Rust's default 2 MiB.
+Many services run at once on one host (28 were counted on 2026-11-03),
+so 25 idle workers each is a real cost of "sized to budget" for a service;
+whether a service should cap its workers (its tasks wait on sockets and the pool,
+and the landing is its own thread) is a question for the owner.
+
+#### Controls
+
+Red first, then green:
+`landing_state_carried_by_its_task_tests.rs` (two tasks that interleave on one thread keep their own state;
+a task polled on one thread and finished on another keeps it;
+a scope inside a scope shadows;
+a thread started inside a scope is not inside a landing;
+outside a scope a write is not kept),
+`binary_service_connections_without_a_thread_each_tests.rs` (32 connections held open added 32 threads,
+now none),
+`service_claim_renewal_tests.rs` (16 renewals added 17 threads),
+`service_durable_tests.rs` (a thread named `cli-git-durable`),
+`service_index_prestage_tests.rs` (a thread named `cli-git-prestag`, the kernel's 15-character name),
+and `earlier_service_process_look_tests.rs` (the awaited look beside a ticker, and a look that outlasts its ceiling).
+The tests of `service_reply_tests.rs` were ported to tasks on a current-thread runtime with their assertions
+and a counting task beside the writer.
+Forty-six tests that read state across calls were wrapped in `in_a_landing`;
+two of them start their landing on a thread of their own and enter the scope there.
+
+#### Gate of T10
+
+Container gate (`--cpus 8 --memory 8g --pids-limit 2048`) of the tree at `0ab4fa764b`:
+5314 run,
+5313 passed (3 slow),
+1 failed,
+11 skipped;
+host Clippy clean,
+package lint 0 errors and 0 warnings with the closure check run.
+The failure is the one main already has:
+`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+`no address-space limit stopped a commit, so the limits tested nothing (service starts at 110, commit lands at 110)`.
+It stays red until the fix of the startup rules warm is in main;
+T10 is not merged before it passes.
+Whether the band between the smallest limit that starts the service and the smallest that lands a commit can still exist
+once the runtime is built at start is open:
+the runtime's plan sizes its workers to the limit,
+so everything a commit needs from threads is reserved when the service starts,
+and an empty band would be a service that is safer under exhaustion and a control whose premise is gone.
+
+Latency (`native:perf`'s own tool, three alternating rounds,
+`${HOME}/temp/agent/t10-perf/`),
+added median of a commit through the service:
+before 18.4,
+17.5,
+17.2 ms (spread 1.2 ms),
+after 18.9,
+18.7,
+18.7 ms;
+p95 of the added time 26.8,
+22.5,
+26.5 before and 22.3,
+27.1,
+22.5 after;
+signed commit 24.4,
+23.9,
+23.7 before and 23.5,
+24.8,
+23.4 after.
+Forwarded commands (`rev-parse`,
+`status`,
+`log`,
+`diff --stat`) added 1.2 to 1.7 ms before and after,
+inside their spread.
+The commit's median is about one millisecond higher after (18.8 against 17.7 on average);
+it is above the spread of the before runs by 0.3 ms,
+and the bar (every paired delta far under five seconds) holds.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,

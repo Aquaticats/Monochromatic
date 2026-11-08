@@ -97,8 +97,51 @@
 - Written for the owner:
   open choice 12 (what a stop of the service does to the Git child of a commit it is preparing),
   with a ranking.
+- T10 (the service), 2026-11-07T20:40:00-05:00:
+  branch `feat/git-policy-cli-tokio-t10-service` in `.claude/worktrees/git-policy-cli-tokio-t10-service`,
+  from main at `f2a90d3fe2`,
+  NOT merged:
+  its container gate has one failure,
+  the one main already has (`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
+  `no address-space limit stopped a commit, so the limits tested nothing (service starts at 110, commit lands at 110)`),
+  which waits for the startup rules warm fix (`service/service_main.rs`,
+  `landing/service_rules_precompile.rs`, another agent's).
+  Done in it: the landing's per-thread state in a task-local scope,
+  the acceptor and every connection as tasks,
+  the renewals,
+  the background syncs,
+  the pre-staged marker and the process look as blocking jobs awaited by tasks.
+  Details, thread counts and stacks,
+  controls,
+  gate and latency:
+  the plan,
+  "Step T10".
+  Left in T10 (the coordinator's order is W3 first,
+  then main merged):
+  the work loop thread and its `std::sync::mpsc` queue (`service/service_server_work_loop.rs`,
+  `landing/service_work.rs`),
+  which are W3's files;
+  the synchronous landing loop (T11 makes it `async`,
+  because its Git steps use the synchronous bridges that refuse a call from inside the runtime) with its sleeps,
+  its inotify wait and its queues;
+  `Drop` of a claim renewal waits for its task with no bound (the same wait as the thread join before it).
+  Open failures to read before trusting a green run:
+  the five tests of `foundation::kept_names_in_the_git_directories::tests` that fold with the real `/proc`
+  (`both_spellings_are_folded_into_the_current_one_with_every_byte`,
+  `both_spellings_in_a_linked_worktrees_directory_fold_there_too`,
+  `both_spellings_of_every_kept_name_leave_no_earlier_name_and_no_notice`,
+  `every_entry_of_both_folders_survives_under_the_current_name`,
+  `every_line_of_both_logs_survives_under_the_current_name`)
+  failed together once in a host run with `names the earlier release gave its saved data still sit beside the new names ...
+  because the sockets and processes of the earlier helper could not be looked at in time`
+  (the scan of the real `/proc` answered `CannotLook` after 0.02 s,
+  so it was not the ceiling),
+  and one of them passed on a later single run (it was rerun once before this rule was applied,
+  so there is no second sample to trust);
+  the container gate of the same tree passed all of them.
+  The cause (a process of the host whose command line could not be proven,
+  as `command_line_of` reports `Unproven`) is not measured.
 - Not started:
-  T10 (the service),
   T11 (callers),
   T12 (parallel runner),
   T13 (removal,
