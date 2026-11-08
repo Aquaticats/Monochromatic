@@ -282,7 +282,7 @@ and one design is still in review.
   Update,
   2026-11-03:
   it is in the 0.5.27 integration tip,
-  and picks 5 and 12 below were then built on branch
+  and picks 5 and 12 were then built on branch
   `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`;
   the entries of "Pushes" carry their outcomes.
 Read with `git show`:
@@ -336,7 +336,8 @@ Pick
 options as if I had picked them and invite veto when I say I'm back."
 Clarified:
 "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
-Every pick below is therefore the coordinator's pick under that delegation,
+Every pick under the `Delegated picks applied on 2026-11-03` heading
+is therefore the coordinator's pick under that delegation,
 open to the owner's veto;
 none of them is
 an owner decision,
@@ -374,7 +375,8 @@ the index-lock holder wait and the waits on the service,
 and the
 commit service unit (it has no limits,
 by owner decision).
-Where one of the limits above sits in a file those agents own,
+Where one of the limits in the `Left to other agents and not touched here` list
+sits in a file those agents own,
 its entry is unchanged and says so.
 
 Each measurement is recorded with its command,
@@ -701,7 +703,7 @@ which are not limits.
   then a diagnostic listing the evidence."
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   the wait for a foreign `index.lock` (proven alive or not)
   ends at `LOCK_CEILING`,
   10 minutes,
@@ -744,7 +746,7 @@ which are not limits.
   It is listed under the open questions.
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a hold the mark proves to run is waited for until `SERVICE_HOLD_CEILING`,
   10 minutes (five times the longest measured hold,
   119.7 s);
@@ -1066,7 +1068,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   a second quiet run fails with
   "showed no
   sign of work for {n} seconds and was stopped".
-  The redo count of once is the coordinator's reading of the owner's "ended and its step redone" and is flagged below.
+  The redo count of once is the coordinator's reading of the owner's
+  "ended and its step redone" and is flagged under `Time limits on Git child steps of a commit`.
   A writer that may not be run twice (`update-ref`,
   a commit Git builds) is announced and waited for,
   never ended.
@@ -1452,7 +1455,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
 
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a start the manager reports as under way is waited for until `START_CEILING`,
   60 seconds (58 times the slowest observed
   start,
@@ -1510,7 +1513,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   not by this.
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   the client's wait for the answer ends at `ANSWER_CEILING`,
   20 minutes (3.9 times the longest observed answer wait,
   308 s;
@@ -1993,7 +1996,7 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   in "Questions raised while building picks 5 and 12".
 
 - Superseded 2026-11-03 by the owner's rule "nothing should ever wait forever or indefinitely" and his answers of
-  about 12:45-05:00 (see "Every wait has a bound" below):
+  about 12:45-05:00 (see the "Every wait has a bound" section):
   a push whose connection is open is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW`,
   150 seconds,
   unmeasured (twice the longest whole push,
@@ -3393,7 +3396,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
     and the rotation size and the history
     horizon are judgements on it.
 - Conflict:
-  resolved for the audit file by the pick above,
+  resolved for the audit file by delegated pick 11,
   because no generation that explains a copy on disk is dropped.
   A timing log still drops its older generation;
   it is a diagnostic,
@@ -3581,7 +3584,8 @@ by content" and the path is not judged clean;
   "Reference locks left by a Git that was
   killed".
   `COARSE_CLOCK_SLACK` (50 ms,
-  measurement unchanged above) returned in `stale_ref_lock_judge.rs` for one use:
+  measurement unchanged in `Empty-lock settle time, one second`) returned in
+  `stale_ref_lock_judge.rs` for one use:
   telling a lock
   born in a stopped child's life from an older one,
   in the wrapper's own proof for a child it stopped and saw end.
@@ -3786,7 +3790,7 @@ each with its measurement beside it:
   `START_CEILING` 60 seconds;
   `SERVICE_HOLD_CEILING` 10 minutes
   (measured,
-  with the margins given at each entry above).
+  with the margins given at each limit's own section).
 - `LOCK_CEILING` 10 minutes:
   measured on 2026-11-08 from the commit timing log (1,332 records,
   2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z).
@@ -4961,7 +4965,7 @@ and 4 of those 11 determine the value.
 
 ### After the delegated picks
 
-Counted by entry as in the lists above;
+Counted by entry as in the lists under the `Counts` heading;
 the first count is unchanged and describes main at the audited commit.
 
 - Newly cited,
@@ -6165,7 +6169,8 @@ option A,
 where the data allow;
 see the entries of the same names and "Measurement
 record".
-The follow-up questions below list what the data could not settle.
+The questions under the `Follow-up questions after the delegated picks` heading
+list what the data could not settle.
 
 Covers:
 `MAX_BATCH` 64,
@@ -6412,7 +6417,8 @@ and A for `STOP_GRACE` and `MAX_PUSH_OUTPUT`.
 ### Follow-up questions after the delegated picks
 
 Each lists what the measurements could not settle.
-The ranking is the coordinator's reading of the options against the decisions quoted above.
+The ranking is the coordinator's reading of the options against the decisions quoted in
+"Owner decisions that bear on limits".
 
 #### Batch size and claim lease
 

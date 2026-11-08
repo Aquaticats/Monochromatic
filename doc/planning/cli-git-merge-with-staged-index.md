@@ -151,7 +151,8 @@ and the alternative below is implemented.
 
 Evidence:
 
-- Case d1 above shows native Git updating the worktree and index for exactly the paths a fast-forward writes,
+- Case d1 in `Measurements: what native Git refuses` shows native Git updating the worktree and index
+  for exactly the paths a fast-forward writes,
   keeping every other staged entry,
   on the very index state that blocks a merge.
   Case d2 shows it refusing only on overlap.
@@ -181,8 +182,8 @@ Evidence:
   branch that moved makes it refuse.
   The window between Git's worktree and index update and its branch move is Git's own and is the same in native
   `git merge`;
-  it is covered by a journal,
-  below.
+  it is covered by `merge_isolation_journal.rs`,
+  described under Implementation.
 
 What is reused from the repository:
 `merge-tree --write-tree` and `commit-tree` as in

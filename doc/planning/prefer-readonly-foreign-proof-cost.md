@@ -62,7 +62,7 @@ The result is a non-empty foreign set for a callable nothing marked.
 
 `scopeNamesOwnershipMarker` skips the closure entirely for a scope whose text names no marker,
 and its doc comment calls that "an equivalence rather than a trade".
-For the case above it is not an equivalence.
+For the case in the `What the reading turned up instead` section it is not an equivalence.
 A recursive callable in a marker-free scope is skipped and reported with no foreign parameters,
 while the same callable in a scope that names a marker anywhere gets a closure that reports its
 parameters foreign.
@@ -81,7 +81,7 @@ and the inconsistency costs precision rather than soundness.
 ## What this does to the attempt
 
 The planned per-callable reachability test extends the gate from whole-scope to per-callable.
-If the reading above holds,
+If the reading in `What the reading turned up instead` holds,
 it will not leave the sweep unchanged:
 it removes spurious withholding wherever a recursive callable sits in a marker-bearing scope,
 which shows up as new offers.
@@ -268,7 +268,7 @@ The defect is real and has a reproduction;
 this repository simply contains no callable whose only in-scope inbound is its own recursive call
 and whose parameter would otherwise be offered.
 
-That is worth separating from the cache attempt recorded above,
+That is worth separating from the cache attempt,
 which was also measured as no change and was reverted.
 The difference is what each was for.
 The cache was a performance change that bought no performance,
@@ -342,7 +342,7 @@ So a root's own closure always returns an entry for its own key,
 that write always lands last before the read,
 and the `?? new Set()` fallback at the read site is dead code.
 
-The comment above that fallback says the opposite:
+The comment on the `?? new Set()` fallback says the opposite:
 "a callable the closure finds no inbound for is absent from the result rather than present and
 empty".
 That is false about this implementation and is corrected in the same commit.

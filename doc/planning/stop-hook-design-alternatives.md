@@ -226,7 +226,7 @@ objective-free case as solved.
 ## Designs
 
 Independent design pass by a second model,
-given the files and the numbers above:
+given the files and the numbers from `What happens after a stop` to `Deterministic signals at the stop`:
 
 - Obligation ledger,
   no model:
@@ -262,7 +262,7 @@ not completion.
 Ranking:
 keep and audit > evidence packet > ledger > detector > watchdog.
 
-- Keep the six-label check and run the audit below first.
+- Keep the six-label check and run the audit in `Experiment that decides` first.
   It is right about the dominant category and its failure costs
   one turn;
   the precision of its 75 announce and open-work blocks is unmeasured.

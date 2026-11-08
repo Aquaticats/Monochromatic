@@ -167,7 +167,7 @@ named for that subject and listed here.
 
 Written overnight on 2026-08-14 to 15,
 while the translate lane was built out.
-Each question below is one I could not answer from the code,
+Each question in the `Contents` list is one I could not answer from the code,
 the corpus,
 or a
 measurement I could take without spending your quota on a decision you may
@@ -244,7 +244,8 @@ and verified publication-quality outcome before recommendation.
 ## Open on 2026-09-24
 
 Every numbered question in this document is answered.
-The items below are the owner questions and the open observations of the 2026-09-16 to 2026-09-24 sessions
+The `Open on 2026-09-24` items are the owner questions and the open observations of the
+2026-09-16 to 2026-09-24 sessions
 that have not been put or not been built;
 the pass log carries the evidence under the read that found each.
 

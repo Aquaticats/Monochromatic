@@ -187,7 +187,7 @@ measured 2026-10-29 with a scratch script:
 
 ## Adopted without a question
 
-These follow from the answers above and stay open to veto.
+These follow from the answers in `Decisions` and stay open to veto.
 
 - **Rule set:**
   `shell/max-lines` plus one rule per construct:

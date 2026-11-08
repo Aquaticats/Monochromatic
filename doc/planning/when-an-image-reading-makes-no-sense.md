@@ -276,7 +276,7 @@ This costs one or two calls per image and buys three things.
 The roster is untouched,
 so selection keeps its weights and its disinterested judges.
 The reading is a value that can be screened,
-which is what the rule above does and what it presupposes.
+which is what the rule set out under `The rule` does and what it presupposes.
 And the reading is cacheable per asset,
 where a translation carrying an inline image would be cacheable only per slice.
 

@@ -1435,7 +1435,7 @@ because of the adjacent-pair reasons below.
 - jj was run as a separate version control binary on a colocated repository;
   whether `try_merge` is usable by a crate other
   than jj was not tested,
-  and the dependency lists above are first-level only.
+  and the dependency lists in `Source check of the Jujutsu merge function` are first-level only.
 - Mercurial behaviour,
   Pijul and Darcs were not tested;
   the Mercurial changeset claim is unverified.
@@ -2173,7 +2173,7 @@ word output,
 reach a network or a tool,
 or set
 a limit or a write-time choice,
-each with the file and line of Git 2.56.0's reader in the comment above `PLAIN_ENVIRONMENT_PREFIXES`;
+each with the file and line of Git 2.56.0's reader in the comment on `PLAIN_ENVIRONMENT_PREFIXES`;
 every name that can
 move a configuration,
 attribute tree,
@@ -2212,7 +2212,7 @@ the in-process attribute probe.
 
 1. If hooks are ever supported:
    the finished merge runs the hooks of `git commit`,
-   a clean merge those of `git merge` (list above).
+   a clean merge those of `git merge` (the hook list under `Hooks`).
 2. The edit to `conclusion_cleanup.rs` is outside the merge paths (a commit-conclusion file);
    it is small and fixes a defect,
    but another agent may be editing near it.

@@ -214,7 +214,8 @@ each has a red control first.
 ## Measured
 
 Method:
-two byte-identical throwaway copies of the repository above (each with its own commit service,
+two byte-identical throwaway copies of the repository measured in
+`A wrapped commit against a native one, step by step` (each with its own commit service,
 started by the
 measurement,
 and its own runtime directory,
@@ -284,7 +285,7 @@ which no measurement here may
 touch.
 The bound is met on this host by a wide margin when nothing stalls (376 ms against 5000 ms) and is not shown to be met
 when the processes that read the index wait for the monitor,
-which is the decision below.
+which is the `Git's monitor and the three-to-one gap` item under the `Left to the owner` heading.
 
 ## The landing's index update and the index check in process
 

@@ -29,7 +29,7 @@ Superseded 2026-10-04:
  before the shadow migration ran,
  so items 5 and 6 are moot and editor diagnostics no longer exist for CSS.
 The replacement CSS linter is tracked in issue #587.
-Everything below is retained as a probe record,
+Everything from the `Owner constraints` heading onward is retained as a probe record,
  not as instructions still to run.
 
 This direction meets the owner's formatter-trust requirement and the intended Stylelint retirement without

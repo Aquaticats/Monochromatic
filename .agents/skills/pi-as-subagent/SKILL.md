@@ -37,6 +37,18 @@ even through a filter,
 and to name the one variable it wants:
 an agent's `env | rg` put a real GitHub token in its session,
 and all command output goes to the model provider.
+The driver enforces that bound too:
+it hands Pi its own environment with every variable whose name holds
+`TOKEN`,
+`SECRET`,
+`KEY`,
+`PASSWORD`,
+`CREDENTIAL` or
+`AUTH` removed
+(`package/pi-shared/subagent-driver/README.md`),
+so a dump shows the names a command may read and no value it may not.
+Keep the sentence in every prompt anyway:
+a command can still print a token it finds in a file.
 Name the worktree in the prompt of an agent given one,
 and tell it to run every command and make every edit inside it:
 one agent ran its builds in the main checkout,
