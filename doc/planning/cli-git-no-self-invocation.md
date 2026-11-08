@@ -849,7 +849,7 @@ The case behind it:
 the agent that fixed the self-start found a `PATH` that held the wrapper's `git` but no `/usr/bin`,
 while `git --version` in the person's own shell said "shadowing git at /usr/bin/git" because that shell's `PATH` had it.
 Before the pick,
-that `PATH` ended in the stop of the Rule section.
+that `PATH` ended in the stop that the Not covered section records for a `PATH` with no real Git.
 
 ### What records a real Git, and what does not
 

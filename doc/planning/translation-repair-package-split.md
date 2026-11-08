@@ -18,7 +18,7 @@ measured" and "Measured after the move" were added after the move.
 
 ## Lint cost, measured
 
-The runs under the Lint cost, measured heading are oxlint 1.87.0 on the package as it stood at `94ebefa1e3`,
+The runs under the `Lint cost, measured` heading are oxlint 1.87.0 on the package as it stood at `94ebefa1e3`,
 in the keyless worktree `w165` after a fresh build,
 timed with `/usr/bin/time`.
 
