@@ -2954,6 +2954,20 @@ on the commit path:
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
   Hooks are never ended by the wrapper.
+- A landing that ends before its intent is in the journal,
+  and a restart that drops an open batch whose branch has not moved,
+  keep the same two things:
+  the commit the batch built is kept on `refs/cli-git/kept/<batch>`,
+  and the scratch reference of the batch (`refs/worktree/cli-git-service/<batch>`),
+  which held the batch's objects and nothing else,
+  is removed once that commit is kept,
+  so a batch that will not land leaves no reference behind.
+  A keep Git refused,
+  a kept reference that names another commit,
+  and a reference Git cannot read all leave the scratch reference where it is
+  (the landing sweeps its own batch when it fails,
+  the restart when it drops one;
+  `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").

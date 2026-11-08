@@ -3,6 +3,7 @@
 
 use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
+use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::PushRetries;
 use crate::service_work_run_round::run_round;
 use super::*;
@@ -959,4 +960,30 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
     let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
     assert!(lock_pid_files_enabled(started.environment.as_slice()), "the push's Git environment turns on core.lockfilePid");
     remove(repo.root.as_path());
+}
+
+/// The listings a drain of `count` pushes of one branch costs,
+/// with every item settled.
+fn listings_of_a_drain(count: usize) -> usize {
+    let repo: Repo = repo(format!("work-linear-{count}").as_str());
+    let items: Vec<WorkItem> = (0..count).map(|n| { return item(&repo, WorkKind::Push, format!("{n:040x}").as_str(), BRANCH); }).collect();
+    enqueue_all(&repo, items.as_slice());
+    // The looks the producers themselves made are no part of the drain.
+    let _producers_looks: usize = take_listings();
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+    assert_eq!(names(&repo, DONE).len(), items.len(), "the drain of {count} items settled every one of them");
+    let listings: usize = take_listings();
+    remove(repo.root.as_path());
+    return listings;
+}
+
+/// A drain of many claims walks the work queue once per round and not once per claim (`RG2`):
+/// the number of directory listings it costs does not grow with the number of claims it holds.
+#[test]
+fn a_drain_of_many_claims_lists_the_state_directories_once() {
+    let measured: Vec<(usize, usize)> = [4, 24, 96].iter().map(|count| { return (*count, listings_of_a_drain(*count)); }).collect();
+    let first: usize = measured[0].1;
+    for (_count, listings) in &measured {
+        assert_eq!(*listings, first, "the listings of a drain do not grow with its claims: {measured:?}");
+    }
 }

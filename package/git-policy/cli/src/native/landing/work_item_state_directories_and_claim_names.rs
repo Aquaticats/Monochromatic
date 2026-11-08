@@ -127,6 +127,8 @@ pub(crate) fn new_generation() -> Result<String, String> {
 /// The names in a state directory with their modification times,
 /// oldest first.
 pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String, SystemTime)> {
+    #[cfg(test)]
+    count_listing();
     let mut found: Vec<(String, SystemTime)> = Vec::new();
     if let Ok(listing) = std::fs::read_dir(state_directory(work_dir, state)) {
         for entry in listing.flatten() {
@@ -140,4 +142,40 @@ pub(crate) fn entries_oldest_first(work_dir: &Path, state: &str) -> Vec<(String,
     }
     found.sort_by(oldest_first);
     return found;
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many listings of a state directory this thread made since the last reading.
+    static LISTINGS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// In a control build,
+/// count one listing of a state directory.
+/// Why:
+///   A control proves that a drain of many claims takes one listing per directory rather than one per claim (`RG2`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listings += 1
+/// ```
+#[cfg(test)]
+fn count_listing() {
+    LISTINGS.with(|listings| { listings.set(listings.get() + 1); });
+}
+
+/// What:
+///  How many listings of a state directory this thread made since the last reading,
+/// the reading resetting the count.
+/// Why:
+///   The count is the listing the code itself makes,
+/// so a control states how many passes over the queue a drain costs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const count = listings; listings = 0; return count
+/// ```
+#[cfg(test)]
+pub(crate) fn take_listings() -> usize {
+    return LISTINGS.with(std::cell::Cell::take);
 }

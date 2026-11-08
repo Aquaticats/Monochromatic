@@ -4317,7 +4317,8 @@ as the pull and merge isolation controls already did (commit `43aea63140`;
 the five sequencer controls passed on the host).
 Open:
 whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
-(today it stays on its scratch branch with the open intent).
+(today it stays on its scratch branch with the open intent),
+which the restart's recovery now does when it drops the batch (see "Service follow-ups").
 
 Commit service units and removed worktrees (2026-11-08):
 the unit instance is the 128-bit FNV-1a hash of the worktree's real own Git directory (`service_instance.rs`),
@@ -4361,11 +4362,85 @@ and the wiring was checked once against the real user manager in a throwaway rep
 socket active before the removal,
 inactive after).
 
-Pre-existing,
-from the lock-removal pass,
-probably moot if the commits-never-fail design lands (unsure):
-the scratch ref `refs/worktree/cli-git-service/<seq>` that a killed landing leaves,
-and the `claimed/` scan that is quadratic for a drain of N claims.
+The two leftovers from the lock-removal pass were both still real when checked against this branch
+(2026-11-08T15:43:09-05:00),
+and each is fixed now:
+
+- The scratch ref `refs/worktree/cli-git-service/<seq>` that a killed landing leaves (`a3e6bc94e1`).
+  A landing protects its batch's objects with that reference and deletes it inside the same
+  `update-ref --stdin` transaction that moves the branch,
+  so only a landing that ended before that write leaves it behind.
+  Recovery (`recover_selected` in `service_land_finish.rs`) read the open intent,
+  decided from the branch that the batch never landed,
+  removed the intent,
+  and left the reference where it was,
+  holding objects no branch named and with no journal record naming it:
+  one per-worktree reference leaked per killed landing.
+  A restart that drops a batch now keeps the reference's commit at `refs/cli-git/kept/<seq>`,
+  the name a commit that was not made is kept under,
+  and only then removes the scratch ref (`service_scratch_ref_of_a_dropped_batch.rs`).
+  A keep Git refused,
+  a kept ref that names another commit,
+  and a reference Git cannot read all leave the scratch ref where it is,
+  so a commit only that reference holds is never lost.
+  This answers,
+  in part,
+  the open item above:
+  a commit left on its scratch branch by a branch write that outlived the stop bound
+  reaches `refs/cli-git/kept/<n>` at the next restart's recovery,
+  not at the stop.
+  Control:
+  `a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scratch_branch`
+  ends a landing at the `before-ref` test hook (`service_fault::hooks`),
+  which leaves the disk state a `SIGKILL` at `after-intent` (one of `service_fault::FAULT_POINTS`) leaves,
+  and checks that recovery removes the scratch ref,
+  keeps the commit at `refs/cli-git/kept/1`,
+  and that the commit survives `git prune --expire=now`.
+  Red first:
+  the assertion `no scratch branch is left` failed before the fix with
+  `left: "669dd3b87f7152d5ae8dd95da13779a8a92b7c0b commit refs/worktree/cli-git-service/1"`,
+  and `right: ""`.
+  A landing that fails after its objects exist and before its intent is written is covered too (`a5149a6301`):
+  the failed landing itself keeps the commit and removes the scratch branch,
+  since no restart can land a batch no record names.
+  Control:
+  `a_landing_that_fails_before_its_intent_keeps_the_commit_and_removes_its_scratch_branch`
+  fails the import's marks file by making the journal directory unwritable,
+  which leaves the batch's objects and no intent,
+  and checks that the scratch branch goes and the commit is kept.
+  Red first:
+  the assertion `no scratch branch is left` failed with
+  `left: "8739469b3585d5e9d29e4f5608ac70dbe5ef607b commit refs/worktree/cli-git-service/1"` and `right: ""`.
+  Open:
+  a `SIGKILL` between the import of the objects and the intent write leaves the reference with no journal record,
+  and nothing runs to clear it:
+  `after-objects` is one of `service_fault::FAULT_POINTS`,
+  and the binary-level control that kills a service there and restarts it does not check the reference.
+  Clearing it needs a sweep by something that knows the worktree (the next landing of the same worktree,
+  or a marker the landing writes before the import),
+  because a service instance cannot turn its instance hash back into a worktree path.
+- The `claimed/` scan that was quadratic for a drain of N claims (`7ae9113b61`).
+  `claim_next_of` listed and sorted `pending` for each claim,
+  and `current_name` listed the whole of `claimed` for each claim it checked or settled,
+  so a drain cost a multiple of its own backlog (rule `RG2`).
+  The claim phase now takes one listing (`claim_all_of`),
+  and the held claims share one listing that is refilled only when a renewal renamed a file or a claim is gone.
+  Control:
+  `a_drain_of_many_claims_lists_the_state_directories_once` counts the listings the code makes through the one
+  listing function both scans now share,
+  in a control build only,
+  at three sizes of the same drain.
+  Red first:
+  `the listings of a drain do not grow with its claims: [(4, 10), (24, 30), (96, 102)]`,
+  one listing per claim plus six.
+  The old `current_name` listed `claimed` with its own `read_dir` at every check and settlement,
+  which that count did not see and which the fix removes
+  (`service_claim_renewal.rs` has no listing of its own now).
+  Untouched:
+  `enqueue` still lists `claimed` and `recovering` to answer "already known",
+  so a producer that enqueues N items costs N listings,
+  and the one shared listing of a round is refilled when a renewal renamed a claim it must settle.
+
 `started` and `ready` service lines now carry distinct journal times;
 lines of a retiring older service still share one stream timestamp (nothing to fix).
 
