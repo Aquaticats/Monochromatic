@@ -98,6 +98,11 @@ pub mod commit_index;
 /// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
 pub mod commit_index_copying;
 
+/// How each build of the private commit index was made,
+/// and whether it kept the real index's stat data,
+/// for the timing record.
+pub mod commit_index_builds;
+
 /// The refresh of an index's stat data before the scratch commit,
 /// so its ceiling does not end a commit over a moved worktree.
 pub mod commit_index_stat_refresh;

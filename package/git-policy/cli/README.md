@@ -4562,6 +4562,17 @@ all durations in whole milliseconds taken from the monotonic clock:
   `handoffMs` (leaving the push and the upkeep for the service) and `otherMs`,
   which is whatever no phase
   covers.
+- `indexBuilds` states how each build of the private commit index was made,
+  in the order built:
+  `kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
+  and `statDataKept` says whether that build started from a copy of the real index,
+  so every entry its tree shares with the real index kept its cached stat data.
+  A build from the base or the tree alone holds none,
+  and the scratch `git commit` then hashes every file of the work tree
+  (233,618,538 bytes of LFS content cleaned and 3.6 s,
+  measured on 2026-11-07).
+  The list is empty for a commit that built no index,
+  so a reader never has to tell a missing field from a commit that stopped first.
 - `submitMs` contains `reachMs`,
   the time to reach a service of this release.
   `connectTries`,
