@@ -332,7 +332,8 @@ pub(crate) fn checkout_with_worktree(name: &str) -> (PathBuf, PathBuf) {
 
 
 /// What:
-///  A checkout with one linked worktree `wt`, after the whole repository moved behind a symbolic link:
+///  A checkout with one linked worktree `wt`,
+/// after the whole repository moved behind a symbolic link:
 /// the checkout is renamed `moved` and a link is left at its old name,
 /// so every registration still spells the old name while naming the same files.
 /// Why:

@@ -36,7 +36,7 @@ use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::line_sink::LineSink;
 use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
 use crate::subvolume_error::{Interrupt, MigrateError};
-use crate::subvolume_index_files::{LeftOutWorktree, LinkedWorktree, LinkedWorktreeScan, scan_linked_worktrees};
+use crate::subvolume_index_files::{LinkedWorktreeScan, scan_linked_worktrees};
 use crate::subvolume_platform::{LinuxPlatform, Platform};
 use crate::worktree_convert_arguments::{CONVERT_HELP, ConvertArguments, RISK_NOTICE};
 use crate::worktree_convert::{ConvertOptions, Verdict, convert_worktree};
@@ -56,18 +56,19 @@ pub const REFUSED_EXIT_CODE: i32 = 1;
 pub const FAILED_EXIT_CODE: i32 = 2;
 
 /// What:
-///  The worktrees a run covers, and the registrations of `--all` it leaves out with why.
+///  The worktrees a run covers,
+/// and the registrations of `--all` it leaves out with why.
 /// Why:
 ///   A run that covers fewer worktrees than are registered says which ones it left out,
-/// so no worktree is passed
-///  over without a word.
+/// so no worktree is passed over without a word.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type Targets = { covered: string[]; leftOut: string[] };
 /// ```
 struct Targets {
-    /// The worktrees to convert, in input order.
+    /// The worktrees to convert,
+    /// in input order.
     covered: Vec<PathBuf>,
     /// One sentence per registered worktree that is not covered.
     left_out: Vec<String>,
@@ -75,15 +76,20 @@ struct Targets {
 
 /// The worktrees a run covers:
 /// every linked worktree inside the main checkout,
-/// or the named paths resolved from `cwd`.
+/// or every named path resolved from `cwd`.
 fn targets(arguments: &ConvertArguments, cwd: &Path) -> Result<Targets, String> {
     if arguments.all {
         let root: PathBuf = main_checkout_root(cwd)?;
         let scan: LinkedWorktreeScan = scan_linked_worktrees(root.as_path())?;
-        return Ok(Targets {
-            covered: scan.inside.into_iter().map(|linked: LinkedWorktree| { return linked.worktree; }).collect(),
-            left_out: scan.left_out.into_iter().map(|left: LeftOutWorktree| { return left.reason; }).collect(),
-        });
+        let mut covered: Vec<PathBuf> = Vec::new();
+        for linked in scan.inside {
+            covered.push(linked.worktree);
+        }
+        let mut left_out: Vec<String> = Vec::new();
+        for left in scan.left_out {
+            left_out.push(left.reason);
+        }
+        return Ok(Targets { covered, left_out });
     }
     let mut named: Vec<PathBuf> = Vec::new();
     for word in &arguments.paths {
