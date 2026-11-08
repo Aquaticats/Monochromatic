@@ -51,7 +51,8 @@ pub struct LandingState {
     pub(crate) refused_lock: RefCell<Option<Refused>>,
     /// How many locks this landing's holders could not settle (`service_index_ownership.rs`).
     pub(crate) unsettled_locks: Cell<usize>,
-    /// How many name comparisons the proofs of this landing made (`service_built_checks.rs`).
+    /// How many name comparisons the proofs of this landing made (`service_built_checks.rs`), counted by controls only.
+    #[cfg(test)]
     pub(crate) name_steps: Cell<u64>,
     /// The one marker made ahead for the next batch (`service_index_prestage.rs`).
     pub(crate) prestaged_marker: RefCell<Option<Slot>>,
@@ -77,6 +78,7 @@ impl LandingState {
             abandoned_claims: RefCell::new(Vec::new()),
             refused_lock: RefCell::new(None),
             unsettled_locks: Cell::new(0),
+            #[cfg(test)]
             name_steps: Cell::new(0),
             prestaged_marker: RefCell::new(None),
             deferring_syncs: Cell::new(false),
@@ -100,7 +102,7 @@ impl LandingState {
 /// landing.run(new LandingState(), body)
 /// ```
 pub fn in_a_landing<Output>(body: impl FnOnce() -> Output) -> Output {
-    todo!("red: the scope is not written yet");
+    return LANDING.sync_scope(LandingState::new(), body);
 }
 
 /// What:
@@ -114,7 +116,7 @@ pub fn in_a_landing<Output>(body: impl FnOnce() -> Output) -> Output {
 /// await landing.run(new LandingState(), () => future)
 /// ```
 pub async fn in_a_landing_task<Output>(future: impl std::future::Future<Output = Output>) -> Output {
-    todo!("red: the scope is not written yet");
+    return LANDING.scope(LandingState::new(), future).await;
 }
 
 /// What:
@@ -129,13 +131,26 @@ pub async fn in_a_landing_task<Output>(future: impl std::future::Future<Output =
 /// ```ts
 /// useState(landing.getStore() ?? new LandingState())
 /// ```
-pub fn with_the_landing_state<Output>(use_state: impl FnOnce(&LandingState) -> Output) -> Output {
-    todo!("red: the scope is not written yet");
+pub fn with_the_landing_state<Output, Use: FnOnce(&LandingState) -> Output>(use_state: Use) -> Output {
+    // `try_with` takes the closure by value and returns it nowhere on a miss, so the closure waits in an `Option` for whichever
+    //  of the two paths runs.
+    let mut waiting: Option<Use> = Some(use_state);
+    let inside: Option<Output> = LANDING.try_with(|state| {
+        let Some(use_it) = waiting.take() else { unreachable!("the closure runs once") };
+        return use_it(state);
+    }).ok();
+    return match inside {
+        Some(output) => output,
+        None => {
+            let Some(use_it) = waiting.take() else { unreachable!("a missed scope never ran the closure") };
+            use_it(&LandingState::new())
+        }
+    };
 }
 
 /// Whether the caller runs inside a landing's scope.
 pub fn inside_a_landing() -> bool {
-    todo!("red: the scope is not written yet");
+    return LANDING.try_with(|_state| ()).is_ok();
 }
 
 /// The controls of the landing's scope.

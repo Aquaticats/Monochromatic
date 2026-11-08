@@ -300,17 +300,19 @@ fn the_error_for_a_commit_behind_a_hung_write_names_the_way_out() {
 /// as the control that must move.
 #[test]
 fn a_request_whose_commit_is_on_the_branch_in_an_open_batch_is_not_withdrawn_early() {
-    let world: World = world("service-hung-write-open-batch");
-    let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
-    land_with_failed_index(&world, 1, &[landed]);
-    let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
-    crate::service_busy_step_record_on_this_thread::use_on_this_thread(std::sync::Arc::clone(&board));
-    assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
-    let _step = crate::service_busy_step_record_on_this_thread::enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(Duration::from_millis(20));
-    assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");
-    assert!(matches!(board.withdraw_early("never-seen"), crate::service_busy::EarlyAnswer::Withdrawn(_)), "a request no batch names is withdrawn");
-    remove(world.root.as_path());
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let world: World = world("service-hung-write-open-batch");
+        let landed: CommitRequest = request(&world, "landed", "landed.txt", "landed\n");
+        land_with_failed_index(&world, 1, &[landed]);
+        let board: std::sync::Arc<crate::service_busy::LandingBoard> = crate::service_busy::LandingBoard::new(world.context.journal.clone(), Duration::ZERO);
+        crate::service_busy_step_record_on_this_thread::use_on_this_thread(std::sync::Arc::clone(&board));
+        assert_eq!(board.begin_group(&[String::from("stuck")]), crate::service_busy::GroupAdmission::default());
+        let _step = crate::service_busy_step_record_on_this_thread::enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(Duration::from_millis(20));
+        assert_eq!(board.withdraw_early("landed"), crate::service_busy::EarlyAnswer::Queued, "its commit is on the branch");
+        assert!(matches!(board.withdraw_early("never-seen"), crate::service_busy::EarlyAnswer::Withdrawn(_)), "a request no batch names is withdrawn");
+        remove(world.root.as_path());
+    });
 }
 
 /// The client whose request is inside the write is told so when the write starts,

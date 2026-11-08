@@ -29,7 +29,7 @@ use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::{marker_text, own_identity};
 use crate::service_index_placement::sync_file;
 use crate::service_index_staging::stage_marker_synced;
-use std::cell::RefCell;
+use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::thread::JoinHandle;
@@ -60,11 +60,16 @@ pub(crate) struct Slot {
 #[cfg(test)]
 pub static COMMIT_WAITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-thread_local! {
-    /// The service's one pre-staged marker.
-    /// Per thread,
-    /// because only the serve loop's thread lands batches and takes locks.
-    static SLOT: RefCell<Option<Slot>> = const { RefCell::new(None) };
+/// Takes the service's one pre-staged marker out of the landing's state:
+/// the state `prestaged_marker` of `landing_state_carried_by_its_task.rs` is per landing,
+/// because only the landing takes locks and lands batches.
+fn take_slot() -> Option<Slot> {
+    return with_the_landing_state(|state| state.prestaged_marker.take());
+}
+
+/// Puts the pre-staged marker back into the landing's state.
+fn put_slot(slot: Option<Slot>) {
+    with_the_landing_state(|state| *state.prestaged_marker.borrow_mut() = slot);
 }
 
 /// The error for an identity that could not be read.
@@ -93,9 +98,9 @@ pub fn start(index: &Path, seq: u64) {
 pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path, seq: u64) {
     let lock: PathBuf = lock_path_of(index);
     // Look at the slot without changing it: take it out, compare, and put it back.
-    let looked_at: Option<Slot> = SLOT.take();
+    let looked_at: Option<Slot> = take_slot();
     let same: bool = matches!(&looked_at, Some(slot) if slot.lock == lock && slot.seq == seq);
-    SLOT.set(looked_at);
+    put_slot(looked_at);
     if same {
         return;
     }
@@ -108,7 +113,7 @@ pub fn start_with(sync: fn(&std::fs::File) -> std::io::Result<()>, index: &Path,
     });
     // No thread to make it in is no marker made ahead: the commit stages its own.
     if let Ok(work) = spawned {
-        SLOT.set(Some(Slot { lock, seq, work }));
+        put_slot(Some(Slot { lock, seq, work }));
     }
 }
 
@@ -168,7 +173,7 @@ fn remove_unused(slot: Slot) {
 /// const ready = await prestage.take(index, seq) // Prestaged | undefined
 /// ```
 pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
-    let slot: Slot = SLOT.take()?;
+    let slot: Slot = take_slot()?;
     #[cfg(test)]
     COMMIT_WAITING.store(true, std::sync::atomic::Ordering::SeqCst);
     if slot.lock != lock_path_of(index) || slot.seq != seq {
@@ -186,13 +191,13 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
 /// so that taking it waits for nothing.
 #[cfg(test)]
 pub fn is_made() -> bool {
-    return SLOT.with(|slot| { return slot.borrow().as_ref().is_some_and(|held| { return held.work.is_finished(); }); });
+    return with_the_landing_state(|state| { return state.prestaged_marker.borrow().as_ref().is_some_and(|held| { return held.work.is_finished(); }); });
 }
 
 /// Removes the marker made ahead,
 /// waiting for it first if it is still being made.
 pub fn discard() {
-    if let Some(slot) = SLOT.take() {
+    if let Some(slot) = take_slot() {
         remove_unused(slot);
     }
 }

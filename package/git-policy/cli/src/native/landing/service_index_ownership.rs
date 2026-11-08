@@ -19,7 +19,7 @@
 //! const ownership = await inspectOwnership(lockPath, heldHandle, marker) // 'owned' | 'replaced' | Error
 //! ```
 
-use std::cell::Cell;
+use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use std::os::unix::fs::{FileExt, MetadataExt};
 use std::path::Path;
 
@@ -79,21 +79,16 @@ pub fn inspect_ownership(lock: &Path, held: &std::fs::File, marker: &str) -> Own
     return if &text[..filled] == marker.as_bytes() { Ownership::Owned } else { Ownership::Replaced };
 }
 
-thread_local! {
-    /// How many locks this thread's holders could not settle.
-    static UNSETTLED: Cell<usize> = const { Cell::new(0) };
-}
-
-/// Records that a lock this thread held could not be settled,
+/// Records that a lock this landing held could not be settled,
 /// and stays where it is.
 pub fn note_unsettled() {
-    UNSETTLED.set(UNSETTLED.get() + 1);
+    with_the_landing_state(|state| state.unsettled_locks.set(state.unsettled_locks.get() + 1));
 }
 
-/// How many locks the holders of this thread could not settle.
+/// How many locks the holders of this landing could not settle.
 ///  The service ends after the batch that leaves one,
 /// and its restart reclaims the lock,
 /// whose marker then names a process that is gone.
 pub fn unsettled_locks() -> usize {
-    return UNSETTLED.with(Cell::get);
+    return with_the_landing_state(|state| state.unsettled_locks.get());
 }

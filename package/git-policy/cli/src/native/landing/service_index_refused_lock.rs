@@ -22,7 +22,7 @@
 //! ```
 
 use crate::index_lock_evidence::{LockMetadata, read_lock_metadata};
-use std::cell::RefCell;
+use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use std::path::Path;
 use std::time::Duration;
 
@@ -35,12 +35,6 @@ pub(crate) struct Refused {
     identity: LockMetadata,
     /// How long the commits that waited for this file waited in all.
     waited: Duration,
-}
-
-thread_local! {
-    /// The lock this thread's landings last gave up on,
-    /// when one is remembered.
-    static REFUSED: RefCell<Option<Refused>> = const { RefCell::new(None) };
 }
 
 /// What:
@@ -58,7 +52,7 @@ pub fn remember(lock: &Path, waited: Duration) {
         forget();
         return;
     };
-    REFUSED.set(Some(Refused { identity, waited }));
+    with_the_landing_state(|state| *state.refused_lock.borrow_mut() = Some(Refused { identity, waited }));
 }
 
 /// What:
@@ -75,7 +69,7 @@ pub fn recall(lock: &Path) -> Option<Duration> {
     let Ok(Some(identity)) = read_lock_metadata(lock) else {
         return None;
     };
-    let remembered: Refused = REFUSED.with_borrow(Clone::clone)?;
+    let remembered: Refused = with_the_landing_state(|state| *state.refused_lock.borrow())?;
     return if remembered.identity == identity { Some(remembered.waited) } else { None };
 }
 
@@ -83,5 +77,5 @@ pub fn recall(lock: &Path) -> Option<Duration> {
 /// the lock was taken,
 /// or is gone.
 pub fn forget() {
-    REFUSED.set(None);
+    with_the_landing_state(|state| *state.refused_lock.borrow_mut() = None);
 }

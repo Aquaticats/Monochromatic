@@ -16,6 +16,7 @@
 //! await run(git, repository, args, input); importStream(scratch, old, batch, amendedParents); commitsFromMarks(text, count)
 //! ```
 
+use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use crate::service_land_follow::classify;
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTING, run_git};
@@ -54,7 +55,7 @@ pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input
         Err(error) => {
             // A step ended at its ceiling is told apart from every other failure, and its sentence is kept for the answer.
             if crate::child_watch::is_ceiling(&error) {
-                CEILING_STEP.set(Some(error.to_string()));
+                with_the_landing_state(|state| *state.ceiling_step.borrow_mut() = Some(error.to_string()));
                 return Err(FailureCode::StepTooSlow);
             }
             Err(FailureCode::Unavailable)
@@ -62,16 +63,11 @@ pub(crate) fn run(git: &GitContext, repository: &Path, arguments: &[&str], input
     };
 }
 
-thread_local! {
-    /// The sentence of the last Git step this thread ended at its ceiling,
-    /// for the line the clients are told.
-    static CEILING_STEP: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
-}
-
 /// The sentence of the step that was ended at its ceiling,
-/// once.
+/// once;
+/// the landing keeps it for the line the clients are told (the state `ceiling_step` of `landing_state_carried_by_its_task.rs`).
 pub(crate) fn take_ceiling_step() -> Option<String> {
-    return CEILING_STEP.take();
+    return with_the_landing_state(|state| state.ceiling_step.take());
 }
 
 pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<String, FailureCode> {

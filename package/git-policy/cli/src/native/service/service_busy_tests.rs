@@ -32,16 +32,18 @@ fn ids(names: &[&str]) -> Vec<String> {
 /// one with a board records the step and forgets it when the guard ends.
 #[test]
 fn a_step_is_recorded_only_on_a_thread_with_a_board_and_only_while_it_runs() {
-    assert!(enter_step(String::from("git update-ref --stdin in /repo")).is_none(), "no board on this thread yet");
-    let record: Arc<LandingBoard> = board();
-    use_on_this_thread(Arc::clone(&record));
-    assert_eq!(record.describe(), None, "nothing runs");
-    let guard = enter_step(String::from("git update-ref --stdin in /repo")).expect("this thread has a board now");
-    std::thread::sleep(A_MOMENT);
-    let words: String = record.describe().expect("the step is stuck at once");
-    assert!(words.contains("git update-ref --stdin in /repo") && words.contains("never ends a write"), "{words}");
-    drop(guard);
-    assert_eq!(record.describe(), None, "the step ended");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        assert!(enter_step(String::from("git update-ref --stdin in /repo")).is_none(), "no board on this thread yet");
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        assert_eq!(record.describe(), None, "nothing runs");
+        let guard = enter_step(String::from("git update-ref --stdin in /repo")).expect("this thread has a board now");
+        std::thread::sleep(A_MOMENT);
+        let words: String = record.describe().expect("the step is stuck at once");
+        assert!(words.contains("git update-ref --stdin in /repo") && words.contains("never ends a write"), "{words}");
+        drop(guard);
+        assert_eq!(record.describe(), None, "the step ended");
+    });
 }
 
 /// A step younger than the threshold is not described:
@@ -58,19 +60,21 @@ fn a_step_younger_than_the_threshold_is_not_described() {
 /// and it is gone when the landing's guard ends.
 #[test]
 fn the_detail_of_a_write_names_the_commit_it_makes_and_ends_with_the_write() {
-    let record: Arc<LandingBoard> = board();
-    use_on_this_thread(Arc::clone(&record));
-    {
-        let _detail = detail(String::from("it moves refs/heads/main to abc; the commit is also at refs/worktree/cli-git-service/7"));
-        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        {
+            let _detail = detail(String::from("it moves refs/heads/main to abc; the commit is also at refs/worktree/cli-git-service/7"));
+            let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+            std::thread::sleep(A_MOMENT);
+            let words: String = record.describe().expect("stuck");
+            assert!(words.contains("refs/worktree/cli-git-service/7"), "{words}");
+        }
+        let _guard = enter_step(String::from("git update-ref -d scratch in /repo"));
         std::thread::sleep(A_MOMENT);
-        let words: String = record.describe().expect("stuck");
-        assert!(words.contains("refs/worktree/cli-git-service/7"), "{words}");
-    }
-    let _guard = enter_step(String::from("git update-ref -d scratch in /repo"));
-    std::thread::sleep(A_MOMENT);
-    let later: String = record.describe().expect("stuck");
-    assert!(!later.contains("refs/worktree/cli-git-service/7"), "{later}");
+        let later: String = record.describe().expect("stuck");
+        assert!(!later.contains("refs/worktree/cli-git-service/7"), "{later}");
+    });
 }
 
 /// A withdrawal is not answered here while the landing thread is not stuck:
@@ -88,18 +92,20 @@ fn a_withdrawal_is_queued_while_nothing_is_stuck() {
 /// and when its group begins it is dropped and the others are marked.
 #[test]
 fn only_a_request_that_has_not_begun_is_withdrawn_while_the_landing_is_stuck() {
-    let record: Arc<LandingBoard> = board();
-    use_on_this_thread(Arc::clone(&record));
-    assert_eq!(record.begin_group(ids(&["running"]).as_slice()), GroupAdmission::default());
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    assert_eq!(record.withdraw_early("running"), EarlyAnswer::Queued, "the request in flight waits for the landing");
-    let EarlyAnswer::Withdrawn(words) = record.withdraw_early("later") else { panic!("a request that has not begun is withdrawn") };
-    assert!(words.contains("git update-ref --stdin"), "the answer carries the words that name the stuck write: {words}");
-    record.end_group(ids(&["running"]).as_slice());
-    let dropped: Vec<String> = record.begin_group(ids(&["later", "other"]).as_slice()).dropped;
-    assert_eq!(dropped, ids(&["later"]), "the withdrawn request is dropped when its group would begin");
-    assert_eq!(record.withdraw_early("other"), EarlyAnswer::Queued, "the request that begins is in flight");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        assert_eq!(record.begin_group(ids(&["running"]).as_slice()), GroupAdmission::default());
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        assert_eq!(record.withdraw_early("running"), EarlyAnswer::Queued, "the request in flight waits for the landing");
+        let EarlyAnswer::Withdrawn(words) = record.withdraw_early("later") else { panic!("a request that has not begun is withdrawn") };
+        assert!(words.contains("git update-ref --stdin"), "the answer carries the words that name the stuck write: {words}");
+        record.end_group(ids(&["running"]).as_slice());
+        let dropped: Vec<String> = record.begin_group(ids(&["later", "other"]).as_slice()).dropped;
+        assert_eq!(dropped, ids(&["later"]), "the withdrawn request is dropped when its group would begin");
+        assert_eq!(record.withdraw_early("other"), EarlyAnswer::Queued, "the request that begins is in flight");
+    });
 }
 
 /// A request already in flight when the landing thread's step ends is not withdrawn afterwards either:
@@ -108,13 +114,15 @@ fn only_a_request_that_has_not_begun_is_withdrawn_while_the_landing_is_stuck() {
 /// and without it every withdrawal is the landing thread's.
 #[test]
 fn a_withdrawal_after_the_stuck_write_returned_goes_to_the_landing_thread() {
-    let record: Arc<LandingBoard> = board();
-    use_on_this_thread(Arc::clone(&record));
-    let guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    assert!(matches!(record.withdraw_early("a"), EarlyAnswer::Withdrawn(_)));
-    drop(guard);
-    assert_eq!(record.withdraw_early("b"), EarlyAnswer::Queued);
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        let guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        assert!(matches!(record.withdraw_early("a"), EarlyAnswer::Withdrawn(_)));
+        drop(guard);
+        assert_eq!(record.withdraw_early("b"), EarlyAnswer::Queued);
+    });
 }
 
 /// An identity that is not a plain name gets no early answer and no marker,
@@ -152,19 +160,21 @@ fn a_new_board_removes_what_an_earlier_service_left() {
 /// so every marker operation fails.
 #[test]
 fn a_record_that_cannot_be_written_never_answers_withdrawn() {
-    let record: Arc<LandingBoard> = board();
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    assert!(matches!(record.withdraw_early("works"), EarlyAnswer::Withdrawn(_)), "the control that must move");
-    // The directory stays readable (the step file can still be read) but takes no new file, as a full disk or a refused write leaves it.
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("make the directory read-only");
-    let answer: EarlyAnswer = record.withdraw_early("later");
-    let admission: GroupAdmission = record.begin_group(ids(&["later"]).as_slice());
-    std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
-    assert_eq!(answer, EarlyAnswer::Queued, "no cancellation was established, so none is confirmed");
-    assert!(admission.dropped.is_empty() && admission.unavailable == ids(&["later"]), "a request is not landed on a decision that was not made, and is not dropped either");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        assert!(matches!(record.withdraw_early("works"), EarlyAnswer::Withdrawn(_)), "the control that must move");
+        // The directory stays readable (the step file can still be read) but takes no new file, as a full disk or a refused write leaves it.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o500)).expect("make the directory read-only");
+        let answer: EarlyAnswer = record.withdraw_early("later");
+        let admission: GroupAdmission = record.begin_group(ids(&["later"]).as_slice());
+        std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
+        assert_eq!(answer, EarlyAnswer::Queued, "no cancellation was established, so none is confirmed");
+        assert!(admission.dropped.is_empty() && admission.unavailable == ids(&["later"]), "a request is not landed on a decision that was not made, and is not dropped either");
+    });
 }
 
 /// A withdrawal is a tombstone with the identity of a normal one (sol-1,
@@ -176,16 +186,18 @@ fn a_record_that_cannot_be_written_never_answers_withdrawn() {
 /// and not only the first.
 #[test]
 fn every_copy_of_a_withdrawn_request_is_dropped_not_only_the_first() {
-    let record: Arc<LandingBoard> = board();
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)));
-    for copy in 0..3 {
-        assert_eq!(record.begin_group(ids(&["r"]).as_slice()).dropped, ids(&["r"]), "copy {copy} is dropped");
-        record.end_group(ids(&["r"]).as_slice());
-    }
-    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "and the same answer to a repeated withdrawal");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let record: Arc<LandingBoard> = board();
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)));
+        for copy in 0..3 {
+            assert_eq!(record.begin_group(ids(&["r"]).as_slice()).dropped, ids(&["r"]), "copy {copy} is dropped");
+            record.end_group(ids(&["r"]).as_slice());
+        }
+        assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "and the same answer to a repeated withdrawal");
+    });
 }
 
 /// The landing and a withdrawal race for the same requests:
@@ -255,34 +267,36 @@ fn record_landed(journal: &std::path::Path, seq: u64, id: &str) {
 /// and W2's withdrawal is left to the landing thread.
 #[test]
 fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
-    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-two-withdrawers").join("journal");
-    let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    let (won, wait_for_won) = std::sync::mpsc::channel::<()>();
-    let (release, wait_for_release) = std::sync::mpsc::channel::<()>();
-    let first = {
-        let shared = Arc::clone(&record);
-        std::thread::spawn(move || {
-            AFTER_THE_DECISION_IS_WON.with(|hook| {
-                *hook.borrow_mut() = Some(Box::new(move || {
-                    let _told = won.send(());
-                    let _released = wait_for_release.recv_timeout(Duration::from_secs(30));
-                }));
-            });
-            return shared.withdraw_early("r");
-        })
-    };
-    wait_for_won.recv_timeout(Duration::from_secs(30)).expect("W1 won the decision");
-    // W2 meets W1's decision, which W1 has not confirmed.
-    assert_eq!(record.withdraw_early("r"), EarlyAnswer::Queued, "an unconfirmed decision is not acknowledged");
-    // The request lands meanwhile, and the journal says so.
-    record_landed(journal.as_path(), 1, "r");
-    release.send(()).expect("let W1 go on");
-    let answer: EarlyAnswer = first.join().expect("W1");
-    assert_eq!(answer, EarlyAnswer::Landed("1".repeat(40)), "W1 asks the journal again and finds the request");
-    assert!(!record.decision_path("r").exists(), "nobody acknowledged the decision, so W1 removes it");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-two-withdrawers").join("journal");
+        let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        let (won, wait_for_won) = std::sync::mpsc::channel::<()>();
+        let (release, wait_for_release) = std::sync::mpsc::channel::<()>();
+        let first = {
+            let shared = Arc::clone(&record);
+            std::thread::spawn(move || {
+                AFTER_THE_DECISION_IS_WON.with(|hook| {
+                    *hook.borrow_mut() = Some(Box::new(move || {
+                        let _told = won.send(());
+                        let _released = wait_for_release.recv_timeout(Duration::from_secs(30));
+                    }));
+                });
+                return shared.withdraw_early("r");
+            })
+        };
+        wait_for_won.recv_timeout(Duration::from_secs(30)).expect("W1 won the decision");
+        // W2 meets W1's decision, which W1 has not confirmed.
+        assert_eq!(record.withdraw_early("r"), EarlyAnswer::Queued, "an unconfirmed decision is not acknowledged");
+        // The request lands meanwhile, and the journal says so.
+        record_landed(journal.as_path(), 1, "r");
+        release.send(()).expect("let W1 go on");
+        let answer: EarlyAnswer = first.join().expect("W1");
+        assert_eq!(answer, EarlyAnswer::Landed("1".repeat(40)), "W1 asks the journal again and finds the request");
+        assert!(!record.decision_path("r").exists(), "nobody acknowledged the decision, so W1 removes it");
+    });
 }
 
 /// W1 wins and its second journal read fails;
@@ -296,36 +310,38 @@ fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
 /// the creator removed a decision another withdrawer had acknowledged).
 #[test]
 fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
-    use std::os::unix::fs::PermissionsExt;
-    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-journal-fails").join("journal");
-    let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    let (won, wait_for_won) = std::sync::mpsc::channel::<()>();
-    let (release, wait_for_release) = std::sync::mpsc::channel::<()>();
-    let first = {
-        let shared = Arc::clone(&record);
-        std::thread::spawn(move || {
-            AFTER_THE_DECISION_IS_WON.with(|hook| {
-                *hook.borrow_mut() = Some(Box::new(move || {
-                    let _told = won.send(());
-                    let _released = wait_for_release.recv_timeout(Duration::from_secs(30));
-                }));
-            });
-            return shared.withdraw_early("r");
-        })
-    };
-    wait_for_won.recv_timeout(Duration::from_secs(30)).expect("W1 won the decision");
-    let second: EarlyAnswer = record.withdraw_early("r");
-    // The journal can no longer be read whole (the directory takes no listing), while the record's directory under it still works.
-    std::fs::set_permissions(journal.as_path(), std::fs::Permissions::from_mode(0o300)).expect("make the journal unreadable");
-    release.send(()).expect("let W1 go on");
-    let first_answer: EarlyAnswer = first.join().expect("W1");
-    std::fs::set_permissions(journal.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
-    assert_eq!(first_answer, EarlyAnswer::Queued, "an unreadable journal confirms nothing");
-    assert_eq!(second, EarlyAnswer::Queued, "and the other withdrawer was told nothing final");
-    assert_eq!(record.begin_group(ids(&["r"]).as_slice()), GroupAdmission::default(), "the request is still admitted, not dropped");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        use std::os::unix::fs::PermissionsExt;
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-journal-fails").join("journal");
+        let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        let (won, wait_for_won) = std::sync::mpsc::channel::<()>();
+        let (release, wait_for_release) = std::sync::mpsc::channel::<()>();
+        let first = {
+            let shared = Arc::clone(&record);
+            std::thread::spawn(move || {
+                AFTER_THE_DECISION_IS_WON.with(|hook| {
+                    *hook.borrow_mut() = Some(Box::new(move || {
+                        let _told = won.send(());
+                        let _released = wait_for_release.recv_timeout(Duration::from_secs(30));
+                    }));
+                });
+                return shared.withdraw_early("r");
+            })
+        };
+        wait_for_won.recv_timeout(Duration::from_secs(30)).expect("W1 won the decision");
+        let second: EarlyAnswer = record.withdraw_early("r");
+        // The journal can no longer be read whole (the directory takes no listing), while the record's directory under it still works.
+        std::fs::set_permissions(journal.as_path(), std::fs::Permissions::from_mode(0o300)).expect("make the journal unreadable");
+        release.send(()).expect("let W1 go on");
+        let first_answer: EarlyAnswer = first.join().expect("W1");
+        std::fs::set_permissions(journal.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
+        assert_eq!(first_answer, EarlyAnswer::Queued, "an unreadable journal confirms nothing");
+        assert_eq!(second, EarlyAnswer::Queued, "and the other withdrawer was told nothing final");
+        assert_eq!(record.begin_group(ids(&["r"]).as_slice()), GroupAdmission::default(), "the request is still admitted, not dropped");
+    });
 }
 
 /// A staging file of a decision is removed whichever way the decision ends (sol-1 round 2,
@@ -367,31 +383,33 @@ fn a_decision_whose_write_fails_leaves_no_temporary_file() {
 /// W1 then finds the request landed.
 #[test]
 fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision() {
-    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-confirmation").join("journal");
-    let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "the first withdrawal is confirmed");
-    // The retention's first removal, and its pause.
-    std::fs::remove_file(record.decision_path("r")).expect("the retention removed the decision");
-    let seen_by_w2: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::new(std::sync::Mutex::new(None));
-    let sink: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::clone(&seen_by_w2);
-    let other: Arc<LandingBoard> = Arc::clone(&record);
-    AFTER_THE_DECISION_IS_WON.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            // W2, on another thread with a board of its own view, meets W1's decision beside the old confirmation.
-            let board: Arc<LandingBoard> = Arc::clone(&other);
-            let answer: EarlyAnswer = std::thread::spawn(move || { return board.withdraw_early("r"); }).join().expect("W2");
-            *sink.lock().expect("lock") = Some(answer);
-            // The request lands before W1 asks the journal again.
-            record_landed(journal.as_path(), 1, "r");
-        }));
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-confirmation").join("journal");
+        let record: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        assert!(matches!(record.withdraw_early("r"), EarlyAnswer::Withdrawn(_)), "the first withdrawal is confirmed");
+        // The retention's first removal, and its pause.
+        std::fs::remove_file(record.decision_path("r")).expect("the retention removed the decision");
+        let seen_by_w2: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::new(std::sync::Mutex::new(None));
+        let sink: Arc<std::sync::Mutex<Option<EarlyAnswer>>> = Arc::clone(&seen_by_w2);
+        let other: Arc<LandingBoard> = Arc::clone(&record);
+        AFTER_THE_DECISION_IS_WON.with(|hook| {
+            *hook.borrow_mut() = Some(Box::new(move || {
+                // W2, on another thread with a board of its own view, meets W1's decision beside the old confirmation.
+                let board: Arc<LandingBoard> = Arc::clone(&other);
+                let answer: EarlyAnswer = std::thread::spawn(move || { return board.withdraw_early("r"); }).join().expect("W2");
+                *sink.lock().expect("lock") = Some(answer);
+                // The request lands before W1 asks the journal again.
+                record_landed(journal.as_path(), 1, "r");
+            }));
+        });
+        let first: EarlyAnswer = record.withdraw_early("r");
+        AFTER_THE_DECISION_IS_WON.with(|hook| { *hook.borrow_mut() = None; });
+        assert_eq!(*seen_by_w2.lock().expect("lock"), Some(EarlyAnswer::Queued), "the old confirmation is not W1's");
+        assert_eq!(first, EarlyAnswer::Landed("1".repeat(40)), "W1 finds the request in the journal");
     });
-    let first: EarlyAnswer = record.withdraw_early("r");
-    AFTER_THE_DECISION_IS_WON.with(|hook| { *hook.borrow_mut() = None; });
-    assert_eq!(*seen_by_w2.lock().expect("lock"), Some(EarlyAnswer::Queued), "the old confirmation is not W1's");
-    assert_eq!(first, EarlyAnswer::Landed("1".repeat(40)), "W1 finds the request in the journal");
 }
 
 /// The retention works from a listing and removes by what it still finds:
@@ -403,28 +421,30 @@ fn a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decisi
 /// concurrent pruners from a stale listing).
 #[test]
 fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
-    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-listing").join("journal");
-    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    for round in 0..(WITHDRAWALS_RETAINED + 1) {
-        assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    // Between the listing and the removals, the oldest request's pair is replaced by a decision of another withdrawal.
-    let replaced: std::path::PathBuf = record.decision_path("r0");
-    let replacement: String = format!("{WITHDRAWN}:another-token");
-    let target = replaced.clone();
-    AFTER_THE_LISTING.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            std::fs::remove_file(target.as_path()).expect("the old decision goes");
-            std::fs::write(target.as_path(), replacement.as_bytes()).expect("the new decision");
-        }));
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stale-listing").join("journal");
+        let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        for round in 0..(WITHDRAWALS_RETAINED + 1) {
+            assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        // Between the listing and the removals, the oldest request's pair is replaced by a decision of another withdrawal.
+        let replaced: std::path::PathBuf = record.decision_path("r0");
+        let replacement: String = format!("{WITHDRAWN}:another-token");
+        let target = replaced.clone();
+        AFTER_THE_LISTING.with(|hook| {
+            *hook.borrow_mut() = Some(Box::new(move || {
+                std::fs::remove_file(target.as_path()).expect("the old decision goes");
+                std::fs::write(target.as_path(), replacement.as_bytes()).expect("the new decision");
+            }));
+        });
+        record.end_group(&[]);
+        AFTER_THE_LISTING.with(|hook| { *hook.borrow_mut() = None; });
+        assert_eq!(std::fs::read_to_string(replaced).expect("the replacement stays"), format!("{WITHDRAWN}:another-token"));
     });
-    record.end_group(&[]);
-    AFTER_THE_LISTING.with(|hook| { *hook.borrow_mut() = None; });
-    assert_eq!(std::fs::read_to_string(replaced).expect("the replacement stays"), format!("{WITHDRAWN}:another-token"));
 }
 
 /// The memory of confirmed withdrawals is bounded:
@@ -432,19 +452,21 @@ fn the_retention_never_removes_a_decision_that_replaced_the_one_it_listed() {
 /// decision and confirmation together.
 #[test]
 fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
-    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-retention").join("journal");
-    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    for round in 0..(WITHDRAWALS_RETAINED + 6) {
-        assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
-    }
-    // The retention runs on the landing thread, between two groups.
-    record.end_group(&[]);
-    let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
-    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
-    assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_RETAINED, "a decision never outlives its confirmation, nor the other way");
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-retention").join("journal");
+        let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        for round in 0..(WITHDRAWALS_RETAINED + 6) {
+            assert!(matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)), "round {round}");
+        }
+        // The retention runs on the landing thread, between two groups.
+        record.end_group(&[]);
+        let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
+        assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
+        assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_RETAINED, "a decision never outlives its confirmation, nor the other way");
+    });
 }
 
 /// The memory of confirmed withdrawals is bounded while the landing thread is stuck in a write and prunes nothing (sol-1 round 4,
@@ -455,25 +477,27 @@ fn only_the_retained_number_of_confirmed_withdrawals_is_kept() {
 /// instead of adding a decision and a confirmation for each.
 #[test]
 fn the_memory_of_withdrawals_stays_bounded_while_the_landing_is_stuck() {
-    let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
-    let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
-    use_on_this_thread(Arc::clone(&record));
-    let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
-    std::thread::sleep(A_MOMENT);
-    let mut withdrawn: usize = 0;
-    for round in 0..(WITHDRAWALS_CEILING + 10) {
-        if matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)) {
-            withdrawn += 1;
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-stuck-bound").join("journal");
+        let record: Arc<LandingBoard> = LandingBoard::new(journal, AT_ONCE);
+        use_on_this_thread(Arc::clone(&record));
+        let _guard = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        let mut withdrawn: usize = 0;
+        for round in 0..(WITHDRAWALS_CEILING + 10) {
+            if matches!(record.withdraw_early(format!("r{round}").as_str()), EarlyAnswer::Withdrawn(_)) {
+                withdrawn += 1;
+            }
         }
-    }
-    let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
-    assert_eq!(withdrawn, WITHDRAWALS_CEILING, "withdrawals past the bound are left to the landing thread");
-    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_CEILING);
-    assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_CEILING);
-    // The landing thread's retention brings the memory back to the retained number, and withdrawals are answered again.
-    record.end_group(&[]);
-    assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
-    assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
+        let count = |extension: &str| -> usize { return std::fs::read_dir(record.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.path().extension().and_then(|text| { return text.to_str(); }) == Some(extension); }).count(); };
+        assert_eq!(withdrawn, WITHDRAWALS_CEILING, "withdrawals past the bound are left to the landing thread");
+        assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_CEILING);
+        assert_eq!(count(DECISION_EXTENSION), WITHDRAWALS_CEILING);
+        // The landing thread's retention brings the memory back to the retained number, and withdrawals are answered again.
+        record.end_group(&[]);
+        assert_eq!(count(CANCELLED_EXTENSION), WITHDRAWALS_RETAINED);
+        assert!(matches!(record.withdraw_early("after"), EarlyAnswer::Withdrawn(_)));
+    });
 }
 
 /// How long the landing thread,

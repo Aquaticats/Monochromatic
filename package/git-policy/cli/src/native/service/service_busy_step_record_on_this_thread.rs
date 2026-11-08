@@ -15,6 +15,7 @@
 //! ```
 
 use std::cell::RefCell;
+use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -49,24 +50,17 @@ pub(crate) fn one_line(text: &str) -> String {
     return text.split_whitespace().collect::<Vec<&str>>().join(" ");
 }
 
-thread_local! {
-    /// The board of the service whose landing runs on this thread;
-    /// no other thread has one.
-    static BOARD: RefCell<Option<Arc<LandingBoard>>> = const { RefCell::new(None) };
-    /// What the landing knows about the next write that is never ended,
-    /// for the words that name it.
-    static DETAIL: RefCell<Option<String>> = const { RefCell::new(None) };
-}
-
-/// Whether the calling thread is the commit service's landing thread,
-/// the one thread that waits for a write it cannot end.
+/// Whether the caller runs in the commit service's landing,
+/// the one operation that waits for a write it cannot end:
+/// the landing's state names the board (`landing_state_carried_by_its_task.rs`),
+/// and no other operation or thread has one.
 pub fn on_landing_thread() -> bool {
-    return BOARD.with(board_is_set);
+    return with_the_landing_state(|state| board_is_set(&state.board));
 }
 
-/// Make `board` the record of the landing that runs on the calling thread.
+/// Make `board` the record of the landing the caller runs in.
 pub fn use_on_this_thread(board: Arc<LandingBoard>) {
-    BOARD.set(Some(board));
+    with_the_landing_state(|state| *state.board.borrow_mut() = Some(board));
 }
 
 /// Clears the detail when the work it describes is over.
@@ -74,7 +68,7 @@ pub struct DetailGuard;
 
 impl Drop for DetailGuard {
     fn drop(&mut self) {
-        DETAIL.set(None);
+        with_the_landing_state(|state| *state.detail.borrow_mut() = None);
     }
 }
 
@@ -82,7 +76,7 @@ impl Drop for DetailGuard {
 /// for as long as the guard lives;
 /// the words of a stuck write carry it.
 pub fn detail(text: String) -> DetailGuard {
-    DETAIL.set(Some(text));
+    with_the_landing_state(|state| *state.detail.borrow_mut() = Some(text));
     return DetailGuard;
 }
 
@@ -125,8 +119,8 @@ pub(crate) fn publish(path: &Path, text: &str) -> bool {
 /// using step = enterStep(commandText);
 /// ```
 pub fn enter_step(command: String) -> Option<StepGuard> {
-    let board: Arc<LandingBoard> = BOARD.with_borrow(Clone::clone)?;
-    let detail: Option<String> = DETAIL.with_borrow(Clone::clone);
+    let board: Arc<LandingBoard> = with_the_landing_state(|state| state.board.borrow().clone())?;
+    let detail: Option<String> = with_the_landing_state(|state| state.detail.borrow().clone());
     let file: PathBuf = board.directory.join(STEP_FILE);
     let text: String = format!("{}\n{}\n{}\n", now_millis(), one_line(command.as_str()), detail.as_deref().map_or_else(String::new, one_line));
     // A step that cannot be recorded is still run; the clients just are not told about it.

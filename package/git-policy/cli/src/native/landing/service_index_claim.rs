@@ -40,6 +40,7 @@
 //! takeClaim(platform, lock, staleFile, marked) // 'held' | 'busy' | { foreign: { file, marked } } | { unavailable: error }
 //! ```
 
+use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, holder_is_running, marker_text, parse_marker};
 use crate::service_index_placement::{Platform, place_marked};
 use crate::service_index_staging::stage_marker;
@@ -184,9 +185,7 @@ fn escaped_byte(byte: u8) -> String {
 /// abandoned.push([path, text]);
 /// ```
 fn remember_abandoned(path: PathBuf, text: String) {
-    let mut list: Vec<(PathBuf, String)> = ABANDONED.take();
-    list.push((path, text));
-    ABANDONED.set(list);
+    with_the_landing_state(|state| state.abandoned_claims.borrow_mut().push((path, text)));
 }
 
 /// What:
@@ -328,18 +327,14 @@ fn text_of(path: &Path) -> std::io::Result<Option<String>> {
     };
 }
 
-thread_local! {
-    /// The claims this thread placed whose placement answered with an error and which could not be read back to be recognised,
-    ///  with the marker text each was written from.
-    /// A later attempt of the thread resolves them first.
-    /// Per thread,
-    /// so another
-    ///  thread's attempt in the same process is never taken for an abandoned one (the process number is the same for both).
-    static ABANDONED: std::cell::RefCell<Vec<(PathBuf, String)>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-/// Removes the claims this thread abandoned:
-/// a file that still holds exactly the text the thread wrote is the thread's own claim,
+/// Removes the claims this landing abandoned
+/// (the state `abandoned_claims` of `landing_state_carried_by_its_task.rs`:
+/// claims whose placement answered with an error and which could not be read back to be recognised,
+/// with the marker text each was written from;
+/// per landing,
+/// so another landing's attempt in the same process is never taken for an abandoned one,
+/// the process number being the same for both):
+/// a file that still holds exactly the text the landing wrote is the landing's own claim,
 ///  and goes;
 /// one that holds other text,
 /// or is gone,
@@ -348,7 +343,7 @@ thread_local! {
 /// one that still
 ///  cannot be read stays on the list for the next attempt.
 fn resolve_abandoned() {
-    let pending: Vec<(PathBuf, String)> = ABANDONED.take();
+    let pending: Vec<(PathBuf, String)> = with_the_landing_state(|state| state.abandoned_claims.take());
     for (path, text) in pending {
         match text_of(path.as_path()) {
             Ok(Some(found)) if found == text => remove_claim(path.as_path()),

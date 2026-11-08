@@ -638,26 +638,28 @@ fn a_landing_names_the_claim_that_cannot_be_judged() {
 /// instead of meeting a live-looking claim of its own process for ever.
 #[test]
 fn an_abandoned_claim_of_this_thread_is_resolved_by_its_next_attempt() {
-    let (root, _index, lock) = index_in("claim-abandoned");
-    let claim: PathBuf = claim_at(&lock, 0);
-    let lost = |from: &Path, to: &Path| -> std::io::Result<()> {
-        rename_noreplace(from, to)?;
-        return Err(std::io::Error::from_raw_os_error(libc::EINTR));
-    };
-    let (hook_claim, done) = (claim.clone(), std::rc::Rc::new(std::cell::Cell::new(false)));
-    hooks::set("reclaim-claim-unread", std::rc::Rc::new(move || {
-        if !done.replace(true) {
-            // The claim cannot be read at this moment.
-            std::fs::set_permissions(&hook_claim, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("the claim is unreadable");
-        }
-    }));
-    let first: Platform = Platform { rename: &lost, ..SYSTEM };
-    assert_eq!(reclaim(&first, &lock), Reclaimed::Busy, "the placement's answer is lost and the claim cannot be recognised");
-    assert!(claim.exists(), "the claim took effect");
-    std::fs::set_permissions(&claim, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
-    assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed, "the next attempt resolves its own abandoned claim and goes on");
-    assert_eq!(names_in(&root), vec![String::from("index")]);
-    remove(root.as_path());
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let (root, _index, lock) = index_in("claim-abandoned");
+        let claim: PathBuf = claim_at(&lock, 0);
+        let lost = |from: &Path, to: &Path| -> std::io::Result<()> {
+            rename_noreplace(from, to)?;
+            return Err(std::io::Error::from_raw_os_error(libc::EINTR));
+        };
+        let (hook_claim, done) = (claim.clone(), std::rc::Rc::new(std::cell::Cell::new(false)));
+        hooks::set("reclaim-claim-unread", std::rc::Rc::new(move || {
+            if !done.replace(true) {
+                // The claim cannot be read at this moment.
+                std::fs::set_permissions(&hook_claim, std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("the claim is unreadable");
+            }
+        }));
+        let first: Platform = Platform { rename: &lost, ..SYSTEM };
+        assert_eq!(reclaim(&first, &lock), Reclaimed::Busy, "the placement's answer is lost and the claim cannot be recognised");
+        assert!(claim.exists(), "the claim took effect");
+        std::fs::set_permissions(&claim, std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
+        assert_eq!(reclaim(&SYSTEM, &lock), Reclaimed::Removed, "the next attempt resolves its own abandoned claim and goes on");
+        assert_eq!(names_in(&root), vec![String::from("index")]);
+        remove(root.as_path());
+    });
 }
 
 /// Refused:

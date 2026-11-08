@@ -18,23 +18,25 @@ struct StopsOnce {
 impl Future for StopsOnce {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, _context: &mut Context<'_>) -> Poll<()> {
+    fn poll(mut self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<()> {
         if self.stopped {
             return Poll::Ready(());
         }
         self.stopped = true;
+        // Wakes itself so a runtime polls it again at once.
+        context.waker().wake_by_ref();
         return Poll::Pending;
     }
 }
 
-/// The name steps the state of the current landing holds.
-fn steps_now() -> u64 {
-    return with_the_landing_state(|state| state.name_steps.get());
+/// The count of unsettled locks the state of the current landing holds, the sample item of these controls.
+fn steps_now() -> usize {
+    return with_the_landing_state(|state| state.unsettled_locks.get());
 }
 
-/// Sets the name steps of the current landing.
-fn set_steps(count: u64) {
-    with_the_landing_state(|state| state.name_steps.set(count));
+/// Sets the count of unsettled locks of the current landing.
+fn set_steps(count: usize) {
+    with_the_landing_state(|state| state.unsettled_locks.set(count));
 }
 
 /// A scope inside a scope has its own state, and the outer one is as it was when the inner one ends:
@@ -76,7 +78,7 @@ fn two_tasks_interleaved_on_one_thread_keep_their_own_state() {
 /// its own state on the second thread.
 #[test]
 fn a_task_moved_to_another_thread_between_two_polls_keeps_its_state() {
-    let mut task: Pin<Box<dyn Future<Output = u64> + Send>> = Box::pin(in_a_landing_task(async {
+    let mut task: Pin<Box<dyn Future<Output = usize> + Send>> = Box::pin(in_a_landing_task(async {
         set_steps(33);
         StopsOnce { stopped: false }.await;
         return steps_now();
