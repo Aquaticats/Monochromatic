@@ -169,20 +169,30 @@ Builds get the memory and CPU bound only.
 
 `ide-release.yml`, `music-player-release.yml`, `playwright-image.yml`, `env-local-json.yml` and `pnpr-publish.yml`
 are the five workflows that start containers (the handover said two).
-- On a dedicated hosted runner the job is the only tenant, so the weight has no sibling to yield disk time to,
-  and `--memory` and `--cpus` exist to leave the runner's own processes room.
-  The weight is still applied, because the owner asked for every start, and so a runner that refuses it fails
-  in the first, cheap start and not an hour into the build.
-- The first container start of each affected job is a cheap read-only command (`rustc --version`), so it is the probe.
-  `ide-release.yml` already does this for `--pids-limit` and `--ulimit` ("so a runner that refuses one of them fails
-  here and not an hour into the build").
-- This branch cannot run a hosted runner.
-  The flags are proven on this host's `podman` 6.1.3 only; the runners ship `podman` 4.9.
-  Whether rootless `podman` 4.9 on the runner image honours `io.weight` is unproven, and a refusal would fail a release
-  job.
-  The owner decides whether to keep it; removal is one line per workflow.
-- `env-local-json.yml` starts nothing itself: its `container` job runs `task-run //package/env-local-json/core:test:container`,
-  which reaches `core-matrix`, so the matrix fix covers it.
+
+Update 2026-11-08, after the first dry runs of the two release workflows on `main`:
+- Hosted runners refuse the disk weight.
+  Run 42447009237 of `music-player-release.yml` failed in `test-alpine-x86_64` and `test-alpine-aarch64`, step "Read the
+  toolchain", with `crun: opening file 'io.weight' for writing: No such file or directory`: the `io` controller is not
+  delegated.
+  `ide-release.yml`, `music-player-release.yml` and `env-local-json.yml` now keep `--pids-limit=1024` (or the matrix
+  default) and set `CONTAINER_LIMIT_DISK_WEIGHT=off`, which `package/container-limit/core` reads to leave the weight out
+  of every container a task of that job starts.
+  The ledger test requires the switch, the reason and the run id in each of them.
+- `pnpr-publish.yml` keeps `docker run --blkio-weight=10`: the runner's root docker daemon accepted it (run 42446813126,
+  success, on the merge).
+- Run 42447007710 of `ide-release.yml` failed in "Build the base image (terminal release)" with
+  `ERR_MODULE_NOT_FOUND` for `@monochromatic-dev/container-limit-core`.
+  The job installs no dependencies, and the same script already imported `@monochromatic-dev/logger-core` by name, which
+  is the next missing package (a fresh clone of `a9a3d48d53`, before this branch, stops on it), so the job was already
+  broken by the image rebuild helper (`3d01ccd564`); this branch only changed which package is named first.
+  `task-cli-setup` has an `install-filter` input and the job installs `@monochromatic-dev/test-harness-core-matrix...`.
+- The `build-android` failure of that run is a `cargo binstall` timeout fetching `cargo-ndk` 4.1.2 from GitHub
+  (`Timeout reached while checking fetcher`), and the `notices` failure is the Slint license file checksum check of
+  `package/music-player/desktop-app/bin/third-party-notices.mjs`; neither starts a container or reads this branch's files.
+
+Earlier reasoning, kept for the record (superseded by the update above):
+- On a dedicated hosted runner the job is the only tenant, so the weight has no sibling to yield disk time to.
 - `playwright-image.yml` builds through `core-exec`'s `playwright-image-build.ts` (build bound only).
 
 ## Not edited
