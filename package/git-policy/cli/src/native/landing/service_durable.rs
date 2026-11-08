@@ -21,8 +21,8 @@
 //!  lock marker,
 //! the completion record,
 //! the done mark and the directory syncs);
-//! one background thread makes them in batches,
-//!  each batch overlapped.
+//! one background task makes them in batches (each batch one job of the runtime's blocking pool),
+//!  each sync of a batch overlapped.
 //! A landing that publishes nothing syncs what it wrote before it returns.
 //! Git's own object,
 //! reference
@@ -36,7 +36,7 @@
 //! ```ts
 //! const landing = beginDeferral({ hardensIndex });
 //! // ... flushFile(file, 'intent-file') queues; flushDir(dir, 'intent-dir') queues ...
-//! landing.settle(published); // true: hand the queue to the background thread; false: sync it now
+//! landing.settle(published); // true: hand the queue to the background task; false: sync it now
 //! ```
 
 use crate::scoped_start::{Started, start_or_run_with};
@@ -45,7 +45,10 @@ use crate::landing_state_carried_by_its_task::with_the_landing_state;
 use std::fs::File;
 use std::thread::Scope;
 use std::sync::OnceLock;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use crate::blocking_job::run_blocking_job;
+use crate::lazy_runtime::spawn_on_runtime;
+use std::sync::mpsc::{Sender, channel};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// One sync waiting for its turn:
 /// a handle on the file or directory,
@@ -59,7 +62,7 @@ pub(crate) struct Pending {
     what: &'static str,
 }
 
-/// What the background thread is asked to do.
+/// What the background task is asked to do.
 enum Job {
     /// Sync every handle of a landing,
     /// all at once.
@@ -68,11 +71,11 @@ enum Job {
     Barrier(Sender<()>),
 }
 
-/// The sender of the one background thread,
+/// The sender of the one background task,
 /// started by the first landing that publishes.
-static BACKGROUND: OnceLock<Sender<Job>> = OnceLock::new();
+static BACKGROUND: OnceLock<UnboundedSender<Job>> = OnceLock::new();
 
-/// How many syncs the background thread has made,
+/// How many syncs the background task has made,
 /// for a control that waits for them.
 pub static BACKGROUND_SYNCED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
@@ -93,7 +96,7 @@ fn sync_batch(batch: Vec<Pending>) {
 /// and says once when a sync had to be made on the calling thread.
 ///  A background sync is counted for the controls that wait for them and words its failures as the background's.
 /// Why:
-///  The background thread and the landing that must wait both sync a batch this way;
+///  The background task and the landing that must wait both sync a batch this way;
 /// only the wording and the count differ.
 ///
 /// In TS you'd write (pseudocode):
@@ -154,12 +157,20 @@ fn say_once_if_inline<T>(started: &[Started<'_, T>]) {
     }
 }
 
-/// The background thread:
-/// takes the jobs in order until the sender is gone.
-fn background(jobs: &Receiver<Job>) {
-    while let Ok(job) = jobs.recv() {
+/// The background task:
+/// takes the jobs in order until the sender is gone,
+/// each batch as one job of the blocking pool
+/// (a sync can wait on the disk,
+/// and the pool is where tokio keeps such calls off the workers that poll tasks).
+async fn background(mut jobs: UnboundedReceiver<Job>) {
+    while let Some(job) = jobs.recv().await {
         match job {
-            Job::Batch(batch) => sync_batch(batch),
+            Job::Batch(batch) => {
+                if let Err(error) = run_blocking_job(move || { sync_batch(batch); }).await {
+                    // Nobody waits for this: the records are as a power cut leaves them, which the next landing or restart handles.
+                    crate::service_warn!("the background sync of a landing's records could not run: {error}");
+                }
+            }
             Job::Barrier(done) => {
                 let _answered = done.send(());
             }
@@ -167,15 +178,15 @@ fn background(jobs: &Receiver<Job>) {
     }
 }
 
-/// The sender of the background thread,
+/// The sender of the background task,
 /// started when first asked for.
-fn sender() -> &'static Sender<Job> {
+fn sender() -> &'static UnboundedSender<Job> {
     return BACKGROUND.get_or_init(start_background);
 }
 
 /// What:
-///  Makes the channel to the background thread and starts the thread;
-/// when no thread can start,
+///  Makes the channel to the background task and starts the task on the runtime;
+/// when the runtime has no worker to run it,
 /// the syncs are made where they are asked for.
 /// Why:
 ///  `sender` runs it once,
@@ -183,18 +194,19 @@ fn sender() -> &'static Sender<Job> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function startBackground(): Sender<Job> { const { sender, jobs } = channel(); try { spawn(() => background(jobs)); } catch (e) { warn(e); } return sender; }
+/// function startBackground(): Sender<Job> { const { sender, jobs } = channel(); const task = spawn(background(jobs)); if (!task) warn('inline'); return sender; }
 /// ```
-fn start_background() -> Sender<Job> {
-    let (sender, jobs) = channel::<Job>();
-    let started = std::thread::Builder::new().name(String::from("cli-git-durable")).spawn(move || { background(&jobs); });
-    if let Err(error) = started {
-        crate::service_warn!("the thread that makes the landing's syncs could not start ({error}); they are made where they are asked for");
+fn start_background() -> UnboundedSender<Job> {
+    let (sender, jobs) = unbounded_channel::<Job>();
+    // The receiver goes into the task; when no task starts it is dropped, and every send then fails, which makes `settle` force the
+    //  queue where it is asked for.
+    if spawn_on_runtime(background(jobs)).is_none() {
+        crate::service_warn!("the runtime has no worker for the task that makes the landing's syncs; they are made where they are asked for");
     }
     return sender;
 }
 
-/// Waits until every sync handed to the background thread so far is done.
+/// Waits until every sync handed to the background task so far is done.
 ///  A control uses it to see the queue empty;
 /// the service does not wait for it on a commit's path.
 pub fn drain() {
@@ -245,7 +257,7 @@ fn force(batch: Vec<Pending>) {
 
 impl Deferral {
     /// Ends the deferral.
-    /// A landing that published a commit hands its queue to the background thread and returns at once;
+    /// A landing that published a commit hands its queue to the background task and returns at once;
     /// a
     ///  landing that published nothing (a withdrawal,
     /// an error,
@@ -258,7 +270,7 @@ impl Deferral {
         }
         if published {
             if let Err(rejected) = sender().send(Job::Batch(batch)) {
-                // The thread is gone, so the queue is made here rather than lost.
+                // The task is gone, so the queue is made here rather than lost.
                 if let Job::Batch(returned) = rejected.0 {
                     force(returned);
                 }
