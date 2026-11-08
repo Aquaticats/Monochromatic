@@ -82,12 +82,25 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   over its own `target/verification`:
   `native:test:container` and `native:mutation` of `package/git-policy/cli`,
   `smoke` and `test:planted` of `package/git-policy/cli.fuzz`,
-  `test:container` of `package/linter/monochromatic-lint` (every mutation task there depends on it),
+  `test:container` of `package/linter/monochromatic-lint`,
   `smoke` and `test:planted` of `package/linter/monochromatic-lint.fuzz`,
   and `test:container` and `test:mutation:container` of `package/forbidden-strings/cli`.
   The plan assigned D to those packages;
   the owner's answer put all six mechanisms in cargo-shadow,
   so the tasks call its retention rather than reimplementing it.
+  What that leaves uncovered,
+  each measured from the task files rather than assumed:
+  the linter's `test:markdown`,
+  `test:processors`,
+  `test:processors:slice`,
+  `test:inferred-constants` and `test:rust-style` write records without depending on `test:container`,
+  and so does `mutation:rust-style`;
+  `package/git-policy/cli`'s `native:mutation:scoped` and `native:mutation:planted` write
+  `native-mutation-*` records of their own,
+  as do the units `native:mutation:parallel` starts;
+  most of `package/forbidden-strings/cli`'s other container tasks write records too.
+  They wait for the coordinator to say whether the sweep belongs on each of them or in the shared runners,
+  because a producing task that a wired task starts must not sweep a second time.
   Why a scoped entry point and not the whole pass:
   a machine-wide dry run of the records mechanism alone measured 398 s on this host on 2026-11-08
   (359 checkouts,
@@ -97,6 +110,27 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   Not measured:
   what the scoped sweep costs on a package whose records are due,
   and what each of these tasks now takes.
+  A second finding,
+  from the main checkout's five `target/verification` directories on 2026-11-08,
+  is that the retention's name list is narrower than what the producers write.
+  `lean_run_records.rs` removes only names starting `campaign-`,
+  `native-`,
+  `git-image-`,
+  `mutation-` or `planted-`.
+  So `processors-mutation-*` and `coverage-*` in `package/linter/monochromatic-lint`,
+  and every record of `package/forbidden-strings/cli`
+  (`container-`,
+  `clippy-`,
+  `guard-`,
+  `pathname-mutation-`,
+  `startup-mutation-`,
+  `release-test-`,
+  `test-`,
+  `windows-`),
+  are never swept,
+  by the daily run or by these tasks.
+  Widening that list changes which real records are removed,
+  so it is left to the coordinator and the owner.
   A producing task that runs before the release and install stops at its first step
   with `error: unrecognized subcommand 'records'`;
   no producing task was run while making this change.
