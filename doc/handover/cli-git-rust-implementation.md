@@ -4211,7 +4211,7 @@ and each is fixed now:
   not at the stop.
   Control:
   `a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scratch_branch`
-  ends a landing at its `before-ref` fault point,
+  ends a landing at the `before-ref` test hook (`service_fault::hooks`),
   which leaves the disk state a `SIGKILL` at `after-intent` (one of `service_fault::FAULT_POINTS`) leaves,
   and checks that recovery removes the scratch ref,
   keeps the commit at `refs/cli-git/kept/1`,
