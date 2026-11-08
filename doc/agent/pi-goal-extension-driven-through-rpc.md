@@ -110,6 +110,11 @@ await send({ type: 'abort' });
 
 ## Runs
 
+The owner's example prompt `solve 3x + 1` was meant as the Collatz (3x + 1) problem.
+The first runs took it literally,
+so they tested an ambiguous objective.
+The last two runs in this list use the Collatz meaning.
+
 - Objective `solve 3x + 1`,
   reviewer `opencode-go/deepseek-v4.1-flash` as the only candidate:
   the goal ended as `review_unavailable` with the diagnostic
@@ -160,6 +165,33 @@ await send({ type: 'abort' });
   (`x = 4`,
   reviewer `synthetic/hf:openai/gpt-oss-120b`).
   No review of the first goal appeared.
+- Objective `prove the Collatz conjecture (the 3x + 1 problem)`,
+  `--tools read`,
+  cheap reviewer scope (`synthetic/hf:openai/gpt-oss-120b`):
+  the goal did not end.
+  It went through 7 `review_denied` and `continuation_issued` cycles with 8 agent runs in 40 seconds,
+  about 5 seconds per cycle,
+  and stopped only at the client's turn cap.
+  The primary said the conjecture is unproven every time,
+  and no run claimed a proof.
+  The reviewer denied every time and no run was falsely accepted.
+  Its remaining-work texts were `ask_user_question` once,
+  `ask_user_question: Explain that a proof ... is currently unknown ...` once,
+  and otherwise requests to explain that the conjecture is unproven
+  and to ask the user which alternative help they want.
+- Objective `verify the Collatz conjecture (the 3x + 1 problem) for every starting value from 1 to 1000 by running code,
+  then report which starting value takes the most steps to reach 1 and how many steps it takes`,
+  `--tools read,bash`,
+  same reviewer:
+  accepted after 3 turns in 22.1 seconds.
+  The primary wrote a script,
+  ran it,
+  and reported start 871 with 178 steps,
+  which is the known answer for starting values below 1000.
+  The reviewer's rationale cites the executed code and the reported maximum.
+  The script was written to `/tmp/collatz.py`,
+  outside the throwaway folder,
+  and was removed afterwards.
 
 ## Problems found
 
@@ -171,6 +203,11 @@ The goal went through `review_denied` and `continuation_issued` four times
 with 5 agent runs and 8 turns in about 30 seconds,
 and it stopped only because the client's turn cap fired.
 The file was not created.
+The Collatz proof objective in the list of runs showed the same loop with a genuinely open problem:
+7 cycles in 40 seconds,
+a model that correctly kept saying the problem is open,
+and a reviewer that correctly kept denying.
+At that rate an unbounded session would run about 10 reviewer calls and primary runs a minute.
 
 The source agrees that nothing in the denial path stops it.
 `package/pi-plugin/goal/src/completion-outcome.ts` lines 130 to 209 record the denial,
