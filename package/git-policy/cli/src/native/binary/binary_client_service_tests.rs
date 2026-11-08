@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 
 /// A repository with `a.txt` committed and edited in the worktree,
 /// ready for one commit.
-fn edited_repository(fixture: &Fixture) -> PathBuf {
+pub(super) fn edited_repository(fixture: &Fixture) -> PathBuf {
     let repo: PathBuf = repository(fixture, OsStr::new("repo"));
     std::fs::write(repo.join("a.txt"), b"one\n").expect("file");
     git(fixture, repo.as_path(), &["add", "--all"]);
@@ -30,7 +30,7 @@ fn edited_repository(fixture: &Fixture) -> PathBuf {
 }
 
 /// The wrapped command with the runtime directory of the service named `name`.
-fn served(fixture: &Fixture, repo: &Path, name: &str, arguments: &[&str]) -> Command {
+pub(super) fn served(fixture: &Fixture, repo: &Path, name: &str, arguments: &[&str]) -> Command {
     let mut command: Command = wrapped_commit(fixture, repo, arguments);
     command.env("XDG_RUNTIME_DIR", runtime_for(name));
     return command;
@@ -176,8 +176,8 @@ fn a_root_commit_and_a_detached_head_are_worded_as_git_words_them() {
 /// A service process that is stopped,
 /// with its runtime directory removed,
 /// when the control ends.
-struct Held {
-    child: Child,
+pub(super) struct Held {
+    pub(super) child: Child,
     runtime: PathBuf,
 }
 
@@ -192,7 +192,7 @@ impl Drop for Held {
 /// A service whose Git is the program at `git_program`,
 /// listening where the wrapper looks for it under the runtime directory
 ///  of `name`.
-fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
+pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, git_program: &Path) -> Held {
     let runtime: PathBuf = runtime_for(name);
     let socket: PathBuf = git_policy_cli::service_instance::socket_for(runtime.as_path(), git_dir);
     std::fs::create_dir_all(socket.parent().expect("parent")).expect("socket directory");
