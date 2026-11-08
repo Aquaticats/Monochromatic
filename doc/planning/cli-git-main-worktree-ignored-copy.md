@@ -213,7 +213,7 @@ nested worktrees excluded (`inner.ts` and `scan-ignored.ts`):
   completion then unlinked every staged entry.
 - An add run in a worktree that is its own subvolume cannot hard link from another subvolume,
   and pnpm's store choice
-  follows that (next section).
+  follows that (see the `pnpm and the store` section).
 
 ### pnpm and the store
 
@@ -274,7 +274,7 @@ removed afterwards):
 - The session's `PATH` points at the main checkout's `.cache/toolchain-bin` and `node_modules/.bin`,
   so executables
   resolve to main whatever the worktree holds;
-  the module resolution result above does not depend on that.
+  the module resolution result in `What a new worktree needs from the main checkout` does not depend on that.
 - pnpm's `.pnpm-workspace-state-v1.json` holds 239 absolute paths of the main checkout,
   and `.modules.yaml` one;
   a
@@ -721,7 +721,7 @@ The series was stopped after two full rounds because the `with-run-records` arm 
   after the cached parents and the larger log batch the
   install took 20 to 29 s;
   after parallel creation and parallel removal,
-  7.3 s and 2.9 s in the calmer run above.
+  7.3 s and 2.9 s in the "A single run of the final build at a calmer moment" entry.
 
 What a main-sourced add costs on this machine,
 as the coordinator asked:
@@ -791,7 +791,7 @@ The ladder branch `btrfs-worktree-ladder` (head `414bb552d1`) owns the snapshot 
 I read it and did not run it,
 so
 the
-numbers below are for the snapshot and the removals the owner asked for,
+numbers in the Snapshot route measured section are for the snapshot and the removals the owner asked for,
 not for the ladder's own steps (its tree
 update,
 index install and checkout line),
@@ -822,7 +822,9 @@ which its author measured at 2.43 s for a whole main-checkout add.
   and the nested count
   is 48
   ordinary and 91 subvolume worktrees instead of 4 and 4;
-  per-worktree figures below are multiplied for that,
+  per-worktree figures in the
+  `Measured costs (three rounds, shuffled, a same-command control, one-minute load 2.1 to 6.0)`
+  section are multiplied for that,
   and
   marked.
 
@@ -913,7 +915,7 @@ which its author measured at 2.43 s for a whole main-checkout add.
   then S2 or S1:
   removes the 0.5 s per worktree from every
   add,
-  and removes the reason the ladder declines (see below).
+  and removes the reason the ladder declines (see `The ladder`).
 - S4,
   make the cache and record directories nested subvolumes in main so a snapshot shows them as empty stubs (not
   measured):
@@ -2413,7 +2415,7 @@ take the index from the snapshot;
 add the reset,
 clean and proof steps to the target step
 in
-`worktree_ladder_target.rs` with the guards listed above;
+`worktree_ladder_target.rs` with the guards in `How the restore is proven complete`;
 pin `core.fsmonitor=false` for those Git runs.
 Two files named here are being edited by other agents at the time of writing,
 so this proposal touches neither.

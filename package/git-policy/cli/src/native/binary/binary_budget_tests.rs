@@ -34,6 +34,9 @@ use std::process::{Command, Output};
 //  A test fails on any difference, so a saving shows up as a failure that asks for the lower number.
 // Each list names every program the commit may start or sync from; a zero entry documents a start that was removed
 //  (for example `findmnt` and `hash-object`) and must not return, and makes the failure message print that name.
+// The stat-data refresh that keeps the scratch commit inside its ceiling (`commit_index_stat_staleness.rs`) asks for Git
+//  only when the real index no longer describes the worktree, and every repository here has an index Git has just
+//  written, so the `update-index` counts are the ones measured before that refresh existed.
 // Measured with host Git 2.56.0 on Linux, maintenance kept in the foreground (see `prepared_repository`), over five
 //  runs of every scenario; the counts were identical in every run.
 // Variance sources: another Git than 2.56.0 may start other children (`gc`, `repack`) in the foreground maintenance

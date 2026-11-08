@@ -157,7 +157,8 @@ settles `#139` settles it too.
 WHAT NOTHING HERE SETTLES,
 and what no measurement in this bed can settle:
 an archive whose own shape is wrong.
-The rule below ACCEPTS the archive shape wherever a candidate matches it,
+The rule under `The shape rule, settled: the page is a floor, not a ceiling` ACCEPTS the archive shape
+wherever a candidate matches it,
 which
 preserves a bad one as faithfully as a good one,
 and the owner's standard is

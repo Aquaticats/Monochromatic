@@ -23,7 +23,7 @@ Update this file whenever a milestone lands or a decision changes.
   The plan comment is the authoritative design record;
    issue body Status links to it.
 - Implementation not started yet;
-   task breakdown exists in the session task list and mirrors the checklist below.
+   task breakdown exists in the session task list and mirrors the checklist in the "Checklist" section.
 
 ## Decisions (from the design interview, all user-confirmed)
 

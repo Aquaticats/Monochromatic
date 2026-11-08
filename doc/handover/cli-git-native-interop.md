@@ -111,7 +111,8 @@ in order:
 
 Outside the repository:
 the runnable incumbent copy under `target/verification/` was removed,
-the reduced image was rebuilt (below),
+the reduced image was rebuilt (`localhost/git-policy-native-interop:interop`,
+id `924148b30506`),
 and 54 untagged container images that held `/opt/cli-git` were removed.
 One untagged image that holds it (`b9fb34691f4f`) is a parent layer of a tagged image and was kept.
 Three tagged images from other lanes still hold the incumbent:
@@ -367,7 +368,7 @@ After these fixes the native-only `killed` scenario (seed 2,
 victim at `landing-locked`) passed 200 of 200 repetitions
 (3417 checks,
 0 failed).
-Before them the same set failed 2 checks in one of 100 repetitions (the last defect above).
+Before them the same set failed 2 checks in one of 100 repetitions (the `recover_dead_transaction` vanished-report defect).
 
 ## Open findings
 
@@ -411,7 +412,7 @@ native only 200 of 200 repetitions clean;
 incumbent only 100 of 100 clean in an earlier batch.
 The failure rate of the mixed set varies with host load (19 of 60 repetitions in an earlier batch).
 Established:
-the incumbent's predicate (source above),
+the incumbent's predicate (read from `commit-transaction-recovery-scan.ts` and `commit-transaction-recovery-evidence.ts`),
 the order of events in the logs,
 and that homogeneous sets pass.
 Not established:

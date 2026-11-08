@@ -65,6 +65,27 @@ pub(crate) fn kept_ref(seq: u64) -> String {
     return format!("refs/cli-git/kept/{seq}");
 }
 
+/// What:
+///  What became of the scratch reference of a batch that will not land.
+/// Why:
+///   A caller that keeps a record of the reference (`service_scratch_ref_marker_of_a_batch.rs`) may drop that record only
+///  when the reference is gone,
+/// and a caller that announces the batch says what it left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ScratchRefRemoval = 'removed' | 'left'
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ScratchRefRemoval {
+    /// The reference is gone,
+    /// or the batch never made one.
+    Removed,
+    /// The reference is left where it is,
+    /// because the commit it holds could not be proven safe elsewhere.
+    Left,
+}
+
 /// What Git said about a reference.
 /// Why:
 ///   A reference that is not there,
@@ -167,18 +188,18 @@ fn left(seq: u64, reason: &str) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const tip = await valueOf(scratch); if (tip === 'absent' || tip === 'unasked') return; if (!await keep(tip)) return; await git(['update-ref', '-d', '--no-deref', scratch])
+/// const tip = await valueOf(scratch); if (tip === 'absent') return 'removed'; if (tip === 'unasked') return 'left'; if (!await keep(tip)) return 'left'; return await git(['update-ref', '-d', '--no-deref', scratch]) ? 'removed' : 'left'
 /// ```
-pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq: u64) {
+pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq: u64) -> ScratchRefRemoval {
     let scratch: String = scratch_ref(seq);
     let kept: String = kept_ref(seq);
     let tip: String = match value_of(git, repository, scratch.as_str()) {
         RefValue::Names(found) => found,
         // No scratch reference at all: the landing made no objects, or its branch write removed it.
-        RefValue::Absent => return,
+        RefValue::Absent => return ScratchRefRemoval::Removed,
         RefValue::Unasked => {
             left(seq, format!("{scratch} cannot be read, so nothing is removed").as_str());
-            return;
+            return ScratchRefRemoval::Left;
         }
     };
     let already: RefValue = value_of(git, repository, kept.as_str());
@@ -186,11 +207,11 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
         RefValue::Names(named) if *named == tip => {}
         RefValue::Names(named) => {
             left(seq, format!("{kept} names {named} and the scratch reference {scratch} names {tip}, so {scratch} is left as it is").as_str());
-            return;
+            return ScratchRefRemoval::Left;
         }
         RefValue::Unasked => {
             left(seq, format!("{kept} cannot be read, so the scratch reference {scratch} is left as it is").as_str());
-            return;
+            return ScratchRefRemoval::Left;
         }
         RefValue::Absent => {
             if !write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", kept.as_str(), tip.as_str()]) {
@@ -198,16 +219,17 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
                     seq,
                     format!("the commit {tip} of a batch that did not land could not be kept at {kept}, so its scratch reference {scratch} is left as it is").as_str(),
                 );
-                return;
+                return ScratchRefRemoval::Left;
             }
             crate::service_log!("batch {}: the commit {tip} of a batch that did not land is kept at {}", seq, kept);
         }
     }
     if write_ref(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()]) {
         crate::service_log!("batch {}: the scratch reference {scratch} of a batch that did not land is removed", seq);
-    } else {
-        left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
+        return ScratchRefRemoval::Removed;
     }
+    left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
+    return ScratchRefRemoval::Left;
 }
 
 /// What:
@@ -222,13 +244,15 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const first = requests[0]; if (first && !openIntent(journal, seq)) await clearAfterDroppedBatch(git, first.repository, seq)
+/// const first = requests[0]; if (!first || openIntent(journal, seq)) return 'removed'; return await clearAfterDroppedBatch(git, first.repository, seq)
 /// ```
-pub(crate) fn clear_after_a_failed_landing(context: &LandContext, requests: &[CommitRequest], seq: u64) {
-    let Some(first) = requests.first() else { return };
+pub(crate) fn clear_after_a_failed_landing(context: &LandContext, requests: &[CommitRequest], seq: u64) -> ScratchRefRemoval {
+    // No request is no import, so the batch made no reference at all.
+    let Some(first) = requests.first() else { return ScratchRefRemoval::Removed };
+    // An open intent names the batch's own worktree, and the restart that settles it removes the reference then.
     if batch_path(context.journal.as_path(), seq, OPEN_EXTENSION).exists() {
-        return;
+        return ScratchRefRemoval::Removed;
     }
     let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-    clear_after_dropped_batch(&git, first.repository.as_path(), seq);
+    return clear_after_dropped_batch(&git, first.repository.as_path(), seq);
 }

@@ -520,7 +520,7 @@ meow writes a small Rust equivalent rather than choosing one destination.
 
 #### Which terminal speaks which language
 
-Derived from the answers above,
+Derived from the answers under `User-stated design requirements`,
 not separately stated:
 
 - The `meow watch` stream is JSON,
@@ -1301,7 +1301,7 @@ and release assets.
   `toml_edit` 0.25.13 `Table::insert` resets an existing key's formatting through `entry.key_mut().fmt()`
    (`src/table.rs:429-443` in the cached crate,
    read 2026-09-16),
-   which deleted the comment above a key in the probe;
+   which deleted the comment on a key in the probe;
    arrays,
    inline-table trailing commas,
    and new top-level key placement also differ.
@@ -2669,7 +2669,10 @@ and collision reproducer under `gxhash/lab/` in the session scratchpad.
 - Ownership shape:
    dirty-room reimplementation crediting ogxd,
    not a fork:
-   a fork starts from 56 `unsafe` uses and undocumented items that rules `MXR` and `RDC` would force rewriting anyway,
+   a fork starts from 56 `unsafe` uses and undocumented items that rules `MXR` and `RDC` (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now) would force rewriting anyway,
    and upstream is idle.
 - License:
    `LGPL-3.0-or-later`,
@@ -2786,7 +2789,7 @@ and their answers to it changed two premises of the vet.
    and no `x86-64-v4` build was measured.
 
 The selection reopens with both changes;
-the measurements below stay valid evidence for it.
+the measurements in `Cache key hash vet result` stay valid evidence for it.
 The user then chose speed-first weights and made `x86-64-v4` the only release-blocking x86-64 build
 ("Hashing" and "Platforms and builds"),
 and the re-run vet finished the same day ("Cache key hash re-run vet result").

@@ -32,7 +32,7 @@ A section opens with a line matching exactly:
 
 The constrained name alphabet defines valid names;
  collision defense
-is the arrow rule below (maintainer ruling 2026-07-20,
+is the arrow rule in "Near-header fail-closed rule" (maintainer ruling 2026-07-20,
  replacing an
 earlier draft where out-of-alphabet arrow lines stayed content).
 
@@ -52,8 +52,8 @@ text alike;
 section body,
  which closes the silent-split failure mode the vet
 validated.
- Genuine content is written with the reshape convention
-below.
+ Genuine content is written with the reshape convention in "Collision mitigation (mandatory,
+from the vet)".
  A `#`-leading comment line mentioning an arrow is unaffected
 (its trimmed form starts with `#`).
 

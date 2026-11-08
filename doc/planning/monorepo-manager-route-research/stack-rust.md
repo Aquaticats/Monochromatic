@@ -210,7 +210,8 @@ They differ in file enforcement ("R7 file-enforcer interop" in each option) and 
 - `doctor`:
    the checks listed in the design doc's "Doctor" section.
 
-AGENTS.md `MXR` limits each `.rs` file to 300 code lines,
+AGENTS.md `MXR` (retired from `AGENTS.md` 2026-09-29;
+`rust/max-lines` and `MXL` now) limits each `.rs` file to 300 code lines,
 so each component is a directory of sibling modules.
 
 ### Startup sequence
@@ -725,10 +726,14 @@ so each component is a directory of sibling modules.
 
 - Rust rules:
    `MXR` 300 code lines per `.rs` file (`AGENTS.md:1012-1020`,
-  verified);
+  verified;
+  MXR retired from `AGENTS.md` 2026-09-29,
+  `rust/max-lines` and `MXL` now);
    `RDC` rustdoc on every documentable item,
    private included (`AGENTS.md:1022-1028`,
-  verified).
+  verified;
+  RDC retired from `AGENTS.md` 2026-09-29,
+  `rust/require-rustdoc` now).
 - Clippy baseline enforced by file-enforcer:
    `disallowed_methods = "deny"`,
    `implicit_return = "deny"`,
@@ -1200,7 +1205,10 @@ so they are approximate.
 - Everything in "Shared Rust core evidence",
    "R8 repository fit".
 - About 6,508 hand-written code lines move to Rust,
-   where `MXR` and `RDC` apply to every item.
+   where `MXR` and `RDC` apply to every item (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
 - Moving repository automation to Rust departs from the proposal's TypeScript default for repository automation
    (`doc/planning/load-bearing-code-languages.md:82`,
   verified).

@@ -34,6 +34,42 @@ Each record is cited so the context is one read away.
   This matters because an agent's scratch commit stopped at its ceiling under load on 2026-11-08,
   and an identical retry succeeded,
   against your "Commits should never fail."
+- Should the Claude Code guardrail be registered in `~/.claude/settings.json`?
+  A real-Git commit from the coordinator's session went through on 2026-11-08,
+  because `~/.claude/settings.json` does not name the guardrail;
+  fed directly,
+  the hook refuses it.
+  Pi agents are covered.
+  Details:
+  `doc/handover/pi-agents-blocked-from-real-git.md`.
+- Pi agents started through the driver no longer inherit a credential-named variable (`9ae27d221e`).
+  Three choices follow from it.
+  Should interactive Pi sessions get the same rule as a plugin?
+  Should mise get its own GitHub token home (`github.credential_command` or `mise token github`),
+  since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
+  Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
+  Nothing has proved it necessary.
+- The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
+  Should a systemd timer run it,
+  and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
+- `mpm-shadow` launcher records named a folder carrying the version,
+  so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
+  The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
+  The records already dangling heal on the launcher's next run,
+  which is the coordinator's pick with the veto open;
+  the alternative is an `mpm install` sweep over every worktree after the release.
+  The newest-installed launcher pick has no `doc/decision/` record yet.
+- The rule codes `MXR`,
+  `RDC`,
+  `GCW` and `WXG` are retired but not reserved.
+  Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
+  which is gitignored and is the owner's file;
+  that reservation is the last unmet line of issue 1720.
+- The umbrella list (`225a3b6318`) left open points:
+  how to split its Windows and release-gate entries,
+  whether its release-artifact gate meant a packaged-tarball gate,
+  which of its disagreeing maintenance mutation records is right,
+  and whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees.
 - The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
   which ask what each shipped limit should cite.
 - Does "never discard user data" cover the audit history?

@@ -23,6 +23,18 @@ const FIXTURE_REAL_GIT_PATH = '/usr/bin/git';
 const FIXTURE_REAL_GIT_BASENAME = 'git';
 
 /**
+ Folder holding the fixture real-Git executable,
+ the folder a search-path assignment must name to reach the real binary.
+ */
+const FIXTURE_REAL_GIT_DIRECTORY = '/usr/bin';
+
+/**
+ Folder holding no real-Git executable,
+ so a search-path assignment naming it still finds the wrapper.
+ */
+const FIXTURE_UNRELATED_DIRECTORY = '/opt/unrelated/bin';
+
+/**
  Wrapper layers in the deep-nesting fixture.
  
  Chosen above any fixed recursion bound the guard could carry,
@@ -52,7 +64,7 @@ const READ_ONLY_SUBCOMMANDS = [
 ] as const;
 
 /**
- Runs the guard on a fixture command whose real-Git executable name is injected.
+ Runs the guard on a fixture command whose real-Git executable name and folder are injected.
  
  Keeps every string fixture independent of this host's Git installation.
  
@@ -64,6 +76,7 @@ function fixtureMutates(command: string,): Promise<boolean> {
   return invokesMutatingGitThroughRealGitPath({
     command,
     realGitBasenames: [FIXTURE_REAL_GIT_BASENAME,],
+    realGitDirectories: [FIXTURE_REAL_GIT_DIRECTORY,],
   },);
 }
 
@@ -225,6 +238,248 @@ await describe({
               name: 'denies a subcommand whose effect is unknown',
               fn: async ({ expect: e, },) => {
                 e(await fixtureMutates(`${FIXTURE_REAL_GIT_PATH} frobnicate`,),).toBe(true,);
+              },
+            },),
+          ],
+        },),
+        describe({
+          name: 'mutations behind a reassigned search path',
+          children: [
+            it({
+              name: 'denies a commit after PATH prepends the real-Git folder',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`PATH=${FIXTURE_REAL_GIT_DIRECTORY}:$PATH git commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit when PATH holds only the real-Git folder',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`PATH=${FIXTURE_REAL_GIT_DIRECTORY} git commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit after PATH appends the real-Git folder',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`PATH=$PATH:${FIXTURE_REAL_GIT_DIRECTORY} git commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit after an env PATH assignment',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(`env PATH=${FIXTURE_REAL_GIT_DIRECTORY} git commit -m x`,),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit after a standalone PATH assignment statement',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`PATH=${FIXTURE_REAL_GIT_DIRECTORY}; git commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit after an exported PATH assignment',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(`export PATH=${FIXTURE_REAL_GIT_DIRECTORY}; git commit -m x`,),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a mutation behind a wrapper and a PATH assignment',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `sudo -u root PATH=${FIXTURE_REAL_GIT_DIRECTORY} git reset --hard`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside a shell started with a reassigned PATH',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `PATH=${FIXTURE_REAL_GIT_DIRECTORY} bash -c 'git commit -m x'`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+          ],
+        },),
+        describe({
+          name: 'commands a reassigned search path must not block',
+          children: [
+            it({
+              name: 'allows the wrapper when PATH is assigned its own value',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('PATH=$PATH git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper when PATH adds a folder holding no real Git',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(`PATH=${FIXTURE_UNRELATED_DIRECTORY}:$PATH git commit -m x`,),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe with the real-Git folder on PATH',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(`PATH=${FIXTURE_REAL_GIT_DIRECTORY}:$PATH git rev-parse HEAD`,),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a program that is not Git under a reassigned PATH',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`PATH=${FIXTURE_REAL_GIT_DIRECTORY} ls`,),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a commit that runs before a later PATH assignment',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`git commit -m x; PATH=${FIXTURE_REAL_GIT_DIRECTORY}`,),)
+                  .toBe(false,);
+              },
+            },),
+          ],
+        },),
+        describe({
+          name: 'split-string payloads attached to their option',
+          children: [
+            it({
+              name: 'denies a commit inside an attached split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'${FIXTURE_REAL_GIT_PATH} commit -m x'`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside an attached split-string payload after another option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(`env -u X -S'${FIXTURE_REAL_GIT_PATH} commit -m x'`,),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside a separated split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S '${FIXTURE_REAL_GIT_PATH} commit -m x'`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit whose arguments follow an attached split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'${FIXTURE_REAL_GIT_PATH}' commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit whose arguments follow a separated split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S '${FIXTURE_REAL_GIT_PATH}' commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe whose arguments follow a split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'${FIXTURE_REAL_GIT_PATH}' rev-parse HEAD`,),)
+                  .toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside an attached long split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env --split-string='${FIXTURE_REAL_GIT_PATH} commit -m x'`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe inside an attached split-string payload',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'${FIXTURE_REAL_GIT_PATH} rev-parse HEAD'`,),)
+                  .toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows an attached split-string payload that runs no Git',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -S'echo hi'`,),).toBe(false,);
+              },
+            },),
+          ],
+        },),
+        describe({
+          name: 'commands that run on a search path the wrapper is absent from',
+          children: [
+            it({
+              name: 'denies a commit run on the default search path',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('command -p git commit -m x',),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit run inside a shell started on the default search path',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`command -p bash -c 'git commit -m x'`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit run with no inherited environment',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env -i git commit -m x',),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit run with no inherited environment by long option',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env --ignore-environment git commit -m x',),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit run after PATH is unset',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env -u PATH git commit -m x',),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit run after PATH is unset by attached long option',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env --unset=PATH git commit -m x',),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe run on the default search path',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('command -p git rev-parse HEAD',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe run with no inherited environment',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env -i git rev-parse HEAD',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a commit run after a variable other than PATH is unset',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env -u HOME git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a commit run with the inherited environment',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('env git commit -m x',),).toBe(false,);
               },
             },),
           ],

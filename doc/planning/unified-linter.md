@@ -544,7 +544,10 @@ there are no directive comments.
      publish,
      install through mise,
      switch every consumer,
-     update `AGENTS.md` MXR and RDC,
+     update `AGENTS.md` MXR and RDC (MXR and RDC:
+    retired from `AGENTS.md` 2026-09-29;
+    `rust/max-lines`,
+    `rust/require-rustdoc` and `MXL` now),
      delete the five incumbent packages and their registrations
      (pnpr configuration,
      file-enforcer configuration,

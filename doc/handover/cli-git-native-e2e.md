@@ -122,7 +122,7 @@ nothing under `src/native/`):
   `test:e2e:concurrent:image` task (needs `pack:npm`);
   the native image task does not build it and fails with that
   instruction when it is missing.
-- Image built for the runs below:
+- Image built for the runs the "Rerun commands" section gives:
   `localhost/cli-git-concurrent-e2e-native:e2e`,
   id `1d843b0f655c`,
   compiled from the `src/native` of `13f60ef1b1`.

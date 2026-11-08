@@ -10,7 +10,7 @@ or does dismissing them normalise duplication and miss shared utilities that are
 Maintainer decision recorded while this investigation ran:
 `body_node_count_threshold: 13` in `slopo.conf.yaml` is hand-tuned and is the floor.
 Lowering it is rejected,
-so every option below works at 13.
+so every option works at 13.
 
 The answer has three parts.
 The per-pair dismissals mostly survive a re-read.
@@ -162,7 +162,8 @@ not exact ones,
 so they form a cluster only when the similarity is high enough,
 and a 212-member idiom surfaces as 17 clusters or fewer.
 Exact-body grouping sees only identical bodies,
-which is why the 690 and 1274 figures above undercount idiom families and overcount
+which is why the 690 and 1274 figures under `The floor is deliberate and mostly right`
+undercount idiom families and overcount
 copy-pasted one-liners.
 
 The consequence for the review is structural rather than a tuning complaint:
@@ -604,7 +605,7 @@ which produced a spurious 127-unit family across 40 packages for four unrelated 
  C731,
  C999 and C994).
 The reliable instrument is a targeted pattern per idiom,
-which is how the numbers below were produced.
+which is how the numbers in `Families behind the dismissals, measured by pattern` were produced.
 
 ## Families behind the dismissals, measured by pattern
 
