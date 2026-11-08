@@ -18,6 +18,38 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
+
+- How long a commit's signed `git commit` step may run:
+  "A:
+  limit unless editor (Recommended)":
+  when the message came with the command (`-m`,
+  `-F`,
+  `-C`),
+  a ceiling of three times the slowest measured signing time;
+  with an editor open,
+  no ceiling,
+  only the waiting notice.
+- Timing a signed commit with the owner's real signing setup:
+  "Allow the probe"
+  (throwaway commits in a throwaway repository,
+  durations printed only,
+  native `git commit` as the control).
+- An `index.lock` no process holds:
+  "Service removes it":
+  after a complete scan of every readable process finds no holder and there is no Git PID file,
+  the service removes the lock and lands the commit.
+  The limit stated with the question stands:
+  processes in other user namespaces and a native `git commit --only` in its hook phase cannot be seen.
+- What a stop of the commit service does to a commit's Git
+  (tokio plan,
+  open choice 12):
+  "C:
+  shutdown stops its Gits (Recommended)":
+  the stop handler only records the stop,
+  and the service's own shutdown signals the Git processes it is waiting on,
+  through a registry.
+
 ## Answered in the question tool, recorded 2026-11-07T21:28:26-05:00
 
 - Old agent scratch on the 860:
