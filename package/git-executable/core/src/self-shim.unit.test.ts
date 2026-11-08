@@ -1,0 +1,127 @@
+/**
+ Self-shim markers name the wrapper as this workspace produces it. @module
+ */
+
+import { existsSync, } from 'node:fs';
+import {
+  glob,
+  readFile,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+import { fileURLToPath, } from 'node:url';
+
+import {
+  describe,
+  expect,
+  it,
+} from '@monochromatic-dev/test-harness-core/ts';
+
+import { SELF_SHIM_MARKERS, } from '../dist/final/node/index.mjs';
+
+//region Workspace ownership fixtures
+
+/**
+ Repository root four directories above this test file.
+ */
+const REPOSITORY_ROOT = fileURLToPath(new URL('../../../../', import.meta.url,),);
+
+/**
+ Separator a Windows command shim writes between package path segments.
+ */
+const WINDOWS_PATH_SEPARATOR = '\\';
+
+/**
+ Separator every platform spells a package path or a repository path with.
+ */
+const PORTABLE_PATH_SEPARATOR = '/';
+
+/**
+ Scope prefix of a workspace package name,
+ which no repository path begins with.
+ */
+const PACKAGE_NAME_PREFIX = '@';
+
+/**
+ Names every package manifest under the repository's package directory declares.
+ 
+ @returns Declared names of workspace packages, dependency trees excluded.
+ 
+ @example
+ ```ts
+ await declaredPackageNames();
+ // => Set(1) { '@monochromatic-dev/git-executable-core' }
+ ```
+ */
+async function declaredPackageNames(): Promise<ReadonlySet<string>> {
+  /**
+   Workspace manifests outside dependency and build directories.
+   */
+  const manifests = await Array.fromAsync(glob('package/*/*/package.json', {
+    cwd: REPOSITORY_ROOT,
+    exclude: [
+      '**/node_modules/**',
+      '**/target/**',
+    ],
+  },),);
+  /**
+   Declared name of every manifest that has one.
+   */
+  const names = new Set<string,>();
+  for (const manifest of manifests) {
+    /**
+     Parsed manifest carrying the declared name.
+     */
+    const parsed: unknown = JSON.parse(await readFile(
+      join(REPOSITORY_ROOT, manifest,),
+      'utf8',
+    ),);
+    if ((typeof parsed) !== 'object' || parsed === null || !('name' in parsed))
+      continue;
+    /**
+     Declared name of the current manifest.
+     */
+    const { name, } = parsed;
+    if ((typeof name) === 'string')
+      names.add(name,);
+  }
+  return names;
+}
+
+//endregion Workspace ownership fixtures
+
+await describe({
+  name: 'self shim markers',
+  children: [
+    it({
+      name: 'name a package this workspace declares or a file it produces',
+      fn: async function markersNameWorkspaceOutput(): Promise<void> {
+        /**
+         Names the workspace package manifests declare.
+         */
+        const declaredNames = await declaredPackageNames();
+        /**
+         Markers searched for in script candidates.
+         */
+        const markers = [...SELF_SHIM_MARKERS,];
+        // A marker set with no member would make every check below pass without reading anything.
+        expect(markers.length,).toBeGreaterThan(0,);
+        /**
+         Markers naming nothing this workspace declares or produces.
+         Marker spelling is portable before the workspace is asked about it,
+         so a Windows command shim's marker is judged by the package it names.
+         */
+        const unownedMarkers = markers.filter(function namesNothingThisWorkspaceHas(marker,) {
+          /**
+           Marker with platform separators folded to the portable spelling.
+           */
+          const portableMarker = marker.replaceAll(WINDOWS_PATH_SEPARATOR, PORTABLE_PATH_SEPARATOR,);
+          if (portableMarker.startsWith(PACKAGE_NAME_PREFIX,))
+            return !declaredNames.has(portableMarker,);
+          return !existsSync(join(REPOSITORY_ROOT, portableMarker,),);
+        },);
+
+        expect(unownedMarkers,).toEqual([],);
+      },
+    },),
+  ],
+},);

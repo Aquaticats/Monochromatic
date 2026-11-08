@@ -159,8 +159,16 @@ const WINDOWS_GIT_POLICY_CLI_BUNDLED_ENTRY = String.raw`package\git-policy\cli\d
 
 /**
  Text markers that identify scripts delegating to Git policy wrapper.
+ A marker names the wrapper as this workspace produces it,
+ so a marker that spells removed output is dead detection.
+ 
+ @example
+ ```ts
+ [...SELF_SHIM_MARKERS];
+ // => ['@monochromatic-dev/git-policy-cli', ...]
+ ```
  */
-const SELF_SHIM_MARKERS: ReadonlySet<string> = new Set([
+export const SELF_SHIM_MARKERS: ReadonlySet<string> = new Set([
   GIT_POLICY_CLI_PACKAGE_NAME,
   GIT_POLICY_CLI_BUNDLED_ENTRY,
   WINDOWS_GIT_POLICY_CLI_PACKAGE_PATH,
