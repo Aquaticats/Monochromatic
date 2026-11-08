@@ -420,6 +420,398 @@ await describe({
           ],
         },),
         describe({
+          name: 'mutations behind a program that starts another program',
+          children: [
+            it({
+              name: 'denies a commit behind the systemd-run scope options',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --user --scope -- ${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a systemd-run option with a value',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --user --scope -p MemoryMax=8G -- ${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind an attached systemd-run option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --unit=build --user ${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a separated systemd-run option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --unit build --user ${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a systemd-run started by timeout',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `timeout 600 systemd-run --user --scope -- ${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper through the systemd-run scope options',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('systemd-run --user --scope -- git commit -m x',),)
+                  .toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe through systemd-run',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --user --scope -- ${FIXTURE_REAL_GIT_PATH} rev-parse HEAD`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a lock file',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`flock /tmp/repo.lock ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a lock option with a value',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `flock -w 5 /tmp/repo.lock ${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside the command string flock runs',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`flock -c '${FIXTURE_REAL_GIT_PATH} commit -m x' /tmp/repo.lock`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind a lock file',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('flock /tmp/repo.lock git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside the command string watch runs',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`watch '${FIXTURE_REAL_GIT_PATH} commit -m x'`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit watch runs after an interval option',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`watch -n 2 '${FIXTURE_REAL_GIT_PATH} commit -m x'`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe watch runs',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`watch '${FIXTURE_REAL_GIT_PATH} rev-parse HEAD'`,),)
+                  .toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside an eval argument',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`eval '${FIXTURE_REAL_GIT_PATH} commit -m x'`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit spelled as several eval arguments',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`eval ${FIXTURE_REAL_GIT_PATH} commit -m x`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper inside an eval argument',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`eval 'git commit -m x'`,),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe inside an eval argument',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`eval '${FIXTURE_REAL_GIT_PATH} rev-parse HEAD'`,),)
+                  .toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a find command option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    String.raw`find . -name '*.ts' -exec ${FIXTURE_REAL_GIT_PATH} commit -m x {} \;`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind a find directory command option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `find . -type f -execdir ${FIXTURE_REAL_GIT_PATH} add {} +`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind the second find command option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    String.raw`find . -exec echo {} \; -exec ${FIXTURE_REAL_GIT_PATH} push \;`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind a find command option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    String.raw`find . -name '*.ts' -exec git commit -m x {} \;`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe behind a find command option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    String.raw`find . -exec ${FIXTURE_REAL_GIT_PATH} rev-parse HEAD {} \;`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a find expression that runs no program',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`find . -name '*.ts' -print`,),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside a shell busybox starts',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`busybox sh -c '${FIXTURE_REAL_GIT_PATH} commit -m x'`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper inside a shell busybox starts',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`busybox sh -c 'git commit -m x'`,),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a busybox applet that runs no Git',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('busybox ls -la',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit spelled as a path on another host',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`ssh build-host ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper named on another host',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('ssh build-host git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a commit on another host after a local search-path assignment',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `PATH=${FIXTURE_REAL_GIT_DIRECTORY}:$PATH ssh build-host git commit -m x`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit after a cpu list',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`taskset -c 0-3 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit after a bare affinity mask',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`taskset 0x3 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper after a cpu list',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('taskset -c 0-3 git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit after a scheduling priority',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`chrt -f 50 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper after a scheduling priority',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('chrt -f 50 git commit -m x',),).toBe(false,);
+              },
+            },),
+          ],
+        },),
+        describe({
+          name: 'wrapper forms the table already carries',
+          children: [
+            it({
+              name: 'denies a commit behind xargs',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`xargs -n 1 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind xargs',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('xargs -n 1 git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind timeout',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`timeout 600 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind timeout',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('timeout 600 git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind nice',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`nice -n 5 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind nice',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('nice -n 5 git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind ionice',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`ionice -c 2 -n 7 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind ionice',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('ionice -c 2 -n 7 git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind stdbuf',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`stdbuf -o 0 ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind stdbuf',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('stdbuf -o 0 git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind nohup',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`nohup ${FIXTURE_REAL_GIT_PATH} commit -m x`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind nohup',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('nohup git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind setsid',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`setsid --wait ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind setsid',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('setsid --wait git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind the time keyword',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`time -p ${FIXTURE_REAL_GIT_PATH} commit -m x`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows the wrapper behind the time keyword',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates('time -p git commit -m x',),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind an env argv0 option',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`env -a git ${FIXTURE_REAL_GIT_PATH} commit -m x`,),)
+                  .toBe(true,);
+              },
+            },),
+          ],
+        },),
+        describe({
           name: 'commands that run on a search path the wrapper is absent from',
           children: [
             it({
