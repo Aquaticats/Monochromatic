@@ -192,6 +192,31 @@ saying nothing keeps it.
   Cheaper forms (skip the check for read-only commands,
   or trust a cached answer across commands) would let a dangling link go unnoticed,
   so the full check stays.
+- Tokio step T10
+  (the commit service's connections,
+  claim renewal and syncs become tasks;
+  gate 5313 of 5314,
+  not merged yet)
+  raised one idle service from 4 threads to 27,
+  because the runtime starts one worker per CPU.
+  Many services run at once,
+  so the coordinator picked a cap on workers,
+  measured at 2,
+  4 and 8,
+  taking the smallest within the measurement spread and never below 2
+  (your ruling "Full on tokio.
+  Multi-thread.").
+- T10 also made the service-memory fault test find no limit at which the service starts but a commit cannot land
+  (the service now reserves room for a commit before it starts).
+  The agent recommended accepting that,
+  which would leave the test testing nothing;
+  the coordinator picked instead lowering the running service's address-space limit after it starts,
+  so the test still reaches exhaustion in the middle of a landing and checks that the repository recovers.
+- The claim-renewal stop still waits without a limit
+  (as before T10),
+  against your rule that nothing waits forever;
+  the coordinator picked a measured ceiling,
+  with the claim expiring by its lease if that ceiling passes.
 - An equivalent mutant that no test can kill
   (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
   a function that already returns 0)
