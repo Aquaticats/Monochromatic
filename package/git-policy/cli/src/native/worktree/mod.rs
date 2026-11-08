@@ -115,6 +115,12 @@ pub mod worktree_snapshot_source;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot;
 
+/// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
+/// found below the folders that
+///  hold worktrees and removed as empty directories.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_placeholders;
+
 /// The binding of a `git worktree add` to the directories Git made for it,
 /// its record,
 /// and the check that the binding holds.
