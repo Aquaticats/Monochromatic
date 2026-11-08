@@ -937,6 +937,10 @@ pub mod lean_lock_probe;
 /// The scan of `/proc` for processes using a path.
 pub mod lean_proc_scan;
 
+/// The tests of the process scan and of what it cannot read.
+#[cfg(test)]
+mod lean_proc_scan_tests;
+
 /// The one way the lean-folder tools remove an entry.
 pub mod lean_removal;
 
