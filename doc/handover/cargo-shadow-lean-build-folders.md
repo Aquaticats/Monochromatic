@@ -24,6 +24,14 @@ All of this is in the sources only.
 Until cargo-shadow is released and installed,
 a producing task stops at its first step,
 because the installed 0.1.5-alpha.7 lists only `lean run` and `lean timer-install`.
+Updated 2026-11-08T18:18:16-05:00:
+the name list of mechanism D now names every program of this repository that writes a record,
+the retention is wired on the seventeen sibling producers that write records of their own,
+and the process scan classifies what it cannot read instead of calling it another user's.
+The installed 0.1.5-alpha.8 has `lean records`,
+so the wiring works today;
+the widened name list is in the sources only and needs a release and `mise run toolchain:install`
+before the tasks sweep the names it adds.
 
 ## State
 
@@ -75,32 +83,43 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   wired on 2026-11-08 in the five producing packages,
   and not yet released.
   The retention still runs from `cargo-shadow lean run` over every checkout,
-  and now also from `cargo-shadow lean records <directory>...` over the directories one producing task names
+  and also from `cargo-shadow lean records <directory>...` over the directories one producing task names
   (`package/cargo-shadow/cli/src/lean_command.rs`,
   section "Keeping the build folders lean" of the crate README).
   Each of these tasks runs that first,
   over its own `target/verification`:
+  the original eight:
   `native:test:container` and `native:mutation` of `package/git-policy/cli`,
   `smoke` and `test:planted` of `package/git-policy/cli.fuzz`,
   `test:container` of `package/linter/monochromatic-lint`,
   `smoke` and `test:planted` of `package/linter/monochromatic-lint.fuzz`,
-  and `test:container` and `test:mutation:container` of `package/forbidden-strings/cli`.
+  and `test:container` and `test:mutation:container` of `package/forbidden-strings/cli`;
+  and the seventeen added on 2026-11-08T18:18:16-05:00:
+  `test:git-image`,
+  `native:mutation:scoped` and `native:mutation:planted` of `package/git-policy/cli`,
+  `build` of both fuzz packages,
+  `mutation:rust-style`,
+  `mutation:processors` and `mutation:coverage` of `package/linter/monochromatic-lint`,
+  `lint:clippy:container`,
+  `test:release:container`,
+  `test:guards:container`,
+  `test:guards:observe:container`,
+  `test:mutation:startup:container` and `test:mutation:pathname:container` of `package/forbidden-strings/cli`,
+  `lint:clippy:container` and `smoke:embedding:container` of `package/forbidden-strings/cli.fuzz`,
+  and `test:mutation` of `package/forbidden-strings/core`.
+  The last package is not in the plan's list of producing packages and writes `mutation-*` records anyway.
+  What a task a wired task starts must not do is sweep a second time,
+  and none of the seventeen is started by a wired task:
+  `native:mutation:parallel` starts units of `native:mutation:scoped` and `native:mutation:planted` and writes no record itself,
+  so it is not wired and each unit sweeps once;
+  the twenty `mutation:*` tasks of the linter and the scanner that depend on a wired `test:container` are not wired either.
+  `package/cargo-shadow/cli/src/lean_records_wiring_tests.rs` holds the ledger of the sixteen programs that write records,
+  with each script and prefix read from the program,
+  and fails from a task file alone when a producing task stops sweeping;
+  `--list` runs are recorded as writing nothing.
   The plan assigned D to those packages;
   the owner's answer put all six mechanisms in cargo-shadow,
   so the tasks call its retention rather than reimplementing it.
-  What that leaves uncovered,
-  each measured from the task files rather than assumed:
-  the linter's `test:markdown`,
-  `test:processors`,
-  `test:processors:slice`,
-  `test:inferred-constants` and `test:rust-style` write records without depending on `test:container`,
-  and so does `mutation:rust-style`;
-  `package/git-policy/cli`'s `native:mutation:scoped` and `native:mutation:planted` write
-  `native-mutation-*` records of their own,
-  as do the units `native:mutation:parallel` starts;
-  most of `package/forbidden-strings/cli`'s other container tasks write records too.
-  They wait for the coordinator to say whether the sweep belongs on each of them or in the shared runners,
-  because a producing task that a wired task starts must not sweep a second time.
   Why a scoped entry point and not the whole pass:
   a machine-wide dry run of the records mechanism alone measured 398 s on this host on 2026-11-08
   (359 checkouts,
@@ -110,30 +129,36 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   Not measured:
   what the scoped sweep costs on a package whose records are due,
   and what each of these tasks now takes.
-  A second finding,
-  from the main checkout's five `target/verification` directories on 2026-11-08,
-  is that the retention's name list is narrower than what the producers write.
-  `lean_run_records.rs` removes only names starting `campaign-`,
-  `native-`,
-  `git-image-`,
-  `mutation-` or `planted-`.
-  So `processors-mutation-*` and `coverage-*` in `package/linter/monochromatic-lint`,
-  and every record of `package/forbidden-strings/cli`
-  (`container-`,
-  `clippy-`,
-  `guard-`,
-  `pathname-mutation-`,
-  `startup-mutation-`,
-  `release-test-`,
-  `test-`,
-  `windows-`),
-  are never swept,
-  by the daily run or by these tasks.
-  Widening that list changes which real records are removed,
-  so it is left to the coordinator and the owner.
-  A producing task that runs before the release and install stops at its first step
-  with `error: unrecognized subcommand 'records'`;
-  no producing task was run while making this change.
+  The name list is no longer narrower than the producers:
+  `RECORD_PREFIXES` in `lean_run_records.rs` carries nineteen prefixes,
+  each beside the program that writes it,
+  and `every_name_a_producer_in_this_repository_writes_is_a_run_record` fails when a name a program writes is missing.
+  Two prefixes of the nineteen are written by no current program:
+  `container-` (five records of 2026-10-04) and `windows-` (three of 2026-10-05),
+  which the scanner's snapshot producer wrote before it took a name per run,
+  so they go with the rest.
+  What is still never swept,
+  measured 2026-11-08 in `package/linter/monochromatic-lint/target/verification`
+  (33 entries and 32 MiB):
+  eighteen logs a person or an agent redirected there by hand
+  (`gate-*`,
+  `hand-mutations-*`,
+  `stack-repro-*`,
+  `workspace-*`;
+  520 KiB together),
+  one record a hand renamed `processor-survivors-mutation-w00nRd` (17.9 MB),
+  a cache directory `nextest-cache` (9.8 MB),
+  and the two rendered files (`processors-handover.html`,
+  `processors-manifest.json`).
+  No program here writes those names,
+  so no list can recognise them;
+  the README says so beside the list,
+  and the record a hand renamed is the coordinator's call,
+  not the retention's.
+  The wiring works against the installed 0.1.5-alpha.8,
+  which has `lean records`;
+  the widened name list needs a release and `mise run toolchain:install` before it sweeps anything.
+  No producing task was run while making this change.
 - A for container builds:
   `package/ide/app/mise.toml` and `package/nested-wayland-session/cli/mise.toml` do not set the keyed folder.
   Their in-tree builds are kept lean by B and E only.
@@ -162,6 +187,46 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   and no build state at all in the case measured.
   The measurement left that 2 KiB hash folder in the real build base;
   nothing was built into it and nothing else was touched.
+  Re-measured read-only 2026-11-08T18:18:16-05:00,
+  and it is still there:
+  `/var/mnt/encrypted/cargo-build/fb/b51766dd97b6cf` is 1,994 bytes apparent (8 KiB of blocks) and holds
+  `CACHEDIR.TAG` (177 bytes),
+  `debug/.cargo-build-lock` (0 bytes) and `.rustc_info.json` (1,817 bytes,
+  naming `/var/home/user/.rustup/toolchains/nightly-2026-11-08-x86_64-unknown-linux-gnu`),
+  with no fingerprint,
+  no dep-info and no compiled file,
+  so no build reached a unit.
+  The directory,
+  its tag and its lock are stamped 2026-11-08T15:56:02 and `.rustc_info.json` 2026-11-08T16:06:46,
+  so more than one cargo invocation used it.
+  It is one of a series:
+  eight folders of the same three entries and 1,953 to 1,995 bytes were made between 15:53:21 and 16:23:19 that day
+  (`85/524c90af92bb3d`,
+  `85/726a528cfb25ad`,
+  `c0/7b9d5f99c8eb7a`,
+  `e9/09a5f691e5af1d`,
+  `e9/6a8972d5d8e733`,
+  `20/a8ca6a487f0070`,
+  `64/0be5ee5f2ae620`,
+  `64/d0b0a2854e1dde`),
+  and one real build of 1.3 GB beside them (`93/347f88e48dce9e`).
+  The command this bullet names is not its maker:
+  measured 2026-11-08T18:18:16-05:00 in a disposable `CARGO_HOME` whose `config.toml` carries the same
+  `build-dir = <base>/{workspace-path-hash}`,
+  `cargo metadata --no-deps --locked --offline` creates no build folder at all
+  (it reports the path),
+  and neither metadata with dependencies,
+  `cargo check` nor `cargo tree` reach the layout (they stop at resolution).
+  A `debug/.cargo-build-lock` says a command took that profile directory's build lock,
+  which metadata never does,
+  so the maker was another real-cargo invocation of the same toolchain,
+  and which one is not established.
+  The workspace it belongs to is not established either:
+  the folder holds no dep-info or fingerprint,
+  and the hash is not invertible;
+  matching it again would need that workspace's exact path.
+  Nothing was created or removed under `/var/mnt/encrypted/cargo-build` while measuring this,
+  and the folder was not deleted.
   A change would need the repair to ask for the keyed folder,
   which means the Git wrapper carrying cargo-shadow's keying rule;
   that crosses the boundary that keeps the rule in cargo-shadow,
@@ -236,18 +301,74 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   what a new add uses is 0.6.1-alpha.4.
 - The proof of "not in use" has a stated limit,
   and the scoped sweep inherits it unchanged.
-  `scan_processes` counts a process whose `/proc/<pid>/cwd` cannot be read as unreadable and does not inspect it
+  `scan_processes` cannot read the entries of every process,
+  and `blocks` consults only the uses it found
   (`package/cargo-shadow/cli/src/lean_proc_scan.rs`),
-  and `blocks` consults only the uses it found,
-  so a record a process of another user holds can be removed.
-  The sweep of one package's directory printed this line on 2026-11-08:
-  426 processes read,
+  so a record such a process holds can be removed.
+  Until 2026-11-08T18:18:16-05:00 every one of those was counted as "unreadable (other users)",
+  which was wrong twice:
+  the sweep of one package's directory printed
+  "426 processes read,
   681 unreadable (other users),
   58 in other mount namespaces judged by identity,
-  0 uses under the root.
-  The removal messages name that line as the proof,
-  so a reader can see the uncertainty;
-  whether a record held by another user's process may go is the owner's call.
+  0 uses under the root",
+  and most of those were kernel threads.
+  The scan now reads `/proc/<pid>/status`,
+  which every process shows,
+  and the removal's proof line names three parts:
+  kernel threads (`Kthread: 1`) and ended processes (`State: Z`),
+  which hold no file;
+  the uninspectable processes of another user that `other_uids_can_reach` shows the path lets in;
+  and the uninspectable ones of this user or of root,
+  whose descriptors the kernel hides from a plain user.
+  Measured on this host 2026-11-08T17:59:37-05:00 over 1028 processes:
+  372 read,
+  656 whose working directory could not be read,
+  of which 608 kernel threads,
+  2 ended,
+  11 processes of this user whose own programs made them undumpable (`systemd --user`,
+  `kwin_wayland`,
+  `ssh-agent`,
+  `sudo`,
+  `fusermount`,
+  `polkit-kde-auth`,
+  `sd-pam`),
+  35 user-space processes of root,
+  and 12 processes of other uids (avahi,
+  dbus,
+  systemd-oomd and other daemons).
+  At 18:10 the same count read 385 read,
+  608 kernel threads,
+  2 ended,
+  76 uninspectable (65 of this user or of root,
+  11 of another uid),
+  so the figures move with the machine.
+  A real sweep of a disposable directory printed,
+  on the same build:
+  "366 processes read,
+  630 kernel threads and ended processes (which hold no file),
+  74 uninspectable (0 of another user reaching a root,
+  74 of this user or of root that no plain user may look into),
+  59 in other mount namespaces judged by identity,
+  0 uses under the roots".
+  What is closed:
+  a kernel thread and an ended process were counted as possible holders and are not.
+  What is not,
+  and cannot be by this tool:
+  a live process the kernel hides still could hold the record.
+  Closing that needs `CAP_SYS_PTRACE` or root,
+  which cargo-shadow never takes.
+  The nearest thing available,
+  refusing every removal while an uninspectable process of another user could reach the entry,
+  was measured and not taken:
+  the host build base sits on a `0777` mount with a `uid 70` daemon always running,
+  so it would stop the sweep of every tree there
+  (a first attempt did stop the idle-tree tests,
+  whose fixtures live in that base,
+  blocked by pid 3032).
+  That reachability fact is still measured and named in the proof line,
+  so whether a record held by another user's process may go stays the owner's call,
+  now with the count and the kind of each process beside it.
 - The timer:
   `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` to
   `~/.config/systemd/user` and enables the timer.

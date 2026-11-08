@@ -1267,7 +1267,8 @@ recorded in the log line of every removal:
   and refusing every removal while another user's system daemon exists would stop the sweep wherever the build base is
   world-searchable (the host base here is on a `0777` mount with a `uid 70` daemon running,
   measured 2026-11-08).
-  The limit is therefore narrowed and named, not closed:
+  The limit is therefore narrowed and named,
+  not closed:
   the proof line says how many processes it could not judge and which kind,
   and closing the rest needs `CAP_SYS_PTRACE` or root,
   which this tool never takes.

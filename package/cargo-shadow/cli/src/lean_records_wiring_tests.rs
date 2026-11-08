@@ -6,7 +6,8 @@
 //! The retention lives in cargo-shadow (`doc/handover/cargo-shadow-lean-build-folders.md`),
 //! and nothing makes a producing task call it;
 //! a task that stops calling it leaves records that nothing removes.
-//! The ledger below is every such program, read from the programs themselves;
+//! The ledger below is every such program,
+//! read from the programs themselves;
 //! a program that starts writing records fails the last test until it is listed here.
 
 /// Files,
@@ -164,7 +165,8 @@ fn producers_of(package: &str) -> Vec<&'static Producer> {
 /// Why:
 /// The sweep has to come before the first of them,
 /// and a task can start more than one producer.
-/// `--list` only prints a listing and writes nothing, so a run with it is not a producing one.
+/// `--list` only prints a listing and writes nothing,
+/// so a run with it is not a producing one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

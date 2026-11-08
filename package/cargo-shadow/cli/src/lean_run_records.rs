@@ -46,37 +46,42 @@ use crate::lean_sizes::add_tree_bytes;
 /// so a producer missing here leaves its records for good;
 /// and an entry whose name matches one by accident would lose data,
 /// so every entry is a name a program really writes.
-/// The names are read from the programs, not invented:
+/// The names are read from the programs and not invented:
 /// a producer that takes a new name adds it here in the same change.
 ///
 /// - `campaign-`:
-///   `package/git-policy/cli.fuzz/bin/container.ts` and `package/linter/monochromatic-lint.fuzz/bin/container.ts`.
-/// - `clippy-`, `release-test-`, `test-`:
+///   `package/git-policy/cli.fuzz/bin/container.ts`
+///   and `package/linter/monochromatic-lint.fuzz/bin/container.ts`.
+/// - `clippy-` and `release-test-` and `test-`:
 ///   `package/forbidden-strings/cli/bin/test-container.ts` (`nameOf`).
 /// - `container-`:
-///   `package/forbidden-strings/cli/bin/container-snapshot.ts` before it took a name per run;
+///   `package/forbidden-strings/cli/bin/container-snapshot.ts`
+///   before it took a name per run;
 ///   the records of 2026-10-04 are still on disk.
 /// - `coverage-`:
 ///   `package/mutation-test/cli-cargo-mutants/src/scope-tools.ts`.
-/// - `embedding-fuzz-`, `fuzz-clippy-`:
+/// - `embedding-fuzz-` and `fuzz-clippy-`:
 ///   `package/forbidden-strings/cli.fuzz/bin/smoke-container.ts`.
 /// - `git-image-`:
 ///   `package/git-policy/cli/bin/build-git-test-image.ts`.
-/// - `guard-protected-`, `guard-without-`:
-///   `package/forbidden-strings/cli/bin/guard-container.ts`;
-///   `guard-observer-`:
+/// - `guard-observer-`:
 ///   `package/forbidden-strings/cli/bin/observe-guards-container.ts`.
+/// - `guard-protected-` and `guard-without-`:
+///   `package/forbidden-strings/cli/bin/guard-container.ts`.
 ///   The fixed names of `package/forbidden-strings/cli/bin/verify-evidence.ts`
-///   (`guard-source-comparison`, `guard-input-comparisons.json`) are rewritten in place, not kept per run,
+///   (`guard-source-comparison` and `guard-input-comparisons.json`)
+///   are rewritten in place and not kept per run,
 ///   and no prefix here matches them.
 /// - `mutation-`:
-///   `package/linter/monochromatic-lint/bin/mutate-container.ts`,
-///   `package/forbidden-strings/core/bin/mutate-container.ts` and
-///   `package/mutation-test/cli-cargo-mutants/src/campaign-attempt.ts`.
+///   `package/linter/monochromatic-lint/bin/mutate-container.ts`
+///   and `package/forbidden-strings/core/bin/mutate-container.ts`
+///   and `package/mutation-test/cli-cargo-mutants/src/campaign-attempt.ts`.
 /// - `native-` (which also covers `native-mutation-`):
-///   `package/git-policy/cli/bin/test-native-container.ts` and the gate prefix of `bin/native-gate-proof.ts`.
-/// - `pathname-mutation-` (which also covers `pathname-mutation-list-`), `startup-mutation-`:
+///   `package/git-policy/cli/bin/test-native-container.ts`
+///   and the gate prefix of `package/git-policy/cli/bin/native-gate-proof.ts`.
+/// - `pathname-mutation-` and `startup-mutation-`:
 ///   `package/forbidden-strings/cli/bin/mutate-container.ts`.
+///   `pathname-mutation-` also covers the `pathname-mutation-list-` names of its `--list` runs.
 /// - `planted-`:
 ///   the `planted-controls.ts` of both fuzz packages.
 /// - `processors-mutation-`:
@@ -84,8 +89,6 @@ use crate::lean_sizes::add_tree_bytes;
 /// - `windows-`:
 ///   the scanner's Windows snapshots before the same producer took its names per run;
 ///   the records of 2026-10-05 are still on disk.
-/// - `native-mutation-` is written by `bin/mutate-native-container.ts` and `bin/native-planted-controls-only.ts`
-///   and is already covered by `native-`.
 pub const RECORD_PREFIXES: [&str; 19] = [
     "campaign-",
     "clippy-",

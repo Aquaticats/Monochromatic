@@ -232,6 +232,24 @@ fn holds_no_file(status: &str) -> bool {
 }
 
 /// What:
+/// `fn real_uid_of(field: &str) -> Option<u32>` is the real uid of a `/proc/<pid>/status` `Uid:` field,
+/// which lists the real,
+/// the effective,
+/// the saved and the file-system uid in that order.
+/// Why:
+/// The real uid says as whom the process started,
+/// which is the owner whose access decides whether it could reach a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const realUidOf = (field: string): number | undefined => { const first = field.split(/\s+/u)[0]; return first === undefined ? undefined : Number(first); };
+/// ```
+fn real_uid_of(field: &str) -> Option<u32> {
+    let first: &str = field.split_whitespace().next()?;
+    return first.parse::<u32>().ok();
+}
+
+/// What:
 /// `pub fn other_uids_can_reach(root: &Path) -> bool` says whether a process of another user could open something under `root`.
 /// Why:
 /// The kernel hides another user's descriptors,
@@ -268,7 +286,7 @@ pub fn other_uids_can_reach(root: &Path) -> bool {
 /// None of them blocks a removal:
 /// the kernel shows a plain user neither their descriptors nor their mappings,
 /// and refusing every removal because another user's daemon exists would stop the sweep where the build base is
-/// world-searchable (measured 2026-11-08, `doc/handover/cargo-shadow-lean-build-folders.md`).
+/// world-searchable (measured 2026-11-08 in `doc/handover/cargo-shadow-lean-build-folders.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -285,7 +303,7 @@ fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roo
         return;
     }
     report.unreadable += 1;
-    let Some(uid) = status_field(&status, "Uid").and_then(|value| { return value.split_whitespace().next(); }).and_then(|value| { return value.parse::<u32>().ok(); }) else {
+    let Some(uid) = status_field(&status, "Uid").and_then(real_uid_of) else {
         return;
     };
     // This user's own process can reach its own files whenever the owner bits allow it, and root reaches everything;
