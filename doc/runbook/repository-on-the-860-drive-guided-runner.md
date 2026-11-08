@@ -568,6 +568,18 @@ each with a failing test first:
   so the first commit in a checkout stopped at the wrapper's 3-second scratch ceiling until a `git status` had run there
   (`doc/handover/cli-git-rust-implementation.md`,
   section "A commit stopped at the scratch ceiling on every retry after the 860 move").
+- A stage after the swap that relinks each checkout's `node_modules`.
+  Their relative links reach the pnpm store through `..` from the checkout's physical path,
+  so after the move they resolve under `/var/mnt/encrypted/repository/.local/...` and point nowhere:
+  the main checkout held 19,
+  and it broke `pi`.
+  `mise exec -- pnpm install --offline --frozen-lockfile` in the main checkout took 7.6 s and left none.
+  Of 12 checkouts sampled,
+  the main one and 2 worktrees had dangling links,
+  and 5 had no `node_modules`.
+  `c25-pnpm-links` checks only a fresh worktree,
+  so it cannot catch this.
+  The other existing checkouts are not relinked yet.
 
 Delete `resume-final-pass.ts`,
 `finish-c17-record.ts`,
