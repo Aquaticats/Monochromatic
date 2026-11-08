@@ -164,6 +164,63 @@ await describe({
     },),
 
     it({
+      name: 'a verify that answers after startup ended still receives the records held for it',
+      fn: async () => {
+        /**
+         Script whose first verification never answers and whose second one
+         resolves true, standing in for a probe a busy host delayed.
+         */
+        const script: SinkScript = {
+          ...GOOD,
+          verify: {
+            head: ['never',],
+            tail: 'resolve-true',
+          },
+        };
+        const state = foldTrace({
+          scripts: [script,],
+          cap: CAP,
+          events: [
+            { kind: 'log', record: record('held',), },
+            { kind: 'verify-settled', sink: 0, outcome: 'never', },
+            { kind: 'init-complete', },
+            { kind: 'log', record: record('held too',), },
+            { kind: 'verify-settled', sink: 0, outcome: 'resolve-true', },
+          ],
+        },);
+        expect(state.sinks[0]?.available,)
+          .toBe(true,);
+        expect(texts(state.sinks[0]?.attempts ?? [],),)
+          .toEqual([
+            'held',
+            'held too',
+          ],);
+        // One deadline breadcrumb, no failure breadcrumb.
+        expect(state.breadcrumbs,)
+          .toBe(1,);
+      },
+    },),
+
+    it({
+      name: 'a sink answering false takes the records held for it without a report',
+      fn: async () => {
+        const state = foldTrace({
+          scripts: [BROKEN,],
+          cap: CAP,
+          events: [
+            { kind: 'log', record: record('held',), },
+            { kind: 'verify-settled', sink: 0, outcome: 'resolve-false', },
+            { kind: 'init-complete', },
+          ],
+        },);
+        expect(state.sinks[0]?.attempts,)
+          .toHaveLength(0,);
+        expect(state.breadcrumbs,)
+          .toBe(0,);
+      },
+    },),
+
+    it({
       name: 'write outcomes are read by call index: a rejecting first write costs a breadcrumb',
       fn: async () => {
         const state = foldTrace({

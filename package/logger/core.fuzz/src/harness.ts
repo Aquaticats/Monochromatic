@@ -350,10 +350,12 @@ async function runProgramUntracked(
         anyAvailable.value = true;
     }
     /**
-     Whether the model says this call must throw: initialized with no
-     available sink.
+     Whether the model says this call must throw: initialized, every verdict
+     in, and no available sink.
      */
-    const mustThrow = model.initialized && (!anyAvailable.value);
+    const mustThrow = model.initialized
+      && (model.undecided === 0)
+      && (!anyAvailable.value);
     /**
      Message unique to this call.
      */
