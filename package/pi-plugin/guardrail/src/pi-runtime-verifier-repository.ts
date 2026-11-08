@@ -97,6 +97,63 @@ type GitInvocation = {
 //region Git invocation
 
 /**
+ Git invocation the fixture needed to succeed.
+ */
+class GitRefusedError extends Error {
+  /**
+   Name printed with the message.
+   */
+  override readonly name = 'GitRefusedError';
+
+  /**
+   Records the refused invocation.
+   
+   @param args - Git words that were refused
+   
+   @param standardError - what Git said
+   */
+  constructor({
+    args,
+    standardError,
+  }: {
+    readonly args: readonly string[];
+    readonly standardError: string;
+  },) {
+    super(`git ${args.join(' ',)} was refused: ${standardError}`,);
+  }
+}
+
+/**
+ Git could not be started at all, which is not a refusal.
+ */
+class GitLaunchError extends Error {
+  /**
+   Name printed with the message.
+   */
+  override readonly name = 'GitLaunchError';
+
+  /**
+   Records the failed launch.
+   
+   @param args - Git words that were launched
+   
+   @param cause - what the launch threw
+   */
+  constructor({
+    args,
+    cause,
+  }: {
+    readonly args: readonly string[];
+    readonly cause: unknown;
+  },) {
+    super(
+      `git ${args.join(' ',)} could not be started: ${String(cause,)}`,
+      { cause, },
+    );
+  }
+}
+
+/**
  Reads one child stream to its end.
  
  @param stream - child stream to drain
@@ -216,63 +273,6 @@ async function requireGit({
     },);
   }
   return outcome.standardOutput;
-}
-
-/**
- Git invocation the fixture needed to succeed.
- */
-class GitRefusedError extends Error {
-  /**
-   Name printed with the message.
-   */
-  override readonly name = 'GitRefusedError';
-
-  /**
-   Records the refused invocation.
-   
-   @param args - Git words that were refused
-   
-   @param standardError - what Git said
-   */
-  constructor({
-    args,
-    standardError,
-  }: {
-    readonly args: readonly string[];
-    readonly standardError: string;
-  },) {
-    super(`git ${args.join(' ',)} was refused: ${standardError}`,);
-  }
-}
-
-/**
- Git could not be started at all, which is not a refusal.
- */
-class GitLaunchError extends Error {
-  /**
-   Name printed with the message.
-   */
-  override readonly name = 'GitLaunchError';
-
-  /**
-   Records the failed launch.
-   
-   @param args - Git words that were launched
-   
-   @param cause - what the launch threw
-   */
-  constructor({
-    args,
-    cause,
-  }: {
-    readonly args: readonly string[];
-    readonly cause: unknown;
-  },) {
-    super(
-      `git ${args.join(' ',)} could not be started: ${String(cause,)}`,
-      { cause, },
-    );
-  }
 }
 
 //endregion Git invocation
