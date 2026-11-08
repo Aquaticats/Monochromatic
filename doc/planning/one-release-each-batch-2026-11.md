@@ -572,7 +572,8 @@ but the choice is listed under "Open choices".
   tree exited 0 ("Locking 0 packages").
   It is still a `lockDirs` entry and a pin file of the wrapper and of `forbidden-strings`,
   so its manifest must
-  satisfy the pins (see the measured failure above).
+  satisfy the pins (see the measured consequence of a missed pin under
+  `Pins that move when a dependency gets its new version`).
   Repairing the import is separate work and does not gate this batch.
 - Pins that the release tool could not edit (fixed on `main`,
   see "What exists now" under "Preparatory steps").
@@ -704,7 +705,8 @@ verbatim labels:
   Every crate of the batch then goes through `crate-release.yml`,
   one run at a time.
 
-The sections below keep the options as they were offered.
+The sections from `Whether the two exempt crates get a release` to
+`How the twelve unregistered crates are released` keep the options as they were offered.
 
 ## Open choices for the owner
 
@@ -1320,7 +1322,7 @@ proved the Wayland library step.
   0.1.2,
   0.2.2,
   0.1.3 and 0.6.3 (crate order of "Yank step");
-  the yank still waits for the live check below.
+  the yank still waits for the `Wrapper 0.6.0 live` check under `Steps after the batch`.
 
 ### Steps after the batch
 
@@ -2087,7 +2089,7 @@ not to crates.io.
   Tokio T10 is not in it:
   the tip of `feat/git-policy-cli-tokio-t10-service` is not an ancestor of the bump commit
   (`git merge-base --is-ancestor` answered no),
-  and the other seven commits above are.
+  and the other seven commits in the `Content` entry are.
 - Gate:
   none run for this release.
   The newest full container gate on the wrapper's source passed 5319 of 5319 (the merge of `f981e1b493`).
@@ -2324,7 +2326,8 @@ not to crates.io.
   the three failures being `config_pin::tests::the_hint_names_a_measured_newer_pin_and_nothing_else`,
   `config_pin::tests::unmeasured_pins_and_farther_lockfiles_produce_no_hint` and
   `binary::a_newer_repository_pin_adds_the_stale_binary_hint`,
-  the pin-hint family the 0.5.2-alpha.2 record above already names as failing in a module this change does not touch
+  the pin-hint family the `monochromatic-lint` 0.5.2-alpha.2 release record (2026-11-07T13:32:40-05:00)
+  already names as failing in a module this change does not touch
   (`numeric_triple` in `src/config_pin.rs` reads `0.5.2-alpha.3` as four parts and measures nothing).
 - Release runs:
   dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42410774214` (success),
@@ -2489,7 +2492,8 @@ not to crates.io.
 - Measured in a throwaway worktree of `17eff86b35` (removed):
   `cargo update --workspace --offline` in `cli.fuzz` on the
   unchanged tree (exit 0);
-  the same after setting `jsonc-edit` to 0.1.3 without moving pins (the failure quoted above);
+  the same after setting `jsonc-edit` to 0.1.3 without moving pins
+  (the failure quoted under `Pins that move when a dependency gets its new version`);
   `file-enforcer check` in that state (eight pin drifts);
   `cargo check --lib --offline --locked` in `cli.fuzz` (E0432).
   The edit to `package/jsonc-edit/core-rust/Cargo.toml` in the worktree was run only after the coordinator relayed the
