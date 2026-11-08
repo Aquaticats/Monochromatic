@@ -3059,6 +3059,47 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
+### A commit stopped at the scratch ceiling on every retry after the 860 move (2026-11-08T12:46:15-05:00)
+
+The first commit through the new location failed twice,
+at 2026-11-08T12:46:15-05:00 and 2026-11-08T12:46:30-05:00,
+each with `the scratch git commit was stopped after 3006 ms at its ceiling of 3006 ms`.
+That breaks the owner's "Commits should never fail.",
+and the message's remedy,
+"Run the same `git commit` command again",
+repeated the same failure.
+
+Cause,
+measured:
+the move gave every file a new inode,
+so an index keeps stale stat data until something rewrites it.
+In the main checkout the first full `git status` took 10.56 s and rewrote the index;
+a read-only status afterwards took 55 ms,
+and the same two commits then landed (`a529efb299` and `ea66a10007`).
+Of the worktrees sampled at that moment,
+four recorded an inode other than the file's and took 9.2 s to 9.7 s for a read-only status,
+and one recorded the same inode for the sampled file and took 7.3 s.
+A small signed commit in a throwaway repository on the same disk took 8 ms (347 ms cold),
+so signing is not the cause.
+Not separated:
+the load of that moment
+(the checksum stage,
+a kopia run and a dry run of the build-folder cleanup),
+which makes a refresh slower.
+
+The workaround in place is the unit `repository-move-refresh-indexes`,
+which runs `git status` in every registered worktree
+(`${HOME}/temp/agent/860-move/refresh-moved-indexes.ts`;
+delete the script once the fix lands).
+
+Still to do,
+with a failing test first:
+a commit over an index whose stat data is stale must finish,
+or its stop must keep the refresh so that the retry succeeds.
+The likely reason a retry repeats the failure is that the scratch step works on a copy of the index,
+so what it refreshed never reaches the real one;
+that has not been read in the source yet.
+
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
 Found 2026-11-08 when the move to the 860 stopped on one

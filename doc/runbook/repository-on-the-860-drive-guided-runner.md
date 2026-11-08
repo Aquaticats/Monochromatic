@@ -558,6 +558,11 @@ each with a failing test first:
   once the status 141 has been measured.
 - Every other check in `guided-cutover-stages.data.ts`,
   read for the same `grep` trap.
+- A stage after the swap that rewrites each index:
+  the move gives every file a new inode,
+  so the first commit in a checkout stopped at the wrapper's 3-second scratch ceiling until a `git status` had run there
+  (`doc/handover/cli-git-rust-implementation.md`,
+  section "A commit stopped at the scratch ceiling on every retry after the 860 move").
 
 Delete `resume-final-pass.ts`,
 `finish-c17-record.ts`,
