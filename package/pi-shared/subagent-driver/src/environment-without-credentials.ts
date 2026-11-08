@@ -1,20 +1,25 @@
 /**
  What Pi starts with: the driver's own environment with every variable whose name marks a credential removed, so no command Pi
- runs can print one.
+ runs inherits one.
 
  Pi hands each command the whole of its own environment (`getShellEnv` spreads `process.env`, `dist/utils/shell.js:147` in Pi
  1.5.0), and everything a command prints reaches a model provider. A sentence asking agents not to print it is not a bound; a
- variable missing from Pi cannot be printed.
+ variable missing from Pi's environment cannot be printed from it.
+
+ What this bounds is inheritance, not access: the credential stores stay where they are (`auth.json`, gh's keyring, mise's own
+ store), an ancestor process still holds the driver's own environment, and a command that reads a file can still find a secret.
 
  @module
  */
 
 /**
- Words that mark a variable's name as holding a credential. A name holding any of them is removed, so a variable nobody listed
- yet is removed too: the rule fails closed, and the allow list below is the only way back.
+ Words that mark a variable's name as holding a credential. A name holding any of them is removed, so a credential whose name
+ fits the rule and nobody listed yet is removed too: the rule fails closed on names, and the allow list below is the only way
+ back.
 
- The price is false positives, which the allow list pays for one name at a time: `SSH_AUTH_SOCK`, `ICEAUTHORITY` and
- `STARSHIP_SESSION_KEY` all match and all go, because nothing an agent is asked to do here was shown to need them.
+ The price is false positives, which the allow list pays for one name at a time: `SSH_AUTH_SOCK`, `ICEAUTHORITY`,
+ `GIT_AUTHOR_NAME` and `STARSHIP_SESSION_KEY` all match and all go, because nothing an agent is asked to do here was shown to
+ need them.
  */
 export const CREDENTIAL_NAME_WORDS: readonly string[] = [
   'TOKEN',
@@ -48,6 +53,10 @@ export const VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME: readonly VariableKeptWithIt
       'The X server cookie file a GUI check reads. `xrandr --query` exits 0 with this variable and exits 1 with "Authorization required, but no authorization protocol specified" without it, and the browser checks this repository requires run against that display. Its value is a path, not a secret.',
   },
 ];
+
+// The rule reads one name at a time, so it cannot keep a family together: `GIT_CONFIG_KEY_n` matches while
+// `GIT_CONFIG_COUNT` and `GIT_CONFIG_VALUE_n` do not, and a command that builds Git configuration from those variables would
+// find a pair missing. Nothing in this repository does, which is why the rule stays name-only.
 
 /**
  What Pi gets, and the names that were taken from it.

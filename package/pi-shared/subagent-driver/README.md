@@ -111,13 +111,31 @@ where `xrandr --query` exits 0 with the variable and exits 1 with
 
 The rule costs the names whose own tools were shown to manage without them:
 `SSH_AUTH_SOCK`,
-`ICEAUTHORITY` and
+`ICEAUTHORITY`,
+`GIT_AUTHOR_NAME` and
 `STARSHIP_SESSION_KEY` all match and all go.
 `gh` reads its token from the keyring,
-a push reaches that keyring through the configured `gh auth git-credential` helper,
+Git's configured `gh auth git-credential` helper answers `git credential fill` with a password
+under the stripped environment,
 commit signing here signs with the key file (a throwaway commit signed with and without `SSH_AUTH_SOCK`),
-and `mise` keeps a GitHub token in its own store
-(`github.credential_command` or `mise token github`) rather than in the environment.
+and `mise` runs.
+
+`mise` can read a GitHub token from its own store
+(`github.credential_command` or `mise token github`),
+which this machine does not configure yet,
+so inside a subagent `mise` makes its GitHub API calls anonymously:
+measured at 60 requests an hour,
+where an authenticated call gets 5,000.
+A machine that needs the higher limit configures that store rather than exporting the variable.
+
+What this bounds is inheritance,
+not access.
+The stores stay where they are:
+`auth.json`,
+`gh`'s keyring and
+`mise`'s own.
+An ancestor process still holds the driver's own environment,
+and a command can still read a secret out of a file.
 
 A provider credential still reaches Pi,
 which is why no provider key is on the allow list:
@@ -126,8 +144,10 @@ so pi-ai reads an environment variable only when `auth.json` holds nothing
 (`dist/auth/resolve.js` in Pi 1.5.0),
 and the neuralwatt plugin reads its encrypted store before the environment
 (`package/pi-plugin/neuralwatt/src/credential.ts`).
-A run whose provider key exists only in the environment now fails to authenticate:
-store it with `/login`,
+That holds for this machine's configuration,
+not for providers in general:
+a provider whose key exists only in the environment now fails to authenticate,
+so store it with `/login`,
 which writes `auth.json`,
 or in the provider's own store.
 

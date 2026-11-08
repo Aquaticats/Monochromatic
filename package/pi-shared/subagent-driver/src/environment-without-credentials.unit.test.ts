@@ -146,6 +146,35 @@ await describe({
           },
         },),
         it({
+          name: 'keeps only the exact allow-listed name, so a near name is still removed',
+          fn: async () => {
+            const stripped = stripCredentialsFromEnvironment({
+              environment: {
+                XAUTHORITY: ORDINARY_VALUE,
+                XAUTHORITY_TOKEN: CREDENTIAL_VALUE,
+                xauthority: CREDENTIAL_VALUE,
+              },
+            },);
+            expect(stripped.environment,).toEqual({ XAUTHORITY: ORDINARY_VALUE, },);
+            expect(stripped.removedNames,).toEqual(['XAUTHORITY_TOKEN', 'xauthority',].toSorted(),);
+          },
+        },),
+        it({
+          name: 'leaves the environment it was handed untouched',
+          fn: async () => {
+            const environment: NodeJS.ProcessEnv = {
+              MISE_GITHUB_TOKEN: CREDENTIAL_VALUE,
+              HOME: ORDINARY_VALUE,
+            };
+            /**
+             The same environment as it was before the call.
+             */
+            const before = { ...environment, };
+            stripCredentialsFromEnvironment({ environment, },);
+            expect(environment,).toEqual(before,);
+          },
+        },),
+        it({
           name: 'answers an empty environment for an empty one, having removed nothing',
           fn: async () => {
             const stripped = stripCredentialsFromEnvironment({ environment: {}, },);

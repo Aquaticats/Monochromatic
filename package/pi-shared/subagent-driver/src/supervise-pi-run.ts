@@ -283,8 +283,9 @@ export async function supervisePiRun(
     'feed.jsonl',
   ), },);
   /**
-   What Pi starts with: the driver's environment without the credentials no command needs, so a dumped environment shows names a
-   command may read and no value it may not. The allow list in `environment-without-credentials.ts` names what stays and why.
+   What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
+   `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not
+   what a command can reach: the credential stores stay where they are.
    */
   const givenToPi: EnvironmentWithoutCredentials = stripCredentialsFromEnvironment({ environment, },);
   record.note({
