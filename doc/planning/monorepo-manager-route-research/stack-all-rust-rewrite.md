@@ -73,7 +73,8 @@ and nothing was committed.
    "Could not connect to server (Failed to connect to index.crates.io:443 after 123 ms)".
   Per the caller's instruction the network policy was not worked around.
   Consequence:
-   every probe below builds with `cargo build --offline` against crates already in the local registry cache,
+   every probe from `Rewrite scope` to `Documentation and source loads` builds with `cargo build --offline`
+   against crates already in the local registry cache,
    and crates that are not cached
    (`rhai`,
   `mlua`,
@@ -314,7 +315,7 @@ single `curl` and `gh api` loads are cited where used.
    "Switch from config-as-data to TypeScript when conf needs logic (`if`,
   `map`,
   `await`)."
-  The root configuration has that logic (probe counts above).
+  The root configuration has that logic (the counts under `Rewrite scope`).
   The user's statement that the configuration need not be TypeScript is recorded only in the vet doc's FE01 text;
    `AD2` itself is unchanged.
   Per variant:

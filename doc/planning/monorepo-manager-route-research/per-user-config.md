@@ -65,7 +65,7 @@ These come from the design and decision records and close the choices they touch
    `doc/planning/monorepo-manager-from-scratch-design.md:1221-1248`).
   A per-user configuration therefore exists;
    refusing to have one is closed,
-   and is recorded below as a rejected design rather than ranked.
+   and is recorded under `Options designed` as a rejected design rather than ranked.
 - Every decision applies to meow 0.x only.
 
 ## Measured environment
@@ -1192,7 +1192,7 @@ matches the existing design,
  which has the user starting the daemon in its own terminal
  under a delegated cgroup (Verified);
 the per-user file must be evaluated per repository anyway,
- see below,
+ see the paragraph `The per-repository evaluation point is load bearing`,
  so a shared reader saves nothing.
 Cons:
 the per-user file is parsed once per repository;
@@ -1707,7 +1707,7 @@ B over C because B at least has a switch,
 
 All probes are in the session scratchpad under `per-user-config/`
 and are not durable;
-the recorded commands and outputs above are the evidence.
+the recorded commands and outputs in `Comparable tools, measured` are the evidence.
 
 - `tofu-discovery.ts`:
    five disposable homes against `tofu` 1.12.6 with `TF_LOG=DEBUG`.
