@@ -242,8 +242,15 @@ in order:
     time and
     mode (`rsync --dry-run`,
     no data read),
-    excusing exactly the inventoried nested subvolumes.
+    excusing the empty placeholder folders a snapshot shows for subvolumes:
+    those of the inventoried nested subvolumes,
+    and any other (inode 2) whose live path holds the same placeholder or nothing,
+    each named in the output
+    (`doc/troubleshooting/btrfs-snapshot-keeps-an-empty-placeholder-for-a-nested-subvolume.md`).
+    A placeholder whose live path holds a real folder or subvolume stops the run:
+    the inventory missed it.
     A difference stops the run and names the copy.
+    The window's content compare (`c13b-rsync`) applies the same rule.
 
 The runner then stops.
 It does not start the cut-over.
