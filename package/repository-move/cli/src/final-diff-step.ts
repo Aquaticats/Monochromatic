@@ -20,6 +20,41 @@ import type { StepContext, } from './copy-steps.ts';
 const HEADER_WORD = 'snapshot';
 
 /**
+ The shell command whose standard output is the dump of what changed between two snapshots.
+
+ Under the runner's `-o pipefail`, a `btrfs send` that is still writing when `btrfs receive --dump` leaves at the
+ stream's end record ends with SIGPIPE, which pipefail reports as 141 and which stopped the final pass of the cut-over
+ on 2026-11-08 eight times. Measured on throwaway subvolumes (`${HOME}/temp/agent/repository-move-pipe-measure`):
+ `--dump` exits at the end record and reads nothing after it, and a stream cut short makes it exit 1 with
+ `ERROR: short read from stream`. The `cat` therefore leaves a reader on the pipe after the dump, so the sender always
+ finishes, while a dump cut short still fails through the receiver's own status.
+
+ @param firstSnapshot - the first-pass snapshot of the same subvolume
+
+ @param snapshot - the final snapshot
+
+ @returns the command
+
+ @example
+ ```ts
+ import { diffCommand, } from './final-diff-step.ts';
+
+ const command = diffCommand({ firstSnapshot: '/a', snapshot: '/b', },);
+ ```
+ */
+function diffCommand(
+  {
+    firstSnapshot,
+    snapshot,
+  }: {
+    readonly firstSnapshot: string;
+    readonly snapshot: string;
+  },
+): string {
+  return `btrfs send --no-data -p ${firstSnapshot} ${snapshot} | { btrfs receive --dump; dump=$?; cat > /dev/null; exit $dump; }`;
+}
+
+/**
  Asks btrfs what changed between a subvolume's first-pass and final snapshots and records the answer.
 
  @param context - the subvolume's context
@@ -71,7 +106,7 @@ export async function diffStep(
       '-o',
       'pipefail',
       '-c',
-      `btrfs send --no-data -p ${firstSnapshot} ${snapshot} | btrfs receive --dump`,
+      diffCommand({ firstSnapshot, snapshot, },),
     ],
     transfer: true,
   },)).split('\n',)
