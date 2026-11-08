@@ -35,6 +35,23 @@ so any of them can be undone.
   (throwaway commits in a throwaway repository,
   durations printed only,
   native `git commit` as the control).
+  Result (coordinator,
+  native `/usr/bin/git`,
+  display and askpass variables removed):
+  signed 16,
+  13,
+  13 ms;
+  unsigned 9,
+  9,
+  8 ms;
+  signed with no agent socket 27,
+  10,
+  11 ms.
+  Signing costs about 5 ms and needs no agent,
+  passphrase or display,
+  so the 20 to 406 s build steps were something else in the scratch `git commit` step;
+  the per-step timing records of release 0.6.1-alpha.2 name it on the next slow commit.
+  Two wider probes (the key's passphrase state and the commit service's environment) were refused by the auto-mode check as credential exploration and were not retried.
 - An `index.lock` no process holds:
   "Service removes it":
   after a complete scan of every readable process finds no holder and there is no Git PID file,
