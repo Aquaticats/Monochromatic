@@ -8,13 +8,13 @@
 import { appendFile, } from 'node:fs/promises';
 import {
   env,
-  exit,
-  stderr,
   stdout,
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
-import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
-import type { PiRecord, } from './driver-types.ts';
+import {
+  FEED_PREVIEW_CHARACTERS,
+  type PiRecord,
+} from '../dist/final/node/index.mjs';
 
 /**
  Status the crashing scenarios exit with.
@@ -31,12 +31,6 @@ const SPLIT_WRITE_MILLISECONDS = 50;
  answer is still pending if the driver sends one that early.
  */
 export const SLOW_ANSWER_MILLISECONDS = 300;
-
-/**
- Milliseconds after starting at which the late-exit scenario leaves, longer than any answer bound a test asks for and shorter
- than the answer bound the driver ships.
- */
-export const LATE_EXIT_MILLISECONDS = 1_000;
 
 /**
  Turns the many-turns scenario starts, above any cap the tests set.
@@ -56,7 +50,7 @@ const LINE_SEPARATOR_CODE_POINT = 0x20_28;
 /**
  A Unicode line separator, valid inside a JSON string and not a line ending there.
  */
-export const LINE_SEPARATOR = String.fromCodePoint(LINE_SEPARATOR_CODE_POINT,);
+export const LINE_SEPARATOR: string = String.fromCodePoint(LINE_SEPARATOR_CODE_POINT,);
 
 /**
  The error text the model-error scenarios end with.
@@ -81,7 +75,7 @@ const LONG_REPLY_SENTENCE = 'a reply long enough to need cutting.';
 /**
  A reply longer than a feed line keeps, so a summary that held only the preview would show.
  */
-export const LONG_REPLY = `${LONG_REPLY_SENTENCE} `.repeat(
+export const LONG_REPLY: string = `${LONG_REPLY_SENTENCE} `.repeat(
   Math.ceil((FEED_PREVIEW_CHARACTERS.assistantText * 2) / (LONG_REPLY_SENTENCE.length + 1),),
 );
 
@@ -98,7 +92,10 @@ export const scenario: string = env.STAND_IN_PI_SCENARIO ?? 'normal';
 /**
  What the stand-in has seen and is doing.
  */
-export const seen = {
+export const seen: {
+  prompts: number;
+  answering: number
+} = {
   /**
    How many prompts and steers have arrived.
    */
@@ -121,7 +118,10 @@ export const seen = {
  ```
  */
 export async function writeLogLine(line: string,): Promise<void> {
-  await appendFile(log, `${line}\n`,);
+  await appendFile(
+    log,
+    `${line}\n`,
+  );
 }
 
 /**
@@ -437,6 +437,7 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
     'slow-answer',
     function answerAfterWaiting(id,) {
       seen.answering += 1;
+      emit({ type: 'agent_start', },);
       void answerSlowly(id,);
     },
   ],
@@ -471,29 +472,4 @@ export async function playPrompt(id: unknown,): Promise<void> {
   }
   answer({ id, },);
   finishRun('done',);
-}
-
-/**
- Leaves after a delay, for a Pi that answers nothing and leaves before the answer bound the driver ships.
-
- @example
- ```ts
- await leaveLater();
- ```
- */
-export async function leaveLater(): Promise<void> {
-  await wait(LATE_EXIT_MILLISECONDS,);
-  exit(CRASH_STATUS,);
-}
-
-/**
- Writes a known text to standard error, so a test can see the copy reach its file.
-
- @example
- ```ts
- writeToStandardError();
- ```
- */
-export function writeToStandardError(): void {
-  stderr.write(`${STANDARD_ERROR_TEXT}\n`,);
 }

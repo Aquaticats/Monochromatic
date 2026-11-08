@@ -20,6 +20,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   preview,
   type RecordOfPiRun,
+  type RunFailure,
   type RunSummary,
   startRecordOfPiRun,
 } from '../dist/final/node/index.mjs';
@@ -62,6 +63,17 @@ function recordOnOwnClock(feedFile: string,): { readonly record: RecordOfPiRun; 
     },),
     clock,
   };
+}
+
+/**
+ The problem a failure names, or the empty text when nothing failed.
+
+ @param failure - what the record reported
+
+ @returns the problem's words
+ */
+function problemOf(failure: RunFailure,): string {
+  return failure.failed ? failure.problem : '';
 }
 
 async function summaryOf(record: RecordOfPiRun,): Promise<RunSummary> {
@@ -171,9 +183,12 @@ await describe({
           event: assistantMessage([], { stopReason: 'error', errorMessage: 'no key', },),
           declineDialog: declineNothing,
         },);
-        expect(record.unrecoveredModelError(),).toBeUndefined();
+        expect(record.unrecoveredModelError().failed,).toBe(false,);
         record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
-        expect(record.unrecoveredModelError(),).toBe('no key',);
+        expect(record.unrecoveredModelError(),).toEqual({
+          failed: true,
+          problem: 'no key',
+        },);
         await record.close();
       },
     },),
@@ -189,7 +204,7 @@ await describe({
         record.observe({ event: { type: 'auto_retry_start', }, declineDialog: declineNothing, },);
         record.observe({ event: assistantMessage([{ type: 'text', text: 'recovered', },],), declineDialog: declineNothing, },);
         record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
-        expect(record.unrecoveredModelError(),).toBeUndefined();
+        expect(record.unrecoveredModelError().failed,).toBe(false,);
         await record.close();
       },
     },),
@@ -204,7 +219,7 @@ await describe({
         },);
         record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
         record.observe({ event: assistantMessage([{ type: 'text', text: 'steered back', },],), declineDialog: declineNothing, },);
-        expect(record.unrecoveredModelError(),).toBeUndefined();
+        expect(record.unrecoveredModelError().failed,).toBe(false,);
         await record.close();
       },
     },),
@@ -218,7 +233,10 @@ await describe({
           declineDialog: declineNothing,
         },);
         record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
-        expect(String(record.unrecoveredModelError(),).length,).toBeGreaterThan(0,);
+        expect(record.unrecoveredModelError(),).toEqual({
+          failed: true,
+          problem: 'the model reported an error and said nothing about it',
+        },);
         await record.close();
       },
     },),
@@ -231,10 +249,13 @@ await describe({
          When to give up waiting for the feed's open to fail.
          */
         const deadline = Date.now() + FEED_FAILURE_DEADLINE_MILLISECONDS;
-        while ((record.feedProblem() === undefined) && (Date.now() <= deadline)) {
-          await wait(LOOK_MILLISECONDS, undefined, { ref: false, },);
+        while ((!record.feedProblem().failed) && (Date.now() <= deadline)) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- the feed's open fails on its own schedule, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+          await wait(LOOK_MILLISECONDS,);
         }
-        expect(record.feedProblem(),).toContain('ENOENT',);
+        expect(
+          problemOf(record.feedProblem(),),
+        ).toContain('ENOENT',);
         expect(() => {
           record.note({ kind: 'state', },);
         },).not.toThrow();

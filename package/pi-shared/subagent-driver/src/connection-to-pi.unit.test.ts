@@ -35,7 +35,7 @@ import {
   type PiRecord,
   startConnectionToPi,
 } from '../dist/final/node/index.mjs';
-import { STANDARD_ERROR_TEXT, } from './stand-in-pi-prompt-plays.ts';
+import { STANDARD_ERROR_TEXT, } from './stand-in-pi-prompt-plays-fixture.ts';
 
 const STAND_IN = new URL('stand-in-pi-for-tests.ts', import.meta.url,).pathname;
 
@@ -47,6 +47,8 @@ const execFileAsync = promisifyExecFile(execFile,);
 
 /** Milliseconds Pi gets at each stage of ending; the stand-in needs no more than its own start-up. */
 const GRACE_MILLISECONDS = 1_500;
+/** Milliseconds to wait for an answer that must arrive, above the stand-in's start-up on a loaded host. */
+const ANSWER_MILLISECONDS = 10_000;
 /** Milliseconds to wait for an answer that will never come, far below the bound the driver ships. */
 const SHORT_ANSWER_MILLISECONDS = 50;
 /** Milliseconds between looks at what a test waits for. */
@@ -99,9 +101,29 @@ async function waitForProblem({
     if (heard.problems.some((problem,) => problem.includes(text,))) {
       return;
     }
-    await wait(LOOK_MILLISECONDS, undefined, { ref: false, },);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- a report arrives on its own schedule, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
   }
   throw new Error(`no problem naming ${text}; the ones reported were ${heard.problems.join(', ')}`,);
+}
+
+/**
+ Reads the stand-in's log, which does not exist when Pi never started.
+
+ @param log - file the stand-in writes
+
+ @returns the log's text, or nothing when it was never written
+ */
+async function readLog(log: string,): Promise<string> {
+  try {
+    return await readFile(log, 'utf8',);
+  }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return '';
+    }
+    throw error;
+  }
 }
 
 /**
@@ -123,10 +145,12 @@ async function waitForLogLine({
    */
   const deadline = Date.now() + REPORT_DEADLINE_MILLISECONDS;
   while (Date.now() <= deadline) {
-    if ((await readFile(log, 'utf8',)).includes(text,)) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the log is read again after each wait, which is the whole point of the loop; see doc/lint/sequential-awaits.md
+    if ((await readLog(log,)).includes(text,)) {
       return;
     }
-    await wait(LOOK_MILLISECONDS, undefined, { ref: false, },);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the stand-in writes its log as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
   }
   throw new Error(`the log never showed ${text}`,);
 }
@@ -138,16 +162,18 @@ async function waitForLogLine({
  */
 async function stopToolIn(log: string,): Promise<void> {
   /**
-   The log, which holds no tool line when the scenario started none.
+   The log, which holds no tool line when the scenario started none, and does not exist when Pi never started.
    */
-  const logged = await readFile(log, 'utf8',);
+  const logged = await readLog(log,);
   /**
    The tool's process number, when the log holds one.
    */
   const toolLine = logged.split('\n',).find((line,) => line.startsWith('tool ',));
   if (toolLine !== undefined) {
     try {
-      kill(Number(toolLine.slice('tool '.length,),),);
+      kill(
+        Number(toolLine.slice('tool '.length,),),
+      );
     }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ESRCH') {
@@ -257,7 +283,7 @@ await describe({
             id: 'custom',
             type: 'get_state',
           },
-          answerMilliseconds: SHORT_ANSWER_MILLISECONDS,
+          answerMilliseconds: ANSWER_MILLISECONDS,
         },);
         expect(answer.success,).toBe(true,);
       },

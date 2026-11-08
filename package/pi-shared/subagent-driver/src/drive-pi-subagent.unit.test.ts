@@ -6,8 +6,10 @@
  @module
  */
 
-import { execFile, } from 'node:child_process';
-import type { ChildProcess, } from 'node:child_process';
+import {
+  type ChildProcess,
+  execFile,
+} from 'node:child_process';
 import { once, } from 'node:events';
 import {
   chmod,
@@ -34,16 +36,16 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
   type RunSummary,
 } from '../dist/final/node/index.mjs';
-import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   RECOVERED_REPLY,
-} from './stand-in-pi-prompt-plays.ts';
+} from './stand-in-pi-prompt-plays-fixture.ts';
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -169,7 +171,8 @@ async function readLines(file: string,): Promise<readonly string[]> {
     return (await readFile(file, 'utf8',)).split('\n',).filter((line,) => line !== '');
   }
   catch (error) {
-    if (isMissingFile(error,)) {
+    // A test that makes the feed a folder it cannot write sees no lines, which is what it is after.
+    if (isMissingFile(error,) || ((error as NodeJS.ErrnoException).code === 'EISDIR')) {
       return [];
     }
     throw error;
@@ -210,7 +213,9 @@ async function contentsOfInbox(folder: string,): Promise<Readonly<Record<string,
      The entry itself, which a test may have made a pipe or a folder.
      */
     const path = join(folder, name,);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- each entry is inspected in turn, so a name never stands for another's contents; see doc/lint/sequential-awaits.md
     if ((await lstat(path,)).isFile()) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the contents of one entry, read once its kind is known
       contents[name] = await readFile(path, 'utf8',);
     }
   }
@@ -229,10 +234,12 @@ async function waitForLine({
    */
   const deadline = Date.now() + (WALL_SECONDS * MILLISECONDS_PER_SECOND);
   while (Date.now() <= deadline) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the file is read again after each wait, which is the whole point of the loop; see doc/lint/sequential-awaits.md
     if ((await readLines(file,)).some((line,) => line.includes(text,))) {
       return;
     }
-    await wait(LOOK_MILLISECONDS, undefined, { ref: false, },);
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the run writes as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+    await wait(LOOK_MILLISECONDS,);
   }
   throw new Error(`the file never showed ${text}`,);
 }
@@ -277,7 +284,7 @@ async function exitOf(running: ReturnType<typeof execFileAsync>,): Promise<reado
   }
   catch (error) {
     const failure = error as { readonly code: number; readonly stderr: string; };
-    return [failure.code, String(failure.stderr,),];
+    return [failure.code, failure.stderr,];
   }
 }
 
@@ -295,6 +302,27 @@ async function stopBounded(child: ChildProcess,): Promise<void> {
     once(child, 'exit',),
     wait(TEST_TEARDOWN_ALLOWANCE_SECONDS * MILLISECONDS_PER_SECOND, undefined, { ref: false, },),
   ],);
+}
+
+/**
+ Owns a driver process a test started, so every way out of a test ends it before its folder goes.
+
+ @param running - the driver's own promise, which holds its process
+
+ @returns what the test uses, and a disposer that ends the process
+ */
+async function owningDriver(
+  running: ReturnType<typeof execFileAsync>,
+): Promise<{
+  readonly running: ReturnType<typeof execFileAsync>;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  return {
+    running,
+    async [Symbol.asyncDispose]() {
+      await stopBounded(running.child,);
+    },
+  };
 }
 
 async function runDriver(
@@ -355,39 +383,35 @@ async function runDriver(
     timeout: OUTER_DEADLINE_MILLISECONDS,
     killSignal: 'SIGKILL',
   },);
-  try {
-    const [[status, standardError,],] = await Promise.all([
-      exitOf(running,),
-      whileRunning?.({
-        runFolder,
-        promptFile,
-        log,
-      },) ?? Promise.resolve(),
-    ],);
-    const logged = await readLines(log,);
-    const sentCommands = logged.filter((line,) => line.startsWith('command ',))
-      .map((line,) => JSON.parse(line.slice('command '.length,),) as Record<string, unknown>);
-    return {
-      status,
-      standardError,
-      summary: await readSummary(join(runFolder, 'summary.json',),),
-      feed: (await readLines(join(runFolder, 'feed.jsonl',),)).map((line,) => JSON.parse(line,) as Record<string, unknown>),
-      commands: sentCommands.map((command,) => String(command.type,),),
-      sentCommands,
-      markers: logged.filter((line,) => line.startsWith('marker ',)).map((line,) => line.slice('marker '.length,)),
-      nestedVariable: logged.find((line,) => line.startsWith('nested ',))?.slice('nested '.length,) ?? '',
-      piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
-        JSON.parse(line.slice('arguments '.length,),) as string[]
-      ),
-      inbox: await listInbox(join(runFolder, 'inbox',),),
-      inboxContents: await contentsOfInbox(join(runFolder, 'inbox',),),
-      logWasWritten: logged.length > 0,
-      runFolderWasMade: await exists(runFolder,),
-    };
-  }
-  finally {
-    await stopBounded(running.child,);
-  }
+  await using driver = await owningDriver(running,);
+  const [[status, standardError,],] = await Promise.all([
+    exitOf(driver.running,),
+    whileRunning?.({
+      runFolder,
+      promptFile,
+      log,
+    },) ?? Promise.resolve(),
+  ],);
+  const logged = await readLines(log,);
+  const sentCommands = logged.filter((line,) => line.startsWith('command ',))
+    .map((line,) => JSON.parse(line.slice('command '.length,),) as Record<string, unknown>);
+  return {
+    status,
+    standardError,
+    summary: await readSummary(join(runFolder, 'summary.json',),),
+    feed: (await readLines(join(runFolder, 'feed.jsonl',),)).map((line,) => JSON.parse(line,) as Record<string, unknown>),
+    commands: sentCommands.map((command,) => String(command.type,),),
+    sentCommands,
+    markers: logged.filter((line,) => line.startsWith('marker ',)).map((line,) => line.slice('marker '.length,)),
+    nestedVariable: logged.find((line,) => line.startsWith('nested ',))?.slice('nested '.length,) ?? '',
+    piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
+      JSON.parse(line.slice('arguments '.length,),) as string[]
+    ),
+    inbox: await listInbox(join(runFolder, 'inbox',),),
+    inboxContents: await contentsOfInbox(join(runFolder, 'inbox',),),
+    logWasWritten: logged.length > 0,
+    runFolderWasMade: await exists(runFolder,),
+  };
 }
 
 await describe({
@@ -414,7 +438,9 @@ await describe({
         const assistant = run.feed.filter((entry,) => entry.kind === 'assistant',).at(-1,);
         const preview = String(assistant?.text,);
         expect(preview.length,).toBeLessThan(LONG_REPLY.length,);
-        expect(preview.startsWith(LONG_REPLY.slice(0, FEED_PREVIEW_CHARACTERS.assistantText,),),).toBe(true,);
+        expect(
+          preview.startsWith(LONG_REPLY.slice(0, FEED_PREVIEW_CHARACTERS.assistantText,),),
+        ).toBe(true,);
       },
     },),
     it({

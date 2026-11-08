@@ -10,10 +10,18 @@ export {
   type ConnectionRequest,
   type ConnectionToPi,
   startConnectionToPi,
+  type ShutDownOutcome,
+  type ShutDownRequest,
 } from './connection-to-pi.ts';
 export {
+  FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
+  NO_RUN_FAILURE,
   POLL_MILLISECONDS,
+  SHUTDOWN_GRACE_MILLISECONDS,
+  SHUTDOWN_STAGES,
+  TEARDOWN_ANSWER_MILLISECONDS,
+  TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
 export type {
   DriverOptions,
@@ -23,6 +31,7 @@ export type {
   PiRecord,
   RecordOfPiRun,
   RunEnding,
+  RunFailure,
   RunProgress,
   RunSummary,
 } from './driver-types.ts';
@@ -42,7 +51,14 @@ export {
   recordsIn,
   textOf,
 } from './read-pi-fields.ts';
-export { startRecordOfPiRun, } from './record-of-pi-run.ts';
+export {
+  type RecordOfPiRunRequest,
+  startRecordOfPiRun,
+} from './record-of-pi-run.ts';
+export {
+  CLEAN_END_REASONS,
+  finalEndReason,
+} from './end-reasons.ts';
 export {
   NestedDriverError,
   PiRunEndedEarlyError,
@@ -51,5 +67,4 @@ export {
 export {
   type WatchRequest,
   watchUntilEnded,
-  WatchEndedWithoutReasonError,
 } from './watch-pi-run.ts';
