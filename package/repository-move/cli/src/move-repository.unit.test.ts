@@ -722,7 +722,7 @@ await describe({
             expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
             const result = await runCopyTool({ fixture, pass: 'final', run: false, },);
             expect(result.status,).toBe(0,);
-            expect(result.stdout,).toContain(`btrfs send --no-data -p ${join(fixture.base, 'snap', 's000',)} ${join(fixture.base, 'snap', 'f000',)} | btrfs receive --dump`,);
+            expect(result.stdout,).toContain(`btrfs send --no-data -p ${join(fixture.base, 'snap', 's000',)} ${join(fixture.base, 'snap', 'f000',)} | { btrfs receive --dump; dump=$?; cat > /dev/null; exit $dump; }`,);
           },
         },),
         it({
