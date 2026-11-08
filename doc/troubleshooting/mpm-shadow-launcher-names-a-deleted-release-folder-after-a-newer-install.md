@@ -176,6 +176,126 @@ see `doc/troubleshooting/search-shadow-copies-start-each-other-without-end.md`.
   (a snapshot of `.cache` into a new worktree where `install` has not run);
   that is a separate condition and is not changed here.
 
+## Recurrence 2026-11-07T21:50:00-05:00: `git` fails in a systemd user unit through the machine-global launcher
+
+Status:
+repaired on this machine with `mise run toolchain:install:global -- --frozen-lockfile`;
+the launcher now names the program it starts and never tries a path that does not exist
+(`monochromatic-mpm-shadow` 0.2.7-alpha.6,
+`package/mpm-shadow/cli/src/toolchain/launcher.rs`).
+
+### Symptom
+
+A Node process of the toolchain,
+started in a `systemd-run --user` unit,
+ran `git` and got
+`mpm-shadow: could not start ~/.local/share/monochromatic-dev/toolchain/cargo-monochromatic-git-policy-cli/current/monochromatic-git-policy-cli-0.6.0-x86_64-unknown-linux-gnu/monochromatic-git-policy-cli: No such file or directory (os error 2)`,
+also after `mpm update -g cargo:monochromatic-git-policy-cli` moved the global lock from 0.6.0 to 0.6.1-alpha.1.
+
+### Route (measured 2026-11-07)
+
+The parent process does not matter.
+The reproduction run with `sh -c 'command -v git; git -C <repository> rev-parse --short HEAD'` in the same kind of unit failed with the same text,
+so the brief's note that `sh` works was not reproduced.
+What differs between an interactive shell and a unit is `PATH`:
+the shell of a mise-activated checkout has that checkout's `.cache/monochromatic-git-policy-cli-bin/git` first (a repository-scope launcher,
+rebuilt by every `toolchain:install` in that tree),
+and the unit's `PATH` has none of those,
+so `git` is `~/.local/bin/git`.
+That is a link to `~/.local/share/monochromatic-dev/toolchain-global/launchers/monochromatic-git-policy-cli`,
+the machine-global launcher.
+
+### Where 0.6.0 came from
+
+The `real` field of `toolchain-global/launchers/monochromatic-git-policy-cli.launch`,
+written at 11:30 when 0.6.0 was current.
+Nothing rewrote it afterwards:
+`mpm update -g` only publishes the global lock (`update_loaded` in `src/toolchain/update.rs` ends in `publish_lock`),
+and launchers and records are made only by `install` (`rebuild_exposure`,
+then `ensure_launcher`,
+in `src/toolchain/exposure.rs` and `launcher.rs`).
+The launcher binary was a copy of `mpm-shadow` 0.2.7-alpha.2 (the copy alone,
+with no record beside it,
+printed `mpm-shadow 0.2.7-alpha.2` for `--version`),
+older than the follow-`current` rule of 0.2.7-alpha.3,
+so it started the recorded path as it was.
+The warning and the path disagreed because the warning compared the lock with the version behind `current`,
+and the start used the recorded folder.
+After the update the warning disappeared (lock and `current` agreed) and the start still failed.
+The binary was old because `ensure_launcher` places a copy of the running installer,
+not of the newest installed `mpm-shadow`:
+the global install that made it ran as alpha.2.
+
+A current build (a copy of the repository launcher) given the same record followed `current`,
+ran 0.6.1-alpha.1 and rewrote the record (measured in a scratch directory).
+So the defect on this route is a launcher binary frozen at an old version,
+which no later code can change;
+the code defects left in the current launcher were the ones below.
+
+### Fix in the launcher
+
+- The older-lock warning of a launcher ends with `; starting <path>`,
+  the program it is about to start (`warning_naming_program`),
+  never the path a stale record named.
+- A launcher checks that its program is a file before it starts it.
+  When it is not,
+  it prints `mpm-shadow: not starting <path>: no file exists there` and the one-sentence advice,
+  exits 127,
+  and prints no warning that says it starts something.
+  A file that vanishes between the check and the start still reaches the `could not start` line and the same advice.
+- Red tests (all failed before the change):
+  `a_launcher_whose_recorded_version_was_deleted_runs_the_version_current_names`,
+  `a_global_launcher_whose_recorded_version_was_deleted_names_the_path_it_starts_and_the_global_command`,
+  `a_launcher_never_prints_the_older_lock_warning_for_a_program_it_does_not_start`,
+  `a_launcher_that_finds_no_program_under_current_names_both_versions_and_the_one_command`,
+  `a_missing_real_program_exits_127_naming_it_and_never_writes_standard_output`,
+  `a_release_archive_tool_warns_on_every_run_when_the_lock_pins_an_older_version`,
+  `an_older_lock_prints_the_warning_on_standard_error_and_leaves_standard_output_byte_identical`
+  (`tests/launcher.rs`) and `the_warning_names_the_program_under_current_when_the_recorded_folder_was_deleted` (`launcher_tests.rs`).
+  The global-scope test is a guard for the route:
+  only its named path was red.
+
+### Repair on this machine
+
+`mise run toolchain:install:global -- --frozen-lockfile` ended with `0 installed, 62 unchanged, 0 failed`,
+replaced the global launcher with a 0.2.7-alpha.5 copy and rewrote its record to the 0.6.1-alpha.1 folder.
+The reproduction then printed `OK <short hash>`.
+
+### Same class, still open (not changed here)
+
+- Launcher binaries older than the follow-`current` rule survive wherever `install` has not run since:
+  a scan of every `.cache/toolchain-launchers/*.launch` in the main checkout and its linked worktrees on 2026-11-07 found 925 records,
+  261 of which named a file that no longer exists;
+  each of those trees is repaired by `mpm install` in it.
+  The global `cli-git-native` launcher (binary of 2026-11-03) still has a record that resolves,
+  and keeps the old binary until the next `install -g`.
+- `ensure_launcher` copies the installer,
+  so an installer older than the newest installed `mpm-shadow` places an older launcher;
+  placing the launcher from the newest installed `mpm-shadow` is a follow-up that needs an owner decision (it changes which binary every launcher is).
+- `leads_back_to` in `package/cargo-shadow/cli/src/real_binary.rs` (and its siblings in `pnpm-shadow` and `search-shadow`) canonicalizes a record's `real`;
+  an unresolvable one is treated as "not a launcher".
+  The launcher's own record rewrite covers the current binaries.
+- Paths composed from a version string in `layout.rs` (`tool_install_dir`,
+  the Android `cmdline-tools/<version>` search directory) are reached only through `is_executable` or `exists` checks,
+  and `prune_cargo.rs` builds its paths from directory listings;
+  none starts a program without a check.
+
+### A related warning that looked stale
+
+The same session saw `locked at 0.5.2-alpha.5 ... but 0.5.2-alpha.6 runs` in a worktree whose committed lock said alpha.6.
+A launcher compares the version behind `current` with the lock named in its own record,
+never with the lock of the directory it runs in.
+A shell begun in another checkout puts that checkout's `.cache/*-bin` first,
+so its launcher answers with that checkout's lock
+(measured:
+from a worktree whose lock pinned alpha.5,
+the main checkout's launcher printed no warning and the worktree's own launcher printed it).
+This is the documented limit under "Limits" above and not a stale record:
+the records of the worktree launchers name the worktree's lock file.
+The warning does not say which lock it read,
+which makes this hard to see;
+naming the lock file in the warning is a suggested follow-up.
+
 ## Upstream filing decision
 
 Not applicable:

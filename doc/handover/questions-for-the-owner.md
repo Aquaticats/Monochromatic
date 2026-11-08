@@ -18,31 +18,91 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Waiting on you: two actions the auto-mode safety check refused to agents (2026-11-07)
+## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
-The coordinator will not route around a refusal,
-so each needs you to run it,
-or to allow it in the permission settings.
-- Release `monochromatic-lint` 0.5.2-alpha.6
-  (refused as "[Create Public Surface]";
-  the dry run passed,
-  run 42427210564;
-  an alpha goes to a GitHub release only).
-  It makes the closure check run on `ide/app` and `terminal/app`,
-  merged as `1d3e9bcdec`.
-  The command,
-  from the repository root:
-  `mise run //package/linter/monochromatic-lint:release -- 0.5.2-alpha.5 0.5.2-alpha.6 "The closure check builds ide/app and terminal/app: IDE links where build.rs reads them; new prerequisite libghostty-offline-inputs hands the fetched Ghostty source and Zig packages to the build"`.
-  After it,
-  the coordinator does the wait,
-  lock,
-  install and proof.
+- Porting the wrapper package's 145 TypeScript files to Rust
+  (`doc/planning/git-policy-cli-typescript-to-rust.md`):
+  "After the layout move (Recommended)":
+  the pause lifts once the layout move's steps 2 to 6 land,
+  with the plan's recommended option for each of its eleven choices.
+- Answering a pull's Git queries in process
+  (128 ms against native's 12 ms on a fast-forwarding pull):
+  "Not now (Recommended)".
+
+- How long a commit's signed `git commit` step may run:
+  "A:
+  limit unless editor (Recommended)":
+  when the message came with the command (`-m`,
+  `-F`,
+  `-C`),
+  a ceiling of three times the slowest measured signing time;
+  with an editor open,
+  no ceiling,
+  only the waiting notice.
+- Timing a signed commit with the owner's real signing setup:
+  "Allow the probe"
+  (throwaway commits in a throwaway repository,
+  durations printed only,
+  native `git commit` as the control).
+  Result (coordinator,
+  native `/usr/bin/git`,
+  display and askpass variables removed):
+  signed 16,
+  13,
+  13 ms;
+  unsigned 9,
+  9,
+  8 ms;
+  signed with no agent socket 27,
+  10,
+  11 ms.
+  Signing costs about 5 ms and needs no agent,
+  passphrase or display,
+  so the 20 to 406 s build steps were something else in the scratch `git commit` step;
+  the per-step timing records of release 0.6.1-alpha.2 name it on the next slow commit.
+  Two wider probes (the key's passphrase state and the commit service's environment) were refused by the auto-mode check as credential exploration and were not retried.
+- An `index.lock` no process holds:
+  "Service removes it":
+  after a complete scan of every readable process finds no holder and there is no Git PID file,
+  the service removes the lock and lands the commit.
+  The limit stated with the question stands:
+  processes in other user namespaces and a native `git commit --only` in its hook phase cannot be seen.
+- What a stop of the commit service does to a commit's Git
+  (tokio plan,
+  open choice 12):
+  "C:
+  shutdown stops its Gits (Recommended)":
+  the stop handler only records the stop,
+  and the service's own shutdown signals the Git processes it is waiting on,
+  through a registry.
+
+## Answered in the question tool, recorded 2026-11-07T21:28:26-05:00
+
+- Old agent scratch on the 860:
+  "Delete old scratch (Recommended)",
+  option A in the record kept below.
+- The refused `monochromatic-lint` 0.5.2-alpha.6 release:
+  "Allow release tasks (Recommended)",
+  so agents run this repository's release tasks without asking.
+  Done as an auto-mode allow entry in `~/.claude/settings.json`
+  after the owner wrote "I authorize you to edit Claude Code Settings and especially auto mode settings.";
+  the release was dispatched as run 42438318626.
 - The repository move's W6 and W7 edits to `~/.claude/settings.json`,
   `~/.claude.json` and `~/.codex/config.toml`
-  (the exact new values are in `doc/handover/repository-move-dangling-link-items.md`,
-  section "W6 and W7 edits to apply").
+  (values in `doc/handover/repository-move-dangling-link-items.md`,
+  section "W6 and W7 edits to apply"):
+  "I apply them at cutover (Recommended)",
+  so the coordinator makes them right before the cutover.
+- The coordinator's picks made while the owner was away
+  (tokio worker cap,
+  the strict memory test,
+  the full repository link check):
+  "Keep all (Recommended)".
+- In plain messages,
+  the owner asked:
+  "Modify the auto mode config in Claude Code global settings to reduce false denials."
 
-## Open: may agents' old scratch on the 860 be deleted to make room for the move? (not asked yet)
+### Record of the scratch question as asked
 
 The move's space rule refused on 2026-11-07,
 as designed
@@ -217,6 +277,15 @@ saying nothing keeps it.
   against your rule that nothing waits forever;
   the coordinator picked a measured ceiling,
   with the claim expiring by its lease if that ceiling passes.
+- mpm-shadow's launchers (the small programs that start `git`,
+  the linter and every other locked tool) are copies of whichever mpm-shadow ran the install,
+  not of the newest one installed;
+  that is how the global `git` launcher stayed an alpha.2 copy and started a deleted 0.6.0 wrapper from systemd units
+  (fixed in mpm-shadow 0.2.7-alpha.6,
+  diagnosis in `doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`).
+  The coordinator picked:
+  launchers are copies of the newest installed mpm-shadow.
+  Queued behind the Git wrapper work.
 - An equivalent mutant that no test can kill
   (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
   a function that already returns 0)

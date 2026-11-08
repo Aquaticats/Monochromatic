@@ -26,6 +26,9 @@
     // Skill copies for tools that read .claude/skills and .factory/skills; the targets are owned outright.
     { "kind": "mirror", "id": "skills-claude", "from": ".agents/skills", "to": ".claude/skills" },
     { "kind": "mirror", "id": "skills-factory", "from": ".agents/skills", "to": ".factory/skills" },
+    // The repository's own Claude Code settings file stays empty (owner, 2026-11-07): permission rules, auto mode
+    // and hooks belong in the user's ~/.claude/settings.json. Any write to it is drift that `file-enforcer write` undoes.
+    { "kind": "concat", "id": "claude-project-settings-empty", "output": ".claude/settings.json", "parts": [""] },
     // The local forbidden-strings appendix is sensitive: owner-only when present, never created by this tool.
     { "kind": "mode-only", "id": "forbidden-strings-local-mode", "path": "forbidden-strings.append.local.txt", "mode": "0600" },
     // Per-crate Cargo.toml keys. A key is set only where the crate already has its table or key.

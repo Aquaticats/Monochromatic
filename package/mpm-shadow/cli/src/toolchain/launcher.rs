@@ -295,7 +295,26 @@ pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch 
     {
         warning = Some(older_lock_message_for(record.scope, &record.tool_id, &locked, &used));
     }
-    return Launch { warning, program: program_to_run(&record.real) };
+    let program: PathBuf = program_to_run(&record.real);
+    if let Some(message) = &warning {
+        warning = Some(warning_naming_program(message, &program));
+    }
+    return Launch { warning, program };
+}
+
+/// What:
+/// The older-lock sentence followed by the program the launcher is about to start.
+/// Why:
+/// The sentence names the version that runs,
+/// and a person who finds the program by path must be able to tell that this is the file started,
+/// not the path a stale record once named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function warningNamingProgram(message: string, program: string): string
+/// ```
+pub fn warning_naming_program(message: &str, program: &Path) -> String {
+    return format!("{message}; starting {}", program.display());
 }
 
 /// Replaces this process with `program`,
@@ -399,6 +418,11 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
         say_why_the_lock_is_unreadable(&record.lock_file);
     }
     let launch: Launch = prepare_launch(record, lock_text.as_deref());
+    // A launcher starts only a path it has just found to be a file: neither the recorded path nor the one under `current` is
+    // tried blind, and no warning says "starting" for a program that does not start.
+    if !launch.program.is_file() {
+        return report_program_not_found(record, &launch.program, lock_text.as_deref());
+    }
     if let Some(warning) = &launch.warning {
         eprintln!("mpm-shadow: warning: {warning}");
     }
@@ -415,17 +439,41 @@ pub fn run_launcher(record: &LaunchRecord, arguments: &[OsString]) -> i32 {
     let error: std::io::Error = exec_program(&launch.program, arguments);
     eprintln!("mpm-shadow: could not start {}: {error}", launch.program.display());
     if error.kind() == std::io::ErrorKind::NotFound {
-        eprintln!(
-            "mpm-shadow: {}",
-            missing_program_advice(MissingProgram {
-                tool_id: &record.tool_id,
-                scope: record.scope,
-                lock_file: &record.lock_file,
-                real: &record.real,
-                lock_text: lock_text.as_deref(),
-            })
-        );
+        // The file vanished between the check and the start (another install deleted it): the same advice applies.
+        eprintln!("mpm-shadow: {}", advice_for(record, lock_text.as_deref()));
         return NOT_FOUND_EXIT_CODE;
     }
     return EXEC_FAILED_EXIT_CODE;
+}
+
+/// The sentence that says no program was found for `record`,
+/// with the tool,
+/// both versions and the command that makes the links again.
+fn advice_for(record: &LaunchRecord, lock_text: Option<&str>) -> String {
+    return missing_program_advice(MissingProgram {
+        tool_id: &record.tool_id,
+        scope: record.scope,
+        lock_file: &record.lock_file,
+        real: &record.real,
+        lock_text,
+    });
+}
+
+/// What:
+/// Says on standard error that `program` was not started because no file exists there,
+/// followed by the advice,
+/// and returns the exit status for a missing program.
+/// Why:
+/// The check comes before any start,
+/// so the message names the path that was checked,
+/// and the start attempt's operating-system error is not the only evidence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function reportProgramNotFound(record: LaunchRecord, program: string, lockText?: string): number
+/// ```
+fn report_program_not_found(record: &LaunchRecord, program: &Path, lock_text: Option<&str>) -> i32 {
+    eprintln!("mpm-shadow: not starting {}: no file exists there", program.display());
+    eprintln!("mpm-shadow: {}", advice_for(record, lock_text));
+    return NOT_FOUND_EXIT_CODE;
 }

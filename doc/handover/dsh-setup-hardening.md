@@ -111,21 +111,59 @@ so a probe written against the `.d.ts` files fails at import.
 Reading the bundle's own `export` statement is the reliable way to find what is
 callable.
 
-## What to inspect after a restart
+## Restart check, closed at 2026-11-07T22:01:08-05:00
 
-The change needs a server start and a new session.
-The single check is that the injected context no longer contains an
-`Instructions from: CLAUDE.md` block,
-and that `Instructions from: AGENTS.md` is still present.
-A session that cannot restart its own server cannot perform this check,
-which is why it is still open.
+The change needed a server start and a new session,
+and the check was that the injected context holds no `Instructions from: CLAUDE.md` block
+while `Instructions from: AGENTS.md` is still present.
+It passed.
+
+A session created through the web profile's HTTP API with this repository as its working directory
+(session `trial-real-home-3` on the real `~/.dsh`)
+has one `Instructions from: AGENTS.md` header in its decompressed log,
+no `Instructions from: CLAUDE.md` header,
+and none of the preamble markers `question tool is unreliable`,
+`spawn-claude`,
+or `claude-code-bash`.
+The working-directory line and the `AGENTS.md` block are the positive controls,
+and both were present.
+
+Session `trial-real-home-2`,
+whose working directory was a scratch folder,
+showed no instruction block at all because that folder holds neither file.
+That run proved nothing about the override,
+so the check needs a working directory that contains the instruction files.
+How to start such a session is in `doc/agent/drive-dsh-as-a-subagent.md`.
+
+## Upgrade to 0.2.2-rc.1, recorded at 2026-11-07T22:01:08-05:00
+
+The user-level `~/.dsh/cordis.patch.yml` referenced a plugin subpath that 0.2.2-rc.1 no longer exports,
+which stopped every session creation.
+The cause,
+the six-line fix,
+and the backup are in `doc/troubleshooting/dsh-list-agents-subpath-removed-in-0-2-2-rc-1.md`.
+
+In this repository,
+the `@deepseek-ai/dsh-*` catalog pins in `pnpm-workspace.yaml` and the `engines.dsh` field of the
+`advisor` and `neuralwatt` plugin manifests moved from 0.2.1-rc.5 to 0.2.2-rc.1,
+and the `@deepseek-ai/cordis` pin moved from 4.0.5 to 4.1.0 because the install refused an unmet peer.
+The type-check and unit tests of both plugins passed,
+and the web profile then booted with no `skipping profile bundle` line.
 
 ## Open queue
 
-1. Restart the DSH server,
-   open a new session,
-   and confirm the `CLAUDE.md` block is gone.
-   Everything measurable short of that is measured.
+1. Make the `engines.dsh` field stop pinning one exact version.
+   Both plugin manifests declare a single version,
+   so every DSH upgrade makes DSH skip the bundles again,
+   as `doc/troubleshooting/dsh-rc5-profile-startup.md` records.
+   Whether a range is safe for plugins that call host APIs is the owner's call.
+   Also open:
+   the comments at `pnpm-workspace.yaml` about `@deepseek-ai/dsh-llm-pi-ai` and
+   `@deepseek-ai/dsh-config-editor` still describe their 0.2.1-rc.2 behavior,
+   and were not re-checked against 0.2.2-rc.1.
+   Test sessions `trial-real-home-2` and `trial-real-home-3` remain in the real session list,
+   along with the backup `~/.dsh/cordis.patch.yml.bak-20261107T214942-0500`,
+   until the owner says to remove them.
 2. Collapse both search provider keys to a single home.
    The full procedure is
    `doc/runbook/search-fetch-credential-single-home.local.md`,
@@ -150,7 +188,13 @@ which is why it is still open.
    with a `MAINTENANCE` comment as the only defence.
    A repo task that diffs the shipped preset against the override and fails on
    drift would make that loud.
-   Proposed and not taken.
+   The predicted failure happened on 2026-11-07:
+   the user-level patch restated three presets with a `list-agents` row that 0.2.2-rc.1 removed,
+   and no session could be created
+   (`doc/troubleshooting/dsh-list-agents-subpath-removed-in-0-2-2-rc-1.md`).
+   The row is fixed.
+   The drift guard is still proposed and not taken,
+   and is the owner's call.
 4. The 14 hidden workflow skills.
    `~/.agents/skills/` has 29 `SKILL.md` files and exactly 14 carry
    `disable-model-invocation: true`,
