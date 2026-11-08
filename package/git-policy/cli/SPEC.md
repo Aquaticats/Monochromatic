@@ -2820,8 +2820,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   644,710 to 1,200,776 ms,
   every one stopped).
   No wait a holder released reached the ten minutes,
-  and the longest of those four is just past the
-  client's twenty-minute `ANSWER_CEILING`.
+  and the longest of those four is 776 ms past the
+  client's twenty-minute `ANSWER_CEILING`, which bounds the whole wait rather than one step of it.
   No wait takes it:
   it stays as the basis of `FOREIGN_OWNER_PATIENCE`
   (`src/native/process/pid_namespace.rs`,

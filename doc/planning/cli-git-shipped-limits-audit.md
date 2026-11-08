@@ -908,6 +908,16 @@ which are not limits.
   no log of a foreign namespace exists to measure it,
   and the margin is the coordinator's,
   open to the owner's veto.
+- Note 2026-11-08T16:01:42-05:00:
+  the basis above is stale.
+  The merge waits `MERGE_LOCK_CEILING` (one minute) since the entry
+  "Timing record names every step; the other lock waits" of 2026-11-07,
+  so twice the longest a merge waits is two minutes, not twenty;
+  the constant keeps its value because another change owns it.
+  The timing log read that day (1,332 records,
+  "The lock ceiling and the three waits it fed" below) holds a whole command of 1,228,797 ms,
+  which is longer than the 20 minutes,
+  though that figure is of a command and not of an owner record.
 
 ### Notice intervals and graces
 
@@ -4832,8 +4842,8 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   and the file's five-times margin over the journal's 8 s is the one minute those ceilings take;
   ten minutes is 25 times the log's largest self-released wait.
   The four waits that passed a minute are the ones where nothing proved a live holder:
-  they stopped at the client's twenty-minute `ANSWER_CEILING` (1,200,776 ms in the longest),
-  which is the measured price of bounding one wait and not the command that waits again.
+  the longest is 1,200,776 ms, 776 ms past the client's twenty-minute `ANSWER_CEILING`,
+  which bounds the whole wait rather than any one step of it.
 - Figure this measurement would pick,
   recorded and not applied, because the owner decides limits case by case:
   one minute for the merge's wait, which is the value shipped;

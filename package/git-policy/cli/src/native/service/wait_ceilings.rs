@@ -98,9 +98,9 @@ pub const PROCESS_LOOK_CEILING: Duration = Duration::from_secs(10);
 /// 756,215,
 /// 1,087,175 and 1,200,776 ms.
 /// No wait that a holder released came near the ten minutes,
-/// and the longest of the four stopped ones is just past the client's
+/// and the longest of the four stopped ones is 776 ms past the client's
 ///  twenty-minute `ANSWER_CEILING`,
-/// so a ceiling on one wait does not bound the command that waits again.
+/// which is what bounds the whole wait rather than any one step of it.
 /// The value stays where it is because another change owns the patience it feeds,
 /// and that patience's stated basis (twice the longest a
 ///  merge waits) no longer holds now that the merge waits `MERGE_LOCK_CEILING`
