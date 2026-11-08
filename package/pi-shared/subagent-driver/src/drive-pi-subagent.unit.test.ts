@@ -554,6 +554,8 @@ await describe({
         const run = await runDriver({ scenario: 'silent', wallSeconds: SHORT_WALL_SECONDS, },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('wall-clock',);
+        // The statistics ask after the wall clock ends by the teardown's own bound, not by Pi answering it.
+        expect(String(run.summary.sessionStats,),).toContain('no answer',);
       },
     },),
     it({

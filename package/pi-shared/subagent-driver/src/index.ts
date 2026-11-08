@@ -68,3 +68,12 @@ export {
   type WatchRequest,
   watchUntilEnded,
 } from './watch-pi-run.ts';
+
+/**
+ Exported so a test can hand the splitter the chunks it chooses, instead of hoping a scheduler splits a record.
+ @internal
+ */
+export {
+  startLineSplitter,
+  type SplitPiOutputRequest,
+} from './split-pi-output.ts';

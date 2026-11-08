@@ -21,6 +21,12 @@ each written as `--name=value`:
 - `--prompt-file`: the first prompt.
 - `--provider` and `--model`: what Pi runs on.
 - `--wall-seconds`: how long the run may last.
+  It bounds Pi's start-up,
+  every answer the driver waits for,
+  and the watch,
+  so a Pi that never answers still ends at this limit.
+  A value whose milliseconds would be infinite is refused,
+  because a deadline of `Infinity` is no deadline.
 - `--idle-seconds`: how long the driver stays up for a steering message after Pi comes to rest.
 - `--turn-cap`: how many model turns the run may start.
 - `--session`: a session file to resume.
@@ -31,6 +37,12 @@ each written as `--name=value`:
 
 The first eight options are required,
 so a run is always bounded.
+Putting the run away has its own bound after the wall limit:
+the last two answers,
+Pi's stages of leaving,
+and the feed's last write,
+each with a limit of its own,
+so a run ends even when Pi answers nothing at the end.
 
 `pi` must be on `PATH`.
 
@@ -39,14 +51,24 @@ so a run is always bounded.
 - `feed.jsonl`: one line per event worth watching,
   as it happens.
 - `summary.json`: appears whole and last,
-  so its presence means Pi has gone and the feed is complete.
+  so its presence means the driver has finished.
+  `piExit` is there only when Pi's exit was seen,
+  and `piHasExited` says whether the driver could confirm Pi had gone,
+  which a summary that names `pi-not-stopped` could not.
+  `feedProblem` names why the feed is incomplete when it is.
 - `stderr.log`: Pi's standard error.
 - `inbox/`: drop a message here to steer the run.
   Write it under a name starting with a dot,
   then rename it to one without the dot,
   because any other name is read at once.
   Pi gets it as a steer while it works and as a new prompt while it rests.
-  A message Pi refused stays as `.failed-<name>`.
+  An entry must be an ordinary file:
+  a named pipe is set aside instead of waited on.
+  A message Pi refused stays as `.failed-<name>`,
+  and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
+  so no kept message replaces another.
+  While a message is being delivered it is held under a dot name of its own,
+  so a newer message published under the same name is neither deleted nor kept in its place.
 - `stop`: create this file to end the run early.
 
 ## How a run ends
@@ -56,9 +78,24 @@ so a run is always bounded.
 `prompt-rejected`,
 `pi-exited`,
 `turn-cap`,
-`wall-clock` and `driver-failed` exit non-zero after writing the summary.
-`driver-failed` means the driver itself hit an error;
-the summary's `driverError` says which.
+`wall-clock`,
+`driver-failed`,
+`model-error` and `pi-not-stopped` exit non-zero after writing the summary.
+
+`driver-failed` means the driver itself hit an error:
+`driverError` names it,
+or `feedProblem` does when the feed could not be written.
+
+`model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
+and `modelError` holds what the model said.
+An error an automatic retry recovers from is not one:
+the run still ends `idle`,
+because the reply after it succeeded.
+
+`pi-not-stopped` means Pi was still alive when every bound on ending it ran out,
+so the summary claims nothing about Pi having gone.
+A run started as a systemd unit gets its processes cleaned up by the unit,
+which is what ends a Pi that outlived these signals.
 
 A driver started by a Pi that a driver runs refuses at once,
 so agents cannot start agents without end.
