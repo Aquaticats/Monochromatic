@@ -139,7 +139,15 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
             let candidate: PathBuf = directory.join(name);
             // `match`: picks the arm whose pattern fits the value.
             // Borrow `&candidate`: lends the value without copying or giving it away.
-            match (ops.link)(displaced, &candidate) {
+            #[cfg(test)]
+            let link_result: io::Result<()> = if crate::failpoints::keep_link_of(target) {
+                Err(io::Error::from_raw_os_error(rustix::io::Errno::MLINK.raw_os_error()))
+            } else {
+                (ops.link)(displaced, &candidate)
+            };
+            #[cfg(not(test))]
+            let link_result: io::Result<()> = (ops.link)(displaced, &candidate);
+            match link_result {
                 Ok(()) => {
                     // What:     `|a, b| body` is a closure, an anonymous function (a TS arrow function); `|_|` ignores its argument. Closures can use variables from the enclosing function.
                     // Why:      Short callbacks for iterator steps, error conversion and lazy defaults stay next to where they are used.

@@ -1361,6 +1361,55 @@ fn when_every_link_or_a_barrier_fails_the_displaced_inode_keeps_its_temporary_na
     }
 }
 
+/// Acceptance row R2 (sixth pass,
+/// group 8,
+/// the fallback stage after a preferred link failure):
+/// the preferred kept directory refuses the link,
+/// the beside-target fallback link succeeds,
+/// and the directory barrier of that fallback fails.
+/// Both names of the displaced inode survive (the fallback name and the stranded exchange temporary),
+/// the replacement stays live,
+/// nothing is reported as settled,
+/// and the message names both surviving paths.
+/// A cleanup that removes either name on this error path leaves one of them off the message and the test fails.
+#[test]
+fn a_preferred_link_failure_whose_fallback_barrier_fails_keeps_the_stranded_temporary_and_both_names() {
+    let root = repository("expected");
+    let path = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let kept_dir = root.path().join("kept");
+    let crate_dir: PathBuf = path.parent().expect("a parent").to_path_buf();
+    let displaced: u64 = fs::metadata(&path).expect("examines").ino();
+    let refused: Cell<u32> = Cell::new(0);
+    let refuse_in_kept = |existing: &Path, new: &Path| -> std::io::Result<()> {
+        if new.starts_with(&kept_dir) {
+            refused.set(refused.get() + 1);
+            return Err(std::io::Error::from_raw_os_error(rustix::io::Errno::MLINK.raw_os_error()));
+        }
+        return fs::hard_link(existing, new);
+    };
+    let barrier_directory: PathBuf = crate_dir.clone();
+    let failing_fallback_barrier = move |directory: &Path| -> std::io::Result<()> {
+        if directory == barrier_directory {
+            return Err(std::io::Error::other("injected fallback barrier failure"));
+        }
+        return Ok(());
+    };
+
+    let (outcome, captured) = replace_capturing(&path, &KeepAs::in_directory(&kept_dir, ".displaced"), &refuse_in_kept, &real_sync_file, &failing_fallback_barrier);
+
+    assert!(refused.get() >= 1, "the preferred kept directory never refused the link, so the fallback was not exercised");
+    let error = outcome.expect_err("a failed fallback barrier is not a settled result");
+    let message: String = error.to_string();
+    assert!(message.contains("injected fallback barrier failure"), "{message}");
+    let names: Vec<PathBuf> = names_of_inode(root.path(), displaced);
+    let temporary: &PathBuf = names.iter().find(|name| { return name.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".shadow-"); }); }).unwrap_or_else(|| { panic!("the stranded exchange temporary lost its name: {names:?}"); });
+    let fallback: &PathBuf = names.iter().find(|name| { return name.parent() == Some(crate_dir.as_path()) && *name != temporary; }).unwrap_or_else(|| { panic!("the beside-target fallback name is gone: {names:?}"); });
+    assert!(message.contains(&temporary.display().to_string()), "the message does not name the stranded temporary: {message}");
+    assert!(message.contains(&fallback.display().to_string()), "the message does not name the fallback kept name: {message}");
+    let replacement: u64 = captured.unwrap_or_else(|| { panic!("the exchange was never reached") });
+    assert!(names_of_inode(root.path(), replacement).contains(&path), "the replacement inode lost the live path");
+}
+
 /// Acceptance row R2 (stages and read-only transition):
 /// the exchange itself fails,
 /// or the file system turns read-only (`EROFS`) at the link:
@@ -1374,8 +1423,13 @@ fn a_failing_exchange_or_a_read_only_link_keeps_both_inodes_named() {
     let path = root.path().join(CRATE_DIR).join("Cargo.lock");
     let original: u64 = fs::metadata(&path).expect("examines").ino();
     let none = |_path: &Path| {};
-    let failing_swap = |_first: &Path, _second: &Path| -> std::io::Result<()> { return Err(std::io::Error::other("injected exchange failure")); };
+    let swap_calls: Cell<usize> = Cell::new(0);
+    let failing_swap = |_first: &Path, _second: &Path| -> std::io::Result<()> {
+        swap_calls.set(swap_calls.get() + 1);
+        return Err(std::io::Error::other("injected exchange failure"));
+    };
     let outcome = replace_with_seams(&path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &Seams { between: &none, after_exchange: &none, swap: &failing_swap, link: &real_link, sync_file: &real_sync_file, sync_dir: &real_sync_dir });
+    assert_eq!(swap_calls.get(), 1, "the failing exchange callback was never called, so the assertion above did not exercise it");
     assert!(outcome.is_err(), "a failed exchange was reported as settled");
     assert_eq!(fs::read_to_string(&path).expect("the live file"), "expected", "the live file changed although the exchange failed");
     assert!(names_of_inode(root.path(), original).contains(&path), "the original lost its name");

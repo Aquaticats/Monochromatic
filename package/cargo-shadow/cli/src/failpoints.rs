@@ -95,6 +95,9 @@ thread_local! {
     /// The one output file whose next directory barrier on this thread fails,
     /// or `None`.
     static OUTPUT_DIRECTORY_SYNC_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
+    /// The target whose preservation link fails on every candidate name on this thread,
+    /// or `None`.
+    static KEEP_LINK_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
 }
 
 /// The steps that can be made to fail.
@@ -258,6 +261,48 @@ pub(crate) fn path_targets_armed() -> (bool, bool) {
     let file: bool = OUTPUT_FILE_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
     let directory: bool = OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
     return (file, directory);
+}
+
+/// What:
+/// `pub fn arm_keep_link_of(target: &Path)` makes every preservation link for this target fail on this thread,
+/// until it is disarmed.
+/// Why:
+/// The recovery's post-exchange schedule needs the preservation that follows a successful exchange to fail,
+/// so the lockfile is already live while the root is treated as failed (sixth pass,
+/// group 8).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armKeepLinkOf(target: string): void
+/// ```
+pub fn arm_keep_link_of(target: &Path) {
+    KEEP_LINK_OF.with(|slot| { *slot.borrow_mut() = Some(target.to_path_buf()); });
+}
+
+/// What:
+/// `pub fn disarm_keep_link()` forgets the target armed for a failing preservation link.
+/// Why:
+/// Every candidate name fails while it is armed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function disarmKeepLink(): void
+/// ```
+pub fn disarm_keep_link() {
+    KEEP_LINK_OF.with(|slot| { *slot.borrow_mut() = None; });
+}
+
+/// What:
+/// `pub(crate) fn keep_link_of(target: &Path) -> bool` says whether preservation links for this target were armed.
+/// Why:
+/// The fault stays armed for every candidate name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function keepLinkOf(target: string): boolean
+/// ```
+pub(crate) fn keep_link_of(target: &Path) -> bool {
+    return KEEP_LINK_OF.with(|slot| { return slot.borrow().as_deref() == Some(target); });
 }
 
 /// What:
