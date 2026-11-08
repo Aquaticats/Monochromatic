@@ -5,133 +5,127 @@ description: Use when delegating a task to Pi (DeepSeek or another model) as a s
 
 # Pi as a subagent
 
-Pi is a capable coding agent that runs as a child process you feed prompts and read events from.
-Give it the full toolset and a real task,
-then handle its quirks as they appear.
-The protocol,
-the full driver script,
-and every quirk with its evidence live in two docs;
-read the one a step points at when you reach that step.
+Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process.
+Leave `--tools` off:
+it is an allowlist for every tool,
+extension tools included,
+so naming some removes the rest.
+Pi saves the session by default and the owner wants that kept,
+so a run can be read back or resumed with `--session <path|id>`.
 
-- `doc/agent/drive-pi-as-a-subagent.md`:
-  RPC protocol,
-  client script,
-  traps,
-  model choice.
-- `doc/agent/drive-pi-as-a-coding-subagent.md`:
-  the `pi-rpc-agent.ts` driver,
-  watching,
-  quirks,
-  the git shim.
+## Protocol
 
-## Run order
-
-1.  Work where the task lives.
-    A worktree (`git worktree add -b <branch> .claude/worktrees/<name> HEAD`) is an option when you want to diff or
-    discard the result;
-    the current checkout works too.
-    Run the area's type check and unit tests first,
-    so an old failure is never blamed on the subagent's first edit.
-2.  List every matching provider and model pair from `pi --list-models <search>` and ask the owner which one;
-    the owner prefers the `-1017` variants of DeepSeek V4.1 Flash.
-3.  Start the child as `pi --mode rpc --provider <p> --model <m>`
-    in a capped `systemd-run --user --unit=<name> --collect --setenv=PATH` unit,
-    with CPU,
-    memory,
-    task,
-    and `IOWeight` caps (never above 10).
-    Leave `--tools` off so the model keeps every tool.
-    Pi uses the owner's real home by default.
-    Pi saves the session by default and the owner wants that kept,
-    so the run can be read back or resumed with `--session <path|id>`.
-4.  Write the brief.
-    Quote the synthetic-load ban from `AGENTS.md`.
-    To learn whether the model works unassisted,
-    state the problem,
-    the evidence,
-    and the owner's intent.
-    To get a known change,
-    name the files,
-    the exact sentences,
-    and the tests.
-    Fix the acceptance criteria before the run and judge the result twice:
-    against the letter of each criterion,
-    and by what the end user receives.
-5.  Watch the feed through `jq` in the Monitor tool (`tail -n 0 -f`,
-    one monitor per feed).
-    Wait for the end with `timeout <seconds> tail --pid=<main pid> --follow /dev/null` in a background command,
-    the PID from `systemctl --user show --property=MainPID --value <unit>`.
-6.  Verify the result yourself,
-    commit as the lead,
-    and clean up what the run created:
-    no `pi --mode rpc` process or unit left,
-    leftovers in `/tmp` and the working directory deleted by exact name,
-    a worktree you added removed after merge.
-
-## Quirks and what to do
-
-- Dialogs block.
-  Pi can raise `select`,
+- One JSON command per line on stdin,
+  one JSON record per line on stdout,
+  logs on stderr.
+  Split stdout on LF only,
+  because Unicode line separators are valid inside JSON strings.
+  Closing stdin ends the process.
+- Install the stdout listener before the first command.
+  Every command takes an optional `id` that its `response` repeats.
+- `{"id":"c1","type":"prompt","message":"..."}` answers `disposition: "started"`:
+  accepted,
+  not finished.
+  A prompt sent mid-run needs `"streamingBehavior":"steer"` and answers `queued`;
+  without it Pi rejects the prompt (documented,
+  not run).
+  `{"type":"steer","message":"..."}` and `{"type":"follow_up","message":"..."}` also queue during a run.
+  `{"type":"get_last_assistant_text"}` returns `data.text`.
+- Wait for `agent_settled` before reading the final text;
+  `agent_end` ends only one low-level run.
+- A dialog request (`extension_ui_request` with method `select`,
   `confirm`,
   `input`,
-  or `editor` requests,
-  and the source leaves an unanswered one pending forever.
-  Answer each with `{type:'extension_ui_response', id, cancelled:true}`.
-  `agent_settled` marks a settled turn.
-- Soft misses look like success.
-  A `find` given a path as its pattern returns "No files found" with `isError` false;
-  read the result text in the feed.
-  The model recovers on its own,
-  as it does from a guessed file extension or a rejected multi-block `edit`.
-- It verifies more than the change needs:
-  reads,
-  edits,
-  re-reads,
-  greps other uses.
-  A one-line task took 34 seconds;
-  budget for it.
-- Silence of 20 seconds or more during extended thinking is not a hang.
-  Compare the feed's timestamp and the process state before calling a run stuck.
+  or `editor`) waits for an answer,
+  and the source leaves it pending forever unless a timeout field or an abort resolves it.
+  Answer each with `{"type":"extension_ui_response","id":<the request id>,"cancelled":true}`.
+  The other UI methods (`notify`,
+  `setStatus`,
+  `setWidget`,
+  `setTitle`,
+  `set_editor_text`) need no reply.
+- A prompt Pi rejects comes back as a response,
+  not as an event.
+- A process holds one active session at a time;
+  `fork`,
+  `clone`,
+  `switch_session`,
+  and `new_session` replace it.
+  Parallel agents need separate processes.
+- A mistyped `:suffix` on `--model` does not fail:
+  Pi warns and sends it to the provider as a custom model ID.
+  Leave suffixes off and check `get_state` `data.model.id` after startup.
+
+## Pi quirks
+
+- A systemd user unit does not inherit the shell's `PATH`;
+  the recorded launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
+- The owner's real home has a `thinking-default` plugin that sets the level to `xhigh` on every start and model change,
+  whatever the command line says.
+  Leave the thinking level alone:
+  pass no `--thinking` and send no `set_thinking_level`.
+- `PI_CODING_AGENT_DIR=<dir>` points Pi at another home when a run needs different providers or packages:
+  a directory holding `settings.json` (its `packages` list) and a copy of `auth.json` (mode 600 in a mode 700 directory).
+  A provider that comes from a package needs that package in whichever home the child uses,
+  and the `thinking-default` plugin needs to be in it too,
+  or the model runs below `xhigh`.
+  Delete the `auth.json` copy afterwards.
+- In a throwaway folder,
+  project `.pi/settings.json` was ignored with no message unless the child got `--approve`;
+  other project resources were not tested.
+- A multi-block `edit` is rejected whole when any one `oldText` does not match,
+  and a `find` given a path as its pattern returns "No files found" with `isError` false,
+  so a soft miss and a success look alike until the result text is read.
+- Timings recorded in the repository docs come from the slower `synthetic` provider;
+  `neuralwatt` is unmeasured.
+
+## DeepSeek V4.1 Flash quirks
+
+The owner rates it at about a low-level Sonnet 5.5 when run at `xhigh`,
+and finds it works poorly at any other thinking level.
+It finished a multi-file change unassisted from a problem statement alone,
+so a brief needs no step-by-step handholding.
+
+- It stops and explains when an objective is hard or open.
+  Given "prove the Collatz conjecture" it answered that the problem is open and ended its turn,
+  and every later nudge got the same explanation plus a menu of alternative tasks.
+  Told to attempt a proof,
+  it did the work:
+  a written proof attempt and compiled verifiers.
+  Phrase a hard objective as attempts to make,
+  and steer with one concrete next attempt when it stalls.
+- Told to use a tool it does not have (`ask_user_question` under a `--tools` allowlist),
+  it says so and asks in plain text with a numbered list.
+- It slips on tool arguments and recovers without help:
+  a path as a `find` pattern,
+  guessed file extensions,
+  a stale `oldText`.
+  It lists directories,
+  searches recursively,
+  or greps and resends.
+- It verifies thoroughly:
+  confirms exports and types,
+  re-reads after editing,
+  greps other uses,
+  and issues independent calls together.
+  A one-line import change took 34 seconds.
+- At `xhigh` the feed went quiet for 20 seconds or more while it thought.
+  Check the process state and the time of the last event before calling a run stuck.
+- It writes outside the task:
+  scripts and binaries in `/tmp`,
+  notes and sources in its working directory,
+  and long compiled jobs (one build used OpenMP).
+  Delete those leftovers by exact name afterwards.
 - It reads this repository's docs,
   including ones that describe the problem it was given.
   Record that as a confound when judging an unassisted attempt.
-- With a shell it compiles and runs long jobs (one build used OpenMP) and writes into `/tmp` and its working directory.
-  The capped unit bounds the load,
-  and a cleanup by exact name handles the files.
-  A throwaway working directory keeps them out of a checkout when that matters.
-- A commit auto-pushes in this repository.
-  Say in the brief that the lead commits.
-  For a hard stop,
-  put the read-only git shim from the coding doc first in the unit's `PATH`;
-  it guards mistakes only.
-- Tests that import a built artifact fail on a correct edit until the package is built,
-  with errors that look like logic bugs.
-  Build first,
-  read each step's exit status,
-  and check that the new test names appear in the output.
-- A systemd user unit does not inherit the shell's `PATH`;
-  without `--setenv=PATH` every arm fails in seconds with `spawn pi ENOENT`.
-- `git worktree add` returns after minutes although the directory is usable within seconds;
-  start it in the background with its output in a file.
-- In a worktree with uncommitted changes the git-policy guard refuses `git checkout <ref> -- <path>` and `git reset`.
-  To show a new test fails without the change,
-  write the base content with `git show <ref>:<path>` and restore the same way.
-- The owner's real home has a `thinking-default` plugin that overrides `--thinking`.
-  `PI_CODING_AGENT_DIR=<dir>` points Pi at a directory holding `settings.json` (its `packages` list) and a copy of
-  `auth.json` (mode 600 in a mode 700 directory) when a run needs different providers or packages;
-  `--thinking` then applies as given.
-  A provider that comes from a package needs that package in whichever home the child uses.
-  Delete the `auth.json` copy afterwards.
-- A project's `.pi` settings are ignored without a message unless the child gets `--approve`.
-- `--tools` is an allowlist for every tool,
-  so passing it removes whatever it does not name;
-  a run with it says nothing about the tools it left out.
-- The driver's feed cuts long results to 500 characters and drops `structuredContent` (a `bash` result's `exit_code`),
-  so run the checks yourself.
-- Two monitors on one feed deliver every event twice;
-  stop the old one first.
-- A prompt Pi rejects comes back as a response,
-  not as an event.
-  One Pi process runs one session.
-- Timings on the `synthetic` provider are that provider's speed;
-  tool-call and turn counts do not depend on it.
+- It builds more than the problem needs.
+  Unassisted,
+  it wrote a prompt change plus a phrase-list post-filter and tests,
+  a much larger change than the prompt-only change that measured the same.
+  Read the diff's scope against the problem.
+
+Evidence for each line:
+`doc/agent/drive-pi-as-a-subagent.md`,
+`doc/agent/drive-pi-as-a-coding-subagent.md`,
+and `doc/agent/pi-goal-extension-driven-through-rpc.md`.
