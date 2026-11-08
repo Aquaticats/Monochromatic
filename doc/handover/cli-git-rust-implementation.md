@@ -5542,18 +5542,29 @@ are in append mode now).
 
 - `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
   (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
-  `5083511eed` was merged into it, image tag `localhost/git-policy-native-test:dangling-merge-main-1794102283`
-  (log of that run: `${HOME}/temp/agent/860-w-items-2/m-gate-first.log`; it summarized 5319 tests, 5318 passed, 1 failed).
-  The assertion at `src/native/lock/stale_ref_locks_tests.rs:114` failed with `left: 1`, `right: 2`
-  (the `cleared.len()` check, "2 expected, 1 cleared"),
+  `5083511eed` was merged into it,
+  image tag `localhost/git-policy-native-test:dangling-merge-main-1794102283`
+  (log of that run:
+  `${HOME}/temp/agent/860-w-items-2/m-gate-first.log`;
+  it summarized 5319 tests,
+  5318 passed,
+  1 failed).
+  The assertion at `src/native/lock/stale_ref_locks_tests.rs:114` failed with `left: 1`,
+  `right: 2`
+  (the `cleared.len()` check,
+  "2 expected,
+  1 cleared"),
   and the printed outcome showed `packed-refs.lock` cleared with `Stale(PidGone(24472))`.
   The branch has no diff in `src/native/lock`.
-  The test passed alone on the host (`native:test:host -- stale_ref_locks`, 35 of 35)
+  The test passed alone on the host (`native:test:host -- stale_ref_locks`,
+  35 of 35)
   and in the next full container run (image `localhost/git-policy-native-test:dangling-merge-main-2-1794103009`,
-  5319 of 5319; that run's log is `${HOME}/temp/agent/860-w-items-2/m-gate.log`).
+  5319 of 5319;
+  that run's log is `${HOME}/temp/agent/860-w-items-2/m-gate.log`).
   Cause and failure rate are not measured;
   the merge into main was `f981e1b493`.
-  The two images were removed afterwards, so the tags name the runs only.
+  The two images were removed afterwards,
+  so the tags name the runs only.
 
 ### Questions waiting for the owner
 
@@ -7405,7 +7416,7 @@ Measured and decided on branch `feat/git-policy-cli-commit-timing-names-every-st
   signing,
   the signer,
   no limit).
-  Adding a ceiling stays the owner's question.
+  The owner answered the ceiling on 2026-11-07 (see "Scratch commit ceiling and the unheld index lock").
 - Rules warm:
   the service warms the compiled forbidden-strings rules after the first landing of a repository,
   after a landing that changes a rules path,
@@ -7473,6 +7484,209 @@ so under a limit between about 50 and 600 MiB it would abort the service in the 
 start,
 `warm` message) when the address space left is below 512 MiB,
 reading the limit and `/proc/self/statm` without a heap allocation.
+
+### Scratch commit ceiling and the unheld index lock (2026-11-07)
+
+Built on branch `feat/git-policy-cli-signed-ceiling-and-unheld-lock`,
+from two owner answers recorded 2026-11-07T22:19:43-05:00 in `doc/handover/questions-for-the-owner.md`.
+
+- Ceiling of the scratch repository's `git commit`
+  (owner:
+  "limit unless editor",
+  "a ceiling of three times the slowest measured signing time" when the message came with the command,
+  "no ceiling,
+  only the waiting notice" with an editor open):
+  - Signing is not the slow part.
+    The coordinator's probe on the same day with the owner's real signing setup in a throwaway repository:
+    signed commits 16,
+    13 and 13 ms,
+    unsigned 9,
+    9 and 8 ms.
+    Hooks are not it either:
+    the step runs with `core.hooksPath` at a directory that cannot exist and every commit event switched off.
+  - The per-step records (release 0.6.1-alpha.2 onward) hold 14 `git commit` steps,
+    31 to 1,002 ms.
+    Three times that is 3 s,
+    which would stop commits that took far longer under load in the same log:
+    the 1,041 `buildMs` of 2026-11-05T03:13:38.961Z to 2026-11-08T03:23:41.536Z peak at 406,024 ms (seven above 60 s),
+    and the build holds the step.
+    Those long builds name no step,
+    so what made them long is unknown.
+  - So the ceiling is the owner's factor applied to the slowest whole build:
+    `SCRATCH_COMMIT_STEP_CEILING` in `service/wait_ceilings.rs`,
+    3 x 406,024 ms = 1,218.07 s,
+    21 whole minutes.
+    This is the coordinator's pick and is open to the owner's veto;
+    the literal reading (3 s) and the signing-only reading (about 50 ms) both fail "Commits should never fail".
+    Two weeks of step records would tighten it.
+  - Editor detection is the existing `opens_editor` (`landing/service_commit_args_editor_opening.rs`):
+    `-m`,
+    `-F`,
+    `-C` and their long forms are message sources;
+    `-e`,
+    `-c`,
+    `--reedit-message`,
+    `--squash` and any option it does not know count as an editor.
+  - The notice thread (`commit/native_commit_waiting_notice.rs`) ends every process below the command with `SIGKILL` at the ceiling,
+    and `run_native_commit_within` turns that into a failure whose words say nothing was committed and to run the same command again.
+    A stop loses nothing:
+    the step runs in a scratch repository on a private index copy,
+    so the person's index,
+    files and branch are as they were and the message is on the command line.
+    There is no commit object yet,
+    so there is no side ref to keep (a withdrawal keeps one because its commit is built already).
+    Assumption:
+    the step is the command's only child at that point,
+    the reading `programs_below` already makes.
+    Linux only (`descendants_of` finds nothing elsewhere,
+    so elsewhere the step has no ceiling).
+    A `SIGKILL` can leave `tmp_obj_*` files in the real object store,
+    which `git gc` sweeps.
+- An `index.lock` that no process holds
+  (owner:
+  "Service removes it":
+  "after a complete scan of every readable process finds no holder and there is no Git PID file,
+  the service removes the lock and lands the commit";
+  the limit stated with the question stands):
+  - Built as `landing/service_index_unheld_removal.rs`,
+    called from the wait (`landing/service_index_attempts.rs`) at the first look and at each repeat of the notice.
+    Opened first with no link followed,
+    judged through that descriptor,
+    PID file absent,
+    scan complete (`SERVICE_SCAN_BUDGET`,
+    reasons that begin with `PID ` are unreadable processes and are counted,
+    anything else stops the removal),
+    no other descriptor of the service process on the file,
+    the name looked at again,
+    then the unlink.
+    The proof (path,
+    device,
+    inode,
+    size,
+    unreadable count) goes to the service journal before the unlink,
+    and the person is told in the waiting notices.
+  - Narrower than the answer,
+    open to the owner's widening:
+    only an empty lock is removed.
+    Measured with Git 2.56.0 in a throwaway repository (inode comparison over every `/proc/<pid>/fd`,
+    and a control that runs real Git):
+    `git commit --all`,
+    `git commit --only a` and `git commit a` keep `index.lock` with the whole index in it (193 bytes)
+    through their editor with no descriptor open on it,
+    and `core.lockfilePid` is off by default;
+    a plain `git commit` holds no lock then.
+    The end-to-end scenario `foreign-index-lock-unproven` is that holder,
+    and requires the person's commit to succeed.
+    The owner's answer named only a `--only` commit in its hook phase as invisible;
+    the editor phase of `--all`,
+    `--only` and path commits is invisible too,
+    so removing a lock with content would make a person's commit fail when its editor closes.
+    A Git holds the descriptor from creating the lock until the index is written into it,
+    so an empty lock that no readable process has open was left by a killed Git.
+    A lock with content stays as before (waited for to the ceiling,
+    then refused with the way to clear it).
+  - Cost on the waiting path:
+    a lock that is not removed is scanned twice at the first look and at each repeat of the notice
+    (the removal's scan,
+    then the wait's own evidence scan),
+    each bounded by `SERVICE_SCAN_BUDGET`;
+    a whole walk measured 313 to 398 ms over about 1,000 processes on 2026-11-07.
+    Passing one scan's result to both is a follow-up.
+  - Known gap:
+    the instant between the last look at the name and the unlink,
+    as in `service_index_reclaim.rs`;
+    a second reclaimer of the same physical index in another service instance is not excluded
+    (the claim chain is keyed by a service marker,
+    which a Git's lock has not).
+  - The first container gate of this branch (`native:test:container`,
+    8 CPUs,
+    8 GiB,
+    2048 processes) ran 5370 tests and failed 11,
+    all in `native_binary` and all the same cause:
+    each wrote an empty `index.lock` as "a foreign holder" and expected the service to wait for it
+    (`commit_timing::a_slow_scratch_commit_says_what_the_command_waits_for` expected the old words "no time limit";
+    `service::a_landing_waits_for_the_index_lock_before_the_branch_moves`;
+    `fault_trace::lock_without_links::a_service_killed_at_each_step_of_taking_the_lock_without_links_leaves_a_recoverable_repository`
+    expected the service to leave the empty lock a killed service made;
+    `service_lane::a_landing_waiting_for_a_foreign_index_lock_does_not_delay_another_worktree`;
+    five `service_replay` controls;
+    two `wait_notice` controls).
+    The log text of the first is
+    "no ceiling is added:
+    ... it is stopped if it lasts 1260 seconds in all"
+    and of the second "the commit waited for the holder:
+    101.64796ms".
+    These are consequences of the two owner answers,
+    not flakes:
+    the controls now write a lock with content (a person's editor-phase commit) or,
+    for the killed-service case,
+    expect the empty lock to be removed and the commit to land.
+    The same thirteen controls (the eleven and two siblings of `service_replay`) passed in a targeted run on the host
+    with strace;
+    a second container gate follows.
+  - Nine existing wait controls failed under the first version of the removal (which removed a lock of any size) and pass
+    unchanged under the empty-lock rule;
+    the one that wrote an empty lock (`a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback`) now holds a
+    descriptor on it.
+
+### Slow rebuilds and the moved-branch bound (2026-11-08)
+
+Found from the coordinator's live commit (request `539a7563`,
+release 0.6.1-alpha.3):
+five builds,
+270,232 ms,
+`outcome: stopped`,
+the change left uncommitted,
+though nothing conflicted.
+
+- Cause of the slow rebuilds,
+  measured in this repository on 2026-11-07 with a dry-run of the scratch commit against a scratch LFS store
+  (22,000 tracked files,
+  1,578 of them LFS-tracked):
+  a private index with the real index's stat data refreshes in 0.1 s and cleans nothing;
+  one built by `git read-tree <tree>` into a fresh index holds no stat data,
+  so `git commit` hashes every file and sends every LFS file through `git-lfs filter-process`:
+  3.6 s on a warm cache and 233,618,538 bytes cleaned (the coordinator saw about 215 MB read for a one-file commit).
+  The retry branch of `landing/service_prepare.rs` built its index exactly that way,
+  and a retry runs when the branch moved,
+  that is when other commits land.
+  Fixed:
+  `commit/commit_index.rs`,
+  `initialize_retry_index` copies the real index and runs `read-tree --reset <tree>` (the single-tree form keeps the cached stat data
+  of entries the tree shares with the index),
+  and builds from the tree alone only when the index carries an assume-unchanged or skip-worktree mark or cannot be read.
+  Still pointed at LFS pointers:
+  the commit is of the index's blob ids,
+  and the clean filter is not disabled.
+- Not explained:
+  the first build of that commit took 171,383 ms,
+  and a first preparation copies the real index too (stat data kept),
+  so the retry path does not account for it.
+  The candidates are an index that could not seed (`seeds_private_index` false at that moment) and I/O contention
+  (the scratch Git sat in `D` state on a full block queue at load average 38).
+  Both ways of building the index now leave a debug line (`initializeCommitIndex`,
+  `initializeRetryIndex`) saying whether the stat data was kept;
+  a trace of the next slow first build is still wanted.
+- The count of five builds is gone:
+  a commit whose branch moved is built again until `MOVED_BRANCH_REBUILD_CEILING` (`ANSWER_CEILING`,
+  20 minutes,
+  1.6 times the longest whole commit of the 2026-11-03 log) has passed since its first build.
+  Chosen over applying the built commit onto the moved tip in the service:
+  that makes a new commit with another parent,
+  and a signed commit cannot be signed again without the person's signer,
+  which only the client runs.
+  No lock is held while a build runs,
+  and every rebuild prints a line with the builds so far,
+  the time so far and the limit.
+  A branch that never stops moving ends at the ceiling with the plain failure and nothing lands;
+  `CLI_GIT_REBUILD_CEILING_SECONDS` lets a control watch that without waiting twenty minutes.
+  Controls:
+  `a_branch_that_moves_more_often_than_a_count_allowed_still_lands_the_commit` (seven moves,
+  lands),
+  `a_branch_that_keeps_moving_stops_the_rebuilds_at_the_ceiling`,
+  `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
+  The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
+  `service_land.rs`) is unchanged.
 
 ### Design stance
 

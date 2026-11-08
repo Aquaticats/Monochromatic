@@ -477,3 +477,82 @@ fn names_that_are_not_utf8_stay_bytes_from_the_pathspec_to_the_listings() {
     );
     remove(root.as_path());
 }
+
+/// The lines of `git ls-files --debug` for one index:
+/// each entry's stat data as Git cached it.
+fn stat_lines(repo: &Path, index: &Path) -> String {
+    let shown = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(repo)
+        .env("GIT_INDEX_FILE", index)
+        .args(["ls-files", "--debug"])
+        .output()
+        .expect("ls-files runs");
+    assert!(shown.status.success(), "{}", String::from_utf8_lossy(&shown.stderr));
+    return String::from_utf8_lossy(&shown.stdout).into_owned();
+}
+
+/// The private index of a retry keeps the cached stat data of every entry the tree shares with the real index.
+/// Why:
+///  A `read-tree` into a fresh index leaves every entry with no stat data,
+/// and the scratch `git commit` then reads and hashes every file of the work tree to refresh it,
+/// LFS files through the clean filter (measured 2026-11-07:
+/// about 233 MB cleaned for a commit of one Markdown file in this repository).
+/// A retry runs when the branch moved under a commit,
+/// which is exactly when other commits land,
+/// so the cost fell on the busiest moments.
+/// The control makes the plain `read-tree` and shows the probe sees the missing data.
+#[test]
+fn a_retry_index_keeps_the_stat_data_of_the_entries_the_tree_shares_with_the_real_index() {
+    let root: PathBuf = fixture("commit-index-retry-stat");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    let tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let without: PathBuf = repo.join(".git").join("without.index");
+    let plain = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(&repo)
+        .env("GIT_INDEX_FILE", &without)
+        .args(["read-tree", tree.as_str()])
+        .output()
+        .expect("read-tree runs");
+    assert!(plain.status.success());
+    assert_eq!(stat_lines(repo.as_path(), without.as_path()).matches("mtime: 0:0").count(), 2, "the control: a plain read-tree holds no stat data");
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
+    let kept: String = stat_lines(repo.as_path(), indexes.commit_index.as_path());
+    assert_eq!(kept.matches("mtime: 0:0").count(), 0, "{kept}");
+    assert_eq!(kept.matches("mtime: ").count(), 2, "both entries are in the index: {kept}");
+    assert_eq!(git_text(repo.as_path(), &["ls-tree", "-r", "--name-only", tree.as_str()]), "a.txt\nb.txt");
+    remove(root.as_path());
+}
+
+/// A retry whose tree differs from the real index holds the tree,
+/// and keeps stat data only for what the two share:
+/// the index is the tree,
+/// whatever the real index said.
+#[test]
+fn a_retry_index_is_exactly_the_tree_and_a_real_index_that_cannot_seed_it_is_not_copied() {
+    let root: PathBuf = fixture("commit-index-retry-tree");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "a2\n").expect("a2");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=second"]);
+    let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD~1^{tree}"]);
+    // The real index holds the second commit's tree; the retry's tree is the first's.
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, first.as_str()).expect("retry index");
+    let written = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(&repo)
+        .env("GIT_INDEX_FILE", &indexes.commit_index)
+        .arg("write-tree")
+        .output()
+        .expect("write-tree runs");
+    assert_eq!(String::from_utf8_lossy(&written.stdout).trim(), first);
+    // An index that cannot be read is not copied: the retry still holds the tree.
+    std::fs::write(repo.join(".git").join("index"), b"not an index").expect("damaged index");
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, first.as_str()).expect("retry index from the tree alone");
+    let again = std::process::Command::new(crate::test_support::REAL_GIT)
+        .current_dir(&repo)
+        .env("GIT_INDEX_FILE", &indexes.commit_index)
+        .arg("write-tree")
+        .output()
+        .expect("write-tree runs");
+    assert_eq!(String::from_utf8_lossy(&again.stdout).trim(), first);
+    remove(root.as_path());
+}

@@ -171,7 +171,7 @@ fn a_commit_waiting_for_an_unproven_index_lock_lands_when_it_goes() {
     let fixture: Fixture = fixture("wait-notice-index-unproven");
     let repo: PathBuf = edited_repository(&fixture);
     let lock_path: PathBuf = repo.join(".git/index.lock");
-    std::fs::write(&lock_path, b"").expect("index lock nobody holds");
+    std::fs::write(&lock_path, b"a lock with content\n").expect("index lock nobody holds");
     let needle: &str = "cannot be proven alive";
     let watched: Watched = watch_notices(
         &mut waiting_commit(&fixture, repo.as_path()),
@@ -196,7 +196,7 @@ fn a_commit_waits_on_an_unproven_index_lock_and_says_what_it_knows() {
     let fixture: Fixture = fixture("wait-notice-index-unproven-no-bound");
     let repo: PathBuf = edited_repository(&fixture);
     let lock_path: PathBuf = repo.join(".git/index.lock");
-    std::fs::write(&lock_path, b"").expect("index lock nobody holds");
+    std::fs::write(&lock_path, b"a lock with content\n").expect("index lock nobody holds");
     let needle: &str = "cannot be proven alive";
     let watched: Watched = watch_notices(&mut waiting_commit(&fixture, repo.as_path()), needle, LONG_WAIT_NOTICES, {
         let released: PathBuf = lock_path.clone();

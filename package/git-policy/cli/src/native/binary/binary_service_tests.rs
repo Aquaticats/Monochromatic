@@ -938,7 +938,9 @@ fn a_landing_waits_for_the_index_lock_before_the_branch_moves() {
     wait_until_reachable(name.as_str());
     let first: CommitRequest = request(&fixture, &repo, "wait-1", "a.txt", "a\n");
     let lock: PathBuf = repo.join(".git/index.lock");
-    std::fs::write(&lock, b"").expect("another program holds the index");
+    // A lock with content that nothing the service can see holds, as a person's `git commit --all` in its editor leaves one;
+    //  an empty lock that nothing holds is removed by the service (`service_index_unheld_removal.rs`).
+    std::fs::write(&lock, b"another program's lock\n").expect("another program holds the index");
     let before: String = query(&fixture, &repo, &["rev-parse", "HEAD"]);
     let holder_lock: PathBuf = lock.clone();
     let release = std::thread::spawn(move || {

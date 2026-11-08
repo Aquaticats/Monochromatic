@@ -176,7 +176,30 @@ Read-only commands,
    `cli-git-service v2 ...`,
   which an earlier release leaves alone.
   A lock that cannot be proven stale is never removed (a running Git's lock,
-  or one held by a process of another PID namespace).
+  or one held by a process of another PID namespace),
+  with one exception the owner chose (2026-11-07,
+  "Service removes it"):
+  an empty `index.lock` with no marker,
+  no Git lock PID file beside it and no process that a complete scan of every readable process finds with it open
+  is removed by the service that waits for it,
+  and the commit lands.
+  The scan runs on Linux only,
+  and its bound is `SERVICE_SCAN_BUDGET`;
+  a scan that did not finish removes nothing.
+  The removal is journaled with the lock's device,
+  inode and size,
+  and the person is told in the waiting notices.
+  Limit:
+  a process in another user namespace,
+  or one the scan may not read,
+  cannot be seen.
+  A lock with content is left,
+  because a native `git commit --all`,
+  `--only` or with paths keeps `index.lock` with the index written into it through its editor,
+  with no descriptor open and no PID file unless `core.lockfilePid` is on
+  (measured with Git 2.56.0,
+  `src/native/landing/service_index_unheld_removal.rs`);
+  widening the removal to such locks is the owner's to decide.
 - A record from another PID namespace that is older than 20 minutes (`FOREIGN_OWNER_PATIENCE`) is never taken over (the owner,
    2026-11-04:
   "Refuse and name it (Recommended)").
@@ -2741,8 +2764,41 @@ Each line names what the command waits for,
    it says the command waits for that `git commit` (its process),
    says the commit is signed when `commit.gpgsign` or `-S` asks for it,
    names the signing program while one runs below it,
-   and says the step has no time limit here.
-   A commit that opens the person's editor prints nothing.
+   and says when the step is stopped.
+   When the message came with the command (`-m`,
+  `-F`,
+  `-C`) the step is stopped after `SCRATCH_COMMIT_STEP_CEILING` (21 minutes,
+  three times the slowest build the timing log holds,
+  owner,
+  2026-11-07,
+  "limit unless editor"):
+   everything below the command is ended,
+   nothing is committed,
+   the person's index and files are as they were,
+   and the same command is run again.
+   A commit that opens the person's editor prints nothing and has no ceiling.
+- A commit whose branch moved while it was being built:
+   a commit Git built (a signed one,
+   or one with a template or clean-up mode) is built again on the new tip,
+   and a captured change is merged onto it again,
+   for as long as the time since the first build is under `MOVED_BRANCH_REBUILD_CEILING` (20 minutes,
+   `service/wait_ceilings.rs`);
+   there is no count of builds,
+   because a count ended a commit on 2026-11-08 that conflicted with nothing,
+   with the change left uncommitted.
+   Each rebuild says so on standard error,
+   with the builds so far,
+   the time so far and when the rebuilding stops.
+   `CLI_GIT_REBUILD_CEILING_SECONDS` (a positive number of seconds) sets the ceiling for a control.
+   A real conflict is still withdrawn with a plain message,
+   and an amend,
+   or a commit written or signed by hand,
+   is still not moved onto another tip.
+   A rebuild's private index is made from a copy of the real index,
+   so the scratch `git commit` keeps the cached stat data of every entry the new tree shares with it
+   and does not hash the work tree again (measured:
+   233,618,538 bytes of LFS content cleaned and 3.6 s with an index built by a plain `read-tree`,
+   against 0.1 s with the real index's stat data).
 - The object reader and the Git steps of a commit that run long,
    which name the Git command and the process,
    and end it only when it shows no sign of work for the window of its class (`CLI_GIT_CHILD_WAIT_SECONDS`).
