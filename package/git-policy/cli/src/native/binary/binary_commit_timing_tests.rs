@@ -513,7 +513,11 @@ fn attributes_the_wait_for_a_foreign_index_holder(control: &str, stall: Duration
 /// Every line the service writes states its own time at its end,
 /// so a journal that receives it late does not move the event.
 /// The time is the wall clock of the event:
-/// between the moments before and after the commit.
+/// the answer to the commit falls between the moments before and after the commit,
+/// and every line falls between the start and the moment the log was read,
+/// because work the service finishes after it answered
+/// (the rules warm on the blocking pool)
+/// can end after the commit returned.
 #[test]
 fn every_service_line_states_the_time_of_its_event() {
     let fixture: Fixture = fixture("timing-stamps");
@@ -527,12 +531,20 @@ fn every_service_line_states_the_time_of_its_event() {
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
     let after: u128 = git_policy_cli::service_timing::wall_millis();
     let text: String = std::fs::read_to_string(&places.log).expect("service log");
+    let read_at: u128 = git_policy_cli::service_timing::wall_millis();
     let lines: Vec<&str> = text.lines().filter(|line| { return line.starts_with(git_policy_cli::service_timing::LOG_PREFIX); }).collect();
     assert!(lines.len() >= 3, "started, ready, answered: {text}");
+    let mut answers: usize = 0;
     for line in lines {
         let stamp: u128 = line.rsplit_once(" at_ms=").unwrap_or_else(|| { panic!("no time at the end of {line}") }).1.parse::<u128>().unwrap_or_else(|_| { panic!("no number in {line}") });
-        assert!(stamp >= before && stamp <= after, "{stamp} is not between {before} and {after}: {line}");
+        assert!(stamp >= before && stamp <= read_at, "{stamp} is not between {before} and the read at {read_at}: {line}");
+        let event: &str = line.strip_prefix(git_policy_cli::service_timing::LOG_PREFIX).unwrap_or(line);
+        if event.starts_with("answered ") {
+            answers += 1;
+            assert!(stamp <= after, "the answer {stamp} is stamped after the commit returned at {after}: {line}");
+        }
     }
+    assert_eq!(answers, 1, "one answer for one commit: {text}");
     remove_settled(&fixture);
 }
 
