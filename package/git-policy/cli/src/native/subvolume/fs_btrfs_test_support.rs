@@ -55,7 +55,7 @@ pub(crate) fn btrfs_fixture(name: &str) -> Option<PathBuf> {
          btrfs, or set {ABSENT_ACKNOWLEDGED_VARIABLE}=1 to state that this run has none",
         root.display()
     );
-    eprintln!("BTRFS CONTROL NOT RUN: {name} (fixture root {} is on {kind:?}; the host task native:test:host covers it)", root.display());
+    eprintln!("BTRFS CONTROL NOT RUN: {name} (fixture root {} is on {kind:?}; the host task native:test:host:btrfs covers it)", root.display());
     return None;
 }
 

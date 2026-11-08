@@ -6,6 +6,9 @@
 //! and the exit status it returns.
 //! Why:
 //!  A worktree that Git creates (or a bare repository's) needs its ignored files from the source worktree.
+//!  A snapshot of the main checkout also leaves directories out of the new worktree,
+//! and those are emptied here beside the
+//!  package repair instead of before it.
 //!  No lock stands around the command:
 //! the destination comes from the command line,
 //! the copy is a transaction of its own
@@ -50,7 +53,10 @@ use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder};
 #[cfg(target_os = "linux")]
-use crate::package_repair::{RepairEnvironment, RepairRequest, RepairSwitch, repair_worktree};
+use crate::package_repair::RepairSwitch;
+#[cfg(target_os = "linux")]
+use crate::worktree_trash::PendingTrash;
+pub(crate) use crate::worktree_copy_after_lock::{AfterLock, finish_trash_and_repair};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -375,63 +381,6 @@ fn synchronize_after(
 }
 
 /// What:
-///  What is left to do once the ignored state is in place:
-/// the source the ignored files came from and the worktrees the
-///  command created.
-/// Why:
-///   The package-manager repairs touch only the new worktrees and read the source,
-/// so no other add has to wait for them;
-/// they
-///  run last,
-/// with the facts the copy found.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type AfterLock = { sourceRoot?: string; created: string[] };
-/// ```
-struct AfterLock {
-    /// The checkout the ignored files came from;
-    /// none for a bare repository,
-    /// which copies nothing.
-    source_root: Option<PathBuf>,
-    /// The roots of every worktree the command created,
-    /// a snapshot's included;
-    /// empty after a failed copy.
-    created: Vec<PathBuf>,
-}
-
-/// What:
-///  Repair the package-manager state of every worktree the command created,
-/// once its ignored state is in place.
-/// Why:
-///   A copy or a snapshot keeps links and build state exactly as the source had them;
-/// each tool's own offline repair makes
-///  them work at the new location (`package_repair.rs`).
-/// It never fails the add:
-/// a repair that cannot finish says so in one
-///  line that names the command to run.
-/// A bare repository has no source worktree,
-/// so nothing was copied and nothing is repaired.
-///  It runs on the worktree the registration binding confirmed,
-/// and no lock stands around it,
-/// so a slow tool never holds
-///  another add.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const root of roots) repairWorktree({ git, source, destination: root, switch, environment }, stderr);
-/// ```
-#[cfg(target_os = "linux")]
-fn repair_created(invocation: &Invocation, after: &AfterLock, stderr: &mut dyn Write) {
-    let Some(source) = after.source_root.as_deref() else { return };
-    let environment: RepairEnvironment = RepairEnvironment::from_process();
-    for root in &after.created {
-        let request: RepairRequest<'_> = RepairRequest { git: &invocation.context, source, destination: root.as_path(), switch: invocation.repair, environment: &environment };
-        repair_worktree(&request, stderr);
-    }
-}
-
-/// What:
 ///  Runs one creating command:
 /// whether its destination was registered already,
 /// the ladder and real Git,
@@ -475,7 +424,11 @@ fn settle_creation(
             Err(error)
         }
     };
-    let LadderResult { git, carried } = settled?;
+    let finished: LadderResult = settled?;
+    let git: GitStatus = finished.git;
+    let carried: Option<PathBuf> = finished.carried;
+    #[cfg(target_os = "linux")]
+    let trash: Option<PendingTrash> = finished.trash;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
             let copy_ignored_entered: bool = begin_step("copyIgnored");
@@ -489,6 +442,9 @@ fn settle_creation(
         } else {
             (None, Vec::new())
         };
+    #[cfg(target_os = "linux")]
+    return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root.clone(), created, trash }));
+    #[cfg(not(target_os = "linux"))]
     return Ok((Settlement { git, copy_failure }, AfterLock { source_root: observation.source_root.clone(), created }));
 }
 
@@ -585,11 +541,7 @@ fn settle_observed(
     // No lock stands around the add: the repairs touch only the new worktree and read the source, and another add never waits
     //  for them.
     #[cfg(target_os = "linux")]
-    {
-        let repair_entered: bool = begin_step("repair");
-        repair_created(invocation, &after, stderr);
-        end_step(repair_entered);
-    }
+    finish_trash_and_repair(invocation, &after, stderr);
     #[cfg(not(target_os = "linux"))]
     let _after = after;
     return Ok(settlement);

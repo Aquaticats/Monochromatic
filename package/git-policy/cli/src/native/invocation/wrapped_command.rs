@@ -257,6 +257,7 @@ fn every_policy() -> Vec<PolicyId> {
 /// ```
 fn prepare_guarded_command<F: RepositoryFacts>(
     stripped: &StrippedInvocation,
+    environment: &[(OsString, OsString)],
     checks: &mut ShippedChecks<F>,
 ) -> Result<CliGitConfig, WrappedOutcome> {
     // `match` unpacks the location answer; a failure to ask Git stops the command.
@@ -272,7 +273,7 @@ fn prepare_guarded_command<F: RepositoryFacts>(
     };
     // An isolated merge whose process died is settled before configuration loads, so the checks that follow never read
     // its half-finished checkout.
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
+    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
         Gate::Clear => {}
         Gate::Stop(stderr) => {
             return Err(WrappedOutcome::Exit {
@@ -382,11 +383,12 @@ fn run_commit_if_real<F: RepositoryFacts>(
 /// ```
 fn recover_before_read_only<F: RepositoryFacts>(
     checks: &ShippedChecks<F>,
+    environment: &[(OsString, OsString)],
 ) -> Option<WrappedOutcome> {
     let Some(Ok(location)) = checks.facts.asked_location() else {
         return None;
     };
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
+    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
         Gate::Clear => return None,
         Gate::Stop(stderr) => {
             return Some(WrappedOutcome::Exit {
@@ -444,7 +446,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
     let loaded: Option<CliGitConfig> = if skips_config {
         None
     } else {
-        match prepare_guarded_command(stripped, checks) {
+        match prepare_guarded_command(stripped, environment, checks) {
             Ok(found) => Some(found),
             Err(ending) => return ending,
         }
@@ -475,7 +477,7 @@ pub fn run_wrapped_command<F: RepositoryFacts>(
         return ending;
     }
     if skips_config
-        && let Some(ending) = recover_before_read_only(checks)
+        && let Some(ending) = recover_before_read_only(checks, environment)
     {
         return ending;
     }

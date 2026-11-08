@@ -3991,7 +3991,36 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   The commit is not copied to `refs/cli-git/kept/<n>` in that case,
   because the landing is still inside the write when the service ends and cannot unwind;
   recovery reads the open intent as it does after any kill.
-  Whether the commit should also be copied to a kept ref at the limit is not decided.
+  Whether the commit should also be copied to a kept ref at the limit is decided (2026-11-08,
+  branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`):
+  it is,
+  by the recovery that settles the batch,
+  never by the stop.
+  What that touched was read first:
+  a start of the service does not settle its own journal
+  (only an earlier release's shared journal is settled at a start),
+  the next batch settles it,
+  and that drop left the commit on the landing's scratch branch alone,
+  which a commit Git built never has.
+  The drop now writes `refs/cli-git/kept/<n>` before the intent goes
+  (`keep_what_the_branch_does_not_show` in `service_land_finish.rs`),
+  it is a side-ref write,
+  so a stop cuts it like any other Git of a landing,
+  and a drop whose kept write fails is logged with Git's words and still drops,
+  so a ref nobody can write does not leave every later commit waiting on the batch's index lock.
+  The stop waits for nothing more than it did,
+  so the ref is named once the worktree commits again.
+  Main's own sweep of a dropped batch's scratch reference came in the merge (`f293f8f58d`,
+  `service_scratch_ref_of_a_dropped_batch.rs`),
+  so the drop keeps this commit and then removes that reference;
+  a kept reference that already names another commit is never replaced,
+  and the scratch reference then stays too.
+  Controls,
+  red first (`70d04ae08a`):
+  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`,
+  `a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref`
+  and
+  `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`.
 - The measured host facts behind the unit:
   the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
   from `DefaultTimeoutStopSec=15s` in `/etc/systemd/user.conf.d/timeout.conf`,

@@ -1648,6 +1648,11 @@ plugin or reporter is added that transforms code.
 mutation run (for example `mise run //package/file-enforcer/core:test:mutation`)
 completes and reports killed and survived mutants without any `convert-source-map`
 error.
+That address no longer resolves:
+commit `e7b5130459` (2026-10-31) deleted the TypeScript file-enforcer and its `mise.toml`.
+The Rust crate in `package/file-enforcer/core-rust` declares `test`,
+which runs the crate's own tests,
+and no mutation task.
  See `doc/troubleshooting/stryker-container-runtime.md` for the Stryker runtime
 notes and `doc/dependency-blocklist.md` for the policy reference.
 

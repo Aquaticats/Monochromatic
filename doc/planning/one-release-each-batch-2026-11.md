@@ -2297,11 +2297,15 @@ not to crates.io.
   where 0.2.2 never ended.
   A shadow started by a script that runs another shadow stopped with exit status 2 and the one line.
 - Not done here:
-  the real cargo that `cargo-shadow`'s install step starts inside its contained runner gets no arrival marker
-  (it keeps the vetting and a lookup that skips shadows by identity);
   a tree whose links point at an older shadow keeps the old behavior until `mise run toolchain:install` runs in it;
   a shared crate for the identity rule was not added (the broader option,
   left to the owner).
+- Fixed later (2026-11-08,
+  sources only until a release and install):
+  the real cargo that `cargo-shadow`'s install step starts inside its contained runner now carries the arrival marker
+  (`04f4eaa607`,
+  test first in `f6b8c106fa`);
+  the vetting and the lookup that skips shadows by identity stay as they were.
 
 ### Release record: `monochromatic-lint` 0.5.2-alpha.3, `--fix` changes only whitespace (2026-11-07T15:42:54-05:00)
 

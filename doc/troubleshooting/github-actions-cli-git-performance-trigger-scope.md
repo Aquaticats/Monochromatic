@@ -122,6 +122,9 @@ Commit `b18e8836b6cd070a3fa03aaa1295c048994ff06e` renamed the package and update
 but its workflow diff did not update this filter.
 The failure is emitted later because the filtered install command completes without providing the build tool,
 then `mise run //package/git-policy/cli:perf:lifecycle-latency` invokes `rolldown`.
+That address no longer resolves:
+commit `724d70bfa7` (2026-10-13) retired the TypeScript performance harness alongside the wrapper.
+The package's current performance entry point is `//package/git-policy/cli:native:perf`.
 
 ## Verification
 

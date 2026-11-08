@@ -1414,9 +1414,9 @@ and the section "Measured picks" holds the numbers.
   A is not applied to them,
   B and E keep them lean;
   G is not built.
-- The open items among the original questions are not answered:
-  what runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
-  and which wrapper build is installed.
+- The two open items among the original questions were answered on 2026-11-08;
+  their answers sit beside the questions,
+  and section "Open" of `doc/handover/cargo-shadow-lean-build-folders.md` holds the measurements.
 
 The original questions follow.
 
@@ -1446,12 +1446,37 @@ The original questions follow.
 - What runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
   and whether it should stop at the
   source.
+  Answered 2026-11-08:
+  `cargo package` verifies by unpacking the crate into the workspace's build tree and compiling it
+  (measured:
+  `<base>/75/4a9477468c27be/package/tiny-probe-0.1.0` with `CARGO_BUILD_BUILD_DIR=<base>/{workspace-path-hash}`),
+  and the invokers are 16 `run: cargo package` and 16 `run: cargo publish --dry-run` steps of
+  `.github/workflows/cargo-publish.yml` (one of each per crate job),
+  the release preflight of `package/crate-release/cli` (a `cargo publish --dry-run` that does verify),
+  and each crate's manual `package`/`publish:dry-run` task.
+  The "about 90 times per crate" figure is not reproducible as a run count:
+  the hash-shaped host build trees hold 6,763 unpacked crate directories over 45 distinct versions,
+  25 of them the wrapper's,
+  and the copies multiply because each worktree's build tree is cloned.
+  Whether to stop at the source is the owner's call;
+  `--no-verify` on the two verifying steps would remove the only compile of the packaged crate.
 - Which wrapper build is installed:
   the source skips `target/**/incremental`,
   `target/verification` and the caches,
   and
-  the brief's 49.5 GB is within a percent of its listed total minus incremental state (49.2 GB);
-  not verified.
+  the brief's 49.5 GB is within a percent of its listed total minus incremental state (49.2 GB).
+  Answered 2026-11-08:
+  the installed and locked build is `monochromatic-git-policy-cli` 0.6.1-alpha.4
+  (`toolchain.lock.json`,
+  route `archive`;
+  the launcher record `.cache/toolchain-launchers/monochromatic-git-policy-cli.launch` names that payload),
+  and it carries the whole rule,
+  which entered at version 0.5.14
+  (`5e773a62f4`,
+  2026-11-02)
+  and first shipped in `monochromatic-git-policy-cli-v0.5.18`.
+  Which build ran for the brief's own measurement is not established;
+  its 49.5 GB matches a build that left out incremental state only.
 
 ## Review
 

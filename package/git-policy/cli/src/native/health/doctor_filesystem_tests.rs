@@ -217,19 +217,19 @@ fn the_section_is_informational_and_last() {
     let parent: PathBuf = fixture("doctor-filesystem-order");
     let repo: PathBuf = repository(parent.as_path(), "repo");
     let section_text: &str = "git monochromatic-git-policy-cli doctor: filesystem: informational test text\n";
-    let section = |_common_directory: &Path| -> String { return section_text.to_string(); };
+    let section = |_common_directory: &Path, _home: Option<&Path>| -> String { return section_text.to_string(); };
     let split = |action: Action| -> (i32, String, String) {
         let Action::Exit { code, stdout, stderr } = action else { panic!("an exit action") };
         return (code, stdout, stderr);
     };
     let clean: (i32, String, String) = split(doctor_action(&git_context(), repo.as_path()));
-    let with: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), &section));
+    let with: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), None, &section));
     assert_eq!((with.0, with.1.as_str(), with.2.as_str()), (clean.0, clean.1.as_str(), format!("{}{section_text}", clean.2).as_str()));
     executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
-    let found: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), &section));
+    let found: (i32, String, String) = split(doctor_action_with_section(&git_context(), repo.as_path(), None, &section));
     assert_eq!(found.0, 1);
     assert!(found.2.ends_with(section_text) && found.2.contains("never run through monochromatic-git-policy-cli"), "{}", found.2);
-    let failed: (i32, String, String) = split(doctor_action_with_section(&git_context(), parent.as_path(), &section));
+    let failed: (i32, String, String) = split(doctor_action_with_section(&git_context(), parent.as_path(), None, &section));
     assert_eq!(failed.0, 2);
     assert!(!failed.2.contains(SECTION_MARKER), "{}", failed.2);
     remove(parent.as_path());

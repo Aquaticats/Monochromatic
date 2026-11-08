@@ -32,6 +32,12 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// What a fixture's services write on their standard error:
+/// the pipe that keeps it while they run,
+/// and the end of it that a failure carries.
+#[path = "binary_support_fixture_service_log.rs"]
+mod support_fixture_service_log;
+
 /// Making and removing the disposable directory of a fixture and the wrapper link inside it.
 #[path = "binary_support_fixture_directories.rs"]
 mod support_fixture_directories;
@@ -39,6 +45,11 @@ mod support_fixture_directories;
 /// Running a wrapped command with a time bound and reading what it did.
 #[path = "binary_support_observation.rs"]
 mod support_observation;
+
+/// The one place a control says that it needs a btrfs fixture root,
+/// and what it does where there is none.
+#[path = "binary_support_btrfs_controls.rs"]
+mod support_btrfs_controls;
 
 /// The hang guard:
 /// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.

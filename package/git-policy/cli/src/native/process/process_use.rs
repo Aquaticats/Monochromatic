@@ -29,17 +29,19 @@ pub const PROC_ROOT: &str = "/proc";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type UseTarget = { inside: string } | { file: { device: bigint; inode: bigint } };
+/// type UseTarget = { inside: string } | { file: { mount: bigint; inode: bigint } };
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum UseTarget<'a> {
     /// A working directory or open descriptor whose resolved path lies under this canonical directory.
     Inside(&'a Path),
-    /// An open descriptor that resolves to this device and inode.
+    /// An open descriptor on this file,
+    /// named by the mount it was reached through and its inode.
     File {
-        /// Device number of the file.
-        device: u64,
-        /// Inode number of the file.
+        /// The mount number the kernel gives the mount the file is reached through,
+        /// which is what `/proc/<pid>/fdinfo` reports for a descriptor.
+        mount: u64,
+        /// Inode number of the file on that mount.
         inode: u64,
     },
 }
@@ -141,58 +143,89 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 }
 
 /// What:
-///  Whether a descriptor link resolves to the file with this device and inode.
+///  The mount number the kernel gives the mount a path is reached through.
 /// Why:
-///   A lock has more than one name,
-/// so only the identity of the open file says whether it is the lock.
+///   `/proc/<pid>/fdinfo` names a descriptor's mount by that number and its file by the inode,
+/// so a descriptor of another process is recognised without resolving it on its own file system.
+/// `stat` on the `/proc/<pid>/fd/<n>` link resolves the file on its disk,
+/// and waits there as long as that disk does:
+///  on 2026-11-08 a stalled device held eight controls for over two minutes,
+///  while their scans read other processes' descriptors.
+/// Zero is "not known",
+/// and matches no descriptor.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { dev, ino } = await stat(link, { bigint: true });
+/// const mount = statx(path, { mask: STATX_MNT_ID }).stx_mnt_id ?? 0;
 /// ```
-#[cfg(unix)]
-fn same_file(link: &Path, device: u64, inode: u64) -> std::io::Result<bool> {
-    /// The Unix metadata accessors,
-    /// for the device and inode.
-    use std::os::unix::fs::MetadataExt;
-    let metadata: std::fs::Metadata = std::fs::metadata(link)?;
-    return Ok(metadata.dev() == device && metadata.ino() == inode);
+pub fn mount_of(path: &Path) -> u64 {
+    let Ok(found) = rustix::fs::statx(rustix::fs::CWD, path, rustix::fs::AtFlags::SYMLINK_NOFOLLOW, rustix::fs::StatxFlags::MNT_ID) else {
+        return 0;
+    };
+    return found.stx_mnt_id;
 }
 
 /// What:
-///  Without device and inode numbers,
-/// no descriptor is recognized as the file.
+///  Whether the descriptor `fdinfo` describes is the file with this inode on this mount.
 /// Why:
-///   The caller then finds no user and relies on its other proofs;
-/// the crate does not build for Windows.
+///   The mount number and the inode together name the open file,
+/// and both are in the text the kernel writes for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// false
+/// const { mnt_id, ino } = parseFdinfo(await readFile(fdinfo, 'utf8')); return ino === inode && mnt_id === mount;
 /// ```
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(not(unix))]
-fn same_file(_link: &Path, _device: u64, _inode: u64) -> std::io::Result<bool> {
-    return Ok(false);
-}
-
-/// What:
-///  Whether a resolved link or descriptor matches the target.
-/// Why:
-///   One place decides a match for the working directory and for each descriptor.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// target.inside ? resolved.startsWith(target.inside) : sameFile(resolved, target.file)
-/// ```
-fn matches_target(link: &Path, target: &UseTarget<'_>) -> std::io::Result<bool> {
-    match target {
-        UseTarget::Inside(directory) => {
-            let resolved: PathBuf = std::fs::read_link(link)?;
-            return Ok(resolved.starts_with(directory));
+fn descriptor_is_the_file(fdinfo: &Path, mount: u64, inode: u64) -> std::io::Result<bool> {
+    let text: String = std::fs::read_to_string(fdinfo)?;
+    let mut reached: Option<u64> = None;
+    let mut held: Option<u64> = None;
+    for line in text.lines() {
+        if let Some(value) = line.strip_prefix("mnt_id:") {
+            reached = value.trim().parse::<u64>().ok();
+        } else if let Some(value) = line.strip_prefix("ino:") {
+            held = value.trim().parse::<u64>().ok();
         }
-        UseTarget::File { device, inode } => return same_file(link, *device, *inode),
     }
+    return Ok(held == Some(inode) && reached == Some(mount) && mount != 0);
+}
+
+/// What:
+///  The target of one scan,
+/// prepared once:
+/// the directory to resolve against,
+/// or the mounts and the inode of the file to read descriptors for.
+/// Why:
+///   The mounts are read once for a scan and not once for each descriptor of each process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Prepared = { inside: string } | { file: { mount: bigint; inode: bigint } };
+/// ```
+enum Prepared<'a> {
+    /// A directory a working directory or a descriptor is resolved inside.
+    Inside(&'a Path),
+    /// A file's mount and inode.
+    File {
+        /// The mount number the file is reached through.
+        mount: u64,
+        /// The file's inode on that mount.
+        inode: u64,
+    },
+}
+
+/// What:
+///  Whether a resolved working directory lies inside the target directory.
+/// Why:
+///   The working directory is a link to a path,
+/// and reading it resolves nothing on the file system it names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readlink(link).startsWith(directory);
+/// ```
+fn working_directory_is_inside(link: &Path, directory: &Path) -> std::io::Result<bool> {
+    let resolved: PathBuf = std::fs::read_link(link)?;
+    return Ok(resolved.starts_with(directory));
 }
 
 /// What:
@@ -205,24 +238,30 @@ fn matches_target(link: &Path, target: &UseTarget<'_>) -> std::io::Result<bool> 
 /// ```ts
 /// async function scanProcess({ procRoot, pid, target }): Promise<{ uses: boolean; unreadable?: string }>;
 /// ```
-fn scan_process(proc_root: &Path, pid: &str, target: &UseTarget<'_>) -> (bool, Option<String>) {
+fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, Option<String>) {
     let process: PathBuf = proc_root.join(pid);
     let mut uses: bool = false;
     let mut unreadable: Option<String> = None;
-    if matches!(target, UseTarget::Inside(_)) {
-        match matches_target(process.join("cwd").as_path(), target) {
+    let mut described: PathBuf = process.join("fdinfo");
+    if let Prepared::Inside(directory) = prepared {
+        match working_directory_is_inside(process.join("cwd").as_path(), directory) {
             Ok(found) => uses = found,
             Err(error) if exited(&error) => {}
             Err(error) => unreadable = Some(format!("PID {pid} cwd: {error}")),
         }
+        described = process.join("fd");
     }
-    let listing: std::fs::ReadDir = match std::fs::read_dir(process.join("fd")) {
+    let listing: std::fs::ReadDir = match std::fs::read_dir(described.as_path()) {
         Ok(found) => found,
         Err(error) if exited(&error) => return (uses, unreadable),
         Err(error) => return (uses, unreadable.or(Some(format!("PID {pid} fd: {error}")))),
     };
     for item in listing.flatten() {
-        match matches_target(item.path().as_path(), target) {
+        let answer: std::io::Result<bool> = match prepared {
+            Prepared::Inside(directory) => working_directory_is_inside(item.path().as_path(), directory),
+            Prepared::File { mount, inode } => descriptor_is_the_file(item.path().as_path(), *mount, *inode),
+        };
+        match answer {
             Ok(true) => uses = true,
             Ok(false) => {}
             Err(error) if exited(&error) => {}
@@ -249,6 +288,12 @@ fn scan_process(proc_root: &Path, pid: &str, target: &UseTarget<'_>) -> (bool, O
 /// ```
 pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pid: u32) -> UseScan {
     let mut scan: UseScan = UseScan::default();
+    // A file whose file system the mount table does not name cannot be recognised in any process: the caller is told
+    //  so rather than being given a scan that found nothing.
+    let prepared: Prepared<'_> = match target {
+        UseTarget::Inside(directory) => Prepared::Inside(directory),
+        UseTarget::File { mount, inode } => Prepared::File { mount: *mount, inode: *inode },
+    };
     let listing: std::fs::ReadDir = match std::fs::read_dir(proc_root) {
         Ok(found) => found,
         Err(error) => {
@@ -265,7 +310,7 @@ pub fn processes_using_through(proc_root: &Path, target: &UseTarget<'_>, self_pi
         if name == own {
             continue;
         }
-        let (uses, unreadable) = scan_process(proc_root, name.as_str(), target);
+        let (uses, unreadable) = scan_process(proc_root, name.as_str(), &prepared);
         if uses {
             // A `comm` file that cannot be read leaves the command unknown, as the `.ok()` before did.
             let command: Option<String> = match std::fs::read_to_string(item.path().join("comm")) {

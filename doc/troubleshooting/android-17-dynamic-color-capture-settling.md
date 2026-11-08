@@ -98,6 +98,11 @@ ANDROID_SERIAL=emulator-5564 \
 mise run //package/music-player/android-app:prototype:capture:dark
 ```
 
+That address is not on `main`:
+branch `prototype/music-player-theme-compose` declares `prototype:capture:dark`
+on 2026-09-09 (commit `6c9f10f91f`),
+and `main`'s `package/music-player/android-app/mise.toml` has no `prototype:*` task.
+
 It records requested seed,
  style,
  contrast,

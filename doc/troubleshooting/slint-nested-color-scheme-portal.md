@@ -211,6 +211,10 @@ mise run //package/nested-wayland-session/cli:build
 mise run //package/nested-wayland-session/cli:inspect:color-scheme
 ```
 
+`lint:rust` is not declared in that package's `mise.toml` on any ref of this repository.
+The package declares `lint` and `lint:clippy`;
+the other four addresses still resolve.
+
 ### Passing cases
 
 Measured on 2026-10-05.
