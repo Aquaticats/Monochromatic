@@ -3291,6 +3291,24 @@ and this checkout (22,161 entries):
   and a refresh that meets another program's lock is not kept,
   leaves the index as it was and does not wait for it).
 
+Checked on the final tree at 2026-11-08T18:40:00-05:00:
+the whole native library suite passed (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`,
+4,731 tests run,
+4,731 passed,
+8 skipped),
+the 69 `budget::`,
+`commit_timing::` and `commit::` binary tests passed,
+`native:clippy` and `monochromatic-lint --max-warnings 0` were clean,
+and `native:perf` kept both owner bounds on the release binary:
+`commit-service` paired delta median 22.6 ms,
+p95 318.6 ms,
+max 348.2 ms against the 5,000 ms bound,
+and every forwarded command's added p95 under 2.1 ms against the 2,000 ms bound.
+Two `standards_review_client` tests failed and one ended at the 300 s nextest timeout in a loaded
+7-minute run of the same suite,
+and all twelve of that module pass alone in 3 s,
+so they are host-load flakes that this change does not touch.
+
 Owner question:
 `package/git-policy/cli/SPEC.md:5471` says a commit prepares
 "in parallel with other commits and without the real index lock",
