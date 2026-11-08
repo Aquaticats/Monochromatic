@@ -9,7 +9,7 @@ core in `package/agent-harness-shared/advisor` and the DSH host services.
 The package is `private: true` and installs as a Harness bundle patch
 (`dsh.bundle.patch` points at `./cordis.patch.yml`).
 
-`engines.dsh` declares the verified host version `0.2.1-rc.5` explicitly.
+`engines.dsh` declares the verified host version `0.2.2-rc.1` explicitly.
 The exact prerelease limits the compatibility claim to the tested host;
 revalidate activation before changing it.
 DSH reads this field before peer dependencies,
