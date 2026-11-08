@@ -42,7 +42,10 @@ use smithay::{
         keyboard::{FilterResult, Keycode, KeysymHandle, ModifiersState},
         pointer::{ButtonEvent, MotionEvent},
     },
-    reexports::wayland_server::Resource,
+    reexports::wayland_server::{
+        protocol::wl_surface::WlSurface,
+        Resource,
+    },
     utils::{Logical, Point, SERIAL_COUNTER},
 };
 
@@ -120,13 +123,11 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     // Why:      Motion sets the pointer focus to whatever is under the cursor.
     let under = state.surface_under(location);
 
-    // What:     `let hit = under.as_ref().map(|(surface, point)| (surface.id().protocol_id(),
-    //           point.x, point.y));`. The protocol id of the hit surface with its origin.
+    // What:     `let hit = under.as_ref().map(hit_note);`. The protocol id of the hit surface
+    //           with its origin.
     // Why:      `WlSurface` prints no useful identity, and the protocol id matches the ids the
     //           hosted client's own `WAYLAND_DEBUG` lines carry.
-    let hit = under
-        .as_ref()
-        .map(|(surface, point)| (surface.id().protocol_id(), point.x, point.y));
+    let hit = under.as_ref().map(hit_note);
 
     // What:     `tracing::info!` with the point, the hit, the window count, and the cursor the
     //           hosted client last asked for.
@@ -213,11 +214,30 @@ pub fn click(state: &mut Compositor, x: f64, y: f64, button: PointerButton) {
     // Why:      A button event reaches a client only through the pointer's focus, so a click that
     //           left the seat focused on nothing was delivered to nobody whatever the hit test found.
     tracing::info!(
-        focus = ?pointer
-            .current_focus()
-            .map(|surface| surface.id().protocol_id()),
+        focus = ?pointer.current_focus().as_ref().map(protocol_id_of),
         "the click left the seat's pointer focus",
     );
+}
+
+/// What:
+///      `fn hit_note((surface, point): &(WlSurface, Point<f64, Logical>)) -> (u32, f64, f64)`.
+///  The protocol id of a hit surface with the point the hit test returned for it.
+/// Why:
+///       A click line names its target by protocol id,
+///  the only name that matches the hosted client's own
+/// `WAYLAND_DEBUG` lines.
+fn hit_note((surface, point): &(WlSurface, Point<f64, Logical>)) -> (u32, f64, f64) {
+    return (surface.id().protocol_id(), point.x, point.y);
+}
+
+/// What:
+///      `fn protocol_id_of(surface: &WlSurface) -> u32`.
+///  The protocol id of one surface.
+/// Why:
+///       The pointer focus is logged by id,
+///  so a reader can match it against the target the same click named.
+fn protocol_id_of(surface: &WlSurface) -> u32 {
+    return surface.id().protocol_id();
 }
 
 /// Send one keyboard key event (press or release) through the seat's keyboard.

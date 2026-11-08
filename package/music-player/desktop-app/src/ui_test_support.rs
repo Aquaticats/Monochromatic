@@ -342,16 +342,21 @@ pub(crate) fn tab_labels(app: &AppWindow, count: usize) -> Vec<String> {
 /// the state lines of the end-to-end run exist only in the log,
 /// so a test that asserts on one reads it from a
 /// subscriber instead of from the window.
-struct LogSink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+struct LogSink(
+    /// The buffer every write of this sink appends to.
+    std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+);
 
-/// Writes buffered text into the sink's shared buffer.
+/// Append the writer's bytes to the sink's shared buffer.
 impl std::io::Write for LogSink {
+    /// Appends one write to the buffer and reports every byte as written.
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         self.0.lock().expect("the log buffer lock is not poisoned").extend_from_slice(bytes);
         return Ok(bytes.len());
     }
 
-    /// Accepts a flush without doing anything, because the buffer takes every write at once.
+    /// Accepts a flush without doing anything,
+    /// because the buffer takes every write at once.
     fn flush(&mut self) -> std::io::Result<()> {
         return Ok(());
     }

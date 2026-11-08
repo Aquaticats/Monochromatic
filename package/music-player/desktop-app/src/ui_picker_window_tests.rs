@@ -282,7 +282,8 @@ fn name_row(app: &AppWindow, folder: &str) -> Option<ElementHandle> {
 /// the end-to-end run waits for that line to know the click was handled.
 /// Without it the run waits for whatever line comes
 /// next,
-/// which under a CPU quota took seconds: a folder click measured on 2026-11-08 reached the app's
+/// which under a CPU quota took seconds:
+/// a folder click measured on 2026-11-08 reached the app's
 /// name row in 0.15 ms and the run read the opened folder 2.4 s later,
 /// and in one run 14.5 s later.
 #[test]
