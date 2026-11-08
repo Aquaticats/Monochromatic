@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.4"
+version = "0.6.1-alpha.5"
 dependencies = [
  "bytes",
  "forbidden-strings",
