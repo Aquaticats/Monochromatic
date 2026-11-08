@@ -26,7 +26,7 @@ export type ShellRequest = {
 };
 
 /**
- Builds the program and arguments of a shell run: `bash -e -o pipefail -c`, under `timeout` when a deadline is given.
+ Builds the program and arguments of a shell run: `bash --noprofile --norc -e -o pipefail -c`, under `timeout` when a deadline is given.
 
  @param command - the shell text
  
@@ -51,16 +51,23 @@ function shellInvocation(
   readonly string[]
 ] {
   /**
-   The bash of this step.
+   The program and arguments of this step; `--noprofile --norc` keep bash from reading the user's startup files, which
+   it does for a non-interactive `-c` whose standard input is a socket, as a Node child's is.
    */
   const bash = [
     'bash',
+    '--noprofile',
+    '--norc',
     '-e',
     '-o',
     'pipefail',
     '-c',
     command,
-  ];
+  ] as const;
+  /**
+   The argument list of the shell without its program name.
+   */
+  const [program, ...shellArguments] = bash;
   return seconds > 0
     ? [
       'timeout',
@@ -71,13 +78,13 @@ function shellInvocation(
       ],
     ]
     : [
-      'bash',
-      bash.slice(1,),
+      program,
+      shellArguments,
     ];
 }
 
 /**
- Runs a shell command with `bash -e -o pipefail -c`, under `timeout`, teeing its output to a file and the screen.
+ Runs a shell command with `bash --noprofile --norc -e -o pipefail -c`, under `timeout`, teeing its output to a file and the screen.
 
  @param request - the command, output file, deadline and sinks
  

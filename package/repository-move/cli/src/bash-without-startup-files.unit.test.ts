@@ -18,7 +18,6 @@ import {
   readdir,
   readFile,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -38,6 +37,11 @@ const INDEX = new URL('../dist/final/node/index.mjs', import.meta.url,).pathname
 const SOURCE_FOLDER = new URL('.', import.meta.url,).pathname;
 const MARKER_NAME = 'startup-file-was-read';
 const REQUIRED_FLAGS = '--noprofile--norc';
+const SEPARATORS = new Set(['\'', '"', '`', ',', ' ', '\t', '\n',],);
+const OPENERS = new Set(['\'', '"', '`', ' ', '\t', '\n',],);
+const CLOSERS = new Set(['\'', '"', ' ', '\t', '\n',],);
+const FLAG_WINDOW = 80;
+const ARGS_LABEL = 'args:[';
 const NOT_A_SHELL_LEVEL = '0';
 
 type Home = {
@@ -61,14 +65,8 @@ async function makeHomeWithStartupFiles(): Promise<Home> {
   };
 }
 
-async function exists(path: string,): Promise<boolean> {
-  try {
-    await stat(path,);
-    return true;
-  }
-  catch {
-    return false;
-  }
+async function exists({ folder, name, }: { folder: string; name: string; },): Promise<boolean> {
+  return (await readdir(folder,)).includes(name,);
 }
 
 /** Runs one shell command through the runner's `runShell` in a child node whose environment names the disposable home. */
@@ -89,12 +87,52 @@ async function runThroughRunnerShell({ home, command, }: { home: Home; command: 
 
 /** The source files a run of the tools can start a shell from: every `.ts` file of `src` that is not a test. */
 async function sourceFiles(): Promise<readonly string[]> {
-  return (await readdir(SOURCE_FOLDER,)).filter((name,) => name.endsWith('.ts',) && !name.endsWith('.test.ts',));
+  return (await readdir(SOURCE_FOLDER,)).filter((name,) => (name.endsWith('.ts',) && (!name.endsWith('.test.ts',))),);
 }
 
-/** The text of a source file without block comments that start a line and whole-line `//` comments, which name `bash` without starting it. */
+/**
+ The text of a source file without the block comments that start a line and the whole-line `//` comments, which name
+ `bash` without starting it. A line that opens a block comment ends the block when it holds the closing mark, else a
+ later line does.
+ */
 function withoutComments(text: string,): string {
-  return text.replaceAll(/^[ \t]*\/\*[\s\S]*?\*\//gmu, '',).split('\n',).filter((line,) => !line.trimStart().startsWith('//',),).join('\n',);
+  return text.split('\n',).reduce<{ readonly inBlock: boolean; readonly kept: readonly string[]; }>(
+    function step(state, line,) {
+      const trimmed = line.trimStart();
+      if (state.inBlock) {
+        return { inBlock: !trimmed.includes('*/',), kept: state.kept, };
+      }
+      if (trimmed.startsWith('/*',)) {
+        return { inBlock: !trimmed.includes('*/',), kept: state.kept, };
+      }
+      return { inBlock: false, kept: trimmed.startsWith('//',) ? state.kept : [...state.kept, line,], };
+    },
+    { inBlock: false, kept: [], },
+  ).kept.join('\n',);
+}
+
+/** The text without the quotes, commas and white space that separate the words of an argument list or a command. */
+function withoutSeparators(text: string,): string {
+  return text.split('',).filter((character,) => !SEPARATORS.has(character,)).join('',);
+}
+
+/**
+ What follows each place the text starts `bash`: the word after a quote, backtick or white space (never `/bin/bash`),
+ not a name being assigned, cut to a window long enough to hold the flags.
+ */
+function afterBashStarts(text: string,): readonly string[] {
+  const pieces = text.split('bash',);
+  return pieces.slice(1,).flatMap((piece, index,) => {
+    const before = (pieces[index] ?? '').slice(-1,);
+    const assigned = piece.trimStart().startsWith('=',);
+    return (OPENERS.has(before,) && CLOSERS.has(piece.slice(0, 1,),) && (!assigned)) ? [piece.slice(0, FLAG_WINDOW,),] : [];
+  },);
+}
+
+/** What follows a start of bash, without separators and without the `args: [` of an argument list written beside `command`. */
+function flagsAfter(following: string,): string {
+  const flags = withoutSeparators(following,);
+  return flags.startsWith(ARGS_LABEL,) ? flags.slice(ARGS_LABEL.length,) : flags;
 }
 
 await describe({
@@ -110,7 +148,7 @@ await describe({
           ['-c', 'true',],
           { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', HOME: home.path, SHLVL: NOT_A_SHELL_LEVEL, }, },
         );
-        expect(await exists(home.marker,),).toBe(true,);
+        expect(await exists({ folder: home.path, name: MARKER_NAME, },),).toBe(true,);
       },
     },),
     it({
@@ -119,7 +157,7 @@ await describe({
         await using home = await makeHomeWithStartupFiles();
         const output = await runThroughRunnerShell({ home, command: 'echo stage-ran', },);
         expect(output,).toContain('stage-ran',);
-        expect(await exists(home.marker,),).toBe(false,);
+        expect(await exists({ folder: home.path, name: MARKER_NAME, },),).toBe(false,);
       },
     },),
     it({
@@ -133,24 +171,20 @@ await describe({
         const final = await runCopyTool({ fixture, pass: 'final', env, },);
         expect(final.status,).toBe(0,);
         expect(await readFile(fixture.doubleLog, 'utf8',),).toContain('"receive"',);
-        expect(await exists(home.marker,),).toBe(false,);
+        expect(await exists({ folder: home.path, name: MARKER_NAME, },),).toBe(false,);
       },
     },),
     it({
       name: 'no bash in the source, as an argument list or as text handed to sudo, lacks --noprofile --norc',
       fn: async () => {
-        const unflagged: string[] = [];
-        for (const name of await sourceFiles()) {
-          const text = withoutComments(await readFile(join(SOURCE_FOLDER, name,), 'utf8',),);
-          // A start of bash is the word after a quote, backtick or space, never an absolute `/bin/bash` (systemd runs
-          // those units with standard input on /dev/null), never a variable named bash being assigned.
-          for (const match of text.matchAll(/(?<=['"`\s])bash(?=['"\s])(?!\s*=)/gu,)) {
-            const after = text.slice(match.index + match[0].length, match.index + match[0].length + 80,).replaceAll(/['"`,\s]/gu, '',).replace(/^args:\[/u, '',);
-            if (!after.startsWith(REQUIRED_FLAGS,)) {
-              unflagged.push(`${name}: ${text.slice(match.index, match.index + 60,).replaceAll('\n', ' ',)}`,);
-            }
-          }
-        }
+        const files = await sourceFiles();
+        const texts = await Promise.all(files.map(async (name,) => withoutComments(await readFile(join(SOURCE_FOLDER, name,), 'utf8',),),),);
+        const unflagged = files.flatMap(function unflaggedIn(name, index,) {
+          const followings = afterBashStarts(texts[index] ?? '',);
+          return followings
+            .filter((following,) => !flagsAfter(following,).startsWith(REQUIRED_FLAGS,),)
+            .map((following,) => `${name}: bash${following.replaceAll('\n', ' ',)}`,);
+        },);
         expect(unflagged,).toEqual([],);
       },
     },),

@@ -317,7 +317,7 @@ for f in ${c.moveState}/external-*.deleted.txt; do [ -e "$f" ] && echo "$f: $(wc
       title: 'Verify 1-3: fsck, table, refs',
       window: true,
       says: 'Verification 1 to 3, in a private mount namespace that binds the copy over the real paths, so every .git file and gitdir file resolves into the copy. Git and the scan run as you. 1: git fsck --full. 2: the table equals the frozen baseline byte for byte. 3: the refs hash equals the frozen one.',
-      command: `sudo unshare --mount --propagation private bash -euo pipefail -c "
+      command: `sudo unshare --mount --propagation private bash --noprofile --norc -euo pipefail -c "
   mount --bind ${c.finalPath} ${c.repo}
   mount --bind ${c.externalFinal} ${c.externalWorktrees}
   ${userRun} /usr/bin/git --no-optional-locks -C ${c.repo} fsck --full
@@ -419,7 +419,7 @@ done > ${c.wiz}/external-compare.txt`,
       title: 'Mountpoint guard',
       window: true,
       says: `MOUNTPOINT GUARD (plan R1 and R2) before the swap: in a private namespace, bind the NVMe /var, require that the hidden ${c.drive} folder holds no entries, then make it root-owned, mode 0755 and immutable. Without it a program that creates the resolved path while the 860 is away writes to the NVMe. It stops if the alias is not the NVMe or the folder holds entries.`,
-      command: `sudo unshare --mount --propagation private bash -euo pipefail -c '
+      command: `sudo unshare --mount --propagation private bash --noprofile --norc -euo pipefail -c '
   alias_dir=$(mktemp --directory /run/underlying-var.XXXXXX)
   mount --bind /var "$alias_dir"
   hidden="$alias_dir${underVar}"
