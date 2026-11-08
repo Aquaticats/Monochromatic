@@ -466,7 +466,10 @@ echo "copy $(sudo find ${c.finalPath} -user root -name '*.log.jsonl' | wc --line
       command: `for name in ${names}; do
   sudo rsync --archive --checksum --dry-run --itemize-changes --delete --one-file-system --omit-dir-times ${c.externalWorktrees}/$name/ ${c.externalFinal}/$name/
 done > ${c.wiz}/external-compare.txt`,
-      check: `grep --invert-match --fixed-strings '*deleting' ${c.wiz}/external-compare.txt | head --lines=20 > ${c.wiz}/external-differences.txt; echo "kept files deleted at the source after pass one: $(grep --count --fixed-strings '*deleting' ${c.wiz}/external-compare.txt || true)"; test ! -s ${c.wiz}/external-differences.txt || { cat ${c.wiz}/external-differences.txt; exit 1; }`,
+      check: `${ // grep --invert-match exits 1 when it selects no lines, which an empty compare and one of only *deleting lines give; the group keeps that from failing a stage that has no difference to report.
+        ''}{ grep --invert-match --fixed-strings '*deleting' ${c.wiz}/external-compare.txt || true; } | head --lines=20 > ${c.wiz}/external-differences.txt
+echo "kept files deleted at the source after pass one: $(grep --count --fixed-strings '*deleting' ${c.wiz}/external-compare.txt || true)"
+test ! -s ${c.wiz}/external-differences.txt || { cat ${c.wiz}/external-differences.txt; exit 1; }`,
       checkText: 'no difference other than files deleted at the source after pass one',
       rollback: `${thawRollback}. A real difference means pass two missed a change: run this stage again after the cause is understood`,
       root: 'yes',
@@ -524,12 +527,25 @@ ls -ld ${c.repo} ${c.externalWorktrees}`,
       id: 'c20-through-link',
       title: 'Verify 9: through the link',
       window: true,
-      says: 'Verification 9: the same fsck, table and worktree list, now through the real link.',
+      says: 'Verification 9: the same fsck, table and worktree list, now through the real link. Git prints the main worktree under its resolved path, so the through-link table and list spell that one line as the 860 path where the frozen baseline spells the link path: the comparison allows exactly that spelling on that one line, and a difference on any other line still fails the stage.',
       command: `/usr/bin/git --no-optional-locks -C ${c.repo} fsck --full
 systemd-run ${c.userScope} timeout --kill-after=${killGrace} ${scanTime} ${scan} ${c.repo} ${c.wiz}/through-link.tsv ${perScan}
 /usr/bin/git --no-optional-locks -C ${c.repo} worktree list --porcelain > ${c.wiz}/porcelain-through-link.txt`,
-      check: `cmp ${c.wiz}/baseline-frozen.tsv ${c.wiz}/through-link.tsv && cmp ${c.wiz}/porcelain-frozen.txt ${c.wiz}/porcelain-through-link.txt`,
-      checkText: 'table and worktree list through the link equal the frozen baseline',
+      check: `${ // Git prints the main worktree under its resolved path, so one line of each file spells it as the 860 path where the baseline spells the link path. Only the line where that path stands alone is rewritten, on both sides, so any other difference still differs.
+        ''}main_spelling() {
+  sed --expression 's|^worktree ${c.repo}\$|worktree <the main worktree>|' --expression 's|^worktree ${c.finalPath}\$|worktree <the main worktree>|' --expression 's|^${c.repo}\t|<the main worktree>\t|' --expression 's|^${c.finalPath}\t|<the main worktree>\t|' "$1"
+}
+main_spelling ${c.wiz}/baseline-frozen.tsv > ${c.wiz}/baseline-spelling.tsv
+main_spelling ${c.wiz}/through-link.tsv > ${c.wiz}/through-link-spelling.tsv
+main_spelling ${c.wiz}/porcelain-frozen.txt > ${c.wiz}/porcelain-frozen-spelling.txt
+main_spelling ${c.wiz}/porcelain-through-link.txt > ${c.wiz}/porcelain-through-link-spelling.txt
+grep --quiet --extended-regexp "^${c.repo}[[:space:]]" ${c.wiz}/baseline-frozen.tsv
+grep --quiet --extended-regexp "^${c.finalPath}[[:space:]]" ${c.wiz}/through-link.tsv
+grep --quiet --line-regexp "worktree ${c.repo}" ${c.wiz}/porcelain-frozen.txt
+grep --quiet --line-regexp "worktree ${c.finalPath}" ${c.wiz}/porcelain-through-link.txt
+cmp --silent ${c.wiz}/baseline-spelling.tsv ${c.wiz}/through-link-spelling.tsv || { diff --unified=0 ${c.wiz}/baseline-spelling.tsv ${c.wiz}/through-link-spelling.tsv; exit 1; }
+cmp --silent ${c.wiz}/porcelain-frozen-spelling.txt ${c.wiz}/porcelain-through-link-spelling.txt || { diff --unified=0 ${c.wiz}/porcelain-frozen-spelling.txt ${c.wiz}/porcelain-through-link-spelling.txt; exit 1; }`,
+      checkText: 'the table and the worktree list through the link equal the frozen baseline, the main worktree spelled as the 860 path there and as the link path in the baseline, and nothing else differs',
       rollback: 'the rollback command',
       root: 'no',
       unprivileged: 'not needed: read-only Git as the user',

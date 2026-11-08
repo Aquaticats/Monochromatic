@@ -221,9 +221,11 @@ function tableRow(
 function table(
   {
     mainPath,
+    nestedRoot,
     nestedHead,
   }: {
     readonly mainPath: string;
+    readonly nestedRoot: string;
     readonly nestedHead: string;
   },
 ): string {
@@ -231,7 +233,7 @@ function table(
     TABLE_HEADER,
     tableRow({ path: mainPath, head: MAIN_HEAD, },),
     tableRow({
-      path: join(mainPath, NESTED_WORKTREE,),
+      path: join(nestedRoot, NESTED_WORKTREE,),
       head: nestedHead,
     },),
   ].join('\n',)}\n`;
@@ -254,9 +256,11 @@ function table(
 function porcelain(
   {
     mainPath,
+    nestedRoot,
     nestedHead,
   }: {
     readonly mainPath: string;
+    readonly nestedRoot: string;
     readonly nestedHead: string;
   },
 ): string {
@@ -265,7 +269,7 @@ function porcelain(
     `HEAD ${MAIN_HEAD}`,
     'branch refs/heads/main',
     '',
-    `worktree ${join(mainPath, NESTED_WORKTREE,)}`,
+    `worktree ${join(nestedRoot, NESTED_WORKTREE,)}`,
     `HEAD ${nestedHead}`,
     `branch refs/heads/${NESTED_BRANCH}`,
     '',
@@ -346,18 +350,22 @@ await describe({
           stage,
           baselineTable: table({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkTable: table({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           baselineListing: porcelain({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkListing: porcelain({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
         },);
@@ -373,18 +381,22 @@ await describe({
           stage,
           baselineTable: table({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkTable: table({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: MAIN_HEAD,
           },),
           baselineListing: porcelain({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkListing: porcelain({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
         },);
@@ -402,21 +414,25 @@ await describe({
          */
         const nestedMoved = table({
           mainPath: stage.config.finalPath,
+          nestedRoot: stage.config.finalPath,
           nestedHead: NESTED_HEAD,
         },);
         const result = await runCheck({
           stage,
           baselineTable: table({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkTable: nestedMoved,
           baselineListing: porcelain({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkListing: porcelain({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
         },);
@@ -433,18 +449,22 @@ await describe({
           stage,
           baselineTable: table({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkTable: table({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           baselineListing: porcelain({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkListing: porcelain({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
         },);
@@ -460,18 +480,22 @@ await describe({
           stage,
           baselineTable: table({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkTable: table({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           baselineListing: porcelain({
             mainPath: stage.config.repo,
+            nestedRoot: stage.config.repo,
             nestedHead: NESTED_HEAD,
           },),
           throughLinkListing: porcelain({
             mainPath: stage.config.finalPath,
+            nestedRoot: stage.config.repo,
             nestedHead: MAIN_HEAD,
           },),
         },);
