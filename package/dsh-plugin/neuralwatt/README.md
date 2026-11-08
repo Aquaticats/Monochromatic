@@ -106,10 +106,25 @@ Each listing entry maps to one pi-ai model profile:
 
 The route pins `compat.supportsReasoningEffort` so a selected thinking level
 dispatches as the documented top-level `reasoning_effort` parameter.
-Without
-the pin,
-pi-ai's URL-based detection for `https://api.neuralwatt.com/v1/`
-finds no known effort format and silently drops reasoning from requests.
+The pin
+stays for parity and determinism,
+not necessity:
+ a dispatch-capture probe on
+2026-11-07T23:45:20-05:00
+(commit `c6701d0112`)
+measured pi-ai 1.5.0 auto-detection
+still sending the mapped `reasoning_effort` wire value for
+`https://api.neuralwatt.com/v1/`
+with the `supportsReasoningEffort` and `thinkingFormat` pins removed.
+The earlier claim that URL detection
+finds no known effort format and silently drops reasoning from requests
+was measured against the DSH adapter's older pi-ai context
+and is retracted for pi-ai 1.5.0
+(correction recorded 2026-11-07T23:46:44-05:00).
+The pin remains as insurance because `detectCompat` is a URL heuristic:
+ a host it special-cases,
+such as `api.together.ai`,
+would flip `supportsReasoningEffort` to `false`.
 
 The route also pins `compat.supportsDeveloperRole: false` so the system prompt
 travels as the classic `system` role.
