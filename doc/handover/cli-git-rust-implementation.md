@@ -4119,7 +4119,10 @@ Remaining:
   2026-11-08T16:49:36-05:00):
   of 358 registered worktrees,
   228 hold a `node_modules` and 122 hold none,
-  8 registered worktrees are absent from disk,
+  8 registrations named a folder that did not exist yet
+  (the wrapper registers a worktree before its folder appears;
+  other sessions were adding and removing worktrees while the sweep ran,
+  and a listing minutes later named 8 other paths),
   and 153 of the 228 hold at least one dangling link,
   16,139 links in all,
   over 46,185 `node_modules` folders and 457,394 symlinks.
