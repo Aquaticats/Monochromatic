@@ -8,6 +8,10 @@
 //! a removal's log line records how many processes were scanned and that none used the entry.
 //! A process in another mount namespace (a container) sees the same files under other names,
 //! so for those the scan compares device and inode of what they hold with the identities it was given.
+//! A process whose entries cannot be read is classified instead of skipped:
+//! a kernel thread and an ended process hold no file,
+//! and a process of another user cannot hold one that the path denies that user,
+//! so what is left is the uncertainty the removal's proof line names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,10 +38,13 @@ pub struct ProcessUse {
     /// `cwd`,
     /// `exe`,
     /// `fd`,
-    /// `map` or `identity`.
+    /// `map`,
+    /// `identity` or `uninspectable`.
     pub how: &'static str,
     /// The path as the process shows it (for `identity`,
-    /// the root that matched).
+    /// the root that matched;
+    /// for `uninspectable`,
+    /// the root that process could reach).
     pub path: PathBuf,
 }
 
@@ -46,9 +53,17 @@ pub struct ProcessUse {
 pub struct ScanReport {
     /// Processes whose entries were read.
     pub scanned: usize,
-    /// Processes whose entries could not be read (another user's),
-    /// which cannot be this user's builds.
+    /// Processes whose entries could not be read and that hold no file:
+    /// kernel threads (which have no descriptor table) and ended processes.
+    pub inert: usize,
+    /// Live processes whose entries could not be read.
+    /// A kernel thread's and an ended process's absence from this count is what the scan proves;
+    /// what stays here is what the kernel hides from a plain user.
     pub unreadable: usize,
+    /// Of `unreadable`,
+    /// the processes of another user that could reach a scanned root through the path's permissions.
+    /// They are named so a reader sees which part of the uncertainty belongs to another user's access to the path.
+    pub unreadable_reaching: usize,
     /// Processes in another mount namespace,
     /// judged by identity and by the build lock.
     pub foreign_namespace: usize,
@@ -60,6 +75,9 @@ pub struct ScanReport {
 impl ScanReport {
     /// The first use at or below `candidate`,
     /// which blocks its removal.
+    /// Why only the uses it saw:
+    /// a process whose entries could not be read is named by `describe` and is not judged here;
+    /// `doc/handover/cargo-shadow-lean-build-folders.md` records that limit and the measurement under it.
     pub fn blocks(&self, candidate: &Path) -> Option<&ProcessUse> {
         for used in &self.uses {
             if used.path.starts_with(candidate) {
@@ -72,9 +90,12 @@ impl ScanReport {
     /// The proof text for a log line.
     pub fn describe(&self) -> String {
         return format!(
-            "/proc scan: {} processes read, {} unreadable (other users), {} in other mount namespaces judged by identity, {} uses under the roots",
+            "/proc scan: {} processes read, {} kernel threads and ended processes (which hold no file), {} uninspectable ({} of another user reaching a root, {} of this user or of root that no plain user may look into), {} in other mount namespaces judged by identity, {} uses under the roots",
             self.scanned,
+            self.inert,
             self.unreadable,
+            self.unreadable_reaching,
+            self.unreadable.saturating_sub(self.unreadable_reaching),
             self.foreign_namespace,
             self.uses.len()
         );
@@ -171,6 +192,134 @@ fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[I
 }
 
 /// What:
+/// `fn status_field(status: &str, name: &str) -> Option<&str>` is one field of `/proc/<pid>/status`.
+/// Why:
+/// The status of another user's process is readable where its descriptors are not,
+/// and it says as whom that process runs and whether it has any file at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const statusField = (status: string, name: string): string | undefined => status.split('\n').find((line) => line.startsWith(`${name}:`))?.slice(name.length + 1).trim();
+/// ```
+fn status_field<'a>(status: &'a str, name: &str) -> Option<&'a str> {
+    for line in status.lines() {
+        let Some(rest) = line.strip_prefix(name) else { continue };
+        let Some(value) = rest.strip_prefix(':') else { continue };
+        return Some(value.trim());
+    }
+    return None;
+}
+
+/// What:
+/// `fn holds_no_file(status: &str) -> bool` says whether a process whose entries cannot be read still cannot hold any file:
+/// it has ended,
+/// or it is a kernel thread,
+/// which has no descriptor table.
+/// Why:
+/// Neither can hold a record,
+/// so neither is uncertainty a removal has to carry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsNoFile = (status: string): boolean => (statusField(status, 'State') ?? '').startsWith('Z') || statusField(status, 'Kthread') === '1';
+/// ```
+fn holds_no_file(status: &str) -> bool {
+    let state: &str = status_field(status, "State").unwrap_or("");
+    if state.starts_with('Z') {
+        return true;
+    }
+    return status_field(status, "Kthread") == Some("1");
+}
+
+/// What:
+/// `fn real_uid_of(field: &str) -> Option<u32>` is the real uid of a `/proc/<pid>/status` `Uid:` field,
+/// which lists the real,
+/// the effective,
+/// the saved and the file-system uid in that order.
+/// Why:
+/// The real uid says as whom the process started,
+/// which is the owner whose access decides whether it could reach a path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const realUidOf = (field: string): number | undefined => { const first = field.split(/\s+/u)[0]; return first === undefined ? undefined : Number(first); };
+/// ```
+fn real_uid_of(field: &str) -> Option<u32> {
+    let first: &str = field.split_whitespace().next()?;
+    return first.parse::<u32>().ok();
+}
+
+/// What:
+/// `pub fn other_uids_can_reach(root: &Path) -> bool` says whether a process of another user could open something under `root`.
+/// Why:
+/// The kernel hides another user's descriptors,
+/// so the only fact left about such a process is whether it could hold the entry at all:
+/// traversal needs search permission on every directory from `/` down,
+/// and one directory that grants its group and every other user nothing stops every other user.
+/// Group membership is unknown here,
+/// so a group bit on every directory counts as reachable,
+/// which is the reading that keeps more entries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const otherUidsCanReach = (root: string): boolean => !root.split('/').reduce<string[]>((all, _, index, parts) => [...all, parts.slice(0, index + 1).join('/') || '/'], []).some((one) => (statSync(one).mode & 0o077) === 0);
+/// ```
+pub fn other_uids_can_reach(root: &Path) -> bool {
+    for ancestor in root.ancestors() {
+        let Ok(metadata) = fs::metadata(ancestor) else { return true };
+        if metadata.mode() & 0o077 == 0 {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
+/// `fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roots: &[&Path])` classifies a process
+/// whose working directory could not be read,
+/// instead of counting every one of them as a possible holder.
+/// Why:
+/// A kernel thread and an ended process hold no file,
+/// so they are not uncertainty at all;
+/// what is left is named,
+/// and of that part the processes of another user are counted once more when the path lets that user in.
+/// None of them blocks a removal:
+/// the kernel shows a plain user neither their descriptors nor their mappings,
+/// and refusing every removal because another user's daemon exists would stop the sweep where the build base is
+/// world-searchable (measured 2026-11-08 in `doc/handover/cargo-shadow-lean-build-folders.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function noteWithoutEntries(report: ScanReport, procRoot: string, pid: number, roots: string[]): void
+/// ```
+fn note_without_entries(report: &mut ScanReport, proc_root: &Path, pid: i32, roots: &[&Path]) {
+    let Ok(status) = fs::read_to_string(proc_root.join(pid.to_string()).join("status")) else {
+        // The process ended between the listing and this read, so it holds nothing.
+        report.inert += 1;
+        return;
+    };
+    if holds_no_file(&status) {
+        report.inert += 1;
+        return;
+    }
+    report.unreadable += 1;
+    let Some(uid) = status_field(&status, "Uid").and_then(real_uid_of) else {
+        return;
+    };
+    // This user's own process can reach its own files whenever the owner bits allow it, and root reaches everything;
+    // the kernel hides both from a plain user, so neither is a holder this scan can rule out.
+    if uid == rustix::process::geteuid().as_raw() || uid == 0 {
+        return;
+    }
+    for root in roots {
+        if other_uids_can_reach(root) {
+            report.unreadable_reaching += 1;
+            return;
+        }
+    }
+}
+
+/// What:
 /// `pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32) -> ScanReport` reads
 /// every process of the procfs at `proc_root`.
 /// Why:
@@ -178,6 +327,8 @@ fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[I
 /// program,
 /// open files or mapped files are under any root,
 /// and the container processes that hold an entry with one of the identities.
+/// A process whose entries cannot be read is classified rather than counted as another user's:
+/// see `note_without_entries`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -194,9 +345,10 @@ pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity]
             continue;
         }
         let path: PathBuf = entry.path();
-        // A process that cannot show its working directory is another user's (or is gone): it is counted, not judged.
+        // A process that cannot show its working directory is classified: it either cannot hold a file or it is
+        // the uncertainty the removal's proof line names.
         if fs::read_link(path.join("cwd")).is_err() {
-            report.unreadable += 1;
+            note_without_entries(&mut report, proc_root, pid, roots);
             continue;
         }
         report.scanned += 1;
