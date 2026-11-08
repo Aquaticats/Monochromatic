@@ -20,10 +20,11 @@ Updated 2026-11-08T16:18:47-05:00:
 D is wired to its five producers through a new scoped entry point (`lean records`),
 and the Cargo repair without the shadow and the two open questions of the plan are measured,
 with their answers below.
-All of this is in the sources only.
-Until cargo-shadow is released and installed,
-a producing task stops at its first step,
-because the installed 0.1.5-alpha.7 lists only `lean run` and `lean timer-install`.
+All of this was in the sources only at that time.
+The version installed then was 0.1.5-alpha.7,
+which lists only `lean run` and `lean timer-install`,
+so a producing task stopped at its first step until the release of 0.1.5-alpha.8,
+which `toolchain.lock.json` now locks and `mise run toolchain:install` linked in.
 Updated 2026-11-08T18:18:16-05:00:
 the name list of mechanism D now names every program of this repository that writes a record,
 the retention is wired on the seventeen sibling producers that write records of their own,
