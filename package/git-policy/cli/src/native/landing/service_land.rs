@@ -46,8 +46,8 @@ use crate::service_land_start::witness_of;
 use crate::service_index_lock::{Announce, Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-use crate::service_scratch_ref_marker_of_a_batch::forget_scratch_ref;
-use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, scratch_ref};
+use crate::service_scratch_ref_marker_of_a_batch::end_scratch_ref_record;
+use crate::service_scratch_ref_of_a_dropped_batch::scratch_ref;
 use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
@@ -172,12 +172,9 @@ pub fn land_batch_timed(
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
     //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
     //  removes the branch itself (`service_scratch_ref_of_a_dropped_batch.rs`). One that wrote its intent leaves it to the restart.
-    let left_where_it_is: bool = result.is_err() && clear_after_a_failed_landing(context, requests, seq) == ScratchRefRemoval::Left;
-    // The record that names the worktree of this batch's scratch reference (`service_scratch_ref_marker_of_a_batch.rs`) is kept
-    //  only while that reference is still there for a later restart to settle, so nothing that could be cleared is forgotten.
-    if !left_where_it_is {
-        forget_scratch_ref(context.journal.as_path(), seq);
-    }
+    // The record that names this batch's worktree (`service_scratch_ref_marker_of_a_batch.rs`) goes when the reference it names
+    //  does, and stays beside a reference a failed landing had to leave where it is.
+    end_scratch_ref_record(context, requests, seq, result.as_ref().err());
     let published: bool = match result.as_ref() {
         Ok(outcomes) => any_landed(outcomes.as_slice()),
         Err(_failure) => false,

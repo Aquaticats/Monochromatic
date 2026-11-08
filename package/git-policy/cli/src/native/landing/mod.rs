@@ -30,6 +30,10 @@ pub mod maintenance_run;
 /// maintenance) left for a resident consumer.
 pub mod work_item;
 
+/// The kinds of work a landed object can ask for,
+/// and the names that pick a consumer's handler.
+pub mod work_item_kinds_and_their_names;
+
 /// The state folders of the work queue,
 /// the names of claim files,
 /// and the listing of a folder oldest first.

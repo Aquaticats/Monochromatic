@@ -165,7 +165,8 @@ fn assert_healthy(fixture: &Fixture, repo: &Path, what: &str) {
 }
 
 /// What:
-///  The references of the wrapper's two side namespaces, as `name object` lines.
+///  The references of the wrapper's two side namespaces,
+/// as `name object` lines.
 /// Why:
 ///   A kill leaves the batch's scratch reference and the commit it holds behind,
 /// and every one of them must be accounted for

@@ -26,6 +26,7 @@
 use crate::claim_time::ClaimTime;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_timing::log;
+pub use crate::work_item_kinds_and_their_names::WorkKind;
 pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
 pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
@@ -38,52 +39,6 @@ pub const VERSION: u64 = 1;
 
 /// Directory under the worktree's own Git directory (`WorkItem::git_dir`) that holds the state directories.
 pub const WORK_DIRECTORY: &str = "monochromatic-git-policy-cli/work";
-
-/// What:
-///  The kind of work an item asks for.
-/// Why:
-///   One record format carries every asynchronous job;
-/// the kind picks the consumer's handler.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WorkKind = 'review' | 'push' | 'maintenance';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WorkKind {
-    /// The standards-review shadow run.
-    Review,
-    /// An auto-push of the branch.
-    Push,
-    /// Repository maintenance.
-    Maintenance,
-    /// Emptying a directory of left-out files that a snapshot-made worktree set aside.
-    Trash,
-}
-
-/// Methods over a kind.
-impl WorkKind {
-    /// The kind's name,
-    /// which is also the start of an item's id.
-    pub fn name(self) -> &'static str {
-        return match self {
-            WorkKind::Review => "review",
-            WorkKind::Push => "push",
-            WorkKind::Maintenance => "maintenance",
-            WorkKind::Trash => "trash",
-        };
-    }
-
-    /// The kind a name spells.
-    pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash] {
-            if kind.name() == name {
-                return Some(kind);
-            }
-        }
-        return None;
-    }
-}
 
 /// What:
 ///  One work item:
@@ -285,9 +240,11 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
 ///   The id is the idempotency key;
 /// the exclusive publish makes two racing producers agree on one winner.
 /// A round that asked `claimed` and `recovering` once per item cost one listing
-///  per item, so a producer of N items cost N listings (`RG2`);
+///  per item,
+/// so a producer of N items cost N listings (`RG2`);
 /// the round takes each of those listings once.
-/// The price is the window the listing opens: an item that a consumer claims
+/// The price is the window the listing opens:
+/// an item that a consumer claims
 ///  after the round listed the claims is queued again,
 /// because nothing reads the queue back.
 ///

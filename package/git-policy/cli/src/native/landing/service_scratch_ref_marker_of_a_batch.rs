@@ -24,7 +24,8 @@
 //! a keep Git refused and a kept
 //!  reference that names another commit all leave both the reference and this record where they are:
 //! nothing is removed that cannot
-//!  be proven safe (owner: "never discard user data").
+//!  be proven safe,
+//! which is the owner's rule "never discard user data".
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,7 +35,8 @@
 use crate::service_instance::instance_of;
 use crate::service_journal::{OPEN_EXTENSION, batch_path};
 use crate::service_land_context::LandContext;
-use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_dropped_batch};
+use crate::service_protocol::{CommitRequest, FailureCode};
+use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, clear_after_dropped_batch};
 use crate::transaction_git::GitContext;
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
@@ -45,14 +47,16 @@ const VERSION: u64 = 1;
 /// The ending of a record's file name;
 /// the rest of the name is the batch number.
 /// Why:
-///   The journal lists every file of a batch, and a record that is not an intent is never read as
+///   The journal lists every file of a batch,
+/// and a record that is not an intent is never read as
 /// one.
 const RECORD_EXTENSION: &str = "scratch";
 
 /// What:
 ///  The path of the record of batch `seq`'s scratch reference.
 /// Why:
-///   The batch number is the name's stem, so a record is found from the batch and a batch from the record.
+///   The batch number is the name's stem,
+/// so a record is found from the batch and a batch from the record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -115,7 +119,8 @@ fn decode(text: &str) -> Option<(PathBuf, PathBuf)> {
 ///   The import is about to create `refs/worktree/cli-git-service/<seq>`,
 /// and a kill after that instant leaves the reference
 ///  with nothing else that names the worktree it is in.
-/// The record is published whole and never flushed: a kill leaves it
+/// The record is published whole and never flushed:
+/// a kill leaves it
 ///  whole or absent,
 /// and a record that a power loss loses leaves the reference where it was,
 /// which is the answer for anything
@@ -154,6 +159,30 @@ pub(crate) fn forget_scratch_ref(journal: &Path, seq: u64) {
 }
 
 /// What:
+///  Ends the record of batch `seq`'s scratch reference when the landing ends.
+/// Why:
+///   A landing that landed its commits had the reference removed by the same transaction that moved the branch,
+/// and a
+///  landing that failed keeps the commit and removes the reference itself
+/// (`service_scratch_ref_of_a_dropped_batch.rs`),
+/// so
+///  the record goes with it.
+/// A failed landing that had to leave the reference where it is keeps the record,
+/// because the next
+///  restart is what tries again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (!failure || await clearAfterAFailedLanding(requests, seq) === 'removed') await forget(seq)
+/// ```
+pub(crate) fn end_scratch_ref_record(context: &LandContext, requests: &[CommitRequest], seq: u64, failure: Option<&FailureCode>) {
+    if failure.is_some() && clear_after_a_failed_landing(context, requests, seq) == ScratchRefRemoval::Left {
+        return;
+    }
+    forget_scratch_ref(context.journal.as_path(), seq);
+}
+
+/// What:
 ///  The records of scratch references in `journal`,
 /// each with the batch it is named for.
 /// Why:
@@ -175,13 +204,25 @@ fn records(journal: &Path) -> Vec<(u64, PathBuf)> {
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(RECORD_EXTENSION) {
             continue;
         }
-        let Some(seq) = path.file_stem().and_then(std::ffi::OsStr::to_str).and_then(|stem| { return stem.parse::<u64>().ok(); }) else {
+        let Some(seq) = path.file_stem().and_then(std::ffi::OsStr::to_str).and_then(batch_number_of_name) else {
             continue;
         };
         found.push((seq, path));
     }
-    found.sort_by_key(|(seq, _path)| { return *seq; });
+    found.sort_by_key(batch_number_of_record);
     return found;
+}
+
+/// The batch number a record's name stem spells,
+/// or nothing when it spells none.
+fn batch_number_of_name(stem: &str) -> Option<u64> {
+    return stem.parse::<u64>().ok();
+}
+
+/// The batch number of a record,
+/// for the sort that puts the records in batch order.
+fn batch_number_of_record(record: &(u64, PathBuf)) -> u64 {
+    return record.0;
 }
 
 /// What:
