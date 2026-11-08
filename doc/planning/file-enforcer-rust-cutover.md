@@ -30,7 +30,7 @@ the root `Dockerfile`,
 the root `docker-compose.yml` and the root `testDockerImage` task were removed,
 after the owner said "If nothing can be proven to depend on anything docker,
 remove it."
-Every mention of the `Dockerfile` below describes the file as it stood before the removal,
+Every mention of the `Dockerfile` in this document describes the file as it stood before the removal,
 not a current file or instruction;
 `playwright.Dockerfile` and the package Containerfiles stay.
 
