@@ -368,6 +368,33 @@ Stages marked window run inside the window and are refused once its maximum has 
     `c28-ide-through-link` needs `--assert=c28-ide-through-link`,
     because only you can see the IDE read the files through the link.
 
+#### What stopped the first cut-over attempt (2026-11-08T06:33:36-05:00)
+
+`repository-move-cutover-1` stopped at `c01-pre-freeze-table` before the window:
+36 of 375 rows were `missing`,
+registrations in `.git/worktrees` whose folders had been deleted
+(35 under `/var/mnt/encrypted/temp/agent`,
+removed with the old agent scratch the owner chose to delete,
+and one under `/var/home/user/temp/agent`).
+`git worktree prune --dry-run --verbose` listed exactly those 36 as "gitdir file points to non-existent location";
+with the encrypted drive confirmed mounted and the folders confirmed absent,
+`git worktree prune` removed them and a second dry run listed none.
+
+A holder scan run by hand after that found processes that `c03-holders-before` would refuse:
+the coordinator's own Claude Code session and its MCP servers (started in the repository),
+terminal shells (one running `atop`),
+Zed and its extension host,
+a Codex session with three app-server daemons,
+a DeepSeek `dsh` session with its search-fetch server,
+the `adb` server,
+and the Git wrapper's commit service holding a descriptor on
+`.git/index.lock.cli-git-marker-1573518.*` since about 00:56 local
+(open item in `doc/handover/cli-git-rust-implementation.md`).
+`c03-holders-before` runs before `c06-stop-units`,
+so a commit service holding a descriptor in `.git` stops the cut-over before the window.
+Start the session that drives the runner from a folder outside the repository
+(`--add-dir` the repository).
+
 ### The thaw and rollback commands
 
 `thaw` is for a stop before the swap:
