@@ -1,5 +1,11 @@
 # Native end-to-end lane: the incumbent's e2e suite against the native executable
 
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:test:e2e:concurrent:native:surface` went with the wrapper on 2026-10-13
+(`642b6d72cb`);
+`//package/git-policy/cli:native:differential:commit` went on 2026-10-13 (`a2b56c548c`);
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

@@ -16,12 +16,11 @@
 
 use crate::service_work_handlers_replanning_and_acceptance::*;
 use crate::journald_native::Priority;
-use crate::claim_time::ClaimTime;
 use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::service_claim_renewal::{held_claims, renewal_interval};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
-use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind, claim_next_of};
+use crate::work_item::{Claimed, DONE, FAILED, WorkItem, WorkKind, claim_all_of};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// Claims and runs every pending item of one work directory until none is left;
@@ -36,21 +35,17 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
     };
     loop {
-        let mut claimed: Vec<Claimed> = Vec::new();
-        loop {
-            // Each claim carries the reading of the moment it is taken, not of the start of the round, which a long round makes
-            //  most of a lease old.
-            match claim_next_of(work_dir.as_path(), &ClaimTime::read(), &SERVICE_KINDS) {
-                Ok(Some(item)) => {
-                    held.hold(&item);
-                    claimed.push(item);
-                }
-                Ok(None) => break,
-                Err(reason) => {
-                    crate::service_error!("{reason}");
-                    break;
-                }
+        // One listing of `pending` for the whole round: each claim of it carries the reading of the moment it is taken, not of
+        //  the start of the round, which a long round makes most of a lease old.
+        let claimed: Vec<Claimed> = match claim_all_of(work_dir.as_path(), &SERVICE_KINDS) {
+            Ok(taken) => taken,
+            Err(reason) => {
+                crate::service_error!("{reason}");
+                return;
             }
+        };
+        for item in &claimed {
+            held.hold(item);
         }
         if claimed.is_empty() {
             return;

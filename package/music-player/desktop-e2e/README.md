@@ -138,7 +138,15 @@ the last ten `ui_state` changes (`seq`,
 `focus`,
 `route` and `unfolded`) without the position ticks of a playing track (their count is stated),
 and the final state.
-The path is printed on the `FAIL` line,
+Beside it sit the files that say what the session itself was doing,
+read while the session still runs because the scratch directory and the unit go away with it:
+`<group>--<name>.unit.log` (the unit's standard output and error,
+the compositor's lines and the app's),
+`<group>--<name>.cpu.stat` and `<group>--<name>.io.pressure` (the accounting of the unit's control group,
+which says whether the unit was throttled on its CPU quota and how long its tasks waited for the disk).
+The failure file names each one with the path it came from,
+and says why a file was not kept when the unit had already stopped.
+The paths are printed on the `FAIL` line,
 on the closing `FAILED` line and in `e2e-summary.json`.
 The folder is emptied at the start of each run.
 A session that stops between two checks (a page it expects never came back) is recorded as `session/<name>` with the same evidence,
@@ -227,6 +235,8 @@ and the run goes on with the next session instead of ending without a report.
    `src/ui-state-log.ts` and `src/log-scan.ts` read the app's state from its log.
 - `src/pipewire.ts` holds the null sink and the routing proof.
 - `src/recorder.ts`,
+  `src/failure-evidence.ts`,
+  `src/session-evidence.ts`,
   `src/report.ts` and `src/selection.ts` record outcomes,
   keep each failure's evidence,
   print the table and summary,

@@ -32,6 +32,12 @@ mod support_resource_limits;
 #[path = "binary_support_fixture_service.rs"]
 mod support_fixture_service;
 
+/// What a fixture's services write on their standard error:
+/// the pipe that keeps it while they run,
+/// and the end of it that a failure carries.
+#[path = "binary_support_fixture_service_log.rs"]
+mod support_fixture_service_log;
+
 /// Making and removing the disposable directory of a fixture and the wrapper link inside it.
 #[path = "binary_support_fixture_directories.rs"]
 mod support_fixture_directories;

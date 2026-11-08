@@ -4,7 +4,7 @@
 //! exit statuses and the lines printed.
 
 use super::*;
-use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_worktree};
+use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_moved_behind_a_link, checkout_with_worktree};
 use crate::test_support::{git, remove};
 
 /// A checkout with two quiet linked worktrees,
@@ -46,6 +46,10 @@ fn all_worktrees_are_listed_then_converted() {
     assert_eq!(code, 0, "{lines:#?}");
     assert!(lines.iter().any(|line: &String| { return line.trim() == "would convert"; }), "{lines:#?}");
     assert!(lines.iter().any(|line: &String| { return line.contains("skipped:") && line.contains("locked"); }), "{lines:#?}");
+    // The summary counts what the run listed it would convert, so it never says "0 converted" beside "would convert".
+    let would: usize = lines.iter().filter(|line: &&String| { return line.trim() == "would convert"; }).count();
+    let summary: &str = lines.last().expect("a summary line").as_str();
+    assert!(summary.contains(format!("{would} would convert or complete").as_str()), "{would} line(s) said 'would convert': {lines:#?}");
     assert!(!platform.is_subvolume_root(root.join("wt").as_path()).expect("examined"), "a dry run converts nothing");
     std::fs::remove_file(root.join(".git/worktrees/second/locked")).expect("unlock");
     let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
@@ -123,5 +127,52 @@ fn a_command_line_attribute_source_stops_the_content_shortcut() {
     let without: ConvertArguments = ConvertArguments { command_line_attributes: false, ..named };
     let (_plain_code, plain_lines) = run(&platform, &without, root.as_path());
     assert!(plain_lines.iter().any(|line: &String| { return line.trim() == "would convert"; }), "{plain_lines:#?}");
+    remove(parent.as_path());
+}
+
+/// `--all` refuses when the registrations cannot be read,
+/// instead of looking at none of them and saying nothing.
+#[test]
+fn all_refuses_when_the_registrations_cannot_be_listed() {
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    if unsafe { libc::geteuid() } == 0 {
+        return;
+    }
+    let (parent, root) = two_worktrees("convert-command-unlistable");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let registrations: PathBuf = root.join(".git/worktrees");
+    // A directory that can be searched but not listed.
+    std::fs::set_permissions(&registrations, std::os::unix::fs::PermissionsExt::from_mode(0o311)).expect("search without listing");
+    let dry: ConvertArguments = ConvertArguments { dry_run: true, all: true, ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &dry, root.as_path());
+    std::fs::set_permissions(&registrations, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("restore");
+    assert_eq!(code, REFUSED_EXIT_CODE, "{lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("cannot be listed") && line.contains("cannot be known"); }), "{lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.as_str() == "Nothing was changed."; }), "{lines:#?}");
+    remove(parent.as_path());
+}
+
+/// `--all` covers a worktree whose registration spells the repository's old name through a link,
+/// and says how many registrations it left out and why.
+#[test]
+fn all_covers_a_link_spelled_registration_and_says_what_it_leaves_out() {
+    let (parent, root, worktree) = checkout_moved_behind_a_link("convert-command-link");
+    let platform: PlainPlatform = PlainPlatform::new();
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "../outside"]);
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", "gone"]);
+    std::fs::remove_dir_all(root.join("gone")).expect("the directory Git would prune");
+    let dry: ConvertArguments = ConvertArguments { dry_run: true, all: true, ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &dry, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    let start: usize = lines.iter().position(|line: &String| { return line == &worktree.display().to_string(); }).unwrap_or_else(|| panic!("the link-spelled worktree is covered: {lines:#?}"));
+    assert!(lines.get(start + 1).is_some_and(|line: &String| { return line.trim() == "would convert"; }), "the link-spelled worktree is covered: {lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("left out") && line.contains("outside") && line.contains("outside the main checkout"); }), "{lines:#?}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("left out") && line.contains("gone") && line.contains("is gone"); }), "{lines:#?}");
+    assert!(lines.last().is_some_and(|line: &String| { return line.contains("2 registered worktree(s) left out"); }), "{lines:#?}");
+    let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
+    let (real_code, real_lines) = run(&platform, &real, root.as_path());
+    assert_eq!(real_code, 0, "{real_lines:#?}");
+    assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"), "{real_lines:#?}");
+    assert!(real_lines.last().is_some_and(|line: &String| { return line.contains("1 converted or completed") && line.contains("2 registered worktree(s) left out"); }), "{real_lines:#?}");
     remove(parent.as_path());
 }

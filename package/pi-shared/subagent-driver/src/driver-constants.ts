@@ -4,6 +4,8 @@
  @module
  */
 
+import type { RunFailure, } from './driver-types.ts';
+
 /**
  Set in Pi's environment. A driver that finds it was started by a Pi the driver runs, and refuses, so an agent cannot start
  agents without end.
@@ -33,9 +35,40 @@ export const COMMAND_ANSWER_MILLISECONDS = 30_000;
 export const SHUTDOWN_GRACE_MILLISECONDS = 5_000;
 
 /**
+ The stages of ending Pi that each wait for Pi: its input closing, then one signal, then the last signal, then its standard
+ error copy. The driver divides the time it has left for ending by this count, so one slow stage cannot spend another's time.
+ */
+export const SHUTDOWN_STAGES = 4;
+
+/**
+ Longest wait for Pi's last two answers while a run is put away: its session statistics, then its abort. Both are a courtesy,
+ so they get far less than an ordinary command: a Pi at the end of its wall clock may never answer, and the summary must still
+ appear. Pi answered the first prompt 5.2 to 5.4 seconds after starting in four real runs on 2026-11-08
+ (`doc/agent/drive-pi-as-a-coding-subagent.md`).
+ */
+export const TEARDOWN_ANSWER_MILLISECONDS = 5_000;
+
+/**
+ Longest the driver spends putting a run away: those two answers, then Pi's stages of leaving, then the feed's last write. The
+ wall limit bounds the run itself; this bounds everything after it, so a run whose Pi never answers still ends.
+ */
+export const TEARDOWN_MILLISECONDS: number = (2 * TEARDOWN_ANSWER_MILLISECONDS)
+  + ((SHUTDOWN_STAGES + 1) * SHUTDOWN_GRACE_MILLISECONDS);
+
+/**
  Name of the file that ends a run early.
  */
 export const STOP_FILE_NAME = 'stop';
+
+/**
+ The failure of a run that has none, so no caller has to carry a nullish member for absence.
+ */
+export const NO_RUN_FAILURE: RunFailure = Object.freeze({ failed: false, });
+
+/**
+ What the summary says when the model reported an error and said nothing about it.
+ */
+export const MODEL_ERROR_WITHOUT_TEXT = 'the model reported an error and said nothing about it';
 
 /**
  Longest text of one kind kept on a feed line, carried over from the driver the recorded runs used. They bound the size of a feed

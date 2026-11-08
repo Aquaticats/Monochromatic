@@ -1079,9 +1079,14 @@ jobs:
         echo "JAVA_HOME=$install_dir" >> "$GITHUB_ENV"
         echo "$install_dir/bin" >> "$GITHUB_PATH"
         "$install_dir/bin/java" -version
-    # Everything this step used to install by hand (the floating `nightly` channel, the Android targets,
-    # cargo-binstall, cargo-ndk and cargo-about) is converged at pinned versions by the next step, which is
-    # `toolchain:install`; this step only installs and selects the Rust toolchain the builds compile with.
+    # Everything this step used to install by hand (the floating `nightly` channel, cargo-binstall, cargo-ndk
+    # and cargo-about) is converged at pinned versions by the step below, `toolchain:install`. The Android
+    # standard library is the one exception, and it has to be installed here: `toolchain:install` observes the
+    # toolchain this step just installed as already at the locked version, reports it unchanged, and so never
+    # reaches the `rustTargets` row of the lock (dry run 42521054342 failed with E0463, "can't find crate for
+    # `core`", for the same reason). The triples are read from that row rather than repeated, and the step ends
+    # by naming any declared triple that did not install, instead of leaving the build to report it.
+    # The lock's `rustComponents` are deliberately not installed: nothing in this job compiles with them.
     - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
       run: |
@@ -1091,9 +1096,23 @@ jobs:
           nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
           *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
         esac
+        # `--exit-status` also fails on an empty list, so a missing or unreadable row stops the step here.
+        if ! lock_targets=$(jq --raw-output --exit-status '.tools.rust.options.rustTargets // [] | .[]' toolchain.lock.json); then
+          echo "::error::toolchain.lock.json names no readable rustTargets row for the rust tool; the native build needs both 64-bit Android triples."
+          exit 1
+        fi
+        mapfile -t targets <<< "$lock_targets"
         rustup toolchain install "$toolchain" --profile minimal --no-self-update
+        rustup target add --toolchain "$toolchain" "${targets[@]}"
         echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
-        rustc -Vv
+        rustup run "$toolchain" rustc -Vv
+        installed=$(rustup target list --installed --toolchain "$toolchain")
+        for target in "${targets[@]}"; do
+          if ! grep --quiet --line-regexp --fixed-strings -- "$target" <<< "$installed"; then
+            echo "::error::The $toolchain toolchain has no $target standard library; the native build would fail with E0463."
+            exit 1
+          fi
+        done
 
     # `prepare:android` is a thin alias of `toolchain:install`, which converges the toolchain to
     # toolchain.lock.json and installs the SDK components the app builds against (the `android-sdk` tool's
@@ -1106,6 +1125,32 @@ jobs:
         tools: mpm-shadow
     - name: Provision the toolchain and the Android SDK components
       run: task-run prepare:android
+
+    # `toolchain:install` links every locked tool (cargo-about for the APK's notices, cargo-ndk for build:native)
+    # into the repository's exposure directory and prints it; locally `.config/mise/conf.d/20-env.toml` puts that
+    # directory first on PATH, and CI, which calls the same task through task-run, has to say it itself. Without this
+    # step both tools sit in the workspace unreachable by name and their steps fail.
+    - name: Put the provisioned toolchain on PATH
+      run: |
+        set -euo pipefail
+        echo "$(mpm-shadow bin)" >> "$GITHUB_PATH"
+
+    # `prepare:android` installs the lock's `androidPackages` (platform 37.0, build-tools 37.0.0, NDK 29.0.13846066,
+    # platform-tools) into the toolchain's own SDK, and `toolchain:install` writes the tool environment file from the
+    # lock's `env` blocks with each relative value made absolute. Locally mise reads that file; nothing in CI does, so
+    # without this step Gradle and cargo-ndk find the runner image's preinstalled SDK at its own ANDROID_HOME instead:
+    # another SDK, and an NDK that is not the locked one. The JDK and Rust steps above set JAVA_HOME and
+    # RUSTUP_TOOLCHAIN from the same lock, so only the two Android names are exported here.
+    - name: Export the Android SDK the toolchain installed
+      env:
+        TOOLCHAIN_ENV_FILE: .config/mise/conf.d/30-toolchain-env.local.toml
+      run: |
+        set -euo pipefail
+        if ! grep --quiet --extended-regexp '^ANDROID_HOME = "/' "$TOOLCHAIN_ENV_FILE"; then
+          echo "::error::${TOOLCHAIN_ENV_FILE} names no ANDROID_HOME; run task-run prepare:android first."
+          exit 1
+        fi
+        sed --quiet --regexp-extended 's/^(ANDROID_(HOME|SDK_ROOT)) = "(.*)"$/\1=\3/p' "$TOOLCHAIN_ENV_FILE" >> "$GITHUB_ENV"
 
     - name: Restore the project release key
       if: ${{ needs.detect.outputs.use_release_key == 'true' }}
@@ -1431,8 +1476,14 @@ jobs:
           set -euo pipefail
           # The source is mounted read-only; nextest writes its store under the crate's target directory, so that one
           # path gets a scratch directory. The Slint variables are the ones the task bodies set for local runs.
+          # A private tmpfs at /run/user/0 is the container's XDG_RUNTIME_DIR: the notification tests start a private
+          # D-Bus daemon whose Unix socket path exceeds the 107-byte limit anywhere else, and the Alpine image has no
+          # runtime directory (no systemd-logind). The local container task gives its container the same one
+          # (package/music-player/desktop-app/mise.toml, commit 438bc434e4); without it 14 tests panic on the unset
+          # variable instead of testing notifications.
           podman run --rm \
             --memory="$BUILD_MEMORY" --cpus="$BUILD_CPUS" $CONTAINER_EXTRA_OPTIONS --security-opt label=disable \
+            --tmpfs /run/user/0:mode=0700 --env XDG_RUNTIME_DIR=/run/user/0 \
             --volume "$GITHUB_WORKSPACE/package/music-player:/src:ro" \
             --volume "$CI_CACHE/scratch:/src/desktop-app/target" \
             --volume "$CI_CACHE/cargo:/cargo" \

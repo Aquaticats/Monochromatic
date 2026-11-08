@@ -1,17 +1,25 @@
 //! What:
 //! `cargo-shadow lean run`:
 //! the one pass of the lean-folder tools over this machine,
-//! in the plan's order (idle trees,
-//! older-compiler sweep,
-//! size caps,
-//! run records,
+//! cheapest mechanism first and the units pass last
+//! (run records,
 //! toolchains,
-//! Podman).
+//! Podman,
+//! idle trees,
+//! older-compiler sweep and size caps).
 //! Why:
 //! The owner decided (2026-11-07) that the tools' first run,
 //! under their own locks,
 //! cleans what exists today,
 //! and that a systemd user timer runs them daily.
+//! One deadline covers the whole run,
+//! so the order is what decides which mechanism a deadline cuts:
+//! measured in the first run (2026-11-07T23:52:28-05:00 to 2026-11-08T01:24:39-05:00),
+//! records and toolchains took 2.5 minutes together,
+//! the Podman pass 20.5 minutes,
+//! the idle-trees pass 29 minutes,
+//! and the units pass was stopped 40 minutes in after about 700 of several thousand profile directories.
+//! In the plan's order that pass came second and starved the Podman pass.
 //! The run never starts `cargo`,
 //! never starts itself,
 //! and obeys one deadline;
@@ -83,12 +91,41 @@ pub struct RunOptions {
     pub start: PathBuf,
 }
 
-/// Which mechanisms a run includes.
-impl RunOptions {
-    /// Whether a mechanism is part of this run.
-    pub fn includes(&self, mechanism: Mechanism) -> bool {
-        return self.only.is_empty() || self.only.contains(&mechanism);
+/// The mechanisms in the order a run takes them:
+/// cheapest first,
+/// the units pass last.
+/// Why the order is this and not the plan's:
+/// one deadline covers the whole run,
+/// and the measured cost of the first run (2026-11-07,
+/// `doc/handover/cargo-shadow-lean-build-folders.md`,
+/// section "First run") is
+/// 2.5 minutes for records and toolchains together,
+/// 20.5 minutes for Podman,
+/// 29 minutes for the idle trees,
+/// and hours for the units pass,
+/// which reached about 700 of several thousand profile directories in 40 minutes.
+/// A pass that a deadline cuts off waits for the next run;
+/// a pass put last therefore starves only itself.
+pub const RUN_ORDER: [Mechanism; 5] = [Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman, Mechanism::Trees, Mechanism::Units];
+
+/// What:
+/// `pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism>` is the mechanisms of a run in the order it takes them.
+/// Why:
+/// The deadline cuts what it reaches first,
+/// so the order is decided here once and the run walks it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runOrder(requested: Mechanism[]): Mechanism[]
+/// ```
+pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism> {
+    let mut order: Vec<Mechanism> = Vec::new();
+    for mechanism in RUN_ORDER {
+        if requested.is_empty() || requested.contains(&mechanism) {
+            order.push(mechanism);
+        }
     }
+    return order;
 }
 
 /// What:
@@ -170,7 +207,94 @@ fn say(summary: &mut Vec<String>, lines: Vec<String>) {
 }
 
 /// What:
-/// `pub fn run_lean(options: &RunOptions) -> i32` runs the selected mechanisms and prints the summary.
+/// `fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u64)>` lists every profile directory the sweep and the size caps reach,
+/// each with the cap that applies to it.
+/// Why:
+/// Mechanisms B and E read the same directories with the same caps,
+/// in the checkout's own `target/` directories and in the host build base.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function unitProfiles(base: string | undefined, checkouts: string[]): [string, number][]
+/// ```
+fn unit_profiles(base: Option<&Path>, checkouts: &[PathBuf]) -> Vec<(PathBuf, u64)> {
+    let mut profiles: Vec<(PathBuf, u64)> = Vec::new();
+    for checkout in checkouts {
+        for target in target_directories(checkout) {
+            for profile in profile_dirs_of(&target) {
+                profiles.push((profile, IN_TREE_PROFILE_CAP_BYTES));
+            }
+        }
+    }
+    if let Some(found) = base {
+        for tree in list_trees(found) {
+            for profile in profile_dirs_of(&tree.path) {
+                profiles.push((profile, HOST_PROFILE_CAP_BYTES));
+            }
+        }
+    }
+    return profiles;
+}
+
+/// What a mechanism is given when the run reaches it.
+struct RunContext<'a> {
+    /// What the caller asked for.
+    options: &'a RunOptions,
+    /// The run's deadline.
+    deadline: Deadline,
+    /// The real `/proc` the guards read.
+    environment: &'a GuardEnvironment,
+    /// The checkouts the run found.
+    checkouts: &'a [PathBuf],
+    /// The toolchains a checkout's lock pins.
+    pinned: &'a HashSet<String>,
+    /// The host build base,
+    /// when the Cargo configuration has one.
+    base: Option<&'a Path>,
+    /// The rustup home the toolchains live in.
+    rustup_home: &'a Path,
+}
+
+/// What:
+/// `fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Vec<String>` runs one mechanism and returns its summary lines.
+/// Why:
+/// `run_lean` walks `RUN_ORDER` and each mechanism is one arm here,
+/// so the order has one place to change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runMechanism(mechanism: Mechanism, context: RunContext): string[]
+/// ```
+fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> Vec<String> {
+    return match mechanism {
+        Mechanism::Trees => match context.base {
+            Some(found) => run_trees(found, context.pinned, context.options, &context.deadline, context.environment),
+            None => vec![String::from("idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base")],
+        },
+        Mechanism::Units => sweep_and_cap(&unit_profiles(context.base, context.checkouts), context.options.dry_run, &context.deadline, context.environment),
+        Mechanism::Records => {
+            let mut targets: Vec<PathBuf> = Vec::new();
+            for checkout in context.checkouts {
+                targets.extend(target_directories(checkout));
+            }
+            run_records(&verification_directories(&targets), context.options.dry_run, &context.deadline, context.environment)
+        }
+        Mechanism::Toolchains => run_toolchains(&context.rustup_home.join("toolchains"), context.pinned, context.options.dry_run, &context.deadline, context.environment),
+        Mechanism::Podman => {
+            let main: PathBuf = match crate::lean_checkouts::main_checkout(&context.options.start) {
+                Some(found) => found,
+                None => match context.checkouts.first() {
+                    Some(first) => first.clone(),
+                    None => return vec![String::from("podman: no checkout was found, so nothing was judged")],
+                },
+            };
+            run_podman(&main, context.options.dry_run, &context.deadline)
+        }
+    };
+}
+
+/// What:
+/// `pub fn run_lean(options: &RunOptions) -> i32` runs the selected mechanisms in `RUN_ORDER` and prints the summary.
 /// Why:
 /// The exit code is 0 when the run completed (skips and kept items are not failures),
 /// and 1 when no checkout could be found.
@@ -205,46 +329,9 @@ pub fn run_lean(options: &RunOptions) -> i32 {
     let mut summary: Vec<String> = Vec::new();
     say(&mut summary, vec![format!("lean run: {} checkouts, {}", checkouts.len(), if options.dry_run { "dry run (nothing is removed)" } else { "removing" })]);
     let pinned: HashSet<String> = crate::lean_rustup_toolchains::pinned_by(&checkouts, &rustup_home.join("settings.toml"));
-    if options.includes(Mechanism::Trees) {
-        match &base {
-            Some(found) => say(&mut summary, run_trees(found, &pinned, options, &deadline, &environment)),
-            None => say(&mut summary, vec![String::from("idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base")]),
-        }
-    }
-    if options.includes(Mechanism::Units) {
-        let mut profiles: Vec<(PathBuf, u64)> = Vec::new();
-        for checkout in &checkouts {
-            for target in target_directories(checkout) {
-                for profile in profile_dirs_of(&target) {
-                    profiles.push((profile, IN_TREE_PROFILE_CAP_BYTES));
-                }
-            }
-        }
-        if let Some(found) = &base {
-            for tree in list_trees(found) {
-                for profile in profile_dirs_of(&tree.path) {
-                    profiles.push((profile, HOST_PROFILE_CAP_BYTES));
-                }
-            }
-        }
-        say(&mut summary, sweep_and_cap(&profiles, options.dry_run, &deadline, &environment));
-    }
-    if options.includes(Mechanism::Records) {
-        let mut targets: Vec<PathBuf> = Vec::new();
-        for checkout in &checkouts {
-            targets.extend(target_directories(checkout));
-        }
-        say(&mut summary, run_records(&verification_directories(&targets), options.dry_run, &deadline, &environment));
-    }
-    if options.includes(Mechanism::Toolchains) {
-        say(&mut summary, run_toolchains(&rustup_home.join("toolchains"), &pinned, options.dry_run, &deadline, &environment));
-    }
-    if options.includes(Mechanism::Podman) {
-        let main: PathBuf = match crate::lean_checkouts::main_checkout(&options.start) {
-            Some(found) => found,
-            None => checkouts[0].clone(),
-        };
-        say(&mut summary, run_podman(&main, options.dry_run, &deadline));
+    let context: RunContext = RunContext { options, deadline, environment: &environment, checkouts: &checkouts, pinned: &pinned, base: base.as_deref(), rustup_home: &rustup_home };
+    for mechanism in run_order(&options.only) {
+        say(&mut summary, run_mechanism(mechanism, &context));
     }
     say(&mut summary, space_lines(&measured));
     if deadline.passed() {

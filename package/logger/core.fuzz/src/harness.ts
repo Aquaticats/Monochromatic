@@ -199,6 +199,30 @@ async function runProgramUntracked(
    */
   const trace: SinkTraceEvent[] = [];
   /**
+   Gate every fake sink hands a settleable outcome to: the generated
+   scheduler decides when it reaches the logger.
+
+   @param promise - Outcome held until the scheduler releases it.
+
+   @param label - Name the scheduler records the outcome under.
+
+   @returns Outcome, settling when the scheduler lets it.
+   */
+  function gate<Value,>(
+    {
+      promise,
+      label,
+    }: {
+      readonly promise: Promise<Value>;
+      readonly label: string;
+    },
+  ): Promise<Value> {
+    return scheduler.schedule(
+      promise,
+      label,
+    );
+  }
+  /**
    Fake sinks in logger sink order.
    */
   const fakes = scripts.map(function toFake(
@@ -208,20 +232,7 @@ async function runProgramUntracked(
     return createScriptedSink({
       index,
       script,
-      schedule: function gate<Value,>(
-        {
-          promise,
-          label,
-        }: {
-          readonly promise: Promise<Value>;
-          readonly label: string;
-        },
-      ): Promise<Value> {
-        return scheduler.schedule(
-          promise,
-          label,
-        );
-      },
+      schedule: gate,
       trace,
     },);
   },);
@@ -350,10 +361,12 @@ async function runProgramUntracked(
         anyAvailable.value = true;
     }
     /**
-     Whether the model says this call must throw: initialized with no
-     available sink.
+     Whether the model says this call must throw: initialized, every verdict
+     in, and no available sink.
      */
-    const mustThrow = model.initialized && (!anyAvailable.value);
+    const mustThrow = model.initialized
+      && (model.undecided === 0)
+      && (!anyAvailable.value);
     /**
      Message unique to this call.
      */

@@ -664,6 +664,19 @@ an identity check on what is removed),
 but
 they narrow the window and do not close it.
 
+A command that can change or delete files states the risk in its own `--help`,
+where it has one,
+and says it once on standard error;
+a command whose own line already states it never prints a second one:
+`git monochromatic-git-policy-cli migrate-to-subvolume` before it first writes,
+keeps,
+swaps or deletes anything (a `--dry-run` and a refusal change nothing and say nothing);
+`git monochromatic-git-policy-cli convert-worktree-to-subvolume` before it touches the first worktree
+(a `--dry-run`,
+an `--abandon` and a run that names no worktree say nothing);
+and `git worktree remove` once it has destroyed the worktree's subvolume in one step
+(its `--help` is Git's own).
+
 ## Requirements
 
 - Linux with glibc 2.39 or newer.
@@ -896,6 +909,9 @@ and a manager that cannot be reached is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
 (`git worktree remove --force` and `git worktree prune`),
 and a worktree deleted without Git leaves its units too.
+Those leftovers end at the first connection,
+when the service starts and finds the worktree gone,
+or when the command named next runs.
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
@@ -918,6 +934,15 @@ running the command again tries it again.
 It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
+A service that starts and finds its own worktree gone stops its own socket and serves nothing,
+so those leftovers also go at the first connection without anyone running the command:
+the service asks the same question of the same note and journal records,
+stops its socket with the stop mode that leaves the units requiring it alone,
+removes the note and the socket file,
+and ends with status 0.
+Its own end is what stops its service unit,
+so it never asks the manager to stop the service it is,
+and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
 how many removed worktrees still have units and names this command.
 
@@ -1220,6 +1245,16 @@ then run the deletion again.
 Deleting a subvolume uses the kernel's destroy call where the mount has `user_subvol_rm_allowed` and otherwise empties
  it and calls `rmdir`,
 which the kernel allows for an empty subvolume root.
+
+Risk you accept by running it:
+it replaces or deletes files of the checkout while other programs may be changing the same files
+(see "Other processes changing files"),
+and a program that writes through an open file or a mapping,
+or that renames or replaces a path,
+between a check and the step that relies on it can lose that change.
+Stop the programs working inside the checkout first.
+The command says so once on standard error before it changes anything,
+and in `--help`.
 
 ### Converting nested worktrees to subvolumes
 
@@ -3277,6 +3312,9 @@ mise run //package/git-policy/cli:native:test:container
   `on_btrfs_or_acknowledged` (`src/native/binary/binary_support_btrfs_controls.rs`).
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
+  Before it copies or builds anything it runs `lint:sidecar-locks`,
+  so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
+  instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
   The test run uses `cargo nextest run --no-fail-fast`,
   so every test runs even after a failure and one flaky test
@@ -3395,6 +3433,7 @@ and the crate refuses to compile under `panic = "abort"`.
 # Run from the repository top level.
 mise run //package/git-policy/cli:lint
 mise run //package/git-policy/cli:lint:monochromatic-lint
+mise run //package/git-policy/cli:lint:sidecar-locks
 mise run //:format:monochromatic-lint -- package/git-policy/cli
 ```
 
@@ -3428,6 +3467,19 @@ mise run //:format:monochromatic-lint -- package/git-policy/cli
   so the root run lints this package twice,
   once through the package task and once in the repository-wide pass,
   as `package/ide/app` does.
+- `lint:sidecar-locks` fails when a sidecar crate beside this package
+  (`package/git-policy/cli.fuzz`)
+  locks one of this package's dependencies at another version,
+  or when Cargo refuses the sidecar's `Cargo.lock`
+  (`bin/native-sidecar-lock-check.ts`).
+  A sidecar links this package by path,
+  so a dependency this package gains,
+  drops or moves makes the sidecar's lock stale;
+  the sidecar's own build only meets that later,
+  and nothing else in this package's checks read its lock.
+  `mise run //package/git-policy/cli.fuzz:lock:members`
+  records the versions again,
+  and the container gate runs the same check before it builds anything.
 
 ### Merging main into a branch that edited doc comments
 
@@ -4310,8 +4362,21 @@ and `KillMode=mixed` makes the manager kill whatever is left of the unit at that
 (or when `TimeoutStopSec` has passed).
 A branch write that outlives the bound is therefore cut by the manager,
 the branch stays where it was,
-the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>`,
+the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>` when the landing made one,
+but on no ref at all when only Git could build it,
+which asks for a hook,
+an editor,
+a signature or an unusual head,
 and the batch's open intent is what recovery reads.
+The next commit in that worktree settles the intent before it lands:
+it keeps the commit on `refs/cli-git/kept/<seq>`,
+the ref this wrapper names for work it did not land,
+and removes the intent,
+so `git for-each-ref refs/cli-git/kept/` shows the commit from then on.
+Until such a commit comes,
+the commit is on the scratch branch alone,
+or on no ref at all when the landing made none,
+and the client that saw the stop is told only that the service stopped before it could confirm the commit.
 `TimeoutStopSec` is written into the unit from the stop bounds (`STOP_TIMEOUT_SECONDS`),
 above the service's last-resort alarm,
 so the host's default stop timeout never decides
@@ -4554,6 +4619,17 @@ all durations in whole milliseconds taken from the monotonic clock:
   `handoffMs` (leaving the push and the upkeep for the service) and `otherMs`,
   which is whatever no phase
   covers.
+- `indexBuilds` states how each build of the private commit index was made,
+  in the order built:
+  `kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
+  and `statDataKept` says whether that build started from a copy of the real index,
+  so every entry its tree shares with the real index kept its cached stat data.
+  A build from the base or the tree alone holds none,
+  and the scratch `git commit` then hashes every file of the work tree
+  (233,618,538 bytes of LFS content cleaned and 3.6 s,
+  measured on 2026-11-07).
+  The list is empty for a commit that built no index,
+  so a reader never has to tell a missing field from a commit that stopped first.
 - `submitMs` contains `reachMs`,
   the time to reach a service of this release.
   `connectTries`,

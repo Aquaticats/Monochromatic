@@ -516,6 +516,10 @@ mod git_fallback_tests;
 #[cfg(test)]
 mod wait_bound_tests;
 
+/// The tests of the runner that starts the real cargo for the install and update steps.
+#[cfg(test)]
+mod cargo_run_tests;
+
 /// The tests of the bounded child runs.
 #[cfg(test)]
 mod bounded_run_tests;
@@ -1043,6 +1047,10 @@ pub mod lean_run_steps;
 
 /// The lean-folder run.
 pub mod lean_run;
+
+/// The tests of the order a run takes its mechanisms in.
+#[cfg(test)]
+mod lean_run_tests;
 
 /// Mechanism F:
 /// the daily systemd user timer and its installer.

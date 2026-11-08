@@ -180,6 +180,85 @@ fn a_wrapper_killed_after_each_step_of_the_preparation_is_recovered_conservative
     }
 }
 
+/// The helper process of the pending-launcher window:
+/// it begins a transaction and runs one command in a scope,
+/// and its after-launch hook announces the launcher's process id and stops inside the window between the spawn and the launcher
+/// record,
+/// until it is killed.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conservatively"]
+fn wrapper_held_between_launcher_spawn_and_record_fixture() {
+    let Ok(root_text) = std::env::var(FIXTURE_ROOT) else {
+        return;
+    };
+    let root: PathBuf = PathBuf::from(root_text);
+    let announce: PathBuf = root.join("launcher-pid");
+    crate::bounded_run::after_launch_for_test(Some(Rc::new(move |pid: u32| {
+        fs::write(&announce, pid.to_string()).expect("announce the launcher");
+        std::thread::sleep(Duration::from_secs(300));
+    })));
+    let home: PathBuf = root.join(CRATE_DIR);
+    fs::create_dir_all(&home).expect("dir");
+    fs::write(home.join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
+    let _transaction = begin(&root, &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "original".to_string() }], false).expect("begin");
+    let bound = crate::bounded_run::Bound { limit: Duration::from_secs(30), what: "the pending launcher".to_string(), rerun: "pending-launcher".to_string() };
+    let _ = crate::bounded_run::output_within(&mut Command::new("true"), None, &bound);
+}
+
+/// Acceptance rows V3 and V4 (sixth pass,
+/// group 12):
+/// a real wrapper killed after its launcher was spawned and before the launcher record was appended
+/// leaves a scope record and no launcher line.
+/// A recovery refuses,
+/// because an absent scope does not show that the launcher had finished entering it,
+/// and keeps the journal and the live output;
+/// the acknowledgement settles it (the control),
+/// so the refusal was that uncertainty.
+#[test]
+fn a_wrapper_killed_between_the_launcher_spawn_and_its_record_is_recovered_conservatively() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
+    let root = scratch();
+    fs::create_dir_all(root.path().join(CRATE_DIR)).expect("dir");
+    fs::write(root.path().join(CRATE_DIR).join("Cargo.lock"), LEFT_BY_THE_KILLED_RUN).expect("lock");
+    let mut wrapper: Child = Command::new(std::env::current_exe().expect("this test executable"))
+        .args(["--ignored", "--exact", "round_thirteen_tests::wrapper_held_between_launcher_spawn_and_record_fixture", "--nocapture"])
+        .env(FIXTURE_ROOT, root.path())
+        .spawn()
+        .expect("the wrapper helper");
+    wait_for_file(&root.path().join("launcher-pid"));
+    let launcher: i32 = fs::read_to_string(root.path().join("launcher-pid")).expect("the launcher's pid").trim().parse().expect("a pid");
+    wrapper.kill().expect("kill the wrapper inside the pending-launcher window");
+    let _ = wrapper.wait();
+    // The launcher is not left running: it is killed here, and the recovery is asked only after it is gone, so the refusal cannot
+    // be about a live member.
+    let _ = Command::new("kill").arg("-9").arg(launcher.to_string()).status();
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while std::path::Path::new(&format!("/proc/{launcher}")).exists() && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    let journals: Vec<PathBuf> = journal_dirs(root.path());
+    assert_eq!(journals.len(), 1, "the cut did not leave exactly one journal: {journals:?}");
+    let journal: &PathBuf = &journals[0];
+    let records: String = fs::read_to_string(journal.join("groups")).expect("the records");
+    assert!(records.lines().any(|line| { return line.starts_with("scope "); }), "the scope record is missing, so the window is not the one this test names: {records:?}");
+    assert!(!records.lines().any(|line| { return line.starts_with("launcher "); }), "the launcher record was appended, so the wrapper was not killed inside the window: {records:?}");
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
+
+    assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "the recovery restored a file: {messages:?}");
+    assert!(journal.exists(), "the journal was not kept: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains("launcher may not have finished entering the scope"); }), "the refusal is not the pending launcher: {messages:?}");
+
+    crate::acknowledge::acknowledge(journal).expect("acknowledge the uncertainty");
+    let settled: Vec<String> = recover(root.path(), &refusing);
+    assert_eq!(live_lock(root.path()), "original", "the control: the acknowledged journal was not settled: {settled:?}");
+    assert!(journal_dirs(root.path()).is_empty(), "the control: the journal was not removed: {settled:?}");
+}
+
 /// The fake cargo of the shim test:
 /// `update` makes the lock satisfied,
 /// `metadata` prints an empty package list,

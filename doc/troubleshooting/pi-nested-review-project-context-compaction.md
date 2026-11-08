@@ -154,6 +154,11 @@ const verdict = await callJudgeWithFallback({
 
 No path connected Pi's structured `contextFiles` to the judge.
 
+Commit `a3955898f1` (2026-10-17) removed both cited files,
+`package/pi-plugin/auto-mode/src/context.ts` and `.../src/evaluate.ts`,
+when it deleted the superseded extension pipeline;
+the excerpts above record their last state.
+
 ### Advisor also sent only conversation-derived context
 
 Before commit `27f50070f`,
@@ -214,6 +219,10 @@ The auto-mode provider-request regression was run before its fix:
 mise run buildAndTest -- package/pi-plugin/auto-mode/src/judge.unit.test.ts
 ```
 
+That path is gone:
+`a3955898f1` (2026-10-17) removed `package/pi-plugin/auto-mode/src/judge.unit.test.ts`
+with the extension pipeline it tested.
+
 It failed with:
 
 ```text
@@ -229,6 +238,10 @@ The Advisor provider-boundary regression was run before its fix:
 ```bash
 mise run buildAndTest -- package/pi-plugin/advisor/src/run-advisor-context.unit.test.ts
 ```
+
+That test moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/run-advisor-context.unit.test.ts`
+(commit `093f32832a`).
 
 It failed with:
 
@@ -297,6 +310,12 @@ Advisor captures context in
 `package/pi-plugin/advisor/src/index.ts:175-181` and builds the provider prompt
 through
 `package/pi-plugin/advisor/src/advisor-client.ts:428-443`.
+
+Two of those four addresses moved:
+`package/pi-plugin/advisor/src/index.ts` and `.../src/advisor-client.ts` now live under
+`package/agent-harness-shared/advisor/src/` (commit `093f32832a` on 2026-10-20),
+and `package/pi-plugin/auto-mode/src/judge-messages.ts` was removed by `a3955898f1`
+(2026-10-17).
 
 Tradeoffs:
 

@@ -318,6 +318,7 @@ export function createIndexedDbSink(): Sink {
 
   return {
     flush,
+    name: 'IndexedDB',
     verify,
     write,
   };

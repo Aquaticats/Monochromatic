@@ -455,8 +455,17 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
     }
     let mut nested: Vec<PathBuf> = Vec::new();
     for path in registered_roots(common_dir.as_path()) {
-        if path != *root && path.starts_with(root) {
-            nested.push(path);
+        // A record that is inside the source by its text is kept as written, so a link inside the source is still caught.
+        if path.starts_with(root) {
+            if path != *root {
+                nested.push(path);
+            }
+            continue;
+        }
+        // A record written before the repository moved behind a link spells the old name and names a worktree inside the source.
+        let real: PathBuf = std::fs::canonicalize(path.as_path()).unwrap_or(path);
+        if real != *root && real.starts_with(root) {
+            nested.push(real);
         }
     }
     // The configuration, the cleanliness of the files and (for a main checkout) the ignore rule for the place left-out directories

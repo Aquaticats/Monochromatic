@@ -130,6 +130,22 @@ fn registered_paths(common_dir: &Path, worktrees: &Path) -> Result<Vec<Vec<u8>>,
 }
 
 /// What:
+///  Whether a path of Git's worktree list names the same directory as `target`.
+/// Why:
+///   Git's list may spell a worktree through a symbolic link or by another name of the same directory,
+/// and two spellings
+///  of one directory are one worktree,
+/// so the name Git would pick is compared by the file it names and not by its text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function sameWorktree(registered: string, target: string): boolean;
+/// ```
+fn same_worktree(registered: &[u8], target: &Path) -> bool {
+    return crate::real_git_candidate::same_file(Path::new(OsStr::from_bytes(registered)), target);
+}
+
+/// What:
 ///  The registration of `target` in the repository whose common Git directory is `common_dir`,
 /// when it is a linked
 ///  worktree of that repository that Git would also pick for `operand`.
@@ -175,12 +191,14 @@ pub fn registration_of(common_dir: &Path, target: &Path, operand: &OsStr) -> Res
     let id: OsString = admin_name.to_os_string();
     let gitdir_text: Vec<u8> = path_failure(std::fs::read(admin.join("gitdir")), admin.join("gitdir").as_path(), "cannot be read")?;
     let recorded: PathBuf = PathBuf::from(OsStr::from_bytes(without_newline(gitdir_text.as_slice())));
-    if recorded != pointer_path {
-        return Err(format!("{} records {}, not {}", admin.join("gitdir").display(), recorded.display(), pointer_path.display()));
+    // The registration may spell this worktree through a symbolic link or relative to itself; the question is which file it names.
+    let recorded_pointer: PathBuf = if recorded.is_absolute() { recorded.clone() } else { admin.join(recorded.as_path()) };
+    if !crate::real_git_candidate::same_file(recorded_pointer.as_path(), pointer_path.as_path()) {
+        return Err(format!("{} records {}, not {}", admin.join("gitdir").display(), recorded_pointer.display(), pointer_path.display()));
     }
     let registered: Vec<Vec<u8>> = registered_paths(common_dir, worktrees.as_path())?;
     for path in registered {
-        if ends_with_name(path.as_slice(), operand.as_bytes()) && path.as_slice() != target.as_os_str().as_bytes() {
+        if ends_with_name(path.as_slice(), operand.as_bytes()) && !same_worktree(path.as_slice(), target) {
             return Err(format!(
                 "Git matches the name {} to the registered worktree {} by its last components, not to {}",
                 operand.to_string_lossy(),

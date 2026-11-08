@@ -796,8 +796,80 @@ the fix shipped in 0.2.7-alpha.2 (`doc/planning/one-release-each-batch-2026-11.m
 "Release record:
 `monochromatic-mpm-shadow` 0.2.7-alpha.2").
 
-### Not fixed here
+### The same read reaches the `uv` route (2026-11-08)
 
-The `uv tool install` route (`install_mpm_uvx`) still trusts the exit status of `uv` and does not read the tool back.
-No defect of that kind was observed for it,
-so it was left as it was.
+The `uv tool install` route (`install_mpm_uvx`) trusted the exit status of `uv` when this file was written.
+No defect of that kind had been observed for `uv`,
+and the route was left as it was.
+It now reads the tool back with the same `uv tool list` that `list` reads
+(`read_back_installed_uv_tool` in `package/mpm-shadow/cli/src/toolchain/install_managers.rs`),
+on both the requirement and the wheel branch,
+and a tool that is absent or listed at another version fails the install
+naming the package,
+the locked version,
+what the listing said,
+and the directory `uv tool dir` names.
+The tests are `a_python_tool_that_uv_installed_but_does_not_list_is_a_failed_install`,
+`a_python_tool_that_uv_lists_at_another_version_is_a_failed_install`,
+the positive controls `a_python_tool_that_uv_lists_at_the_locked_version_is_installed` and
+`a_wheel_bootstrap_is_downloaded_verified_and_only_then_handed_to_uv`
+(all in `install_tests.rs`),
+and `sync_warns_before_replacing_a_different_installed_version` (`sync_tests.rs`),
+whose fake `uv tool list` now answers the locked version after the install.
+No release was dispatched from the branch that carries it.
+
+## A linked worktree reuses the store instance built for the main checkout (2026-11-08T17:23:50-05:00)
+
+A second worktree of this repository saw the same missing `proper-lockfile`
+after its own `mise exec -- pnpm install --offline --frozen-lockfile` reported
+`Already up to date`:
+
+```text
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'proper-lockfile'
+imported from .../pi-coding-agent/dist/core/settings-manager.js
+```
+
+The installed dependency link was
+
+```text
+../../../../../../../../../../../../../var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-pi-guardrail-denies-real-git/package/pnpm-override/shim-proper-lockfile
+```
+
+from
+`/var/home/user/.local/share/pnpm/store/v11/links/@earendil-works/pi-coding-agent/1.5.0/5a60a4ca.../node_modules/`.
+Thirteen parent traversals reach `/var`,
+so the target resolved to the nonexistent `/var/var/mnt/...`,
+the shape recorded above for `/var/var/home/...`.
+
+The instance was created for the main checkout,
+whose `link:` target sits at a shallower depth,
+and the reuse check above accepted it for a deeper worktree path.
+The worktree's install neither rewrote nor reported the link.
+
+The recorded workaround repaired it,
+and this run is the measured evidence for a linked worktree:
+
+```sh
+# Worktree root
+mise run prepare:pnpm:install -- --force --frozen-lockfile --ignore-scripts
+```
+
+Pnpm added 627 packages in 2 minutes 20 seconds with no lockfile change,
+rewrote the same link to thirteen parent traversals plus
+`mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-pi-guardrail-denies-real-git/package/...`,
+and importing the package then printed `imported function`:
+
+```sh
+# Package root
+node --input-type=module-typescript -e 'const m = await import("@earendil-works/pi-coding-agent"); console.log("imported", typeof m.createAgentSession)'
+```
+
+Two consumers needed that import in the same worktree:
+`package/pi-plugin/guardrail/src/mise.verify-extension.ts`,
+which had failed before the repair,
+and the package's new `verify:pi-runtime` task,
+which drives a real Pi session through `createAgentSession`.
+The observable before the repair was `mise run //package/pi-plugin/guardrail:verify:extension`
+failing at the same `proper-lockfile` error;
+after it,
+that task printed `pi guardrail extension verified: event:tool_call`.
