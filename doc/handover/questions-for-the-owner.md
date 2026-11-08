@@ -20,6 +20,41 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- How the repository linter stays at zero
+  (`doc/planning/repository-linter-stays-at-zero.md`):
+  "None for now.
+  Focus on the git wrapper.
+  Open a gh issue about this instead."
+  Nothing is built;
+  the issue carries the options.
+- The linter's own fuzz seeds:
+  "Ignore the seed folder (Recommended)":
+  one ignore entry for exactly `package/linter/monochromatic-lint.fuzz/seed/`.
+- Lean build folders (`doc/planning/lean-build-dirs.md`):
+  "A to F,
+  B allowed (Recommended)":
+  all six mechanisms in order,
+  in cargo-shadow;
+  the decision record `doc/decision/cargo-build-dir-host-cache.md` is amended so the sweep (B) may read Cargo's fingerprint files,
+  for that sweep only;
+  the tools' first run under their own locks cleans what exists today;
+  grace periods and size caps are measured and recorded as coordinator picks with the owner's veto open.
+- What else the cleanup covers:
+  "Rust toolchains (Recommended)" and "Podman images,
+  volumes (Recommended)":
+  nightlies no checkout's lock pins,
+  and images and volumes no container uses and no current image tag of the repository names,
+  each after the grace period.
+- Not asked yet:
+  where a blank at the end of a row goes in the IDE.
+  On reading the tests,
+  `a_hanging_blank_at_the_end_of_the_text_leaves_no_empty_row` fails at its own guard
+  ("no fixture produced an empty tail,
+  so the test proves nothing about it"),
+  because Parley 0.12 no longer adds the empty row the test was written to rule out;
+  the failing assertion of `the_fixtures_wrap_as_described` is not recorded.
+  The question is to be re-framed from a run of both tests before it is asked.
+
 - A closure-check skip in the repository's own lint:
   "Fetch then warn."
   (the owner's own words,
