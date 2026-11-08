@@ -23,8 +23,11 @@ use std::collections::HashSet;
 /// The decision types,
 /// sizes and the deadline.
 use crate::lean_identity::{Deadline, Identity};
+/// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
+/// Imports the names this file uses from `crate::lean_unit_reader`.
 use crate::lean_unit_reader::ProfileUnits;
+/// Imports the names this file uses from `crate::lean_unit_removal`.
 use crate::lean_unit_removal::{Planner, Removals};
 
 /// The cap of one profile directory.
@@ -41,12 +44,34 @@ pub struct SizeCap {
 /// One thing that can be evicted.
 enum Entry {
     /// The unit at this index.
-    Unit(usize),
+    Unit(
+        /// The index of the unit.
+        usize,
+    ),
     /// The incremental directory at this index.
-    Incremental(usize),
+    Incremental(
+        /// The index of the incremental directory.
+        usize,
+    ),
 }
 
+/// What:
+/// `fn older_first(left: &(i64, u64, Entry), right: &(i64, u64, Entry)) -> std::cmp::Ordering` orders candidates by time,
+/// oldest first.
+/// Why:
+/// Eviction goes oldest first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const olderFirst = (a: Sized, b: Sized): number => a.time - b.time;
+/// ```
+fn older_first(left: &(i64, u64, Entry), right: &(i64, u64, Entry)) -> std::cmp::Ordering {
+    return left.0.cmp(&right.0);
+}
+
+/// Evicts the oldest units and incremental directories until the profile directory fits its cap.
 impl Planner for SizeCap {
+    /// Decides which entries to evict.
     fn plan(&self, found: &ProfileUnits, now: i64) -> Removals {
         let mut seen: HashSet<Identity> = HashSet::new();
         let mut sized: Vec<(i64, u64, Entry)> = Vec::new();
@@ -68,7 +93,7 @@ impl Planner for SizeCap {
         if total <= self.cap_bytes || self.deadline.passed() {
             return removals;
         }
-        sized.sort_by_key(|entry| { return entry.0; });
+        sized.sort_by(older_first);
         let grace_start: i64 = now - self.grace_seconds;
         let over: u64 = total;
         for (time, bytes, entry) in sized {

@@ -157,7 +157,8 @@ pub enum LeanAction {
         /// Run only these mechanisms (all by default).
         #[arg(long, value_delimiter = ',')]
         only: Vec<MechanismName>,
-        /// The longest the whole run may take, in minutes.
+        /// The longest the whole run may take,
+        /// in minutes.
         #[arg(long)]
         deadline_minutes: Option<u64>,
     },

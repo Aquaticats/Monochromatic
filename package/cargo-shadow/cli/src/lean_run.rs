@@ -27,16 +27,27 @@
 /// paths and time.
 use std::{collections::HashSet, path::{Path, PathBuf}, time::Duration};
 
+/// Imports the names this file uses from `crate::lean_build_trees`.
 use crate::lean_build_trees::{Tree, TreeKind, list_trees, profile_dirs_of};
+/// Imports the names this file uses from `crate::lean_checkouts`.
 use crate::lean_checkouts::list_checkouts;
+/// Imports the names this file uses from `crate::lean_guard`.
 use crate::lean_guard::GuardEnvironment;
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::{Deadline, now_seconds};
+/// Imports the names this file uses from `crate::lean_idle_trees`.
 use crate::lean_idle_trees::{IdlePolicy, TreeVerdict, collect_idle_trees};
+/// Imports the names this file uses from `crate::lean_keyed_folder`.
 use crate::lean_keyed_folder::configured_base;
+/// Imports the names this file uses from `crate::lean_policy`.
 use crate::lean_policy::{GRACE_SECONDS, HOST_PROFILE_CAP_BYTES, IN_TREE_PROFILE_CAP_BYTES, TREE_IDLE_SECONDS, UNIDENTIFIED_TREE_IDLE_SECONDS};
+/// Imports the names this file uses from `crate::lean_rustup_toolchains`.
 use crate::lean_rustup_toolchains::dated_nightly_name;
+/// Imports the names this file uses from `crate::lean_run_discovery`.
 use crate::lean_run_discovery::{target_directories, verification_directories};
+/// Imports the names this file uses from `crate::lean_run_report`.
 use crate::lean_run_report::{Place, gib, measure_places, space_lines};
+/// Imports the names this file uses from `crate::lean_run_steps`.
 use crate::lean_run_steps::{run_podman, run_records, run_toolchains, sweep_and_cap};
 
 /// The mechanisms of the run,
@@ -72,6 +83,7 @@ pub struct RunOptions {
     pub start: PathBuf,
 }
 
+/// Which mechanisms a run includes.
 impl RunOptions {
     /// Whether a mechanism is part of this run.
     pub fn includes(&self, mechanism: Mechanism) -> bool {
@@ -144,6 +156,23 @@ fn run_trees(base: &Path, pinned: &HashSet<String>, options: &RunOptions, deadli
 }
 
 /// What:
+/// `fn say(summary: &mut Vec<String>, lines: Vec<String>)` prints each line at once and keeps it.
+/// Why:
+/// A run of hours shows each mechanism's result when that mechanism ends,
+/// not only at the very end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function say(summary: string[], lines: string[]): void
+/// ```
+fn say(summary: &mut Vec<String>, lines: Vec<String>) {
+    for line in lines {
+        crate::lean_run_report::summary_line(&line);
+        summary.push(line);
+    }
+}
+
+/// What:
 /// `pub fn run_lean(options: &RunOptions) -> i32` runs the selected mechanisms and prints the summary.
 /// Why:
 /// The exit code is 0 when the run completed (skips and kept items are not failures),
@@ -162,20 +191,27 @@ pub fn run_lean(options: &RunOptions) -> i32 {
         return 1;
     }
     let home: PathBuf = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    let cargo_home: PathBuf = std::env::var_os("CARGO_HOME").map(PathBuf::from).unwrap_or_else(|| { return home.join(".cargo"); });
-    let rustup_home: PathBuf = std::env::var_os("RUSTUP_HOME").map(PathBuf::from).unwrap_or_else(|| { return home.join(".rustup"); });
+    let cargo_home: PathBuf = match std::env::var_os("CARGO_HOME") {
+        Some(chosen) => PathBuf::from(chosen),
+        None => home.join(".cargo"),
+    };
+    let rustup_home: PathBuf = match std::env::var_os("RUSTUP_HOME") {
+        Some(chosen) => PathBuf::from(chosen),
+        None => home.join(".rustup"),
+    };
     let base: Option<PathBuf> = configured_base(&cargo_home);
     let mut places: Vec<(String, PathBuf)> = vec![(String::from("/"), PathBuf::from("/")), (String::from("home"), home.clone())];
     if let Some(found) = &base {
         places.push((String::from("host build base"), found.clone()));
     }
     let measured: Vec<Place> = measure_places(&places);
-    let mut summary: Vec<String> = vec![format!("lean run: {} checkouts, {}", checkouts.len(), if options.dry_run { "dry run (nothing is removed)" } else { "removing" })];
+    let mut summary: Vec<String> = Vec::new();
+    say(&mut summary, vec![format!("lean run: {} checkouts, {}", checkouts.len(), if options.dry_run { "dry run (nothing is removed)" } else { "removing" })]);
     let pinned: HashSet<String> = crate::lean_rustup_toolchains::pinned_by(&checkouts, &rustup_home.join("settings.toml"));
     if options.includes(Mechanism::Trees) {
         match &base {
-            Some(found) => summary.extend(run_trees(found, &pinned, options, &deadline, &environment)),
-            None => summary.push(String::from("idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base")),
+            Some(found) => say(&mut summary, run_trees(found, &pinned, options, &deadline, &environment)),
+            None => say(&mut summary, vec![String::from("idle trees: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base")]),
         }
     }
     if options.includes(Mechanism::Units) {
@@ -194,27 +230,28 @@ pub fn run_lean(options: &RunOptions) -> i32 {
                 }
             }
         }
-        summary.extend(sweep_and_cap(&profiles, options.dry_run, &deadline, &environment));
+        say(&mut summary, sweep_and_cap(&profiles, options.dry_run, &deadline, &environment));
     }
     if options.includes(Mechanism::Records) {
         let mut targets: Vec<PathBuf> = Vec::new();
         for checkout in &checkouts {
             targets.extend(target_directories(checkout));
         }
-        summary.extend(run_records(&verification_directories(&targets), options.dry_run, &deadline, &environment));
+        say(&mut summary, run_records(&verification_directories(&targets), options.dry_run, &deadline, &environment));
     }
     if options.includes(Mechanism::Toolchains) {
-        summary.extend(run_toolchains(&rustup_home.join("toolchains"), &pinned, options.dry_run, &deadline, &environment));
+        say(&mut summary, run_toolchains(&rustup_home.join("toolchains"), &pinned, options.dry_run, &deadline, &environment));
     }
     if options.includes(Mechanism::Podman) {
-        summary.extend(run_podman(&crate::lean_checkouts::main_checkout(&options.start).unwrap_or_else(|| { return checkouts[0].clone(); }), options.dry_run, &deadline));
+        let main: PathBuf = match crate::lean_checkouts::main_checkout(&options.start) {
+            Some(found) => found,
+            None => checkouts[0].clone(),
+        };
+        say(&mut summary, run_podman(&main, options.dry_run, &deadline));
     }
-    summary.extend(space_lines(&measured));
+    say(&mut summary, space_lines(&measured));
     if deadline.passed() {
-        summary.push(String::from("the run's deadline passed: whatever was not reached waits for the next run"));
-    }
-    for line in summary {
-        crate::lean_run_report::summary_line(&line);
+        say(&mut summary, vec![String::from("the run's deadline passed: whatever was not reached waits for the next run")]);
     }
     return 0;
 }

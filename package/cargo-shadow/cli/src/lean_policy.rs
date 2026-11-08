@@ -9,7 +9,8 @@
 //! (`doc/handover/questions-for-the-owner.md`);
 //! a shipped limit cites its measurement beside the value.
 //! The measurements and their dates are in `doc/planning/lean-build-dirs.md`,
-//! section "Measured picks, 2026-11-07".
+//! section "Measured picks,
+//! 2026-11-07".
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -67,12 +68,14 @@ pub const RECORD_PROTECT_SECONDS: i64 = DAY_SECONDS;
 
 /// The size cap of one profile directory of an in-tree build (a container build in the checkout's `target/`):
 /// one and a half times what one current build of the largest such configuration measured.
-/// Measured 2026-11-07 (see the plan's section "Measured picks, 2026-11-07").
+/// Measured 2026-11-07 (see the plan's section "Measured picks,
+/// 2026-11-07").
 pub const IN_TREE_PROFILE_CAP_BYTES: u64 = 15 * GIB;
 
 /// The size cap of one profile directory of a host build tree:
 /// one and a half times what one current build of the largest host configuration measured.
-/// Measured 2026-11-07 (see the plan's section "Measured picks, 2026-11-07").
+/// Measured 2026-11-07 (see the plan's section "Measured picks,
+/// 2026-11-07").
 pub const HOST_PROFILE_CAP_BYTES: u64 = 20 * GIB;
 
 /// The longest a whole `cargo-shadow lean run` may take:

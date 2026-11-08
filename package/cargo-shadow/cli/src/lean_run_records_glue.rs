@@ -11,8 +11,11 @@
 /// Paths.
 use std::path::Path;
 
+/// Imports the names this file uses from `crate::lean_guard`.
 use crate::lean_guard::GuardEnvironment;
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::{Deadline, now_seconds};
+/// Imports the names this file uses from `crate::lean_run_records`.
 use crate::lean_run_records::{RecordsOutcome, RetentionPolicy, sweep_run_records};
 
 /// What:

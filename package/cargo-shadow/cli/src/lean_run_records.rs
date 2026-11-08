@@ -31,9 +31,13 @@ use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, Path
 /// The proof,
 /// the removal and the sizes.
 use crate::lean_guard::GuardEnvironment;
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::{Deadline, Identity};
+/// Imports the names this file uses from `crate::lean_proc_scan`.
 use crate::lean_proc_scan::{ScanReport, scan_processes};
+/// Imports the names this file uses from `crate::lean_removal`.
 use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
+/// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
 
 /// The name prefixes of run records.
@@ -88,7 +92,10 @@ struct Record {
 /// const newestWrite = (path: string): number
 /// ```
 fn newest_write(path: &Path) -> i64 {
-    let mut newest: i64 = fs::symlink_metadata(path).map(|metadata| { return metadata.mtime(); }).unwrap_or(0);
+    let mut newest: i64 = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.mtime(),
+        Err(_) => 0,
+    };
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
             if let Ok(metadata) = entry.metadata() {
@@ -97,6 +104,20 @@ fn newest_write(path: &Path) -> i64 {
         }
     }
     return newest;
+}
+
+/// What:
+/// `fn older_first(left: &Record, right: &Record) -> std::cmp::Ordering` orders records by write time,
+/// oldest first.
+/// Why:
+/// Eviction goes oldest first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const olderFirst = (a: Record, b: Record): number => a.modified - b.modified;
+/// ```
+fn older_first(left: &Record, right: &Record) -> std::cmp::Ordering {
+    return left.modified.cmp(&right.modified);
 }
 
 /// What:
@@ -115,14 +136,20 @@ fn records_of(directory: &Path, deadline: &Deadline) -> Vec<Record> {
     let Ok(entries) = fs::read_dir(directory) else { return records };
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        if !RECORD_PREFIXES.iter().any(|prefix| { return name.starts_with(prefix); }) {
+        let mut is_record: bool = false;
+        for prefix in RECORD_PREFIXES {
+            if name.starts_with(prefix) {
+                is_record = true;
+            }
+        }
+        if !is_record {
             continue;
         }
         let path: PathBuf = entry.path();
         let bytes: u64 = add_tree_bytes(&path, &mut seen, deadline).bytes;
         records.push(Record { modified: newest_write(&path), path, bytes });
     }
-    records.sort_by_key(|record| { return record.modified; });
+    records.sort_by(older_first);
     return records;
 }
 
@@ -147,7 +174,10 @@ pub fn sweep_run_records(
 ) -> RecordsOutcome {
     let mut outcome: RecordsOutcome = RecordsOutcome::default();
     let records: Vec<Record> = records_of(directory, deadline);
-    let mut total: u64 = records.iter().map(|record| { return record.bytes; }).sum();
+    let mut total: u64 = 0;
+    for record in &records {
+        total += record.bytes;
+    }
     let scan: ScanReport = if dry_run { ScanReport::default() } else { scan_processes(&environment.proc_root, &[directory], &[], environment.own_pid) };
     let trash: PathBuf = directory.join(TRASH_DIRECTORY_NAME);
     if !dry_run {

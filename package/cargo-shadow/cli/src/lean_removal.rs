@@ -18,7 +18,8 @@
 //! export function removeOne(item: Item, trash: string): Removed  // throws Refusal
 //! ```
 
-/// Files, directories and metadata.
+/// Files,
+/// directories and metadata.
 use std::{fs, io, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
 /// The rename that fails instead of replacing.
@@ -26,6 +27,8 @@ use rustix::fs::{CWD, RenameFlags, renameat_with};
 
 /// Device and inode.
 use crate::lean_identity::{Identity, identity_of};
+/// The final component of a path as text.
+use crate::lean_text::name_of;
 
 /// The name of the trash directory each tool keeps beside what it removes from.
 pub const TRASH_DIRECTORY_NAME: &str = ".cargo-shadow-trash";
@@ -55,7 +58,10 @@ pub enum Refusal {
     },
     /// The entry vanished before it was claimed:
     /// another owner removed it.
-    Gone(PathBuf),
+    Gone(
+        /// The path that was already removed.
+        PathBuf,
+    ),
     /// A system call failed.
     Io {
         /// The path.
@@ -65,7 +71,9 @@ pub enum Refusal {
     },
 }
 
+/// The text a refusal shows.
 impl std::fmt::Display for Refusal {
+    /// Writes the refusal as text.
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return match self {
             Refusal::Changed { path, judged, found } => write!(
@@ -100,15 +108,20 @@ pub fn item_of(path: &Path) -> io::Result<Item> {
 /// What:
 /// `fn trash_name(trash: &Path, item: &Path, serial: u64) -> PathBuf` is a name in the trash no other claim can share.
 /// Why:
-/// The process id, the clock and a serial make each claim unique, so the rename never has to replace.
+/// The process id,
+/// the clock and a serial make each claim unique,
+/// so the rename never has to replace.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const trashName = (trash: string, item: string, serial: number) => join(trash, `${process.pid}-${Date.now()}-${serial}-${basename(item)}`);
 /// ```
 fn trash_name(trash: &Path, item: &Path, serial: u64) -> PathBuf {
-    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
-    let base: String = item.file_name().map(|name| { return name.to_string_lossy().to_string(); }).unwrap_or_default();
+    let nanos: u128 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(elapsed) => elapsed.as_nanos(),
+        Err(_) => 0,
+    };
+    let base: String = name_of(item);
     return trash.join(format!("{}-{nanos}-{serial}-{base}", std::process::id()));
 }
 
@@ -133,14 +146,19 @@ pub fn claim_into_trash(item: &Item, trash: &Path, serial: u64) -> Result<PathBu
     if before != item.identity {
         return Err(Refusal::Changed { path: item.path.clone(), judged: item.identity, found: before });
     }
-    fs::create_dir_all(trash).map_err(|error| { return Refusal::Io { path: trash.to_path_buf(), error }; })?;
+    if let Err(error) = fs::create_dir_all(trash) {
+        return Err(Refusal::Io { path: trash.to_path_buf(), error });
+    }
     let target: PathBuf = trash_name(trash, &item.path, serial);
     match renameat_with(CWD, &item.path, CWD, &target, RenameFlags::NOREPLACE) {
         Ok(()) => {}
         Err(code) if code == rustix::io::Errno::NOENT => return Err(Refusal::Gone(item.path.clone())),
         Err(code) => return Err(Refusal::Io { path: item.path.clone(), error: io::Error::from(code) }),
     }
-    let after: Identity = identity_of(&target).map_err(|error| { return Refusal::Io { path: target.clone(), error }; })?;
+    let after: Identity = match identity_of(&target) {
+        Ok(found) => found,
+        Err(error) => return Err(Refusal::Io { path: target, error }),
+    };
     if after != item.identity {
         // The path was swapped between the check and the rename: what moved is not what was judged. It stays in the trash.
         return Err(Refusal::Changed { path: target, judged: item.identity, found: after });
@@ -225,7 +243,10 @@ pub fn delete_claimed(claimed: &Path, judged: Identity) -> Result<u64, Refusal> 
         return Err(Refusal::Changed { path: claimed.to_path_buf(), judged, found });
     }
     let mut seen: std::collections::HashSet<Identity> = std::collections::HashSet::new();
-    return delete_entry(claimed, &mut seen).map_err(|error| { return Refusal::Io { path: claimed.to_path_buf(), error }; });
+    return match delete_entry(claimed, &mut seen) {
+        Ok(bytes) => Ok(bytes),
+        Err(error) => Err(Refusal::Io { path: claimed.to_path_buf(), error }),
+    };
 }
 
 /// What:

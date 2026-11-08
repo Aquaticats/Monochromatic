@@ -27,10 +27,12 @@ pub struct GuardEnvironment {
     pub lock_table: PathBuf,
     /// The procfs root (`/proc`).
     pub proc_root: PathBuf,
-    /// The process that must not count against the directory: this one.
+    /// The process that must not count against the directory:
+    /// this one.
     pub own_pid: i32,
 }
 
+/// The environment of the real machine.
 impl GuardEnvironment {
     /// The real machine.
     pub fn real() -> GuardEnvironment {
@@ -59,9 +61,15 @@ pub struct Guarded {
 pub enum Guard {
     /// The directory is quiescent;
     /// the locks are held.
-    Ready(Guarded),
+    Ready(
+        /// The profile directory with its locks held.
+        Guarded,
+    ),
     /// The directory is skipped for this reason.
-    Skip(String),
+    Skip(
+        /// Why the directory is skipped.
+        String,
+    ),
 }
 
 /// What:

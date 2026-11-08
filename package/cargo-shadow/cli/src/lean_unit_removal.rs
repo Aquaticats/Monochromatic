@@ -2,7 +2,8 @@
 //! The removal of units and incremental directories from one Cargo profile directory,
 //! shared by the sweep of older compilers and the size caps.
 //! Why:
-//! The protocol is the plan's shared one (`doc/planning/lean-build-dirs.md`, section "Options"):
+//! The protocol is the plan's shared one (`doc/planning/lean-build-dirs.md`,
+//! section "Options"):
 //! classify,
 //! take the profile's build locks without waiting,
 //! classify again under them,
@@ -27,9 +28,13 @@ use std::path::{Path, PathBuf};
 /// the removal primitives,
 /// the reader and the sizes.
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::{Deadline, Identity};
+/// Imports the names this file uses from `crate::lean_removal`.
 use crate::lean_removal::{Item, TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
+/// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::add_tree_bytes;
+/// Imports the names this file uses from `crate::lean_unit_reader`.
 use crate::lean_unit_reader::{IncrementalDirectory, ProfileRead, ProfileUnits, Unit, read_profile};
 
 /// What a planner decided to remove.
@@ -179,7 +184,7 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
             continue;
         }
         serial += 1;
-        match item_of(&directory.path).map_err(|error| { return error.to_string(); }) {
+        match item_of(&directory.path) {
             Ok(item) => match claim_into_trash(&item, trash, serial) {
                 Ok(target) => {
                     outcome.incremental += 1;
@@ -188,7 +193,7 @@ fn claim_all(guarded: &Guarded, removals: &Removals, trash: &Path, outcome: &mut
                 }
                 Err(refusal) => outcome.refusals.push(format!("incremental {}: {refusal}", directory.path.display())),
             },
-            Err(text) => outcome.refusals.push(format!("incremental {}: {text}", directory.path.display())),
+            Err(error) => outcome.refusals.push(format!("incremental {}: {error}", directory.path.display())),
         }
     }
     return claimed;

@@ -26,13 +26,17 @@ use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 use crate::lean_keyed_folder::{KEYED_DIRECTORY, read_ledger};
 /// The deadline of walks and the lock file name.
 use crate::lean_identity::Deadline;
+/// Imports the names this file uses from `crate::lean_lock_probe`.
 use crate::lean_lock_probe::LOCK_FILE_NAMES;
+/// Named reads of paths and text.
+use crate::lean_text::{all_hex, extension_is, is_directory, name_of};
 
 /// Directory names inside a profile directory,
 /// never entered when looking for profile directories.
 const INSIDE_PROFILE: [&str; 5] = ["build", "deps", "incremental", ".fingerprint", "examples"];
 
-/// How deep below a tree its profile directories can be (`<triple>/debug`, `dylint/debug`).
+/// How deep below a tree its profile directories can be (`<triple>/debug`,
+/// `dylint/debug`).
 const PROFILE_DEPTH: usize = 3;
 
 /// How many dependency-info files are read for a lead.
@@ -52,7 +56,10 @@ pub enum TreeKind {
     Legacy,
     /// `<base>/toolchain/<toolchain>/<xx>/<hex>`,
     /// made by the shadow.
-    Keyed(String),
+    Keyed(
+        /// The toolchain name.
+        String,
+    ),
 }
 
 /// One tree of the base.
@@ -69,10 +76,16 @@ pub struct Tree {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Workspace {
     /// Named by the ledger the shadow left.
-    Known(PathBuf),
+    Known(
+        /// The workspace root.
+        PathBuf,
+    ),
     /// A source file the tree's dependency information names,
     /// which is a lead and not proof.
-    Lead(PathBuf),
+    Lead(
+        /// The source file the dependency information names.
+        PathBuf,
+    ),
     /// Nothing identifies it.
     Unidentified,
 }
@@ -91,7 +104,7 @@ fn directories_of(path: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     if let Ok(entries) = fs::read_dir(path) {
         for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| { return kind.is_dir(); }) {
+            if is_directory(&entry) {
                 found.push(entry.path());
             }
         }
@@ -113,17 +126,17 @@ fn directories_of(path: &Path) -> Vec<PathBuf> {
 pub fn list_trees(base: &Path) -> Vec<Tree> {
     let mut trees: Vec<Tree> = Vec::new();
     for child in directories_of(base) {
-        let name: String = child.file_name().map(|text| { return text.to_string_lossy().to_string(); }).unwrap_or_default();
+        let name: String = name_of(&child);
         if name == KEYED_DIRECTORY {
             for toolchain in directories_of(&child) {
-                let toolchain_name: String = toolchain.file_name().map(|text| { return text.to_string_lossy().to_string(); }).unwrap_or_default();
+                let toolchain_name: String = name_of(&toolchain);
                 for shard in directories_of(&toolchain) {
                     for tree in directories_of(&shard) {
                         trees.push(Tree { path: tree, kind: TreeKind::Keyed(toolchain_name.clone()) });
                     }
                 }
             }
-        } else if name.len() == 2 && name.chars().all(|character| { return character.is_ascii_hexdigit(); }) {
+        } else if name.len() == 2 && all_hex(&name) {
             for tree in directories_of(&child) {
                 trees.push(Tree { path: tree, kind: TreeKind::Legacy });
             }
@@ -147,7 +160,12 @@ pub fn profile_dirs_of(tree: &Path) -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = Vec::new();
     let mut stack: Vec<(PathBuf, usize)> = vec![(tree.to_path_buf(), 0)];
     while let Some((directory, depth)) = stack.pop() {
-        let has_lock: bool = LOCK_FILE_NAMES.iter().any(|name| { return directory.join(name).exists(); });
+        let mut has_lock: bool = false;
+        for lock_name in LOCK_FILE_NAMES {
+            if directory.join(lock_name).exists() {
+                has_lock = true;
+            }
+        }
         if has_lock && depth > 0 {
             found.push(directory);
             continue;
@@ -156,7 +174,7 @@ pub fn profile_dirs_of(tree: &Path) -> Vec<PathBuf> {
             continue;
         }
         for child in directories_of(&directory) {
-            let name: String = child.file_name().map(|text| { return text.to_string_lossy().to_string(); }).unwrap_or_default();
+            let name: String = name_of(&child);
             if depth > 0 && INSIDE_PROFILE.contains(&name.as_str()) {
                 continue;
             }
@@ -244,6 +262,7 @@ pub fn last_activity(tree: &Path, deadline: &Deadline) -> Option<i64> {
 /// function leadIn(tree: string, dependencyFile: string): string | undefined
 /// ```
 fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf> {
+    /// Reads the first bytes of a dependency-information file.
     use std::io::Read;
     let mut file: fs::File = fs::File::open(dependency_file).ok()?;
     let mut buffer: Vec<u8> = vec![0; LEAD_BYTES];
@@ -253,7 +272,13 @@ fn lead_in(tree: &Path, dependency_file: &Path) -> Option<PathBuf> {
         if !token.starts_with('/') || Path::new(token).starts_with(tree) {
             continue;
         }
-        if NOT_A_WORKSPACE.iter().any(|fragment| { return token.contains(fragment); }) {
+        let mut excluded: bool = false;
+        for fragment in NOT_A_WORKSPACE {
+            if token.contains(fragment) {
+                excluded = true;
+            }
+        }
+        if excluded {
             continue;
         }
         return Some(PathBuf::from(token));
@@ -282,7 +307,7 @@ pub fn workspace_of(tree: &Path) -> Workspace {
             for unit in directories_of(&package) {
                 if let Ok(entries) = fs::read_dir(unit.join("out")) {
                     for entry in entries.flatten() {
-                        if entry.path().extension().is_some_and(|extension| { return extension == "d"; }) {
+                        if extension_is(&entry.path(), "d") {
                             files.push(entry.path());
                         }
                     }
@@ -294,7 +319,7 @@ pub fn workspace_of(tree: &Path) -> Workspace {
         }
         if let Ok(entries) = fs::read_dir(profile.join("deps")) {
             for entry in entries.flatten().take(LEAD_FILES) {
-                if entry.path().extension().is_some_and(|extension| { return extension == "d"; }) {
+                if extension_is(&entry.path(), "d") {
                     files.push(entry.path());
                 }
             }

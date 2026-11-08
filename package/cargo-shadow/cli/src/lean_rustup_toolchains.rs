@@ -27,8 +27,12 @@ use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::{Path, Path
 
 /// The proof and the identity.
 use crate::lean_identity::{Deadline, Identity, identity_of};
+/// Imports the names this file uses from `crate::lean_proc_scan`.
 use crate::lean_proc_scan::{ScanReport, scan_processes};
+/// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
+/// Named reads of directory entries.
+use crate::lean_text::is_directory;
 
 /// The environment variable that names a toolchain.
 const TOOLCHAIN_VARIABLE: &str = "RUSTUP_TOOLCHAIN";
@@ -46,7 +50,10 @@ pub struct Installed {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ToolchainVerdict {
     /// Kept for this reason.
-    Keep(String),
+    Keep(
+        /// Why the toolchain is kept.
+        String,
+    ),
     /// Uninstalled (or in a dry run would be) with these disk bytes.
     Retired {
         /// The disk bytes freed or that would be.
@@ -54,7 +61,10 @@ pub enum ToolchainVerdict {
     },
     /// Not removed,
     /// for this reason.
-    Skip(String),
+    Skip(
+        /// Why the toolchain was not removed.
+        String,
+    ),
 }
 
 /// Something that uninstalls a toolchain by name.
@@ -78,7 +88,12 @@ pub fn dated_nightly_name(directory_name: &str) -> Option<String> {
     let rest: &str = directory_name.strip_prefix("nightly-")?;
     let date: &str = rest.get(..10)?;
     let bytes: &[u8] = date.as_bytes();
-    let shaped: bool = bytes[4] == b'-' && bytes[7] == b'-' && date.chars().enumerate().all(|(index, character)| { return index == 4 || index == 7 || character.is_ascii_digit(); });
+    let mut shaped: bool = bytes[4] == b'-' && bytes[7] == b'-';
+    for (index, character) in date.chars().enumerate() {
+        if index != 4 && index != 7 && !character.is_ascii_digit() {
+            shaped = false;
+        }
+    }
     let after_date: &str = &rest[10..];
     if !shaped || !(after_date.is_empty() || after_date.starts_with('-')) {
         return None;
@@ -149,6 +164,32 @@ pub fn pinned_by(checkouts: &[PathBuf], settings: &Path) -> HashSet<String> {
 }
 
 /// What:
+/// `fn is_nul(byte: &u8) -> bool` says whether a byte is the NUL that separates environment entries.
+/// Why:
+/// `/proc/<pid>/environ` is NUL-separated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNul = (byte: number): boolean => byte === 0;
+/// ```
+fn is_nul(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// What:
+/// `fn by_directory_name(left: &Installed, right: &Installed) -> std::cmp::Ordering` orders toolchains by directory name.
+/// Why:
+/// Reports list them in a stable order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const byDirectoryName = (a: Installed, b: Installed): number => a.directoryName.localeCompare(b.directoryName);
+/// ```
+fn by_directory_name(left: &Installed, right: &Installed) -> std::cmp::Ordering {
+    return left.directory_name.cmp(&right.directory_name);
+}
+
+/// What:
 /// `fn named_in_environments(proc_root: &Path) -> HashSet<String>` collects the `RUSTUP_TOOLCHAIN` value of every readable
 /// process.
 /// Why:
@@ -166,7 +207,7 @@ fn named_in_environments(proc_root: &Path) -> HashSet<String> {
             continue;
         }
         let Ok(bytes) = fs::read(entry.path().join("environ")) else { continue };
-        for pair in bytes.split(|byte| { return *byte == 0; }) {
+        for pair in bytes.split(is_nul) {
             let text: String = String::from_utf8_lossy(pair).to_string();
             if let Some(value) = text.strip_prefix("RUSTUP_TOOLCHAIN=") {
                 named.insert(value.to_string());
@@ -189,12 +230,12 @@ pub fn installed_toolchains(toolchains: &Path) -> Vec<Installed> {
     let mut installed: Vec<Installed> = Vec::new();
     if let Ok(entries) = fs::read_dir(toolchains) {
         for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| { return kind.is_dir(); }) {
+            if is_directory(&entry) {
                 installed.push(Installed { directory_name: entry.file_name().to_string_lossy().to_string(), path: entry.path() });
             }
         }
     }
-    installed.sort_by(|left, right| { return left.directory_name.cmp(&right.directory_name); });
+    installed.sort_by(by_directory_name);
     return installed;
 }
 
@@ -271,7 +312,10 @@ fn judge(
             return ToolchainVerdict::Keep(format!("a process has {TOOLCHAIN_VARIABLE}={name}"));
         }
     }
-    let modified: i64 = fs::symlink_metadata(&toolchain.path).map(|metadata| { return metadata.mtime(); }).unwrap_or(now);
+    let modified: i64 = match fs::symlink_metadata(&toolchain.path) {
+        Ok(metadata) => metadata.mtime(),
+        Err(_) => now,
+    };
     if now - modified <= grace_seconds {
         return ToolchainVerdict::Keep(format!("installed or changed {} s ago, within the grace period of {grace_seconds} s", now - modified));
     }

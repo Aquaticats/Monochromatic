@@ -19,7 +19,10 @@
 /// Files and sets.
 use std::{collections::HashSet, fs, path::{Path, PathBuf}};
 
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::Deadline;
+/// Named reads of paths and text.
+use crate::lean_text::{extension_is, name_of};
 
 /// Directory names the scan never enters.
 const SKIPPED_DIRECTORIES: [&str; 9] = ["node_modules", "target", ".git", "dist", ".claude", ".cache", "doc", ".pnpm-store", "LICENSES"];
@@ -41,11 +44,57 @@ const LARGEST_FILE_BYTES: u64 = 512 * 1024;
 /// const reads = (path: string): boolean
 /// ```
 fn reads(path: &Path) -> bool {
-    let name: String = path.file_name().map(|text| { return text.to_string_lossy().to_string(); }).unwrap_or_default();
+    let name: String = name_of(path);
     if name.starts_with("Containerfile") || name.starts_with("Dockerfile") {
         return true;
     }
-    return path.extension().is_some_and(|extension| { return READ_EXTENSIONS.iter().any(|known| { return extension == *known; }); });
+    for known in READ_EXTENSIONS {
+        if extension_is(path, known) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+/// `fn flush_run(run: &mut String, words: &mut HashSet<String>)` adds a finished run of word characters to the set and clears it.
+/// Why:
+/// A run that ends at a colon is a template (`repo:${tag}`):
+/// it names no tag,
+/// so it adds nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function flushRun(run: { text: string }, words: Set<string>): void
+/// ```
+fn flush_run(run: &mut String, words: &mut HashSet<String>) {
+    let templated: bool = run.ends_with(':');
+    let trimmed: &str = run.trim_matches(['.', ':', '-', '/']);
+    if trimmed.len() > 2 && !templated {
+        words.insert(trimmed.to_string());
+        for part in trimmed.split(':') {
+            if part.len() > 2 {
+                words.insert(part.trim_matches(['.', '-', '/']).to_string());
+            }
+        }
+    }
+    run.clear();
+}
+
+/// What:
+/// `fn small_enough(entry: &fs::DirEntry) -> bool` says whether a file is within the size the scan reads.
+/// Why:
+/// Large generated files name nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const smallEnough = (entry: Dirent): boolean
+/// ```
+fn small_enough(entry: &fs::DirEntry) -> bool {
+    return match entry.metadata() {
+        Ok(metadata) => metadata.len() <= LARGEST_FILE_BYTES,
+        Err(_) => false,
+    };
 }
 
 /// What:
@@ -61,28 +110,14 @@ fn reads(path: &Path) -> bool {
 /// ```
 pub fn words_of(text: &str, words: &mut HashSet<String>) {
     let mut current: String = String::new();
-    let flush = |run: &mut String, words: &mut HashSet<String>| {
-        // A run that ends at a colon is a template (`repo:${tag}`): it names no tag, so it adds nothing.
-        let templated: bool = run.ends_with(':');
-        let trimmed: &str = run.trim_matches(['.', ':', '-', '/']);
-        if trimmed.len() > 2 && !templated {
-            words.insert(trimmed.to_string());
-            for part in trimmed.split(':') {
-                if part.len() > 2 {
-                    words.insert(part.trim_matches(['.', '-', '/']).to_string());
-                }
-            }
-        }
-        run.clear();
-    };
     for character in text.chars() {
         if character.is_ascii_alphanumeric() || "._/:@-".contains(character) {
             current.push(character);
         } else {
-            flush(&mut current, words);
+            flush_run(&mut current, words);
         }
     }
-    flush(&mut current, words);
+    flush_run(&mut current, words);
 }
 
 /// What:
@@ -112,7 +147,7 @@ pub fn collect_references(root: &Path, deadline: &Deadline) -> Option<HashSet<St
                 if !SKIPPED_DIRECTORIES.contains(&name.as_str()) {
                     stack.push(path);
                 }
-            } else if kind.is_file() && reads(&path) && entry.metadata().is_ok_and(|metadata| { return metadata.len() <= LARGEST_FILE_BYTES; }) {
+            } else if kind.is_file() && reads(&path) && small_enough(&entry) {
                 if let Ok(text) = fs::read_to_string(&path) {
                     words_of(&text, &mut words);
                 }

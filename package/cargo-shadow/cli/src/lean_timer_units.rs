@@ -10,7 +10,8 @@
 //! The owner:
 //! "Were you implying our wrapper or something in it auto starts itself on system startup or user login?
 //! It should never do that!
-//! Follow Bazel." then "Systemd units are fine."
+//! Follow Bazel."
+//! then "Systemd units are fine."
 //! So nothing in cargo-shadow starts itself;
 //! this timer is a systemd unit the user installs on purpose.
 //! It fires once a day at 04:30 local time and at no other moment:
@@ -30,7 +31,9 @@
 /// paths and child processes.
 use std::{fs, path::{Path, PathBuf}, process::Command, time::Duration};
 
+/// Imports the names this file uses from `crate::bounded_run`.
 use crate::bounded_run::{Bound, RunError, output_within};
+/// Imports the names this file uses from `crate::lean_policy`.
 use crate::lean_policy::RUN_DEADLINE_SECONDS;
 
 /// The service unit's file name.
@@ -148,11 +151,17 @@ pub fn install_timer(repository: &Path, binary: &Path, unit_directory: &Path, en
     if !binary.is_file() {
         return Err(format!("{} does not exist; run `mise run toolchain:install` first so the installed cargo-shadow is linked there", binary.display()));
     }
-    fs::create_dir_all(unit_directory).map_err(|error| { return format!("{}: {error}", unit_directory.display()); })?;
+    if let Err(error) = fs::create_dir_all(unit_directory) {
+        return Err(format!("{}: {error}", unit_directory.display()));
+    }
     let service: PathBuf = unit_directory.join(SERVICE_NAME);
     let timer: PathBuf = unit_directory.join(TIMER_NAME);
-    fs::write(&service, render_service(repository, binary)).map_err(|error| { return format!("{}: {error}", service.display()); })?;
-    fs::write(&timer, render_timer()).map_err(|error| { return format!("{}: {error}", timer.display()); })?;
+    if let Err(error) = fs::write(&service, render_service(repository, binary)) {
+        return Err(format!("{}: {error}", service.display()));
+    }
+    if let Err(error) = fs::write(&timer, render_timer()) {
+        return Err(format!("{}: {error}", timer.display()));
+    }
     let mut lines: Vec<String> = vec![format!("wrote {} and {}", service.display(), timer.display())];
     if enable {
         systemctl(&["daemon-reload"])?;

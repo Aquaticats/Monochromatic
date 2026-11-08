@@ -7,7 +7,8 @@
 //! Why:
 //! The sweep and the size caps decide from these facts.
 //! The owner allowed this one reader to parse Cargo's internal fingerprint files
-//! (`doc/decision/cargo-build-dir-host-cache.md`, amendment of 2026-11-07T22:19:43-05:00),
+//! (`doc/decision/cargo-build-dir-host-cache.md`,
+//! amendment of 2026-11-07T22:19:43-05:00),
 //! on the condition that a directory it does not recognise is left untouched and reported.
 //! Old layout:
 //! `.fingerprint/<package>-<hash>/`,
@@ -21,6 +22,8 @@
 //! export function readProfile(profile: string): { known: ProfileUnits } | { unknown: string }
 //! ```
 
+/// Named reads of paths and text.
+use crate::lean_text::{all_hex, extension_is};
 /// Directory reading and metadata.
 use std::{collections::HashMap, fs, io::Read, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
@@ -36,7 +39,8 @@ pub const INVOKED_FILE: &str = "invoked.timestamp";
 /// One unit of Cargo's work in a profile directory.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Unit {
-    /// A name for reports: `<package>-<hash>`.
+    /// A name for reports:
+    /// `<package>-<hash>`.
     pub label: String,
     /// The compiler the fingerprint records.
     pub compiler: u64,
@@ -72,10 +76,16 @@ pub struct ProfileUnits {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ProfileRead {
     /// A directory in a layout this reader knows.
-    Known(ProfileUnits),
+    Known(
+        /// The units of the directory.
+        ProfileUnits,
+    ),
     /// Not a layout this reader knows:
     /// left alone.
-    Unknown(String),
+    Unknown(
+        /// Why the layout is not known.
+        String,
+    ),
 }
 
 /// What:
@@ -125,7 +135,7 @@ fn read_head(path: &Path) -> Option<String> {
 fn compiler_in(fingerprint_directory: &Path) -> Option<(u64, i64)> {
     let mut json_files: Vec<PathBuf> = Vec::new();
     for entry in fs::read_dir(fingerprint_directory).ok()?.flatten() {
-        if entry.path().extension().is_some_and(|extension| { return extension == "json"; }) {
+        if extension_is(&entry.path(), "json") {
             json_files.push(entry.path());
         }
     }
@@ -155,7 +165,7 @@ pub fn unit_hash_of_file_name(name: &str) -> Option<&str> {
         return None;
     }
     let (front, hash) = stem.split_at(stem.len() - HASH_LENGTH);
-    if !front.ends_with('-') || !hash.chars().all(|character| { return character.is_ascii_hexdigit(); }) {
+    if !front.ends_with('-') || !all_hex(hash) {
         return None;
     }
     return Some(hash);

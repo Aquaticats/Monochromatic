@@ -4,7 +4,8 @@
 //! Why:
 //! Cargo does not hash a nightly's date into a unit's directory names,
 //! so a nightly update dirties every unit in place and the units no later build rebuilt stay behind with an older compiler
-//! recorded and no reuse value under the newer one (`doc/planning/lean-build-dirs.md`, "Which units and incremental state were
+//! recorded and no reuse value under the newer one (`doc/planning/lean-build-dirs.md`,
+//! "Which units and incremental state were
 //! built by an older compiler").
 //! The newest compiler group of a profile directory is kept,
 //! and so is any group invoked within the grace period (a second toolchain may still be in use).
@@ -17,6 +18,7 @@
 
 /// The decision types.
 use crate::lean_unit_reader::{ProfileUnits, Unit};
+/// Imports the names this file uses from `crate::lean_unit_removal`.
 use crate::lean_unit_removal::{Planner, Removals};
 
 /// The sweep with its grace period.
@@ -38,14 +40,17 @@ pub struct OlderCompilerSweep {
 fn newest_unit(units: &[Unit]) -> Option<&Unit> {
     let mut newest: Option<&Unit> = None;
     for unit in units {
-        if newest.is_none_or(|best| { return unit.invoked > best.invoked; }) {
-            newest = Some(unit);
+        match newest {
+            Some(best) if unit.invoked <= best.invoked => {}
+            _ => newest = Some(unit),
         }
     }
     return newest;
 }
 
+/// Removes the units an older compiler built and the incremental directories older than the newest compiler's first unit.
 impl Planner for OlderCompilerSweep {
+    /// Decides which units and incremental directories the sweep removes.
     fn plan(&self, found: &ProfileUnits, now: i64) -> Removals {
         let mut removals: Removals = Removals::default();
         let Some(newest) = newest_unit(&found.units) else { return removals };

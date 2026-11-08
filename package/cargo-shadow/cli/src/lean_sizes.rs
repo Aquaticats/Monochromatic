@@ -17,6 +17,7 @@ use std::{collections::HashSet, fs, os::unix::fs::MetadataExt, path::Path};
 /// Device and inode,
 /// the deadline and the block arithmetic.
 use crate::lean_identity::{Deadline, Identity};
+/// Imports the names this file uses from `crate::lean_removal`.
 use crate::lean_removal::allocated_bytes_of;
 
 /// How many entries a walk reads between looks at the clock.

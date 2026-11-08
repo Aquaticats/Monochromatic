@@ -3,9 +3,11 @@
 //! the collection of verified-idle trees in the host build base.
 //! Why:
 //! Worktrees created and discarded leave their build trees behind forever
-//! (`doc/decision/cargo-build-dir-host-cache.md`, "Throwaway worktree builds outlive their worktree").
+//! (`doc/decision/cargo-build-dir-host-cache.md`,
+//! "Throwaway worktree builds outlive their worktree").
 //! A tree is removed only when all hold:
-//! its workspace is gone (or it belongs to a retired toolchain, or nothing identifies its workspace and it has been idle
+//! its workspace is gone (or it belongs to a retired toolchain,
+//! or nothing identifies its workspace and it has been idle
 //! longer),
 //! it has been idle longer than the period for its case,
 //! no other tree's workspace lies inside it,
@@ -28,9 +30,13 @@ use std::{collections::HashSet, path::{Path, PathBuf}};
 use crate::lean_build_trees::{Tree, TreeKind, Workspace, last_activity, profile_dirs_of, workspace_of};
 /// The proof and the removal.
 use crate::lean_guard::{Guard, GuardEnvironment, Guarded, guard_profile};
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::Deadline;
+/// Imports the names this file uses from `crate::lean_proc_scan`.
 use crate::lean_proc_scan::{ScanReport, scan_processes};
+/// Imports the names this file uses from `crate::lean_removal`.
 use crate::lean_removal::{TRASH_DIRECTORY_NAME, claim_into_trash, delete_claimed, empty_trash, item_of};
+/// Imports the names this file uses from `crate::lean_sizes`.
 use crate::lean_sizes::tree_bytes;
 
 /// The idle periods of mechanism C.
@@ -47,10 +53,16 @@ pub struct IdlePolicy {
 pub enum TreeVerdict {
     /// Kept,
     /// for this reason.
-    Keep(String),
+    Keep(
+        /// Why the tree is kept.
+        String,
+    ),
     /// Not judged or not removable now,
     /// for this reason.
-    Skip(String),
+    Skip(
+        /// Why the tree was not judged or not removed.
+        String,
+    ),
     /// Removed (or in a dry run,
     /// would be) with these disk bytes.
     Removed {
@@ -150,7 +162,10 @@ fn collect_one(tree: &Tree, reason: &str, trash: &Path, environment: &GuardEnvir
     if let Some(used) = scan.blocks(&tree.path) {
         return TreeVerdict::Skip(format!("pid {} uses {} as {}", used.pid, used.path.display(), used.how));
     }
-    let mut proofs: Vec<String> = held.iter().map(|guarded| { return guarded.proof.clone(); }).collect();
+    let mut proofs: Vec<String> = Vec::new();
+    for guarded in &held {
+        proofs.push(guarded.proof.clone());
+    }
     proofs.push(scan.describe());
     let item = match item_of(&tree.path) {
         Ok(found) => found,

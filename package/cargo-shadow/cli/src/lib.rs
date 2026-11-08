@@ -1054,3 +1054,6 @@ mod lean_timer_units_tests;
 
 /// The command-line glue of `cargo-shadow lean`.
 pub mod lean_command;
+
+/// Named reads of paths and text shared by the lean-folder tools.
+pub mod lean_text;

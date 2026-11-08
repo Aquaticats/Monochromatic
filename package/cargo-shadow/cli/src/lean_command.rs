@@ -13,10 +13,15 @@
 /// Paths and time.
 use std::{path::PathBuf, time::Duration};
 
+/// Imports the names this file uses from `crate::cli`.
 use crate::cli::{LeanAction, MechanismName};
+/// Imports the names this file uses from `crate::lean_checkouts`.
 use crate::lean_checkouts::main_checkout;
+/// Imports the names this file uses from `crate::lean_policy`.
 use crate::lean_policy::RUN_DEADLINE_SECONDS;
+/// Imports the names this file uses from `crate::lean_run`.
 use crate::lean_run::{Mechanism, RunOptions, run_lean};
+/// Imports the names this file uses from `crate::lean_timer_units`.
 use crate::lean_timer_units::install_timer;
 
 /// What:
@@ -57,8 +62,15 @@ pub fn run_lean_action(action: &LeanAction) -> i32 {
     };
     match action {
         LeanAction::Run { dry_run, only, deadline_minutes } => {
-            let seconds: u64 = deadline_minutes.map_or(RUN_DEADLINE_SECONDS, |minutes| { return minutes * 60; });
-            let options: RunOptions = RunOptions { dry_run: *dry_run, only: only.iter().map(|name| { return mechanism_of(*name); }).collect(), deadline: Duration::from_secs(seconds), start };
+            let seconds: u64 = match deadline_minutes {
+                Some(minutes) => minutes * 60,
+                None => RUN_DEADLINE_SECONDS,
+            };
+            let mut mechanisms: Vec<Mechanism> = Vec::new();
+            for name in only {
+                mechanisms.push(mechanism_of(*name));
+            }
+            let options: RunOptions = RunOptions { dry_run: *dry_run, only: mechanisms, deadline: Duration::from_secs(seconds), start };
             return run_lean(&options);
         }
         LeanAction::TimerInstall { no_enable, unit_directory } => {
@@ -67,7 +79,10 @@ pub fn run_lean_action(action: &LeanAction) -> i32 {
                 return 1;
             };
             let home: PathBuf = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-            let units: PathBuf = unit_directory.clone().unwrap_or_else(|| { return home.join(".config").join("systemd").join("user"); });
+            let units: PathBuf = match unit_directory {
+                Some(chosen) => chosen.clone(),
+                None => home.join(".config").join("systemd").join("user"),
+            };
             let binary: PathBuf = repository.join(".cache").join("toolchain-bin").join("cargo-shadow");
             return match install_timer(&repository, &binary, &units, !no_enable) {
                 Ok(lines) => {

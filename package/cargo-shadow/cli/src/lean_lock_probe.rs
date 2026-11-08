@@ -3,10 +3,13 @@
 //! and tells whether anyone is queued behind them.
 //! Why:
 //! Cargo's builds hold `<profile>/.cargo-build-lock` exclusively with `flock` (the lock a container's cargo holds through a
-//! bind mount too, probed 2026-11-04 in `doc/planning/lean-build-dirs.md`), so a sweep that holds the same lock excludes every
+//! bind mount too,
+//! probed 2026-11-04 in `doc/planning/lean-build-dirs.md`),
+//! so a sweep that holds the same lock excludes every
 //! cooperating build of that directory.
 //! The attempt never waits ("nothing should ever wait forever or indefinitely"):
-//! a busy lock, a file system that cannot lock and a queued waiter all mean the directory is skipped and reported.
+//! a busy lock,
+//! a file system that cannot lock and a queued waiter all mean the directory is skipped and reported.
 //! The lock files are never renamed or unlinked.
 //!
 //! In TS you'd write (pseudocode):
@@ -44,6 +47,7 @@ pub struct HeldLocks {
     names: Vec<PathBuf>,
 }
 
+/// Reading the held locks.
 impl HeldLocks {
     /// The paths of the locked files.
     pub fn names(&self) -> &[PathBuf] {
@@ -55,12 +59,22 @@ impl HeldLocks {
 #[derive(Debug)]
 pub enum LockOutcome {
     /// Every lock file was taken exclusively and no waiter is queued behind it.
-    Held(HeldLocks),
-    /// Someone else holds this lock file: a build is running.
-    Busy(PathBuf),
+    Held(
+        /// The held locks.
+        HeldLocks,
+    ),
+    /// Someone else holds this lock file:
+    /// a build is running.
+    Busy(
+        /// The lock file that is held.
+        PathBuf,
+    ),
     /// A process is queued behind a lock this probe took,
     /// so a build is about to start.
-    Waiting(PathBuf),
+    Waiting(
+        /// The lock file with a waiter.
+        PathBuf,
+    ),
     /// The file system refuses `flock` here (Cargo itself skips locking on some network file systems).
     Unlockable {
         /// The file.
@@ -77,8 +91,11 @@ pub enum LockOutcome {
 /// `pub fn waiter_lines_name(table: &str, device: u64, inode: u64) -> bool` says whether the kernel lock table shows a
 /// queued waiter (a `->` line) on the file with this device and inode.
 /// Why:
-/// A build that already opened the lock file and waits for it would, once this probe lets go, build into paths that were
-/// moved away; seeing the queue first avoids that.
+/// A build that already opened the lock file and waits for it would,
+/// once this probe lets go,
+/// build into paths that were
+/// moved away;
+/// seeing the queue first avoids that.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -103,7 +120,9 @@ pub fn waiter_lines_name(table: &str, device: u64, inode: u64) -> bool {
 /// `pub fn lock_profile_directory(profile: &Path, lock_table: &Path) -> LockOutcome` takes every Cargo lock file of the
 /// directory exclusively without waiting.
 /// Why:
-/// It is the first proof of "not in use": while it holds, no cooperating cargo builds in this profile directory.
+/// It is the first proof of "not in use":
+/// while it holds,
+/// no cooperating cargo builds in this profile directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

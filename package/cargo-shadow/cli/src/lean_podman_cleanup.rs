@@ -5,7 +5,8 @@
 //! Test and build tasks leave an image per run (3462 images of 391.6 GB and 33 volumes of 87.6 GB on 2026-11-04,
 //! `doc/planning/lean-build-dirs.md`),
 //! and Podman never removes them.
-//! The owner's answer ("Podman images, volumes (Recommended)"):
+//! The owner's answer ("Podman images,
+//! volumes (Recommended)"):
 //! remove images and volumes no container uses and no current image tag of this repository names,
 //! each after the grace period,
 //! as the user and never as root.
@@ -113,6 +114,63 @@ fn tag_is_named(image: &Image, references: &HashSet<String>) -> bool {
 }
 
 /// What:
+/// `fn used_by_a_container(id: &str, container_images: &[String]) -> bool` says whether any container's image is this one.
+/// Why:
+/// A container in any state uses its image.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const usedByAContainer = (id: string, containerImages: string[]): boolean
+/// ```
+fn used_by_a_container(id: &str, container_images: &[String]) -> bool {
+    for used in container_images {
+        if same_image(used, id) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+/// `fn any_tag_named(rows: &[&Image], references: &HashSet<String>) -> bool` says whether the sources name any tag of an image.
+/// Why:
+/// One image can carry several tags.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const anyTagNamed = (rows: Image[], refs: Set<string>): boolean
+/// ```
+fn any_tag_named(rows: &[&Image], references: &HashSet<String>) -> bool {
+    for row in rows {
+        if tag_is_named(row, references) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+/// `fn is_newest_of_a_repository(rows: &[&Image], id: &str, newest: &HashMap<&str, (i64, &str)>) -> bool` says whether the image is the
+/// newest of any repository it is tagged in.
+/// Why:
+/// The newest image of a repository is kept as its current one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNewestOfARepository = (rows: Image[], id: string, newest: Map<string, [number, string]>): boolean
+/// ```
+fn is_newest_of_a_repository(rows: &[&Image], id: &str, newest: &HashMap<&str, (i64, &str)>) -> bool {
+    for row in rows {
+        if let Some(entry) = newest.get(row.repository.as_str())
+            && entry.1 == id
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
 /// `pub fn judge_images(images: &[Image], container_images: &[String], references: &HashSet<String>, grace_seconds: i64, now: i64) -> (Vec<String>, Vec<(String, String)>)`
 /// decides which image ids to remove and which to keep with a reason.
 /// Why:
@@ -146,14 +204,17 @@ pub fn judge_images(images: &[Image], container_images: &[String], references: &
     let mut keep: Vec<(String, String)> = Vec::new();
     for id in order {
         let rows: &Vec<&Image> = &by_id[&id];
-        let created: i64 = rows.iter().map(|row| { return row.created; }).max().unwrap_or(0);
-        if container_images.iter().any(|used| { return same_image(used, &id); }) {
+        let mut created: i64 = 0;
+        for row in rows {
+            created = created.max(row.created);
+        }
+        if used_by_a_container(&id, container_images) {
             keep.push((id, String::from("a container (in some state) uses it")));
         } else if now - created <= grace_seconds {
             keep.push((id, format!("created {} s ago, within the grace period of {grace_seconds} s", now - created)));
-        } else if rows.iter().any(|row| { return tag_is_named(row, references); }) {
+        } else if any_tag_named(rows, references) {
             keep.push((id, String::from("a tag of it is named by the repository's current sources")));
-        } else if rows.iter().any(|row| { return newest_of_repository.get(row.repository.as_str()).is_some_and(|newest| { return newest.1 == id; }); }) {
+        } else if is_newest_of_a_repository(rows, &id, &newest_of_repository) {
             keep.push((id, String::from("the newest image of its repository, kept as its current one")));
         } else {
             remove.push(id);

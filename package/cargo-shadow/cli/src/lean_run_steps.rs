@@ -19,18 +19,31 @@
 /// paths and child processes.
 use std::{collections::HashSet, path::{Path, PathBuf}, process::Command, time::Duration};
 
+/// Imports the names this file uses from `crate::bounded_run`.
 use crate::bounded_run::{Bound, RunError, output_within};
+/// Imports the names this file uses from `crate::lean_container_references`.
 use crate::lean_container_references::collect_references;
+/// Imports the names this file uses from `crate::lean_guard`.
 use crate::lean_guard::GuardEnvironment;
+/// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::{Deadline, now_seconds};
+/// Imports the names this file uses from `crate::lean_podman_cleanup`.
 use crate::lean_podman_cleanup::clean_podman;
+/// Imports the names this file uses from `crate::lean_podman_real`.
 use crate::lean_podman_real::RealPodman;
+/// Imports the names this file uses from `crate::lean_policy`.
 use crate::lean_policy::{GRACE_SECONDS, RECORD_CAP_BYTES, RECORD_PROTECT_SECONDS, RECORD_RETENTION_SECONDS};
+/// Imports the names this file uses from `crate::lean_run_report`.
 use crate::lean_run_report::gib;
+/// Imports the names this file uses from `crate::lean_rustup_toolchains`.
 use crate::lean_rustup_toolchains::{ToolchainVerdict, Uninstaller, installed_toolchains, retire_nightlies};
+/// Imports the names this file uses from `crate::lean_run_records_glue`.
 use crate::lean_run_records_glue::sweep_records_directory;
+/// Imports the names this file uses from `crate::lean_size_caps`.
 use crate::lean_size_caps::SizeCap;
+/// Imports the names this file uses from `crate::lean_sweep_plan`.
 use crate::lean_sweep_plan::OlderCompilerSweep;
+/// Imports the names this file uses from `crate::lean_unit_removal`.
 use crate::lean_unit_removal::{ProfileOutcome, apply_removals};
 
 /// How long one `rustup toolchain uninstall` may take.
@@ -39,7 +52,9 @@ const UNINSTALL_LIMIT: Duration = Duration::from_secs(600);
 /// The real `rustup`.
 struct RealRustup;
 
+/// Uninstalls a toolchain through `rustup`.
 impl Uninstaller for RealRustup {
+    /// Runs `rustup toolchain uninstall` with a deadline.
     fn uninstall(&self, directory_name: &str) -> Result<(), String> {
         let bound: Bound = Bound { limit: UNINSTALL_LIMIT, what: format!("rustup toolchain uninstall {directory_name}"), rerun: String::from("cargo-shadow lean run") };
         return match output_within(Command::new("rustup").args(["toolchain", "uninstall", directory_name]), None, &bound) {
@@ -173,7 +188,8 @@ pub fn run_toolchains(toolchains: &Path, pinned: &HashSet<String>, dry_run: bool
 /// What:
 /// `pub fn run_podman(main_checkout: &Path, dry_run: bool, deadline: &Deadline) -> Vec<String>` removes unused images and volumes.
 /// Why:
-/// The owner's answer "Podman images, volumes (Recommended)":
+/// The owner's answer "Podman images,
+/// volumes (Recommended)":
 /// as the user,
 /// never as root.
 ///

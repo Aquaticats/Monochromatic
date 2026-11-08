@@ -1,11 +1,13 @@
 //! What:
-//! The identity of a file system entry (device and inode, read without following links),
+//! The identity of a file system entry (device and inode,
+//! read without following links),
 //! the clock the lean-folder tools measure age against,
 //! and the deadline every walk of theirs obeys.
 //! Why:
 //! A removal is judged on an identity taken when the entry was classified and checked again just before the unlink,
 //! so a path that was swapped for another entry in between is never removed.
-//! Nothing here may wait without end: a walk that passes its deadline stops and says so.
+//! Nothing here may wait without end:
+//! a walk that passes its deadline stops and says so.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -29,9 +31,11 @@ pub struct Identity {
 }
 
 /// What:
-/// `pub fn identity_of(path: &Path) -> io::Result<Identity>` reads the identity of the entry itself, never of a link's target.
+/// `pub fn identity_of(path: &Path) -> io::Result<Identity>` reads the identity of the entry itself,
+/// never of a link's target.
 /// Why:
-/// A removal must name what it removes, and a link is removed as a link.
+/// A removal must name what it removes,
+/// and a link is removed as a link.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -84,6 +88,7 @@ pub struct Deadline {
     at: Instant,
 }
 
+/// Construction and tests of a deadline.
 impl Deadline {
     /// A deadline `limit` from now.
     pub fn after(limit: Duration) -> Deadline {
@@ -95,7 +100,8 @@ impl Deadline {
         return Instant::now() >= self.at;
     }
 
-    /// The time left, zero when it has passed.
+    /// The time left,
+    /// zero when it has passed.
     pub fn remaining(&self) -> Duration {
         return self.at.saturating_duration_since(Instant::now());
     }

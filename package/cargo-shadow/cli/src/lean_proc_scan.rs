@@ -14,7 +14,8 @@
 //! export function scanProcesses(procRoot: string, roots: string[], identities: Identity[]): ScanReport
 //! ```
 
-/// Files, directories and links,
+/// Files,
+/// directories and links,
 /// and the device and inode of an open entry.
 use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}};
 
@@ -29,7 +30,11 @@ const DELETED_SUFFIX: &str = " (deleted)";
 pub struct ProcessUse {
     /// The process id.
     pub pid: i32,
-    /// How it uses the path: `cwd`, `exe`, `fd`, `map` or `identity`.
+    /// How it uses the path:
+    /// `cwd`,
+    /// `exe`,
+    /// `fd`,
+    /// `map` or `identity`.
     pub how: &'static str,
     /// The path as the process shows it (for `identity`,
     /// the root that matched).
@@ -51,6 +56,7 @@ pub struct ScanReport {
     pub uses: Vec<ProcessUse>,
 }
 
+/// Reading a scan report.
 impl ScanReport {
     /// The first use at or below `candidate`,
     /// which blocks its removal.
@@ -141,7 +147,8 @@ fn note_if_under(report: &mut ScanReport, pid: i32, how: &'static str, path: Pat
 /// `fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[Identity])` compares what a process in
 /// another mount namespace holds with the given identities.
 /// Why:
-/// Its paths are spelled in its own namespace (`/work/target`), so only device and inode can match.
+/// Its paths are spelled in its own namespace (`/work/target`),
+/// so only device and inode can match.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -167,7 +174,9 @@ fn scan_foreign(report: &mut ScanReport, pid: i32, entry: &Path, identities: &[I
 /// `pub fn scan_processes(proc_root: &Path, roots: &[&Path], identities: &[Identity], skip_pid: i32) -> ScanReport` reads
 /// every process of the procfs at `proc_root`.
 /// Why:
-/// It finds the processes whose working directory, program, open files or mapped files are under any root,
+/// It finds the processes whose working directory,
+/// program,
+/// open files or mapped files are under any root,
 /// and the container processes that hold an entry with one of the identities.
 ///
 /// In TS you'd write (pseudocode):

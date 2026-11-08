@@ -6,11 +6,13 @@
 //! and leaves a ledger file in it naming the workspace.
 //! Why:
 //! A nightly update dirties every unit of a build folder in place and Cargo never removes the old ones
-//! (`doc/planning/lean-build-dirs.md`, option A),
+//! (`doc/planning/lean-build-dirs.md`,
+//! option A),
 //! so the first build under a new toolchain loses nothing by starting in a fresh folder,
 //! and retiring a toolchain is removing a directory.
 //! The environment variable is used verbatim by Cargo,
-//! so the workspace key is computed here (SHA-256 of the canonical workspace root, the same shard and hash shape as
+//! so the workspace key is computed here (SHA-256 of the canonical workspace root,
+//! the same shard and hash shape as
 //! `{workspace-path-hash}`).
 //! The base is the part of the user's `build.build-dir` before `{workspace-path-hash}` in `$CARGO_HOME/config.toml`;
 //! with no such setting,
@@ -106,13 +108,22 @@ pub fn configured_base(cargo_home: &Path) -> Option<PathBuf> {
 /// ```
 pub fn toolchain_of(arguments: &[OsString], variable: Option<&str>) -> Option<String> {
     let mut chosen: Option<String> = variable.map(str::to_string);
-    if let Some(first) = arguments.first().and_then(|word| { return word.to_str(); })
-        && let Some(name) = first.strip_prefix('+')
+    let first: Option<&str> = match arguments.first() {
+        Some(word) => word.to_str(),
+        None => None,
+    };
+    if let Some(text) = first
+        && let Some(name) = text.strip_prefix('+')
     {
         chosen = Some(name.to_string());
     }
     let name: String = chosen?;
-    let plain: bool = !name.is_empty() && !name.starts_with('.') && name.chars().all(|character| { return character.is_ascii_alphanumeric() || "-_.".contains(character); });
+    let mut plain: bool = !name.is_empty() && !name.starts_with('.');
+    for character in name.chars() {
+        if !(character.is_ascii_alphanumeric() || "-_.".contains(character)) {
+            plain = false;
+        }
+    }
     return if plain { Some(name) } else { None };
 }
 

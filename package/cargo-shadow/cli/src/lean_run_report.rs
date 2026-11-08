@@ -113,6 +113,7 @@ pub fn space_lines(places: &[Place]) -> Vec<String> {
 /// export function logLine(text: string): void { try { process.stderr.write(`${text}\n`); } catch {} }
 /// ```
 pub fn log_line(text: &str) {
+    /// Writes lines.
     use std::io::Write;
     let _ = writeln!(std::io::stderr(), "cargo-shadow lean: {text}");
 }
@@ -127,6 +128,7 @@ pub fn log_line(text: &str) {
 /// export function summaryLine(text: string): void
 /// ```
 pub fn summary_line(text: &str) {
+    /// Writes lines.
     use std::io::Write;
     let _ = writeln!(std::io::stdout(), "{text}");
 }

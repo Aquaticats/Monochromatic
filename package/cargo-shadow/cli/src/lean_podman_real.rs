@@ -62,8 +62,11 @@ fn run(arguments: &[&str], limit: Duration) -> Result<String, String> {
 /// export function parseImages(text: string): Image[]
 /// ```
 pub fn parse_images(text: &str) -> Result<Vec<Image>, String> {
-    let value: serde_json::Value = serde_json::from_str(text).map_err(|error| { return error.to_string(); })?;
-    let list: &Vec<serde_json::Value> = value.as_array().ok_or_else(|| { return String::from("the image list is not an array"); })?;
+    let value: serde_json::Value = match serde_json::from_str(text) {
+        Ok(parsed) => parsed,
+        Err(error) => return Err(error.to_string()),
+    };
+    let Some(list) = value.as_array() else { return Err(String::from("the image list is not an array")) };
     let mut images: Vec<Image> = Vec::new();
     for entry in list {
         let id: String = entry.get("Id").and_then(serde_json::Value::as_str).unwrap_or_default().chars().take(12).collect();
@@ -96,12 +99,18 @@ pub fn parse_images(text: &str) -> Result<Vec<Image>, String> {
 /// export function parseVolumes(text: string): Volume[]
 /// ```
 pub fn parse_volumes(text: &str) -> Result<Vec<Volume>, String> {
-    let value: serde_json::Value = serde_json::from_str(text).map_err(|error| { return error.to_string(); })?;
-    let list: &Vec<serde_json::Value> = value.as_array().ok_or_else(|| { return String::from("the volume list is not an array"); })?;
+    let value: serde_json::Value = match serde_json::from_str(text) {
+        Ok(parsed) => parsed,
+        Err(error) => return Err(error.to_string()),
+    };
+    let Some(list) = value.as_array() else { return Err(String::from("the volume list is not an array")) };
     let mut volumes: Vec<Volume> = Vec::new();
     for entry in list {
         let name: String = entry.get("Name").and_then(serde_json::Value::as_str).unwrap_or_default().to_string();
-        let created: i64 = entry.get("CreatedAt").and_then(serde_json::Value::as_str).and_then(parse_rfc3339_millis).map_or(i64::MAX, |millis| { return millis / 1_000; });
+        let created: i64 = match entry.get("CreatedAt").and_then(serde_json::Value::as_str).and_then(parse_rfc3339_millis) {
+            Some(millis) => millis / 1_000,
+            None => i64::MAX,
+        };
         if !name.is_empty() {
             volumes.push(Volume { name, created });
         }
@@ -109,27 +118,45 @@ pub fn parse_volumes(text: &str) -> Result<Vec<Volume>, String> {
     return Ok(volumes);
 }
 
+/// Podman through bounded `podman` runs.
 impl PodmanApi for RealPodman {
+    /// Lists every image row,
+    /// one per tag.
     fn images(&self) -> Result<Vec<Image>, String> {
         return parse_images(&run(&["images", "--all", "--format", "json"], LIST_LIMIT)?);
     }
 
+    /// Lists the image id of every container in any state.
     fn container_image_ids(&self) -> Result<Vec<String>, String> {
         let text: String = run(&["ps", "--all", "--no-trunc", "--format", "{{.ImageID}}"], LIST_LIMIT)?;
-        return Ok(text.lines().map(|line| { return line.trim().chars().take(12).collect::<String>(); }).filter(|id| { return !id.is_empty(); }).collect());
+        let mut ids: Vec<String> = Vec::new();
+        for line in text.lines() {
+            let id: String = line.trim().chars().take(12).collect();
+            if !id.is_empty() {
+                ids.push(id);
+            }
+        }
+        return Ok(ids);
     }
 
+    /// Lists the volumes no container uses.
     fn dangling_volumes(&self) -> Result<Vec<Volume>, String> {
         return parse_volumes(&run(&["volume", "ls", "--filter", "dangling=true", "--format", "json"], LIST_LIMIT)?);
     }
 
+    /// Removes images by id with a plain `podman rmi`,
+    /// never forcing.
     fn remove_images(&self, ids: &[String]) -> Result<(), String> {
         let mut arguments: Vec<&str> = vec!["rmi"];
         arguments.extend(ids.iter().map(String::as_str));
-        run(&arguments, REMOVE_LIMIT).map(|_| { return (); })
+        run(&arguments, REMOVE_LIMIT)?;
+        return Ok(());
     }
 
+    /// Removes a volume with a plain `podman volume rm`,
+    /// never forcing.
     fn remove_volume(&self, name: &str) -> Result<(), String> {
-        return run(&["volume", "rm", name], REMOVE_LIMIT).map(|_| { return (); });
+        run(&["volume", "rm", name], REMOVE_LIMIT)?;
+        return Ok(());
     }
 }
