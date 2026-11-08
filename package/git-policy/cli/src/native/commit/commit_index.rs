@@ -4,9 +4,7 @@
 //!       its initialization for each selection mode,
 //!       the intended tree written from it,
 //!       its path listings,
-//!       the pathspec-file source,
-//! and
-//!       interactive and patch selection run against it.
+//!       and the pathspec-file source.
 //! Why:
 //!  Git's staging and selection run against a private index and the shadow object store,
 //!  so the real index and object store change only at landing.
@@ -23,7 +21,6 @@
 /// One required Git start,
 /// its request builder and the failure text.
 use crate::private_index_request::{CaptureIndexes, indexed_request};
-use crate::start_retry::RetryStart;
 /// Staged additions carried into the explicit-path index,
 /// and the pathspec-file reader.
 use crate::commit_staged_additions::{
@@ -36,8 +33,12 @@ use crate::transaction_journal::TransactionMode;
 /// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
 use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
-/// Real-Git command builder shared with the forwarded commands.
-use crate::forwarding::git_command;
+/// The stat-data refresh that keeps the scratch commit inside its ceiling.
+use crate::commit_index_stat_refresh::refresh_stat_data;
+/// The selection a commit names,
+/// and the `git add` arguments it stages with.
+use crate::commit_index_selection::selection_arguments;
+pub use crate::commit_index_selection::{IndexSelection, prepare_interactive_selection};
 /// `OsString` is owned operating-system text.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -45,68 +46,6 @@ use std::path::Path;
 
 /// Name of the single-consumption stdin snapshot inside the transaction directory.
 pub const PATHSPEC_INPUT_NAME: &str = "pathspec.input";
-
-/// What:
-///  The choices that shape one private index.
-/// Why:
-///   The incumbent's `initializeCommitIndex` takes these as one object,
-///  and the selection modes differ only in these values.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// initializeCommitIndex({ mode, pathspecs, pathspecFile, pathspecFileNul, stageIntoIndex, stageTrackedChanges, baseRevision });
-/// ```
-#[derive(Clone, Copy, Debug)]
-pub struct IndexSelection<'selection> {
-    /// Commit selection mode.
-    pub mode: TransactionMode,
-    /// Positional pathspecs of the command,
-    ///  exactly as the command line gave them.
-    pub pathspecs: &'selection [OsString],
-    /// Materialized pathspec file,
-    /// when the command names one.
-    pub pathspec_file: Option<&'selection Path>,
-    /// Whether the pathspec file separates records with NUL.
-    pub pathspec_file_nul: bool,
-    /// Whether an index commit stages the selected worktree content into its copy.
-    pub stage_into_index: bool,
-    /// Whether an index commit stages every tracked change,
-    /// as `commit -a` does.
-    pub stage_tracked_changes: bool,
-    /// Recorded base commit,
-    /// or the empty tree for an unborn base.
-    pub base_revision: &'selection str,
-}
-
-/// What:
-///  The selection arguments of `git add`:
-///  the pathspecs after `--`,
-/// or the pathspec-file controls.
-/// Why:
-///   Staging reads the same selection the policies were given.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// selectionArguments({ pathspecs, pathspecFile, pathspecFileNul });
-/// ```
-fn selection_arguments(selection: &IndexSelection) -> Vec<OsString> {
-    return match selection.pathspec_file {
-        None => {
-            let mut arguments: Vec<OsString> = vec![OsString::from("--")];
-            arguments.extend(selection.pathspecs.iter().cloned());
-            arguments
-        }
-        Some(file) => {
-            let mut option: OsString = OsString::from("--pathspec-from-file=");
-            option.push(file.as_os_str());
-            let mut arguments: Vec<OsString> = vec![option];
-            if selection.pathspec_file_nul {
-                arguments.push(OsString::from("--pathspec-file-nul"));
-            }
-            arguments
-        }
-    };
-}
 
 /// What:
 ///  Runs one Git command against the private index and the shadow object store,
@@ -162,13 +101,18 @@ fn is_tab_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  Copies or builds the private commit index and snapshots the real index at invocation.
+///  Refreshes the real index's stat data,
+/// copies or builds the private commit index from it,
+/// and snapshots the real index at invocation.
 /// Why:
 ///   Index commits start from the real index,
 /// so their staged state is the state at invocation;
 ///  explicit-path commits start from the recorded base,
 /// never live `HEAD`,
 ///  because another landing may have moved it since invocation.
+///  The stat data is refreshed first,
+/// because a copy carries it into the scratch commit,
+/// and that refresh is the one native `git commit` makes and writes back (`commit_index_stat_refresh.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -188,6 +132,39 @@ pub fn initialize_commit_index(
             &indexed_request(cwd, &["read-tree".to_string(), "--empty".to_string()], Some(real_index), None),
         )?;
     }
+    // The real index's stat data is refreshed before anything is copied from it, so the copies carry it and the scratch
+    // commit does not read and hash the whole work tree inside its three-second step (`commit_index_stat_refresh.rs`);
+    // the real index keeps the refresh, so the commit after this one does not pay it again.
+    let refreshed: bool = refresh_stat_data(context, cwd, real_index);
+    stage_into_the_private_index(context, cwd, real_index, indexes, selection)?;
+    if !refreshed {
+        // The real index could not be written: another program held `index.lock`, or the step was ended at its ceiling.
+        // The private index is refreshed here instead, so the scratch commit still finds the work tree's stat data and is
+        // not ended at its own ceiling, where a stop would fail the commit.
+        refresh_stat_data(context, cwd, indexes.commit_index.as_path());
+    }
+    return Ok(());
+}
+
+/// What:
+///  Copies the real index into the private commit index and stages the selection into it,
+/// in the order the selection mode needs.
+/// Why:
+///   The refresh of the real index's stat data has to come before the copies and the refresh of the private index after
+/// them,
+/// so the copies are one step and its two refreshes are the other (`initialize_commit_index`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await copyIndexFile(realIndex, commitIndex); await git(['add', '--all', ...selection], { index: commitIndex });
+/// ```
+fn stage_into_the_private_index(
+    context: &GitContext,
+    cwd: &Path,
+    real_index: &Path,
+    indexes: &CaptureIndexes,
+    selection: &IndexSelection,
+) -> Result<(), GitFailure> {
     copy_index_with_timestamps(real_index, indexes.captured_index.as_path()).map_err(copy_index_failure)?;
     if selection.mode == TransactionMode::Index {
         copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
@@ -272,6 +249,10 @@ pub fn initialize_commit_index(
 pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
     let mut arguments: Vec<String> = vec![String::from("read-tree")];
     let seeded: bool = real_index.exists() && seeds_private_index(real_index);
+    // The real index's stat data is refreshed before the copy below, for the reason the first preparation gives
+    // (`initialize_commit_index`): a rebuild runs when other commits land, so it is the one that can least afford to read
+    // the whole work tree again.
+    let refreshed: bool = real_index.exists() && refresh_stat_data(context, cwd, real_index);
     crate::diagnostic_log::debug("initializeRetryIndex", format!("retry index {} the real index's stat data", if seeded { "keeps" } else { "does not keep" }).as_str());
     if seeded {
         copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
@@ -279,6 +260,11 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     }
     arguments.push(tree.to_string());
     private_git(context, cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), &arguments)?;
+    if !refreshed {
+        // The real index could not be written, or holds no stat data to keep: the private index is refreshed so the scratch
+        // commit does not read the whole work tree inside its own ceiling.
+        refresh_stat_data(context, cwd, indexes.commit_index.as_path());
+    }
     return Ok(());
 }
 
@@ -492,54 +478,6 @@ pub fn list_changed_index_paths(
         }
     }
     return Ok(paths);
-}
-
-/// What:
-///  Runs `git add --patch` or `git add --interactive` against the private index with inherited stdio.
-/// Why:
-///   The user's terminal answers the selection,
-/// and the choice lands only in the private copy.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await prepareInteractiveSelection({ workspace, gitPath, cwd, patch, pathspecs, pathspecFile, pathspecFileNul });
-/// ```
-pub fn prepare_interactive_selection(
-    context: &GitContext,
-    cwd: &Path,
-    commit_index: &Path,
-    object_directory: &Path,
-    patch: bool,
-    selection: &IndexSelection,
-) -> Result<(), GitFailure> {
-    let mode: &str = if patch { "--patch" } else { "--interactive" };
-    let mut arguments: Vec<OsString> = vec![OsString::from("add"), OsString::from(mode)];
-    arguments.extend(selection_arguments(selection));
-    // The message shows the command as text; the command itself keeps the exact bytes.
-    let mut shown_words: Vec<String> = Vec::new();
-    for argument in &arguments {
-        shown_words.push(argument.to_string_lossy().into_owned());
-    }
-    let shown: String = shown_words.join(" ");
-    let mut command = git_command(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice());
-    command
-        .current_dir(cwd)
-        .env("GIT_INDEX_FILE", commit_index)
-        .env("GIT_OBJECT_DIRECTORY", object_directory);
-    let status: std::process::ExitStatus = match command.status_retrying() {
-        Ok(finished) => finished,
-        Err(error) => return Err(GitFailure(format!("git {shown} could not start: {error}"))),
-    };
-    if !status.success() {
-        return Err(GitFailure(format!(
-            "git {shown} exited {}",
-            match status.code() {
-                Some(code) => code.to_string(),
-                None => String::from("by signal"),
-            }
-        )));
-    }
-    return Ok(());
 }
 
 /// Private index controls stay out of the release executable.
