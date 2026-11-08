@@ -739,17 +739,22 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   name every folder and file plainly with its `uses/` list,
   rescan after the lint branches land,
   and put the whole tree before the owner before anything moves.
-  The fuzz crate `package/git-policy/cli.fuzz` does not compile on main:
-  `src/owners.rs` imports `git_policy_cli::owner_lock_record`,
+  The fuzz crate `package/git-policy/cli.fuzz` compiles again on `fix/git-policy-cli-fuzz-builds-again`
+  (merged to main;
+  `git log --grep=fuzz-builds-again` names the merge):
+  `src/owners.rs` had imported `git_policy_cli::owner_lock_record`,
   deleted in `ee30d244f6`
   ("worktree add takes no settlement lock",
-  2026-11-03T02:36:31-05:00);
-  no gate compiles that crate,
-  so nothing
-  noticed.
-  The crate split changes every `git_policy_cli::` import it uses,
-  so it is fixed as part of the split:
-  each move keeps it compiling,
+  2026-11-03T02:36:31-05:00),
+  so the `owner_records` target now reads the copy owner token that replaced that record
+  (`worktree_copy_owner.rs`) and the two file names that carry it.
+  Its `lint:types` build check already existed
+  (`039b0e2d47`,
+  2026-11-01T11:08:17-05:00)
+  and failed first on a stale `Cargo.lock`,
+  which is regenerated.
+  The crate split changes every `git_policy_cli::` import the crate uses,
+  so each move keeps `mise run //package/git-policy/cli.fuzz:lint:types` passing,
   and its compile joins the container gate at the first move.
 - Program rename (task #165;
   plan `doc/planning/git-policy-cli-program-rename.md`):
