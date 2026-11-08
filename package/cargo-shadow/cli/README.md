@@ -1157,15 +1157,8 @@ Six mechanisms
   `planted-`) older than the retention age go,
   and the oldest go while the directory is over its cap.
   Anything else in the directory is never touched.
-  The sweep runs from `cargo-shadow lean run` over every checkout's directory,
-  and from `cargo-shadow lean records <directory>...` over the directories one producing task names:
-  the task that writes records calls that first,
-  so the directory is bounded without the task reimplementing the retention.
-  A sweep of one package's directory costs a read of that directory and one `/proc` scan;
-  the machine-wide pass measured 398 s on 2026-11-08 (359 checkouts,
-  119 verification directories,
-  nothing due for removal),
-  which is why a producing task names its own directory instead of running the whole pass.
+  The sweep runs from `cargo-shadow lean run`;
+  the producing tasks do not call it themselves yet.
 - E,
   size caps per profile directory with oldest-first eviction.
   Entries touched within the grace period are never evicted.
@@ -1249,7 +1242,6 @@ and takes no lock of its own (the claim is the rename).
 # package/cargo-shadow/cli/README.md
 cargo-shadow lean run --dry-run
 cargo-shadow lean run --only units,records
-cargo-shadow lean records target/verification --dry-run
 cargo-shadow lean timer-install
 ```
 

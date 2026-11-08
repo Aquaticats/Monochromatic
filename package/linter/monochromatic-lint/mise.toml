@@ -196,9 +196,7 @@ run = "node bin/mutate-container.ts --list --inferred-constants"
 
 [tasks."test:container"]
 description = "Run artifact tests in a mount-free, network-disabled 2 GiB / 2 CPU container"
-# Mechanism D: the run-record retention of this package's target/verification, swept before a run writes another record
-# through cargo-shadow's own sweep; every mutation task depends on this one, so the sweep runs before them too.
-run = ["cargo-shadow lean records target/verification", "node bin/test-container.ts"]
+run = "node bin/test-container.ts"
 
 [tasks."test:rust-style"]
 description = "Verify the sidecar test rule independently of unfinished Markdown adapters, under the same container bounds"

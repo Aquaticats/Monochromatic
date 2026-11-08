@@ -12,8 +12,7 @@ run = "cargo nextest run --lib"
 
 [tasks."test:planted"]
 description = "Plant each listed defect in a disposable copy of the subject and require the generator controls to fail"
-# Mechanism D: this task writes a planted- record of its own, so it sweeps the run records first too.
-run = ["cargo-shadow lean records target/verification", "node bin/planted-controls.ts"]
+run = "node bin/planted-controls.ts"
 
 # The root `lint` fans out to the task named exactly `lint` in each package; without this entry the sidecar's checks
 # were never reached, and a change to the subject that broke a fuzz target went unnoticed.
@@ -31,8 +30,7 @@ run = "node bin/container.ts --build-only"
 
 [tasks.smoke]
 description = "Run generator controls, Clippy, then ASAN targets for 30s each in mount-free bounded containers"
-# Mechanism D: the run-record retention of this package's target/verification, swept before a run writes another record.
-run = ["cargo-shadow lean records target/verification", "node bin/container.ts"]
+run = "node bin/container.ts"
 
 [tasks."lock:subject"]
 description = "Seed the fuzz lockfile from the subject's lockfile, then let Cargo add only this sidecar's own packages, so both lock the same registry versions"
