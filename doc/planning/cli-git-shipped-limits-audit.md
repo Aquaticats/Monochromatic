@@ -4816,15 +4816,25 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   (678,557 to 1,228,797 ms).
 - Under load:
   the reading ran at load average 115.9 of 32 threads (`/proc/loadavg`),
-  and the records were taken by up to 182 commits an hour of this repository.
-  Grouped by how many other commits of this repository started within a minute of each landed record:
-  alone (278 records) p99 23,783 ms and longest 38,310;
-  1 to 3 others (611) p99 11,842 and longest 23,739;
-  4 to 9 (261) p99 7,895 and longest 38,545;
-  10 or more (157) p99 5,918 and longest 46,061.
-  The busiest group is not the slowest,
-  so this log's own concurrency does not separate a loaded hour from a quiet one,
-  and the spread of the four groups (p99 5.9 to 23.8 s) is not evidence of a load effect either way.
+  and the log itself says which hours were busy.
+  Within one release, which is one binary on both sides:
+  the two quietest hours of 0.6.1-alpha.1 (15 and 16 landed commits) had answer waits of 114 and 599 ms at the 99th percentile,
+  against 2,890 to 9,086 ms in its five hours of 29 to 81;
+  the quietest hour of 0.6.0 (13 records) had 3,892 ms,
+  against 5,854 to 38,545 ms in its five hours of 46 to 182.
+  So the busy hours carry the long tail,
+  and its size is the spread between one busy hour and another:
+  the 182-commit hour of 0.6.0 has 11,975 ms at the 99th percentile,
+  below the 38,545 ms of the 116-commit hour beside it,
+  where the longest landed answer wait of the sample (46,061 ms) is.
+  Grouping instead by how many other commits of this repository started within a minute of each landed record
+  (alone, 1 to 3, 4 to 9, 10 or more) gives 23,783,
+  11,842,
+  7,895 and 5,918 ms at the 99th percentile,
+  an order that runs the other way.
+  The host was loaded by the measure above,
+  and both groupings show that in the tail;
+  neither separates a load effect on any one figure from the spread between comparable hours.
 - What the log cannot measure:
   the merge and the settling of earlier batches write no record at all.
   A merge is forwarded and never reaches the commit command's timing (`CommitTiming::start` is in

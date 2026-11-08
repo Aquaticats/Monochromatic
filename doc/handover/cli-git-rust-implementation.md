@@ -8072,6 +8072,16 @@ what the ten minutes is worth and what the three ceilings now rest on.
   two landed (3,636 and 23,783 ms of answer time),
   four are the commits that met the lock that never went on 2026-11-07
   (644,710 to 1,200,776 ms, all stopped, the last notice `unproven` in five of them).
+- Under load:
+  the reading ran at load average 115.9 of 32 threads,
+  and the log's own hours ran from 1 to 182 landed commits.
+  Within one release on both sides,
+  the quietest hour of 0.6.1-alpha.1 (15 landed commits) had 114 ms at the 99th percentile of the answer wait,
+  against 2,890 to 9,086 ms in its hours of 29 to 81;
+  the busiest hour of 0.6.0 (182) had 11,975 ms,
+  below the 38,545 ms of the 116-commit hour beside it.
+  The tail follows the busy hours,
+  with as much spread between two busy hours as between a busy one and a quiet one.
 - What the log cannot measure:
   a merge writes no record (278 merge commits in the window, and `CommitTiming::start` is in
   `commit/commit_command.rs` alone),
