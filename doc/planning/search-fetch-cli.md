@@ -29,7 +29,7 @@ not only the new CLI.
 
 ## What to inspect
 
-The decision record below,
+The "Decision record" section,
 especially `Layout and rename ledger`,
 `CLI contract`,
 and
