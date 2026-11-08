@@ -286,6 +286,59 @@ from the brief and the plan:
   a new failure word reaches an older client only when a service of another release is still running,
   which the wrapper retires;
   bumping the protocol is the owner's call.
+- W2 latency (coordinator's bar:
+  no forwarded command slower beyond the same-binary spread).
+  Method:
+  the wrapper of main before the
+  merge (`959402bca7`) against the final branch binary,
+  alternating arms,
+  three rounds of 60 runs per arm,
+  `git -C <repository> status --short` and `rev-parse HEAD`,
+  the real 860 as the repository's filesystem,
+  three identity states
+  (scripts and results under `${HOME}/temp/agent/860-w-items-2/ab-measure/`,
+  `result-1.txt` before the memoizing,
+  `result-3.txt` final),
+  run while other sessions and a gate container kept the host busy.
+  Median of the three round medians,
+  in milliseconds
+  (the spread of the same binary across rounds was 0.4 to 0.8):
+  identity file absent,
+  status:
+  5.31 before and 5.34 after;
+  rev-parse 4.55 before and 4.80 after;
+  phase `before`,
+  status:
+  5.39 and 5.54;
+  rev-parse 4.58 and 4.47;
+  phase `after`,
+  status:
+  5.04 and 6.01;
+  rev-parse 4.74 and 5.58.
+  So absent and `before` are inside the spread.
+  Phase `after` is slower by about 1.0 ms (status) and 0.8 ms (rev-parse) at the median
+  and 0.5 to 0.8 ms at p95,
+  beyond the spread.
+  The first version cost 1.2 to 1.4 ms there;
+  reading the mount table and each device's UUID once per
+  check and remembering a usable repository for the rest of the process (the entry gate and the startup step meet the same
+  identity) took off about a third.
+  What is left is one walk of the link per command (the thread for the deadline,
+  `readlink`,
+  `realpath`,
+  the table,
+  the UUID links,
+  the marker file) on every command that touches the repository once the move is done.
+  Cheaper options not built:
+  skip the walk for a read-only command,
+  or cache the answer across commands (a file in the runtime folder);
+  both change what the gate guarantees,
+  so they are the coordinator's and the owner's choice.
+  `native:perf` (empty home,
+  so only the failed open):
+  forwarded added medians 1.5 to 2.0 ms and commit paired deltas 20 to 26 ms in
+  both arms of three alternating pairs,
+  inside the spread.
 - Open harness item,
   container run 1 (220 failures):
   217 `fresh fixture: NotFound` (the fixture root `target/tmp` of the container
