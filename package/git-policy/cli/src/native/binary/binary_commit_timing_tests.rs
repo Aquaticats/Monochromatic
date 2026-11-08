@@ -261,20 +261,69 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
 /// in seconds.
 const SLOW_STEP_SECONDS: u64 = 3;
 
-/// A directory with a stand-in `git` that sleeps `SLOW_STEP_SECONDS` before any run whose words include `commit`,
+/// How long the ceiling of the scratch commit is set to in the controls that sleep in that step to watch its notices and records,
+/// in seconds:
+/// far above their sleeps,
+/// so the measured production ceiling (3,006 ms) does not decide them.
+const CONTROL_CEILING_SECONDS: &str = "600";
+
+/// A directory with a stand-in `git` that sleeps `seconds` before any run whose words include `commit`,
 /// then runs the
 ///  real Git;
 /// every other step runs at once.
-fn slow_commit_git(fixture: &Fixture) -> PathBuf {
+fn slow_commit_git(fixture: &Fixture, seconds: u64) -> PathBuf {
     let directory: PathBuf = fixture.root.join("slow-commit-bin");
     std::fs::create_dir_all(&directory).expect("directory of the stand-in");
     let program: PathBuf = directory.join("git");
     let source: String = format!(
-        "#!/bin/sh\nslow=no\nfor word in \"$@\"; do\n  if [ \"$word\" = cat-file ]; then slow=no; break; fi\n  if [ \"$word\" = commit ]; then slow=yes; fi\ndone\nif [ $slow = yes ]; then /usr/bin/sleep {SLOW_STEP_SECONDS}; fi\nexec /usr/bin/git \"$@\"\n"
+        "#!/bin/sh\nslow=no\nfor word in \"$@\"; do\n  if [ \"$word\" = cat-file ]; then slow=no; break; fi\n  if [ \"$word\" = commit ]; then slow=yes; fi\ndone\nif [ $slow = yes ]; then /usr/bin/sleep {seconds}; fi\nexec /usr/bin/git \"$@\"\n"
     );
     std::fs::write(&program, source).expect("the stand-in");
     std::fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("executable");
     return directory;
+}
+
+/// How long the stand-in Git sleeps in the control of the ceiling,
+/// in seconds:
+/// far beyond the ceiling,
+/// so only the stop ends the step.
+const BEYOND_THE_CEILING_SECONDS: u64 = 60;
+
+/// A commit whose message came with the command and whose scratch `git commit` outlasts the ceiling
+/// (3,006 ms,
+/// owner,
+/// 2026-11-08,
+/// "About 3 s now")
+/// is stopped,
+/// says that nothing was committed and that the same command can be run again,
+/// and changes neither the branch nor the person's files.
+#[test]
+fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committed() {
+    let fixture: Fixture = fixture("timing-ceiling-stop");
+    let repo: PathBuf = base_repository(&fixture);
+    git_text(&fixture, &repo, &["config", "commit.verbose", "false"]);
+    let name: String = format!("timing-ceiling-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
+    let edited: Vec<u8> = std::fs::read(repo.join("a.txt")).expect("a.txt");
+    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_CEILING_SECONDS).into_os_string();
+    path.push(":");
+    path.push(fixture.root.join("bin"));
+    command.env("PATH", path);
+    let began: std::time::Instant = std::time::Instant::now();
+    let served = observe(&mut command, b"");
+    let lasted: Duration = began.elapsed();
+    let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
+    assert_eq!(served.code, Some(1), "{stderr}");
+    assert!(lasted < Duration::from_secs(BEYOND_THE_CEILING_SECONDS), "the stop did not end the step: {lasted:?}");
+    assert!(stderr.contains("was stopped after") && stderr.contains("nothing was committed"), "{stderr}");
+    assert!(stderr.contains("Run the same `git commit` command again"), "{stderr}");
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("a.txt"), edited, "the person's file is as it was");
+    remove_settled(&fixture);
 }
 
 /// The record names every Git step of the command with when it began and how long it took,
@@ -301,10 +350,10 @@ fn a_slow_build_step_is_named_in_the_record_with_its_duration() {
     let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
     let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
     // Real Git is searched in the usual places first, so the stand-in is found only where the PATH has no `/usr/bin`.
-    let mut path: std::ffi::OsString = slow_commit_git(&fixture).into_os_string();
+    let mut path: std::ffi::OsString = slow_commit_git(&fixture, SLOW_STEP_SECONDS).into_os_string();
     path.push(":");
     path.push(fixture.root.join("bin"));
-    command.env("PATH", path);
+    command.env("PATH", path).env(git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE, CONTROL_CEILING_SECONDS);
     let served = observe(&mut command, b"");
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
     let found: Vec<serde_json::Value> = records(&repo);
@@ -1007,8 +1056,9 @@ fn commit_noticing(name: &str, configuration: &[(&str, String)], extra_words: &[
     arguments.extend_from_slice(&["-m", MESSAGE, "--", "a.txt"]);
     let mut command: Command = wrapped_commit(&fixture, &repo, arguments.as_slice());
     command.env("XDG_RUNTIME_DIR", runtime_for(service_name.as_str())).env("CLI_GIT_WAIT_NOTICE_SECONDS", "1").env("GIT_EDITOR", "/usr/bin/true");
+    command.env(git_policy_cli::native_commit_waiting_notice::SCRATCH_CEILING_VARIABLE, CONTROL_CEILING_SECONDS);
     if slow_git {
-        let mut path: std::ffi::OsString = slow_commit_git(&fixture).into_os_string();
+        let mut path: std::ffi::OsString = slow_commit_git(&fixture, SLOW_STEP_SECONDS).into_os_string();
         path.push(":");
         path.push(fixture.root.join("bin"));
         command.env("PATH", path);

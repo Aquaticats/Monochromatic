@@ -41,6 +41,24 @@
 //! const notice = startNotice({ signs, cadence, ceiling }); try { await runGitCommit(); } finally { const stoppedAfter = notice.finish(); }
 //! ```
 
+/// The environment variable that sets the ceiling of the step in whole seconds.
+pub const SCRATCH_CEILING_VARIABLE: &str = "CLI_GIT_SCRATCH_COMMIT_CEILING_SECONDS";
+
+/// The whole seconds a setting of `SCRATCH_CEILING_VARIABLE` names.
+fn seconds_in(text: String) -> Option<u64> {
+    return text.trim().parse::<u64>().ok();
+}
+
+/// The ceiling of the step:
+/// `SCRATCH_CEILING_VARIABLE` when it names a positive number of seconds,
+/// else `SCRATCH_COMMIT_STEP_CEILING`.
+pub fn scratch_ceiling() -> Duration {
+    return match std::env::var(SCRATCH_CEILING_VARIABLE).ok().and_then(seconds_in) {
+        Some(seconds) if seconds > 0 => Duration::from_secs(seconds),
+        _ => crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING,
+    };
+}
+
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
 /// The processes started below this one,
@@ -101,7 +119,7 @@ pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool) -> String {
     };
     return format!(
         "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, the most a commit whose \
-         message came with the command may take ({} seconds, three times the longest build this repository's commit timing log holds); nothing was \
+         message came with the command may take ({} seconds, three times the slowest `git commit` step this repository's commit timing log holds); nothing was \
          committed, and your index and files are as they were.{signing} Run the same `git commit` command again.\n",
         waited.as_secs(),
         ceiling.as_secs()

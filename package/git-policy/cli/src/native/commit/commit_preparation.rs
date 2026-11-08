@@ -169,7 +169,7 @@ pub fn run_native_commit(
     cwd: &Path,
     request: &PreparationRequest,
 ) -> Result<i32, PreparationError> {
-    return run_native_commit_within(context, cwd, request, crate::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING);
+    return run_native_commit_within(context, cwd, request, crate::native_commit_waiting_notice::scratch_ceiling());
 }
 
 /// What:
