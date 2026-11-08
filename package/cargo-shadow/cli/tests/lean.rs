@@ -134,6 +134,24 @@ fn the_full_run_starts_only_podman_and_the_containment_probe_never_cargo_or_itse
 }
 
 #[test]
+fn a_full_run_prints_the_cheap_mechanisms_before_the_units_pass() {
+    let world = make_world();
+    let output: Output = run(&world, &world.repository, &["lean", "run", "--dry-run"]);
+    let stdout: String = String::from_utf8_lossy(&output.stdout).to_string();
+    assert_eq!(output.status.code(), Some(0), "{stdout} {}", String::from_utf8_lossy(&output.stderr));
+    let at = |prefix: &str| -> usize { return stdout.lines().position(|line| { return line.starts_with(prefix); }).unwrap_or_else(|| panic!("no line starts with `{prefix}`: {stdout}")); };
+    // The units pass is the one a three-hour deadline cuts off, so it must be last;
+    // the passes behind it in the plan's order are the ones that starved (measured 2026-11-08).
+    let cheapest_first: [&str; 5] = ["run records:", "toolchains:", "podman:", "idle trees:", "older-compiler sweep:"];
+    let mut previous: usize = 0;
+    for prefix in cheapest_first {
+        let here: usize = at(prefix);
+        assert!(here >= previous, "`{prefix}` comes before an earlier mechanism: {stdout}");
+        previous = here;
+    }
+}
+
+#[test]
 fn outside_a_checkout_the_run_says_so_and_fails() {
     let world = make_world();
     let outside: PathBuf = world.fakes.join("not-a-checkout");
