@@ -341,7 +341,7 @@ impl FixtureService {
             .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::from(crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
         for (name, value) in fixture.service_environment.lock().expect("the service environment").iter() {
             command.env(name, value);
         }

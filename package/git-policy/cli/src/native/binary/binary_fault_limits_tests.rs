@@ -140,11 +140,12 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, may_abort);
     end_the_pressure(&fixture);
-    let verdict: Result<(), String> = if verify {
+    let judged: Result<(), String> = if verify {
         first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); })
     } else {
         Ok(())
     };
+    let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let landed: bool = output.status.code() == Some(0);
     remove_settled(&fixture);
     return Case { landed, verdict };
@@ -403,14 +404,43 @@ fn a_commit_service_at_its_process_limit_fails_plainly_and_serves_again_when_it_
     }
     let output: Output = limited_commit(&fixture, repo.as_path(), &[]);
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
-    assert_eq!(check_limited_run("nproc-service", &output, false), Ok(()));
-    assert_ne!(output.status.code(), Some(0), "the service could start no thread or process, so the commit cannot have landed: {said}");
+    if let Err(reason) = check_limited_run("nproc-service", &output, false) {
+        panic!("{}", super::fault_run::with_service_log(&fixture, reason));
+    }
+    assert_ne!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        super::fault_run::with_service_log(&fixture, format!("the service could start no thread or process, so the commit cannot have landed: {said}"))
+    );
     for pid in &services {
         LimitKind::Processes.lift_for(*pid, hard, hard).expect("the soft limit is raised up to the hard limit");
     }
     *fixture.service_launch.lock().expect("the service launch") = ServiceLaunch::default();
-    assert_eq!(verify_recovery(&fixture, repo.as_path(), "nproc-service", said.as_str()), Ok(()));
+    if let Err(reason) = verify_recovery(&fixture, repo.as_path(), "nproc-service", said.as_str()) {
+        panic!("{}", super::fault_run::with_service_log(&fixture, reason));
+    }
     remove_settled(&fixture);
+}
+
+/// A failure of these controls carries what the service itself logged.
+/// Why:
+///  The recorded failure of 2026-11-07 was a service that could not start the thread for its after-commit work;
+/// its line
+///  names the error and the exit that followed,
+/// so a failure that keeps it is settled without a rerun,
+/// and the sweep runs
+///  several cases at once so the inherited stream alone says nothing about which case wrote it.
+#[test]
+fn a_failure_carries_what_the_fixture_service_logged() {
+    let fixture: Fixture = fixture("service-log");
+    let repo: PathBuf = staged_repository(&fixture, "repo");
+    let _runtime: Option<PathBuf> = super::support::service_runtime(&fixture);
+    let message: String = super::fault_run::with_service_log(&fixture, String::from("the commit did not land"));
+    assert!(message.starts_with("the commit did not land"), "{message}");
+    assert!(message.contains("ready"), "the log of the service that started is carried: {message}");
+    remove_settled(&fixture);
+    drop(repo);
 }
 
 /// A process limit that is exhausted for the wrapper,
@@ -480,7 +510,8 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     let first: Result<(), String> = check_limited_run(label, &output, false);
     end_the_pressure(&fixture);
-    let verdict: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
+    let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
+    let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let landed: bool = output.status.code() == Some(0);
     remove_settled(&fixture);
     return Case { landed, verdict };
