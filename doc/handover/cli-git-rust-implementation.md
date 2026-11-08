@@ -4271,6 +4271,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `turso_sync_engine` and
   `turso` 0.8.3 and exited 0,
   `Finished release profile` in 39.53 s for arm64-v8a and 29.21 s for x86_64.
+  The real build followed:
+  `mise run //package/music-player/android-app:build:native`
+  (release through `cargo ndk` for arm64-v8a and x86_64)
+  finished in 3m 38s and 3m 19s,
+  and copied `libmusicplayer_native.so` with its turso libraries into
+  `app/src/main/jniLibs` for both ABIs.
   The lock moved from turso 0.8.2 to 0.8.3 in the daily lock update `d61dc1934a`,
   so both the toolchain and the version this entry named have changed since it was written.
   Nothing was reported upstream and nothing needs to be:
@@ -5779,6 +5785,9 @@ are in append mode now).
   so the image still held `nightly-2026-11-07`,
   and a cargo task on this pin ran the previous nightly until the rebuild
   without naming the toolchain it used.
+  The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
+  (2026-11-08T15:41:28-05:00),
+  so the container tasks are on the pin from now on.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
