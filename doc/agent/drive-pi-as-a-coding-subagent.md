@@ -593,6 +593,36 @@ and made four more one-line edits.
 printed `{"status":"invalid","reason":"invalid_state"}` before these runs,
 and the model worked in all of them.
 
+## The skill's recipe with real tools, run 2026-11-08T13:34:56-05:00
+
+The shell blocks of `.agents/skills/pi-as-subagent/SKILL.md` ran as written,
+with only the placeholders filled in,
+against a throwaway Git folder holding a copy of `AGENTS.md`.
+
+The prompt had Pi run `git status --short` and `git commit --allow-empty --message shim-check`.
+The status ran,
+the shim refused the commit with exit status 1,
+and the throwaway held no commits afterward.
+The refusal is the run's only entry in `toolErrors`.
+A text file written to `inbox_<tag>` after the first settle reached Pi as a new prompt,
+and Pi read rule `ATH` from `AGENTS.md` and replied with it.
+The unit exited 0 after 87 seconds,
+of which the driver's `IDLE_MS` wait was 60.
+
+The waiting step changed because of a check on the same day.
+`timeout 4 tail --pid="$(systemctl --user show --property=MainPID --value <unit>)" --follow /dev/null`,
+pointed at a unit that had already run `/usr/bin/false`,
+ended with status 124,
+so it waited out the whole timeout.
+`systemd-run --user --wait` on the same program ended after 16 ms with status 1 and printed the unit's result.
+On a unit over `RuntimeMaxSec=2` it ended after 2.2 seconds with status 1 and the result `timeout`.
+
+Still weak:
+the driver and the shim exist only as code blocks in this doc,
+copied out with `awk` for each run,
+so nothing type-checks,
+lints or tests them.
+
 ## Tool and feed quirks
 
 - A multi-block `edit` is rejected whole when one `oldText` does not match.

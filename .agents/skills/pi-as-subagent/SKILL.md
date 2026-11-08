@@ -33,8 +33,6 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 1.  From `~/Monochromatic`,
     check that `mise exec -- pi --version` prints a version.
-    `Cannot find module` under a path outside your home means `node_modules` holds links from before the repository moved;
-    `mise exec -- pnpm install --offline --frozen-lockfile` there relinks them.
 2.  Make a worktree for the run with `git worktree add -b <branch> .claude/worktrees/<name> HEAD`,
     in the background.
 3.  Copy the recorded driver and the read-only `git` shim into a fresh folder under `${HOME}/temp/agent`.
@@ -50,13 +48,34 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     chmod 700 <run>/shim/git
     ```
 
-4.  Start it as its own capped unit.
+4.  Write the prompt to a file.
+    Beside rules `ATH` and `NLD`,
+    give it:
+
+    - the owner's words as the requirement,
+      quoted;
+    - your own reading as a suggestion it may reject;
+    - the files it must not edit,
+      including everything `file-enforcer` generates;
+    - that the lead commits,
+      because `AGENTS.md` tells agents to commit and the shim refuses;
+    - a final report of each change,
+      each disagreement,
+      and anything it could not do,
+      because it cannot ask you.
+
+5.  Start it as its own capped unit,
+    in the background.
+    `--wait` makes this one command end when the unit ends,
+    print the unit's result,
+    and exit with its status;
+    following `MainPID` with `tail --pid` waited out its whole timeout on a unit that had already finished.
     The driver defaults to another provider,
     so set both `PI_PROVIDER` and `PI_MODEL`:
 
     ```sh
     # run from ~/Monochromatic
-    systemd-run --user --unit=pi-<task> --collect \
+    systemd-run --user --wait --unit=pi-<task> --collect \
       --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=10 \
       --setenv=PATH="<run>/shim:$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" --setenv=REAL_GIT=/usr/bin/git \
       --setenv=PI_PROVIDER=neuralwatt --setenv=PI_MODEL=deepseek-v4.1-flash \
@@ -65,10 +84,14 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
       <run>/pi-rpc-agent.ts <run>/out _<tag> <worktree> <prompt-file>
     ```
 
-5.  Wait in one background command,
-    `timeout <seconds> tail --pid="$(systemctl --user show --property=MainPID --value pi-<task>)" --follow /dev/null`,
-    and read progress from `<run>/out/feed_<tag>.jsonl` when asked.
-6.  Read the result from `<run>/out/summary_<tag>.json`.
+6.  Read progress from `<run>/out/feed_<tag>.jsonl` when asked.
+    To steer,
+    write a text file into `<run>/out/inbox_<tag>/`:
+    Pi gets it as a steer while it runs and as a new prompt while it is idle,
+    and `IDLE_MS` is how long the driver stays up for one after Pi settles.
+    To end the run early,
+    create `<run>/out/stop_<tag>`.
+7.  Read the result from `<run>/out/summary_<tag>.json`.
     Its `lastAssistantText` is cut at 3000 characters and `tokens.costTotal` undercounts,
     so take the cost from `sessionStats` and the full report from the session file it names:
 
@@ -77,10 +100,10 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     jq --raw-output 'select(.type == "message" and .message.role == "assistant") | .message.content[]? | select(.type == "text") | .text' <session file>
     ```
 
-7.  For a follow-up after the driver has exited,
+8.  For a follow-up after the driver has exited,
     start the same unit under a new name and tag,
     with a new prompt file and `--setenv=PI_EXTRA_ARGS="--session <session file>"`.
-8.  Review the diff as the lead,
+9.  Review the diff as the lead,
     regenerate anything `file-enforcer` owns,
     and commit.
 
