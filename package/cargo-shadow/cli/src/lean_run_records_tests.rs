@@ -132,15 +132,47 @@ fn the_records_action_sweeps_only_the_directories_it_is_given() {
     assert!(old_elsewhere.exists(), "the sweep reached a directory it was not given");
 }
 
-/// A directory named relative to the folder a task runs in is resolved before the in-use scan compares it with the
-/// absolute paths the kernel reports,
-/// and an absolute one is kept as it is.
+/// A directory named relative to the folder a task runs in,
+/// reached through a symbolic link or spelled with a `..` step,
+/// is resolved to the one path the in-use scan compares with the paths the kernel reports.
 #[test]
-fn a_named_directory_is_resolved_against_the_folder_the_task_runs_in() {
-    let start: PathBuf = PathBuf::from("/somewhere/package/x/y");
+fn every_spelling_of_the_same_directory_is_resolved_to_one_path() {
+    let root = scratch();
+    let real: PathBuf = root.path().join("checkout/target/verification");
+    fs::create_dir_all(&real).expect("a verification directory");
+    let link: PathBuf = root.path().join("link-to-checkout");
+    std::os::unix::fs::symlink(root.path().join("checkout"), &link).expect("a symbolic link");
+    let through_a_parent_step: PathBuf = PathBuf::from("checkout/target/verification/../verification");
+    let canonical: PathBuf = fs::canonicalize(&real).expect("the resolved directory");
 
-    assert_eq!(directories_from(&start, &[PathBuf::from("target/verification")]), vec![PathBuf::from("/somewhere/package/x/y/target/verification")]);
-    assert_eq!(directories_from(&start, &[PathBuf::from("/absolute/target/verification")]), vec![PathBuf::from("/absolute/target/verification")]);
+    assert_eq!(directories_from(root.path(), &[link.join("target/verification")]), vec![canonical.clone()]);
+    assert_eq!(directories_from(root.path(), &[through_a_parent_step]), vec![canonical.clone()]);
+    assert_eq!(directories_from(root.path(), &[PathBuf::from("checkout/target/verification")]), vec![canonical]);
+    // A directory that is not there yet keeps its joined name, because nothing can be using it.
+    assert_eq!(directories_from(root.path(), &[PathBuf::from("not/there")]), vec![root.path().join("not/there")]);
+}
+
+/// The proof that a record is in use survives a directory named through a symbolic link.
+/// The scan compares each root with the paths the kernel reports,
+/// which are resolved,
+/// so a record a process holds is kept whatever spelling the task used.
+#[test]
+fn a_record_a_process_uses_is_kept_when_the_directory_is_named_through_a_link() {
+    let root = scratch();
+    let checkout: PathBuf = root.path().join("checkout");
+    let verification: PathBuf = checkout.join("target/verification");
+    let used: PathBuf = record(&verification, "native-used", 8192, 0);
+    age_everything(&used, now_seconds() - 30 * DAY);
+    let link: PathBuf = root.path().join("link-to-checkout");
+    std::os::unix::fs::symlink(&checkout, &link).expect("a symbolic link");
+    let child: Child = Command::new("sleep").arg("120").current_dir(&used).spawn().expect("start sleep");
+    let _holder: Sleeper = Sleeper { child };
+    let action = LeanAction::Records { directory: vec![link.join("target/verification")], dry_run: false, deadline_minutes: Some(1) };
+
+    let code: i32 = run_lean_action(&action);
+
+    assert_eq!(code, 0);
+    assert!(used.exists(), "a record a process uses was removed when its directory was named through a link");
 }
 
 /// A directory that is not there yet is named and is not a failure;

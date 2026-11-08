@@ -13,8 +13,8 @@
 //! export function runLeanAction(action: LeanAction): number
 //! ```
 
-/// Paths and time.
-use std::{path::{Path, PathBuf}, time::Duration};
+/// Files and paths.
+use std::{fs, path::{Path, PathBuf}, time::Duration};
 
 /// Imports the names this file uses from `crate::cli`.
 use crate::cli::{LeanAction, MechanismName};
@@ -57,22 +57,26 @@ pub(crate) fn absent_notes(directories: &[PathBuf]) -> Vec<String> {
 }
 
 /// What:
-/// `pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf>` resolves each named directory against `start`.
+/// `pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf>` resolves each named directory to one absolute path.
 /// Why:
 /// The in-use scan compares a root with the working directory,
 /// program,
 /// open files and mapped files of every process,
-/// and the kernel reports those as absolute paths,
-/// so a directory named relative to a task's own folder is resolved once here.
+/// and the kernel reports those resolved,
+/// so a path relative to a task's own folder,
+/// a path through a symbolic link and a path with a `..` step all have to name the same root the scan will compare.
+/// A directory that is not there yet keeps its joined name,
+/// because nothing can be using it and the sweep reports it as absent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export const directoriesFrom = (start: string, given: string[]): string[] => given.map((one) => isAbsolute(one) ? one : join(start, one));
+/// export const directoriesFrom = (start: string, given: string[]): string[] => given.map((one) => { try { return realpathSync(isAbsolute(one) ? one : join(start, one)); } catch { return isAbsolute(one) ? one : join(start, one); } });
 /// ```
 pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf> {
     let mut resolved: Vec<PathBuf> = Vec::new();
     for path in given {
-        resolved.push(if path.is_absolute() { path.clone() } else { start.join(path) });
+        let joined: PathBuf = if path.is_absolute() { path.clone() } else { start.join(path) };
+        resolved.push(fs::canonicalize(&joined).unwrap_or(joined));
     }
     return resolved;
 }
