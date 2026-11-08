@@ -91,8 +91,10 @@ mutating,
 The check parses shell grammar rather than matching text,
  so quoting,
  chaining,
- and wrappers such as `env`, `sudo`, `timeout`, or a shell `-c` string do not
- hide a mutation.
+ and wrappers such as `env`,
+ `sudo`,
+ `timeout`,
+ or a shell `-c` string do not hide a mutation.
 
 Unlike the `bun test` guard,
  this one has no config switch:
