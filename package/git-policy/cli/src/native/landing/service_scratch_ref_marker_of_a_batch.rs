@@ -33,7 +33,7 @@
 //! ```
 
 use crate::service_instance::instance_of;
-use crate::service_journal::{OPEN_EXTENSION, batch_path};
+use crate::service_journal::{OPEN_EXTENSION, SCRATCH_EXTENSION, batch_path};
 use crate::service_land_context::LandContext;
 use crate::service_protocol::{CommitRequest, FailureCode};
 use crate::service_scratch_ref_of_a_dropped_batch::{ScratchRefRemoval, clear_after_a_failed_landing, clear_after_dropped_batch};
@@ -44,13 +44,6 @@ use std::path::{Path, PathBuf};
 /// The record format version.
 const VERSION: u64 = 1;
 
-/// The ending of a record's file name;
-/// the rest of the name is the batch number.
-/// Why:
-///   The journal lists every file of a batch,
-/// and a record that is not an intent is never read as
-/// one.
-const RECORD_EXTENSION: &str = "scratch";
 
 /// What:
 ///  The path of the record of batch `seq`'s scratch reference.
@@ -63,7 +56,7 @@ const RECORD_EXTENSION: &str = "scratch";
 /// join(journal, `${seq}.scratch`)
 /// ```
 pub(crate) fn record_path(journal: &Path, seq: u64) -> PathBuf {
-    return batch_path(journal, seq, RECORD_EXTENSION);
+    return batch_path(journal, seq, SCRATCH_EXTENSION);
 }
 
 /// What:
@@ -201,7 +194,7 @@ fn records(journal: &Path) -> Vec<(u64, PathBuf)> {
     let mut found: Vec<(u64, PathBuf)> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
-        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(RECORD_EXTENSION) {
+        if path.extension().and_then(std::ffi::OsStr::to_str) != Some(SCRATCH_EXTENSION) {
             continue;
         }
         let Some(seq) = path.file_stem().and_then(std::ffi::OsStr::to_str).and_then(batch_number_of_name) else {
