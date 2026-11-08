@@ -388,12 +388,26 @@ a Codex session with three app-server daemons,
 a DeepSeek `dsh` session with its search-fetch server,
 the `adb` server,
 and the Git wrapper's commit service holding a descriptor on
-`.git/index.lock.cli-git-marker-1573518.*` since about 00:56 local
-(open item in `doc/handover/cli-git-rust-implementation.md`).
+`.git/index.lock.cli-git-marker-<pid>.<pid namespace>-<batch>-<uuid>`.
+That last one is by design:
+when a batch ends the service makes the lock file of its next batch ahead of time
+(`package/git-policy/cli/src/native/landing/service_index_prestage.rs`)
+and keeps it open while idle,
+so a running instance that has landed a commit is always a holder.
+Measured on 2026-11-08:
+the file of batch `1794117366015935` was born about 10 ms after batch `1794117366015934` wrote the index.
+The number in the name is the batch,
+not a time.
+
 `c03-holders-before` runs before `c06-stop-units`,
-so a commit service holding a descriptor in `.git` stops the cut-over before the window.
+so stop the running instance first
+(`systemctl --user stop 'monochromatic-git-policy-cli@<id>.service'`,
+after its last push is done);
+its socket starts it again on the next commit.
 Start the session that drives the runner from a folder outside the repository
-(`--add-dir` the repository).
+(`--add-dir` the repository),
+and keep that session's shell out of the repository:
+a `cd` into it carries over to the next command and makes the shell a holder.
 
 ### The thaw and rollback commands
 
