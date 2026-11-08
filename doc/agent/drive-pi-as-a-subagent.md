@@ -129,7 +129,7 @@ at commit `6e2222a8dda06e3d69fad46d630f152f5873567a` of `earendil-works/pi` (pac
   `get_state` then showed `isStreaming: false`,
   and `get_messages` ended with a tool result of `Command aborted`
   and an assistant message with `stopReason: "error"`.
-  The source awaits `waitForIdle()` inside `abort()`,
+  The source awaits `waitForIdle()` inside [`abort()`][abort-source],
   so the response is sent after the agent is idle,
   and `agent_settled` can arrive before the response does.
   A client that starts waiting for `agent_settled` after the `abort` response returns will wait forever.
@@ -185,11 +185,50 @@ and for understandable reasons:
 One result needs care.
 `switch_session` with a path to a file that does not exist reported success.
 The source (`packages/coding-agent/src/core/agent-session-runtime.ts` lines 196 to 224) opens the path with
-`SessionManager.open(sessionPath, ...)` and returns `{ cancelled: false }` after replacing the runtime,
-so the process continues in a fresh session bound to that path.
+`SessionManager.open(sessionPath, ...)` and returns `{ cancelled: false }` after replacing the runtime.
+`SessionManager.open` (`packages/coding-agent/src/core/session-manager.ts` lines 1777 to 1797)
+reads a header only when the file exists,
+takes the working directory from the process otherwise,
+and builds a manager bound to that resolved path.
+So the process continues in a fresh session for that path.
 No file appeared at that path,
 and no file appeared in Pi's real session store (`~/.pi/agent/sessions`) during the sweep.
 Do not treat a `success: true` from `switch_session` as proof that the session existed.
+The next section switches to a path that does exist.
+
+### Session commands on a persisted session
+
+One Pi process ran with `--session-dir <scratch folder>` and no `--no-session`,
+the `synthetic` model,
+`--thinking low`,
+and a prompt of `Reply with exactly: OK`,
+which makes a real user message.
+The whole run took 35 seconds.
+
+- After the prompt,
+  `get_state` showed `messageCount: 3` and a `sessionFile` path inside the scratch folder,
+  and a session file of 4694 bytes was on disk.
+- `get_fork_messages` returned `{"messages":[{"entryId":"8916c48f","text":"Reply with exactly: OK"}]}`.
+  Those ids are what `fork` accepts.
+- `export_html` with an `outputPath` returned `{"path":"..."}` and wrote a 294687-byte file.
+- `compact` failed with `Nothing to compact (session too small)`.
+  So compaction itself was not exercised.
+- `fork` with that `entryId` returned `{"text":"Reply with exactly: OK","cancelled":false}`.
+  `get_state` afterwards showed a new `sessionFile` and `messageCount: 1`.
+  At the end,
+  that forked file was not among the two files on disk,
+  which fits Pi writing a session file lazily.
+  That reading was not checked in the source.
+- `switch_session` to the original file returned `{"cancelled":false}`,
+  and `get_state` then showed the original `sessionFile` and `messageCount: 3`.
+- `clone` showed a new `sessionFile` with `messageCount: 3`,
+  and that file (5426 bytes) was on disk.
+- `cycle_model` moved the model to `synthetic` / `hf:openai/gpt-oss-120b`,
+  one of the owner's scoped models.
+  It chooses the next model for you,
+  so read `get_state` afterwards.
+- `set_model` with `{"provider":"opencode-go","modelId":"deepseek-v4.1-flash"}` returned that model object,
+  and `get_state` showed the `opencode-go` provider.
 
 ### Extension records on stdout
 
@@ -262,8 +301,9 @@ in `packages/coding-agent/src/core/model-resolver.ts`,
 tries the whole text as a model reference first,
 then,
 if that fails,
-splits at the last colon (`lastIndexOf(":")`,
-lines 121 to 126 and 207 to 213)
+splits at the last colon
+([`lastIndexOf(":")`, lines 121 to 126][resolver-source],
+and lines 207 to 213)
 and accepts the suffix only when it is a valid thinking level.
 Startup was tested without a prompt,
 so no model call was made,
@@ -291,42 +331,50 @@ finds a suffix that is not a thinking level,
 and warns.
 It is noise from that pattern and unrelated to the model in use.
 
-### The readiness check disagreed with what worked
+### The readiness check: right about two providers, one open discrepancy
 
 `pi auth check --provider <p> --model <m> --json --no-refresh` prints `status` and `provider`
 without a credential.
-The code is `packages/coding-agent/src/cli/auth-check.ts` lines 22 to 53.
+The code is [`packages/coding-agent/src/cli/auth-check.ts` lines 22 to 53][auth-check-source].
 It builds a model runtime over an in-memory models store with network access off (lines 66 to 73),
 returns `invalid` with reason `invalid_state` if that runtime has any error or `checkAuth` throws,
 and returns `not_ready` with reason `credentials_not_configured` if `checkAuth` finds nothing.
 It does not load extensions.
+Credentials come from `~/.pi/agent/auth.json`
+(`packages/coding-agent/src/core/auth-storage.ts`)
+or a provider's environment variable.
 
-In this session it did not agree with what worked:
+Over one session its answers changed for two providers,
+and the cause was a credential change,
+not a fault in the check:
 
-- For `synthetic` it printed `invalid`,
-  reason `invalid_state`,
-  and the model then worked in a real run.
-  The code returns that reason for any runtime error or thrown `checkAuth`,
-  and the message of the error was not captured,
-  so the specific cause is undetermined.
-- For `openrouter` it printed `ready` on two runs
-  and `not_ready`,
-  reason `credentials_not_configured`,
-  on every later run.
-  A real prompt on `openrouter` failed with `No API key found for openrouter`.
-  In the source the only inputs for that provider are a stored credential
-  or the `OPENROUTER_API_KEY` environment variable (`packages/ai/src/providers/openrouter.ts` line 68).
-  `auth.json` held no `openrouter` entry,
-  and the variable was unset in the three later shell calls checked.
-  So the early `ready` results can only have come from the variable being present in that call's environment,
-  which is an inference from the code,
-  since it was not observed.
-  The systemd unit,
-  which passes only `PATH` and `HOME`,
-  had no such variable and failed.
-- For `opencode-go` it printed `ready` on every run.
+- `openrouter` printed `ready` (an API key) and `radius` printed `ready` (OAuth) in the first runs at 22:09:44 and 22:10:05.
+  From 22:15:20 on,
+  both printed `not_ready` with reason `credentials_not_configured`,
+  and a real prompt on `openrouter` failed with `No API key found for openrouter`.
+  `~/.pi/agent/auth.json` was rewritten at 22:10:22,
+  between those two groups of runs,
+  and holds no entry for either provider.
+  The owner then said they may have removed both providers during the session.
+  That fits the evidence,
+  and the contents of the file before 22:10:22 were never read,
+  so the exact edit is not shown.
+- `opencode-go` printed `ready` on every run.
 
-Treat it as a hint,
+One discrepancy stays open:
+`synthetic` printed `invalid`,
+reason `invalid_state`,
+and the model then worked in real runs.
+The same `auth.json` read cleanly for `opencode-go` in the same period,
+so a malformed credential file does not explain it
+(`ReadOnlyAuthStorage` in `auth-storage.ts` lines 205 to 258 throws on any invalid entry).
+The remaining paths are a runtime error or a thrown `checkAuth` for `synthetic` specifically,
+and the error message was not captured.
+Because the check loads no extensions and `synthetic` needs one in the real run,
+that difference is the likeliest place to look next.
+This is an untested guess.
+
+Use the check as a hint for providers with stored credentials,
 and trust a prompt that gets a reply.
 The command was run without `--credentials`,
 and no credential was opened or printed in this work.
@@ -472,23 +520,97 @@ and the script is shown as it ran.
   and confirm no `pi --mode rpc` process or `pi-*` unit remains.
   The run did this.
 
+## Scenario and sweep scripts
+
+The scenarios and sweeps in "Follow-up,
+abort,
+and clear_queue" and the two sweep sections used the same plumbing as the client script:
+spawn Pi,
+split stdout on LF,
+correlate responses by `id`,
+and register an event waiter before sending the command that can trigger the event.
+Each scenario ran in its own Pi process.
+
+```ts
+// Sequences used with the same client plumbing. nextEvent(type) resolves on the next record of that type, or when Pi exits.
+const longTask = 'Use bash to run `sleep 20`, then read alpha.txt, then read beta.txt, and report both contents. Do each step as a separate tool call.';
+const toolStarted = nextEvent('tool_execution_start'); // register first, then prompt
+
+// follow-up: the follow_up arrives while a tool is running and is delivered after the agent stops
+await send({ type: 'prompt', message: longTask });
+await toolStarted;
+await send({ type: 'follow_up', message: 'After you finish, reply with the single word FOLLOWED.' });
+await send({ type: 'get_state' }); // pendingMessageCount 1, isStreaming true
+await nextEvent('agent_settled');
+
+// abort: register the settle waiter BEFORE sending abort, because abort() waits for idle and
+// agent_settled can arrive before the abort response does
+await send({ type: 'prompt', message: longTask });
+await toolStarted;
+const settledAfterAbort = nextEvent('agent_settled');
+await send({ type: 'abort' });
+await settledAfterAbort;
+
+// clear-queue: both queued messages come back from clear_queue and never run
+await send({ type: 'prompt', message: longTask });
+await toolStarted;
+await send({ type: 'steer', message: 'Also end your reply with the word STEERED.' });
+await send({ type: 'follow_up', message: 'Then reply with the word FOLLOWED.' });
+await send({ type: 'clear_queue' }); // data: { steering: [...], followUp: [...] }
+```
+
+The idle sweep sent this list to one `--no-session` process,
+in this order,
+waiting for each response:
+
+```ts
+const commands = [
+  { type: 'get_state' }, { type: 'get_available_models' }, { type: 'get_available_thinking_levels' },
+  { type: 'set_thinking_level', level: 'high' }, { type: 'cycle_thinking_level' },
+  { type: 'set_model', provider, modelId: model },
+  { type: 'set_steering_mode', mode: 'all' }, { type: 'set_follow_up_mode', mode: 'one-at-a-time' },
+  { type: 'set_auto_compaction', enabled: false }, { type: 'set_auto_retry', enabled: false },
+  { type: 'get_commands' }, { type: 'get_messages' }, { type: 'get_session_stats' },
+  { type: 'get_entries' }, { type: 'get_tree' }, { type: 'get_last_assistant_text' },
+  { type: 'set_session_name', name: 'pi-rpc-idle-trial' },
+  { type: 'bash', command: 'echo pi-bash-ok', excludeFromContext: true },
+  { type: 'abort_bash' }, { type: 'abort_retry' }, { type: 'get_fork_messages' },
+  { type: 'fork', entryId: 'does-not-exist' }, { type: 'clone' },
+  { type: 'export_html', outputPath: '<scratch>/idle-export.html' },
+  { type: 'switch_session', sessionPath: '<scratch>/no-such-session.jsonl' },
+  { type: 'new_session' }, { type: 'get_state' },
+];
+```
+
+The persisted sweep started Pi with `--session-dir <scratch>` and no `--no-session`,
+sent the prompt `Reply with exactly: OK`,
+waited for `agent_settled`,
+then sent `get_state`,
+`get_fork_messages`,
+`export_html`,
+`compact` with `customInstructions`,
+`fork` with the first `entryId`,
+`switch_session` to the `sessionFile` from the first `get_state`,
+`clone`,
+`cycle_model`,
+and `set_model`,
+reading `get_state` after most steps.
+
 ## Not verified
 
-- `compact`,
-  which needs a model call.
-- `fork` with a valid entry id,
-  `export_html` with a persisted session,
-  and `switch_session` to a real session file.
-  All three need a persisted session,
-  and the runs used `--no-session`.
-- `cycle_model`,
-  and `set_model` to a different model than the one in use.
+- Compaction itself:
+  `compact` on a one-prompt session returned `Nothing to compact (session too small)`,
+  and a larger session was not built.
+- `prompt` without `streamingBehavior` during a run is documented as an error and was not run.
+- Whether Pi writes a forked session file lazily,
+  which fits one forked file being absent from disk and was not checked in the source.
 - Extension dialog requests that need a reply.
 - Image prompts,
   `codemode`,
   and MCP tools.
 - The cause of `invalid_state` for the `synthetic` readiness check,
   because the runtime error text was not captured.
-- Whether `OPENROUTER_API_KEY` was really present in the shell when the two early `ready` results came back.
-  The source and the later runs point that way,
-  and it was not observed.
+
+[resolver-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/core/model-resolver.ts#L121-L126
+[abort-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/core/agent-session.ts#L2601-L2611
+[auth-check-source]: https://github.com/earendil-works/pi/blob/6e2222a8dda06e3d69fad46d630f152f5873567a/packages/coding-agent/src/cli/auth-check.ts#L22-L53
