@@ -712,8 +712,9 @@ fn run(
         tx: self_tx,
         worker: thread::current(),
     };
-    // What:     `controller.sweep_sink = Arc::new(move |report| sweep_sender.send(Command::SweepReport(report)));`.
-    //           Route every sweep and re-analysis report back through this engine's command channel.
+    // What:     `controller.sweep_sink = sink_from(move |report| sweep_sender.send(...));` wraps a callable that
+    //           owns a clone of the engine's command sender into the sink type: each report becomes a
+    //           `Command::SweepReport`.
     // Why:      Sweep threads cannot call the update callback, but they can send a command that wakes this loop.
     //
     // In TS you'd write (pseudocode):

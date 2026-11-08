@@ -390,7 +390,7 @@ impl<T, E: std::fmt::Debug> AtStep<T> for Result<T, E> {
 ///  The state the realtime callback owns.
 ///  It is
 ///           moved INTO the stream listener;
-///  the C loop hands it back to our closure as
+///  the C loop hands it back to our callback as
 ///           `&mut ProcessData` on every call.
 /// Why:
 ///       The callback must not allocate or lock;
@@ -687,12 +687,11 @@ impl Output {
         // ```
         pw::init();
 
-        // What:     `let thread_loop = unsafe { ThreadLoopRc::new(Some("music-player-audio"), None) }.map_err(...)?`.
-        //           `ThreadLoopRc::new` is an `unsafe fn` (its safety contract is about
-        //           keeping the loop alive correctly, which the `Output` struct guarantees).
-        //           `Some("music-player-audio")` names the thread; `None` = no extra
-        //           properties. `.map_err` converts a `pw::Error` into our `PlayerError`;
-        //           `?` returns early.
+        // What:     `let thread_loop = unsafe { ThreadLoopRc::new(Some("music-player-audio"), None)
+        //           }.at_step("thread loop")?;`. `ThreadLoopRc::new` is an `unsafe fn` (its safety contract is about
+        //           keeping the loop alive correctly, which the `Output` struct guarantees). `Some("music-player-
+        //           audio")` names the thread; `None` = no extra properties. `.at_step("thread loop")` turns a
+        //           `pw::Error` into our `PlayerError::Audio` that names the step; `?` returns early.
         // Why:      Create the background audio loop.
         //
         // In TS you'd write (pseudocode):
@@ -700,9 +699,8 @@ impl Output {
         // const threadLoop = new ThreadLoop("music-player-audio");
         // ```
         let thread_loop = unsafe { ThreadLoopRc::new(Some("music-player-audio"), None) }
-            // What:     `.map_err(|e| PlayerError::Audio(format!("thread loop: {e:?}")))`.
-            //           `|e| ...` is a closure; `format!` builds an owned `String`; `{e:?}`
-            //           uses the error's Debug formatting.
+            // What:     `.at_step("thread loop")` keeps a success and wraps a failure as `PlayerError::Audio` that
+            //           names the step and shows the cause in its debug form.
             // Why:      Wrap the low-level error in our `Audio` variant.
             //
             // In TS you'd write (pseudocode):
@@ -711,10 +709,9 @@ impl Output {
             // ```
             .at_step("thread loop")?;
 
-        // What:     `let context = ContextRc::new(&thread_loop, None).map_err(...)?`.
-        //           `ContextRc::new` takes a reference to anything loop-like
-        //           (`&thread_loop` lends it) plus optional properties (`None`). Builds the
-        //           refcounted context.
+        // What:     `let context = ContextRc::new(&thread_loop, None).at_step("context")?;`. `ContextRc::new` takes
+        //           a reference to anything loop-like (`&thread_loop` lends it) plus optional properties (`None`).
+        //           Builds the refcounted context; a failure becomes the audio error that names the "context" step.
         // Why:      The root from which we connect to the server.
         //
         // In TS you'd write (pseudocode):
@@ -724,8 +721,9 @@ impl Output {
         let context = ContextRc::new(&thread_loop, None)
             .at_step("context")?;
 
-        // What:     `let core = context.connect_rc(None).map_err(...)?`. `connect_rc` opens
-        //           the session; `None` = default connection properties.
+        // What:     `let core = context.connect_rc(None).at_step("core connect")?`. `connect_rc` opens the session;
+        //           `None` = default connection properties; a failure becomes the audio error that names the "core
+        //           connect" step.
         // Why:      We need a `Core` to make streams.
         //
         // In TS you'd write (pseudocode):
@@ -912,10 +910,10 @@ impl Output {
         // ```
         self.stream = None;
 
-        // What:     `let stream = StreamRc::new(self.core.clone(), "music-player", properties! { ... }).map_err(...)?`.
-        //           Create a new stream on our core, named "music-player", with media
-        //           metadata. `properties! { *KEY => "val" }` builds the dictionary; the `*`
-        //           dereferences each key constant.
+        // What:     `let stream = StreamRc::new(self.core.clone(), "music-player", properties! { ...
+        //           }).at_step("stream new")?`. Create a new stream on our core, named "music-player", with media
+        //           metadata. `properties! { *KEY => "val" }` builds the dictionary; the `*` dereferences each key
+        //           constant. A failure becomes the audio error that names the "stream new" step.
         // Why:      A fresh stream to negotiate this track's format.
         //
         // In TS you'd write (pseudocode):
@@ -933,10 +931,10 @@ impl Output {
         )
         .at_step("stream new")?;
 
-        // What:     `let listener = stream.add_local_listener_with_user_data(process_data).process(|stream_ref, pd| { ... }).register().map_err(...)?`.
-        //           Attach our state as the callback's user data, set the `process`
-        //           callback, and register it (returns an owned `StreamListener`). The
-        //           closure receives `&StreamRef` and `&mut ProcessData`.
+        // What:     `let listener = stream.add_local_listener_with_user_data(process_data).process(process_stream_bu
+        //           ffer).register().at_step("listener")?`. Attach our state as the callback's user data, set the
+        //           `process` callback to the named function `process_stream_buffer`, and register it (returns an
+        //           owned `StreamListener`). The function receives `&StreamRef` and `&mut ProcessData`.
         // Why:      This callback is how PipeWire pulls samples from us in realtime.
         //
         // In TS you'd write (pseudocode):
@@ -945,11 +943,10 @@ impl Output {
         // ```
         let listener = stream
             .add_local_listener_with_user_data(process_data)
-            // What:     `.process(|stream_ref, pd| { ... })`. Register the realtime callback.
-            //           `|stream_ref, pd|` is the closure's parameter list; the callback's
-            //           stream reference keeps its own name so it never shadows the `stream`
-            //           being built here. This runs on PipeWire's thread; it must not
-            //           block/allocate.
+            // What:     `.process(process_stream_buffer)`. Register the realtime callback. `process_stream_buffer`
+            //           takes the stream reference and the user data as parameters; the stream reference keeps its
+            //           own name so it never shadows the `stream` being built here. This runs on PipeWire's thread;
+            //           it must not block/allocate.
             // Why:      Feed the hardware buffer from our ring buffer.
             //
             // In TS you'd write (pseudocode):
@@ -1007,12 +1004,13 @@ impl Output {
         // ```
         info.set_channels(channels as u32);
 
-        // What:     `let values: Vec<u8> = PodSerializer::serialize(Cursor::new(Vec::new()), &Value::Object(Object { type_, id, properties: info.into() })).map_err(...)?.0.into_inner();`.
-        //           Serialize the format object into bytes. `Value::Object` wraps an
-        //           `Object` whose `type_` and `id` are SPA constants (object is a Format /
-        //           EnumFormat). `info.into()` converts the `AudioInfoRaw` into the object's
-        //           property list. `serialize(...)` returns `Result<(Cursor, ...)>`; `?`
-        //           unwraps; `.0` takes the cursor; `.into_inner()` extracts the `Vec<u8>`.
+        // What:     `let values: Vec<u8> = PodSerializer::serialize(Cursor::new(Vec::new()), &Value::Object(Object {
+        //           type_, id, properties: info.into() })).at_step("pod serialize")?.0.into_inner();`. Serialize the
+        //           format object into bytes. `Value::Object` wraps an `Object` whose `type_` and `id` are SPA
+        //           constants (object is a Format / EnumFormat). `info.into()` converts the `AudioInfoRaw` into the
+        //           object's property list. `serialize(...)` returns `Result<(Cursor, ...)>`; `.at_step("pod
+        //           serialize")` names the step on failure, `?` unwraps; `.0` takes the cursor; `.into_inner()`
+        //           extracts the `Vec<u8>`.
         // Why:      Stream parameters must be passed as serialized pod bytes.
         //
         // In TS you'd write (pseudocode):
@@ -1056,9 +1054,9 @@ impl Output {
         .0
         .into_inner();
 
-        // What:     `let pod = Pod::from_bytes(&values).ok_or_else(|| ...)?`.
-        //           `Pod::from_bytes` returns `Option<&Pod>` (a borrowed view over `values`);
-        //           `.ok_or_else(...)` turns `None` into an error; `?` unwraps the `&Pod`.
+        // What:     `let Some(pod) = Pod::from_bytes(&values) else { return Err(...) };`. `Pod::from_bytes` returns
+        //           `Option<&Pod>` (a borrowed view over `values`); `let ... else` returns our error when it is
+        //           `None` and otherwise binds the `&Pod`.
         // Why:      `connect` takes pod references, not raw bytes.
         //
         // In TS you'd write (pseudocode):
@@ -1079,12 +1077,12 @@ impl Output {
         // ```
         let mut params = [pod];
 
-        // What:     `stream.connect(Direction::Output, None, StreamFlags::AUTOCONNECT | StreamFlags::MAP_BUFFERS | StreamFlags::RT_PROCESS, &mut params).map_err(...)?`.
-        //           Connect the stream as an output. `None` = auto-pick a target sink. The
-        //           flags: AUTOCONNECT (link to a sink automatically), MAP_BUFFERS
-        //           (memory-map buffers so our callback gets a byte slice), RT_PROCESS (run
-        //           `process` on the realtime thread). `|` combines the bit flags.
-        //           `&mut params` lends the param list.
+        // What:     `stream.connect(Direction::Output, None, StreamFlags::AUTOCONNECT | StreamFlags::MAP_BUFFERS |
+        //           StreamFlags::RT_PROCESS, &mut params).at_step("connect")?;`. Connect the stream as an output.
+        //           `None` = auto-pick a target sink. The flags: AUTOCONNECT (link to a sink automatically),
+        //           MAP_BUFFERS (memory-map buffers so our callback gets a byte slice), RT_PROCESS (run `process` on
+        //           the realtime thread). `|` combines the bit flags. `&mut params` lends the param list. A failure
+        //           becomes the audio error that names the "connect" step.
         // Why:      Start streaming audio at the negotiated format.
         //
         // In TS you'd write (pseudocode):
@@ -1312,7 +1310,7 @@ fn process_stream_buffer(stream_ref: &pw::stream::Stream, pd: &mut ProcessData) 
             let datas = buffer.datas_mut();
 
             // What:     `if datas.is_empty() { return; }`. Defensive: no planes
-            //           means nothing to fill. `return` exits the closure (the
+            //           means nothing to fill. `return` exits the callback (the
             //           buffer is queued back on drop).
             // Why:      Avoid indexing an empty slice.
             //
@@ -1373,10 +1371,11 @@ fn process_stream_buffer(stream_ref: &pw::stream::Stream, pd: &mut ProcessData) 
                     // ```
                     let avail_frames = slice.len() / stride;
 
-                    // What:     `let wanted_frames = usize::try_from(requested_frames).map_or(FILL_FRAMES_FLOOR, |requested| return requested.max(FILL_FRAMES_FLOOR));`
-                    //           then `let fill_frames = avail_frames.min(wanted_frames);`. Fill what the graph
-                    //           asks for this cycle, but at least `FILL_FRAMES_FLOOR` frames, and never more than
-                    //           fits in the buffer.
+                    // What:     `let wanted_frames = match usize::try_from(requested_frames) { Ok(requested) =>
+                    //           requested.max(FILL_FRAMES_FLOOR), Err(_error) => FILL_FRAMES_FLOOR };` then `let
+                    //           fill_frames = avail_frames.min(wanted_frames);`. Fill what the graph asks for this
+                    //           cycle, but at least `FILL_FRAMES_FLOOR` frames, and never more than fits in the
+                    //           buffer.
                     // Why:      The buffer PipeWire hands over holds about a quarter of a second.
                     //           Filling all of it moved that much audio out of the ring in one
                     //           callback, so the audible position trailed what was taken from

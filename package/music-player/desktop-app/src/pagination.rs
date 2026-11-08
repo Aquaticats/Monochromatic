@@ -555,13 +555,9 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
         groups.entry(key).or_default().push(entry);
     }
 
-    // What:     `groups.into_iter().map(|((_, _, label), entries)| Page { label, entries }).collect()`.
-    //           `.into_iter()` CONSUMES the map, yielding `((u8, String, String), Vec<PageEntry>)`
-    //           pairs in sorted-key order; `.map(|((_, _, label), entries)| ...)`
-    //           destructures each, DISCARDING the `u8` group and the case-folded sort-key
-    //           (the two `_`s) and keeping the original label, then builds a `Page`
-    //           (field-init shorthand); `.collect()` gathers them into the `Vec<Page>` the
-    //           return type names. Tail expression -> return value.
+    // What:     The loop below turns the sorted `(sort group, sort key, label)` buckets into pages: `((_group, _key,
+    //           label), entries)` takes each bucket apart, and `Page { label, entries }` (field-init shorthand)
+    //           builds the page.
     // Why:      Materialize the sorted buckets as the ordered list of pages; the sort group
     //           and sort-key were only needed to order them.
     //
@@ -595,14 +591,9 @@ pub fn paginate(names: &[String]) -> Vec<Page> {
 /// }
 /// ```
 pub fn page_of_index(pages: &[Page], index: usize) -> Option<usize> {
-    // What:     `pages.iter().position(|page| page.entries.iter().any(|entry| entry.index == index))`.
-    //           `.iter()` borrows each page; `.position(|page| ...)` returns the index of
-    //           the FIRST page for which the closure is true, as `Option<usize>`. Inside,
-    //           `page.entries.iter().any(|entry| ...)` is true when ANY entry on that page
-    //           has the matching load-order index. `|page|` and `|entry|` are closures
-    //           taking a borrowed page / entry. Tail expression -> return value.
-    // Why:      One linear scan locates the page; `position` already yields the `Option`
-    //           shape the caller wants.
+    // What:     The nested loops below return the position of the first page that holds an entry with the wanted
+    //           load-order index, or `None` when no page does.
+    // Why:      One linear scan locates the page, and the `Option` is the shape the caller wants.
     //
     // In TS you'd write (pseudocode):
     // ```ts

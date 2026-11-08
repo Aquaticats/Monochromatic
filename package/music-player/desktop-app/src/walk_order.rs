@@ -129,16 +129,10 @@ use crate::natural_order::natural_cmp;
 /// const compareNames = (left: string, right: string): Ordering => naturalCmp(left, right) || bytes(left, right);
 /// ```
 fn compare_names(left: &OsStr, right: &OsStr) -> Ordering {
-    // What:     `return natural_cmp(&left.to_string_lossy(), &right.to_string_lossy()).then_with(|| return left.cmp(right));`
-    //           first turns each name into text with `.to_string_lossy()` (a copy-on-demand that replaces bytes that are
-    //           not valid UTF-8 with the replacement character) and lends both texts to `natural_cmp` with `&`. The
-    //           `Ordering` it answers has `.then_with(...)`, which keeps the answer unless it is `Equal` and only then
-    //           runs the closure. `|| return left.cmp(right)` is a closure: `||` is its empty parameter list, and the
-    //           body compares the raw names byte by byte with `.cmp`.
+    // What:     `let by_name = natural_cmp(...)` compares the two names in natural order; when they differ that
+    //           answer is returned, and only on a tie does `left.cmp(right)` compare the whole paths.
     // Why:      Two names that read the same naturally (`a1` and `A1`) must still have a fixed order, so the bytes break
     //           the tie, exactly as the walk does.
-    // Gotcha:   The closure is lazy: `.then_with` runs it only on a tie, unlike `.then(value)`, which would compute the
-    //           byte comparison every time.
     //
     // In TS you'd write (pseudocode):
     // ```ts
@@ -431,8 +425,9 @@ pub(crate) fn walk_cmp(root: &Path, left: &Path, right: &Path) -> Ordering {
 /// const locate = (tracks: string[], root: string, path: string): { found: number } | { insertAt: number } => bsearch(...);
 /// ```
 pub(crate) fn locate(tracks: &[PathBuf], root: &Path, path: &Path) -> Result<usize, usize> {
-    // What:     `return tracks.binary_search_by(|track| return walk_cmp(root, track, path));` runs a binary search where
-    //           the closure `|track| ...` tells, for each probed track, how it compares with the wanted path.
+    // What:     The loop below is a binary search: `walk_cmp(root, &tracks[middle], path)` tells for the probed
+    //           track how it compares with the wanted path, `Equal` returns `Ok(middle)`, and the bounds narrow
+    //           until `Err(low)` names where the path would go.
     // Why:      The queue is sorted in walk order, so the search needs only about twenty comparisons for a million tracks.
     //
     // In TS you'd write (pseudocode):
@@ -586,10 +581,9 @@ pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> R
     // const names: string[] = [...namesBelow(root, folder)];
     // ```
     let names: Vec<&OsStr> = names_below(root, folder).collect();
-    // What:     `let start: usize = tracks.partition_point(|track| return against_folder(root, track, &names) == Ordering::Less);`
-    //           finds the first position where the closure stops being true, assuming the answers are true and then false
-    //           (`partition_point` is a binary search for that border). `&names` lends the `Vec` where a slice
-    //           `&[&OsStr]` is expected; the `Vec` coerces to a slice.
+    // What:     `let start: usize = folder_boundary(tracks, root, &names, false);` finds the first position where
+    //           the tracks stop being before the folder, by a binary search that assumes the answers are true and
+    //           then false.
     // Why:      Everything before the folder's run sorts `Less`, so the border is the run's start.
     //
     // In TS you'd write (pseudocode):
@@ -597,8 +591,8 @@ pub(crate) fn subtree_range(tracks: &[PathBuf], root: &Path, folder: &Path) -> R
     // const start: number = partitionPoint(tracks, (track) => againstFolder(root, track, names) === "Less");
     // ```
     let start: usize = folder_boundary(tracks, root, &names, false);
-    // What:     `let end: usize = tracks.partition_point(|track| return against_folder(root, track, &names) != Ordering::Greater);`
-    //           is the same search with `!=`: the border after the last track that is `Less` or `Equal`.
+    // What:     `let end: usize = folder_boundary(tracks, root, &names, true);` finds the first position where the
+    //           tracks stop being before or inside the folder, by the same binary search.
     // Why:      Everything up to the run's last track is not `Greater`, so the border is the run's end.
     //
     // In TS you'd write (pseudocode):
@@ -644,9 +638,8 @@ pub(crate) fn direct_files(tracks: &[PathBuf], folder: &Path, run: Range<usize>)
     // const inside: string[] = tracks.slice(run.start, run.end);
     // ```
     let inside: &[PathBuf] = &tracks[run.clone()];
-    // What:     `let count: usize = inside.partition_point(|track| return track.parent() == Some(folder));` counts the
-    //           leading tracks whose parent folder is `folder`. `track.parent()` answers `Option<&Path>`; `Some(folder)`
-    //           builds the matching `Option` so that the two can be compared with `==`.
+    // What:     The loop below is a binary search for the number of leading tracks whose parent is `folder`: it
+    //           assumes the answers are true and then false, and `count` is the first position where they stop.
     // Why:      Direct files are a prefix of the run, so a border search finds how many there are.
     //
     // In TS you'd write (pseudocode):

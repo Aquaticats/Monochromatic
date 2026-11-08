@@ -268,11 +268,9 @@ impl OpusSource {
         track: Track,
         track_id: u32,
     ) -> Result<Self, PlayerError> {
-        // What:     `let audio_params = track.codec_params.as_ref().and_then(|cp| cp.audio()).ok_or_else(|| ...)?;`.
-        //           Select the audio codec params out of the optional `CodecParameters`
-        //           enum (`.as_ref()` borrows the `Option`, `.and_then(|cp| cp.audio())`
-        //           picks the audio variant). `.ok_or_else(...)` turns `None` into our
-        //           error; `?` unwraps.
+        // What:     `audio_params_or_unsupported(&track, ...)` gives the audio variant of the track's optional
+        //           `CodecParameters`, or the unsupported error with the message it was given. `?` unwraps the
+        //           parameters or returns the error.
         // Why:      The channel layout lives on the audio params.
         //
         // In TS you'd write (pseudocode):
