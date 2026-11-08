@@ -495,3 +495,33 @@ fn a_file_left_under_a_reused_process_number_is_removed_by_its_marker() {
     assert!(empty.exists() && half.exists() && running.exists(), "{:?}", leftovers(&index));
     remove(root.as_path());
 }
+
+/// The names of the threads this process has,
+/// read from `/proc` (the kernel keeps the first fifteen characters of a thread's name).
+fn thread_names_of_this_process() -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for task in std::fs::read_dir("/proc/self/task").expect("the tasks of this process").flatten() {
+        if let Ok(name) = std::fs::read_to_string(task.path().join("comm")) {
+            names.push(name.trim_end().to_string());
+        }
+    }
+    return names;
+}
+
+/// The marker made ahead is made by a job of the runtime's blocking pool,
+/// not by a thread the module started for it:
+/// while its flush is running no thread of the process is named for it.
+#[test]
+fn the_marker_made_ahead_is_made_without_a_thread_of_its_own() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let _serial = ONE_AT_A_TIME.lock().expect("serial");
+        let (root, index) = index_in("prestage-no-own-thread");
+        FLUSHES.store(0, Ordering::SeqCst);
+        start_with(slow_flush, &index, 11);
+        until_staged(&index);
+        let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| "cli-git-prestage".starts_with(name.as_str()) && name.len() >= 14).collect();
+        assert!(own.is_empty(), "the marker is being made by a thread of its own: {own:?}");
+        discard();
+        remove(root.as_path());
+    });
+}
