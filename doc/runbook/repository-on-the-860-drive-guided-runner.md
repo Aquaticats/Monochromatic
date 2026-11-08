@@ -556,8 +556,13 @@ each with a failing test first:
   with a test that a change on any other line still fails it.
 - `final-diff-step.ts` must not stop on a complete dump,
   once the status 141 has been measured.
-- Every other check in `guided-cutover-stages.data.ts`,
-  read for the same `grep` trap.
+- `c27-container-bind` takes its image with `grep ... | head --lines=1` under `pipefail`,
+  which exits 141 on this host's list of 631 images (reproduced on the real list),
+  so the stage cannot pass here.
+  The other stages' commands and checks in `guided-cutover-stages.data.ts` were read for this shell trap
+  and nothing else was found
+  (a second pass by a Claude subagent,
+  not an independent review).
 - A stage after the swap that rewrites each index:
   the move gives every file a new inode,
   so the first commit in a checkout stopped at the wrapper's 3-second scratch ceiling until a `git status` had run there
