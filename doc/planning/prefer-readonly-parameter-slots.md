@@ -708,7 +708,7 @@ Both sides of a sweep pair have to be swept against the same tree.
 `narrowingPrecisionCostEffect` reads `mutated` projected to parameters as the first parameter
 alone,
  where it reads both today.
-Adversarial fixtures cover every shape the rules above widen or broadcast,
+Adversarial fixtures cover every shape the rules in `Rules decided in advance` widen or broadcast,
 and each must retain the write even where that means both caller parameters stay affected.
 Fixture assertions state both levels,
 parameter-level for the invariants that must not move and slot-level for the new precision,

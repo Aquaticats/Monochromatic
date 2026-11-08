@@ -226,7 +226,7 @@ objective-free case as solved.
 ## Designs
 
 Independent design pass by a second model,
-given the files and the numbers above:
+given the files and the numbers from `What happens after a stop` to `Deterministic signals at the stop`:
 
 - Obligation ledger,
   no model:
