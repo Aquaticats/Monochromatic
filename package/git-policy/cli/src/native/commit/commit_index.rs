@@ -7,7 +7,10 @@
 //!       and the pathspec-file source.
 //! Why:
 //!  Git's staging and selection run against a private index and the shadow object store,
-//!  so the real index and object store change only at landing.
+//!  so the real index's entries and the object store change only at landing.
+//!  The real index's stat data is refreshed earlier,
+//!  as native `git commit` refreshes it,
+//!  so a stale index costs one refresh and not one on every commit.
 //!  A copy keeps the real index's timestamps,
 //! because Git re-reads a stat entry
 //!  whose time is not older than the index file (`index-file-timestamps.ts`,
