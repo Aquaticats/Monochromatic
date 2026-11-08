@@ -41,6 +41,10 @@ export const runArguments = [
   '--locked',
   '--all-targets',
   '--no-fail-fast',
+  // A control that needs btrfs prints one line naming itself and the filesystem it found, then passes; that line is
+  // captured output of a successful test, which nextest hides for a green run unless it is asked for. Without this the
+  // gate reads as full coverage while a hundred and twenty controls did not run (see `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`).
+  '--success-output=final',
 ] as const;
 
 /**
@@ -50,7 +54,7 @@ export const runArguments = [
 const compileArguments = [
   ...runArguments.slice(1)
     .filter(function keepsBuildOption(argument) {
-      return argument !== '--no-fail-fast';
+      return argument !== '--no-fail-fast' && argument !== '--success-output=final';
     }),
   '--no-run',
 ] as const;

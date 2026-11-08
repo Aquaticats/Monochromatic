@@ -40,6 +40,10 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
+/// The one place a control says that it needs a btrfs fixture root, and what it does where there is none.
+#[path = "binary_support_btrfs_controls.rs"]
+mod support_btrfs_controls;
+
 /// The hang guard:
 /// a thread that ends a wrapped command whose process tree shows no progress or burns too much processor time.
 #[path = "binary_supervisor.rs"]
