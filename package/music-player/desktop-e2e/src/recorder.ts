@@ -14,12 +14,6 @@
  @packageDocumentation
  */
 
-import {
-  mkdir,
-  writeFile,
-} from 'node:fs/promises';
-import { join, } from 'node:path';
-
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import {
   logger,
@@ -28,64 +22,14 @@ import {
 
 import { SafetyStopError, } from './errors.ts';
 import {
+  type EvidenceSource,
+  writeFailureEvidence,
+} from './failure-evidence.ts';
+import {
   type Outcome,
   printLine,
 } from './report.ts';
 import { isSelected, } from './selection.ts';
-import type { UiState, } from './ui-state.ts';
-
-/**
- The fields of an app state that a failure file keeps: where the keyboard and the page were.
- */
-export type EvidenceState = Pick<UiState, 'focus' | 'reason' | 'route' | 'seq' | 'unfolded' | 'zone'>;
-
-/**
- Writes a state as one line of a failure file.
-
- @param state - the state
-
- @returns the sequence number and the fields that say where the keyboard and the page were
-
- @example
- ```ts
- describeState({ seq: 1, reason: 'key', zone: 'surface', focus: '', route: 'Player', unfolded: true, },);
- ```
- */
-function describeState(state: EvidenceState,): string {
-  return `seq=${state.seq} reason=${state.reason} zone=${state.zone} focus=${state.focus} `
-    + `route=${state.route} unfolded=${state.unfolded}`;
-}
-
-/**
- The session whose states a failing check keeps.
- */
-export type EvidenceSource = {
-  /**
-   Name of the session, such as `wide`.
-   */
-  readonly label: string;
-  /**
-   Reads the log up to now and gives every state read so far, oldest first.
-   */
-  readonly readStates: () => Promise<readonly EvidenceState[]>;
-};
-
-/**
- How many of the latest states a failure file keeps. Ten covers the burst of key presses and answers before a
- timeout (the Search answer race on 2026-11-07 needed the last three) and stays readable in a terminal.
- */
-export const EVIDENCE_STATES = 10;
-
-/**
- The reason of the state lines a playing track writes on every position change. They carry nothing a failure needs and a
- playing track writes them without pause, so a file of the last states would hold only them.
- */
-const POSITION_REASON = 'position';
-
-/**
- Suffix of a failure file's name.
- */
-const EVIDENCE_SUFFIX = '.failure.txt';
 
 /**
  What a check gives back to the recorder: the text that follows its PASS line.
@@ -107,7 +51,7 @@ export type Recorder = {
     },
   ) => Promise<void>;
   /**
-   Names the session whose states the next failing checks keep; the latest call wins.
+   Names the session whose states and files the next failing checks keep; the latest call wins.
    */
   readonly attach: (source: EvidenceSource,) => void;
   /**
@@ -152,8 +96,8 @@ export type Recorder = {
  
  @param only - the filter text; empty runs everything
  
- @param evidenceDir - folder that receives one file per failing check, with its text and the latest states; none
- written when absent
+ @param evidenceDir - folder that receives one file per failing check, with its text, the latest states and the
+ session's own files; none written when absent
  
  @returns the recorder
  
@@ -195,117 +139,6 @@ export function createRecorder(
   const attached: EvidenceSource[] = [];
 
   /**
-   Writes the file that keeps a failing check's text and the latest states of the attached session. A problem while
-   writing is logged and reported in the failure line, because the evidence must never hide the failure it describes.
-
-   @param id - check id
-
-   @param title - what the check shows
-
-   @param detail - why the check failed
-
-   @returns the file's path, or the empty string when the recorder has no folder or the file could not be written
-   */
-  async function keepEvidence(
-    {
-      id,
-      title,
-      detail,
-    }: {
-      readonly detail: string;
-      readonly id: string;
-      readonly title: string;
-    },
-  ): Promise<string> {
-    if (evidenceDir === undefined)
-      return '';
-
-    /**
-     The session to read, if one is attached.
-     */
-    const source = attached.at(-1,);
-
-    /**
-     The lines about the session's states.
-     */
-    const stateLines: string[] = [];
-    if (source === undefined)
-      stateLines.push('no session was attached when the check failed',);
-    else
-      try {
-        /**
-         Every state the session has read.
-         */
-        const states = await source.readStates();
-
-        /**
-         The states other than position ticks.
-         */
-        const changes = states.filter(function isChange(state,): boolean {
-          return state.reason !== POSITION_REASON;
-        },);
-
-        /**
-         The latest of them.
-         */
-        const kept = changes.slice(-EVIDENCE_STATES,);
-
-        /**
-         The state the session was in last, whatever its reason.
-         */
-        const final = states.at(-1,);
-        stateLines.push(
-          `session: ${source.label}`,
-          `last ${kept.length} of ${changes.length} ui_state changes, oldest first `
-            + `(${states.length - changes.length} position ticks skipped):`,
-          ...kept.map(describeState,),
-          ...final === undefined ? ['no ui_state line was read',] : [`the final state, ${describeState(final,)}`,],
-        );
-      }
-      catch (error: unknown) {
-        rl.warn(`could not read the states of session ${source.label} for ${id}: ${caughtValueText(error,)}`,);
-        stateLines.push(
-          `session: ${source.label}`,
-          `the states could not be read: ${caughtValueText(error,)}`,
-        );
-      }
-
-    /**
-     Where the file goes.
-     */
-    const path = join(
-      evidenceDir,
-      `${
-        id.replaceAll(
-          '/',
-          '--',
-        )
-      }${EVIDENCE_SUFFIX}`,
-    );
-    try {
-      await mkdir(
-        evidenceDir,
-        { recursive: true, },
-      );
-      await writeFile(
-        path,
-        [
-          `check: ${id}`,
-          `title: ${title}`,
-          `failure: ${detail}`,
-          ...stateLines,
-          '',
-        ].join('\n',),
-      );
-      return path;
-    }
-    catch (error: unknown) {
-      rl.error(`could not write the failure file ${path}: ${caughtValueText(error,)}`,);
-      return '';
-    }
-  }
-
-  /**
    Tells whether a check passes the run's filter.
    
    @param id - check id
@@ -345,12 +178,19 @@ export function createRecorder(
     },
   ): Promise<void> {
     /**
-     Where the failure text and the latest states were kept.
+     The session whose states and files this failure keeps, if one is attached.
      */
-    const evidence = await keepEvidence({
+    const source = attached.at(-1,);
+
+    /**
+     Where the failure text, the latest states and the session's own files were kept.
+     */
+    const evidence = await writeFailureEvidence({
+      detail,
       id,
       title,
-      detail,
+      ...source === undefined ? {} : { source, },
+      ...evidenceDir === undefined ? {} : { evidenceDir, },
     },);
     recorded.push({
       id,
