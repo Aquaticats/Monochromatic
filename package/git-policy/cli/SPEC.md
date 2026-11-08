@@ -2785,6 +2785,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the same kind of holder,
   the only
   sample there is.
+  The commit timing log read on 2026-11-08 (1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z) adds no sample of its own:
+  it holds no record of a
+  merge,
+  though 278 merge commits were made in the window,
+  and no `git reset` step,
+  so the reconciliation never ran in it.
+  What it shows is
+  that no wait a holder released came near a minute:
+  the longest was under 23,783 ms of answer time.
   The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
   thread,
   so only the landing has queued commits to spare it for;
@@ -2799,13 +2809,25 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   The settle's whole time
   holds any wait it made,
   so the figure can only overstate it.
+  The commit timing log holds no settle at all (the settling is the management command
+  `service settle-earlier-batches`),
+  so the journal stays its only sample.
 - `LOCK_CEILING` 10 minutes,
-  unmeasured:
-  no wait takes it.
-  It stays as the basis of `FOREIGN_OWNER_PATIENCE`
+  measured on 2026-11-08 from the commit timing log (1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z):
+  the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
+  and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
+  644,710 to 1,200,776 ms,
+  every one stopped).
+  No wait a holder released reached the ten minutes,
+  and the longest of those four is 776 ms past the
+  client's twenty-minute `ANSWER_CEILING`,
+  which bounds the whole wait rather than one step of it.
+  No wait takes it:
+  it stays as the basis of `FOREIGN_OWNER_PATIENCE`
   (`src/native/process/pid_namespace.rs`,
   twice this),
-  which another change owns.
+  which another change owns and whose stated basis (twice the longest a merge waits) no longer holds.
 - `SERVICE_HOLD_CEILING` 10 minutes:
   a forwarded `git add`,
   `rm` or `mv` waits for the service's hold,

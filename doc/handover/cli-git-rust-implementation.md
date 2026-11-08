@@ -3756,7 +3756,10 @@ may be removed by the service (today never:
 the owner picked "kept" for locks without a PID file);
 the merge,
 the settling of earlier batches and the index reconciliation after a landing still wait `LOCK_CEILING` (10 minutes,
-unmeasured);
+unmeasured,
+superseded the same day by "Timing record names every step;
+the other lock waits",
+which gave each of the three a measured ceiling of its own);
 a native `git commit --only` in its hook phase holds the lock with no descriptor open and no PID file,
 and processes of other user namespaces are unreadable,
 so such a holder stays unprovable by descriptor.
@@ -8062,6 +8065,77 @@ though nothing conflicted.
   `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
   The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
   `service_land.rs`) is unchanged.
+
+### The lock ceiling and the three waits it fed, measured (2026-11-08T16:01:42-05:00)
+
+Item 5 of the queue audit:
+`LOCK_CEILING` and the three waits once derived from it had no measurement beside them (rule `LQM`).
+By this date none of the three takes the ten minutes any more
+("Timing record names every step;
+the other lock waits" gave each a ceiling of its own),
+so the measurement answers two questions:
+what the ten minutes is worth and what the three ceilings now rest on.
+
+- Command:
+  both generations of this repository's commit timing log,
+  `monochromatic-git-policy-cli-commit-timing.jsonl` and `.1`,
+  read only,
+  by scratch scripts under `${HOME}/temp/agent/lock-ceiling` (TypeScript,
+  not committed).
+  No journal was read for it and no live probe was run;
+  the measuring wrote nothing to the repository.
+- Window and count:
+  1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
+  102 worktrees,
+  releases 0.5.34 to 0.6.1-alpha.4,
+  1,307 landed,
+  23 stopped and 2 ended.
+- Figures:
+  whole command p99 58,782 ms and longest 1,228,797 ms;
+  answer wait p99 14,875 ms and longest 1,200,776 ms;
+  preparation p99 21,878 ms and longest 230,525 ms;
+  after landing at most 7,856 ms.
+  Six records hold a waiting notice for another program's hold on the index:
+  two landed (3,636 and 23,783 ms of answer time),
+  four are the commits that met the lock that never went on 2026-11-07
+  (644,710 to 1,200,776 ms,
+  all stopped,
+  the last notice `unproven` in five of them).
+- Under load:
+  the reading ran at load average 115.9 of 32 threads,
+  and the log's own hours ran from 1 to 182 landed commits.
+  Within one release on both sides,
+  the quietest hour of 0.6.1-alpha.1 (15 landed commits) had 114 ms at the 99th percentile of the answer wait,
+  against 2,890 to 9,086 ms in its hours of 29 to 81;
+  the busiest hour of 0.6.0 (182) had 11,975 ms,
+  below the 38,545 ms of the 116-commit hour beside it.
+  The tail follows the busy hours,
+  with as much spread between two busy hours as between a busy one and a quiet one.
+- What the log cannot measure:
+  a merge writes no record (278 merge commits in the window,
+  and `CommitTiming::start` is in
+  `commit/commit_command.rs` alone),
+  the settling is the management command `service settle-earlier-batches`,
+  and no record names the `git reset` of the reconciliation,
+  so it did not run in the window.
+- Verdict:
+  no wait that a holder released came near the ten minutes (the largest in the log is under 23,783 ms of answer time),
+  so the ten minutes was 25 times the observed self-released wait and no measurement supports it as a bound for those three;
+  the one minute each takes now is 2.5 times that upper bound.
+  The ten minutes keeps its value,
+  because no wait takes it and `FOREIGN_OWNER_PATIENCE` owns it,
+  and it is cited now;
+  the figure this measurement would pick is in
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceiling and the three waits it fed".
+- Open,
+  for the owner:
+  `FOREIGN_OWNER_PATIENCE` still states its basis as twice the longest a merge waits,
+  and the merge waits one minute now,
+  so that basis would make it two minutes rather than the twenty it ships.
+  Another change owns the constant;
+  it was not touched here.
 
 ### Design stance
 
