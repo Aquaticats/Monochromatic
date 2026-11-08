@@ -4258,9 +4258,31 @@ a wait notice on standard error where real Git printed none)
 now compares standard error without wait notices,
 as the pull and merge isolation controls already did (commit `43aea63140`;
 the five sequencer controls passed on the host).
-Open:
-whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
-(today it stays on its scratch branch with the open intent).
+Whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
+(today it stays on its scratch branch with the open intent):
+decided and built (2026-11-08,
+branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`,
+red control `70d04ae08a`).
+What was read before the change:
+a start of the service settles only an earlier release's shared journal,
+not its own;
+the next batch settles its own (`settle_open_batches` in `service_server_land_group.rs`),
+and that drop (`recover_selected` in `service_land_finish.rs`) left the commit on `refs/worktree/cli-git-service/<seq>`
+alone,
+which a commit Git built never has.
+So the drop now writes `refs/cli-git/kept/<seq>` at the batch's own `new` before the intent goes
+(`keep_what_never_landed`),
+a write that fails is logged and does not hold up the drop,
+and the stop waits for nothing more than it did,
+so the commit reaches a ref the wrapper names and the scratch branch is left where it is.
+Controls:
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` (unit)
+and `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`
+(real service stopped inside the write,
+then the next commit).
+The client that saw the stop still gets "the commit service stopped before it confirmed this commit",
+which names `git log -1` and `git status` and not the kept ref:
+at that moment recovery has not run yet and no kept ref exists.
 
 Commit service units and removed worktrees (2026-11-08):
 the unit instance is the 128-bit FNV-1a hash of the worktree's real own Git directory (`service_instance.rs`),

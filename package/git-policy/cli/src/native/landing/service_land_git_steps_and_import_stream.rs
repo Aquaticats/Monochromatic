@@ -23,6 +23,26 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTIN
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 /// What:
+///  Writes `refs/cli-git/kept/<number>` at `tip`,
+/// the ref the wrapper keeps a commit it did not land on,
+/// and says whether Git wrote it.
+/// Why:
+///   One place names that ref and writes it,
+/// so the side ref of a landing that gave up at a step and the side ref the restart writes for a batch whose branch
+/// never moved cannot drift apart;
+/// the write adds no reflog entry and follows no symbolic ref.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['-c', withNoReflog, 'update-ref', '--no-deref', `refs/cli-git/kept/${seq}`, tip]).succeeded
+/// ```
+pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> bool {
+    let name: String = format!("refs/cli-git/kept/{seq}");
+    let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
+    return matches!(made, Ok(output) if output.succeeded());
+}
+
+/// What:
 ///  Keeps the commit built for a batch that was withdrawn on a side ref,
 /// and returns the line that tells the person where it is.
 /// Why:
@@ -34,12 +54,11 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
+/// await keepOnASideRef(git, repository, seq, tip); return `kept at refs/cli-git/kept/${seq}`
 /// ```
 pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
     let name: String = format!("refs/cli-git/kept/{seq}");
-    let made = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
-    if !matches!(made, Ok(output) if output.succeeded()) {
+    if !keep_on_a_side_ref(git, repository, seq, tip) {
         return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
     return format!(

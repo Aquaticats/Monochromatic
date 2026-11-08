@@ -7429,6 +7429,17 @@ and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 The service keeps a journal of each batch it lands and settles an unfinished batch when it starts again;
 the wrapper recovers nothing for a commit.
+A batch whose branch never moved is dropped:
+its commit is kept on `refs/cli-git/kept/<batch>` before the intent goes
+(`keep_what_never_landed` in `src/native/landing/service_land_finish.rs`),
+so the commit of a branch write that a stop left running,
+including one Git built,
+which has no scratch branch,
+reaches a ref the wrapper names instead of an unnamed one,
+or none at all.
+The kept write runs only on this drop,
+never during a landing,
+and a write that fails is logged and does not hold up the drop.
 What the wrapper still settles at the start of a command is state other code writes:
 an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format

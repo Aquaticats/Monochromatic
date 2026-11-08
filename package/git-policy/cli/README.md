@@ -4320,6 +4320,12 @@ A branch write that outlives the bound is therefore cut by the manager,
 the branch stays where it was,
 the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>`,
 and the batch's open intent is what recovery reads.
+The next commit of that worktree settles the intent:
+it keeps the commit on `refs/cli-git/kept/<seq>`,
+the ref this wrapper names for work it did not land,
+and removes the intent,
+so the commit reaches a ref a person can list with `git for-each-ref refs/cli-git/kept/`
+even before the commit is run again.
 `TimeoutStopSec` is written into the unit from the stop bounds (`STOP_TIMEOUT_SECONDS`),
 above the service's last-resort alarm,
 so the host's default stop timeout never decides

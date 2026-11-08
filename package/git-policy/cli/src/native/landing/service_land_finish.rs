@@ -24,6 +24,7 @@
 //! const done = await finishAfterMove(git, intent, lock, journal, headCheck) // true: every obligation of the batch is settled
 //! ```
 
+use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref;
 use crate::service_head::still_checked_out;
 use crate::service_instance::instance_of;
 use crate::service_journal::{INDEXED_EXTENSION, Indexed, Intent, OPEN_EXTENSION, Recovery, Started, indexed_state, list_intents, list_intents_read_only, mark_done, mark_indexed, read_start, recovery_for, remove_start};
@@ -297,7 +298,8 @@ pub enum Handled {
     /// it stays open.
     StillOpen,
     /// The batch never landed;
-    /// its intent and records are removed.
+    /// its commit is kept on `refs/cli-git/kept/<number>`,
+    /// and its intent and records are removed.
     Dropped,
     /// The batch looks as if it never landed,
     /// and its journal is another service's:
@@ -332,6 +334,36 @@ enum JournalOwner {
     ///  "about to land",
     /// and the intent stays for that helper's own start-up recovery.
     EarlierHelper,
+}
+
+/// What:
+///  Keeps the commit of a batch that never landed on `refs/cli-git/kept/<number>`,
+/// the ref the wrapper names for a commit it did not land,
+/// before the batch's intent goes.
+/// Why:
+///   A service stopped inside the branch write never cuts that write:
+/// it ends at its bound with the write still running,
+/// so the landing cannot unwind and keep its commit,
+/// and a service killed between its intent and its branch move leaves the same shape.
+/// The commit is then only on the landing's scratch branch,
+/// which a commit Git built never makes,
+/// and which no message names;
+/// the drop that follows would leave it where nothing points a person.
+/// A write that cannot be made is said and does not hold up the drop:
+/// the scratch branch,
+/// where the batch made one,
+/// still protects the commit from maintenance.
+fn keep_what_never_landed(git: &GitContext, intent: &Intent) {
+    if keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
+        crate::service_log!("batch {} never landed, so its commit {} is kept at refs/cli-git/kept/{}", intent.seq, intent.new, intent.seq);
+        return;
+    }
+    crate::service_error!(
+        "batch {} never landed, and its commit {} could not be kept on refs/cli-git/kept/{}; the commit is left where the landing put it",
+        intent.seq,
+        intent.new,
+        intent.seq
+    );
 }
 
 /// What:
@@ -530,6 +562,7 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
         let handled: Handled = match (decision, owner) {
             (Recovery::Drop, JournalOwner::EarlierHelper) => Handled::Left,
             (Recovery::Drop, JournalOwner::ThisService) => {
+                keep_what_never_landed(&git, &intent);
                 remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));

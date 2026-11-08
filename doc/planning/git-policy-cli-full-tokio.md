@@ -3988,7 +3988,27 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   The commit is not copied to `refs/cli-git/kept/<n>` in that case,
   because the landing is still inside the write when the service ends and cannot unwind;
   recovery reads the open intent as it does after any kill.
-  Whether the commit should also be copied to a kept ref at the limit is not decided.
+  Whether the commit should also be copied to a kept ref at the limit is decided (2026-11-08,
+  branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`):
+  it is,
+  by the recovery that settles the batch,
+  never by the stop.
+  What that touched was read first:
+  a start of the service does not settle its own journal
+  (only an earlier release's shared journal is settled at a start),
+  the next batch settles it,
+  and that drop left the commit on the landing's scratch branch alone,
+  which a commit Git built never has.
+  The drop now writes `refs/cli-git/kept/<n>` before the intent goes
+  (`keep_what_never_landed` in `service_land_finish.rs`),
+  a write that fails is logged and does not hold up the drop,
+  and the stop waits for nothing more than it did,
+  so the ref is named once the worktree commits again.
+  Controls,
+  red first (`70d04ae08a`):
+  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`
+  and
+  `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`.
 - The measured host facts behind the unit:
   the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
   from `DefaultTimeoutStopSec=15s` in `/etc/systemd/user.conf.d/timeout.conf`,
