@@ -3112,6 +3112,14 @@ and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
 
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` tell the reader to run `mpm update -g <tool id>`,
+and the README says it works from any directory.
+Run at 2026-11-08 from the home folder and from the repository,
+that command reached the real `mpm`,
+which answered `Error: No such option '-g'.` under `Usage: mpm upgrade [OPTIONS]`.
+`mise exec -- mpm-shadow update -g <tool id>` is the route that reached the shadow.
+What decides between them is not measured yet.
+
 Ordered behind other work rather than waiting for a slot:
 
 - Merging `fix/repository-move-cli-checks-after-the-860-move`,
