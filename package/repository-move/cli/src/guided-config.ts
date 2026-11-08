@@ -221,6 +221,14 @@ export async function createGuidedConfig(
     'src',
   );
   /**
+   The user's state folder, where both the earlier and the renamed wrapper keep their commit service state.
+   */
+  const stateHome = env.XDG_STATE_HOME ?? join(
+    homeDir,
+    '.local',
+    'state',
+  );
+  /**
    The runner's configuration.
    */
   const config: GuidedConfig = {
@@ -284,13 +292,14 @@ export async function createGuidedConfig(
       'temp',
       'agent',
     ),
-    cliGitState: join(
-      env.XDG_STATE_HOME ?? join(
-        homeDir,
-        '.local',
-        'state',
-      ),
+    earlierWrapperState: join(
+      stateHome,
       'cli-git',
+      'service',
+    ),
+    wrapperState: join(
+      stateHome,
+      'monochromatic-git-policy-cli',
       'service',
     ),
     nodePath,
@@ -370,7 +379,8 @@ export async function createGuidedConfig(
     moveState: config.moveState,
     toolsFolder: config.toolsFolder,
     fixtureParent: config.fixtureParent,
-    cliGitState: config.cliGitState,
+    earlierWrapperState: config.earlierWrapperState,
+    wrapperState: config.wrapperState,
     nodePath: config.nodePath,
     unitPath: config.unitPath,
   },)) {

@@ -38,6 +38,16 @@ const CONTAINER_BIND_LIMIT_OPTIONS = containerLimitArguments(CONTAINER_BIND_LIMI
   .join(' ',);
 
 /**
+ The unit name patterns of the commit services, quoted for the shell: the earlier `cli-git@` units, whose sockets
+ stay listening after the rename until their helpers are replaced, and the renamed `monochromatic-git-policy-cli@`
+ units. The window stops both and checks that neither is active, so no helper writes into the tree while it freezes.
+ */
+const COMMIT_SERVICE_UNIT_PATTERNS = [
+  "'cli-git@*'",
+  "'monochromatic-git-policy-cli@*'",
+].join(' ',);
+
+/**
  The stages of `cutover`.
 
  @param c - the configuration
@@ -224,8 +234,8 @@ echo checks passed`,
     {
       id: 'c04-wrapper-state',
       title: 'Wrapper state',
-      says: 'Wrapper state: no commit in progress (busy/) and no planned push (push-retries/) for any commit service instance; the pending transactions in .git are listed (they move unchanged with .git).',
-      command: `/usr/bin/find ${c.cliGitState} \\( -path '*/busy/*' -o -path '*/push-retries/*' \\) -type f -print > ${c.wiz}/wrapper-busy.txt
+      says: 'Wrapper state: no commit in progress (busy/) and no planned push (push-retries/) for any commit service instance, in the state folder of the earlier cli-git releases and in that of the renamed wrapper; the pending transactions in .git are listed (they move unchanged with .git).',
+      command: `for folder in ${c.earlierWrapperState} ${c.wrapperState}; do if test -d "$folder"; then /usr/bin/find "$folder" \\( -path '*/busy/*' -o -path '*/push-retries/*' \\) -type f -print; fi; done > ${c.wiz}/wrapper-busy.txt
 compgen -G '${c.repo}/.git/cli-git-transactions/*.pending' || echo 'no pending transactions'`,
       check: `test ! -s ${c.wiz}/wrapper-busy.txt || { cat ${c.wiz}/wrapper-busy.txt; echo 'push the branches of these plans by hand, then run again'; exit 1; }`,
       checkText: 'busy/ and push-retries/ are empty everywhere',
@@ -253,10 +263,10 @@ echo "subvolumes to freeze: $(grep --count '^btrfs property set -ts ' ${c.wiz}/f
       says: 'THE WINDOW STARTS AT THIS STEP. It stops the repository\'s user units, so commits fail from here. Freeze, final pass, verification and swap must finish inside the stated maximum or the runner stops and tells you to thaw.',
       assertion: 'No agent is working in any worktree, and commits may be refused until the window ends.',
       windowStart: true,
-      command: `systemctl --user list-units --plain --no-legend --all 'cli-git@*' | awk '{ print $1 }' > ${c.wiz}/stopped-units.txt
+      command: `systemctl --user list-units --plain --no-legend --all ${COMMIT_SERVICE_UNIT_PATTERNS} | awk '{ print $1 }' > ${c.wiz}/stopped-units.txt
 systemctl --user is-active --quiet claude-cpu-watch.service && echo claude-cpu-watch.service >> ${c.wiz}/stopped-units.txt || true
 xargs --arguments-file=${c.wiz}/stopped-units.txt --no-run-if-empty systemctl --user stop`,
-      check: `test "$(systemctl --user list-units --plain --no-legend --state=active 'cli-git@*' | wc --lines)" = 0 && ! systemctl --user is-active --quiet claude-cpu-watch.service`,
+      check: `test "$(systemctl --user list-units --plain --no-legend --state=active ${COMMIT_SERVICE_UNIT_PATTERNS} | wc --lines)" = 0 && ! systemctl --user is-active --quiet claude-cpu-watch.service`,
       checkText: 'no commit service is active and claude-cpu-watch.service is stopped',
       rollback: 'the thaw command restarts claude-cpu-watch.service; commit services start again on the next commit',
       root: 'no',

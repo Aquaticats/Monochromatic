@@ -30,7 +30,15 @@ export type GuidedConfig = {
   readonly inventory: string;
   readonly inventoryMain: string;
   readonly fixtureParent: string;
-  readonly cliGitState: string;
+  /**
+   The commit service state folder of wrapper releases before the rename to `monochromatic-git-policy-cli`
+   (0.6.1-alpha.1); helpers started by the earlier `cli-git@` units still write there.
+   */
+  readonly earlierWrapperState: string;
+  /**
+   The commit service state folder of the renamed wrapper.
+   */
+  readonly wrapperState: string;
   readonly nodePath: string;
   readonly linkBinFolder: string;
   readonly unitPath: string;

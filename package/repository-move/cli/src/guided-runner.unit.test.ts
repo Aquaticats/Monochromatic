@@ -810,6 +810,27 @@ await describe({
           },
         },),
         it({
+          name: 'the window stops and checks the commit units under the earlier cli-git name and the renamed name, and the wrapper-state stage reads both state folders',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await cutoverStages({ c: config, stamp: 'S', },);
+              const stop = stages.find((s,) => s.id === 'c06-stop-units',) as Stage;
+              const stopCommand = await resolvedCommand({ stage: stop, config, },);
+              // The earlier units keep listening after the rename, so the window must stop both kinds.
+              for (const pattern of ["'cli-git@*'", "'monochromatic-git-policy-cli@*'",]) {
+                expect(stopCommand,).toContain(pattern,);
+                expect(stop.check,).toContain(pattern,);
+              }
+              const state = stages.find((s,) => s.id === 'c04-wrapper-state',) as Stage;
+              const stateCommand = await resolvedCommand({ stage: state, config, },);
+              expect(config.earlierWrapperState.endsWith('/cli-git/service',),).toBe(true,);
+              expect(config.wrapperState.endsWith('/monochromatic-git-policy-cli/service',),).toBe(true,);
+              expect(stateCommand,).toContain(config.earlierWrapperState,);
+              expect(stateCommand,).toContain(config.wrapperState,);
+            },);
+          },
+        },),
+        it({
           name: 'the footprint of the checkout is measured by the tool that measures again when a worktree vanishes, and the preflight still reads its output',
           fn: async () => {
             await withConfig(async ({ config, },) => {
