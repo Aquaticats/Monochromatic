@@ -417,7 +417,7 @@ each run named with its backing.
   after the extension bundle rebuilt.
 - Open gate:
   `verify:host` (throwaway-home pi RPC) was not run as its own gate;
-  the real-home boundary runs above exercised the host path instead.
+  the real-home boundary runs in `Gate results (2026-11-08T00:06:46-05:00)` exercised the host path instead.
 - Blocked elsewhere:
   typecheck gates whose graph includes `test-harness/core-matrix` fail on
   `TS2307` for `container-limit-core`,
