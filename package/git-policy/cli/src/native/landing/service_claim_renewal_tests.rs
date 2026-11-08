@@ -254,3 +254,38 @@ fn settlements_racing_renewals_lose_no_claim() {
 
 /// How many claims the race holds at once.
 const RACED_CLAIMS: usize = 40;
+
+/// The number of threads this process has,
+/// read from its status.
+fn threads_of_this_process() -> usize {
+    let status: String = std::fs::read_to_string("/proc/self/status").expect("the status of this process");
+    let line: &str = status.lines().find(|line| line.starts_with("Threads:")).expect("a Threads line");
+    return line.trim_start_matches("Threads:").trim().parse().expect("a thread count");
+}
+
+/// How many renewals the control below keeps running at once.
+const RENEWALS_RUNNING: usize = 16;
+
+/// Renewals run as tasks of the process's runtime:
+/// many running at once add far fewer threads than renewals,
+/// where a thread each added one thread each.
+#[test]
+fn renewals_running_at_once_start_no_thread_each() {
+    // The runtime's own workers are started by the first use, and are not the renewals' threads.
+    crate::lazy_runtime::run_on_runtime(async {}).expect("the runtime starts");
+    let before: usize = threads_of_this_process();
+    let mut running: Vec<ClaimRenewal> = Vec::new();
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for number in 0..RENEWALS_RUNNING {
+        let root: PathBuf = fixture(format!("renewal-no-thread-{number}").as_str());
+        let (_held, renewer) = held_claims(root.join("work").as_path());
+        running.push(ClaimRenewal::start(renewer, LEASE));
+        roots.push(root);
+    }
+    let growth: usize = threads_of_this_process().saturating_sub(before);
+    drop(running);
+    for root in &roots {
+        remove(root.as_path());
+    }
+    assert!(growth < RENEWALS_RUNNING / 2, "{RENEWALS_RUNNING} renewals added {growth} threads: a renewal must be a task");
+}
