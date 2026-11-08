@@ -34,7 +34,9 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 1.  From `~/Monochromatic`,
     check that `mise exec -- pi --version` prints a version.
 2.  Make a worktree for the run with `git worktree add -b <branch> .claude/worktrees/<name> HEAD`,
-    in the background.
+    in the background,
+    and go on only once it has succeeded:
+    Pi starts in that folder.
 3.  Copy the recorded driver and the read-only `git` shim into a fresh folder under `${HOME}/temp/agent`.
     A commit here auto-pushes and the model has a shell,
     so the shim keeps Pi from committing and the lead commits:
@@ -86,12 +88,20 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 6.  Read progress from `<run>/out/feed_<tag>.jsonl` when asked.
     To steer,
-    write a text file into `<run>/out/inbox_<tag>/`:
+    write a text file under a name starting with a dot in `<run>/out/inbox_<tag>/`,
+    then rename it to one without the dot,
+    because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `IDLE_MS` is how long the driver stays up for one after Pi settles.
+    A message Pi refused stays there as `.failed-<name>`.
     To end the run early,
     create `<run>/out/stop_<tag>`.
 7.  Read the result from `<run>/out/summary_<tag>.json`.
+    `endReason` says how it ended:
+    `idle` and `stop-file` exit 0,
+    and `prompt-rejected`,
+    `pi-exited`,
+    `turn-cap` and `wall-clock` fail the unit.
     Its `lastAssistantText` is cut at 3000 characters and `tokens.costTotal` undercounts,
     so take the cost from `sessionStats` and the full report from the session file it names:
 
@@ -102,7 +112,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 8.  For a follow-up after the driver has exited,
     start the same unit under a new name and tag,
-    with a new prompt file and `--setenv=PI_EXTRA_ARGS="--session <session file>"`.
+    with a new prompt file and `--setenv=PI_SESSION=<session file>`.
 9.  Review the diff as the lead,
     regenerate anything `file-enforcer` owns,
     and commit.

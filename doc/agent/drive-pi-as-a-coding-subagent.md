@@ -115,13 +115,13 @@ which the owner wants kept.
 // pi-rpc-agent.ts: drive one Pi subagent through RPC, record everything it does live, accept steers from an inbox folder.
 // usage: node pi-rpc-agent.ts <out-dir> <tag> <cwd> <prompt-file>
 // env: AGENT_DIR (PI_CODING_AGENT_DIR for the child), PI_TOOLS and PI_THINKING (both optional), PI_PROVIDER, PI_MODEL,
-//      PI_EXTRA_ARGS (space separated),
+//      PI_SESSION (session file to resume), PI_EXTRA_ARGS (space separated),
 //      WALL_MS (hard kill), IDLE_MS (exit after this long idle once settled with an empty inbox), TURN_CAP
 // Feed: <out-dir>/feed<tag>.jsonl, one compact record per event worth watching.
 // Steers: write any text file into <out-dir>/inbox<tag>/ ; it is sent as a steer while the agent runs, else as a new prompt.
 // Stop: create <out-dir>/stop<tag> to end the session early.
 import { spawn } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const [outDirectory, tag, workingDirectory, promptFile] = process.argv.slice(2);
@@ -145,6 +145,7 @@ const arguments_ = [
   '--model', process.env.PI_MODEL ?? 'hf:deepseek-ai/DeepSeek-V4.1-Flash-1017',
   ...(process.env.PI_THINKING ? ['--thinking', process.env.PI_THINKING] : []),
   ...(process.env.PI_TOOLS ? ['--tools', process.env.PI_TOOLS] : []),
+  ...(process.env.PI_SESSION ? ['--session', process.env.PI_SESSION] : []),
   ...(process.env.PI_EXTRA_ARGS ? process.env.PI_EXTRA_ARGS.split(' ') : []),
 ];
 const environment = { ...process.env, ...(process.env.AGENT_DIR ? { PI_CODING_AGENT_DIR: process.env.AGENT_DIR } : {}) };
@@ -159,6 +160,8 @@ const note = (entry: Record<string, unknown>): void => {
 };
 
 let exited = false;
+let piExit: { code: number | null; signal: string | null } | null = null;
+let hardKilled = false;
 let running = false;
 let settled = 0;
 let turns = 0;
@@ -175,6 +178,7 @@ let lastAssistantText = '';
 child.stderr.on('data', (chunk: Buffer) => appendFileSync(join(outDirectory, `stderr${tag}.log`), chunk));
 child.on('close', (code, signal) => {
   exited = true;
+  piExit = { code, signal };
   note({ kind: 'exit', code, signal });
   for (const resolve of waiting.values()) resolve({ success: false, error: 'pi exited' });
 });
@@ -195,8 +199,8 @@ const handleEvent = (record: Record<string, unknown>): void => {
   const type = String(record.type);
   lastActivity = Date.now();
   if (type === 'agent_start') running = true;
-  if (type === 'agent_end') running = false;
-  if (type === 'agent_settled') { settled += 1; note({ kind: 'settled', n: settled }); }
+  // agent_end ends one low-level run; retries and follow-up work can still come, so only agent_settled means idle.
+  if (type === 'agent_settled') { running = false; settled += 1; note({ kind: 'settled', n: settled }); }
   if (type === 'turn_start') { turns += 1; note({ kind: 'turn_start', n: turns }); }
   if (type === 'tool_execution_start') {
     const name = String(record.toolName);
@@ -247,7 +251,7 @@ child.stdout.on('data', (chunk: Buffer) => {
   }
 });
 
-const hardKill = setTimeout(() => { note({ kind: 'hard-kill' }); child.kill('SIGTERM'); }, WALL_MS);
+const hardKill = setTimeout(() => { hardKilled = true; note({ kind: 'hard-kill' }); child.kill('SIGTERM'); }, WALL_MS);
 
 const state = await send({ type: 'get_state' });
 const stateData = (state.data ?? {}) as Record<string, unknown>;
@@ -259,36 +263,42 @@ note({ kind: 'commands', names: commandNames });
 const firstPrompt = readFileSync(promptFile, 'utf8');
 const firstResponse = await send({ type: 'prompt', message: firstPrompt });
 note({ kind: 'prompt_sent', success: firstResponse.success, error: firstResponse.error ?? null, chars: firstPrompt.length });
+// A handled prompt starts no run, so no agent_settled follows it.
+if (((firstResponse.data ?? {}) as Record<string, unknown>).disposition === 'handled') settled += 1;
 
-let endReason = 'idle';
-while (!exited) {
+let endReason = firstResponse.success === false ? 'prompt-rejected' : '';
+while (!exited && endReason === '') {
   if (existsSync(stopFile)) { endReason = 'stop-file'; break; }
   if (turns >= TURN_CAP) { endReason = 'turn-cap'; break; }
   const inboxFiles = readdirSync(inboxDirectory).filter((name) => !name.startsWith('.')).sort();
   for (const name of inboxFiles) {
     const path = join(inboxDirectory, name);
     const text = readFileSync(path, 'utf8');
-    unlinkSync(path);
     const mode = running ? 'steer' : 'prompt';
     const response = await send({ type: mode, message: text });
+    // The file goes only once Pi has it; a refused or unanswered one stays readable under a dot name, which this loop skips.
+    if (response.success === true) unlinkSync(path); else renameSync(path, join(inboxDirectory, `.failed-${name}`));
     note({ kind: 'inbox', file: name, sentAs: mode, success: response.success, error: response.error ?? null, preview: preview(text, 300) });
   }
   if (!running && settled >= 1 && inboxFiles.length === 0 && Date.now() - lastActivity > IDLE_MS) { endReason = 'idle'; break; }
   await new Promise((resolve) => setTimeout(resolve, 300));
 }
+if (endReason === '') endReason = hardKilled ? 'wall-clock' : 'pi-exited';
 
 const stats = await send({ type: 'get_session_stats' }, 15_000);
 if (running) await send({ type: 'abort' }, 15_000);
 clearTimeout(hardKill);
 const summary = {
-  tag, endReason, totalMs: Date.now() - startedAt, turns, settled,
+  tag, endReason, piExit, totalMs: Date.now() - startedAt, turns, settled,
   tokens: { input: inputTokens, output: outputTokens, costTotal },
   toolHistogram, toolErrors, dialogs, sessionStats: stats.data ?? stats.error ?? null,
   lastAssistantText: preview(lastAssistantText, 3000),
 };
 writeFileSync(summaryFile, `${JSON.stringify(summary, null, 2)}\n`);
+// A run that did not end on its own terms fails the unit, so the command waiting on it reports that.
+if (!['idle', 'stop-file'].includes(endReason)) process.exitCode = 1;
 child.stdin.end();
-setTimeout(() => { if (!exited) child.kill('SIGTERM'); }, 5_000);
+setTimeout(() => { if (!exited) child.kill('SIGTERM'); }, 5_000).unref();
 ```
 
 Run it as its own capped user unit,
@@ -623,6 +633,48 @@ copied out with `awk` for each run,
 so nothing type-checks,
 lints or tests them.
 
+## Cross-vendor review of the recipe, run 2026-11-08T13:49:08-05:00
+
+`openai/gpt-6.1-sol` read the skill and this doc with no tools and named nine defects.
+Each was checked against the code before it was fixed.
+Pi's own `docs/rpc.md` confirms the `agent_end` one:
+that event ends one low-level run,
+and retries,
+compaction,
+steering or follow-up work can still come before `agent_settled`.
+
+A stand-in `pi` that speaks just enough of the protocol took the driver down each failure path,
+before and after the fixes:
+
+- A rejected first prompt ran to the wall clock and exited 0 with `endReason` `idle`.
+  It now ends in 77 ms,
+  exits 1,
+  and says `prompt-rejected`.
+- A `pi` that crashed at start exited 0 with `idle`.
+  It now exits 1.
+- A message dropped between `agent_end` and `agent_settled` went out as a new prompt.
+  It now goes as a steer.
+- A message Pi refused was deleted.
+  It now stays as `.failed-<name>`.
+
+Two endings were only run after the fixes:
+a `pi` that exits mid-run ends with `pi-exited` and status 1,
+and one that never settles ends with `wall-clock` and status 1.
+
+`git config -- example.value --get` passed the shim and wrote the value,
+because the shim looked for a read-only flag anywhere in the arguments.
+It now reads only the options before the first operand,
+and the same command is refused.
+
+The real model then ran the recipe as written.
+A message dropped during a tool call went as a steer,
+one dropped after settling went as a new prompt,
+and a new unit with `PI_SESSION` resumed the session and named the commands from its first prompt.
+
+Not run:
+a `PI_SESSION` path holding a space,
+and a first prompt that Pi answers with the disposition `handled`.
+
 ## Tool and feed quirks
 
 - A multi-block `edit` is rejected whole when one `oldText` does not match.
@@ -640,8 +692,8 @@ lints or tests them.
   Stop the old one with `TaskStop`.
   `tail -n 0 -F` waits for a feed file that does not exist yet.
 - To wait for a subagent without polling,
-  read the unit's main process ID with `systemctl --user show --property=MainPID --value <unit>`
-  and wait with `timeout <seconds> tail --pid=<pid> --follow /dev/null` in a background command.
+  start its unit with `systemd-run --user --wait` in a background command.
+  Following its main process ID with `tail --pid` waits out the whole timeout when the unit has already finished.
 
 ## The read-only git shim
 
@@ -668,6 +720,10 @@ const READ_ONLY = new Set([
   'check-ignore', 'shortlog', 'name-rev', 'ls-tree', 'merge-base', 'show-ref', 'for-each-ref', 'version', 'help',
 ]);
 const READ_ONLY_CONFIG_FLAGS = new Set(['--get', '--get-all', '--list', '-l', '--get-regexp']);
+const leadingOptions = (tokens) => {
+  const firstOperand = tokens.findIndex((token) => token === '--' || !token.startsWith('-'));
+  return firstOperand === -1 ? tokens : tokens.slice(0, firstOperand);
+};
 
 const args = process.argv.slice(2);
 let index = 0;
@@ -681,7 +737,7 @@ const subcommand = args[index];
 
 const allowed = subcommand === undefined
   || READ_ONLY.has(subcommand)
-  || (subcommand === 'config' && args.slice(index + 1).some((flag) => READ_ONLY_CONFIG_FLAGS.has(flag)))
+  || (subcommand === 'config' && leadingOptions(args.slice(index + 1)).some((flag) => READ_ONLY_CONFIG_FLAGS.has(flag)))
   || (subcommand === 'branch' && args.slice(index + 1).every((flag) => flag.startsWith('-') && ['--show-current', '--list', '-l', '-a', '-r', '-v', '-vv'].includes(flag)));
 
 if (!allowed) {
