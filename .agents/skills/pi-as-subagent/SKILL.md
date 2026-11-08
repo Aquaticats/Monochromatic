@@ -44,6 +44,10 @@ Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
 Give a run its own worktree whenever anything else is working in the same packages.
+Start a run for every independent queued item up to that number.
+Resource limits that add up to more than the host has are ceilings,
+not usage,
+and are no reason to hold work back.
 
 ## Start a run
 

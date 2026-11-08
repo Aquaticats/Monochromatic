@@ -3059,6 +3059,35 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
+### Work waiting for a free Pi slot (2026-11-08T15:04:00-05:00)
+
+The owner:
+"Pi doesn't have a limit to number of concurrent subagents.
+In practice it's 16."
+All 16 are in use on 2026-11-08,
+each with a prompt and run folder under `${HOME}/temp/agent/pi-runs/`.
+Started next,
+as slots free:
+
+- The wizard skill emits TypeScript root scripts (owner:
+  "Wizard writes TypeScript").
+- A host run of the btrfs-only ladder tests that skip in the gate container (see `### Gate and tooling`).
+- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
+  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
+
+Ordered behind other work rather than waiting for a slot:
+
+- The parallelism audit of loops over independent items,
+  after tokio step T12,
+  which removes the thread runner.
+- Layout move steps 2 to 6,
+  after tokio steps T12 and T13 and a rescan (`doc/planning/cli-git-source-layout-target-tree.md`).
+- The TypeScript port of the wrapper package,
+  after the layout move (owner:
+  "After the layout move (Recommended)").
+- `pnpr` serving crates,
+  behind layout and lint.
+
 ### A commit stopped at the scratch ceiling on every retry after the 860 move (2026-11-08T12:46:15-05:00)
 
 The first commit through the new location failed twice,
