@@ -1255,11 +1255,11 @@ I'd like you to confirm with me each pkg can stand on its own itself."),
 each of the nine is lifted bottom first and shown,
 one at a time:
 
-- It has its own `Cargo.toml` that lists only the libraries named above as `path` dependencies with an exact `=` pin,
+- It has its own `Cargo.toml` that lists only the nine libraries of the What each passing library changes section as `path` dependencies with an exact `=` pin,
   and,
   for every package except `disposable-test-folders` itself,
   that library as a dev-dependency.
-- Its README opens with the paragraph above;
+- Its README opens with the job line its subsection gives;
   a search of its README,
   public names and `Cargo.toml` for the Git words (`git`,
   `lfs`,
@@ -3499,7 +3499,7 @@ which is what moved six folders off their theme in the draft.
 ## Changes the tree needs before files can move
 
 Every change is a commit that keeps the single crate building and its tests passing (see "Move order").
-The loop checks above hold only with all of these applied.
+The loop checks in the What the scan counts now section hold only with all of these applied.
 Where this section says "crate" for one of the draft's 46 libraries that is gone,
 read the program folders listed in section "The crate split" under "Former crates and the program folders they became".
 
@@ -4342,7 +4342,7 @@ and its new file:
 The moves that make a library stand alone are listed in "Changes so that a library stands alone"
 and replace the destination of the same items here.
 
-### Moves of whole files not listed above
+### Whole-file moves the Moves of single items section leaves out
 
 - `worktree_add_plan_path_questions` (path and byte questions) moves to `safe-file-saving`:
   `start_directory`,
@@ -4463,7 +4463,7 @@ and passes the crate's tests.
     Done once on 2026-11-07 (section "Rescan of main after the adopted crates");
     tokio steps T6 to T13 are still to land,
     so it runs again before step 7.
-2.  Every change listed above that is not a loop break also gets its own commit before the first grouping that needs it:
+2.  Every change in the Changes the tree needs before files can move section that is not a loop break also gets its own commit before the first grouping that needs it:
     the `worktree_command_facts` move,
     the `copy_file_exclusive` error type,
     the hint-function moves,
@@ -4504,7 +4504,7 @@ and passes the crate's tests.
     here also the renames,
     the new index files with their top docs,
     the sidecar renames,
-    the `test_support` split and the planted-control path updates (next section).
+    the `test_support` split and the planted-control path updates (the How the tests and scripts follow section).
 8.  Add every `uses/` link in one commit,
     then switch the two layout lint rules on for the whole package
     (enabling them folder by folder would leave the rest failing).
