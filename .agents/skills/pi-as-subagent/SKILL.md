@@ -9,8 +9,12 @@ Pi is a second subagent runtime here,
 beside Claude Code native subagents,
 and a rule that says "subagent" without naming a runtime binds it too.
 
-Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process started in the repository,
+Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` through the driver package,
+`package/pi-shared/subagent-driver`,
+started in the repository,
 where Pi loads `AGENTS.md` (from another folder rule `ATH` was not in its context).
+Real coding tasks always go through the driver;
+the owner said "Forget about --print on a real coding task."
 In every prompt cite rule `ATH`,
 because the model writes scratch to `/tmp` unprompted,
 and quote the synthetic-load ban (rule `NLD`).
@@ -20,6 +24,13 @@ extension tools included,
 so naming some removes the rest.
 Pi saves the session by default and the owner wants that kept,
 so a run can be read back or resumed with `--session <path|id>`.
+
+Pi works in the main checkout and commits on `main`,
+which auto-pushes.
+The owner decided this:
+"We have to be happy with Pi committing directly on main.
+We are not building another git wrapper or shim when we're already so busy with one.
+If it turns out this blows up we'll consider enhancing our own git wrapper."
 
 ## Start a run
 
@@ -33,24 +44,10 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 1.  From `~/Monochromatic`,
     check that `mise exec -- pi --version` prints a version.
-2.  Make a worktree for the run with `git worktree add -b <branch> .claude/worktrees/<name> HEAD`,
-    in the background,
-    and go on only once it has succeeded:
-    Pi starts in that folder.
-3.  Copy the recorded driver and the read-only `git` shim into a fresh folder under `${HOME}/temp/agent`.
-    A commit here auto-pushes and the model has a shell,
-    so the shim keeps Pi from committing and the lead commits:
-
-    ```sh
-    # run from ~/Monochromatic
-    doc=doc/agent/drive-pi-as-a-coding-subagent.md
-    mkdir --parents <run>/shim
-    awk '/^\/\/ pi-rpc-agent\.ts:/{p=1} p&&/^```/{exit} p' "$doc" > <run>/pi-rpc-agent.ts
-    awk '/^#!\/usr\/bin\/env node/{p=1} p&&/^```/{exit} p' "$doc" > <run>/shim/git
-    chmod 700 <run>/shim/git
-    ```
-
-4.  Write the prompt to a file.
+2.  Make a new run folder under `${HOME}/temp/agent`,
+    one per run.
+    The driver writes everything there.
+3.  Write the prompt to a file.
     Beside rules `ATH` and `NLD`,
     give it:
 
@@ -59,63 +56,66 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     - your own reading as a suggestion it may reject;
     - the files it must not edit,
       including everything `file-enforcer` generates;
-    - that the lead commits,
-      because `AGENTS.md` tells agents to commit and the shim refuses;
+    - that it commits its own work on `main` with explicit paths,
+      as `AGENTS.md` says;
     - a final report of each change,
+      each commit,
       each disagreement,
       and anything it could not do,
       because it cannot ask you.
 
-5.  Start it as its own capped unit,
+4.  Start it as its own capped unit,
     in the background.
     `--wait` makes this one command end when the unit ends,
     print the unit's result,
     and exit with its status;
     following `MainPID` with `tail --pid` waited out its whole timeout on a unit that had already finished.
-    The driver defaults to another provider,
-    so set both `PI_PROVIDER` and `PI_MODEL`:
+    The entry file uses only Node built-ins,
+    so it runs from source with no build and no `node_modules`:
 
     ```sh
     # run from ~/Monochromatic
     systemd-run --user --wait --unit=pi-<task> --collect \
       --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=10 \
-      --setenv=PATH="<run>/shim:$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" --setenv=REAL_GIT=/usr/bin/git \
-      --setenv=PI_PROVIDER=neuralwatt --setenv=PI_MODEL=deepseek-v4.1-flash \
-      --setenv=WALL_MS=2400000 --setenv=IDLE_MS=60000 --setenv=TURN_CAP=80 \
+      --setenv=PATH="$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" \
       "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
-      <run>/pi-rpc-agent.ts <run>/out _<tag> <worktree> <prompt-file>
+      "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
+      --run-folder=<run> --working-folder="$PWD" --prompt-file=<prompt-file> \
+      --provider=neuralwatt --model=deepseek-v4.1-flash \
+      --wall-seconds=2400 --idle-seconds=60 --turn-cap=80
     ```
 
-6.  Read progress from `<run>/out/feed_<tag>.jsonl` when asked.
+5.  Read progress from `<run>/feed.jsonl` when asked.
     To steer,
-    write a text file under a name starting with a dot in `<run>/out/inbox_<tag>/`,
+    write a text file under a name starting with a dot in `<run>/inbox/`,
     then rename it to one without the dot,
     because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
-    and `IDLE_MS` is how long the driver stays up for one after Pi settles.
-    A message Pi refused stays there as `.failed-<name>`.
+    and `--idle-seconds` is how long the driver stays up for one after Pi settles.
+    A message Pi refused,
+    or an entry that cannot be read,
+    stays there as `.failed-<name>`.
     To end the run early,
-    create `<run>/out/stop_<tag>`.
-7.  Read the result from `<run>/out/summary_<tag>.json`.
+    create `<run>/stop`.
+6.  Read the result from `<run>/summary.json`,
+    which appears last,
+    so its presence means Pi has gone and the feed is complete.
     `endReason` says how it ended:
     `idle` and `stop-file` exit 0,
     and `prompt-rejected`,
     `pi-exited`,
-    `turn-cap` and `wall-clock` fail the unit.
-    Its `lastAssistantText` is cut at 3000 characters and `tokens.costTotal` undercounts,
-    so take the cost from `sessionStats` and the full report from the session file it names:
-
-    ```sh
-    # run from anywhere
-    jq --raw-output 'select(.type == "message" and .message.role == "assistant") | .message.content[]? | select(.type == "text") | .text' <session file>
-    ```
-
-8.  For a follow-up after the driver has exited,
-    start the same unit under a new name and tag,
-    with a new prompt file and `--setenv=PI_SESSION="<session file>"`.
-9.  Review the diff as the lead,
-    regenerate anything `file-enforcer` owns,
-    and commit.
+    `turn-cap`,
+    `wall-clock` and `driver-failed` fail the unit.
+    `lastAssistantText` holds the whole final report,
+    and `sessionStats` holds the cost and names the session file.
+7.  For a follow-up after the driver has exited,
+    start the same unit under a new name,
+    with a new run folder,
+    a new prompt file,
+    and `--session="<session file>"`.
+8.  Read what it committed with `git log` and `git show`,
+    fix anything wrong with further commits,
+    and regenerate anything `file-enforcer` owns.
 
 ## Protocol
 
@@ -146,7 +146,7 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
   and the source leaves it pending forever unless a timeout field or an abort resolves it.
   Answer each with an `extension_ui_response` carrying the request's `id`;
   `{"type":"extension_ui_response","id":<the request id>,"cancelled":true}` declines it,
-  and the recorded driver declined all of them.
+  and the driver declines all of them.
   The other UI methods (`notify`,
   `setStatus`,
   `setWidget`,
@@ -190,6 +190,8 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
 
 The owner rates it at about a low-level Sonnet 5.5 when run at `xhigh`,
 and finds it works poorly at any other thinking level.
+The owner also said:
+"Expensive models are also not necessarily more trustworthy than cheap models."
 It implemented and checked a multi-file change from a problem statement and evidence,
 without step-by-step instructions,
 though it also found the repository's existing diagnosis.
@@ -227,6 +229,8 @@ though it also found the repository's existing diagnosis.
   not an instruction.
 - It wrote `.mjs` scratch files despite rule `NMJ`.
 
+The driver's options and files:
+`package/pi-shared/subagent-driver/README.md`.
 Recorded experiments and protocol evidence:
 `doc/agent/drive-pi-as-a-subagent.md`,
 `doc/agent/drive-pi-as-a-coding-subagent.md`,

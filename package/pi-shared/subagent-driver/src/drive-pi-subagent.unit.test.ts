@@ -375,6 +375,7 @@ await describe({
         const run = await runDriver({ scenario: 'handled', },);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.settled,).toBe(1,);
         expect(run.feed.some((entry,) => entry.kind === 'settled'),).toBe(false,);
         expect(run.feed.find((entry,) => entry.kind === 'prompt_sent')?.disposition,).toBe('handled',);
       },
