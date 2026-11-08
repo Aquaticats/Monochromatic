@@ -17,18 +17,19 @@ not of whichever copy ran `install`
 (the owner's pick with the veto open),
 and
 the older-lock sentence names the lock file it compared.
-Both are in the source and in no release yet;
-the launcher binaries on a machine are copies of
-`0.2.7-alpha.6`,
-which carries neither,
-as `strings` on `.cache/toolchain-launchers/mpm-shadow` shows
-(`in this tree but`,
-no `in this tree's lock`).
+Both reached this machine in `monochromatic-mpm-shadow` 0.2.7-alpha.7
+(the lock names it since commit `b539f97c9c`,
+installed here at 2026-11-08T18:09):
+`strings` on
+`~/.local/share/monochromatic-dev/toolchain/mpm-shadow/current/monochromatic-mpm-shadow-0.2.7-alpha.7-x86_64-unknown-linux-gnu/mpm-shadow`
+shows `in this tree's lock` and no `in this tree but`.
+A launcher copied before that install still carries the older code until `mpm install` runs in its tree.
 The third follow-up,
 a record that names a program no version move deletes,
 is fixed on branch `fix/mpm-shadow-launcher-records-and-lock-warning`
 (2026-11-08),
-section "Fixed 2026-11-08T18:11:43-05:00".
+and no release carries it yet;
+the section "Fixed 2026-11-08T18:11:43-05:00" below records why and how.
 The tool is `package/mpm-shadow/cli`,
 which this repository owns,
 so there is no upstream to file against.
@@ -439,8 +440,14 @@ plus the two machine-global records:
   the separate condition under "Limits".
 - The census started no launcher (starting one rewrites its record) and wrote nothing.
 
-The count did not fall between the census of 2026-11-08 above (1078 records,
-284 dangling) and this one:
+A second read-only run at 2026-11-08T18:17:00-05:00,
+after other sessions added and removed worktrees,
+read 1051 records with 299 dangling,
+again all of them release folders of a repository-published archive tool and all of them followable.
+The tree set differs,
+so the two totals are not a trend line;
+what both readings show is a quarter of the records naming a deleted folder,
+and that the count is not falling.
 `install` kept writing the same kind of record,
 so each newer install of a repository tool staled every other tree's record again.
 
@@ -510,12 +517,17 @@ and the unit test `the_warning_names_the_program_under_current_when_the_recorded
 
 A release of `monochromatic-mpm-shadow` that carries this fix
 (`mise run //package/mpm-shadow/cli:release -- <from> <to> <note>`),
-then `mpm shadow install` in each tree:
-the 289 records heal on the first run of each launcher of such a release,
+then `mpm install` in each tree:
+the 299 records heal on the first run of each launcher of such a release,
 and the trees that only run `mpm install` heal then.
-The launcher binaries already on disk cannot be changed by code:
-they are copies,
-and a copy older than the follow-`current` rule still exits 127 on a dangling record.
+The records heal,
+not the launcher binaries already on disk:
+a copy older than the follow-`current` rule still exits 127 on a dangling record until that tree's install replaces it.
+`mpm install` also rewrites every record in the tree that runs it,
+so one install per tree is enough;
+nothing here writes to a tree it was not run in.
+Two of the three follow-ups this file opened are already out:
+`0.2.7-alpha.7` carries the newest-install launcher rule and the lock file in the older-lock sentence.
 
 ## Upstream filing decision
 
