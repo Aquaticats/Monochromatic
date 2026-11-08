@@ -23,8 +23,11 @@ import {
 } from './model-profile.ts';
 
 export {
+  expandThinkingLevelMap,
   isRecord,
+  type NeuralWattEffortsDict,
   type NeuralWattListingEntry,
+  type NeuralWattThinkingLevelMap,
 } from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
 
 //region Public API
