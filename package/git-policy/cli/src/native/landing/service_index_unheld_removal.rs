@@ -1,5 +1,5 @@
 //! What:
-//!  The removal of an `index.lock` that no process holds and no Git lock PID file stands behind,
+//!  The removal of an empty `index.lock` that no process holds and no Git lock PID file stands behind,
 //! by the one service that is waiting for it,
 //! with the proof it acted on written to the service journal and told to the person.
 //! Why:
@@ -14,10 +14,24 @@
 //! The limit stated with the question stands:
 //! a process in another user namespace,
 //! or in the same one but not readable,
-//! and a native `git commit --only` in its hook phase,
-//! which keeps the lock with no descriptor and writes no PID file,
 //! cannot be seen,
 //! so the removal can take a lock that is in fact held.
+//! This release removes only an empty lock,
+//! which is narrower than the answer and open to the owner's widening.
+//! Measured on 2026-11-07 with Git 2.56.0 in a throwaway repository:
+//! `git commit --all`,
+//! `git commit --only <path>` and `git commit <path>` keep `index.lock` through their editor with the whole index written into it
+//! (193 bytes there) and no process holding it open (`/proc/<pid>/fd` of every process named it in none),
+//! and write no PID file unless `core.lockfilePid` is on;
+//! a plain `git commit` of the staged index holds no lock then.
+//! So a non-empty lock with no holder is what a person's editor-phase commit looks like,
+//! and removing it would make that commit fail when the editor closes
+//! (the end-to-end scenario `foreign-index-lock-unproven` is exactly that holder).
+//! A Git holds the lock's descriptor from its creation until it has written the index into it,
+//! so an empty lock that no readable process has open is one a Git left when it was killed between creating and writing.
+//! A non-empty lock stays as before:
+//! waited for to the ceiling,
+//! then refused with the way to clear it.
 //! The removal is one action with one owner:
 //! the file is opened first and judged through that descriptor (its device,
 //! inode and size are the identity the proof names),
@@ -34,7 +48,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! removeIfUnheld(platform, index, scan) // open; marker? kept; pid file? kept; scan complete and empty; own descriptors == 1; same file; unlink
+//! removeIfUnheld(platform, index, scan) // open; empty and unmarked? no pid file? scan complete and empty; own descriptors == 1; same file; unlink
 //! ```
 
 use crate::index_lock_evidence::{LockMetadata, PidFile, read_pid_file_evidence};
@@ -107,7 +121,7 @@ fn own_descriptors_of(device: u64, inode: u64) -> usize {
 }
 
 /// What:
-///  Removes the `index.lock` of `index` when nothing proves a program uses it,
+///  Removes the empty `index.lock` of `index` when nothing proves a program uses it,
 /// on the proof the owner named,
 /// and says what it acted on.
 /// Why:
@@ -115,7 +129,8 @@ fn own_descriptors_of(device: u64, inode: u64) -> usize {
 /// so the identity in the proof,
 /// the file the scan looked for and the file removed are one file;
 /// the name is looked at once more before the unlink.
-/// A lock with the service's marker,
+/// A lock with content,
+/// a lock with the service's marker,
 /// a PID file of any kind,
 /// a holder the scan saw,
 /// a scan that did not finish,
@@ -141,7 +156,8 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
     let Ok(opened) = file.metadata() else {
         return Unheld::Kept;
     };
-    if !opened.is_file() || marker_of_file(&file).is_some() {
+    // A lock with content is a Git's editor-phase or hook-phase lock as readily as a dead one's (see the module's measurement).
+    if !opened.is_file() || opened.len() != 0 || marker_of_file(&file).is_some() {
         return Unheld::Kept;
     }
     let identity: LockMetadata = LockMetadata { device: opened.dev(), inode: opened.ino(), ctime_ms: opened.ctime() * 1000 + opened.ctime_nsec() / 1_000_000 };
@@ -204,7 +220,7 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
 /// ```
 pub fn journal_words(proof: &Proof) -> String {
     return format!(
-        "removing the index lock {} (device {}, inode {}, {} bytes): it carries no marker of the service, there is no Git lock PID file beside it, and the scan of every process \
+        "removing the empty index lock {} (device {}, inode {}, {} bytes): it carries no marker of the service, there is no Git lock PID file beside it, and the scan of every process \
          this service could read found no process with it open (unreadable processes: {}); the owner chose this removal on 2026-11-07 (\"Service removes it\")",
         proof.lock.display(),
         proof.device,
@@ -229,11 +245,10 @@ pub fn journal_words(proof: &Proof) -> String {
 /// ```
 pub fn told_words(proof: &Proof) -> String {
     return format!(
-        "monochromatic-git-policy-cli: removed the index lock {} ({} bytes), because no process this service could read had it open and no Git lock PID file stood beside it, \
-         so nothing proved a program was still using it; the commit goes on. The scan cannot see a process in another user namespace, or a native `git commit --only` in its hook phase; \
-         if one of those was using this repository, run its command again.\n",
-        proof.lock.display(),
-        proof.size
+        "monochromatic-git-policy-cli: removed the empty index lock {}, because no process this service could read had it open and no Git lock PID file stood beside it, \
+         so nothing proved a program was still using it; the commit goes on. The scan cannot see a process in another user namespace or one it may not read; \
+         if a Git there was starting a command in this repository, run its command again.\n",
+        proof.lock.display()
     );
 }
 
