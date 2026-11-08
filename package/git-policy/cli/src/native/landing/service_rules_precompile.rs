@@ -44,6 +44,83 @@ use std::time::{Duration, Instant};
 /// The file in the service's state directory that names the repository it serves.
 pub const REMEMBERED_FILE: &str = "rules-repository";
 
+/// The address space a warm needs beyond what the service already maps,
+/// in bytes.
+/// Measured on 2026-11-07 with this repository's real rules:
+/// the service's peak address space went from 252 MiB without a warm to 503 MiB with one (resident 7 MiB to 227 MiB),
+/// and its size before the warm was 154 MiB,
+/// so the warm reached 349 MiB above what was mapped;
+/// the value is that measurement with a margin for larger rules (rule `LQM`:
+/// a shipped limit cites its measurement).
+pub const WARM_ADDRESS_SPACE: u64 = 512 * 1024 * 1024;
+
+/// Whether the address space the service has left holds a warm.
+/// Why:
+///  A failed allocation ends a Rust program with an abort,
+/// whatever it was doing,
+/// so a warm that does not fit would end the service itself,
+/// in the middle of a landing or before it listens
+/// (`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`);
+/// the warm is optional,
+/// so it is skipped when a limit leaves less room than a compile needs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// warmFits(addressSpaceLeft) // addressSpaceLeft === undefined || addressSpaceLeft >= WARM_ADDRESS_SPACE
+/// ```
+pub fn warm_fits(address_space_left: Option<u64>) -> bool {
+    return match address_space_left {
+        Some(left) => left >= WARM_ADDRESS_SPACE,
+        None => true,
+    };
+}
+
+/// The size of the file that holds the pages this process maps,
+/// read without a heap allocation:
+/// a service close to its address-space limit must not allocate to find out that it is.
+const STATM_BYTES: usize = 128;
+
+/// The pages the process maps (the first number of `/proc/self/statm`),
+/// read into a buffer on the stack;
+/// nothing when the file cannot be read.
+fn mapped_pages() -> Option<u64> {
+    let mut buffer: [u8; STATM_BYTES] = [0; STATM_BYTES];
+    let mut file: std::fs::File = std::fs::File::open("/proc/self/statm").ok()?;
+    let read: usize = std::io::Read::read(&mut file, &mut buffer).ok()?;
+    let mut pages: u64 = 0;
+    let mut digits: usize = 0;
+    for byte in &buffer[..read] {
+        if !byte.is_ascii_digit() {
+            break;
+        }
+        pages = pages.saturating_mul(10).saturating_add(u64::from(*byte - b'0'));
+        digits += 1;
+    }
+    return if digits == 0 { None } else { Some(pages) };
+}
+
+/// The address space the service may still map:
+/// nothing when no limit is set,
+/// and none left when a limit is set and the size cannot be read.
+/// No step of it allocates on the heap.
+fn address_space_left_now() -> Option<u64> {
+    let limit: u64 = rustix::process::getrlimit(rustix::process::Resource::As).current?;
+    let Some(pages) = mapped_pages() else { return Some(0) };
+    // SAFETY: `sysconf` takes a constant and writes nothing.
+    let page_bytes: i64 = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+    // The largest page size a Linux machine uses stands in when the size cannot be read.
+    let page: u64 = u64::try_from(page_bytes).unwrap_or(1 << 16);
+    return Some(limit.saturating_sub(pages.saturating_mul(page)));
+}
+
+/// Whether a warm may run now:
+/// the first question of every trigger,
+/// asked before the trigger allocates,
+/// writes a file or starts a thread.
+fn room_for_a_warm() -> bool {
+    return warm_fits(address_space_left_now());
+}
+
 /// Whether a warm runs now;
 /// a second one is skipped,
 /// and the next landing tries again.
@@ -116,7 +193,7 @@ fn warm_job(repository_root: &Path, first: bool, changed: &[String]) {
 /// Starts the job on the blocking pool unless one runs;
 /// nothing when no worker can run it.
 fn spawn_warm(repository_root: PathBuf, first: bool, changed: Vec<String>) {
-    if RUNNING.swap(true, Ordering::SeqCst) {
+    if !room_for_a_warm() || RUNNING.swap(true, Ordering::SeqCst) {
         return;
     }
     let started = spawn_on_runtime(async move {
@@ -166,6 +243,10 @@ fn remember(journal: &Path, repository: &Path) {
 /// and warms on the first one and when a landing
 ///  changed a path of the rules.
 pub fn after_landing(journal: &Path, repository: &Path, changed: &[String]) {
+    // Under a limit that leaves no room nothing here runs: not the file read, not the write, not a thread.
+    if !room_for_a_warm() {
+        return;
+    }
     let first: bool = first_look_at(journal, repository);
     if first {
         remember(journal, repository);
@@ -176,6 +257,9 @@ pub fn after_landing(journal: &Path, repository: &Path, changed: &[String]) {
 /// Warms the repository the state directory remembers,
 /// at the start of the service.
 pub fn warm_remembered(journal: &Path) {
+    if !room_for_a_warm() {
+        return;
+    }
     let Ok(text) = std::fs::read_to_string(journal.join(REMEMBERED_FILE)) else { return };
     let repository: PathBuf = PathBuf::from(text.trim());
     if repository.is_absolute() && repository.is_dir() {

@@ -211,6 +211,19 @@ from the brief and the plan:
   `fuser` and `cryptsetup`.
   The run on the real unit and the three-state report are the owner's,
   as root.
+- Bash startup files in `package/repository-move/cli` (coordinator item):
+  every bash the package starts passes `--noprofile --norc`
+  (the runner shell, the copy tool's send and receive shells,
+  the inner `sudo unshare ... bash` of the cut-over and loop-image stages);
+  `src/bash-without-startup-files.unit.test.ts` holds a marker test and a static scan for a bash start without both flags.
+  Measured 2026-11-07 for the troubleshooting doc `doc/troubleshooting/bash-c-started-by-node-reads-bashrc.md`
+  (still on the unmerged W3 branch, to be amended there):
+  the trigger needs a socket on standard input and an inherited `SHLVL` that is not a positive number
+  (unset, `0` and `x` read `~/.bashrc`; `1` and `2` do not),
+  so a run from an interactive terminal usually does not trip it, but one from systemd, `sudo` or a scrubbed environment does.
+  The runner shell gives its child `stdin: 'ignore'`, so it never tripped; the copy tool's `execFile` shells could.
+  No other package this work touched starts bash from TypeScript
+  (the Rust `Command::new("bash")` calls are tests, started with an anonymous pipe, not a socket).
 - Runner fix (coordinator,
   after fixture run `prepare-9` stopped at `f5a-deadline`):
   the fixture images are sized by `fixtureImageGiB()`

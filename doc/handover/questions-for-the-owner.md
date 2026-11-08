@@ -42,6 +42,49 @@ or to allow it in the permission settings.
   (the exact new values are in `doc/handover/repository-move-dangling-link-items.md`,
   section "W6 and W7 edits to apply").
 
+## Open: may agents' old scratch on the 860 be deleted to make room for the move? (not asked yet)
+
+The move's space rule refused on 2026-11-07,
+as designed
+(nothing copied):
+estimate 389 GiB
+(nested checkout 303 GiB with sharing counted once,
+external worktrees 74 GiB,
+clone-limit allowance 12 GiB),
+487 GiB with the plan's 25 percent margin,
+against 493 GiB free on the 860,
+which would leave 6 GiB where the rule requires 150 GiB.
+The 860 had 662G free when the plan was measured.
+Agents' scratch folder `~/temp/agent` is a link to `/var/mnt/encrypted/temp/agent`,
+which is on the 860,
+and holds 22,242 entries;
+the 25 largest alone measure about 1,113 GiB with `du`
+(which counts reflinked data once per file,
+so the space freed may be less),
+for example `agent-notify` 252 GiB (2026-10-11),
+`pi-mimo-preparation-failure-20261018` 102 GiB,
+`tr-fan` 89 GiB,
+and about twenty `ide-*` and review build folders of 19 to 50 GiB from October and July.
+- A (coordinator's recommendation):
+  delete scratch entries last changed before 2026-10-31
+  that no tracked file in the repository names,
+  listing every entry and its size first
+  (the list kept as a file),
+  then deleting exactly those;
+  rerun the space rule.
+- B:
+  you review that list before anything is deleted.
+- C:
+  delete nothing;
+  shrink the move instead
+  (the plan's scope four:
+  main plus a chosen subset of worktrees,
+  or leave the external worktrees out),
+  or lower the 150 GiB floor or the margin.
+Separately,
+scratch on the 860 means agents write to the drive the repository moves onto;
+after the move both live there.
+
 ## Told, not a question: a wrapper mutation campaign ran against a recorded pause (2026-11-07)
 
 Mutation campaigns over the wrapper were paused on 2026-11-04 after you asked
@@ -135,6 +178,28 @@ saying nothing keeps it.
   section 5.1,
   rule 2),
   so the fixer never adds a character to your text.
+- After the repository move,
+  the wrapper checks on every Git command that the repository link still leads to the 860
+  (W2,
+  merged `b842b34fff`),
+  so a dangling link gives a plain message instead of creating things in the wrong place.
+  Measured cost:
+  about 1.0 ms per forwarded command (median,
+  `status`;
+  0.8 ms for `rev-parse`),
+  beyond the same-binary spread;
+  nothing before the move.
+  Cheaper forms (skip the check for read-only commands,
+  or trust a cached answer across commands) would let a dangling link go unnoticed,
+  so the full check stays.
+- An equivalent mutant that no test can kill
+  (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
+  a function that already returns 0)
+  stays recorded as equivalent,
+  so the linter's `--syntax-only` mutation campaign reports one miss every run
+  until `mutation:coverage` learns to skip recorded equivalent mutants
+  (record:
+  `doc/handover/monochromatic-lint-layout-and-workflow-mutants.md`).
 - The wrapper's own `markdown/autofix` commit policy keeps applying its one content fix
   (the LFS image link rewrite),
   since that rewrite is the policy's whole purpose.
