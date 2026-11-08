@@ -4,7 +4,18 @@
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
 > `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
-> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/forbidden-strings/fuzz` is now `package/forbidden-strings/cli.fuzz`.
+
+> The fuzz harness became a sibling sidecar package on 2026-09-26 (`b9c0e6e483`).
+> Its tasks kept their names without the `fuzz:` prefix.
+> This record keeps its text and these mappings:
+> `//package/cli/forbidden-strings:fuzz:build` is now `//package/forbidden-strings/cli.fuzz:build`;
+> `//package/cli/forbidden-strings:fuzz:smoke` is now `//package/forbidden-strings/cli.fuzz:smoke`;
+> `//package/cli/forbidden-strings:fuzz:run` is now `//package/forbidden-strings/cli.fuzz:run`;
+> `//package/cli/forbidden-strings:fuzz:list` is now `//package/forbidden-strings/cli.fuzz:list`.
+> No `fuzz:seed` task is defined anywhere.
+> The corpus is seeded by `seed/<target>/` directories.
 
 ## Sibling-sidecar relocation, 2026-09-26
 
