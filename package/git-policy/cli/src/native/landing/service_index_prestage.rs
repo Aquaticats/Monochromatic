@@ -29,7 +29,7 @@ use crate::service_index_lock::lock_path_of;
 use crate::service_index_marker::{marker_text, own_identity};
 use crate::service_index_placement::sync_file;
 use crate::service_index_staging::stage_marker_synced;
-use crate::landing_state_carried_by_its_task::with_the_landing_state;
+use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use crate::blocking_job::{BlockingJobError, run_blocking_job};
@@ -62,16 +62,26 @@ pub(crate) struct Slot {
 #[cfg(test)]
 pub static COMMIT_WAITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Takes the pre-staged marker out of the state it is kept in.
+fn take_the_slot(state: &LandingState, (): ()) -> Option<Slot> {
+    return state.prestaged_marker.take();
+}
+
+/// Keeps `slot` as the landing's pre-staged marker.
+fn keep_the_slot(state: &LandingState, slot: Option<Slot>) {
+    *state.prestaged_marker.borrow_mut() = slot;
+}
+
 /// Takes the service's one pre-staged marker out of the landing's state:
 /// the state `prestaged_marker` of `landing_state_carried_by_its_task.rs` is per landing,
 /// because only the landing takes locks and lands batches.
 fn take_slot() -> Option<Slot> {
-    return with_the_landing_state(|state| state.prestaged_marker.take());
+    return on_the_landing_state((), take_the_slot);
 }
 
 /// Puts the pre-staged marker back into the landing's state.
 fn put_slot(slot: Option<Slot>) {
-    with_the_landing_state(|state| *state.prestaged_marker.borrow_mut() = slot);
+    on_the_landing_state(slot, keep_the_slot);
 }
 
 /// The error for an identity that could not be read.
@@ -208,7 +218,7 @@ pub fn take(index: &Path, seq: u64) -> Option<Prestaged> {
 /// so that taking it waits for nothing.
 #[cfg(test)]
 pub fn is_made() -> bool {
-    return with_the_landing_state(|state| { return state.prestaged_marker.borrow().as_ref().is_some_and(|held| { return held.work.is_finished(); }); });
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| { return state.prestaged_marker.borrow().as_ref().is_some_and(|held| { return held.work.is_finished(); }); });
 }
 
 /// Removes the marker made ahead,

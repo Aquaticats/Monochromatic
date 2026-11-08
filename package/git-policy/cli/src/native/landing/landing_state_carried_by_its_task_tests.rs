@@ -29,9 +29,10 @@ impl Future for StopsOnce {
     }
 }
 
-/// The count of unsettled locks the state of the current landing holds, the sample item of these controls.
+/// The count of unsettled locks the state of the current landing holds,
+/// the sample item of these controls.
 fn steps_now() -> usize {
-    return with_the_landing_state(|state| state.unsettled_locks.get());
+    return with_the_landing_state(|state| return state.unsettled_locks.get());
 }
 
 /// Sets the count of unsettled locks of the current landing.
@@ -39,7 +40,8 @@ fn set_steps(count: usize) {
     with_the_landing_state(|state| state.unsettled_locks.set(count));
 }
 
-/// A scope inside a scope has its own state, and the outer one is as it was when the inner one ends:
+/// A scope inside a scope has its own state,
+/// and the outer one is as it was when the inner one ends:
 /// two operations on one thread never share an item.
 #[test]
 fn a_scope_inside_a_scope_shadows_it_and_leaves_it_as_it_was() {
@@ -88,8 +90,8 @@ fn a_task_moved_to_another_thread_between_two_polls_keeps_its_state() {
     assert!(first_poll.is_pending(), "the task stops after writing its state");
     let first_thread = std::thread::current().id();
     let finished_on = std::thread::spawn(move || {
-        let mut context = Context::from_waker(Waker::noop());
-        let Poll::Ready(read_back) = task.as_mut().poll(&mut context) else { panic!("the second poll finishes the task") };
+        let mut second_context = Context::from_waker(Waker::noop());
+        let Poll::Ready(read_back) = task.as_mut().poll(&mut second_context) else { panic!("the second poll finishes the task") };
         return (std::thread::current().id(), read_back);
     })
     .join()
@@ -105,7 +107,7 @@ fn a_thread_started_inside_a_scope_is_not_inside_a_landing() {
     in_a_landing(|| {
         set_steps(44);
         assert!(inside_a_landing(), "the scope's own thread is inside it");
-        let seen = std::thread::spawn(|| (inside_a_landing(), steps_now())).join().expect("the thread");
+        let seen = std::thread::spawn(|| return (inside_a_landing(), steps_now())).join().expect("the thread");
         assert_eq!(seen, (false, 0), "the started thread has no landing and no state");
     });
 }

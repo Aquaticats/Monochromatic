@@ -19,7 +19,7 @@
 //! const ownership = await inspectOwnership(lockPath, heldHandle, marker) // 'owned' | 'replaced' | Error
 //! ```
 
-use crate::landing_state_carried_by_its_task::with_the_landing_state;
+use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::os::unix::fs::{FileExt, MetadataExt};
 use std::path::Path;
 
@@ -82,7 +82,17 @@ pub fn inspect_ownership(lock: &Path, held: &std::fs::File, marker: &str) -> Own
 /// Records that a lock this landing held could not be settled,
 /// and stays where it is.
 pub fn note_unsettled() {
-    with_the_landing_state(|state| state.unsettled_locks.set(state.unsettled_locks.get() + 1));
+    on_the_landing_state((), count_one_more_unsettled_lock);
+}
+
+/// Counts one more lock the landing could not settle.
+fn count_one_more_unsettled_lock(state: &LandingState, (): ()) {
+    state.unsettled_locks.set(state.unsettled_locks.get() + 1);
+}
+
+/// The locks the landing could not settle so far.
+fn unsettled_lock_count(state: &LandingState, (): ()) -> usize {
+    return state.unsettled_locks.get();
 }
 
 /// How many locks the holders of this landing could not settle.
@@ -90,5 +100,5 @@ pub fn note_unsettled() {
 /// and its restart reclaims the lock,
 /// whose marker then names a process that is gone.
 pub fn unsettled_locks() -> usize {
-    return with_the_landing_state(|state| state.unsettled_locks.get());
+    return on_the_landing_state((), unsettled_lock_count);
 }

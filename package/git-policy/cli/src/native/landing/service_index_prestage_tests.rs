@@ -519,7 +519,7 @@ fn the_marker_made_ahead_is_made_without_a_thread_of_its_own() {
         FLUSHES.store(0, Ordering::SeqCst);
         start_with(slow_flush, &index, 11);
         until_staged(&index);
-        let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| "cli-git-prestage".starts_with(name.as_str()) && name.len() >= 14).collect();
+        let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| return "cli-git-prestage".starts_with(name.as_str()) && name.len() >= 14).collect();
         assert!(own.is_empty(), "the marker is being made by a thread of its own: {own:?}");
         discard();
         remove(root.as_path());

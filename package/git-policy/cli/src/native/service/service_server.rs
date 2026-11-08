@@ -190,11 +190,12 @@ const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 pub fn serve(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
     // The loop is the one landing: what a landing remembers (its board, its queued syncs, its unsettled locks) belongs to this
     //  scope and ends with it, and no other thread of the service reads it (`landing_state_carried_by_its_task.rs`).
-    crate::landing_state_carried_by_its_task::in_a_landing(|| serve_in_a_landing(listener, context, settings));
+    crate::landing_state_carried_by_its_task::in_a_landing_with((listener, context, settings), serve_in_a_landing);
 }
 
-/// `serve`, inside the scope of the landing's state.
-fn serve_in_a_landing(listener: UnixListener, context: &LandContext, settings: &ServeSettings) {
+/// `serve`,
+/// inside the scope of the landing's state.
+fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext, &ServeSettings)) {
     let serving_since: Instant = Instant::now();
     let idle: Duration = settings.idle;
     let _reports = settle_open_batches(context, settings.instance.as_deref());

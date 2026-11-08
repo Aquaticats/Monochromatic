@@ -1507,7 +1507,7 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     std::thread::spawn(move || {
         crate::service_fault::hooks::take_events();
         let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
-        let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| land_batch(&context, 1, &[request]));
+        let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
         let _sent = finished.send((answered, crate::service_fault::hooks::take_events()));
     });
     let (answered, events) = ended.recv_timeout(CEILING_PATIENCE).expect("the landing ended at its ceiling");

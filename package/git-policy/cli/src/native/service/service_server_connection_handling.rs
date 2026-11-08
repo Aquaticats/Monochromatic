@@ -150,31 +150,36 @@ impl NoteSource for StuckNotice {
     }
 }
 
+/// The user id of the process on the other end of a connection.
+fn user_of(credentials: tokio::net::unix::UCred) -> u32 {
+    return credentials.uid();
+}
+
 /// Reads one request line from a new connection,
 /// checks who sent it,
 /// and queues it.
 pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShared) {
     let accepted: Instant = Instant::now();
-    let sender_user: Option<u32> = stream.peer_cred().ok().map(|credentials| return credentials.uid());
-    let (read_half, mut write_half): (OwnedReadHalf, OwnedWriteHalf) = stream.into_split();
+    let sender_user: Option<u32> = stream.peer_cred().ok().map(user_of);
+    let (first_half, mut write_half): (OwnedReadHalf, OwnedWriteHalf) = stream.into_split();
     send(&mut write_half, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(shared.release.clone()) }).await;
     if sender_user != Some(rustix::process::geteuid().as_raw()) {
         return;
     }
     let limit: u64 = u64::try_from(MAX_LINE_BYTES).unwrap_or(u64::MAX) + 1;
     let mut line: String = String::new();
-    let mut reader = BufReader::new(read_half.take(limit));
+    let mut reader = BufReader::new(first_half.take(limit));
     match tokio::time::timeout(REQUEST_READ_TIMEOUT, reader.read_line(&mut line)).await {
         Ok(Ok(_read)) => {}
         // A line that is not text, a failed read or a request line that is too slow: the connection is dropped.
         Ok(Err(_)) | Err(_) => return,
     }
-    let mut read_half: OwnedReadHalf = reader.into_inner().into_inner();
+    let mut after_the_line: OwnedReadHalf = reader.into_inner().into_inner();
     if line.is_empty() {
         // A connection that only looked (a readiness probe) sends nothing and is not an error.
         return;
     }
-    answer_request(&line, &mut read_half, &mut write_half, &shared, accepted).await;
+    answer_request(&line, &mut after_the_line, &mut write_half, &shared, accepted).await;
 }
 
 /// Whether a Git directory belongs to another instance of the service than this one,
@@ -246,7 +251,7 @@ async fn answer_request(line: &str, read_half: &mut OwnedReadHalf, write_half: &
             crate::service_warn!("refused a request line: {reason}");
             send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }).await;
         }
-    }
+    };
 }
 
 /// Queues a commit and writes its answers,
@@ -293,7 +298,7 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
             // inside the write is told now.
             write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing))).await;
         }
-    }
+    };
 }
 
 /// Holds a scratch directory for as long as the client's connection is open.

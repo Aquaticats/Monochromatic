@@ -56,6 +56,9 @@ pub mod service_land;
 /// finished by the service of this release when none runs.
 pub mod earlier_service_journal_adopted;
 
+/// A scan of the processes run on the blocking pool and awaited under a ceiling.
+pub mod scan_awaited_under_a_ceiling;
+
 /// The look at the running processes that tells whether a commit service of an earlier release may still run for a worktree.
 pub mod earlier_service_process_look;
 

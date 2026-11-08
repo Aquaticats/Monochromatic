@@ -259,7 +259,7 @@ const RACED_CLAIMS: usize = 40;
 /// read from its status.
 fn threads_of_this_process() -> usize {
     let status: String = std::fs::read_to_string("/proc/self/status").expect("the status of this process");
-    let line: &str = status.lines().find(|line| line.starts_with("Threads:")).expect("a Threads line");
+    let line: &str = status.lines().find(|line| return line.starts_with("Threads:")).expect("a Threads line");
     return line.trim_start_matches("Threads:").trim().parse().expect("a thread count");
 }
 

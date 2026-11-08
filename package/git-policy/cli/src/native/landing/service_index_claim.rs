@@ -40,7 +40,7 @@
 //! takeClaim(platform, lock, staleFile, marked) // 'held' | 'busy' | { foreign: { file, marked } } | { unavailable: error }
 //! ```
 
-use crate::landing_state_carried_by_its_task::with_the_landing_state;
+use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use crate::service_index_marker::{Marked, holder_is_elsewhere, holder_is_gone, holder_is_running, marker_text, parse_marker};
 use crate::service_index_placement::{Platform, place_marked};
 use crate::service_index_staging::stage_marker;
@@ -185,7 +185,7 @@ fn escaped_byte(byte: u8) -> String {
 /// abandoned.push([path, text]);
 /// ```
 fn remember_abandoned(path: PathBuf, text: String) {
-    with_the_landing_state(|state| state.abandoned_claims.borrow_mut().push((path, text)));
+    on_the_landing_state((path, text), keep_abandoned_claim);
 }
 
 /// What:
@@ -327,6 +327,16 @@ fn text_of(path: &Path) -> std::io::Result<Option<String>> {
     };
 }
 
+/// Adds a claim to the landing's abandoned ones.
+fn keep_abandoned_claim(state: &LandingState, claim: (PathBuf, String)) {
+    state.abandoned_claims.borrow_mut().push(claim);
+}
+
+/// Takes the landing's abandoned claims out of its state.
+fn take_abandoned_claims(state: &LandingState, (): ()) -> Vec<(PathBuf, String)> {
+    return state.abandoned_claims.take();
+}
+
 /// Removes the claims this landing abandoned
 /// (the state `abandoned_claims` of `landing_state_carried_by_its_task.rs`:
 /// claims whose placement answered with an error and which could not be read back to be recognised,
@@ -343,7 +353,7 @@ fn text_of(path: &Path) -> std::io::Result<Option<String>> {
 /// one that still
 ///  cannot be read stays on the list for the next attempt.
 fn resolve_abandoned() {
-    let pending: Vec<(PathBuf, String)> = with_the_landing_state(|state| state.abandoned_claims.take());
+    let pending: Vec<(PathBuf, String)> = on_the_landing_state((), take_abandoned_claims);
     for (path, text) in pending {
         match text_of(path.as_path()) {
             Ok(Some(found)) if found == text => remove_claim(path.as_path()),

@@ -70,7 +70,7 @@ fn connect(name: &str) -> std::io::Result<UnixStream> {
 /// read from its status.
 fn threads_of(pid: u32) -> usize {
     let status: String = std::fs::read_to_string(format!("/proc/{pid}/status")).expect("the status of the service");
-    let line: &str = status.lines().find(|line| line.starts_with("Threads:")).expect("a Threads line");
+    let line: &str = status.lines().find(|line| return line.starts_with("Threads:")).expect("a Threads line");
     return line.trim_start_matches("Threads:").trim().parse().expect("a thread count");
 }
 
@@ -81,7 +81,9 @@ fn greeting(stream: &UnixStream) -> ServiceMessage {
     return decode_service(line.trim_end_matches('\n')).expect("a service message");
 }
 
-/// Many connections that wait on the service, each greeted, add far fewer threads than connections:
+/// Many connections that wait on the service,
+/// each greeted,
+/// add far fewer threads than connections:
 /// a connection is a task and not a thread.
 #[test]
 fn connections_held_open_cost_the_service_no_thread_each() {

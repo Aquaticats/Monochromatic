@@ -41,7 +41,7 @@
 
 use crate::scoped_start::{Started, start_or_run_with};
 use crate::side_by_side_threads::{ScopeBody, in_thread_scope};
-use crate::landing_state_carried_by_its_task::with_the_landing_state;
+use crate::landing_state_carried_by_its_task::{LandingState, on_the_landing_state};
 use std::fs::File;
 use std::thread::Scope;
 use std::sync::OnceLock;
@@ -176,6 +176,7 @@ async fn background(mut jobs: UnboundedReceiver<Job>) {
             }
         }
     }
+    return;
 }
 
 /// The sender of the background task,
@@ -228,21 +229,28 @@ pub struct Deferral {
 /// Starts queueing the syncs of the landing on this thread.
 ///  `hardens_index` says whether the index file the landing installs is flushed before the rename (`core.fsync` names it).
 pub fn begin(hardens_index: bool) -> Deferral {
-    with_the_landing_state(|state| {
-        state.deferring_syncs.set(true);
-        state.index_hardened.set(hardens_index);
-        state.queued_syncs.borrow_mut().clear();
-    });
+    on_the_landing_state(hardens_index, start_deferring);
     return Deferral { settled: false };
+}
+
+/// Begins queueing the syncs of the landing in `state`,
+/// with the index hardened or not.
+fn start_deferring(state: &LandingState, hardens_index: bool) {
+    state.deferring_syncs.set(true);
+    state.index_hardened.set(hardens_index);
+    state.queued_syncs.borrow_mut().clear();
 }
 
 /// Ends the deferral on this thread and returns what it queued.
 fn end() -> Vec<Pending> {
-    return with_the_landing_state(|state| {
-        state.deferring_syncs.set(false);
-        state.index_hardened.set(true);
-        return state.queued_syncs.take();
-    });
+    return on_the_landing_state((), stop_deferring);
+}
+
+/// Ends the deferral in `state` and takes what it queued.
+fn stop_deferring(state: &LandingState, (): ()) -> Vec<Pending> {
+    state.deferring_syncs.set(false);
+    state.index_hardened.set(true);
+    return state.queued_syncs.take();
 }
 
 /// Syncs every handle now,
@@ -289,6 +297,21 @@ impl Drop for Deferral {
     }
 }
 
+/// Whether the landing in `state` queues its syncs.
+fn is_deferring(state: &LandingState, (): ()) -> bool {
+    return state.deferring_syncs.get();
+}
+
+/// Queues one sync in the landing's state.
+fn queue_a_sync(state: &LandingState, pending: Pending) {
+    state.queued_syncs.borrow_mut().push(pending);
+}
+
+/// Whether the index the landing in `state` writes is flushed before it is installed.
+fn index_hardened_in(state: &LandingState, (): ()) -> bool {
+    return state.index_hardened.get();
+}
+
 /// Flushes a file that is a landing's record:
 /// queued while a landing defers,
 /// made now otherwise.
@@ -297,10 +320,10 @@ impl Drop for Deferral {
 ///
 /// The error of the flush when it is made now.
 pub fn flush_file(file: &File, what: &'static str) -> std::io::Result<()> {
-    if with_the_landing_state(|state| state.deferring_syncs.get()) {
+    if on_the_landing_state((), is_deferring) {
         crate::service_fault::note(format!("sync-queued:{what}").as_str());
         let handle: File = file.try_clone()?;
-        with_the_landing_state(|state| state.queued_syncs.borrow_mut().push(Pending { handle, what }));
+        on_the_landing_state(Pending { handle, what }, queue_a_sync);
         return Ok(());
     }
     let synced: std::io::Result<()> = file.sync_all();
@@ -344,7 +367,7 @@ pub fn flush_index(file: &File, what: &'static str) -> std::io::Result<()> {
 
 /// Whether the index file the landing writes is flushed before it is installed.
 pub fn index_is_hardened() -> bool {
-    return with_the_landing_state(|state| state.index_hardened.get());
+    return on_the_landing_state((), index_hardened_in);
 }
 
 /// Controls for the queue stay out of the release executable.

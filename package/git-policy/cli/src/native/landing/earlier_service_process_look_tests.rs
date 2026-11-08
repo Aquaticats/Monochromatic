@@ -4,6 +4,7 @@
 //! and a scan that outlasts the ceiling counts as "may be running".
 
 use super::*;
+use crate::scan_awaited_under_a_ceiling::scan_under_ceiling;
 use crate::ticker_beside_a_wait::with_a_ticker_beside;
 
 /// How long the scan of a control takes.
@@ -20,12 +21,18 @@ fn slow_scan_that_finds_nothing(_look: &ServiceLook, _proc_root: &Path) -> Optio
     return None;
 }
 
+/// The look of a control,
+/// awaited under `ceiling` as the look functions await it.
+async fn look_awaited(ceiling: Duration) -> Option<Holding> {
+    return scan_under_ceiling(look_with(ceiling), ceiling, PathBuf::from("/proc"), slow_scan_that_finds_nothing, cannot_look).await;
+}
+
 /// A look whose scan takes a while is awaited:
 /// the task beside it runs meanwhile,
 /// and the scan's answer is the look's.
 #[test]
 fn a_look_that_takes_a_while_is_awaited_and_leaves_the_other_tasks_their_turns() {
-    let (held, ticks) = with_a_ticker_beside(hold_within_ceiling_awaiting(look_with(SLOW_SCAN * 100), PathBuf::from("/proc"), slow_scan_that_finds_nothing));
+    let (held, ticks) = with_a_ticker_beside(look_awaited(SLOW_SCAN * 100));
     assert!(held.is_none(), "the scan found no service, so nothing holds");
     assert!(ticks > 0, "the wait for the scan was awaited on the runtime");
 }
@@ -36,7 +43,7 @@ fn a_look_that_takes_a_while_is_awaited_and_leaves_the_other_tasks_their_turns()
 #[test]
 fn a_look_that_outlasts_its_ceiling_counts_as_may_be_running_at_the_ceiling() {
     let began: std::time::Instant = std::time::Instant::now();
-    let (held, ticks) = with_a_ticker_beside(hold_within_ceiling_awaiting(look_with(SLOW_SCAN / 10), PathBuf::from("/proc"), slow_scan_that_finds_nothing));
+    let (held, ticks) = with_a_ticker_beside(look_awaited(SLOW_SCAN / 10));
     assert!(held.is_some(), "a look that could not finish counts as a hold");
     assert!(began.elapsed() < SLOW_SCAN * 10, "the wait ended at the ceiling and not when the scan did");
     assert!(ticks > 0 || began.elapsed() < SLOW_SCAN, "the ceiling was awaited on the runtime");

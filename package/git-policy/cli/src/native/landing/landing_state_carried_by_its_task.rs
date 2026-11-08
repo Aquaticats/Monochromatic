@@ -1,17 +1,24 @@
 //! What:
 //!  The state one landing keeps while it runs,
-//! carried by the task (or the one thread, in the synchronous service loop) that runs the landing,
+//! carried by the task (or the one thread,
+//! in the synchronous service loop) that runs the landing,
 //! never by the thread the code happens to be on.
 //! Why:
 //!  The owner chose "Rewrite per-thread state" (`doc/planning/git-policy-cli-full-tokio.md`,
-//! "The owner's answers at 2026-11-07", choice 4):
+//! "The owner's answers at 2026-11-07",
+//! choice 4):
 //! each `thread_local!` of the service's landing becomes a value that travels with its task,
 //! because on a multi-thread runtime a task changes worker thread at every `.await`
 //! and a thread-local then reads another worker's copy,
 //! while two tasks that interleave on one thread would overwrite one operation's state with another's.
-//! One owner per piece of state, no lock: the values are `Cell`s and `RefCell`s that only the task that owns the scope touches,
-//! and a `RefCell` is `Send`, so a task that holds them can move between workers.
-//! Outside a scope (the wrapper's own commands, the service's other threads, a task that was spawned without one)
+//! One owner per piece of state,
+//! no lock:
+//! the values are `Cell`s and `RefCell`s that only the task that owns the scope touches,
+//! and a `RefCell` is `Send`,
+//! so a task that holds them can move between workers.
+//! Outside a scope (the wrapper's own commands,
+//! the service's other threads,
+//! a task that was spawned without one)
 //! nothing is remembered and every read answers its default,
 //! which is what a thread-local gave a thread that never began a landing.
 //!
@@ -44,14 +51,16 @@ pub struct LandingState {
     pub(crate) detail: RefCell<Option<String>>,
     /// The sentence of the last Git step this landing ended at its ceiling (`service_land_git_steps_and_import_stream.rs`).
     pub(crate) ceiling_step: RefCell<Option<String>>,
-    /// The claims this landing placed that could not be read back, with the marker text each was written from
+    /// The claims this landing placed that could not be read back,
+    /// with the marker text each was written from
     /// (`service_index_claim.rs`).
     pub(crate) abandoned_claims: RefCell<Vec<(PathBuf, String)>>,
     /// The lock this landing last gave up on (`service_index_refused_lock.rs`).
     pub(crate) refused_lock: RefCell<Option<Refused>>,
     /// How many locks this landing's holders could not settle (`service_index_ownership.rs`).
     pub(crate) unsettled_locks: Cell<usize>,
-    /// How many name comparisons the proofs of this landing made (`service_built_checks.rs`), counted by controls only.
+    /// How many name comparisons the proofs of this landing made (`service_built_checks.rs`),
+    /// counted by controls only.
     #[cfg(test)]
     pub(crate) name_steps: Cell<u64>,
     /// The one marker made ahead for the next batch (`service_index_prestage.rs`).
@@ -89,7 +98,7 @@ impl LandingState {
 }
 
 /// What:
-///  Runs `body` with a fresh landing state that `with_the_landing_state` reaches from inside it,
+///  Runs `body` with a fresh landing state that `on_the_landing_state` reaches from inside it,
 /// on the calling thread.
 /// Why:
 ///  The synchronous service loop is the one landing today;
@@ -106,6 +115,30 @@ pub fn in_a_landing<Output>(body: impl FnOnce() -> Output) -> Output {
 }
 
 /// What:
+///  `in_a_landing` for a body that is a named function and the state it reads.
+/// Why:
+///  A closure that captures state is reported by the closure lint unless its callee needs it past the call;
+/// `LocalKey::sync_scope` accepts only a callable,
+/// so this one function carries the closure
+/// (`package/git-policy/cli/doc/closure-lint-suppressions.md`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// landing.run(new LandingState(), () => body(arguments))
+/// ```
+pub fn in_a_landing_with<Arguments, Output>(arguments: Arguments, body: fn(Arguments) -> Output) -> Output {
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`tokio::task::LocalKey::sync_scope` accepts only a callable with no arguments, and it must carry the arguments and the function; see package/git-policy/cli/doc/closure-lint-suppressions.md"
+        )
+    )]
+    let output: Output = LANDING.sync_scope(LandingState::new(), move || { return body(arguments); });
+    return output;
+}
+
+/// What:
 ///  Awaits `future` with a fresh landing state that follows the future wherever the runtime moves it.
 /// Why:
 ///  The state belongs to the task,
@@ -119,39 +152,85 @@ pub async fn in_a_landing_task<Output>(future: impl std::future::Future<Output =
     return LANDING.scope(LandingState::new(), future).await;
 }
 
+/// A state that belongs to no landing:
+/// what a read outside a landing is given.
+fn state_of_no_landing() -> LandingState {
+    return LandingState::new();
+}
+
 /// What:
-///  Gives `use_state` the state of the landing this code runs in;
-/// outside any landing it gives a fresh state that is dropped when `use_state` returns.
+///  Applies `apply` to the state of the landing this code runs in and `arguments`;
+/// outside any landing it applies it to a fresh state that is dropped afterwards.
 /// Why:
 ///  A read outside a landing answers the default and a write is not kept:
 /// the wrapper's own commands and the service's other threads never began a landing,
 /// as a thread that never wrote a thread-local read its initial value.
+/// A named function and its arguments,
+/// not a closure,
+/// because the closure lint asks for that;
+/// `LocalKey::try_with` accepts only a callable,
+/// so this one function carries the closure
+/// (`package/git-policy/cli/doc/closure-lint-suppressions.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// useState(landing.getStore() ?? new LandingState())
+/// apply(landing.getStore() ?? new LandingState(), arguments)
 /// ```
+pub fn on_the_landing_state<Arguments, Output>(arguments: Arguments, apply: fn(&LandingState, Arguments) -> Output) -> Output {
+    // The arguments wait in an `Option`: whichever of the two paths runs takes them.
+    let mut waiting: Option<Arguments> = Some(arguments);
+    #[cfg_attr(
+        dylint_lib = "monochromatic_lint_closure",
+        expect(
+            avoidable_closure,
+            reason = "`tokio::task::LocalKey::try_with` accepts only a callable taking the value, and it must carry the arguments and the function; see package/git-policy/cli/doc/closure-lint-suppressions.md"
+        )
+    )]
+    let inside: Option<Output> = LANDING
+        .try_with(|state| {
+            let Some(carried) = waiting.take() else { unreachable!("the closure runs once") };
+            return apply(state, carried);
+        })
+        .ok();
+    return match inside {
+        Some(output) => output,
+        None => {
+            let Some(carried) = waiting.take() else { unreachable!("a missed scope never ran the closure") };
+            apply(&state_of_no_landing(), carried)
+        }
+    };
+}
+
+/// The controls' way to the state of the landing:
+/// a closure over it,
+/// where the production code passes a named function.
+#[cfg(test)]
 pub fn with_the_landing_state<Output, Use: FnOnce(&LandingState) -> Output>(use_state: Use) -> Output {
-    // `try_with` takes the closure by value and returns it nowhere on a miss, so the closure waits in an `Option` for whichever
-    //  of the two paths runs.
+    // The closure waits in an `Option` for whichever of the two paths runs.
     let mut waiting: Option<Use> = Some(use_state);
-    let inside: Option<Output> = LANDING.try_with(|state| {
-        let Some(use_it) = waiting.take() else { unreachable!("the closure runs once") };
-        return use_it(state);
-    }).ok();
+    let inside: Option<Output> = LANDING
+        .try_with(|state| {
+            let Some(use_it) = waiting.take() else { unreachable!("the closure runs once") };
+            return use_it(state);
+        })
+        .ok();
     return match inside {
         Some(output) => output,
         None => {
             let Some(use_it) = waiting.take() else { unreachable!("a missed scope never ran the closure") };
-            use_it(&LandingState::new())
+            use_it(&state_of_no_landing())
         }
     };
 }
 
 /// Whether the caller runs inside a landing's scope.
 pub fn inside_a_landing() -> bool {
-    return LANDING.try_with(|_state| ()).is_ok();
+    return LANDING.try_with(ignore_the_state).is_ok();
 }
+
+/// Does nothing with a landing's state;
+/// `inside_a_landing` only asks whether there is one.
+fn ignore_the_state(_state: &LandingState) {}
 
 /// The controls of the landing's scope.
 #[cfg(test)]

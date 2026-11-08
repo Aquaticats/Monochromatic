@@ -62,7 +62,7 @@ fn note_name_step() {}
 /// The name comparisons the proofs of this landing have made so far.
 #[cfg(test)]
 pub(crate) fn name_steps() -> u64 {
-    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| state.name_steps.get());
+    return crate::landing_state_carried_by_its_task::with_the_landing_state(|state| return state.name_steps.get());
 }
 
 /// The commit's header facts the landing needs.

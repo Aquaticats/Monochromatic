@@ -288,7 +288,7 @@ fn the_background_syncs_are_made_without_a_thread_of_their_own() {
         drain();
         assert!(BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst) > before, "the queued sync was made");
     });
-    let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| name == "cli-git-durable").collect();
+    let own: Vec<String> = thread_names_of_this_process().into_iter().filter(|name| return name == "cli-git-durable").collect();
     assert!(own.is_empty(), "the background syncs started a thread of their own: {own:?}");
     remove(root.as_path());
 }

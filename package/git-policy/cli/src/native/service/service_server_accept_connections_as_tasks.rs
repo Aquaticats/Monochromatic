@@ -47,12 +47,12 @@ pub(crate) fn start_acceptor_or_exit(listener: UnixListener, shared: ConnectionS
 
 /// Accepts connections for as long as the process runs,
 /// each served by a task of its own.
-async fn accept_connections(listener: UnixListener, shared: ConnectionShared) {
-    if let Err(error) = listener.set_nonblocking(true) {
+async fn accept_connections(inherited: UnixListener, shared: ConnectionShared) {
+    if let Err(error) = inherited.set_nonblocking(true) {
         crate::service_error!("cannot make the listening socket non-blocking for the acceptor: {error}");
         std::process::exit(4);
     }
-    let listener: tokio::net::UnixListener = match tokio::net::UnixListener::from_std(listener) {
+    let listener: tokio::net::UnixListener = match tokio::net::UnixListener::from_std(inherited) {
         Ok(registered) => registered,
         Err(error) => {
             crate::service_error!("cannot hand the listening socket to the runtime: {error}");

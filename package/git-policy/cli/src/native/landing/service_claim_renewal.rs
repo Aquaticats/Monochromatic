@@ -490,27 +490,30 @@ pub struct ClaimRenewal {
 }
 
 /// Does what a controller asked of the renewal task;
-/// the renewer after it and whether the task goes on.
+/// the renewer after it,
+/// or nothing when the task ends (a stop,
+/// or a renewal that could not run).
 /// The renaming is files of the work directory,
 /// which can wait on storage,
 /// so it runs on the blocking pool and the renewer goes there and back.
-async fn obey(renewer: Renewer, control: Control) -> (Option<Renewer>, bool) {
+async fn obey(renewer: Renewer, control: Control) -> Option<Renewer> {
     return match control {
         Control::Renew(now, done) => {
             let renewed: Option<Renewer> = renew_off_the_workers(renewer, now).await;
             if let Some(finished) = done {
                 let _told = finished.send(());
             }
-            (renewed, true)
+            renewed
         }
-        Control::Stop => (Some(renewer), false),
+        Control::Stop => None,
     };
 }
 
 /// Renews every claim the renewer holds at the reading `now` on the blocking pool;
 /// nothing back when the pool could not run it,
 /// which ends the renewal:
-/// the claims then expire with their lease, as for a service that died.
+/// the claims then expire with their lease,
+/// as for a service that died.
 async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<Renewer> {
     return match run_blocking_job(move || {
         renewer.renew(&now);
@@ -541,29 +544,25 @@ async fn renew_off_the_workers(mut renewer: Renewer, now: ClaimTime) -> Option<R
 /// for (;;) { const request = await Promise.race([requests.next(), timer(every)]); if (request === STOP) return; renew(request ?? clockNow()); }
 /// ```
 async fn renew_until_stopped(mut renewer: Renewer, mut requests: UnboundedReceiver<Control>, every: Option<Duration>) {
-    let mut due: Option<Instant> = every.map(|interval| return Instant::now() + interval);
+    let mut due: Option<Instant> = every.map(due_after);
     loop {
-        let waited: Waited = match due {
+        // What the task woke for: `Some(request)` when a controller asked (nothing when every controller is gone), `None` when the
+        //  interval of a timed renewal passed.
+        let woke_for: Option<Option<Control>> = match due {
             Some(at) => tokio::select! {
-                request = requests.recv() => Waited::Asked(request),
-                () = tokio::time::sleep_until(at) => Waited::Due,
+                request = requests.recv() => Some(request),
+                () = tokio::time::sleep_until(at) => None,
             },
-            None => Waited::Asked(requests.recv().await),
+            None => Some(requests.recv().await),
         };
-        let renewed: Option<Renewer> = match waited {
+        let renewed: Option<Renewer> = match woke_for {
             // Every controller is gone: nothing asks for anything any more.
-            Waited::Asked(None) => return,
-            Waited::Asked(Some(request)) => {
-                let (after, goes_on) = obey(renewer, request).await;
-                if !goes_on {
-                    return;
-                }
-                after
-            }
+            Some(None) => return,
+            Some(Some(request)) => obey(renewer, request).await,
             // A claim that was settled is no longer held; one that was taken over is found gone and marked.
-            Waited::Due => {
+            None => {
                 let after: Option<Renewer> = renew_off_the_workers(renewer, ClaimTime::read()).await;
-                due = every.map(|interval| return Instant::now() + interval);
+                due = every.map(due_after);
                 after
             }
         };
@@ -572,18 +571,15 @@ async fn renew_until_stopped(mut renewer: Renewer, mut requests: UnboundedReceiv
     }
 }
 
-/// What a renewal task woke for.
-enum Waited {
-    /// A controller asked,
-    /// or every controller is gone.
-    Asked(Option<Control>),
-    /// The interval of a timed renewal passed.
-    Due,
+/// The moment a renewal that began now is due again after `interval`.
+fn due_after(interval: Duration) -> Instant {
+    return Instant::now() + interval;
 }
 
 /// Starts the task of a renewal on the process's runtime;
 /// nothing back when the runtime has no worker to run it,
-/// where the claims expire with their lease, as for a service that died.
+/// where the claims expire with their lease,
+/// as for a service that died.
 fn start_task(renewer: Renewer, requests: UnboundedReceiver<Control>, every: Option<Duration>) -> Option<Receiver<()>> {
     let (ended_sender, ended) = channel::<()>();
     let started = spawn_on_runtime(async move {
@@ -593,7 +589,7 @@ fn start_task(renewer: Renewer, requests: UnboundedReceiver<Control>, every: Opt
     if started.is_none() {
         crate::service_error!("no worker to renew claims on, so they expire with their lease");
     }
-    return started.map(|_handle| return ended);
+    return if started.is_some() { Some(ended) } else { None };
 }
 
 /// Methods over a renewal.
@@ -620,7 +616,8 @@ impl ClaimRenewal {
 
 /// Stops the task when the renewal goes out of scope,
 /// and waits until it has ended:
-/// a renewal in the middle of its renames finishes them first, as the thread it replaces was joined.
+/// a renewal in the middle of its renames finishes them first,
+/// as the thread it replaces was joined.
 impl Drop for ClaimRenewal {
     fn drop(&mut self) {
         let _told = self.control.send(Control::Stop);

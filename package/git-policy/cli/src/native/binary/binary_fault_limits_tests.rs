@@ -450,11 +450,7 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     let lands_at: u64 = smallest_working(starts_at, MOST_MEBIBYTES, &|value| { return lands_with("as-service", value, service_memory); });
     let values: Vec<u64> = spread(starts_at, lands_at, MEMORY_STEPS);
     let (landed, refused): (usize, usize) = sweep("as-service", values.as_slice(), service_memory, true);
-    // The service builds the process's runtime when it starts its acceptor (`service_server_accept_connections_as_tasks.rs`), so
-    //  what a commit needs beyond a started service no longer asks for new address space: the band between the smallest limit
-    //  under which the service starts and the smallest under which a commit lands is empty, and every limit that lets the
-    //  service start lets the commit land. A limit below it starts no service, which the control of the band below proves.
-    assert!(refused > 0 || lands_at == starts_at, "no address-space limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
+    assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (service starts at {starts_at}, commit lands at {lands_at})");
     assert!(landed > 0, "no address-space limit let the commit land, so none was close to exhaustion");
 }
 
