@@ -6,7 +6,7 @@ description: Use when delegating a task to Pi (DeepSeek or another model) as a s
 # Pi as a subagent
 
 Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process.
-Leave `--tools` off:
+Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
 so naming some removes the rest.
