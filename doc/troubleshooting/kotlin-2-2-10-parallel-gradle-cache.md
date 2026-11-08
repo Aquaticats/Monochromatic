@@ -9,6 +9,12 @@ mise run //package/music-player/android-app:prototype:build
 mise run //package/music-player/android-app:lint
 ```
 
+The `prototype:build` address is not on `main`:
+branch `prototype/music-player-theme-compose` declares it on 2026-09-04 (commit `d99257112e`),
+and `main`'s `package/music-player/android-app/mise.toml` has no `prototype:*` task.
+Every `prototype:build` address in this file must be read against that branch;
+`lint` still resolves on `main`.
+
 Both underlying commands use Gradle 9.5.1 with `--no-daemon`.
  The Kotlin compile emitted:
 
@@ -120,6 +126,10 @@ mise run //package/music-player/android-app:prototype:build
 mise run //package/music-player/android-app:lint
 ```
 
+That worktree is the `prototype/music-player-theme-compose` checkout that declares
+`prototype:build`;
+the `main` checkout does not declare it.
+
 ### Working catalog
 
 - `prototype:build` alone completed successfully.
@@ -149,6 +159,9 @@ Run same-project checks sequentially:
 mise run //package/music-player/android-app:prototype:build
 mise run //package/music-player/android-app:lint
 ```
+
+The `prototype:build` address resolves only on the
+`prototype/music-player-theme-compose` branch (commit `d99257112e` on 2026-09-04).
 
 Both commands passed sequentially after the incident.
  Tradeoff:

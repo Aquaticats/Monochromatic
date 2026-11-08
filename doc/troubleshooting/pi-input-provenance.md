@@ -162,6 +162,9 @@ if (expandPromptTemplates && text.startsWith("/")) {
 }
 ```
 
+`package/pi-plugin/auto-mode/src/guard-command.ts` was removed on 2026-10-17 by
+`a3955898f1`;
+the excerpt below records its last state.
 The current project handler at
 `package/pi-plugin/auto-mode/src/guard-command.ts:91-111`
 appends a null reset or a text directive without checking `ctx.hasUI` or receiving input-origin evidence:
@@ -188,6 +191,8 @@ A string-shaped trust entry cannot by itself distinguish this route from an expl
 
 ### Branch reset and fork identity are separate from human confirmation
 
+`package/pi-plugin/auto-mode/src/context.ts` was removed on 2026-10-17 by `a3955898f1`;
+the excerpt below records its last state.
 Current project `package/pi-plugin/auto-mode/src/context.ts:136-148`
 projects directives from the active branch only:
 

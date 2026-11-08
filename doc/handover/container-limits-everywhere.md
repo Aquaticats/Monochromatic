@@ -520,9 +520,13 @@ which the published crates do not use.
 - The workflow flags ran on a hosted runner in `ide-release` dry run 42448765561,
   which succeeded on `08c50b0bbb`,
   the commit with the disk-weight fix.
-  `music-player-release` run 42521054342 fails later,
-  in its Android and macOS jobs,
-  for other reasons.
+  `music-player-release` dry run 42525780309 on `b7ecf6e22f` fails only in its macOS job,
+  `bundle:macos` throwing on a `versionLine` it did not find,
+  and macOS is paused by the owner:
+  "Ignore Win and mac until I say so."
+  Its Android job,
+  which failed in run 42521054342,
+  now succeeds.
 - Sizes marked "adopted" in the inventory are documented siblings,
   not measurements.
 - `package-paused/` and `package/git-policy/**` are unchanged.

@@ -100,6 +100,11 @@ The isolated research branch's runnable owner is:
 RESEARCH_RUST_PROFILE=codex-host mise run //package/monorepo-task/core-exec:research:rust:host
 ```
 
+The task exists only on branch `research/depot-reuse-20261018`
+(commit `3a64b255fb` on 2026-10-18),
+when the package was still `package/dev-script/task-util`,
+so `main`'s `package/monorepo-task/core-exec/mise.toml` declares no `research:*` task.
+
 That task uses only disposable fixture homes,
 the existing localhost Responses server,
 the official prepared Codex binary and the unchanged native-host test.

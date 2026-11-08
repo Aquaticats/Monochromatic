@@ -95,6 +95,10 @@ mise run //package/pi-plugin/auto-mode:test:native:decision-context
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 ```
 
+Those three addresses no longer resolve:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and deleted
+`package/pi-plugin/auto-mode/native/` with its `test:native:*` tasks.
+
 The full reported conversation replay executes nine original calls across six groups without confirmation.
 The live explicit prohibited-read control blocks both calls without confirmation.
 Receipts and the resource comparison are indexed in
@@ -251,6 +255,9 @@ It reconstructs the authored false prerequisite from the actual tagged logger's 
 # Repository root; authored provider replies and disposable native sessions
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 ```
+
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
 
 The earlier synthetic working-directory policy did not establish behavior under the real repository policy.
 The older original logs cannot be repaired retroactively.
@@ -501,6 +508,9 @@ Local built-consumer verification needs no provider credential:
 mise run //package/pi-plugin/auto-mode:test:decision-wire
 mise run //package/pi-plugin/auto-mode:test:semantic-operating-policy
 ```
+
+`ff55ced353` (2026-10-19) removed both tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 Those commands verify the adapter and admission rule;
 they do not reproduce provider distributions.
