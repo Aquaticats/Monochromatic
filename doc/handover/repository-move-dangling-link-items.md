@@ -248,6 +248,115 @@ from the brief and the plan:
   the runbook,
   and the new test code of W1.
 
+- W3,
+  the work loop (`package/git-policy/cli/src/native/landing`):
+  `drain_planned_with` in `service_work.rs` asks `try_instance_of` first;
+  a Git directory that cannot be reached goes to `keep_plans_while_unreachable` (new,
+  in
+  `service_work_handlers_replanning_and_acceptance.rs`):
+  it runs nothing,
+  touches nothing in the directory,
+  and plans every due push of
+  that directory again with the next doubled pause (`planned_retry`,
+  so the plan record and the journal line stay).
+  A wake for such a
+  directory already left its work alone (a guard test records it).
+  `service/service_server_work_loop.rs` needed no edit.
+  Tests in
+  `service_push_retry_tests.rs`:
+  the directory is renamed away and back between rounds.
+  A request that finds its Git directory unreachable is answered by the wrapper before it reaches the service (the gate,
+  and
+  `refusal_without_route`).
+- Freeze text:
+  `FailureCode::PermissionDenied` (EACCES,
+  wire word `repository-permission-denied`) beside `RepositoryReadOnly` (EROFS);
+  `storage_failure` and `classify` keep them apart;
+  `ClientFailure::PermissionDenied` and `ClientFailure::RepositoryFrozen` have their own
+  sentences;
+  `read_only_failure` in `service/service_client.rs` picks the frozen one only when the freeze manifest in the runner's
+  state folder (`MOVE_STATE_DIR`,
+  else `~/repository-move-state`) lists a subvolume holding the repository
+  (`repository_link_check/repository_move_freeze.rs`).
+  The thaw pass renames the manifest to `freeze-manifest.tsv.thawed-<ms>` after a
+  successful thaw (a second thaw then succeeds and changes nothing),
+  so a present manifest means frozen.
+  The protocol version is
+  unchanged:
+  a new failure word reaches an older client only when a service of another release is still running,
+  which the wrapper retires;
+  bumping the protocol is the owner's call.
+- Open harness item,
+  container run 1 (220 failures):
+  217 `fresh fixture: NotFound` (the fixture root `target/tmp` of the container
+  vanished after test 5018 of 5265),
+  one lock-file stall test,
+  one settle test,
+  one service start;
+  memory peak 492 MiB of 2 GiB,
+  no
+  disk or process-limit line,
+  other agents' gates ran at the same time;
+  the identical Rust source passed on two later runs.
+  What removed `target/tmp` is not identified;
+  proposal:
+  `fixture_in` names the state of the fixture root and its parent when
+  `create_dir` fails with NotFound.
+  Log:
+  `${HOME}/temp/agent/860-w-items-2/container-1.log` (scratch,
+  may be gone).
+- Removers that can reach a path named `target` (the coordinator's lead on run 1,
+  read-only;
+  nothing was rerun).
+  Non-test
+  `remove_dir_all` and `remove_dir` call sites of `package/git-policy/cli/src/native` and `package/cargo-shadow/cli/src`,
+  with what
+  each takes as its root (read from its documentation and signature,
+  not by a test):
+  `worktree_copying/worktree_copy_journal_removal.rs` (subtrees named by a copy's journal,
+  under the destination worktree),
+  `worktree_copy_stage.rs` and `worktree_copy_transaction.rs` (the stage folder beside the destination worktree),
+  `shadow/shadow_links.rs` and `shadow/shadow_create.rs` (shadow folders of one transaction under the Git directory),
+  `foundation/scratch_location.rs` (entries older than a day in the per-user or repository scratch folder),
+  `foundation/private_storage.rs`,
+  `service/service_busy.rs`,
+  `candidate/candidate_private_index.rs`,
+  `landing/service_land_copy.rs`
+  (each its own record or scratch folder),
+  `worktree/worktree_removal_rescue.rs` (snapshots of one removal),
+  and `cargo-shadow/cli/src/journal_done_marker.rs` (its own journal folder).
+  The Cargo repair (`repair/package_repair_cargo.rs`) removes nothing itself:
+  it runs `cargo clean --offline --package <member>` in
+  each workspace of the new worktree.
+  Its roots all come from arguments (a worktree,
+  a Git directory);
+  none reads `CARGO_TARGET_DIR`
+  or a workspace variable,
+  and the gate image sets none (`CARGO_HOME` only).
+  Not checked:
+  whether a fixture's Cargo workspace,
+  which lives inside the container's `/work/package/git-policy/cli/target/tmp`,
+  resolves a `target-dir` or `build-dir` from a
+  `.cargo/config.toml` found by walking up to the container's `/work`;
+  the repository's root `.cargo/config.toml` sets only
+  environment values.
+  That is the one lead left open;
+  the new fixture-root report names the folder that went the next time.
+- W13 stage `c27-container-bind` starts a fresh container with a read-only bind through the link;
+  the plan's test was to start one
+  existing `created` container with worktree binds (`podman ps --all --filter status=created` lists them);
+  do that by hand too.
+- The mount unit's new stop block runs `luksClose` unconditionally when the mount is not a mount point,
+  so a stop with no mapper now
+  fails where the old stop hid it;
+  a guard `[ -e /dev/mapper/crypt_sda ]` is the owner's call.
+- The startup gate and the doctor line read `HOME` from the process environment,
+  the entry gate from the invocation's environment
+  (rule HOM);
+  threading `environment` to `recover_for_command` is left undone.
+- `mise trust --show` prints `<path>: trusted` or `<path>: untrusted` (checked in this worktree),
+  which `c24-mise-trust` greps.
+
 ### Blocked, with what is needed
 
 - W6 and W7 (home configs):
@@ -257,19 +366,6 @@ from the brief and the plan:
   and refused the backup copy of the last two.
   Nothing was changed.
   The exact edits are in the section "W6 and W7 edits to apply" below.
-- W3 waits for the coordinator's word (after the commit-stall branch).
-- The freeze text (coordinator's answer 2,
-  2026-11-07):
-  `storage_failure` and `classify` keep EROFS (30) apart from EACCES (13) with
-  distinct failure codes;
-  the render says a repository move has frozen the repository only for EROFS on a path under the link when the
-  move's own state says frozen (read what the runner records at freeze time);
-  every other EROFS keeps today's sentence;
-  EACCES gets a
-  permission sentence;
-  red tests for all three.
-  Files `landing/service_land_follow.rs` and `landing/service_messages.rs` stay untouched
-  until the coordinator says (it is part of the W3 wait).
 - Releases:
   wrapper,
   mpm-shadow,
@@ -431,7 +527,6 @@ Coordinator answers during the second agent's work (2026-11-07):
 
 ## Next, in order
 
-W3 (waits for the coordinator).
 W12 to W15:
 the checks after the cut-over,
 added to the runner and the runbook;

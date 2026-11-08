@@ -99,6 +99,59 @@ pub fn fixture(name: &str) -> Fixture {
     return fixture_in(fixture_root().as_path(), name);
 }
 
+/// What:
+///  What is known about a fixture root that could not be used,
+/// so the failure names the folder that went:
+/// whether the root exists,
+/// and what its parent and its grandparent hold,
+/// or that they are gone too.
+/// Why:
+///  A run of the gate once lost its fixture root between `create_dir_all` and the next `create_dir`,
+/// and 217 later tests failed with a bare `NotFound`
+/// (`doc/handover/repository-move-dangling-link-items.md`, open harness item);
+/// nothing in the log said what removed it or how far up the loss went.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = `the fixture root ${root} ${await exists(root) ? 'exists' : 'does not exist'}; ...`;
+/// ```
+pub fn missing_fixture_root_report(root: &Path) -> String {
+    let parent: &Path = root.parent().unwrap_or(root);
+    let grandparent: &Path = parent.parent().unwrap_or(parent);
+    let state: &str = if root.exists() { "exists" } else { "does not exist" };
+    return format!(
+        "the fixture root {} {state}; {}; {}",
+        root.display(),
+        what_a_folder_holds("its parent", parent),
+        what_a_folder_holds("its grandparent", grandparent)
+    );
+}
+
+/// How many entries of a folder the report names before it says there are more.
+const REPORTED_ENTRIES: usize = 40;
+
+/// The phrase that says what a folder holds,
+/// or that it does not exist,
+/// or why it cannot be listed.
+fn what_a_folder_holds(label: &str, folder: &Path) -> String {
+    if !folder.exists() {
+        return format!("{label} {} does not exist", folder.display());
+    }
+    let listing = match std::fs::read_dir(folder) {
+        Ok(listed) => listed,
+        Err(error) => return format!("{label} {} cannot be listed: {error}", folder.display()),
+    };
+    let mut names: Vec<String> = Vec::new();
+    for entry in listing.flatten() {
+        names.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    names.sort();
+    let more: usize = names.len().saturating_sub(REPORTED_ENTRIES);
+    names.truncate(REPORTED_ENTRIES);
+    let tail: String = if more == 0 { String::new() } else { format!(" and {more} more") };
+    return format!("{label} {} holds: {}{tail}", folder.display(), names.join(", "));
+}
+
 /// Create a fixture in `directory`,
 /// which may be on another filesystem than the build;
 /// see `fixture`.
@@ -109,7 +162,12 @@ pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     if created.exists() {
         std::fs::remove_dir_all(&created).expect("remove stale fixture");
     }
-    std::fs::create_dir(&created).expect("fresh fixture");
+    if let Err(error) = std::fs::create_dir(&created) {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            panic!("fresh fixture: {error}; {}", missing_fixture_root_report(directory));
+        }
+        panic!("fresh fixture: {error}");
+    }
     let root: PathBuf = std::fs::canonicalize(&created).expect("canonical fixture");
     for subdirectory in ["wrapper", "bin", "home"] {
         std::fs::create_dir(root.join(subdirectory)).expect("fixture directory");
