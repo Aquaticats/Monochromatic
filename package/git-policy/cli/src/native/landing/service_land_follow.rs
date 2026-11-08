@@ -98,8 +98,11 @@ pub fn classify(output: &GitOutput) -> FailureCode {
     if text.contains("no space left") || text.contains("quota exceeded") {
         return FailureCode::RepositoryFull;
     }
-    if text.contains("read-only file system") || text.contains("permission denied") {
+    if text.contains("read-only file system") {
         return FailureCode::RepositoryReadOnly;
+    }
+    if text.contains("permission denied") {
+        return FailureCode::PermissionDenied;
     }
     if text.contains("index.lock") {
         return FailureCode::IndexInUse;
@@ -323,7 +326,8 @@ fn reset_in_process(_git: &GitContext, _repository: &Path, _new: &str, _paths: I
 pub fn storage_failure(error: &std::io::Error) -> FailureCode {
     return match error.raw_os_error() {
         Some(code) if code == 28 || code == 122 => FailureCode::RepositoryFull,
-        Some(code) if code == 30 || code == 13 => FailureCode::RepositoryReadOnly,
+        Some(code) if code == libc::EROFS => FailureCode::RepositoryReadOnly,
+        Some(code) if code == libc::EACCES => FailureCode::PermissionDenied,
         _ => FailureCode::Unavailable,
     };
 }

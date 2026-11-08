@@ -887,3 +887,36 @@ fn a_selection_git_fails_on_is_unresolved_and_not_outside_a_repository() {
     assert!(matches!(&found, Selection::Unresolved(reason) if reason.contains("filemode")), "{found:?}");
     remove(root.as_path());
 }
+
+/// The doctor's host section ends with the line about the repository's link to the 860 drive when an identity file records one,
+/// and adds nothing when none does (plan item W15).
+#[cfg(target_os = "linux")]
+#[test]
+fn the_doctors_host_section_carries_the_link_line_only_with_an_identity_file() {
+    use super::filesystem_section_with_link_line;
+    let root: PathBuf = fixture("doctor-host-section-link").canonicalize().expect("root");
+    let home: PathBuf = root.join("home");
+    let not_a_mount: PathBuf = root.join("not-a-mount");
+    std::fs::create_dir_all(&not_a_mount).expect("mount point stand-in");
+    let link: PathBuf = root.join("repolink");
+    std::os::unix::fs::symlink(not_a_mount.join("r/M"), &link).expect("dangling link");
+    let nowhere: PathBuf = root.join("elsewhere/.git");
+    assert_eq!(filesystem_section_with_link_line(nowhere.as_path(), Some(home.as_path())), "", "no identity file, no line");
+    let identity: PathBuf = home.join(".config/monochromatic-dev/repository-link.json");
+    std::fs::create_dir_all(identity.parent().expect("parent")).expect("config folder");
+    std::fs::write(
+        &identity,
+        format!(
+            "{{\"linkPath\":\"{}\",\"linkText\":\"{}\",\"canonicalRoot\":\"{}\",\"mountPoint\":\"{}\",\"driveUuid\":\"D\",\"nvmeUuid\":\"N\",\"rootCommit\":\"abc\",\"phase\":\"after\"}}",
+            link.display(),
+            not_a_mount.join("r/M").display(),
+            not_a_mount.join("r/M").display(),
+            not_a_mount.display()
+        ),
+    )
+    .expect("identity file");
+    let section: String = filesystem_section_with_link_line(nowhere.as_path(), Some(home.as_path()));
+    assert!(section.starts_with("repository link: the 860 drive is not mounted yet ("), "{section}");
+    assert!(section.ends_with("run this again\n"), "{section}");
+    remove(root.as_path());
+}

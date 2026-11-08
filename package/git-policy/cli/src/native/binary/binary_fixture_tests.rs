@@ -3,12 +3,33 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, give_service_environment, remove_patiently, repository, service_runtime,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, missing_fixture_root_report, give_service_environment, remove_patiently, repository, service_runtime,
     service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
 };
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
+
+/// What the report of a vanished fixture root says:
+/// that the root does not exist,
+/// and what its parent and its grandparent hold (or that they are gone too),
+/// so the next failure of the kind names the folder that went.
+#[test]
+fn the_report_of_a_vanished_fixture_root_names_it_and_lists_its_parent_and_grandparent() {
+    let present: Fixture = fixture("missing-root-report");
+    let grandparent: PathBuf = present.root.join("grand");
+    let parent: PathBuf = grandparent.join("parent");
+    std::fs::create_dir_all(&grandparent).expect("grandparent");
+    std::fs::write(grandparent.join("marker-file"), "x").expect("marker");
+    let root: PathBuf = parent.join("root");
+    let report: String = missing_fixture_root_report(root.as_path());
+    assert!(report.contains(format!("the fixture root {} does not exist", root.display()).as_str()), "{report}");
+    assert!(report.contains(format!("its parent {} does not exist", parent.display()).as_str()), "{report}");
+    assert!(report.contains(format!("its grandparent {} holds: marker-file", grandparent.display()).as_str()), "{report}");
+    std::fs::create_dir_all(&root).expect("root");
+    let existing: String = missing_fixture_root_report(root.as_path());
+    assert!(existing.contains(format!("the fixture root {} exists", root.display()).as_str()), "{existing}");
+}
 
 /// A fixture whose test panics after creating it leaves nothing behind.
 #[test]

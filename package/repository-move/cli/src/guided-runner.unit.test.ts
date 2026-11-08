@@ -810,6 +810,50 @@ await describe({
           },
         },),
         it({
+          name: 'the footprint of the checkout is measured by the tool that measures again when a worktree vanishes, and the preflight still reads its output',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const footprint = stages.find((s,) => s.id === 'p3a-footprint',) as Stage;
+              const command = await resolvedCommand({ stage: footprint, config, },);
+              expect(command,).toContain(`${config.nodePath} ${config.measureTool} ${config.repo}`,);
+              expect(command,).not.toContain('btrfs filesystem du',);
+              expect(footprint.check,).toContain('measured: attempt',);
+              expect(footprintOf('measured: attempt 2 of 3; removed during the measurement: x\n     Total   Exclusive  Set shared  Filename\n300 100 50 /tree\n',),).toBe(150,);
+            },);
+          },
+        },),
+        it({
+          name: 'the checks after the cut-over (W12 to W15) come after the release, each with its own check, and none uses sudo',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await cutoverStages({ c: config, stamp: 'S', },);
+              const ids = stages.map((s,) => s.id,);
+              const after = ['c23-link-check', 'c24-mise-trust', 'c25-pnpm-links', 'c26-kopia-snapshot', 'c27-container-bind', 'c28-ide-through-link',];
+              for (const id of after) {
+                expect(ids.indexOf(id,),).toBeGreaterThan(ids.indexOf('c21-release',),);
+              }
+              const stageOf = (id: string,) => stages.find((s,) => s.id === id,) as Stage;
+              const text = async (id: string,) => await resolvedCommand({ stage: stageOf(id,), config, },);
+              expect(await text('c23-link-check',),).toContain('check.mjs',);
+              expect(stageOf('c23-link-check',).check,).toContain('ready (on the 860)',);
+              expect(await text('c24-mise-trust',),).toContain('mise trust --all',);
+              expect(await text('c24-mise-trust',),).toContain('mise trust --show',);
+              expect(await text('c25-pnpm-links',),).toContain('find node_modules -xtype l',);
+              expect(stageOf('c25-pnpm-links',).check,).toContain('test ! -s',);
+              expect(await text('c26-kopia-snapshot',),).toContain('kopia snapshot create',);
+              expect(await text('c27-container-bind',),).toContain('--mount type=bind',);
+              expect(stageOf('c28-ide-through-link',).assertion,).toBeDefined();
+              const texts = await Promise.all(after.map(async (id,) => await text(id,),),);
+              for (const [index, id,] of after.entries()) {
+                expect(stageOf(id,).check,).toBeDefined();
+                expect(stageOf(id,).root,).toBe('no',);
+                expect(texts[index],).not.toContain('sudo',);
+              }
+            },);
+          },
+        },),
+        it({
           name: 'the 860 mount option has a stage that prepares the edit, then applies it and checks the unit and the live options',
           fn: async () => {
             await withConfig(async ({ config, },) => {

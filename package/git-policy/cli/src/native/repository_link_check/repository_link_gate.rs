@@ -35,6 +35,78 @@ pub enum LinkGate {
 }
 
 /// What:
+///  The identity whose repository a full check already found usable in this process.
+/// Why:
+///  A Git command meets the gate twice (at the entry and in the startup step),
+/// and a full check reads the mount table and the by-uuid links;
+/// the second meeting asks nothing when the first found the same identity usable.
+/// A refusal is never remembered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let readyFor: LinkIdentity | undefined;
+/// ```
+pub struct ReadyMemory(std::sync::Mutex<Option<LinkIdentity>>);
+
+/// The memory of this process for the real system:
+/// the entry gate and the startup step share it.
+static PROCESS_MEMORY: ReadyMemory = ReadyMemory::new();
+
+impl ReadyMemory {
+    /// An empty memory.
+    pub const fn new() -> ReadyMemory {
+        return ReadyMemory(std::sync::Mutex::new(None));
+    }
+}
+
+impl Default for ReadyMemory {
+    fn default() -> Self {
+        return Self::new();
+    }
+}
+
+/// What:
+///  `gate_for_identity` that skips the check when `memory` holds this identity,
+/// and remembers a usable answer it had to walk for.
+/// Why:
+///  See `ReadyMemory`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gateRemembering({ probe, identity, paths, memory })
+/// ```
+pub(crate) fn gate_remembering(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf], memory: &ReadyMemory) -> LinkGate {
+    if let Ok(held) = memory.0.lock()
+        && held.as_ref() == Some(identity)
+    {
+        return LinkGate::Clear;
+    }
+    return match decide(probe, identity, paths) {
+        Decision::Ready => {
+            if let Ok(mut held) = memory.0.lock() {
+                *held = Some(identity.clone());
+            }
+            LinkGate::Clear
+        }
+        Decision::Passed => LinkGate::Clear,
+        Decision::Refused(text) => LinkGate::Stop(text),
+    };
+}
+
+/// What the gate decided for an identity and the paths of a command.
+enum Decision {
+    /// No path lies under the repository,
+    /// or phase `before` found its folder:
+    /// the command goes on and nothing is worth remembering.
+    Passed,
+    /// A full check found the repository usable.
+    Ready,
+    /// The check refused;
+    /// this is the text to print.
+    Refused(String),
+}
+
+/// What:
 ///  What to do once the identity is known:
 /// nothing when no path lies under the repository,
 /// one `lstat` in phase `before`,
@@ -53,7 +125,7 @@ pub enum LinkGate {
 /// ```ts
 /// gateForIdentity({ probe, identity, paths })
 /// ```
-fn gate_for_identity(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf]) -> LinkGate {
+fn decide(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf]) -> Decision {
     let mut touched: bool = false;
     for path in paths {
         if touches_repository(identity, path.as_path()) {
@@ -62,16 +134,25 @@ fn gate_for_identity(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIde
         }
     }
     if !touched {
-        return LinkGate::Clear;
+        return Decision::Passed;
     }
     if identity.phase == LinkPhase::Before && probe.lstat(Path::new(identity.link_path.as_str())) == EntryKind::Directory {
-        return LinkGate::Clear;
+        return Decision::Passed;
     }
     let answer = check_repository_link_within(identity, probe, DEFAULT_DEADLINE);
     if answer.ready {
-        return LinkGate::Clear;
+        return Decision::Ready;
     }
-    return LinkGate::Stop(format!("fatal: {}\n", answer.message));
+    return Decision::Refused(format!("fatal: {}\n", answer.message));
+}
+
+/// `decide` as the plain gate answer,
+/// with no memory.
+fn gate_for_identity(probe: Arc<dyn LinkProbe + Send + Sync>, identity: &LinkIdentity, paths: &[PathBuf]) -> LinkGate {
+    return match decide(probe, identity, paths) {
+        Decision::Refused(text) => LinkGate::Stop(text),
+        Decision::Passed | Decision::Ready => LinkGate::Clear,
+    };
 }
 
 /// What:
@@ -148,7 +229,10 @@ pub fn link_gate_with_probe(probe: Arc<dyn LinkProbe + Send + Sync>, home: Optio
 /// repositoryLinkGate({ home, paths })
 /// ```
 pub fn link_gate(home: Option<&Path>, paths: &[PathBuf]) -> LinkGate {
-    return link_gate_with_probe(Arc::new(RealLinkProbe), home, paths);
+    let Some(identity) = recorded_identity(home) else {
+        return LinkGate::Clear;
+    };
+    return gate_remembering(Arc::new(RealLinkProbe::default()), &identity, paths, &PROCESS_MEMORY);
 }
 
 /// What:
@@ -171,7 +255,7 @@ pub fn invocation_link_gate(home: Option<&Path>, cwd: &Path, global_prefix: &[Os
         return LinkGate::Clear;
     };
     let paths: Vec<PathBuf> = named_paths(cwd, global_prefix, environment);
-    return gate_for_identity(Arc::new(RealLinkProbe), &identity, paths.as_slice());
+    return gate_remembering(Arc::new(RealLinkProbe::default()), &identity, paths.as_slice(), &PROCESS_MEMORY);
 }
 
 /// Gate controls stay out of the release executable.

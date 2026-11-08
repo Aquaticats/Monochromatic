@@ -17,6 +17,8 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::OtherRelease,
         ClientFailure::RepositoryFull(String::from("/work/repo")),
         ClientFailure::RepositoryReadOnly(String::from("/work/repo")),
+        ClientFailure::PermissionDenied(String::from("/work/repo")),
+        ClientFailure::RepositoryFrozen(String::from("/work/repo")),
         ClientFailure::BranchKeepsChanging { branch: String::from("main"), times: 5 },
         ClientFailure::BranchMoved { branch: String::from("main") },
         ClientFailure::BranchMovedMessageSaved { branch: String::from("main"), file: String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12"), amend: false },
@@ -69,6 +71,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::OtherRelease => 18,
         ClientFailure::BranchSwitched { .. } => 19,
         ClientFailure::ContentPruned => 23,
+        ClientFailure::PermissionDenied(_) => 24,
+        ClientFailure::RepositoryFrozen(_) => 25,
         ClientFailure::StepTooSlow => 22,
         ClientFailure::StillWithService { .. } => 20,
         ClientFailure::WithdrawalUnconfirmed { .. } => 21,
@@ -113,7 +117,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::ContentPruned) + 1;
+    let expected: usize = variant_index(&ClientFailure::RepositoryFrozen(String::new())) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -216,4 +220,23 @@ fn position_notices_count_the_commits_ahead() {
     assert_eq!(position_notice(1, 4), "This commit is next.");
     assert_eq!(position_notice(2, 4), "Waiting for 1 earlier commit.");
     assert_eq!(position_notice(4, 4), "Waiting for 3 earlier commits.");
+}
+
+/// A read-only filesystem keeps today's sentence,
+/// a permission error says whose permission it is and what to check,
+/// and a repository a move froze says so and when it thaws:
+/// three different sentences,
+/// none of them borrowed from another.
+#[test]
+fn a_read_only_filesystem_a_permission_error_and_a_frozen_move_each_have_their_own_sentence() {
+    let read_only: String = render(&ClientFailure::RepositoryReadOnly(String::from("/work/repo")));
+    assert!(read_only.contains("cannot be written to") && read_only.contains("mounted read-only"), "{read_only}");
+    let denied: String = render(&ClientFailure::PermissionDenied(String::from("/work/repo")));
+    assert!(denied.contains("/work/repo") && denied.contains("permission"), "{denied}");
+    assert!(!denied.contains("mounted read-only") && !denied.contains("move"), "a permission problem is not a read-only disk or a move: {denied}");
+    let frozen: String = render(&ClientFailure::RepositoryFrozen(String::from("/work/repo")));
+    assert!(frozen.contains("a repository move has frozen the repository"), "{frozen}");
+    assert!(frozen.contains("thaws when the move's thaw step runs"), "{frozen}");
+    assert!(frozen.contains(NOTHING_CHANGED), "{frozen}");
+    assert!(!frozen.contains("permission"), "{frozen}");
 }

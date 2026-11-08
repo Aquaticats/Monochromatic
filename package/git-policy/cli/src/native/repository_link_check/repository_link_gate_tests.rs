@@ -123,7 +123,7 @@ fn a_dangling_link_prints_the_not_mounted_message_and_creates_nothing() {
     )
     .expect("identity file");
     let before: Vec<String> = listing(root.as_path());
-    let gate: LinkGate = link_gate_with_probe(Arc::new(RealLinkProbe), Some(home.as_path()), &[link.join("sub")]);
+    let gate: LinkGate = link_gate_with_probe(Arc::new(RealLinkProbe::default()), Some(home.as_path()), &[link.join("sub")]);
     let LinkGate::Stop(text) = gate else { panic!("the gate should stop") };
     assert!(text.starts_with("fatal: the 860 drive is not mounted yet ("), "{text}");
     assert!(text.contains(link.to_string_lossy().as_ref()) && text.ends_with("run this again\n"), "{text}");
@@ -161,5 +161,57 @@ fn an_unreadable_identity_file_lets_the_command_go_on() {
     assert_eq!(link_gate_with_probe(probe.clone(), Some(home.as_path()), &[PathBuf::from(LINK)]), LinkGate::Clear);
     assert!(probe.questions().is_empty());
     let _phase: LinkPhase = LinkPhase::Before;
+    remove(home.as_path());
+}
+
+/// A world in which the repository is ready on the 860 under the identity `write_identity` records in phase `after`.
+fn ready_world() -> World {
+    let root: &str = "/mnt/860/repository/Monochromatic";
+    let mut world: World = World::default();
+    world.entries.insert(String::from(LINK), EntryKind::Link);
+    world.entries.insert(String::from(root), EntryKind::Directory);
+    world.entries.insert(format!("{root}/.git"), EntryKind::Directory);
+    world.links.insert(String::from(LINK), String::from(root));
+    world.real.insert(String::from(LINK), String::from(root));
+    world.real.insert(String::from("/mnt/860"), String::from("/mnt/860"));
+    world.texts.insert(format!("{root}/.git/monochromatic-root-commit"), String::from("abc\n"));
+    world.uuids.insert(String::from(root), String::from("DRIVE"));
+    world.uuids.insert(format!("{root}/.git"), String::from("DRIVE"));
+    world.mounted.insert(String::from("/mnt/860"));
+    return world;
+}
+
+/// The identity of `ready_world`.
+fn ready_identity(home: &Path) -> LinkIdentity {
+    write_identity(home, "after", "/mnt/860");
+    match crate::repository_link_identity::read_identity(home) {
+        crate::repository_link_identity::IdentityRead::Found(identity) => return identity,
+        other => panic!("the identity file was written: {other:?}"),
+    }
+}
+
+/// A usable repository is walked once:
+/// the second meeting of the same identity in one process asks nothing,
+/// a refusal is walked again every time,
+/// and another identity is walked on its own.
+#[test]
+fn a_usable_repository_is_walked_once_per_process_and_a_refusal_never_is_remembered() {
+    let home: PathBuf = fixture("link-gate-memory");
+    let identity: LinkIdentity = ready_identity(home.as_path());
+    let paths: Vec<PathBuf> = vec![PathBuf::from(LINK).join("sub")];
+    let memory: ReadyMemory = ReadyMemory::new();
+    let probe: Arc<FixtureProbe> = probe_over(ready_world());
+    assert_eq!(gate_remembering(probe.clone(), &identity, paths.as_slice(), &memory), LinkGate::Clear);
+    let walked: usize = probe.questions().len();
+    assert!(walked > 1, "the first meeting walks the link: {:?}", probe.questions());
+    assert_eq!(gate_remembering(probe.clone(), &identity, paths.as_slice(), &memory), LinkGate::Clear);
+    assert_eq!(probe.questions().len(), walked, "the second meeting asked nothing");
+    let other: LinkIdentity = LinkIdentity { drive_uuid: String::from("OTHER"), ..identity.clone() };
+    let refused: LinkGate = gate_remembering(probe.clone(), &other, paths.as_slice(), &memory);
+    assert!(matches!(refused, LinkGate::Stop(_)), "another identity is walked on its own: {refused:?}");
+    let before: usize = probe.questions().len();
+    let again: LinkGate = gate_remembering(probe.clone(), &other, paths.as_slice(), &memory);
+    assert!(matches!(again, LinkGate::Stop(_)), "{again:?}");
+    assert!(probe.questions().len() > before, "a refusal is walked again");
     remove(home.as_path());
 }

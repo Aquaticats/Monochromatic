@@ -239,11 +239,215 @@ from the brief and the plan:
   `prepare --redo=f1-images` and every later fixture stage id from the list in the runbook (a fresh image is made only when the file
   does not exist,
   so delete the old `source.img` and `dest.img` from the list the last fixture stage prints first).
+- W12 to W15:
+  runner stages `c23-link-check` to `c28-ide-through-link` after the release in the cut-over (as the user,
+  none with sudo):
+  the link check again (W15),
+  `mise trust --all` and `--show` (W14),
+  a fresh worktree with `pnpm install --frozen-lockfile --offline` and
+  `find node_modules -xtype l` (W14),
+  the first kopia snapshot of the source (W12),
+  a container with a read-only bind through the
+  link on the first local image (W13),
+  and an assertion stage for the IDE (W13).
+  The wrapper's doctor prints
+  `repository link: <message>` (W15) through `filesystem_section_with_link_line` in `invocation/management.rs`.
+  None of these ran for real:
+  they run at the cut-over,
+  and the stage data is tested by the runner's unit tests and its dry run.
 - Lint fixed on the way:
   `package/repository-link/check/README.md`,
   `package/repository-move/cli/doc/lint/sequential-awaits.md`,
   the runbook,
   and the new test code of W1.
+
+- W3,
+  the work loop (`package/git-policy/cli/src/native/landing`):
+  `drain_planned_with` in `service_work.rs` asks `try_instance_of` first;
+  a Git directory that cannot be reached goes to `keep_plans_while_unreachable` (new,
+  in
+  `service_work_handlers_replanning_and_acceptance.rs`):
+  it runs nothing,
+  touches nothing in the directory,
+  and plans every due push of
+  that directory again with the next doubled pause (`planned_retry`,
+  so the plan record and the journal line stay).
+  A wake for such a
+  directory already left its work alone (a guard test records it).
+  `service/service_server_work_loop.rs` needed no edit.
+  Tests in
+  `service_push_retry_tests.rs`:
+  the directory is renamed away and back between rounds.
+  A request that finds its Git directory unreachable is answered by the wrapper before it reaches the service (the gate,
+  and
+  `refusal_without_route`).
+- Freeze text:
+  `FailureCode::PermissionDenied` (EACCES,
+  wire word `repository-permission-denied`) beside `RepositoryReadOnly` (EROFS);
+  `storage_failure` and `classify` keep them apart;
+  `ClientFailure::PermissionDenied` and `ClientFailure::RepositoryFrozen` have their own
+  sentences;
+  `read_only_failure` in `service/service_client.rs` picks the frozen one only when the freeze manifest in the runner's
+  state folder (`MOVE_STATE_DIR`,
+  else `~/repository-move-state`) lists a subvolume holding the repository
+  (`repository_link_check/repository_move_freeze.rs`).
+  The thaw pass renames the manifest to `freeze-manifest.tsv.thawed-<ms>` after a
+  successful thaw (a second thaw then succeeds and changes nothing),
+  so a present manifest means frozen.
+  The protocol version is
+  unchanged:
+  a new failure word reaches an older client only when a service of another release is still running,
+  which the wrapper retires;
+  bumping the protocol is the owner's call.
+- W2 latency (coordinator's bar:
+  no forwarded command slower beyond the same-binary spread).
+  Method:
+  the wrapper of main before the
+  merge (`959402bca7`) against the final branch binary,
+  alternating arms,
+  three rounds of 60 runs per arm,
+  `git -C <repository> status --short` and `rev-parse HEAD`,
+  the real 860 as the repository's filesystem,
+  three identity states
+  (scripts and results under `${HOME}/temp/agent/860-w-items-2/ab-measure/`,
+  `result-1.txt` before the memoizing,
+  `result-3.txt` final),
+  run while other sessions and a gate container kept the host busy.
+  Median of the three round medians,
+  in milliseconds
+  (the spread of the same binary across rounds was 0.4 to 0.8):
+  identity file absent,
+  status:
+  5.31 before and 5.34 after;
+  rev-parse 4.55 before and 4.80 after;
+  phase `before`,
+  status:
+  5.39 and 5.54;
+  rev-parse 4.58 and 4.47;
+  phase `after`,
+  status:
+  5.04 and 6.01;
+  rev-parse 4.74 and 5.58.
+  So absent and `before` are inside the spread.
+  Phase `after` is slower by about 1.0 ms (status) and 0.8 ms (rev-parse) at the median
+  and 0.5 to 0.8 ms at p95,
+  beyond the spread.
+  The first version cost 1.2 to 1.4 ms there;
+  reading the mount table and each device's UUID once per
+  check and remembering a usable repository for the rest of the process (the entry gate and the startup step meet the same
+  identity) took off about a third.
+  What is left is one walk of the link per command (the thread for the deadline,
+  `readlink`,
+  `realpath`,
+  the table,
+  the UUID links,
+  the marker file) on every command that touches the repository once the move is done.
+  Cheaper options not built:
+  skip the walk for a read-only command,
+  or cache the answer across commands (a file in the runtime folder);
+  both change what the gate guarantees,
+  so they are the coordinator's and the owner's choice.
+  `native:perf` (empty home,
+  so only the failed open):
+  forwarded added medians 1.5 to 2.0 ms and commit paired deltas 20 to 26 ms in
+  both arms of three alternating pairs,
+  inside the spread.
+- Footprint measurement (coordinator,
+  after `prepare-10` stopped at `p3a-footprint` when a worktree was removed during the walk):
+  merged into main as cf498e159e from `fix/repository-move-footprint-retries-removed-worktrees`
+  (`footprint-measure.ts`,
+  `measure-footprint.ts`,
+  tests in `measure-footprint.unit.test.ts`).
+  One whole-tree walk,
+  made again at most
+  three times when every line btrfs printed says an entry was not there;
+  any other error or a walk past its deadline fails at once.
+  It is not split by subvolume:
+  worktrees share extents (3753 GiB per-worktree sum against about 264 GiB counted once),
+  nested
+  subvolumes would count twice,
+  and a `btrfs filesystem du` call with several paths prints one independent row per path.
+- The wrapper's container gate fails one test in main itself,
+  not in this branch:
+  `fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository` (the service aborts with
+  `memory allocation of 13 bytes failed` under the address-space limit before it listens).
+  Main 48c8fe6692 plus only the runner fix
+  fails it in the gate image;
+  this branch failed it 5 of 5 alone in the gate image;
+  the older image `coordinator-tokio-062` passes it;
+  the host passes it.
+  The commit-stall merge's startup warm is the coordinator's lead and its author is investigating.
+  This branch merges only after that fix is in main.
+- Open harness item,
+  container run 1 (220 failures):
+  217 `fresh fixture: NotFound` (the fixture root `target/tmp` of the container
+  vanished after test 5018 of 5265),
+  one lock-file stall test,
+  one settle test,
+  one service start;
+  memory peak 492 MiB of 2 GiB,
+  no
+  disk or process-limit line,
+  other agents' gates ran at the same time;
+  the identical Rust source passed on two later runs.
+  What removed `target/tmp` is not identified;
+  proposal:
+  `fixture_in` names the state of the fixture root and its parent when
+  `create_dir` fails with NotFound.
+  Log:
+  `${HOME}/temp/agent/860-w-items-2/container-1.log` (scratch,
+  may be gone).
+- Removers that can reach a path named `target` (the coordinator's lead on run 1,
+  read-only;
+  nothing was rerun).
+  Non-test
+  `remove_dir_all` and `remove_dir` call sites of `package/git-policy/cli/src/native` and `package/cargo-shadow/cli/src`,
+  with what
+  each takes as its root (read from its documentation and signature,
+  not by a test):
+  `worktree_copying/worktree_copy_journal_removal.rs` (subtrees named by a copy's journal,
+  under the destination worktree),
+  `worktree_copy_stage.rs` and `worktree_copy_transaction.rs` (the stage folder beside the destination worktree),
+  `shadow/shadow_links.rs` and `shadow/shadow_create.rs` (shadow folders of one transaction under the Git directory),
+  `foundation/scratch_location.rs` (entries older than a day in the per-user or repository scratch folder),
+  `foundation/private_storage.rs`,
+  `service/service_busy.rs`,
+  `candidate/candidate_private_index.rs`,
+  `landing/service_land_copy.rs`
+  (each its own record or scratch folder),
+  `worktree/worktree_removal_rescue.rs` (snapshots of one removal),
+  and `cargo-shadow/cli/src/journal_done_marker.rs` (its own journal folder).
+  The Cargo repair (`repair/package_repair_cargo.rs`) removes nothing itself:
+  it runs `cargo clean --offline --package <member>` in
+  each workspace of the new worktree.
+  Its roots all come from arguments (a worktree,
+  a Git directory);
+  none reads `CARGO_TARGET_DIR`
+  or a workspace variable,
+  and the gate image sets none (`CARGO_HOME` only).
+  Not checked:
+  whether a fixture's Cargo workspace,
+  which lives inside the container's `/work/package/git-policy/cli/target/tmp`,
+  resolves a `target-dir` or `build-dir` from a
+  `.cargo/config.toml` found by walking up to the container's `/work`;
+  the repository's root `.cargo/config.toml` sets only
+  environment values.
+  That is the one lead left open;
+  the new fixture-root report names the folder that went the next time.
+- W13 stage `c27-container-bind` starts a fresh container with a read-only bind through the link;
+  the plan's test was to start one
+  existing `created` container with worktree binds (`podman ps --all --filter status=created` lists them);
+  do that by hand too.
+- The mount unit's new stop block runs `luksClose` unconditionally when the mount is not a mount point,
+  so a stop with no mapper now
+  fails where the old stop hid it;
+  a guard `[ -e /dev/mapper/crypt_sda ]` is the owner's call.
+- The startup gate and the doctor line read `HOME` from the process environment,
+  the entry gate from the invocation's environment
+  (rule HOM);
+  threading `environment` to `recover_for_command` is left undone.
+- `mise trust --show` prints `<path>: trusted` or `<path>: untrusted` (checked in this worktree),
+  which `c24-mise-trust` greps.
 
 ### Blocked, with what is needed
 
@@ -254,19 +458,6 @@ from the brief and the plan:
   and refused the backup copy of the last two.
   Nothing was changed.
   The exact edits are in the section "W6 and W7 edits to apply" below.
-- W3 waits for the coordinator's word (after the commit-stall branch).
-- The freeze text (coordinator's answer 2,
-  2026-11-07):
-  `storage_failure` and `classify` keep EROFS (30) apart from EACCES (13) with
-  distinct failure codes;
-  the render says a repository move has frozen the repository only for EROFS on a path under the link when the
-  move's own state says frozen (read what the runner records at freeze time);
-  every other EROFS keeps today's sentence;
-  EACCES gets a
-  permission sentence;
-  red tests for all three.
-  Files `landing/service_land_follow.rs` and `landing/service_messages.rs` stay untouched
-  until the coordinator says (it is part of the W3 wait).
 - Releases:
   wrapper,
   mpm-shadow,
@@ -428,7 +619,6 @@ Coordinator answers during the second agent's work (2026-11-07):
 
 ## Next, in order
 
-W3 (waits for the coordinator).
 W12 to W15:
 the checks after the cut-over,
 added to the runner and the runbook;

@@ -107,7 +107,7 @@ pub fn named_paths(cwd: &Path, global_prefix: &[OsString], environment: &[(OsStr
 /// ```ts
 /// resolveAsFarAsItExists('/home/u/link/sub') // '/var/home/u/link/sub'
 /// ```
-fn resolve_as_far_as_it_exists(path: &Path) -> PathBuf {
+pub(crate) fn resolve_as_far_as_it_exists(path: &Path) -> PathBuf {
     for candidate in path.ancestors() {
         let Ok(real) = std::fs::canonicalize(candidate) else {
             continue;

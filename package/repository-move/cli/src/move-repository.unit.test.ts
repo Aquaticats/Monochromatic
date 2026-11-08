@@ -547,6 +547,25 @@ await describe({
           },
         },),
         it({
+          name: 'renames the freeze record aside once it thawed, so the record says nothing is frozen, and a second thaw changes nothing and succeeds',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            const state = join(fixture.base, 'state',);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            expect(await readdir(state,),).toContain('freeze-manifest.tsv',);
+            expect((await runCopyTool({ fixture, pass: 'thaw', },)).status,).toBe(0,);
+            const after = await readdir(state,);
+            expect(after,).not.toContain('freeze-manifest.tsv',);
+            expect(after.filter((name,) => name.startsWith('freeze-manifest.tsv.thawed-',),),).toHaveLength(1,);
+            const again = await runCopyTool({ fixture, pass: 'thaw', },);
+            expect(again.status,).toBe(0,);
+            expect(again.stderr,).toContain('thaw finished',);
+            expect((await readdir(state,)).filter((name,) => name.startsWith('freeze-manifest.tsv.thawed-',),),).toHaveLength(1,);
+            expect((await runCopyTool({ fixture, pass: 'freeze', },)).status,).toBe(0,);
+            expect(await readdir(state,),).toContain('freeze-manifest.tsv',);
+          },
+        },),
+        it({
           name: 'refuses thaw when nothing was frozen',
           fn: async () => {
             await using fixture = await makeFixture({ names: ['a',], },);

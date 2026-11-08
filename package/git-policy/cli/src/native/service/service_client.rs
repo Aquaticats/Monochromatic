@@ -39,6 +39,7 @@ use crate::service_protocol::{
 use crate::service_review_key::ReviewKey;
 use std::io::{BufReader, Write};
 use std::os::unix::net::UnixStream;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 /// What a request came to.
@@ -57,12 +58,33 @@ pub enum Submitted {
     Moved,
 }
 
+/// What:
+///  The failure for a repository whose filesystem is read-only:
+/// the frozen-move one when the state of a repository move says it froze this repository,
+/// the plain read-only one otherwise.
+/// Why:
+///  The sentence about a move is told only when the move's own record says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readOnlyFailure(repository, stateFolder)
+/// ```
+pub fn read_only_failure(repository: &str, state_folder: Option<&Path>) -> ClientFailure {
+    if let Some(folder) = state_folder
+        && crate::repository_move_freeze::freeze_covers(folder, Path::new(repository))
+    {
+        return ClientFailure::RepositoryFrozen(repository.to_string());
+    }
+    return ClientFailure::RepositoryReadOnly(repository.to_string());
+}
+
 /// The user-facing failure for a code the service gave.
 pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure {
     let repository: String = request.repository.display().to_string();
     return match code {
         FailureCode::RepositoryFull => ClientFailure::RepositoryFull(repository),
-        FailureCode::RepositoryReadOnly => ClientFailure::RepositoryReadOnly(repository),
+        FailureCode::RepositoryReadOnly => read_only_failure(repository.as_str(), crate::repository_move_freeze::move_state_folder().as_deref()),
+        FailureCode::PermissionDenied => ClientFailure::PermissionDenied(repository),
         FailureCode::IndexInUse => ClientFailure::IndexInUse(String::from("Another program")),
         FailureCode::Rejected => ClientFailure::Refused,
         FailureCode::BranchKeepsChanging => ClientFailure::BranchKeepsChanging {
