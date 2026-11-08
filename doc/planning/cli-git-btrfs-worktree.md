@@ -17,7 +17,7 @@ the sections "Snapshot flow (rung 1)" and
 "Source selection" describe the original proposal,
 and "Implemented flow and what superseded the proposal" says what the
 code does now.
-The measurements and the owner's decisions below stand.
+The measurements and the owner's decisions in this record stand.
 Scope:
 `package/git-policy/cli` (crate `monochromatic-git-policy-cli`),
 Linux only.
