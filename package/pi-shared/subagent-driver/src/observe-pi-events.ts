@@ -1,0 +1,276 @@
+/**
+ What a run's events change: the tools it started, the dialogs it was asked, the reply it ended on, and whether it is at work.
+
+ @module
+ */
+
+import {
+  FEED_PREVIEW_CHARACTERS,
+  MODEL_ERROR_WITHOUT_TEXT,
+  NO_RUN_FAILURE,
+} from './driver-constants.ts';
+import type {
+  EventObservation,
+  PiRecord,
+  RunFailure,
+} from './driver-types.ts';
+import { preview, } from './previews-of-pi-messages.ts';
+import { startRunTallies, } from './run-tallies.ts';
+import {
+  assistantMessageOf,
+  isAssistantMessageEnd,
+} from './read-assistant-message.ts';
+import {
+  fieldsOf,
+  textOf,
+} from './read-pi-fields.ts';
+
+/**
+ The events worth a feed line of their own detail.
+ */
+const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'auto_retry_start',
+  'compaction_start',
+  'queue_update',
+],);
+
+/**
+ What one run has seen.
+ */
+export type ObservedPiRun = {
+  readonly isRunning: () => boolean;
+  readonly settledCount: () => number;
+  readonly turnCount: () => number;
+  readonly lastAssistantText: () => string;
+  readonly unrecoveredModelError: () => RunFailure;
+  readonly toolHistogram: () => Readonly<Record<string, number>>;
+  readonly toolErrors: () => readonly PiRecord[];
+  readonly dialogs: () => readonly PiRecord[];
+  readonly observe: (observation: EventObservation,) => void;
+
+  /**
+   Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
+   */
+  readonly countPromptHandled: () => void;
+};
+
+/**
+ Starts watching what Pi's events say about a run.
+
+ @param note - where a feed line goes
+
+ @param millisecondsSoFar - how long the run has lasted, for the records kept in the summary
+
+ @returns what the run has seen, and where its events go
+
+ @example
+ ```ts
+ const observed = startObservingPiRun({ note, millisecondsSoFar: () => 0, },);
+ ```
+ */
+export function startObservingPiRun({
+  note,
+  millisecondsSoFar,
+}: {
+  readonly note: (entry: PiRecord,) => void;
+  readonly millisecondsSoFar: () => number
+},): ObservedPiRun {
+  /**
+   What the run counts about its tools and dialogs.
+   */
+  const tallies = startRunTallies({
+    note,
+    millisecondsSoFar,
+  },);
+  /**
+   What changes during the run.
+   */
+  const state: {
+    running: boolean;
+    settled: number;
+    turns: number;
+    lastAssistantText: string;
+
+    /**
+     The error of the last assistant message, which is a model error only if nothing after it succeeds.
+     */
+    pendingModelError?: string;
+
+    /**
+     The error Pi settled on, which is why a run ends as a model error.
+     */
+    unrecoveredModelError?: string;
+  } = {
+    running: false,
+    settled: 0,
+    turns: 0,
+    lastAssistantText: '',
+  };
+
+  /**
+   Notes an assistant message, keeps its text, and remembers how it ended.
+
+   @param event - `message_end` record
+   */
+  function observeMessageEnd(event: PiRecord,): void {
+    if (!isAssistantMessageEnd(event,)) {
+      return;
+    }
+    /**
+     What the message says.
+     */
+    const message = assistantMessageOf(event,);
+    if (message.text !== '') {
+      state.lastAssistantText = message.text;
+    }
+    /**
+     Whether the message ended in an error, which is a model error only when nothing after it recovers.
+     */
+    const endedInError = message.stop === 'error';
+    if (endedInError) {
+      state.pendingModelError = message.error === '' ? MODEL_ERROR_WITHOUT_TEXT : message.error;
+    }
+    else {
+      delete state.pendingModelError;
+      delete state.unrecoveredModelError;
+    }
+    note({
+      kind: 'assistant',
+      stop: message.stop,
+      text: preview({
+        value: message.text,
+        length: FEED_PREVIEW_CHARACTERS.assistantText,
+      },),
+      thinkingChars: message.thinkingChars,
+      toolCalls: message.parts
+        .filter(function isToolCall(part,) {
+          return part.type === 'toolCall';
+        },)
+        .length,
+      usage: {
+        input: message.usage
+          .input,
+        output: message.usage
+          .output,
+        cost: fieldsOf(message.usage
+          .cost,)
+          .total,
+      },
+      error: message.error === '' ? null : message.error,
+    },);
+  }
+
+  /**
+   What each kind of event changes.
+   */
+  const eventHandlers: ReadonlyMap<string, (observation: EventObservation,) => void> = new Map<
+    string,
+    (observation: EventObservation,) => void
+    >([
+      [
+        'agent_start',
+        function onAgentStart() {
+          state.running = true;
+        },
+      ],
+      [
+        'agent_settled',
+        function onAgentSettled() {
+          state.running = false;
+          state.settled += 1;
+          if (state.pendingModelError !== undefined) {
+            state.unrecoveredModelError = state.pendingModelError;
+          }
+          note({
+            kind: 'settled',
+            n: state.settled,
+          },);
+        },
+      ],
+      [
+        'turn_start',
+        function onTurnStart() {
+          state.turns += 1;
+          note({
+            kind: 'turn_start',
+            n: state.turns,
+          },);
+        },
+      ],
+      [
+        'tool_execution_start',
+        function onToolStart({ event, },) {
+          tallies.countToolStart(event,);
+        },
+      ],
+      [
+        'tool_execution_end',
+        function onToolEnd({ event, },) {
+          tallies.noteToolEnd(event,);
+        },
+      ],
+      [
+        'message_end',
+        function onMessageEnd({ event, },) {
+          observeMessageEnd(event,);
+        },
+      ],
+      [
+        'extension_ui_request',
+        function onInterfaceRequest(observation,) {
+          tallies.declineDialog(observation,);
+        },
+      ],
+    ],);
+
+  /**
+   Notes what an event says, and hands it to whatever it changes.
+
+   @param observation - the event and how to decline a dialog
+   */
+  function observe(observation: EventObservation,): void {
+    /**
+     The kind of event.
+     */
+    const type = textOf(observation.event
+      .type,);
+    if (NOTED_EVENT_TYPES.has(type,)) {
+      note({
+        kind: type,
+        detail: preview({
+          value: observation.event,
+          length: FEED_PREVIEW_CHARACTERS.eventDetail,
+        },),
+      },);
+    }
+    eventHandlers.get(type,)?.(observation,);
+  }
+
+  return {
+    isRunning: function isRunning() {
+      return state.running;
+    },
+    settledCount: function settledCount() {
+      return state.settled;
+    },
+    turnCount: function turnCount() {
+      return state.turns;
+    },
+    lastAssistantText: function lastAssistantText() {
+      return state.lastAssistantText;
+    },
+    unrecoveredModelError: function unrecoveredModelError() {
+      return (state.unrecoveredModelError === undefined) ? NO_RUN_FAILURE : {
+        failed: true,
+        problem: state.unrecoveredModelError,
+      };
+    },
+    toolHistogram: tallies.toolHistogram,
+    toolErrors: tallies.toolErrors,
+    dialogs: tallies.dialogs,
+    observe,
+    countPromptHandled: function countPromptHandled() {
+      state.settled += 1;
+    },
+  };
+}

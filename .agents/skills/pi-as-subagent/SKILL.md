@@ -114,22 +114,36 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `--idle-seconds` is how long the driver stays up for one after Pi settles.
+    An entry must be an ordinary file:
+    a named pipe is set aside rather than waited on.
     A message Pi refused,
     or an entry that cannot be read,
-    stays there as `.failed-<name>`.
+    stays there as `.failed-<name>`,
+    and a later message of the same name that is also refused gets a number after it,
+    so nothing replaces an earlier one.
     To end the run early,
     create `<run>/stop`.
 6.  Read the result from `<run>/summary.json`,
     which appears last,
-    so its presence means Pi has gone and the feed is complete.
+    so its presence means the driver has finished.
+    `piExit` is there only when Pi's exit was seen,
+    so a summary naming `pi-not-stopped` claims nothing about Pi having gone:
+    the unit's own cleanup ends that process,
+    and its `RuntimeMaxSec` is what bounds the driver when a file system call or a named pipe keeps it alive past the
+    summary.
     `endReason` says how it ended:
     `idle` and `stop-file` exit 0,
     and `prompt-rejected`,
     `pi-exited`,
     `turn-cap`,
-    `wall-clock` and `driver-failed` fail the unit.
+    `wall-clock`,
+    `driver-failed`,
+    `model-error` and `pi-not-stopped` fail the unit,
+    and a Pi that left with a failing status after the run ended as `idle` fails it as `pi-exited`.
     `lastAssistantText` holds the whole final report,
-    and `sessionStats` holds the cost and names the session file.
+    `sessionStats` holds the cost and names the session file,
+    `modelError` holds what the model said when it settled on an error nothing recovered from,
+    and `feedProblem` names why the feed is incomplete when it is.
 7.  For a follow-up after the driver has exited,
     start the same unit under a new name,
     with a new run folder,
