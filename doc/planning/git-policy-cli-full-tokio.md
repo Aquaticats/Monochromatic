@@ -3897,8 +3897,10 @@ they wait for the conversion of the Git leaf (see "What T11 did not convert, and
   24.096 s;
   `LAST_RESORT` (the alarm) = `SETTLE_CEILING` plus `STOP_GRACE`,
   29.096 s;
-  the manager's default stop timeout is 90 s and this crate's unit sets none,
-  a control proves both are below it.
+  the manager's default stop timeout was taken to be 90 s and this crate's unit set none (wrong,
+  see "Owner answer of 2026-11-08" below:
+  the host's default is 15 s,
+  and the unit now sets its own).
 
 #### Controls
 
@@ -3939,9 +3941,80 @@ which blocks on a full pipe,
 and `a_service_stopped_while_standard_error_is_a_full_pipe_still_exits` failed (10 s);
 the shutdown now writes its one line without waiting (`send_without_waiting`).
 
+#### Owner answer of 2026-11-08 and what it changed
+
+The coordinator put the first judgment call below to the owner (question tool,
+verbatim answer "B:
+let a branch write finish (Recommended)").
+The option read:
+"A stop ends every other Git at once,
+but waits for a running branch write up to the stop limit.
+systemd signals only the service itself (KillMode=mixed) and kills what's left only at that limit."
+It replaces the first judgment call.
+Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
+
+- The landing's branch move (an `update-ref` that is not a side-ref write,
+  `is_branch_write` in `transaction_git_step_rerun_and_end_rules.rs`) takes no stop arm
+  (`output_watched_within_for_a_stop` in `push/child_watch.rs`):
+  its count stays,
+  so the shutdown waits for it up to `SETTLE_CEILING`,
+  and nothing signals it.
+  Every other Git of the landing,
+  and every push,
+  query and commit step,
+  is ended by the stop as T11 built it.
+  The import of the commit's objects (`fast-import`) is also a step that is never ended on the landing thread,
+  and it is still ended by the stop:
+  only the branch write waits.
+- The service unit sets `KillMode=mixed` and `TimeoutStopSec` from `STOP_TIMEOUT_SECONDS`
+  (`LAST_RESORT` plus one `STOP_GRACE`,
+  whole seconds rounded up;
+  35 s with the bounds of T11),
+  so the manager signals the service alone,
+  kills what is left when the service exits or at the timeout,
+  and never uses the host's default.
+  The margin of one grace is the coordinator's pick;
+  the owner's veto is open.
+- A stop during a branch write that finishes lands the commit
+  (`a_stop_during_a_slow_branch_write_lets_it_finish_and_lands_the_commit`).
+  A stop during one that never ends makes the service end at `SETTLE_CEILING` by the signal,
+  with the Git still running (nothing here signals it;
+  the manager's final kill ends it),
+  the branch unmoved,
+  the commit on its scratch branch `refs/worktree/cli-git-service/<seq>`
+  and the open intent for recovery
+  (`a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+  The commit is not copied to `refs/cli-git/kept/<n>` in that case,
+  because the landing is still inside the write when the service ends and cannot unwind;
+  recovery reads the open intent as it does after any kill.
+  Whether the commit should also be copied to a kept ref at the limit is not decided.
+- The measured host facts behind the unit:
+  the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
+  from `DefaultTimeoutStopSec=15s` in `/etc/systemd/user.conf.d/timeout.conf`,
+  both below `SETTLE_CEILING` (24.096 s) and `LAST_RESORT` (29.096 s),
+  so the manager would have killed the service in the middle of its cleanup.
+- Existing services pick up the new text at the next provisioning
+  (`in_place` reads the installed template and finds it different,
+  so `provision_with` rewrites it and asks the manager for a reload).
+  A reload is needed and the existing mechanism does it.
+  Probed on this host with a throwaway unit in the runtime unit directory:
+  after the file was rewritten and `systemctl --user daemon-reload` ran,
+  the running service kept its process and `systemctl --user show` gave the new `KillMode` and `TimeoutStopUSec`
+  (`control-group` and 15 s before,
+  `mixed` and 35 s after).
+- The control `the_bounds_end_before_the_units_own_stop_timeout` replaces the one that compared the bounds with an assumed ninety seconds.
+  The three controls of the first version that stalled the branch write
+  (`ends at the first SIGTERM`,
+  `keeps its work on its side ref`,
+  `ignores SIGTERM`) now stall the import,
+  or became the two controls above:
+  a stop no longer ends a stalled branch write,
+  by the owner's answer.
+
 #### Judgment calls open to the owner's veto
 
-- A stop ends a branch write too (the landing's `Unbounded` step),
+- Superseded on 2026-11-08 by the owner's answer above:
+  a stop ends a branch write too (the landing's `Unbounded` step),
   with `SIGTERM` first,
   the kill after `STOP_GRACE`,
   and a wait past the grace while a member is in uninterruptible sleep.

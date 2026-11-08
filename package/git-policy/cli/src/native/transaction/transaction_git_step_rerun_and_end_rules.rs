@@ -464,6 +464,24 @@ pub(crate) fn may_be_ended(request: &GitRequest) -> bool {
     return is_proven_to_run_twice(name.as_str(), rest.as_slice());
 }
 
+/// What:
+///  Whether the request is a branch write:
+/// an `update-ref` that is not one of the wrapper's own side-ref writes.
+/// Why:
+///   The owner's pick of 2026-11-08 ("B:
+/// let a branch write finish (Recommended)") lets a stop of the service wait for the write the landing makes to move the branch,
+/// and no other step:
+/// the import of objects and every read are still ended by the stop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isBranchWrite(request) // subcommand is update-ref and not isSideRefWrite(request)
+/// ```
+pub(crate) fn is_branch_write(request: &GitRequest) -> bool {
+    let Some((_position, name)) = subcommand_of(request.arguments.as_slice()) else { return false };
+    return name == "update-ref" && !is_side_ref_write(request);
+}
+
 /// Whether the request is an `update-ref` of one of the wrapper's own side refs,
 /// `refs/cli-git/kept/<number>` or
 ///  `refs/worktree/cli-git-service/<number>`,

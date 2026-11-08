@@ -4276,6 +4276,32 @@ and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
+
+When the manager stops the service (`SIGTERM`),
+the unit's `KillMode=mixed` makes it signal the service alone.
+The service then ends the Git processes it waits on (pushes,
+queries,
+the import of a commit's objects),
+except the Git that moves a branch:
+that write is not signalled,
+and the shutdown waits for it for at most the stop bound
+(`SETTLE_CEILING` in `stop_of_the_service_noticed_by_its_children.rs`),
+so a slow branch write finishes and the commit lands.
+The service ends by the signal that stopped it once the work in flight has finished or the bound has passed,
+and `KillMode=mixed` makes the manager kill whatever is left of the unit at that moment
+(or when `TimeoutStopSec` has passed).
+A branch write that outlives the bound is therefore cut by the manager,
+the branch stays where it was,
+the commit stays on its scratch branch `refs/worktree/cli-git-service/<seq>`,
+and the batch's open intent is what recovery reads.
+`TimeoutStopSec` is written into the unit from the stop bounds (`STOP_TIMEOUT_SECONDS`),
+above the service's last-resort alarm,
+so the host's default stop timeout never decides
+(`DefaultTimeoutStopSec=` in a user's manager configuration can set it shorter than the bounds).
+A service whose unit was written before this setting has the old kill mode until the next commit's provisioning rewrites the
+template and asks the manager to reload its unit files;
+a reload makes the manager read the new settings for the stops that follow,
+and a service that runs meanwhile is not restarted.
 Commits queue in arrival order,
 a batch of whatever is queued lands with one
 durable write,

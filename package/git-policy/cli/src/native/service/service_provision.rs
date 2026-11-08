@@ -76,7 +76,7 @@
 pub use crate::service_provision_unit_file_ownership_and_writes::OWN_MARKERS;
 use crate::service_provision_unit_file_ownership_and_writes::{own_unit_file_in_runtime_or_user_directory, write_atomically};
 use crate::service_messages::ClientFailure;
-pub use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, RETIREMENT_WAIT, platform_without_manager, runtime_unit_dir};
+pub use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, RETIREMENT_WAIT, STOP_TIMEOUT_SECONDS, platform_without_manager, runtime_unit_dir};
 use crate::service_provision_host_and_manager::refusal;
 use crate::service_provision_earlier_service_retirement::{clear_earlier_units, retire_earlier_service};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
@@ -101,13 +101,15 @@ pub const SERVICE_UNIT_NAME: &str = "monochromatic-git-policy-cli@.service";
 
 const BINARY_PLACEHOLDER: &str = "@SERVICE_BINARY@";
 const GIT_PLACEHOLDER: &str = "@GIT@";
+const STOP_TIMEOUT_PLACEHOLDER: &str = "@STOP_TIMEOUT_SECONDS@";
 
 /// The two unit files for a host,
 /// as written.
 pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
     let service: String = SERVICE_UNIT
         .replace(BINARY_PLACEHOLDER, host.service_binary.to_string_lossy().as_ref())
-        .replace(GIT_PLACEHOLDER, host.git.to_string_lossy().as_ref());
+        .replace(GIT_PLACEHOLDER, host.git.to_string_lossy().as_ref())
+        .replace(STOP_TIMEOUT_PLACEHOLDER, STOP_TIMEOUT_SECONDS.to_string().as_str());
     return [(SOCKET_UNIT_NAME, SOCKET_UNIT.to_string()), (SERVICE_UNIT_NAME, service)];
 }
 

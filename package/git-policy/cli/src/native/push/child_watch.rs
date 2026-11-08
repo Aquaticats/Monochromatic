@@ -75,7 +75,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 /// the task owns every other piece of state.
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 /// The lock files a stopped step leaves.
-use crate::stop_of_the_service_noticed_by_its_children::{Unfinished, begin_unfinished_work};
+use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
 use crate::stopped_git_locks::LockLedger;
 /// The watcher task,
 /// started on the process's runtime.
@@ -445,6 +445,34 @@ pub fn output_watched_within(
     stoppable: bool,
     bound: StepBound,
 ) -> std::io::Result<Output> {
+    return output_watched_within_for_a_stop(command, waiting_for, ledger_step, terms, stoppable, bound, false);
+}
+
+/// What:
+///  `output_watched_within` where the service's stop may be told to let the step finish.
+/// Why:
+///   The owner's pick of 2026-11-08 ("B:
+/// let a branch write finish (Recommended)"):
+/// a stop does not end the branch write.
+/// Its count stays,
+/// so the shutdown waits for it up to its own bound and the service ends after it;
+/// what is still running then is left to the manager's final kill (`KillMode=mixed` in the service unit),
+/// and the batch's open intent and the commit on its scratch branch are what recovery reads.
+/// Every other step is ended by the stop as before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await spawnWatched(command, { waitingFor, ledgerStep, terms, stoppable, bound, aStopWaits });
+/// ```
+pub fn output_watched_within_for_a_stop(
+    command: &mut Command,
+    waiting_for: &str,
+    ledger_step: &str,
+    terms: WatchTerms,
+    stoppable: bool,
+    bound: StepBound,
+    a_stop_lets_it_finish: bool,
+) -> std::io::Result<Output> {
     let ceiling: Option<Duration> = match bound {
         StepBound::EndAt(limit) => Some(limit),
         StepBound::LeaveRunning { .. } | StepBound::Unbounded => None,
@@ -475,7 +503,9 @@ pub fn output_watched_within(
         release_write_ends(command);
     }
     let child: Child = spawned?;
-    let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, unfinished.take_arm()).kept_as(ledger_step);
+    // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
+    let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
+    let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);
     // A step with no ceiling is waited for as long as it lives: the watch starts without one.
     let watch: ChildWatch = match ceiling {
         Some(limit) => started.within(limit),

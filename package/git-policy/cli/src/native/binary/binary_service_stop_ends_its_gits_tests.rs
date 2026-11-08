@@ -11,6 +11,12 @@
 //! and a commit whose Git is stopped keeps its work on its side ref.
 //! The red control the owner asked for is the first one:
 //! a stop during a long-running Git of a landing leaves no Git process and no `index.lock` behind within the bound.
+//! The owner's later pick (2026-11-08,
+//! verbatim "B:
+//! let a branch write finish (Recommended)"):
+//! a stop signals no Git that is writing the branch,
+//! the shutdown waits for that write within its bound,
+//! and every other Git is ended as before.
 //! The service is started by the control at a socket under the control's own runtime directory,
 //! so nothing touches the user's service manager or journal.
 
@@ -39,14 +45,38 @@ enum Reaction {
     IgnoresTerm,
 }
 
-/// A Git for the service that stalls the landing at its branch move,
-/// with the index held by the service,
-/// until it is ended:
-/// it writes its own process number to the returned file when the move starts,
-/// and only the first `update-ref` stalls,
-/// so the step that keeps the commit after the stop runs.
-fn stalling_git(fixture: &Fixture, reaction: Reaction) -> (PathBuf, PathBuf) {
+/// The step of a landing the stand-in Git stalls in.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum StallAt {
+    /// The import of the commit's objects,
+    /// a Git the stop ends,
+    /// before the service holds the index.
+    TheImport,
+    /// The branch move,
+    /// the write a stop lets finish,
+    /// with the index held by the service.
+    TheBranchWrite,
+}
+
+impl StallAt {
+    /// The Git subcommand the stand-in stalls on.
+    fn subcommand(self) -> &'static str {
+        return match self {
+            StallAt::TheImport => "fast-import",
+            StallAt::TheBranchWrite => "update-ref",
+        };
+    }
+}
+
+/// A Git for the service that stalls the landing at one step,
+/// until it is ended or released:
+/// it writes its own process number to the first returned file when the step starts,
+/// and runs the step for real once the second returned file exists.
+/// Only the first run of that subcommand stalls,
+/// so the step that keeps the commit after a stop runs.
+fn stalling_git(fixture: &Fixture, reaction: Reaction, stall_at: StallAt) -> (PathBuf, PathBuf, PathBuf) {
     let entered: PathBuf = fixture.root.join("landing-entered");
+    let release: PathBuf = fixture.root.join("landing-release");
     let program: PathBuf = fixture.root.join("stalling-git");
     let trap: &str = match reaction {
         Reaction::EndsAtTerm => "",
@@ -55,13 +85,15 @@ fn stalling_git(fixture: &Fixture, reaction: Reaction) -> (PathBuf, PathBuf) {
     executable(
         program.as_path(),
         format!(
-            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ] && [ ! -e '{0}' ]; then\n    {trap}echo $$ > '{0}'\n    while {1}; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+            "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = {2} ] && [ ! -e '{0}' ]; then\n    {trap}echo $$ > '{0}'\n    while [ ! -e '{3}' ] && {1}; do sleep 0.02; done\n    break\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
             entered.display(),
-            while_test_lives(fixture.root.as_path())
+            while_test_lives(fixture.root.as_path()),
+            stall_at.subcommand(),
+            release.display()
         )
         .as_bytes(),
     );
-    return (program, entered);
+    return (program, entered, release);
 }
 
 /// The process number the stand-in Git wrote,
@@ -100,11 +132,13 @@ struct Landing {
     client: Child,
     /// The stalled Git.
     git_pid: u32,
+    /// The file whose existence lets the stalled Git run its step.
+    release: PathBuf,
 }
 
 /// Starts the service with the stand-in Git and a commit that stalls inside it.
-fn landing_stalled_in_git(fixture: &Fixture, repo: &Path, name: &str, reaction: Reaction) -> Landing {
-    let (program, entered): (PathBuf, PathBuf) = stalling_git(fixture, reaction);
+fn landing_stalled_in_git(fixture: &Fixture, repo: &Path, name: &str, reaction: Reaction, stall_at: StallAt) -> Landing {
+    let (program, entered, release): (PathBuf, PathBuf, PathBuf) = stalling_git(fixture, reaction, stall_at);
     let service: Held = service_with_git(fixture, name, repo.join(".git").as_path(), program.as_path());
     let mut commit: Command = served(fixture, repo, name, &["commit", "--quiet", "-m", "stopped commit", "--", "a.txt"]);
     let client: Child = commit.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the commit starts");
@@ -116,9 +150,11 @@ fn landing_stalled_in_git(fixture: &Fixture, repo: &Path, name: &str, reaction: 
         assert!(began.elapsed() < PATIENCE, "the landing never reached the branch move");
         std::thread::sleep(Duration::from_millis(10));
     };
-    let lock: PathBuf = repo.join(".git/index.lock");
-    assert!(std::fs::read_to_string(&lock).is_ok_and(has_the_service_mark), "the service holds the index while it lands");
-    return Landing { service, client, git_pid };
+    if stall_at == StallAt::TheBranchWrite {
+        let lock: PathBuf = repo.join(".git/index.lock");
+        assert!(std::fs::read_to_string(&lock).is_ok_and(has_the_service_mark), "the service holds the index while it moves the branch");
+    }
+    return Landing { service, client, git_pid, release };
 }
 
 /// Whether a lock file's text is the service's own mark.
@@ -142,6 +178,14 @@ fn stop_and_wait(landing: &mut Landing, limit: Duration) -> (std::process::ExitS
     }
 }
 
+/// Ends a process the control left running,
+/// as the manager's final kill would.
+fn end_the_process(pid: u32) {
+    let number: libc::pid_t = libc::pid_t::try_from(pid).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    let _sent = unsafe { libc::kill(number, libc::SIGKILL) };
+}
+
 /// Ends the client the control started.
 fn end_client(client: &mut Child) {
     let _killed = client.kill();
@@ -154,20 +198,19 @@ fn kept_commits(fixture: &Fixture, repo: &Path) -> String {
     return git_text(fixture, repo, &["for-each-ref", "--format=%(refname) %(subject)", "refs/cli-git/kept"]);
 }
 
-/// A stop during a landing whose Git is inside its branch move ends that Git,
-/// gives up the lock the service held on the index,
-/// keeps the commit's work on its side ref,
+/// A stop during a landing whose Git is inside the import of the commit's objects ends that Git,
+/// leaves no lock,
 /// and ends the service by the signal,
 /// all within the bound.
 /// This is the owner's red control for choice 12:
 /// before the shutdown signalled the Gits it waits on,
-/// the service died at once and left the Git running and the lock in place.
+/// the service died at once and left the Git running.
 #[test]
 fn a_stop_during_a_landing_leaves_no_git_and_no_index_lock_within_the_bound() {
     let fixture: Fixture = fixture("stop-ends-its-git");
     let repo: PathBuf = edited_repository(&fixture);
     let name: String = format!("stop-ends-its-git-{}", std::process::id());
-    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm);
+    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheImport);
     assert!(is_alive(landing.git_pid), "the stand-in Git is running when the stop comes");
     let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, SETTLE_CEILING);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "the service ends by the signal that stopped it: {status:?}");
@@ -177,22 +220,69 @@ fn a_stop_during_a_landing_leaves_no_git_and_no_index_lock_within_the_bound() {
     remove_settled(&fixture);
 }
 
-/// The commit whose Git was stopped is not lost:
-/// the built commit is kept on a side ref,
-/// as a withdrawal keeps it,
-/// and the branch did not move.
+/// A stop during the branch write does not signal that write:
+/// the Git runs on,
+/// the service waits for it,
+/// and when it finishes the commit lands on the branch,
+/// the lock is given up,
+/// the client is answered,
+/// and the service ends by the signal that stopped it.
+/// This is the owner's pick "B:
+/// let a branch write finish (Recommended)" (2026-11-08).
 #[test]
-fn a_commit_whose_git_was_stopped_keeps_its_work_on_its_side_ref() {
-    let fixture: Fixture = fixture("stop-keeps-the-work");
+fn a_stop_during_a_slow_branch_write_lets_it_finish_and_lands_the_commit() {
+    let fixture: Fixture = fixture("stop-lets-the-write-finish");
     let repo: PathBuf = edited_repository(&fixture);
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
-    let name: String = format!("stop-keeps-the-work-{}", std::process::id());
-    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm);
-    let (status, _took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, SETTLE_CEILING);
+    let name: String = format!("stop-lets-the-write-finish-{}", std::process::id());
+    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheBranchWrite);
+    let pid: libc::pid_t = libc::pid_t::try_from(landing.service.child.id()).expect("a process number");
+    // SAFETY: `kill` takes a process number and a signal number and touches no memory of this process.
+    assert_eq!(unsafe { libc::kill(pid, libc::SIGTERM) }, 0);
+    // Long enough for the shutdown to have told every waiter (the bound of the grace is far above it).
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(is_alive(landing.git_pid), "the branch write is not signalled by the stop");
+    assert!(landing.service.child.try_wait().expect("the wait works").is_none(), "the service waits for the branch write");
+    std::fs::write(&landing.release, b"go").expect("release the write");
+    let began: Instant = Instant::now();
+    let status: std::process::ExitStatus = loop {
+        if let Ok(Some(status)) = landing.service.child.try_wait() {
+            break status;
+        }
+        assert!(began.elapsed() < SETTLE_CEILING, "the service did not end within the bound after the write finished");
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "the service ends by the signal that stopped it: {status:?}");
+    let after: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    assert_ne!(after, before, "the commit landed on the branch");
+    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), "stopped commit");
+    assert!(kept_commits(&fixture, &repo).trim().is_empty(), "nothing was kept on a side ref: the commit landed");
+    assert!(!repo.join(".git/index.lock").exists(), "no index lock is left");
+    end_client(&mut landing.client);
+    remove_settled(&fixture);
+}
+
+/// A stop during a branch write that never ends ends the service within the bound and not before it,
+/// leaves the write to the manager's final kill (nothing here signals it),
+/// leaves the branch where it was,
+/// and keeps the commit on its side ref (the scratch branch the landing built it on),
+/// with the open intent on disk for recovery to read.
+#[test]
+fn a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref() {
+    let fixture: Fixture = fixture("stop-during-a-hung-write");
+    let repo: PathBuf = edited_repository(&fixture);
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    let name: String = format!("stop-during-a-hung-write-{}", std::process::id());
+    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::EndsAtTerm, StallAt::TheBranchWrite);
+    let limit: Duration = SETTLE_CEILING + STOP_GRACE;
+    let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, limit);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
-    let kept: String = kept_commits(&fixture, &repo);
-    assert!(kept.contains("stopped commit"), "the commit is kept on a side ref: {kept:?}");
+    assert!(took >= SETTLE_CEILING.saturating_sub(Duration::from_secs(1)), "the service waited for the write up to the bound: ended after {took:?}");
+    assert!(is_alive(landing.git_pid), "nothing of the service signalled the branch write; the manager's final kill ends it");
     assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim(), before, "the branch did not move");
+    let side: String = git_text(&fixture, &repo, &["for-each-ref", "--format=%(refname) %(subject)", "refs/worktree/cli-git-service"]);
+    assert!(side.contains("stopped commit"), "the commit is on its side ref: {side:?}");
+    end_the_process(landing.git_pid);
     end_client(&mut landing.client);
     remove_settled(&fixture);
 }
@@ -206,7 +296,7 @@ fn a_git_that_ignores_the_stop_is_killed_after_the_grace_and_within_the_bound() 
     let fixture: Fixture = fixture("stop-kills-after-grace");
     let repo: PathBuf = edited_repository(&fixture);
     let name: String = format!("stop-kills-after-grace-{}", std::process::id());
-    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::IgnoresTerm);
+    let mut landing: Landing = landing_stalled_in_git(&fixture, &repo, name.as_str(), Reaction::IgnoresTerm, StallAt::TheImport);
     let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, SETTLE_CEILING);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     assert!(took >= STOP_GRACE, "the Git was given its grace before the kill: ended after {took:?}");
@@ -223,7 +313,7 @@ fn a_stop_of_an_idle_service_ends_it_by_the_signal_without_waiting() {
     let repo: PathBuf = edited_repository(&fixture);
     let name: String = format!("stop-idle-{}", std::process::id());
     let service: Held = service_with_git(&fixture, name.as_str(), repo.join(".git").as_path(), Path::new("/usr/bin/git"));
-    let mut landing: Landing = Landing { service, client: Command::new("/bin/true").spawn().expect("a stand-in client"), git_pid: 0 };
+    let mut landing: Landing = Landing { service, client: Command::new("/bin/true").spawn().expect("a stand-in client"), git_pid: 0, release: PathBuf::new() };
     let (status, took): (std::process::ExitStatus, Duration) = stop_and_wait(&mut landing, SETTLE_CEILING);
     assert_eq!(status.signal(), Some(libc::SIGTERM), "{status:?}");
     assert!(took < STOP_GRACE, "an idle service has nothing to wait for: ended after {took:?}");

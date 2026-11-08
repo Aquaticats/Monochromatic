@@ -4063,6 +4063,16 @@ a search of both files on 2026-11-03 found no such statement yet.
 
 ### Service follow-ups
 
+Stop of the service and a branch write (2026-11-08):
+the owner answered "B: let a branch write finish (Recommended)";
+the unit now sets `KillMode=mixed` and its own `TimeoutStopSec`,
+and the stop waits for the branch write instead of ending it
+(`doc/planning/git-policy-cli-full-tokio.md`,
+"Owner answer of 2026-11-08 and what it changed").
+Open:
+whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
+(today it stays on its scratch branch with the open intent).
+
 Commit service units and removed worktrees (2026-11-08):
 the unit instance is the 128-bit FNV-1a hash of the worktree's real own Git directory (`service_instance.rs`),
 so it cannot be turned back into a path.

@@ -16,6 +16,13 @@ ExecStart=@SERVICE_BINARY@ monochromatic-git-policy-cli service run --journal %S
 SyslogIdentifier=monochromatic-git-policy-cli-service
 StateDirectory=monochromatic-git-policy-cli/service/%i
 Restart=on-failure
+# A stop signals the service alone: the service ends the Git processes it waits on and lets a running branch write finish, up to its
+# own stop bound (stop_of_the_service_noticed_by_its_children.rs), so the manager must not signal those Gits itself. The manager
+# kills what is left of the unit when the service has exited or when the stop timeout below has passed. The timeout is written from
+# the service's stop bounds (service_provision_host_and_manager.rs), above its last-resort alarm; the host's default stop timeout
+# never applies, whatever a user's configuration sets it to.
+KillMode=mixed
+TimeoutStopSec=@STOP_TIMEOUT_SECONDS@
 # No resource limits of the wrapper's own: the service and the Git processes it starts get systemd's defaults, the same
 # resources plain Git gets. The memory, CPU, task and disk-weight limits this unit once set had no measurement behind
 # them, and a memory cap is charged with the page cache those Git processes read the repository's packs and index
