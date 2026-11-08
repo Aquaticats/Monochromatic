@@ -142,6 +142,11 @@ The research worktree owns the runnable task:
 mise run //package/monorepo-task/core-exec:research:rust:wg
 ```
 
+That branch is `research/depot-reuse-20261018`,
+created on 2026-10-18 (commit `3a64b255fb`),
+when the package was still `package/dev-script/task-util`;
+`main`'s `package/monorepo-task/core-exec/mise.toml` declares no `research:*` task.
+
 Use its declared ephemeral Depot job:
 eight CPUs,
 32 GiB,
