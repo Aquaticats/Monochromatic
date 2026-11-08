@@ -62,9 +62,15 @@ Commands that were run:
 - `{"id":"c3","type":"prompt","message":"...","streamingBehavior":"steer"}` while the run was active
   returned `data.disposition: "queued"`.
   Without `streamingBehavior`,
-  a prompt sent during a run is rejected.
-  The value `"followUp"` instead waits until the agent stops,
-  and was not run.
+  a prompt sent during a run is rejected (documented in `docs/rpc-commands.md`,
+  not run).
+- `{"type":"steer","message":"..."}` is a separate command that queues a steering message.
+  It returned `data.disposition: "queued"` during a run.
+- `{"type":"follow_up","message":"..."}` returned `data.disposition: "queued"` during a run.
+  See "Follow-up,
+  abort,
+  and clear_queue" for what happened next.
+- `{"type":"abort"}` and `{"type":"clear_queue"}` are covered in the same section.
 - `{"id":"c4","type":"get_last_assistant_text"}` returns `data.text`.
 - Closing stdin ends the process.
 
@@ -89,6 +95,103 @@ and that lasted four turns:
   three tool executions,
   seventy-two `message_update` records,
   and `agent_settled` once.
+
+### Follow-up, abort, and clear_queue
+
+Each ran in its own Pi process on 2026-11-07,
+with the `synthetic` model at `--thinking low`.
+The prompt asked for `sleep 20` through `bash`,
+then two file reads,
+as separate tool calls,
+and the command under test was sent once the first `tool_execution_start` arrived,
+so the run was known to be active.
+The source behind them is `packages/coding-agent/src/modes/rpc/rpc-mode.ts` lines 437 to 454 and
+`packages/coding-agent/src/core/agent-session.ts` lines 2363 to 2385,
+2569 to 2577,
+and 2601 to 2611,
+at commit `6e2222a8dda06e3d69fad46d630f152f5873567a` of `earendil-works/pi` (package version 1.5.0).
+
+- `follow_up`:
+  the command returned `queued`,
+  and `get_state` during the run showed `pendingMessageCount: 1` with `isStreaming: true`.
+  The follow-up user message appeared after the assistant's first complete reply,
+  one more turn started,
+  and that turn's reply was `FOLLOWED`.
+  The source describes it as delivered only when the agent has no more tool calls or steering messages.
+- `clear_queue`:
+  a `steer` and a `follow_up` were queued during the run,
+  and `get_state` showed `pendingMessageCount: 2`.
+  `clear_queue` returned both texts as `{"steering":[...],"followUp":[...]}`,
+  and the count dropped to 0 while `isStreaming` stayed true.
+  The run finished without either word in its reply.
+- `abort`:
+  the response came back with `success: true` 29 ms after it was sent,
+  `get_state` then showed `isStreaming: false`,
+  and `get_messages` ended with a tool result of `Command aborted`
+  and an assistant message with `stopReason: "error"`.
+  The source awaits `waitForIdle()` inside `abort()`,
+  so the response is sent after the agent is idle,
+  and `agent_settled` can arrive before the response does.
+  A client that starts waiting for `agent_settled` after the `abort` response returns will wait forever.
+  The first run of this scenario did exactly that,
+  and registering the waiter before sending `abort` fixed it.
+
+### Commands that need no model call
+
+One idle Pi process (`--no-session`,
+the `synthetic` model) took these commands in sequence on 2026-11-07,
+with no prompt sent,
+and each returned `success: true` unless a line says otherwise.
+The sweep took under two seconds.
+
+- Reading state:
+  `get_state`,
+  `get_available_models` (99 models in the data),
+  `get_available_thinking_levels` (5 levels),
+  `get_commands` (15 commands),
+  `get_messages`,
+  `get_session_stats` (message,
+  token,
+  and cost counters,
+  all 0 on an idle session),
+  `get_entries` (an `entries` array and a `leafId`),
+  `get_tree`,
+  `get_fork_messages` (an empty array),
+  and `get_last_assistant_text` (an empty object when there is no assistant message).
+- Changing settings:
+  `set_thinking_level` (null data),
+  `cycle_thinking_level` (returns `{"level":"xhigh"}`),
+  `set_model` (returns the model object,
+  here the same model),
+  `set_steering_mode`,
+  `set_follow_up_mode`,
+  `set_auto_compaction`,
+  `set_auto_retry`,
+  and `set_session_name`.
+- `bash` with `{"command":"echo pi-bash-ok","excludeFromContext":true}` returned
+  `{"output":"pi-bash-ok\n","exitCode":0,"cancelled":false,"truncated":false}`.
+- `abort_bash` and `abort_retry` with nothing active returned `success: true` with null data.
+- `clone`,
+  `switch_session`,
+  and `new_session` each returned `{"cancelled":false}`.
+
+Two failed,
+and for understandable reasons:
+
+- `fork` with an unknown `entryId` returned `Invalid entry ID for forking`.
+- `export_html` returned `Cannot export in-memory session to HTML`,
+  because the process ran with `--no-session`.
+
+One result needs care.
+`switch_session` with a path to a file that does not exist reported success.
+The source (`packages/coding-agent/src/core/agent-session-runtime.ts` lines 196 to 224) opens the path with
+`SessionManager.open(sessionPath, ...)` and returns `{ cancelled: false }` after replacing the runtime,
+so the process continues in a fresh session bound to that path.
+No file appeared at that path,
+and no file appeared in Pi's real session store (`~/.pi/agent/sessions`) during the sweep.
+Do not treat a `success: true` from `switch_session` as proof that the session existed.
+
+### Extension records on stdout
 
 Extensions also write `extension_ui_request` records to stdout,
 for widgets,
@@ -143,39 +246,84 @@ A first run that passed `--no-extensions` failed this way,
 and its client then waited forever for a reply,
 because it had no exit handler.
 
-### A colon in a model id
+### A colon in a model id is fine, a bad suffix is not
 
 Synthetic ids start with `hf:`,
-and Pi's `--model` syntax uses `:<thinking>` as a suffix.
+and Pi's `--model` syntax also uses `:<thinking>` as a suffix.
+The first revision of this doc,
+commit `111426a476`,
+called the colon a trap.
+That was wrong.
+The `:xhigh` failure it was based on came from `--no-extensions` being on in the same run,
+which makes the `synthetic` provider unknown.
+
+The resolver,
+in `packages/coding-agent/src/core/model-resolver.ts`,
+tries the whole text as a model reference first,
+then,
+if that fails,
+splits at the last colon (`lastIndexOf(":")`,
+lines 121 to 126 and 207 to 213)
+and accepts the suffix only when it is a valid thinking level.
 Startup was tested without a prompt,
-so no model call was made:
+so no model call was made,
+with extensions on:
 
 - `--provider synthetic --model hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` started (exit 0).
 - `--model synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017` started (exit 0).
-- `--model synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017:xhigh` failed with
-  `Model "synthetic/hf:...:xhigh" not found`.
+- `--model synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017:xhigh` started (exit 0).
+- `--model synthetic/hf:deepseek-ai/DeepSeek-V4.1-Flash-1017:bogus` also exited 0,
+  with a warning instead of an error:
+  `Model "hf:deepseek-ai/DeepSeek-V4.1-Flash-1017:bogus" not found for provider "synthetic". Using custom model id.`
 
-Pi also printed `Invalid thinking level "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4"` for a configured pattern
-that begins `synthetic/hf:nvidia/`,
-which suggests the split happens at the first colon.
-That reading was not confirmed in the source.
-Pass the thinking level with `--thinking` instead of a suffix.
+The last case is the trap:
+a mistyped suffix does not fail,
+it becomes a custom model id sent to the provider.
+Check `get_state` `data.model.id` after startup,
+or pass the thinking level with `--thinking` and leave the suffix off.
 
-### The readiness check was unreliable
+The `Invalid thinking level "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4"` warning on every start
+comes from a configured pattern,
+`synthetic/hf:nvidia/...`,
+that matches no model in the catalog.
+The fallback branch at lines 216 to 226 then splits at the last colon,
+finds a suffix that is not a thinking level,
+and warns.
+It is noise from that pattern and unrelated to the model in use.
+
+### The readiness check disagreed with what worked
 
 `pi auth check --provider <p> --model <m> --json --no-refresh` prints `status` and `provider`
 without a credential.
+The code is `packages/coding-agent/src/cli/auth-check.ts` lines 22 to 53.
+It builds a model runtime over an in-memory models store with network access off (lines 66 to 73),
+returns `invalid` with reason `invalid_state` if that runtime has any error or `checkAuth` throws,
+and returns `not_ready` with reason `credentials_not_configured` if `checkAuth` finds nothing.
+It does not load extensions.
+
 In this session it did not agree with what worked:
 
 - For `synthetic` it printed `invalid`,
   reason `invalid_state`,
-  and the model then worked.
+  and the model then worked in a real run.
+  The code returns that reason for any runtime error or thrown `checkAuth`,
+  and the message of the error was not captured,
+  so the specific cause is undetermined.
 - For `openrouter` it printed `ready` on two runs
   and `not_ready`,
   reason `credentials_not_configured`,
   on every later run.
   A real prompt on `openrouter` failed with `No API key found for openrouter`.
-  No cause for the change was found.
+  In the source the only inputs for that provider are a stored credential
+  or the `OPENROUTER_API_KEY` environment variable (`packages/ai/src/providers/openrouter.ts` line 68).
+  `auth.json` held no `openrouter` entry,
+  and the variable was unset in the three later shell calls checked.
+  So the early `ready` results can only have come from the variable being present in that call's environment,
+  which is an inference from the code,
+  since it was not observed.
+  The systemd unit,
+  which passes only `PATH` and `HOME`,
+  had no such variable and failed.
 - For `opencode-go` it printed `ready` on every run.
 
 Treat it as a hint,
@@ -326,14 +474,21 @@ and the script is shown as it ran.
 
 ## Not verified
 
-- `follow_up`,
-  `abort`,
-  `clear_queue`,
-  and the session commands.
+- `compact`,
+  which needs a model call.
+- `fork` with a valid entry id,
+  `export_html` with a persisted session,
+  and `switch_session` to a real session file.
+  All three need a persisted session,
+  and the runs used `--no-session`.
+- `cycle_model`,
+  and `set_model` to a different model than the one in use.
 - Extension dialog requests that need a reply.
 - Image prompts,
   `codemode`,
   and MCP tools.
-- Whether the colon split happens at the first colon,
-  checked only from warning text.
-- The cause of the `openrouter` readiness change.
+- The cause of `invalid_state` for the `synthetic` readiness check,
+  because the runtime error text was not captured.
+- Whether `OPENROUTER_API_KEY` was really present in the shell when the two early `ready` results came back.
+  The source and the later runs point that way,
+  and it was not observed.
