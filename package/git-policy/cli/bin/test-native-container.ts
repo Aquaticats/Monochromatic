@@ -30,7 +30,10 @@ import {
 } from './native-layered-build.ts';
 import { ensureTestBase, } from './native-test-base.ts';
 import { vendorLockedDependencies, } from './native-scanner-snapshot.ts';
-import { describeProblem, sidecarLockProblems, } from './native-sidecar-lock-check.ts';
+import {
+  describeProblem,
+  sidecarLockProblems,
+} from './native-sidecar-lock-check.ts';
 import { testContainerfile, } from './native-test-containerfile.ts';
 import { repositorySettingsFileName, } from './native-test-settings-file.ts';
 import { copySourceSnapshot, } from './native-test-snapshot.ts';
@@ -68,13 +71,17 @@ const subjectDirectory = resolve(
  Every sidecar beside the package whose lock no longer agrees with its own.
  */
 const sidecarProblems = await sidecarLockProblems({ packageDirectory: subjectDirectory, });
+/**
+ What each disagreeing sidecar says, one block of lines each.
+ */
+const sidecarReports = sidecarProblems.map(function described(problem) {
+  return describeProblem({
+    problem,
+    packageDirectory: subjectDirectory,
+  });
+});
 if (sidecarProblems.length > 0)
-  throw new NativeVerificationError(sidecarProblems.map(function described(problem) {
-    return describeProblem({
-      problem,
-      packageDirectory: subjectDirectory,
-    });
-  }).join('\n'));
+  throw new NativeVerificationError(sidecarReports.join('\n'));
 
 // Scratch lives inside the package's gitignored node_modules/.monochromatic, never the system temporary directory,
 // whose backing device is unknowable.
