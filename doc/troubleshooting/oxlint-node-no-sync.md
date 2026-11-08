@@ -29,6 +29,12 @@ The same diagnostic appears at these package paths:
 - `package/git-policy/cli/src/parsers/status.ts:102`
 - `package/git-policy/cli/src/parsers/status.ts:158`
 
+Every address in that list spells `src/parsers/`,
+which no ref of this repository ever carried:
+the directory was `package/git-policy/cli/src/parser/` (singular).
+Those seven TypeScript files were deleted on 2026-10-13 by `642b6d72cb`,
+and the package's source is now the Rust tree under `package/git-policy/cli/src/native/`.
+
 The import is not a Node builtin API.
 `package/git-policy/cli/src/parsers/push.ts:3` imports it from Optique:
 
@@ -36,6 +42,10 @@ The import is not a Node builtin API.
 // package/git-policy/cli/src/parsers/push.ts:3
 import { parseSync, } from '@optique/core/parser';
 ```
+
+`push.ts` lived at `package/git-policy/cli/src/parser/push.ts` and was deleted with the
+TypeScript wrapper on 2026-10-13 (`642b6d72cb`);
+the excerpt keeps the recorded shape.
 
 So the warning is a false positive for this repo's intended rule meaning:
 ban sync Node APIs,
