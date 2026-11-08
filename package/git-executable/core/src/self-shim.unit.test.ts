@@ -42,6 +42,46 @@ const PORTABLE_PATH_SEPARATOR = '/';
 const PACKAGE_NAME_PREFIX = '@';
 
 /**
+ Path marker no workspace tree can produce,
+ proving the ownership check reports one.
+ */
+const ABSENT_PATH_MARKER = 'package/git-policy/cli/dist/final/node/absent.mjs';
+
+/**
+ Reports which markers name nothing this workspace declares or produces.
+ 
+ @param markers - Text markers searched for in script candidates.
+ 
+ @param declaredNames - Names the workspace package manifests declare.
+ 
+ @returns Markers with no owner, in the order given.
+ 
+ @example
+ ```ts
+ await markersWithoutOwner({ markers: ['@monochromatic-dev/git-policy-cli'], declaredNames });
+ // => []
+ ```
+ */
+function markersWithoutOwner({
+  markers,
+  declaredNames,
+}: {
+  readonly markers: readonly string[];
+  readonly declaredNames: ReadonlySet<string>;
+},): readonly string[] {
+  return markers.filter(function namesNothingThisWorkspaceHas(marker,) {
+    /**
+     Marker with platform separators folded to the portable spelling,
+     so a Windows command shim's marker is judged by the package it names.
+     */
+    const portableMarker = marker.replaceAll(WINDOWS_PATH_SEPARATOR, PORTABLE_PATH_SEPARATOR,);
+    if (portableMarker.startsWith(PACKAGE_NAME_PREFIX,))
+      return !declaredNames.has(portableMarker,);
+    return !existsSync(join(REPOSITORY_ROOT, portableMarker,),);
+  },);
+}
+
+/**
  Names every package manifest under the repository's package directory declares.
  
  @returns Declared names of workspace packages, dependency trees excluded.
@@ -138,22 +178,16 @@ await describe({
         const markers = [...SELF_SHIM_MARKERS,];
         // A marker set with no member would make every check below pass without reading anything.
         expect(markers.length,).toBeGreaterThan(0,);
-        /**
-         Markers naming nothing this workspace declares or produces.
-         Marker spelling is portable before the workspace is asked about it,
-         so a Windows command shim's marker is judged by the package it names.
-         */
-        const unownedMarkers = markers.filter(function namesNothingThisWorkspaceHas(marker,) {
-          /**
-           Marker with platform separators folded to the portable spelling.
-           */
-          const portableMarker = marker.replaceAll(WINDOWS_PATH_SEPARATOR, PORTABLE_PATH_SEPARATOR,);
-          if (portableMarker.startsWith(PACKAGE_NAME_PREFIX,))
-            return !declaredNames.has(portableMarker,);
-          return !existsSync(join(REPOSITORY_ROOT, portableMarker,),);
-        },);
 
-        expect(unownedMarkers,).toEqual([],);
+        expect(markersWithoutOwner({
+          markers,
+          declaredNames,
+        },),).toEqual([],);
+        // The same check must report a path marker the workspace cannot produce, or it proves nothing.
+        expect(markersWithoutOwner({
+          markers: [...markers, ABSENT_PATH_MARKER,],
+          declaredNames,
+        },),).toEqual([ABSENT_PATH_MARKER,],);
       },
     },),
   ],
