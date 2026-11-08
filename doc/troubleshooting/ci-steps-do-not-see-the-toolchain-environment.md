@@ -149,8 +149,8 @@ rather than only on the install path.
 ### The fix
 
 For a tool `sync_tools` observes as current it now runs
-`rustup component list --installed --toolchain <version>` and
-`rustup target list --installed --toolchain <version>`,
+`rustup target list --installed --toolchain <version>` and
+`rustup component list --installed --toolchain <version>`,
 adds only the declared parts `rustup` does not list,
 and counts that tool as installed with one line per added part:
 
@@ -160,10 +160,18 @@ toolchain install: rust: nightly-2026-11-08 was already installed; added the dec
 ```
 
 A listing or an add that fails fails that tool,
-so a missing standard library can no longer hide behind "unchanged".
-A component counts as installed when the listing spells it with a host triple:
-`clippy-x86_64-unknown-linux-gnu` is the lock's `clippy`,
-as `rustup component list --installed` prints the triple it was built for.
+so a missing standard library can no longer hide behind "unchanged",
+and the parts added before a later failure stay in the report,
+because the machine did change.
+
+The target listing comes first because it is what decides the component check:
+`rustup component list --installed` spells a component with the target triple it was built for,
+so `clippy` counts as installed only when the listing holds `clippy-<triple>` for one of the
+toolchain's own targets.
+A target must be listed exactly,
+because `wasm32-wasip1-threads` is a different standard library from `wasm32-wasip1`.
+After a component add the target listing is read once more,
+since `rustup component add rust-std-<triple>` also supplies a target.
 
 On a machine that already holds every declared part the whole cost is the two listings.
 Measured on 2026-11-08 on this machine,
@@ -171,15 +179,19 @@ a no-change `mpm-shadow install` of a one-tool lock
 (the `rust` tool,
 `nightly-2026-11-08`,
 all four declared components and both Android targets present)
-took 20.6 ms median with the released 0.2.7-alpha.6,
+took 21.0 ms median from a build of the commit before the fix,
 which runs `rustup toolchain list` alone,
-and 55.8 ms median with the fix,
-which runs the same call plus the two listings:
-7 alternating runs each,
-spread 20.2 to 23.1 ms and 54.3 to 57.8 ms,
-and each listing on its own takes about 19 ms.
-The added time is two more `rustup` starts,
-not work proportional to the toolchain.
+and 60.6 ms from the fix build.
+9 rounds interleaved the three arms,
+and the control arm was timed twice,
+once as its own binary and once as a second series of the same executable,
+which is the harness's noise floor:
+medians 21.0 and 21.6 ms,
+so the two listings account for the whole 39.6 ms difference,
+and each listing on its own takes about 21 ms.
+That cost is two more `rustup` starts plus a scan of the printed names,
+so it grows with the number of declared parts and listed names,
+not with the size of the toolchain.
 
 ### What the workflow keeps until a release with the fix is locked
 
