@@ -34,8 +34,10 @@ and it exits when stdin closes.
 Keep extensions loaded:
 some providers exist only because an extension registers them (see "Traps found").
 
-The `pi` on `PATH` in this repository is the pnpm shim at
+The `pi` on `PATH` through this repository's `mise` environment is the pnpm shim at
 `package/agent-harness-shared/advisor/node_modules/.bin/pi`.
+A shell that has not activated `mise` finds no `pi`,
+so run `mise exec -- pi` from the repository.
 The protocol reference is in the installed package,
 `docs/rpc.md` and `docs/rpc-commands.md`,
 under `~/.local/share/pnpm/store/v11/links/@earendil-works/pi-coding-agent/1.5.0/<hash>/node_modules/@earendil-works/pi-coding-agent/`.

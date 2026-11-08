@@ -547,6 +547,52 @@ What the feed showed:
 Whether the result is satisfactory is judged in `doc/handover/pi-goal-reviewer-human-input-rubric.md`
 and recorded in `doc/agent/pi-goal-extension-driven-through-rpc.md` when the comparison is done.
 
+## A small wording change on `neuralwatt`, run 2026-11-08T13:10:43-05:00
+
+Task:
+say "Claude Code native" where current instruction documents mean Claude Code's own subagents.
+The brief gave the owner's words,
+the lead's reading of each candidate as a suggestion,
+the files not to touch,
+and a limit to the words the change needs.
+The run used `neuralwatt` / `deepseek-v4.1-flash` in the owner's real home,
+with every tool enabled and the read-only `git` shim first on `PATH`.
+`get_state` read `xhigh`.
+
+- From prompt to settle:
+  about 256 seconds,
+  35 turns and 56 tool calls.
+- `sessionStats` reported a cost of 0.44.
+  The driver's own `tokens.costTotal` said 0.044,
+  so read the cost from `sessionStats`.
+  The cause of the difference was not read.
+- Four one-line edits and no other file changed.
+  No tool touched `/tmp`,
+  and no dialog request arrived.
+- One tool error:
+  this repository's search shadow refused `rg -rn`,
+  explaining that `-r` means `--replace`,
+  and the model read that and carried on.
+- It measured the changed rule against the rule-length limit by reading the file.
+- It disagreed with one suggestion and cited the commit that added the sentence.
+  The disagreement was right:
+  "a Claude subagent is a second pass" contrasts vendors,
+  so naming a runtime there would excuse a Claude model run through Pi.
+- It wrote two `.mjs` measurement scripts against rule `NMJ`,
+  and deleted them.
+- Its report named documents the lead had missed,
+  the Claude Code plugin READMEs.
+
+The follow-up for those ran as a new process with `--session <session file>` after the first driver had exited.
+The session then held both user messages and the model used its earlier line list without being told it again.
+That took about 76 seconds to settle,
+8 turns and 10 tool calls,
+and made four more one-line edits.
+
+`pi auth check --provider neuralwatt --model deepseek-v4.1-flash --json --no-refresh`
+printed `{"status":"invalid","reason":"invalid_state"}` before these runs,
+and the model worked in all of them.
+
 ## Tool and feed quirks
 
 - A multi-block `edit` is rejected whole when one `oldText` does not match.

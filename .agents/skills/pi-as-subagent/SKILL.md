@@ -5,18 +5,84 @@ description: Use when delegating a task to Pi as a subagent over RPC.
 
 # Pi as a subagent
 
+Pi is a second subagent runtime here,
+beside Claude Code native subagents,
+and a rule that says "subagent" without naming a runtime binds it too.
+
 Drive `pi --mode rpc --provider neuralwatt --model deepseek-v4.1-flash` as a child process started in the repository,
-where Pi loads `AGENTS.md` (from another folder rule `ATH` was not in its context),
-and cite rule `ATH` in every prompt to it,
-because the model writes scratch to `/tmp` unprompted.
-A systemd user unit does not inherit the shell's `PATH`;
-launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
+where Pi loads `AGENTS.md` (from another folder rule `ATH` was not in its context).
+In every prompt cite rule `ATH`,
+because the model writes scratch to `/tmp` unprompted,
+and quote the synthetic-load ban (rule `NLD`).
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
 so naming some removes the rest.
 Pi saves the session by default and the owner wants that kept,
 so a run can be read back or resumed with `--session <path|id>`.
+
+## Start a run
+
+`pi` is in `~/Monochromatic`,
+on `PATH` only through that folder's `mise` environment:
+an agent's shell has not activated `mise`,
+so `command -v pi` finds nothing there,
+and `mise exec -- pi` run from `~/Monochromatic` works.
+A systemd user unit does not inherit the shell's `PATH` either;
+launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
+
+1.  From `~/Monochromatic`,
+    check that `mise exec -- pi --version` prints a version.
+    `Cannot find module` under a path outside your home means `node_modules` holds links from before the repository moved;
+    `mise exec -- pnpm install --offline --frozen-lockfile` there relinks them.
+2.  Make a worktree for the run with `git worktree add -b <branch> .claude/worktrees/<name> HEAD`,
+    in the background.
+3.  Copy the recorded driver and the read-only `git` shim into a fresh folder under `${HOME}/temp/agent`.
+    A commit here auto-pushes and the model has a shell,
+    so the shim keeps Pi from committing and the lead commits:
+
+    ```sh
+    # run from ~/Monochromatic
+    doc=doc/agent/drive-pi-as-a-coding-subagent.md
+    mkdir --parents <run>/shim
+    awk '/^\/\/ pi-rpc-agent\.ts:/{p=1} p&&/^```/{exit} p' "$doc" > <run>/pi-rpc-agent.ts
+    awk '/^#!\/usr\/bin\/env node/{p=1} p&&/^```/{exit} p' "$doc" > <run>/shim/git
+    chmod 700 <run>/shim/git
+    ```
+
+4.  Start it as its own capped unit.
+    The driver defaults to another provider,
+    so set both `PI_PROVIDER` and `PI_MODEL`:
+
+    ```sh
+    # run from ~/Monochromatic
+    systemd-run --user --unit=pi-<task> --collect \
+      --property=RuntimeMaxSec=2500 --property=MemoryMax=3G --property=CPUQuota=200% --property=TasksMax=300 --property=IOWeight=10 \
+      --setenv=PATH="<run>/shim:$(mise exec -- printenv PATH)" --setenv=HOME="$HOME" --setenv=REAL_GIT=/usr/bin/git \
+      --setenv=PI_PROVIDER=neuralwatt --setenv=PI_MODEL=deepseek-v4.1-flash \
+      --setenv=WALL_MS=2400000 --setenv=IDLE_MS=60000 --setenv=TURN_CAP=80 \
+      "$(mise exec -- bash --noprofile --norc -c 'command -v node')" \
+      <run>/pi-rpc-agent.ts <run>/out _<tag> <worktree> <prompt-file>
+    ```
+
+5.  Wait in one background command,
+    `timeout <seconds> tail --pid="$(systemctl --user show --property=MainPID --value pi-<task>)" --follow /dev/null`,
+    and read progress from `<run>/out/feed_<tag>.jsonl` when asked.
+6.  Read the result from `<run>/out/summary_<tag>.json`.
+    Its `lastAssistantText` is cut at 3000 characters and `tokens.costTotal` undercounts,
+    so take the cost from `sessionStats` and the full report from the session file it names:
+
+    ```sh
+    # run from anywhere
+    jq --raw-output 'select(.type == "message" and .message.role == "assistant") | .message.content[]? | select(.type == "text") | .text' <session file>
+    ```
+
+7.  For a follow-up after the driver has exited,
+    start the same unit under a new name and tag,
+    with a new prompt file and `--setenv=PI_EXTRA_ARGS="--session <session file>"`.
+8.  Review the diff as the lead,
+    regenerate anything `file-enforcer` owns,
+    and commit.
 
 ## Protocol
 
@@ -70,6 +136,9 @@ so a run can be read back or resumed with `--session <path|id>`.
 - Leave extensions loaded:
   some providers exist only because an extension registers them,
   and `--no-extensions` made `synthetic` unknown.
+- `pi auth check --provider neuralwatt --model deepseek-v4.1-flash --json --no-refresh` printed `invalid_state`
+  and the same model worked in a real run:
+  trust a prompt that gets a reply.
 - The repository's `ask-user-question` tool works only in the terminal UI and answers RPC with an unavailable-tool error,
   and `ui.custom()` returns `undefined` at once in RPC mode,
   so the subagent cannot put a question to the human.
@@ -113,6 +182,17 @@ though it also found the repository's existing diagnosis.
   it wrote a prompt change plus a phrase-list post-filter and tests,
   a much larger change than the prompt-only change that measured the same.
   Read the diff's scope against the problem.
+- Told to change only the words a task needs,
+  it did:
+  four one-line edits,
+  after 35 turns and 56 tool calls of checking.
+- Given the lead's reading as a suggestion to check,
+  it disagreed with one item,
+  cited the commit that added the sentence,
+  and was right.
+  Offer a reading as a suggestion,
+  not an instruction.
+- It wrote `.mjs` scratch files despite rule `NMJ`.
 
 Recorded experiments and protocol evidence:
 `doc/agent/drive-pi-as-a-subagent.md`,
