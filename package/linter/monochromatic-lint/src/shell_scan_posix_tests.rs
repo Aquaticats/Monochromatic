@@ -372,3 +372,13 @@ fn heredoc_words_that_are_empty_or_one_character_long_end_their_own_body() {
         &[(Construct::Pipe, "|", 1)],
     );
 }
+
+/// A single `<` is an input redirection and opens no here-document,
+///  so the lines after it are code.
+#[test]
+fn an_input_redirection_opens_no_heredoc() {
+    let first_pipe: &[(Construct, &str, usize)] = &[(Construct::Pipe, "|", 0)];
+    assert_hits("cat < in.txt\nx | y", false, first_pipe);
+    assert_hits("cat <in.txt\nx | y", false, first_pipe);
+    assert_hits("cat <&3\nx | y", false, first_pipe);
+}
