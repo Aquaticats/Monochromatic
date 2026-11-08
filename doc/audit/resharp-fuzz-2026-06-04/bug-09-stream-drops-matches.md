@@ -15,6 +15,11 @@
 ## Minimal reproducers
 
 ```rust
+//! Reproduction of the dropped stream match:
+//! `is_match` and `find_all` find the empty match,
+//! `stream` finds none.
+
+/// The regex type whose `stream` entry point drops the match.
 use resharp::Regex;
 let re = Regex::new(r"\A\z?").unwrap();
 assert!(re.is_match(b"a").unwrap());          // true

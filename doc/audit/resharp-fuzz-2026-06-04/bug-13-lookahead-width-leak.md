@@ -23,6 +23,12 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the lookahead width leak:
+//! a pattern that is one lookahead must match with zero width,
+//! but the match returned is one byte wide.
+
+/// The regex type,
+/// its options and the match type that `find_all` returns.
 use resharp::{Regex, RegexOptions, Match};
 let re = Regex::with_options(r"(?=(?=c)c{1,3})", RegexOptions::default()).unwrap();
 // the whole pattern is a lookahead, a zero-width assertion, so any match is zero-width

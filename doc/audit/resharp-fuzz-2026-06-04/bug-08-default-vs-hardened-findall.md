@@ -16,6 +16,12 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the difference between the default and the hardened engine:
+//! both run the same pattern on the same input and return different match lists,
+//! which are listed in the comments.
+
+/// The regex type,
+/// its options and the match type that `find_all` returns.
 use resharp::{Regex, RegexOptions, Match};
 let pat = r"~(_a+)";
 let def = Regex::new(pat).unwrap();

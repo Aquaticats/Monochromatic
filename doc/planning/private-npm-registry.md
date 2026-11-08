@@ -465,6 +465,8 @@ Settled gates:
    `pnpr/crates/pnpr/src/server/oidc.rs` lines 133 to 142 reject any OIDC workload package that is not an exact name:
 
    ```rust
+   //! The pnpr check that rejects an OIDC workload package whose name is not an exact npm package name,
+   //! which is why the trust configuration must list every publishable package.
    // pnpr/crates/pnpr/src/server/oidc.rs
    if !matches!(
        pnpr_registry::PackagePattern::parse(package, pnpr_registry::Ecosystem::Npm),

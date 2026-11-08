@@ -27,6 +27,8 @@ maintainer might reasonably leave the current choice) are in
 ## A library aborts the host process on user input
 
 ```rust
+//! The assertion that reports a correctness issue as a panic,
+//! and the match push that follows it.
 // resharp-engine/src/engine.rs:960
 assert_ne!(NO_MATCH, l_max_end, "correctness issue found");
 matches.push(Match { start: 0, end: l_max_end });
@@ -138,6 +140,9 @@ the invariant in the type,
 ## Unchecked raw-pointer indexing keyed on a lazy state id
 
 ```rust
+//! The two unchecked reads of the effect tables:
+//! the state index and then the effect index,
+//! each taken from the previous read without a bounds check.
 // resharp-engine/src/engine.rs:1799 (inside `unsafe fn fwd_update`)
 let eid = unsafe { *effect_id.add(state as usize) };   // state: u32 lazy DFA id
 // ...
@@ -192,6 +197,8 @@ turning the boundary into an `Error` instead of silent wraparound.
 ## `.ok()` discards a fallible result the next statement depends on
 
 ```rust
+//! The lazy transition and the state creation after it,
+//! which drops the result of the creation.
 // resharp-engine/src/engine.rs:1249
 curr = self.lazy_transition(b, curr as u16, mt)? as u32;
 self.create_state(b, curr as u16).ok();   // result dropped

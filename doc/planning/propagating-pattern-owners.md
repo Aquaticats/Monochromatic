@@ -110,6 +110,9 @@ which #656 proposed to dismiss as trivial boilerplate.
 Design:
 
 ```rust
+//! The two macros of the error support package:
+//! one implements `Display` for an error type that stores its text,
+//! and one builds a one-field error from a message.
 // package/rust-module/error-support/src/lib.rs
 /// Implements `Display` for an error type that stores its text in a `message` field.
 #[macro_export]
@@ -172,6 +175,8 @@ Design:
  start inside the package that holds 11 of the 15 sites.
 
 ```rust
+//! The single constructor of invalid-input errors in the quicker-exempt package,
+//! so that the mapping from failure to error kind is one reviewable place.
 // package/wg/cli-quicker-exempt/src/error.rs
 /// One place deciding which `ErrorKind` a failure carries,
 /// so the mapping is a
@@ -392,6 +397,11 @@ which contain no intrinsics and no `cfg`.
 Design:
 
 ```rust
+//! The macro that defines a batch entry point of the regex matcher,
+//! in a plain form and in a form with a const width,
+//! and its uses:
+//! every entry runs a kernel of the table automaton,
+//! or the generic batch matcher when there is none.
 macro_rules! batch_entry {
     ($name:ident, $kernel:ident) => {
         pub fn $name(&self, lines: &[&[u8]]) -> Vec<bool> {

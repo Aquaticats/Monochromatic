@@ -21,6 +21,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the dropped trailing zero-width match:
+//! the default engine misses the empty match at the end of the input that the hardened engine returns.
+
+/// The regex type,
+/// its options and the match type that `find_all` returns.
 use resharp::{Regex, RegexOptions, Match};
 let pat = r"(?<=^)~(0+)";
 let def = Regex::new(pat).unwrap();

@@ -35,6 +35,10 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the difference between the default and the hardened engine on a complement of a repeated group:
+//! the two match lists are in the comment.
+
+/// The regex type and the option set that selects the hardened engine.
 use resharp::{Regex, RegexOptions};
 let pat = r"~(\A|\n+){2}";
 let def  = Regex::new(pat).unwrap();

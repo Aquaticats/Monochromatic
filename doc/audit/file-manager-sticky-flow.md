@@ -357,6 +357,10 @@ The engine is `src/band.rs`:
 load-bearing part is exactly the sticky formula:
 
 ```rust
+//! The sticky vertical position of a pane inside a scrolling band.
+
+/// Where a pane sits vertically so that it follows the scroll but never leaves its band:
+/// it starts at the top of the band and moves down with the scroll until the band has no travel left.
 pub fn sticky_y(band: Band, scroll: f64) -> f64 {
     let travel = (band.height - f64::from(PANE_HEIGHT)).max(0.0);
     band.top + (scroll - band.top).clamp(0.0, travel)

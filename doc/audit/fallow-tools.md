@@ -226,6 +226,11 @@ because oxlint already covers this with explicit suppression.
 Fallow's tsdown plugin (`crates/core/src/plugins/tsdown.rs`) hardcodes:
 
 ```rust
+//! The hardcoded file name patterns of fallow's tsdown plugin,
+//! which name only the bare configuration file.
+
+/// The only patterns the plugin looks for:
+/// `tsdown.config` with one of four script extensions.
 const CONFIG_PATTERNS: &[&str] = &["tsdown.config.{ts,js,cjs,mjs}"];
 ```
 

@@ -803,6 +803,10 @@ Keep these adapter-owned:
 5. Keep old module wrappers temporarily if it reduces churn:
 
    ```rust
+   //! The temporary wrapper that keeps the old true-peak module path working after the move to the native core.
+
+   /// Re-exports the whole true-peak module of the native core,
+   /// so existing imports keep resolving.
    pub use music_player_native_core::truepeak::*;
    ```
 

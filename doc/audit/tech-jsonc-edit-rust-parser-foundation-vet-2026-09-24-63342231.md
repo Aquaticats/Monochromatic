@@ -388,6 +388,9 @@ Saturation here means the frozen schedule and page rule completed.
    which is a distinct custom candidate.
 
   ```rust
+  //! Excerpt of the scanner of the `edikt-jsonc` crate:
+  //! a string token is decoded by the string module,
+  //! and a decoding error becomes a parse error at the start of the token.
   // src/scanner.rs:199-201
   crate::string::parse_string_with_char_provider(self)
     .map(Token::String)
@@ -412,6 +415,9 @@ Saturation here means the frozen schedule and page rule completed.
    tests and full transitive tree remain to be checked.
 
   ```rust
+  //! Excerpt of the `edikt-jsonc` projection of a unicode escape:
+  //! it takes four hexadecimal digits,
+  //! and pushes the character only when they name a valid scalar value.
   // crates/edikt-jsonc/src/project.rs:172-175
   let hex: String = chars.by_ref().take(4).collect();
   if let Some(ch) = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
@@ -960,7 +966,12 @@ The published single-file `src/lib.rs:3-68` exports JSONC-to-JSON normalization 
    not a completed upstream-behavior diagnosis or a validated workaround.
 
   ```rust
+  //! Excerpt of the scanner of the `edikt-jsonc` crate:
+  //! the whitespace skipper accepts every Unicode whitespace character except the newline,
+  //! while strict JSONC allows only JSON whitespace.
   // src/scanner.rs:326-330
+  /// Advances the scanner past whitespace on the current line,
+  /// including Unicode whitespace.
   fn skip_whitespace(&mut self) {
       while let Some(c) = self.peek_char() {
           if c.1.is_whitespace() && c.1 != '\n' {

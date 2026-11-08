@@ -31,6 +31,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the stream construction panic:
+//! the intersection of two different letters is the empty language,
+//! and building the stream automaton for it indexes out of bounds.
+
+/// The regex type whose `stream` entry point panics.
 use resharp::Regex;
 let re = Regex::new("a&b").unwrap();      // intersection of {"a"} and {"b"}: the empty language
 let _ = re.stream(b"aaa");
@@ -123,6 +128,9 @@ start with an incremental reverse scan that the block matchers do not run.
 reverse-transition loop is:
 
 ```rust
+//! The transition step of the forward scan:
+//! it looks the next state up in the center table and builds the missing state lazily,
+//! which is the line the panic is reported at.
 // resharp-engine/src/engine.rs:1245
 let delta = (curr << self.mt_log | mt) as usize;
 let next = self.center_table[delta];

@@ -23,6 +23,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the reentrant rewrite panic:
+//! constructing this pattern panics before any matching happens.
+
+/// The regex type whose construction panics.
 use resharp::Regex;
 // panics during construction, before any matching:
 let _ = Regex::new(r".*(.+)*.+");
@@ -63,6 +67,11 @@ must not silently skip a rewrite.
  `attempt_rw_union_2`:
 
 ```rust
+//! The guard added around the union rewrite,
+//! which detects a union rewrite that re-enters itself.
+
+/// Rewrites the union of two nodes,
+/// with the `reentrant-assert` guard that panics in debug builds and returns no rewrite in release builds when the same union is already being rewritten.
 fn attempt_rw_union_2(&mut self, left: NodeId, right: NodeId) -> Option<NodeId> {
     #[cfg(feature = "reentrant-assert")]
     if !self.rw_active.insert((Kind::Union, left, right)) {

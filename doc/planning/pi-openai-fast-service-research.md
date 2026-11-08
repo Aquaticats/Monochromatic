@@ -69,6 +69,7 @@ OpenAI's [Codex source][codex-tier-source],
 implements `ServiceTier::request_value` as:
 
 ```rust
+//! The line of the Codex protocol that turns the fast service tier into the request value `priority`.
 // codex-rs/protocol/src/config_types.rs, ServiceTier::request_value
 Self::Fast => "priority",
 ```

@@ -17,7 +17,13 @@
 ## Minimal reproducers
 
 ```rust
+//! Reproduction of the ARM64 compile-time blowup:
+//! three Unicode property patterns whose `Regex::new` is far slower on ARM64 than on x86_64,
+//! each commented with the timing or outcome that was observed.
+
+/// The regex type whose construction time is measured.
 use resharp::Regex;
+/// The clock that times each construction.
 use std::time::Instant;
 
 // ARM64: ~7.25s, x86_64: ~162ms
