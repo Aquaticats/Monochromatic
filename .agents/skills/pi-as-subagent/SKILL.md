@@ -78,9 +78,6 @@ so a run can be read back or resumed with `--session <path|id>`.
 - A multi-block `edit` is rejected whole when any one `oldText` does not match,
   and a `find` given a path as its pattern returns "No files found" with `isError` false,
   so a soft miss and a success look alike until the result text is read.
-- Timings recorded in the repository docs come from the slower `synthetic` provider;
-  `neuralwatt` is unmeasured.
-
 ## DeepSeek V4.1 Flash quirks
 
 The owner rates it at about a low-level Sonnet 5.5 when run at `xhigh`,
