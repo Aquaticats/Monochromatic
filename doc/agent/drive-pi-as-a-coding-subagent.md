@@ -317,7 +317,7 @@ steps,
 or tests.
 The model had a shell,
 the repository's own checks to find,
-and the read-only git shim below.
+and the read-only git shim of that time.
 
 What the feed showed:
 
@@ -522,3 +522,36 @@ the same run went to its 45-second wall clock and ended with `wall-clock` and st
 - To wait for a subagent without polling,
   start its unit with `systemd-run --user --wait` in a background command.
   Following its main process ID with `tail --pid` waits out the whole timeout when the unit has already finished.
+
+## The driver package, run 2026-11-08T14:39:12-05:00
+
+The package's unit tests run the real entry file against a stand-in `pi`.
+All its suites passed,
+and its lint finished with no warnings or errors.
+Its guards were then removed from the source,
+all but one in a single combined test run and that one alone,
+and each removal made its named test fail.
+That one needed a stronger test:
+in the combined run,
+the removed wall-clock guard also ended a handled prompt as `idle`,
+which hid the missing count,
+so the test now asserts the count.
+
+The real Pi then ran the skill's command unchanged in the main checkout
+and removed this doc's section on the read-only git shim.
+It made commit `db7471a3e2` on `main` itself:
+signed,
+one file,
+55 lines removed,
+and on `origin/main` when it checked.
+The run took 1 minute 55 seconds,
+20 turns and 24 tool calls,
+at a cost of 0.0141 by `sessionStats`,
+and ended with `endReason` `idle` and status 0.
+`sessionStats` named the session file,
+and `lastAssistantText` held the whole report.
+
+Pi ran `git push origin main` after the commit although the prompt said the commit auto-pushes,
+and the push found nothing to send.
+It also found a leftover the prompt had not named:
+a sentence in `## The unassisted run` that pointed at the removed section.
