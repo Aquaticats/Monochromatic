@@ -672,7 +672,14 @@ pub fn earlier_service_process_hold(look: ServiceLook, proc_root: &Path) -> Opti
     return hold_within_ceiling(look, proc_root, scan_processes);
 }
 
-/// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on the thread of their own.
+/// `earlier_service_hold` and `earlier_service_process_hold` with the scan they run on a job of the blocking pool,
+/// awaited under the look's ceiling.
+pub(crate) async fn hold_within_ceiling_awaiting(look: ServiceLook, proc_root: PathBuf, scanner: fn(&ServiceLook, &Path) -> Option<Holding>) -> Option<Holding> {
+    todo!("red: the awaited look is not written yet");
+}
+
+/// `earlier_service_hold` and `earlier_service_process_hold` for a caller that is not a task:
+/// the awaited look run to its end on the process's runtime.
 fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&ServiceLook, &Path) -> Option<Holding>) -> Option<Holding> {
     let ceiling: Duration = look.ceiling;
     let root: PathBuf = proc_root.to_path_buf();
@@ -697,3 +704,8 @@ fn hold_within_ceiling(look: ServiceLook, proc_root: &Path, scanner: fn(&Service
 pub fn service_of_instance_may_run(look: ServiceLook, proc_root: &Path) -> bool {
     return earlier_service_hold(look, proc_root).is_some();
 }
+
+/// The awaited look is controlled in the test module.
+#[cfg(test)]
+#[path = "earlier_service_process_look_tests.rs"]
+mod tests;
