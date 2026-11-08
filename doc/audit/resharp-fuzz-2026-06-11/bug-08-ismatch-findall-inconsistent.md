@@ -32,6 +32,9 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the disagreement between `is_match` and `find_all` under a full set of options.
+
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 let opts = RegexOptions::default()
     .case_insensitive(true)

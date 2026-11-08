@@ -31,6 +31,11 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the quadratic `is_match`:
+//! on an input of one repeated letter with no match,
+//! doubling the input quadruples the time.
+
+/// The regex type whose `is_match` is quadratic.
 use resharp::Regex;
 let re = Regex::new(r"(a+)+b").unwrap();
 let hay = vec![b'a'; 65536];   // no 'b' anywhere: the match fails
@@ -108,6 +113,9 @@ decides membership.
 `is_match_fwd_prefix` (`resharp-engine/src/fwd.rs:61`):
 
 ```rust
+//! The prefix search loop of `is_match`:
+//! after a candidate fails it advances by one byte,
+//! so the next candidate rescans bytes that the previous candidate already read.
 // fwd.rs:78
 let mut search_start = 0;
 while let Some(candidate) = fwd_prefix.find_fwd(input, search_start) {

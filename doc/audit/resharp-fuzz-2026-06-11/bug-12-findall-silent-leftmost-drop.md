@@ -47,7 +47,11 @@ inferred.
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the silently dropped leftmost match:
+//! three inputs of the same pattern lose their first matches,
+//! with the wrong and the expected results in the comments.
 // stock resharp v0.6.12, default config
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 
 let re = Regex::with_options(r"((?!b)|ba)&(aa)?", RegexOptions::default()).unwrap();

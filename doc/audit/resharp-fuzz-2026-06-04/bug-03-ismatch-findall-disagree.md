@@ -15,6 +15,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the disagreement:
+//! `is_match` says there is no match while `find_all` returns one.
+
+/// The regex type whose two entry points disagree.
 use resharp::Regex;
 let re = Regex::new(r"(\z|(?=a)\w)").unwrap();
 let hay = b"0";

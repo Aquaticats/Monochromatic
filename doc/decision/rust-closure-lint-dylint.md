@@ -224,4 +224,35 @@ section "Closure check".
 Activation in a checkout needs a released `monochromatic-lint` that knows the rule:
 the 0.2.0 release rejects the configuration with status 2.
 
+## Amendment of 2026-11-07T22:19:43-05:00: a skip is a warning
+
+The answer of 2026-10-19 that a package whose prerequisites are missing "is skipped,
+and the linter says so"
+left the form of the saying open,
+and the first implementation said it with a line on standard error and exit status 0.
+On 2026-11-07 a cold cargo cache skipped five packages and hid their findings behind a green run.
+Asked what a skip should do in the repository's own lint,
+the owner answered through the question tool,
+in their own words and not as one of the offered options:
+"Fetch then warn."
+
+This reads as two rules:
+
+- The repository's own lint tasks fetch the Rust dependencies first (`mise run fetch:rust-dependencies`),
+  so the cold cache that caused the skip is filled before the closure check reads it.
+- A skip that remains is reported as a warning-level finding of `rust/avoidable-closure`,
+  at the package's `Cargo.toml`,
+  naming the package and the command that fixes it.
+  It is not a silent message with exit status 0,
+  and it is not an error:
+  it counts against `--max-warnings` like any warning,
+  and `--quiet` and `--silent` hide it with the other warnings.
+
+A machine-wide gap (no `cargo-dylint`,
+no `rustc-dev`) and a missing driver produce one such finding per package,
+so the report shows how many packages went unchecked.
+Failures that are not a missing prerequisite keep exiting with status 2.
+The implementation is recorded in `package/linter/monochromatic-lint/README.md`,
+section "Machine requirements and skips".
+
 [proposal]: ../planning/linter-selective-anonymous-functions.md

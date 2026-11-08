@@ -30,6 +30,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the construction cost of an anchor next to a word class in the full Unicode mode.
+
+/// The regex type,
+/// its options and the Unicode mode that selects the full classes.
 use resharp::{Regex, RegexOptions, UnicodeMode};
 let opts = RegexOptions::default().unicode(UnicodeMode::Full);
 let re = Regex::with_options("$?\\w", opts).unwrap();

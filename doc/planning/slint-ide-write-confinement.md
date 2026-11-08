@@ -1448,6 +1448,8 @@ if (entry.type === 'symlink') entry.target = readlinkSync(absolute);
 The Rust probe shared by `build.rs` and the proc macro:
 
 ```rust
+//! The probe that tries to append one byte to a file in each target directory and reports whether the write succeeded or failed,
+//! with the error code.
 // ~/temp/agent/ide-confine.JNN2oC/template/rs/probe_shared.rs
 for (label, var) in [
     ("project", "IDE_PROBE_PROJECT"),

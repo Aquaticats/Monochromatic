@@ -22,6 +22,10 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the construction cost of a bounded word class repeat in the full Unicode mode.
+
+/// The regex type,
+/// its options and the Unicode mode that selects the full classes.
 use resharp::{Regex, RegexOptions, UnicodeMode};
 let opts = RegexOptions::default().unicode(UnicodeMode::Full);
 let _ = Regex::with_options(r"\w{24}", opts); // ~3.3s

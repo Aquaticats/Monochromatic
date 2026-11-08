@@ -7,51 +7,12 @@ import type { NeuralWattListingEntry, } from './listing.ts';
 //region Public API
 
 /**
- Listing entries 8 to 14 of the checked-in snapshot, in endpoint
+ Listing entries 9 to 12 of the checked-in snapshot, in endpoint
  order. Split into segments so each module stays within the repository
  file size limit; `neuralWattListingSnapshot` joins them.
  */
-export const neuralWattListingSnapshotChunk2:
+export const neuralWattListingSnapshotChunk3:
   readonly NeuralWattListingEntry[] = [
-    {
-      id: 'nw-flash-flex',
-      max_model_len: 1_048_560,
-      metadata: {
-        display_name: 'Neuralwatt Flash (flex)',
-        capabilities: {
-          reasoning: true,
-          vision: true,
-        },
-        reasoning: {
-          supported_efforts:
-            [
-              'max',
-              'xhigh',
-              'high',
-              'low',
-              'none',
-            ],
-          accepted_efforts:
-            [
-              'max',
-              'xhigh',
-              'high',
-              'medium',
-              'low',
-              'minimal',
-              'none',
-            ],
-          effort_aliases: {
-            medium: 'high',
-            minimal: 'low',
-          },
-        },
-        limits: {
-          max_context_length: 1_048_560,
-          max_output_tokens: 393_216,
-        },
-      },
-    },
     {
       id: 'glm-5.3',
       max_model_len: 1_048_560,
@@ -85,6 +46,16 @@ export const neuralWattListingSnapshotChunk2:
         },
         limits: {
           max_context_length: 1_048_560,
+        },
+        pricing: {
+          input_per_million: 1.45,
+          output_per_million: 4.5,
+          cached_input_per_million: 0.145,
+          cached_output_per_million: null,
+          currency: 'USD',
+          pricing_tbd: false,
+          service_tier: 'standard',
+          flex_discount_multiplier: null,
         },
       },
     },
@@ -122,6 +93,16 @@ export const neuralWattListingSnapshotChunk2:
         limits: {
           max_context_length: 1_048_560,
         },
+        pricing: {
+          input_per_million: 0.9425,
+          output_per_million: 2.925,
+          cached_input_per_million: 0.09425,
+          cached_output_per_million: null,
+          currency: 'USD',
+          pricing_tbd: false,
+          service_tier: 'flex',
+          flex_discount_multiplier: 0.65,
+        },
       },
     },
     {
@@ -157,6 +138,16 @@ export const neuralWattListingSnapshotChunk2:
         },
         limits: {
           max_context_length: 1_048_560,
+        },
+        pricing: {
+          input_per_million: 0.15,
+          output_per_million: 0.5,
+          cached_input_per_million: 0.03,
+          cached_output_per_million: null,
+          currency: 'USD',
+          pricing_tbd: false,
+          service_tier: 'standard',
+          flex_discount_multiplier: null,
         },
       },
     },
@@ -194,83 +185,15 @@ export const neuralWattListingSnapshotChunk2:
         limits: {
           max_context_length: 1_048_560,
         },
-      },
-    },
-    {
-      id: 'nw-small',
-      max_model_len: 262_128,
-      metadata: {
-        display_name: 'Neuralwatt Small',
-        capabilities: {
-          reasoning: true,
-          vision: true,
-        },
-        reasoning: {
-          supported_efforts:
-            [
-              'xhigh',
-              'medium',
-              'low',
-              'none',
-            ],
-          accepted_efforts:
-            [
-              'max',
-              'xhigh',
-              'high',
-              'medium',
-              'low',
-              'minimal',
-              'none',
-            ],
-          effort_aliases: {
-            max: 'xhigh',
-            high: 'xhigh',
-            minimal: 'low',
-          },
-        },
-        limits: {
-          max_context_length: 262_128,
-          max_output_tokens: 131_072,
-        },
-      },
-    },
-    {
-      id: 'nw-small-flex',
-      max_model_len: 262_128,
-      metadata: {
-        display_name: 'Neuralwatt Small (flex)',
-        capabilities: {
-          reasoning: true,
-          vision: true,
-        },
-        reasoning: {
-          supported_efforts:
-            [
-              'xhigh',
-              'medium',
-              'low',
-              'none',
-            ],
-          accepted_efforts:
-            [
-              'max',
-              'xhigh',
-              'high',
-              'medium',
-              'low',
-              'minimal',
-              'none',
-            ],
-          effort_aliases: {
-            max: 'xhigh',
-            high: 'xhigh',
-            minimal: 'low',
-          },
-        },
-        limits: {
-          max_context_length: 262_128,
-          max_output_tokens: 131_072,
+        pricing: {
+          input_per_million: 0.0975,
+          output_per_million: 0.325,
+          cached_input_per_million: 0.0195,
+          cached_output_per_million: null,
+          currency: 'USD',
+          pricing_tbd: false,
+          service_tier: 'flex',
+          flex_discount_multiplier: 0.65,
         },
       },
     },

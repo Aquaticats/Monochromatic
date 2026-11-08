@@ -2600,3 +2600,147 @@ go for the cargo-shadow release after the dry run.
   `pids.max=64`,
   `io.weight=default 5`,
   the same four values the caller scope read.
+
+### Release record: `monochromatic-git-policy-cli` 0.6.1-alpha.3, the commit service on tokio tasks (2026-11-07T23:00:00-05:00)
+
+The owner's rules,
+verbatim:
+"I'm authorizing you to bump and publish any updates this session."
+On 2026-11-07 the owner chose "Allow release tasks (Recommended)".
+Tokio T10 was to "ship in its own alpha" (the coordinator's plan,
+recorded in the tokio handover).
+The alpha goes to the GitHub release and the toolchain lock,
+not to crates.io.
+
+- Content:
+  tokio step T10 (merge `7f5b3e0b3b`;
+  `doc/planning/git-policy-cli-full-tokio.md`,
+  "Step T10"):
+  the commit service's connections,
+  claim renewal and syncs are tasks;
+  the state of one landing rides with its task;
+  the worker cap is four;
+  the claim-renewal stop is bounded;
+  and the holder kind of the timing record is never undone.
+- Gate:
+  none run for this release.
+  The T10 gate on tree `4e3bde33c0` passed 5349 of 5349,
+  and after it only version numbers changed.
+  `git log 7f5b3e0b3b..main -- package/git-policy/cli` listed nothing before the dry run and before the real run,
+  so nothing under `src` changed after the merge.
+- Dry run `https://github.com/Aquaticats/Monochromatic/actions/runs/42443298277`
+  (2026-11-08T03:34:37Z to 03:39:01Z,
+  `success`,
+  the `publish` job `skipped`).
+  Note (135 characters):
+  "The commit service runs on tokio tasks:
+  fewer threads,
+  a bounded claim-renewal stop,
+  and timing records that keep a proven lock holder."
+- Release run `https://github.com/Aquaticats/Monochromatic/actions/runs/42443634701`
+  (2026-11-08T03:39:30Z to 03:44:06Z,
+  `success`),
+  bump commit `e14ba0aa68`
+  (2026-11-08T03:43:54Z),
+  0.6.1-alpha.2 to 0.6.1-alpha.3.
+- Publish run `https://github.com/Aquaticats/Monochromatic/actions/runs/42443938295`
+  (built from `e14ba0aa68`,
+  2026-11-08T03:44:03Z to 03:49:54Z,
+  `success`);
+  `native:release:wait` printed
+  `crates.io 0.6.1-alpha.3: skipped, the alpha label is not published to crates.io (only a plain number and -rc.N are)`
+  and the release assets for `aarch64` and `x86_64` Linux.
+  The GitHub release `monochromatic-git-policy-cli-v0.6.1-alpha.3` was published 2026-11-08T03:49:52Z
+  (`isPrerelease` false,
+  `isDraft` false).
+- Lock commit `915fbee7a3` (2026-11-07T22:52:08-05:00):
+  `mise run toolchain:update -- cargo:monochromatic-git-policy-cli` reported `1 tools moved`.
+  The diff (read whole) changes only that row:
+  the version,
+  the URL and sha256 of each of its four artifact entries
+  (`aarch64` `6e943b85...8129`,
+  `x86_64` `dcad52fb...774b`)
+  and the lock digest.
+  `toolchain:install` reported `1 installed, 65 unchanged, 0 failed`.
+  `.git/MERGE_HEAD` did not exist.
+- Machine-global lock:
+  `mpm update -g cargo:monochromatic-git-policy-cli` reported
+  `updated   cargo:monochromatic-git-policy-cli  0.6.1-alpha.2 -> 0.6.1-alpha.3`.
+  A read of the launcher's `.launch` file right after the command still named the alpha.2 path,
+  and the next read (minutes later) named
+  `.../cargo-monochromatic-git-policy-cli/current/monochromatic-git-policy-cli-0.6.1-alpha.3-x86_64-unknown-linux-gnu/monochromatic-git-policy-cli`;
+  the global launcher printed 0.6.1-alpha.3 on its first run.
+  The cause of the late rewrite was not looked into.
+- User boundary:
+  `git --version` prints `git version 2.56.0` and `monochromatic-git-policy-cli 0.6.1-alpha.3, shadowing git at /usr/bin/git`.
+  The lock commit retired the commit service of the main checkout
+  (journal,
+  22:52:09:
+  `retire requested by a client; this service is release "0.6.1-alpha.2" and exits after its batch`,
+  then `exiting reason=retire`)
+  and the unit started again at 22:52:10 with `started release="0.6.1-alpha.3" protocol=7`.
+  The idle service of the main checkout (pid 2626281) held 6 threads in `/proc/<pid>/status`
+  (four `git-policy-work` workers and two others),
+  measured about 70 seconds after its start.
+  The same read of the idle alpha.2 services of other worktrees,
+  which have not retired yet,
+  gave 32 threads each (five services),
+  and of alpha.1 services 32 each (five of six;
+  one held 3).
+  One commit in a throwaway linked worktree under `.claude/worktrees` landed (`37b15c592c`);
+  the snapshot took 58.5 seconds,
+  and `.git/monochromatic-git-policy-cli-commit-timing.jsonl` holds its line
+  (`"release":"0.6.1-alpha.3"`,
+  `"answeredByRelease":"0.6.1-alpha.3"`,
+  `"outcome":"landed"`,
+  `"totalMs":1093`,
+  `"prepareMs":188`,
+  `"buildMs":58`,
+  `"submitMs":821`;
+  the commit was the first one of a new worktree,
+  so its service started cold).
+  Auto-push pushed the throwaway branch;
+  the worktree,
+  the local branch and the remote branch are deleted,
+  and the worktree's commit service units were stopped.
+- Latency,
+  `native:perf` (30 samples per scenario,
+  tiny fixtures,
+  no failed sample in any of the eight runs),
+  alpha.2 binary saved from the global install before it moved,
+  alpha.3 binary copied from its install,
+  each run in its own scope (`CPUQuota=400%`,
+  `MemoryMax=4G`,
+  `TasksMax=400`,
+  `IOWeight=10`)
+  through `mise run --skip-deps //package/git-policy/cli:native:perf -- --binary <path>`:
+  the same-binary spread came first (two alpha.2 runs),
+  then three rounds with the arm order alternating.
+  `commit-service` added median in the two spread runs was 18.9 and 22.9 ms,
+  so the spread of one binary is 4.0 ms;
+  the forwarded added median (mean of the four forwarded commands) was 1.77 and 2.05 ms (0.28 ms);
+  the SSH-signed commit service added median was 29.6 and 35.6 ms (6.0 ms).
+  Rounds of alpha.2 (round 1 to 3):
+  `commit-service` 20.9,
+  22.8,
+  22.7 (median 22.7),
+  forwarded 1.88,
+  1.98,
+  1.78 (median 1.88),
+  signed 32.7,
+  36.7,
+  38.4 (median 36.7).
+  Rounds of alpha.3:
+  `commit-service` 21.4,
+  21.2,
+  21.1 (median 21.2),
+  forwarded 1.73,
+  1.50,
+  1.82 (median 1.73),
+  signed 38.5,
+  31.8,
+  31.8 (median 31.8).
+  Alpha.3 minus alpha.2 is 1.5 ms lower for the commit service,
+  0.15 ms lower forwarded and 4.9 ms lower signed;
+  each is inside the measured spread of one binary,
+  so no change in the added latency is shown.

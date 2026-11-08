@@ -40,7 +40,11 @@ demonstrated rather than inferred).
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the mismatch between the reverse and the forward null checks of the lazy automaton:
+//! two inputs make a debug build panic and a release build drop a match,
+//! each described in the comments.
 // stock resharp v0.6.12, default config
+/// The regex type and the option set that its construction takes.
 use resharp::{Regex, RegexOptions};
 
 let re = Regex::with_options(r"((?!a)|b)&(~((c)))", RegexOptions::default()).unwrap();

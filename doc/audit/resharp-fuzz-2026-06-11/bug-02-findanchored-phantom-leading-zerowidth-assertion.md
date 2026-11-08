@@ -26,6 +26,11 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the phantom leading assertion:
+//! `find_anchored` returns a match for patterns that begin with an assertion that cannot hold at offset zero,
+//! where `is_match` and `find_all` find none.
+
+/// The regex type and the match type of the spans.
 use resharp::{Regex, Match};
 
 // leading lookbehind that fails at offset 0 (nothing precedes the start):
@@ -101,6 +106,8 @@ narrow patch as a full fix is the documentation gap the user flagged.
 lookbehind guard (the partial BUG-20 fix):
 
 ```rust
+//! The anchored search with the guard for a leading lookbehind,
+//! whose context-free fallback ignores other leading assertions.
 // resharp-engine/src/lib.rs:1901
 if self.has_lb && !self.rev_trivial && !self.always_nullable {
     let first = inner.fwd_ts.scan_fwd_first_null_from(&mut inner.b,

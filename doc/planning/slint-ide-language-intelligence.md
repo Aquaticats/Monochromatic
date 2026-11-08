@@ -1405,7 +1405,11 @@ log = { version = "0.4", features = ["std"] }
 ```
 
 ```rust
+//! The language registry and its launch hook:
+//! the default language configuration is merged with an optional override and turned into the loader of file types.
 // src/language_config.rs: the registry and the launch hook
+/// Builds the loader from the default language configuration merged with the override text,
+/// if there is one.
 pub fn build_loader(override_toml: Option<&str>) -> anyhow::Result<Loader> {
     let defaults: toml::Value = helix_loader::config::default_lang_config();
     let merged = match override_toml {
@@ -1422,7 +1426,11 @@ pub fn build_loader(override_toml: Option<&str>) -> anyhow::Result<Loader> {
 ```
 
 ```rust
+//! The worker thread of the language intelligence:
+//! a runtime on its own thread runs one loop that serves commands from the interface and calls from language servers.
 // src/worker.rs: thread, runtime, and loop
+/// Runs the worker loop until the command channel closes or a command asks to stop,
+/// and serves the incoming calls of the running servers in between.
 async fn run(mut worker: Worker, mut commands: Receiver<Command>) {
     loop {
         tokio::select! {
@@ -1438,6 +1446,8 @@ async fn run(mut worker: Worker, mut commands: Receiver<Command>) {
     }
 }
 
+/// Starts the worker thread with its runtime and returns the handle of the thread,
+/// with a multi-threaded or a current-thread runtime as asked.
 pub fn spawn(loader: Loader, root: PathBuf, root_dirs: Vec<PathBuf>, commands: Receiver<Command>,
              events: SyncSender<Value>, multi_thread: bool) -> anyhow::Result<std::thread::JoinHandle<()>> {
     let mut builder = if multi_thread {
@@ -1461,6 +1471,10 @@ pub fn spawn(loader: Loader, root: PathBuf, root_dirs: Vec<PathBuf>, commands: R
 ```
 
 ```rust
+//! The on-demand start of a language server when a file opens:
+//! the file name selects a language,
+//! each configured server is started or reused,
+//! and each outcome is one of the states named in the comments.
 // src/worker.rs: on-demand start and its states (inside Worker::open)
 let config = {
     let loader = self.loader.load();
@@ -1487,7 +1501,12 @@ for (name, outcome) in started {
 ```
 
 ```rust
+//! The `didOpen` notification and the events that trigger it:
+//! it is sent once per server and only after the server has initialized,
+//! either when the document opens or when the initialized notification arrives.
 // src/worker.rs: didOpen only after initialization, once per server
+/// Tells an initialized server that the current document is open,
+/// once per server.
 fn send_did_open(&mut self, client: &Arc<Client>) {
     if !client.is_initialized() { return; }
     let Some(document) = self.document.as_mut() else { return; };
@@ -1511,6 +1530,9 @@ Notification::Exit => {
 ```
 
 ```rust
+//! The reload of a document that changed outside the editor:
+//! the text and the versions are replaced,
+//! and every initialized server that has the document open is told about the change.
 // src/worker.rs: external reload (inside Worker::reload)
 let new_text = Rope::from_str(&text);
 let transaction = compare_ropes(&document.text, &new_text);
@@ -1533,7 +1555,14 @@ self.registry.file_event_handler.file_changed(document.path.clone());
 ```
 
 ```rust
+//! The policy for requests that servers send to the client:
+//! each request gets a fixed answer,
+//! and the label of the answer is returned with it.
 // src/incoming.rs: policy for server-to-client requests
+/// Answers one server-to-client request:
+/// refuses edits and documents,
+/// acknowledges registrations,
+/// and serves the folders and configuration of the client.
 pub async fn answer(registry: &Registry, client: &Arc<Client>, method: &str, params: jsonrpc::Params) -> Answer {
     let parsed = MethodCall::parse(method, params);
     return match parsed {
@@ -1583,6 +1612,12 @@ pub async fn answer(registry: &Registry, client: &Arc<Client>, method: &str, par
 ```
 
 ```rust
+//! The five requests of the language intelligence:
+//! definition,
+//! references,
+//! hover,
+//! inlay hints and diagnostics,
+//! sent to a server that supports them and answered through events that carry the snapshot they were asked about.
 // src/requests.rs: the five calls (inside start); every method returns None for an unsupported capability
 if !client.is_initialized() { /* state: starting */ return; }
 let encoding = client.offset_encoding();
@@ -1613,7 +1648,13 @@ tokio::spawn(async move {
 ```
 
 ```rust
+//! The validation of a target that a server answers with:
+//! it must parse as a file URI,
+//! name an existing file,
+//! and lie inside the project root to count as inside.
 // src/requests.rs: target validation
+/// Classifies a URI text as rejected for a stated reason,
+/// or as a file inside or outside the root.
 pub fn classify_target(uri_text: &str, root: &Path) -> Value {
     let url = match lsp::Url::parse(uri_text) {
         Ok(url) => url,
@@ -1635,6 +1676,9 @@ pub fn classify_target(uri_text: &str, root: &Path) -> Value {
 ```
 
 ```rust
+//! The interface-side fence for replies:
+//! a reply for another file or a stale revision is dropped,
+//! and only a reply of the current file and revision is accepted.
 // src/driver.rs: the interface-side fence, applied when a reply is read (inside Ui::poll)
 if event["event"] == "reply" {
     let verdict = if event["generation"] != json!(self.generation) {

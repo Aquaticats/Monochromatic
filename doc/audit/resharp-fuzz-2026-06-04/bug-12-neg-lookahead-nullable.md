@@ -20,6 +20,10 @@
 ## Minimal reproducer
 
 ```rust
+//! Reproduction of the nullable negative lookahead:
+//! the pattern matches the empty input although it must not.
+
+/// The regex type whose `is_match` answers wrongly.
 use resharp::Regex;
 let re = Regex::new(r"(?!\w)0+").unwrap();
 assert_eq!(re.is_match(b"").unwrap(), false); // FAILS: resharp returns true

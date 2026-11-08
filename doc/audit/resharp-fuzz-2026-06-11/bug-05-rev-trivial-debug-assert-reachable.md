@@ -31,6 +31,10 @@
 ## Reproducer
 
 ```rust
+//! Reproduction of the reachable debug assertion:
+//! a pattern with a trivial reverse automaton hits an assertion that claims the path is eliminated.
+
+/// The regex type whose `find_all` panics in a debug-assertions build.
 use resharp::Regex;
 let re = Regex::new(r"_*$").unwrap();
 let _ = re.find_all(b"\n\xfe*\xfe_*"); // panics in a debug-assertions build
@@ -47,6 +51,8 @@ config.
 `rev_trivial && !hardened` reaches:
 
 ```rust
+//! The debug assertion that states the trivial reverse path is eliminated,
+//! which the reproduction reaches.
 // resharp-engine/src/lib.rs:1824
 if self.rev_trivial && !self.hardened {
     debug_assert!(false, "found bug: this path should be eliminated");
