@@ -221,12 +221,15 @@ fn an_unfinished_newer_version_in_the_other_root_is_not_a_copy_that_wins() {
 
 #[test]
 fn the_older_lock_sentence_names_the_upgrade_command_of_the_scope_it_is_for() {
-    let repository = older_lock_message_for(ScopeKind::Repo, GIT_TOOL, "0.4.4", "0.4.5");
+    const LOCK_FILE: &str = "/work/toolchain.lock.json";
+    let repository = older_lock_message_for(ScopeKind::Repo, GIT_TOOL, "0.4.4", "0.4.5", Path::new(LOCK_FILE));
     assert!(repository.contains("in this tree") && repository.contains(&format!("`mpm update {GIT_TOOL}` or merge main")), "{repository}");
     assert!(!repository.contains("update -g"), "{repository}");
-    let global = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5");
+    assert!(repository.contains(LOCK_FILE), "the file it compared is named, so a warning from another checkout's launcher is not read as stale: {repository}");
+    let global = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5", Path::new(LOCK_FILE));
     assert!(global.contains("in this machine's global lock") && global.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{global}");
     assert!(!global.contains("merge main"), "{global}");
+    assert!(global.contains(LOCK_FILE), "the global sentence names its lock file too: {global}");
 }
 
 //endregion
@@ -265,7 +268,7 @@ fn the_global_scope_does_the_same_with_the_global_upgrade_command_and_its_postin
     assert_eq!(duo.installs(), 0, "the global lock's 0.4.4 is not installed: {:?}", duo.rig.runner.lines());
     assert!(!version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").exists());
     assert!(report.failed.is_empty(), "{report:?}");
-    let expected = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5");
+    let expected = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5", &duo.global.lock_file);
     assert!(report.warnings.contains(&expected), "{report:?}");
 
     let local_git = duo.rig.scope.home.join(".local/bin/git");
@@ -655,13 +658,13 @@ fn the_hint_names_the_tool_as_one_shell_word_and_names_no_mise_task() {
     // then a dollar sign, a backtick and a line break, which single quotes keep literal.
     let cases: [(&str, &str); 2] = [("odd id;'x", "'odd id;'\\''x'"), ("a$b`c\nd", "'a$b`c\nd'")];
     for (odd, quoted) in cases {
-        let repository: String = older_lock_message_for(ScopeKind::Repo, odd, "0.4.4", "0.4.5");
-        let global: String = older_lock_message_for(ScopeKind::Global, odd, "0.4.4", "0.4.5");
+        let repository: String = older_lock_message_for(ScopeKind::Repo, odd, "0.4.4", "0.4.5", Path::new("/work/toolchain.lock.json"));
+        let global: String = older_lock_message_for(ScopeKind::Global, odd, "0.4.4", "0.4.5", Path::new("/work/toolchain.lock.json"));
         assert!(repository.contains(&format!("`mpm update {quoted}` or merge main")), "{repository}");
         assert!(global.contains(&format!("`mpm update -g {quoted}`")), "{global}");
         assert!(!repository.contains("mise") && !global.contains("mise"), "{repository}\n{global}");
     }
-    let plain: String = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5");
+    let plain: String = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5", Path::new("/work/toolchain.lock.json"));
     assert!(plain.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{plain}");
 }
 

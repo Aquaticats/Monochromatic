@@ -10,6 +10,13 @@ the lock has named them since commits `ee2d870060` and `5cd86b210f`
 section "Release record:
 `monochromatic-mpm-shadow` 0.2.7-alpha.3 and 0.2.7-alpha.4").
 A tree whose launcher binary predates alpha.4 keeps failing until `mise run toolchain:install` runs in it.
+The two follow-ups this file left open are built on branch `feat/mpm-shadow-launchers-from-newest-install`
+(2026-11-08):
+a launcher is a copy of the newest installed `mpm-shadow`,
+not of whichever copy ran `install`
+(the owner's pick with the veto open),
+and
+the older-lock sentence names the lock file it compared.
 The tool is `package/mpm-shadow/cli`,
 which this repository owns,
 so there is no upstream to file against.
@@ -269,9 +276,6 @@ The reproduction then printed `OK <short hash>`.
   each of those trees is repaired by `mpm install` in it.
   The global `cli-git-native` launcher (binary of 2026-11-03) still has a record that resolves,
   and keeps the old binary until the next `install -g`.
-- `ensure_launcher` copies the installer,
-  so an installer older than the newest installed `mpm-shadow` places an older launcher;
-  placing the launcher from the newest installed `mpm-shadow` is a follow-up that needs an owner decision (it changes which binary every launcher is).
 - `leads_back_to` in `package/cargo-shadow/cli/src/real_binary.rs` (and its siblings in `pnpm-shadow` and `search-shadow`) canonicalizes a record's `real`;
   an unresolvable one is treated as "not a launcher".
   The launcher's own record rewrite covers the current binaries.
@@ -292,9 +296,102 @@ from a worktree whose lock pinned alpha.5,
 the main checkout's launcher printed no warning and the worktree's own launcher printed it).
 This is the documented limit under "Limits" above and not a stale record:
 the records of the worktree launchers name the worktree's lock file.
-The warning does not say which lock it read,
-which makes this hard to see;
-naming the lock file in the warning is a suggested follow-up.
+The warning did not say which lock it read,
+which made this hard to see;
+it now names the file
+(`older_lock_message_for` in `package/mpm-shadow/cli/src/toolchain/cargo_installs.rs`),
+so the same message from two launchers is told apart by the path.
+
+## Follow-up built 2026-11-08: launchers are copies of the newest installed mpm-shadow
+
+Branch `feat/mpm-shadow-launchers-from-newest-install`,
+package `monochromatic-mpm-shadow`
+(no release dispatched from this branch;
+the behaviour reaches a machine only once a release carrying it is installed).
+
+### The rule
+
+`ensure_launcher` no longer copies the running `mpm-shadow`.
+`launcher_source` in `package/mpm-shadow/cli/src/toolchain/launcher_source.rs`
+finds the install directory the running program belongs to
+(the nearest ancestor that holds a `current` link,
+which covers both `<root>/<tool id>/<version>/<archive folder>/<bin>` and `<root>/cargo/<crate>/<version>/bin/<bin>`),
+then copies the program under that `current` link in whichever of the two toolchain roots names the newest version.
+A running program that belongs to no install (a build folder,
+a copy fetched to a scratch path)
+is still copied as it is,
+through `/proc/self/exe` when its file was deleted,
+so the bootstrap case keeps working.
+
+This also removes the dependency on the running file:
+an `mpm-shadow` that installs a newer one has just deleted its own file,
+and only a shadow that belongs to no install needs `/proc` now.
+
+### What it fixes, and what it does not
+
+- Fixed:
+  a launcher placed from now on carries the code of the newest installed shadow,
+  which follows `current` and rewrites a record naming a deleted folder on its first run.
+  A dangling record therefore stops breaking the tool,
+  and heals the first time that launcher runs.
+- Not fixed:
+  the launcher binaries already on disk.
+  A census of this machine on 2026-11-08 read 1132 launcher binaries
+  and found 891 without either the record-rewriting sentence or the both-versions sentence
+  (`could not update the launcher record`,
+  `no program named`),
+  so those trees still fail on a dangling record until `mpm install` runs in them,
+  exactly as before.
+  145 carried all three markers of the current release,
+  88 the record rewrite without the file check,
+  8 only the both-versions sentence.
+- Not fixed:
+  the dangling records themselves.
+  A record still names the version-carrying folder below `current`
+  (`the_program_a_record_names_is_the_version_folder_a_newer_install_deletes` in `published_archive_tests.rs`),
+  so installing a newer version of any repository-published tool deletes a folder that every other tree's record names.
+  The census found 1078 records of which 284 named a file that no longer exists
+  (2026-11-07:
+  925 records,
+  261 dangling):
+  `mpm-shadow` 121,
+  `cargo-shadow` 37,
+  `cli-git-native` 37,
+  `monochromatic-lint` 35,
+  `pnpm-shadow` 27,
+  `search-shadow` 27.
+  All 284 are followable:
+  the program of the same name exists under the nearest `current` link,
+  so one run of each launcher with the current code clears its record.
+  207 records name another tree's lock file,
+  the separate condition under "Limits".
+- The census read each `.launch` record and checked whether its `real` path exists,
+  and classified each launcher binary by the sentences its code holds
+  (the binaries carry no version literal).
+  It ran read-only:
+  no launcher was started,
+  because starting one rewrites its record.
+
+### Tests
+
+New,
+in `launcher_source_tests.rs`:
+`the_newest_install_in_the_same_root_is_the_source`,
+`a_newer_install_in_the_other_root_is_the_source`,
+`an_older_install_in_the_other_root_does_not_replace_the_one_that_runs`,
+`the_root_whose_current_link_names_no_program_falls_back_to_the_other_one`,
+`a_deleted_note_on_the_running_program_leaves_its_file_name_readable`,
+`a_running_program_that_belongs_to_no_install_is_the_source`,
+and the moved `a_file_that_exists_is_used_as_it_is_and_a_deleted_one_is_read_through_proc`.
+`a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow` in `launcher_tests.rs`
+starts a copy of the test binary from an old version folder while `current` names a newer one,
+first in the tree's own root and then in the machine-global root,
+and asserts the launcher's bytes are the newest install's.
+Red before the change:
+the launcher was the running copy's bytes.
+The two controls it needs are unchanged and green:
+`a_launcher_is_made_with_its_record_beside_it` and
+`a_launcher_is_made_from_the_running_binary_after_its_file_was_deleted`.
 
 ## Upstream filing decision
 

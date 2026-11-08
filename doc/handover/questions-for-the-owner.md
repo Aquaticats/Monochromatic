@@ -437,15 +437,6 @@ saying nothing keeps it.
   against your rule that nothing waits forever;
   the coordinator picked a measured ceiling,
   with the claim expiring by its lease if that ceiling passes.
-- mpm-shadow's launchers (the small programs that start `git`,
-  the linter and every other locked tool) are copies of whichever mpm-shadow ran the install,
-  not of the newest one installed;
-  that is how the global `git` launcher stayed an alpha.2 copy and started a deleted 0.6.0 wrapper from systemd units
-  (fixed in mpm-shadow 0.2.7-alpha.6,
-  diagnosis in `doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`).
-  The coordinator picked:
-  launchers are copies of the newest installed mpm-shadow.
-  Queued behind the Git wrapper work.
 - An equivalent mutant that no test can kill
   (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
   a function that already returns 0)

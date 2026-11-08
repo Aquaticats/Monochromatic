@@ -107,6 +107,11 @@ pub mod repository_link_cause;
 /// or the sentence that names both versions and the command that fixes it.
 pub mod launcher_current_link;
 
+/// Which `mpm-shadow` a launcher is a copy of:
+/// the newest installed one,
+/// or the running program when it belongs to no install.
+pub mod launcher_source;
+
 /// Where tools install and how their binaries are found.
 pub mod layout;
 
@@ -373,6 +378,10 @@ mod published_archive_tests;
 /// The unit tests of the launcher's decision.
 #[cfg(test)]
 mod launcher_tests;
+
+/// The unit tests of which `mpm-shadow` a launcher is a copy of.
+#[cfg(test)]
+mod launcher_source_tests;
 
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
