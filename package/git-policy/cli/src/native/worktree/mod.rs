@@ -115,6 +115,14 @@ pub mod worktree_snapshot_source;
 #[cfg(target_os = "linux")]
 pub mod worktree_snapshot;
 
+/// The index step of the snapshot rung:
+/// prove the copy against the source's index,
+/// settle an entry by content where the stat data cannot vouch for it,
+/// and keep the
+///  snapshot's own index when the source changed under the copy.
+#[cfg(target_os = "linux")]
+pub mod worktree_snapshot_index_step;
+
 /// The empty folders a snapshot holds where its source holds a nested subvolume it did not carry,
 /// found below the folders that
 ///  hold worktrees and removed as empty directories.

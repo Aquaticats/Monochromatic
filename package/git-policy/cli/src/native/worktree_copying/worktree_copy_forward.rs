@@ -205,6 +205,30 @@ pub fn run_forwarded_git(
     overlay: &[(OsString, OsString)],
     copy: Option<&CopyFacts>,
 ) -> ForwardedRun {
+    return run_forwarded_git_with_unit_stop(real_git, arguments, overlay, copy, &stop_units_of_removed_worktree);
+}
+
+/// What:
+///  The same run with the stop of a removed worktree's units given.
+///  `&dyn Fn(&WorktreeAboutToGo)` is a borrowed function that stops the units of one removed worktree.
+/// Why:
+///   The stop of a removal's units is this run's own wiring,
+/// and reaching the session manager from a control would need a bus;
+///  the controls hand in a recorder instead,
+/// so a change that drops the wiring fails there
+///  rather than only in the worktree-removal tests that share the path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runForwardedGit({ args, gitPath, copy, stopUnits });
+/// ```
+pub fn run_forwarded_git_with_unit_stop(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    copy: Option<&CopyFacts>,
+    stop_units: &dyn Fn(&WorktreeAboutToGo),
+) -> ForwardedRun {
     #[cfg(unix)]
     {
         if let Some(facts) = copy {
@@ -213,7 +237,7 @@ pub fn run_forwarded_git(
             let finished: ForwardedRun = run_served(real_git, arguments, overlay, facts);
             // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
             if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
-                stop_units_of_removed_worktree(gone);
+                stop_units(gone);
             }
             return finished;
         }
@@ -222,6 +246,7 @@ pub fn run_forwarded_git(
     #[cfg(not(unix))]
     {
         let _ = copy;
+        let _ = stop_units;
     }
     return run_plain(real_git, arguments, overlay);
 }

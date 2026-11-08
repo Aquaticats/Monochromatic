@@ -69,14 +69,27 @@ Program wrappers are stripped before the subcommand is read:
 `stdbuf`,
 `timeout`,
 and `xargs`,
-up to eight wrapper layers.
+for every wrapper layer a command line spells.
 A nested shell `-c` script string is analyzed too,
 from a work list rather than by recursion.
 
 Read-only subcommands and read-only argument shapes stay allowed:
-plain `rev-parse`, `for-each-ref`, `log`, `show`, `status`, `ls-remote` and the rest of the read set,
+plain `rev-parse`,
+`for-each-ref`,
+`log`,
+`show`,
+`status`,
+`ls-remote` and the rest of the read set,
 plus `branch`/`tag`/`config`/`symbolic-ref` listing forms and the verb-first read forms of
-`stash`, `remote`, `worktree`, `reflog`, `notes`, `submodule`, `bisect`, `bundle`, `sparse-checkout` and `commit-graph`.
+`stash`,
+`remote`,
+`worktree`,
+`reflog`,
+`notes`,
+`submodule`,
+`bisect`,
+`bundle`,
+`sparse-checkout` and `commit-graph`.
 Every other subcommand counts as mutating,
 including one this package has never seen,
 because only a proven read may skip the wrapper.

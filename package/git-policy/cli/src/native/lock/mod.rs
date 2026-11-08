@@ -65,6 +65,12 @@ pub mod stale_ref_lock_walk;
 /// so the removal can tell it from a new file at the same path.
 pub mod stale_ref_lock_identity;
 
+/// What one judgement reads of the machine it runs on:
+/// its boot time,
+/// what its process table shows,
+/// and the time a file carries.
+pub mod stale_ref_lock_judge_environment;
+
 /// How one reference lock is judged.
 pub mod stale_ref_lock_judge;
 

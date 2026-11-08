@@ -16,7 +16,8 @@ run = "cargo nextest run --lib"
 
 [tasks."test:planted"]
 description = "Plant one defect per fuzz target in a copy of the linter and require the generator controls to fail"
-run = "node bin/planted-controls.ts"
+# Mechanism D: this task writes a planted- record of its own, so it sweeps the run records first too.
+run = ["cargo-shadow lean records target/verification", "node bin/planted-controls.ts"]
 
 [tasks."lint:types"]
 description = "Check the fuzz helper library with denied Clippy warnings"
@@ -32,7 +33,8 @@ run = "node bin/container.ts --build-only"
 
 [tasks.smoke]
 description = "Run ASAN targets for 30s each in mount-free bounded containers"
-run = "node bin/container.ts"
+# Mechanism D: the run-record retention of this package's target/verification, swept before a run writes another record.
+run = ["cargo-shadow lean records target/verification", "node bin/container.ts"]
 
 [tasks."lint:scripts:types"]
 description = "Type-check the verification scripts in bin (TypeScript)"

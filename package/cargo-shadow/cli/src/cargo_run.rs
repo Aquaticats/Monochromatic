@@ -172,6 +172,10 @@ impl CargoRunner for RealCargo {
         };
         let guard: Guard = Guard { kind: GuardKind::Spawn, pid: std::process::id(), hops: 1, skipped: vec![chosen] };
         command.env(GUARD_VARIABLE, format_guard(&guard));
+        // The marker every shadow leaves for the program it starts (`shadow_identity.rs`): the candidate check and the guard
+        // above recognize a shadow by its file or by its record, and what they cannot see (a script that runs a shadow, a
+        // launcher with no record) stops at its first instruction when it finds this marker meant for its own parent.
+        crate::shadow_identity::mark_start(&mut command, crate::shadow_identity::StartMode::Spawn);
         if !self.toolchain.is_empty() {
             command.env("RUSTUP_TOOLCHAIN", &self.toolchain);
         }

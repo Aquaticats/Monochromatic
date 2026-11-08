@@ -114,6 +114,14 @@ pub mod worktree_copy_recovery;
 #[cfg(unix)]
 pub mod worktree_copy;
 
+/// What is left to do once a created worktree holds its ignored state:
+/// its package-manager repair,
+/// and the trash a snapshot
+///  left there,
+/// emptied beside that repair.
+#[cfg(unix)]
+pub mod worktree_copy_after_lock;
+
 /// Which forwarded invocations the copy applies to,
 /// and the child run that performs it.
 pub mod worktree_copy_forward;

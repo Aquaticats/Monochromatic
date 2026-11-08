@@ -23,6 +23,14 @@ const FIXTURE_REAL_GIT_PATH = '/usr/bin/git';
 const FIXTURE_REAL_GIT_BASENAME = 'git';
 
 /**
+ Wrapper layers in the deep-nesting fixture.
+ 
+ Chosen above any fixed recursion bound the guard could carry,
+ so the fixture proves wrapper stripping keeps no layer limit.
+ */
+const DEEP_WRAPPER_LAYER_COUNT = 12;
+
+/**
  Repository root passed to the `-C` remedy in fixture commands.
  */
 const FIXTURE_REPOSITORY_ROOT = '/repo';
@@ -183,6 +191,16 @@ await describe({
               name: 'denies an unqualified stash save',
               fn: async ({ expect: e, },) => {
                 e(await fixtureMutates(`${FIXTURE_REAL_GIT_PATH} stash`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a mutation behind many wrapper layers',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `${'env '.repeat(DEEP_WRAPPER_LAYER_COUNT,)}${FIXTURE_REAL_GIT_PATH} commit -m x`,
+                  ),
+                ).toBe(true,);
               },
             },),
             it({
