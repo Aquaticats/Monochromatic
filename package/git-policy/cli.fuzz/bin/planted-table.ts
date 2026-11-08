@@ -142,11 +142,11 @@ export const plants: readonly Plant[] = [
     }],
   },
   {
-    name: 'an owner lock record naming PID 0 is accepted',
-    file: 'package/git-policy/cli/src/native/owner_lock_record.rs',
+    name: 'an owner token naming PID 0 is accepted',
+    file: 'package/git-policy/cli/src/native/worktree_copying/worktree_copy_owner.rs',
     edits: [{
-      from: 'if token.is_empty() || owner_pid < 1 || identity.is_empty() {',
-      to: 'if token.is_empty() || identity.is_empty() {',
+      from: 'if pid < 1 {',
+      to: 'if false {',
     }],
   },
   {
