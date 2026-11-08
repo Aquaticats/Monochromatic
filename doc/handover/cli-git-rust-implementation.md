@@ -4236,23 +4236,26 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 - Controls for `subvolume_platform.rs:76` and `:80` that need no btrfs landed (`b9826f2d3f`).
 - The btrfs-only controls the gate container cannot run did run for real on a btrfs host
   (`mise run //package/git-policy/cli:native:test:host:btrfs`,
-  2026-11-08T17:31:00-05:00,
-  crates `d128b8658c` and `3819c082cb`),
+  2026-11-08T17:44:09-05:00,
+  commits `d128b8658c` and `3819c082cb`,
+  plus the commit that makes the control needing a filesystem that is not btrfs name itself),
   and all passed:
-  the 86 library controls that call `btrfs_fixture`
-  (96 tests ran in that target because the filter also names their modules,
+  the 86 library controls that go through `btrfs_fixture`
+  (96 tests ran in that target because the filter also names their modules;
   96 passed,
   0 failed)
   and the 36 binary-level controls that call `on_btrfs_or_acknowledged`
   (36 ran,
   36 passed).
   Fixtures were made in `${HOME}/temp/agent/cli-git-btrfs-fixtures` by `CLI_GIT_TEST_ROOT`.
-  No control printed `BTRFS CONTROL NOT RUN`,
-  which it can only print with
-  `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` set;
-  the task unsets it,
-  so a control that cannot run fails with the filesystem it found.
-  The same filter pointed at a tmpfs fixture root failed two controls with that message,
+  The one `BTRFS CONTROL NOT RUN` line in those logs is
+  `off-btrfs-ioctls`,
+  which needs a filesystem that is not btrfs and so has nothing to check here;
+  it names itself rather than passing in silence.
+  Every other control ran:
+  with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` unset a control that cannot run fails
+  with the filesystem it found,
+  and the same filter pointed at a tmpfs fixture root failed two controls that way,
   which is the proof the green run was on btrfs.
 - A skip no longer hides in a green gate log.
   The gate's nextest run now passes `--success-output=final`

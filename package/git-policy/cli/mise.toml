@@ -73,11 +73,11 @@ description = "Run the native binary-level tests matching `-- <filter>...` on th
 run = "cargo nextest run --locked --offline --test native_binary"
 
 [tasks."native:test:host:btrfs"]
-description = "Run every native test with its btrfs controls real instead of skipped, on a fixture root that must be on btrfs (`CLI_GIT_TEST_ROOT`, default `${HOME}/temp/agent/cli-git-btrfs-fixtures`); the gate's acknowledgement variable is unset, so a control that cannot run fails the run naming its control and the filesystem it found; `-- <filter>...` narrows the run while iterating"
+description = "Run every native test with its btrfs controls real instead of skipped, on a fixture root that must be on btrfs (`CLI_GIT_TEST_ROOT`, default `${HOME}/temp/agent/cli-git-btrfs-fixtures`); the gate's acknowledgement variable is unset, so a control that cannot run fails the run naming its control and the filesystem it found, and `--success-output=final` brings the line of a passing control that had nothing to check here into the log; `-- <filter>...` narrows the run while iterating"
 # The gate container runs on an overlay filesystem, so it sets CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED and every btrfs control
 # prints one line naming itself and passes. This task is the other half of that bargain: on a btrfs host nothing is
 # acknowledged, so each of those controls really runs, and no list of their names can go stale as tests are added.
-run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast"
+run = "env --unset=CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED CLI_GIT_TEST_ROOT=\"${CLI_GIT_TEST_ROOT:-$HOME/temp/agent/cli-git-btrfs-fixtures}\" cargo nextest run --locked --offline --all-targets --no-fail-fast --success-output=final"
 
 [tasks."test:git-image"]
 description = "Build the gate's base image: the newest CachyOS image on its `latest` tag (pulled now; needs a network when it or native-test-base.Containerfile is new to this host), the Rust toolchain and the tools the tests start (Git, Node, pnpm, strace, cargo-nextest), all current pacman packages; prints the release of each; `-- [--memory <size>] [--cpus <count>] [--pids-limit <count>]` (defaults 2g, 2 CPUs, 512 PIDs). native:test:container builds it first when needed"

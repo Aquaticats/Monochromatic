@@ -3268,8 +3268,9 @@ mise run //package/git-policy/cli:native:test:container
   It points `CLI_GIT_TEST_ROOT` at `${HOME}/temp/agent/cli-git-btrfs-fixtures`
   (or at the directory that variable already names),
   unsets `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED`,
-  and runs every target on that root,
+  and runs every target on that root with `--success-output=final`,
   so a control that cannot run fails the run with the filesystem it found instead of passing,
+  a control that had nothing to check here names itself in the log,
   and no list of control names has to stay current.
   Selected by name,
   the same controls are the `btrfs_*` tests of the library and the binary-level controls that call
