@@ -282,6 +282,15 @@ Rejected dependencies:
   or committed.
 - The store is re-read lazily on each resolve,
   so a key added later takes effect without restarting pi.
+- Store resolution for the extension:
+  `readEnvLocalJson` is called without an explicit path,
+  so the library honors `ENV_LOCAL_JSON_PATH`
+  (host-wired at `~/.bashrc:57`)
+  and then its own repository-root discovery;
+  an `import.meta.url`-derived repo-store path serves as the fallback
+  when pi is launched without a shell environment,
+  used only when it validates as a file,
+  never as a hard path error.
 
 ## Verification
 
