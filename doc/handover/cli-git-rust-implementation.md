@@ -1,5 +1,30 @@
 # cli-git implementation handover
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
+Note 2026-11-08:
+`doc/planning/cli-git-commits-never-fail.md` is not in this tree;
+it lived on a lane branch and its newest revision is `1fc759ba80` (2026-11-04).
+`doc/planning/cli-git-commits-never-fail-review-history-archive.md` never landed either.
+`doc/planning/cli-git-closure-lint-suppressions.md` was folded into
+`package/git-policy/cli/doc/closure-lint-suppressions.md`
+on 2026-11-04 by `4b1abb1430`,
+and the drafts `doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+and `doc/closure-lint-suppressions-service-landing-and-runner-folders.md`
+never entered the tree.
+`doc/runbook/repository-on-the-860-drive-guided-root-script.sh` was replaced by
+`doc/runbook/repository-on-the-860-drive-guided-runner.md`
+on 2026-11-07 by `eb10f2fdb2`.
+`package/file-enforcer/core/src/watch/notify.ts` went with the TypeScript file-enforcer
+on 2026-10-31 by `e7b5130459`.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -4436,6 +4461,65 @@ a wait notice on standard error where real Git printed none)
 now compares standard error without wait notices,
 as the pull and merge isolation controls already did (commit `43aea63140`;
 the five sequencer controls passed on the host).
+Whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
+(today it stays on its scratch branch with the open intent):
+decided and built (2026-11-08,
+branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`,
+red control `70d04ae08a`).
+What was read before the change:
+a start of the service settles only an earlier release's shared journal,
+not its own;
+the next batch settles its own (`settle_open_batches` in `service_server_land_group.rs`),
+and that drop (`recover_selected` in `service_land_finish.rs`) left the commit on `refs/worktree/cli-git-service/<seq>`
+alone,
+which a commit only Git can build never has.
+So the drop now writes `refs/cli-git/kept/<seq>` at the batch's own `new` before the intent goes
+(`keep_what_the_branch_does_not_show`),
+through the one function that names that ref (`keep_on_a_side_ref`,
+which `keep_unlanded` uses too),
+and the stop waits for nothing more than it did.
+Limits,
+both deliberate:
+the ref exists only once a commit in that worktree has settled the batch,
+so the client that saw the stop still gets "the commit service stopped before it confirmed this commit",
+which names `git log -1` and `git status` and not the kept ref;
+and a kept write that fails is logged with Git's words and the commit's name and still drops,
+because the drop is what releases the worktree's index lock,
+so a ref nobody can write does not leave every later commit waiting on that lock.
+The kept write is a side-ref write,
+so a stop cuts it like every other Git of a landing.
+Main's own sweep of a dropped batch's scratch reference arrived in the merge (`f293f8f58d`,
+`a3e6bc94e1`,
+`service_scratch_ref_of_a_dropped_batch.rs`):
+that sweep keeps the tip of the scratch reference and then removes the reference,
+and it leaves both alone when the kept reference names another commit,
+a keep Git refused,
+or a reference Git cannot read.
+So the drop now does both:
+this change's keep of the batch's own commit (the only path a commit Git built has,
+since it makes no scratch reference),
+then that sweep.
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` therefore no longer asserts a surviving scratch branch;
+it asserts the kept commit,
+the removed scratch branch,
+and the kept commit's survival of `git prune --expire=now`.
+The unconditional write this branch first had replaced a kept reference that named another commit,
+which the sweep never does,
+so it now asks first (`a_restart_does_not_replace_a_kept_ref_that_names_another_commit`;
+the guard planted out failed it:
+`left: "84ca392e..."`,
+`right: "8402eb0a..."`).
+Controls:
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` (unit),
+`a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref` (unit,
+the route with no scratch branch),
+and `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`
+(real service stopped inside the write,
+then the next commit).
+Planted control:
+removing the call failed both unit controls at once (2026-11-08,
+the same command);
+the binary control was not re-run with the call removed.
 Open:
 whether the commit of a branch write that outlives the stop bound is also copied to `refs/cli-git/kept/<n>`
 (today it stays on its scratch branch with the open intent),
@@ -4487,7 +4571,8 @@ one stop",
 `right: 1`).
 The stop itself stays controlled in `worktree_removal_stops_units_tests.rs`.
 
-Closed on 2026-11-08, the leftovers a person had to remember:
+Closed on 2026-11-08,
+the leftovers a person had to remember:
 a removal Git runs with the wrapper replaced (`worktree remove --force`,
 `worktree prune`) and a worktree deleted without Git used to leave their units until someone ran the command.
 A service that starts and finds its own worktree gone now stops its own socket before it serves anything
@@ -4498,12 +4583,14 @@ stops the socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
 and ends with status 0,
 because the service's own end is what stops its service unit and a failure status would make `Restart=on-failure` start it again.
-A worktree on a device that is not mounted is not gone, so its service serves.
+A worktree on a device that is not mounted is not gone,
+so its service serves.
 The controls:
 `a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing`,
 `a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves`,
 `a_service_whose_worktree_cannot_be_told_serves`,
-`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git, then the sweep),
+`a_foreign_git_removal_leaves_units_that_the_sweep_stops` (a worktree removed by real Git,
+then the sweep),
 and the binary-level `a_service_whose_worktree_is_gone_serves_nothing`,
 which was red against a service that served the gone worktree.
 What is still unmeasured:

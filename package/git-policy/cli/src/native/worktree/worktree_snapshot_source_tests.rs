@@ -86,6 +86,33 @@ fn a_nested_worktree_reached_through_a_link_is_found() {
     crate::test_support::remove(root.as_path());
 }
 
+/// A nested worktree whose record still spells the name the repository had before it moved behind a link is found by the
+/// directory it names,
+/// so the snapshot rung is refused for an ordinary directory it would otherwise carry in full.
+#[test]
+fn btrfs_a_nested_worktree_registered_before_the_move_behind_a_link_is_found() {
+    let Some(root) = btrfs_fixture("source-nested-moved") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    tracked(repo.as_path(), ".gitignore", b"ignored/\nnested/\n");
+    commit_all(repo.as_path(), "ignore nested");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", "nested/wt"]);
+    // The repository moved behind a link: a link is left at the old name,
+    // so the registration still spells the old name while naming the worktree inside the checkout.
+    let moved: PathBuf = root.join("moved-repo");
+    std::fs::rename(&repo, &moved).expect("move the checkout");
+    std::os::unix::fs::symlink(&moved, &repo).expect("leave a link at the old name");
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(moved.as_path()), &plan_to(root.join("topic"))).expect("a source");
+    assert_eq!(source.nested, vec![moved.join("nested/wt")], "the registration names the worktree inside the source");
+    // The leave-out of a main checkout's snapshot finds it by the path inside the source,
+    // and a linked source is refused for the ordinary directory it would carry in full.
+    let mut as_linked: SnapshotSource = source.clone();
+    as_linked.git_dir = moved.join(".git/worktrees/nested");
+    let blocker: String = snapshot_blocker(&as_linked).expect("an ordinary directory inside the source blocks the rung");
+    assert!(blocker.contains(&moved.join("nested/wt").display().to_string()), "{blocker}");
+    assert!(blocker.contains("inside the source is an ordinary directory"), "{blocker}");
+    remove(root.as_path());
+}
+
 /// A worktree whose every file equals its commit by content has an answer,
 /// not a failure:
 /// nothing is listed,
