@@ -29,6 +29,7 @@ use crate::service_timing::log;
 pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
 pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -232,59 +233,99 @@ fn text_field(value: &Value, name: &str) -> Result<String, String> {
 }
 
 /// What:
-///  Whether an item of this identity has a claim file in `claimed` or `recovering`.
+///  The ids of the items that hold a claim file in `claimed` or `recovering`,
+/// from one listing of each.
 /// Why:
-///  `enqueue` treats an item that is being worked on as already known.
+///  `enqueue_all` treats an item that is being worked on as already known,
+/// and a round of items must answer that
+///  for all of them from one listing per directory rather than one per item (`RG2`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [CLAIMED, RECOVERING].some((state) => entriesOldestFirst(workDir, state).some(([name]) => idOfEntry(name) === id))
+/// new Set([CLAIMED, RECOVERING].flatMap((state) => entriesOldestFirst(workDir, state).map(([name]) => idOfEntry(name))))
 /// ```
-fn is_claimed_or_recovering(work_dir: &Path, id: &str) -> bool {
+fn claimed_or_recovering_ids(work_dir: &Path) -> HashSet<String> {
+    let mut held: HashSet<String> = HashSet::new();
     for state in [CLAIMED, RECOVERING] {
         for (name, _modified) in entries_oldest_first(work_dir, state) {
-            if id_of_entry(name.as_str()) == id {
-                return true;
-            }
+            held.insert(String::from(id_of_entry(name.as_str())));
         }
     }
-    return false;
+    return held;
 }
 
 /// What:
-///  Write the item as a pending record,
+///  Write `item` as a pending record,
 /// whole or absent,
-/// unless its id is already in any state.
+/// unless its id is already in any state,
+/// and answer whether it was added.
 ///  The producer never waits for a consumer and never reads anything back.
 /// Why:
 ///   The id is the idempotency key;
 /// the exclusive publish makes two racing producers agree on one winner.
+/// This is `enqueue_all` for one item.
 ///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeExclusive(join(workDir, 'pending', item.id), item.encode())
-/// ```
+/// # Errors
+///
+/// As `enqueue_all`.
 pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
+    let answers: Vec<Enqueued> = enqueue_all(work_dir, std::slice::from_ref(item))?;
+    let Some(answer) = answers.first() else {
+        return Err(format!("the round of the one item {} answered nothing", item.id()));
+    };
+    return Ok(*answer);
+}
+
+/// What:
+///  Write every item of one producer's round as a pending record,
+/// whole or absent,
+/// unless its id is already in any state,
+/// answering what happened to each in the order given.
+/// Why:
+///   The id is the idempotency key;
+/// the exclusive publish makes two racing producers agree on one winner.
+/// A round that asked `claimed` and `recovering` once per item cost one listing
+///  per item, so a producer of N items cost N listings (`RG2`);
+/// the round takes each of those listings once.
+/// The price is the window the listing opens: an item that a consumer claims
+///  after the round listed the claims is queued again,
+/// because nothing reads the queue back.
+///
+/// # Errors
+///
+/// A state directory that cannot be made,
+/// or a pending record that cannot be written for a reason other than its id
+/// being there already.
+pub fn enqueue_all(work_dir: &Path, items: &[WorkItem]) -> Result<Vec<Enqueued>, String> {
     for state in [PENDING, CLAIMED, DONE, FAILED] {
         if let Err(error) = create_private_directory_all(state_directory(work_dir, state).as_path()) {
             return Err(format!("creating the {state} directory failed: {error}"));
         }
     }
-    let id: String = item.id();
-    // The states are looked at in the order an item moves through them, so an item that moves on while they are looked at is
-    //  found in the next one: looking at `done` first could miss an item that settled after that look and left `claimed`
-    //  before the look at it.
-    if is_claimed_or_recovering(work_dir, id.as_str()) {
-        return Ok(Enqueued::Known);
+    // The claims are listed once for the whole round; `done` and `failed` are named by the id alone, so each item asks
+    //  about them by name and no listing sees them.
+    let mut held: HashSet<String> = claimed_or_recovering_ids(work_dir);
+    let mut answers: Vec<Enqueued> = Vec::with_capacity(items.len());
+    for item in items {
+        let id: String = item.id();
+        // A round holds every id once: a second item of one id finds the first one's record where the round put it.
+        if held.contains(id.as_str())
+            || state_directory(work_dir, DONE).join(id.as_str()).exists()
+            || state_directory(work_dir, FAILED).join(id.as_str()).exists()
+        {
+            answers.push(Enqueued::Known);
+            continue;
+        }
+        match write_private_file_unsynced(state_directory(work_dir, PENDING).join(id.as_str()).as_path(), item.encode().as_bytes()) {
+            Ok(()) => {
+                held.insert(id);
+                answers.push(Enqueued::Added);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => answers.push(Enqueued::Known),
+            Err(error) => return Err(format!("writing the work item {id} failed: {error}")),
+        }
     }
-    if state_directory(work_dir, DONE).join(id.as_str()).exists() || state_directory(work_dir, FAILED).join(id.as_str()).exists() {
-        return Ok(Enqueued::Known);
-    }
-    return match write_private_file_unsynced(state_directory(work_dir, PENDING).join(id.as_str()).as_path(), item.encode().as_bytes()) {
-        Ok(()) => Ok(Enqueued::Added),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Enqueued::Known),
-        Err(error) => Err(format!("writing the work item {id} failed: {error}")),
-    };
+    return Ok(answers);
 }
 
 /// What:

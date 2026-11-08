@@ -124,10 +124,9 @@ fn listings_of_an_enqueue_round(count: usize) -> usize {
     let work: PathBuf = directory.join(WORK_DIRECTORY);
     let items: Vec<WorkItem> = (0..count).map(|n| { return item(WorkKind::Push, format!("{n:040x}").as_str()); }).collect();
     let _nothing_yet: usize = take_listings();
-    for entry in &items {
-        assert_eq!(enqueue(work.as_path(), entry), Ok(Enqueued::Added), "every item of the round is new");
-    }
+    let answers: Vec<Enqueued> = enqueue_all(work.as_path(), items.as_slice()).expect("the producer's round");
     let listings: usize = take_listings();
+    assert_eq!(answers, vec![Enqueued::Added; items.len()], "every item of the round is new");
     assert_eq!(names(work.as_path(), PENDING).len(), items.len(), "the round of {count} items queued every one of them");
     remove(directory.as_path());
     return listings;
