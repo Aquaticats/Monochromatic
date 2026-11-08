@@ -32,6 +32,7 @@
 //! ```
 
 use crate::process_use::{UseTarget, processes_using};
+use crate::subvolume_arguments::MIGRATE_RISK_NOTICE;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_index_files::{IndexLock, linked_worktrees_inside};
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
@@ -366,6 +367,11 @@ pub fn migrate(
     let refusals: Vec<Refusal> = migrate_refusals(platform, &layout, &run.journal);
     if !refusals.is_empty() {
         return Ok(Verdict::Refused(refusals));
+    }
+    // The accepted risk of another program changing the same files is said once, before the first step that changes the
+    // checkout; a refusal above and a preview change nothing, so neither says it.
+    if !options.dry_run {
+        run.line(MIGRATE_RISK_NOTICE);
     }
     announce(&mut run, options);
     if options.dry_run {

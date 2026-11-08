@@ -206,6 +206,7 @@ export function createOpfsSink(): Sink {
 
   return {
     flush,
+    name: 'OPFS',
     verify,
     write,
   };

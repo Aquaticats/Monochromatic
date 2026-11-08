@@ -694,11 +694,17 @@ fn a_filesystem_without_exchange_fails_the_restore_and_overwrites_nothing() {
     // // Ok(value)  is  return value;
     // // Err(error) is  throw error;   (the caller sees it as a returned value)
     // ```
-    let cannot = |_first: &Path, _second: &Path| -> std::io::Result<()> { return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "no exchange here")); };
+    let swap_calls = std::cell::Cell::new(0_usize);
+    let cannot = |_first: &Path, _second: &Path| -> std::io::Result<()> {
+        swap_calls.set(swap_calls.get() + 1);
+        return Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "no exchange here"));
+    };
 
     // Borrow `&path`: lends the value without copying or giving it away.
     let result = replace_with_swap(&path, "expected", "new text", &KeepAs::next_to_target(".displaced"), &cannot);
 
+    // The unsupported exchange was actually attempted (sixth pass, group 8): an earlier failure cannot satisfy the assertions.
+    assert_eq!(swap_calls.get(), 1, "the unsupported-exchange callback was never called");
     // Macro `assert!`: builds or prints text (or a list) from a template.
     assert!(result.is_err());
     // Macro `assert_eq!`: builds or prints text (or a list) from a template.

@@ -141,6 +141,24 @@ A session that stops between two checks is recorded as `session/<name>` with the
 before,
 a settings-only run ended with a stack trace and no summary when a click-through setup step timed out on the page the failed checks had left open.
 
+Beside each failure file sit the files that say what the session itself was doing.
+They are read while the session still runs,
+because the scratch directory and the unit go away with the run:
+- `<id>.unit.log`:
+the unit's standard output and error,
+which hold the compositor's lines and the app's.
+- `<id>.cpu.stat`:
+the accounting of the unit's control group,
+whose `nr_throttled` and `throttled_usec` say whether the unit was held back by its CPU quota.
+- `<id>.io.pressure`:
+the same group's `io.pressure`,
+which says how long its tasks waited for the disk.
+
+Each of the three is listed in the failure file with the path it was read from.
+A unit that had already stopped has no control group to read and no log still being written,
+and the failure file says which file was not kept and why,
+instead of leaving it out silently.
+
 ## settings/licenses-row and settings/escape-ladder fail headless, and why
 
 Recorded 2026-11-07T15:20:00-05:00.
@@ -335,7 +353,8 @@ they are not shown to share a cause.
 
 - Whether the engine answered the first Enter late or never.
   The failure file lists `ui_state` changes only,
-  and the scratch directory with the app log is removed at the end of a run.
+  and the run that recorded this failure kept neither the unit's log nor its accounting beside the file,
+  which `### Next measurement` describes.
 - Why a pointer press is lost on a slow run.
   Neither the compositor (`package/nested-wayland-session/cli/src/input.rs` sends motion,
   press and release in one batch)
@@ -345,8 +364,28 @@ they are not shown to share a cause.
 
 ### Next measurement
 
-Keep the app log and the unit's `cpu.stat` and `io.pressure` beside each failure file,
-then wait for a failing run under the host's own load.
+The run now keeps what this measurement needs.
+Every failure file has the unit's log,
+its `cpu.stat` and its `io.pressure` beside it in `<E2E_OUT>/failures/`
+(`E2E_OUT` defaults to `target/e2e` under the app directory),
+and names each one with the path it came from (see `## Failure evidence`).
+
+That the files hold real content was shown on 2026-11-08T15:00:47-05:00,
+headless on `/dev/dri/renderD129`,
+by one filtered run of `E2E_ONLY=play/enter-plays-row`
+whose check was made to fail on purpose
+(the build under test was the release binary already in the tree,
+not one with a stall):
+all three were written beside `play--enter-plays-row.failure.txt`.
+- The log held 98 lines of the compositor's and the app's output,
+  from the compositor's backend choice to the `ui_state` line with `seq=10`.
+- `cpu.stat` held `usage_usec 899391` and `nr_throttled 0`.
+- `io.pressure` held `some avg10=1.44 avg60=0.26 avg300=0.05 total=246028`
+  and `full avg10=1.44 avg60=0.26 avg300=0.05 total=242058`.
+
+What is left is to wait for a failing run under the host's own load,
+then read the log for what the app did with the first Enter
+and the two accounting files for what the unit waited on.
 The failing check's own wait is not a fix:
 raising 6 s would hide the stall,
 which `SLW` in `CLAUDE.md` names as the defect to measure and remove.

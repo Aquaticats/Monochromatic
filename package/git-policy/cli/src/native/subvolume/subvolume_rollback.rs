@@ -24,6 +24,7 @@
 //! await rollback(run); await removeOldTree(run, { discardUnreadable });
 //! ```
 
+use crate::subvolume_arguments::MIGRATE_RISK_NOTICE;
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
@@ -211,6 +212,8 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     if !refusals.is_empty() {
         return Ok(Some(refusals));
     }
+    // Said once, before the first step that changes the checkout; a refusal above changes nothing, so it stopped before here.
+    run.line(MIGRATE_RISK_NOTICE);
     let root: PathBuf = run.layout.root.clone();
     let new_path: PathBuf = run.layout.new_path.clone();
     let old_path: PathBuf = run.layout.old_path.clone();
@@ -304,6 +307,8 @@ pub fn remove_old_tree(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Op
                 remedy: String::from("Inspect it and delete it by hand."),
             }]));
         }
+        // The carry is the first step that writes; the refusal below comes after it, so the risk is said from here on.
+        run.line(MIGRATE_RISK_NOTICE);
         carry_late_writes(run)?;
     }
     if refusals.is_empty() && !run.unreadable.is_empty() && !discard_unreadable {

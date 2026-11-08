@@ -104,6 +104,12 @@ pub(crate) fn preserve(displaced: &Path, target: &Path, keep: &KeepAs, ops: &Ops
     // ```ts
     // try { ... } catch (error) { throw new MyError(String(error)); }
     // ```
+    // A test fails the preservation of one target after its exchange to show the recovery's post-exchange schedule
+    // (sixth pass, group 8).
+    #[cfg(test)]
+    if crate::failpoints::keep_link_of(target) {
+        return Err(PreserveFailure::Data(io::Error::other("injected preservation failure after the exchange")));
+    }
     (ops.sync_file)(displaced).map_err(PreserveFailure::Data)?;
     let base: String = file_name_text(target);
     let mut directories: Vec<PathBuf> = Vec::new();

@@ -3059,6 +3059,46 @@ and measured on main against native Git.
 Each item names what remains,
 where it lives and its evidence.
 
+### Work waiting for a free Pi slot (2026-11-08T16:24:14-05:00)
+
+The owner:
+"Pi doesn't have a limit to number of concurrent subagents.
+In practice it's 16."
+Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
+A read-only audit listed the open work that can start
+(`queue-audit-report.md` in that folder).
+
+Only these wait on the repository move's last stages:
+the merge named first in the list of ordered work,
+the checksum and the IDE check themselves,
+and the Claude Code restart the owner asked for after them.
+An earlier version of this section also listed a container probe,
+the build-folder timer and the worktree conversions.
+The owner doubted that,
+and checking each one showed none needed the move.
+
+Converting the remaining worktrees waits on a defect instead:
+301 of 353 registrations spell the repository link,
+and the conversion compares them with the real path as text and refuses them.
+`--all` looked at 15 and did not say so.
+Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
+
+Ordered behind other work rather than waiting for a slot:
+
+- Merging `fix/repository-move-cli-checks-after-the-860-move`,
+  after the running cut-over ends:
+  it adds a stage between two stages the running cut-over has already passed.
+- The parallelism audit of loops over independent items,
+  after tokio step T12,
+  which removes the thread runner.
+- Layout move steps 2 to 6,
+  after tokio steps T12 and T13 and a rescan (`doc/planning/cli-git-source-layout-target-tree.md`).
+- The TypeScript port of the wrapper package,
+  after the layout move (owner:
+  "After the layout move (Recommended)").
+- `pnpr` serving crates,
+  behind layout and lint.
+
 ### A commit stopped at the scratch ceiling on every retry after the 860 move (2026-11-08T12:46:15-05:00)
 
 The first commit through the new location failed twice,
@@ -3092,13 +3132,73 @@ which runs `git status` in every registered worktree
 (`${HOME}/temp/agent/860-move/refresh-moved-indexes.ts`;
 delete the script once the fix lands).
 
-Still to do,
-with a failing test first:
-a commit over an index whose stat data is stale must finish,
-or its stop must keep the refresh so that the retry succeeds.
-The likely reason a retry repeats the failure is that the scratch step works on a copy of the index,
-so what it refreshed never reaches the real one;
-that has not been read in the source yet.
+Fixed on 2026-11-08 (`cd1755d728`,
+controls retuned in `9aae10b295`).
+The guess was right:
+the scratch step works on a copy of the index.
+`run_native_commit_within` gives Git `GIT_INDEX_FILE` = the private index
+(`commit/commit_preparation.rs` `native_commit_arguments`),
+`initialize_commit_index` and `initialize_retry_index` copy the real index into it
+(`commit/commit_index.rs`),
+and Git's own refresh of the stat data,
+which native `git commit` writes back to the real index,
+landed in that copy and was removed with the transaction,
+so every attempt copied the same stale stat data again.
+Measured in a throwaway repository on 2026-11-08 (Git 2.56.0,
+a clean filter that sleeps 100 ms per file,
+every file with a new inode and its modification time kept):
+a `git commit` over a copy of a stale index paid the whole refresh,
+1,248 ms for 12 files,
+and left the real index stale;
+a second copy of that index paid it again;
+the same commit over a refreshed index took 109 ms.
+On a fresh index of this checkout (about 20,000 entries)
+`git update-index --refresh` took 2 to 50 ms.
+
+`commit/commit_index_stat_refresh.rs` now refreshes the stat data before the copies are made,
+with `git update-index --refresh` on the real index:
+the copies carry the worktree's stat data,
+so the scratch commit reads only the files whose content changed,
+and the real index keeps the refresh,
+so the commit after this one does not pay it again.
+The step is a form the cut experiment proved may be run twice,
+so the existing bulk-step ceiling (`OBJECT_STEP_CEILING`) bounds it,
+and a stop leaves the index as it was.
+The scratch step's 3,006 ms ceiling is unchanged.
+An index another program has locked is not written:
+the private index is refreshed instead,
+so the commit still finishes and the real index keeps its stat data until a later commit can write it.
+`initialize_commit_index` therefore refreshes the person's index and not only a copy,
+as native `git commit` does.
+The coordinator kept that choice at 2026-11-08T16:05:00-05:00 (veto open),
+because refreshing only the copy would make every later commit pay the refresh,
+against the owner's "commits vs native git should not take 5s longer.";
+only stat fields change,
+never an entry's content.
+`preparation_leaves_real_refs_index_and_worktree_unchanged`
+(`commit_preparation_tests.rs`) still passes,
+because in its fixture the one changed path is the one Git would not refresh either.
+
+Controls (all of them failed before the fix and pass after it;
+`commit_index_stat_tests.rs`,
+`commit_index_stat_refresh_tests.rs`):
+a commit over a stale index finishes under a ceiling that ends one paying the refresh in its own step
+(825 ms against the 1,100 ms of reading a stale copy costs),
+the refresh reaches the real index (inode compared with `ls-files --debug`),
+an index another program holds is refreshed in the private copy,
+a locked index is left byte-identical,
+an unstaged change keeps the refresh of the other entries,
+and a Git that cannot start is answered without failing the commit.
+The full native library suite passed (4,700 tests),
+as did `native:clippy` and `monochromatic-lint --max-warnings 0`.
+Not measured:
+the cost this adds to a wrapper commit on main against native Git.
+The step is one more Git start plus a stat pass of the whole index,
+which the 2 to 50 ms above bound on this checkout,
+and the next commit's own record in the timing log will show it.
+Also unmeasured:
+how the locked-index fallback behaves while the service lands another commit,
+which is the case that reaches it.
 
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
@@ -3114,9 +3214,60 @@ remove every placeholder the new snapshot holds below the parents of the registe
 (a listing of those folders,
 inode 2 and empty,
 removed as an empty directory),
-with a test that adds two worktrees while a third add is staging.
-Read from the code and matched against the five names;
-not reproduced yet.
+with a control that takes one add while two stages of adds in flight sit in the worktrees folder,
+and a second that a stand-in for a subvolume no worktree names stays.
+Reproduced 2026-11-08T15:29:10-05:00 by a control:
+no race is needed.
+One call of the same snapshot ioctl another add makes at its stage name beside its destination,
+then the rung's own snapshot.
+The new worktree then lists `.cli-git-worktree-copy-<id>` at inode 2 on a device of its own:
+empty,
+and `btrfs subvolume show` answers `Not a Btrfs subvolume` for it.
+The cause is the one read above:
+`remove_stubs` named the registered worktrees and the destination,
+and a stage container in flight is neither.
+An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:
+the subvolume it stands for stays in the source,
+with its files.
+Done on branch `fix/git-policy-cli-snapshot-add-removes-every-placeholder`:
+`eb28d26f52` is the first failing control,
+`63dce988a0` lists each folder that holds a worktree
+and removes every stand-in there as an empty directory
+(`worktree/worktree_snapshot_placeholders.rs`),
+`b6a45587dc` proves the registered worktrees' parents are listed when the destination lies elsewhere,
+`336b4bf5d1` cuts both controls to one snapshot each:
+`btrfs_a_snapshot_removes_the_stand_ins_of_stages_and_keeps_the_one_no_worktree_names`
+and `btrfs_a_stage_below_a_registered_worktrees_parent_goes_with_the_destination_outside_the_source`,
+with the package's controls green,
+Clippy and `monochromatic-lint` too.
+A control's whole cost is the btrfs transaction commit each snapshot forces:
+measured with the disk quiet,
+an empty subvolume costs 2.2 ms to make and 1.1 ms to remove,
+while a snapshot of 51 files costs 433 ms.
+Other sessions' commits queue behind it,
+so the owner's rerun on 2026-11-08 put the suite's btrfs controls in waves of 34 s,
+56 s,
+64 s and 86 s and aborted the two controls here at 120.6 s and 122.0 s,
+each of which took three snapshots.
+With one snapshot each and a stage as an empty subvolume,
+the same filter under 8 CPUs,
+10 GiB and 3000 tasks puts both in their neighbours' wave:
+6.219 s and 0.670 s beside a 6.234 s control in the first run,
+and 1.640 s and 0.250 s beside a 1.421 s control in a second one at load 24.9,
+26 of 26 passed in both.
+Verified at the user boundary:
+with the built binary as `git` in a throwaway btrfs checkout,
+a stage of another add in the worktrees folder leaves no stand-in in the new worktree,
+and the installed `0.6.1-alpha.4` wrapper on the same shape leaves one.
+The package's whole lib suite passes:
+`native:test:host` ran 4700 of 4700 with `--no-fail-fast`.
+The branch is pushed to `origin`.
+The five worktrees that hold one keep it:
+those belong to other sessions,
+and the move tool already excuses such a folder.
+A clean-up of them is separate work:
+only the session that owns a worktree may remove a folder in it,
+and no command offers that today.
 
 ### Verify 0.5.26 against native Git
 
@@ -3657,7 +3808,10 @@ may be removed by the service (today never:
 the owner picked "kept" for locks without a PID file);
 the merge,
 the settling of earlier batches and the index reconciliation after a landing still wait `LOCK_CEILING` (10 minutes,
-unmeasured);
+unmeasured,
+superseded the same day by "Timing record names every step;
+the other lock waits",
+which gave each of the three a measured ceiling of its own);
 a native `git commit --only` in its hook phase holds the lock with no descriptor open and no PID file,
 and processes of other user namespaces are unreadable,
 so such a holder stays unprovable by descriptor.
@@ -4113,12 +4267,38 @@ the audit's remaining findings are not recorded here).
 Unmeasured:
 whether a later `pnpm install` in a copy made without `storeDir` writes into the source's in-tree store.
 The owner's statement of accepted risk for races with other programs ("That is not an our problem...",
-see "Worktree add and package managers" under owner decisions in force) is to be stated
-plainly in command help,
-in a short notice when a destructive command runs,
-and once for the whole program in `README.md` and
-`SPEC.md`;
-a search of both files on 2026-11-03 found no such statement yet.
+see "Worktree add and package managers" under owner decisions in force) is now stated in all three places it asked for,
+and the 2026-11-03 search no longer holds.
+The whole-program statement is `package/git-policy/cli/README.md`,
+"Other processes changing files",
+which has said it since 34910352b9 (2026-11-03),
+and `package/git-policy/cli/SPEC.md`,
+same heading,
+which said it only inside single commands until 335e482e38 added it with the inventory of the commands that say it.
+Per command:
+`git monochromatic-git-policy-cli convert-worktree-to-subvolume` states it in `--help` and in `RISK_NOTICE`
+before the first worktree is touched (34910352b9);
+`git worktree remove` states it in `DESTROY_NOTICE` once it has destroyed the subvolume in one step,
+and its `--help` is Git's own;
+`git monochromatic-git-policy-cli migrate-to-subvolume` states it in `--help` and,
+since a15963680f,
+in `MIGRATE_RISK_NOTICE` before the first step that writes,
+keeps,
+swaps or deletes anything in a run,
+a `--rollback` or a `--remove-old`,
+while a `--dry-run` and a refusal change nothing and say nothing.
+Each command prints its own line and never a second one.
+The controls (`subvolume_arguments_tests.rs`,
+`subvolume_migrate_tests.rs`) count it:
+once and first in a run,
+absent in a preview and in a refusal,
+once in each deleting mode,
+and never the conversion's line.
+On the built binary at a disposable btrfs checkout:
+`--help` stated the risk,
+a dry run printed none,
+a real run and a `--remove-old` each printed it once as the first line of standard error,
+and a refused `--rollback` printed none.
 
 ### Service follow-ups
 
@@ -4228,13 +4408,45 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   the `native_binary` tests still fail there (`/dev/full` is absent,
   several fixture spawns fail with NotFound);
   the lib tests pass on `m1`.
+- Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
+  Closed 2026-11-08T15:41:28-05:00:
+  the Android-target build is no longer blocked.
+  Under `nightly-2026-11-01`,
+  `turso_sync_engine` 0.8.2 failed to compile
+  ("cycle detected when computing when turso_parser::ast::Select needs async drop",
+  the same compiler cycle as the `zbus` entry above).
+  On the pinned `nightly-2026-11-08`,
+  `mise run //package/music-player/android-app:lint:clippy`
+  (clippy `--release --all-targets` with warnings denied,
+  through `cargo ndk` for arm64-v8a and x86_64)
+  compiled `turso_parser`,
+  `turso_core`,
+  `turso_sync_engine` and
+  `turso` 0.8.3 and exited 0,
+  `Finished release profile` in 39.53 s for arm64-v8a and 29.21 s for x86_64.
+  The real build followed:
+  `mise run //package/music-player/android-app:build:native`
+  (release through `cargo ndk` for arm64-v8a and x86_64)
+  finished in 3m 38s and 3m 19s,
+  and copied `libmusicplayer_native.so` with its turso libraries into
+  `app/src/main/jniLibs` for both ABIs.
+  The lock moved from turso 0.8.2 to 0.8.3 in the daily lock update `d61dc1934a`,
+  so both the toolchain and the version this entry named have changed since it was written.
+  Nothing was reported upstream and nothing needs to be:
+  the cycle was the compiler's,
+  not this crate's.
+- `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` was a pre-existing
+  failure when last
+  recorded (unsure whether fixed).
 - Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment;
   the Android-target `cargo check` is blocked by a compile error in `turso_sync_engine` 0.8.2 under nightly-2026-11-01
   ("cycle detected when computing when turso_parser::ast::Select needs async drop"),
   not yet reported upstream or worked around.
-- `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` was a pre-existing
-  failure when last
-  recorded (unsure whether fixed).
+- `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` no longer fails:
+  it passed in three consecutive single-test runs and in every full package run on 2026-11-08
+  (`monochromatic-mpm-shadow` 0.2.7-alpha.6 plus branch `feat/mpm-shadow-launchers-from-newest-install`),
+  and the earlier failure was not reproduced,
+  so nothing was changed for it.
   The nested-launch guard and the EAGAIN retry of issue 6259 are covered by package tests but were never exercised
   live.
 
@@ -5709,14 +5921,35 @@ are in append mode now).
   The same variable set on the command alone passed in 4 s with no notice and no positive control,
   so the notice hypothesis is still untested.
   Open until a failure keeps its output.
-- Found 2026-11-07 by the same study:
-  `zbus` 5.19.0 and 6.x do not compile on the pinned `nightly-2026-11-01`
+- Closed 2026-11-08T15:41:28-05:00:
+  `package/nested-wayland-session/cli` compiles on the pinned `nightly-2026-11-08`
+  (`rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`),
+  so the `zbus` failure this entry recorded is gone.
+  Found 2026-11-07 by the same study:
+  `zbus` 5.19.0 and 6.x did not compile on `nightly-2026-11-01`
   (`E0391: cycle detected when computing when ...::signature::child::Child needs async drop`)
-  and do compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate).
-  `package/nested-wayland-session/cli` locks `zbus` 5.19.0,
-  so it may not build on the pinned toolchain;
-  not built yet.
-  The study's agent is bisecting the nightly and checking newer ones.
+  and did compile on `nightly-2026-10-28` and stable 1.99.0 (scratch crate);
+  the one broken nightly is rust-lang/rust issue 165263,
+  reverted by PR 165266
+  (`doc/planning/rust-nightly-always-latest.md`,
+  `doc/research/wrapper-git-free-jobs-and-published-crates.md`).
+  Evidence on the pin:
+  `mise run //package/nested-wayland-session/cli:lint` (`cargo check` in the package's container)
+  finished with `Checking zbus v6.2.1` and `Checking monochromatic-nested-wayland-session v0.6.3`,
+  exit 0,
+  and `lint:clippy` (`clippy --release --all-targets` with warnings denied) finished in 56.48 s.
+  The package locks `zbus` 6.2.1 now,
+  not the 5.19.0 this entry named:
+  the daily lock update `d61dc1934a` moved it,
+  and `b159cc5228` ported every D-Bus use to zbus 6's async API.
+  The container image had to be rebuilt first:
+  `mise run //package/nested-wayland-session/cli:image` builds only when the tag is missing,
+  so the image still held `nightly-2026-11-07`,
+  and a cargo task on this pin ran the previous nightly until the rebuild
+  without naming the toolchain it used.
+  The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
+  (2026-11-08T15:41:28-05:00),
+  so the container tasks are on the pin from now on.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
@@ -7850,17 +8083,33 @@ though nothing conflicted.
   so the retry path does not account for it.
   The candidates are an index that could not seed (`seeds_private_index` false at that moment) and I/O contention
   (the scratch Git sat in `D` state on a full block queue at load average 38).
-  Both ways of building the index now leave a debug line (`initializeCommitIndex`,
-  `initializeRetryIndex`) saying whether the stat data was kept;
-  a trace of the next slow first build is still wanted.
+  Both ways of building the index wrote a debug line (`initializeCommitIndex`,
+  `initializeRetryIndex`) saying whether the stat data was kept.
   Gap found 2026-11-08:
-  those lines are written only when `MONOCHROMATIC_VERBOSE` is set (`foundation/diagnostic_log.rs`),
+  those lines were written only when `MONOCHROMATIC_VERBOSE` is set (`foundation/diagnostic_log.rs`),
   which nothing sets in normal use,
-  and the journal since 01:00 that day holds none of them,
-  so the wanted trace is never collected.
-  Queued after the move to the 860:
-  the commit timing record gains whether each index build kept the stat data
-  (the record is written on every commit).
+  and the journal since 01:00 that day held none of them,
+  so the wanted trace was never collected.
+  Built 2026-11-08 (commit `db2ebe604d`,
+  branch `feat/git-policy-cli-timing-record-stat-data-kept`):
+  the commit timing record,
+  which is written on every commit,
+  states `indexBuilds`,
+  one entry per build of the private index in the order built,
+  each with `kind` (`first`,
+  or `retry` after the branch moved) and `statDataKept`,
+  which is the fact the wanted trace would have shown.
+  The fact is noted where `commit_index.rs` decides how to build the index (`commit_index_builds.rs`),
+  and the two debug lines above are gone.
+  Controls:
+  `commit_index_builds` runs every way of building an index,
+  including both ways of building a retry,
+  and asks the built index with `git ls-files --debug` whether its entries hold stat data;
+  `a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it` reads the record of a real commit.
+  Still wanted:
+  the trace of a slow first build (the record now answers the question it was wanted for),
+  and a record of a moving-branch commit to show a `retry` entry,
+  which only unit controls prove today.
   Since 0.6.1-alpha.4 no commit of the main checkout has had a build over 20 s
   (the record's largest since then is under that;
   the 26,396 ms build at 05:49:59Z ran on the earlier release).
@@ -7884,6 +8133,77 @@ though nothing conflicted.
   `a_typed_message_is_saved_only_when_the_branch_never_stops_moving`.
   The service's own count of three re-reads inside one landing (`LANDING_ATTEMPTS`,
   `service_land.rs`) is unchanged.
+
+### The lock ceiling and the three waits it fed, measured (2026-11-08T16:01:42-05:00)
+
+Item 5 of the queue audit:
+`LOCK_CEILING` and the three waits once derived from it had no measurement beside them (rule `LQM`).
+By this date none of the three takes the ten minutes any more
+("Timing record names every step;
+the other lock waits" gave each a ceiling of its own),
+so the measurement answers two questions:
+what the ten minutes is worth and what the three ceilings now rest on.
+
+- Command:
+  both generations of this repository's commit timing log,
+  `monochromatic-git-policy-cli-commit-timing.jsonl` and `.1`,
+  read only,
+  by scratch scripts under `${HOME}/temp/agent/lock-ceiling` (TypeScript,
+  not committed).
+  No journal was read for it and no live probe was run;
+  the measuring wrote nothing to the repository.
+- Window and count:
+  1,332 records,
+  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
+  102 worktrees,
+  releases 0.5.34 to 0.6.1-alpha.4,
+  1,307 landed,
+  23 stopped and 2 ended.
+- Figures:
+  whole command p99 58,782 ms and longest 1,228,797 ms;
+  answer wait p99 14,875 ms and longest 1,200,776 ms;
+  preparation p99 21,878 ms and longest 230,525 ms;
+  after landing at most 7,856 ms.
+  Six records hold a waiting notice for another program's hold on the index:
+  two landed (3,636 and 23,783 ms of answer time),
+  four are the commits that met the lock that never went on 2026-11-07
+  (644,710 to 1,200,776 ms,
+  all stopped,
+  the last notice `unproven` in five of them).
+- Under load:
+  the reading ran at load average 115.9 of 32 threads,
+  and the log's own hours ran from 1 to 182 landed commits.
+  Within one release on both sides,
+  the quietest hour of 0.6.1-alpha.1 (15 landed commits) had 114 ms at the 99th percentile of the answer wait,
+  against 2,890 to 9,086 ms in its hours of 29 to 81;
+  the busiest hour of 0.6.0 (182) had 11,975 ms,
+  below the 38,545 ms of the 116-commit hour beside it.
+  The tail follows the busy hours,
+  with as much spread between two busy hours as between a busy one and a quiet one.
+- What the log cannot measure:
+  a merge writes no record (278 merge commits in the window,
+  and `CommitTiming::start` is in
+  `commit/commit_command.rs` alone),
+  the settling is the management command `service settle-earlier-batches`,
+  and no record names the `git reset` of the reconciliation,
+  so it did not run in the window.
+- Verdict:
+  no wait that a holder released came near the ten minutes (the largest in the log is under 23,783 ms of answer time),
+  so the ten minutes was 25 times the observed self-released wait and no measurement supports it as a bound for those three;
+  the one minute each takes now is 2.5 times that upper bound.
+  The ten minutes keeps its value,
+  because no wait takes it and `FOREIGN_OWNER_PATIENCE` owns it,
+  and it is cited now;
+  the figure this measurement would pick is in
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceiling and the three waits it fed".
+- Open,
+  for the owner:
+  `FOREIGN_OWNER_PATIENCE` still states its basis as twice the longest a merge waits,
+  and the merge waits one minute now,
+  so that basis would make it two minutes rather than the twenty it ships.
+  Another change owns the constant;
+  it was not touched here.
 
 ### Design stance
 

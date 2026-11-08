@@ -41,3 +41,8 @@ run = "node ../../crate-release/cli/bin/await-release.ts --crate monochromatic-m
 [tasks.publish]
 description = "Fallback local publish. Canonical path is .github/workflows/cargo-publish.yml (OIDC Trusted Publishing); the very first version of a crate must be published once with a personal API token (doc/runbook/publish-crate-first-time.md)."
 run = "cargo publish"
+
+[tasks."test:filter"]
+description = "cargo nextest run for the tests a filter selects, for the red-green loop: `-- <filter>` (a test name, or options such as --no-fail-fast followed by one); the release task stays the gate"
+usage = 'arg "[args]" var=#true help="Arguments appended to `cargo nextest run --release`"'
+run = 'sh -c "exec cargo nextest run --release $usage_args"'
