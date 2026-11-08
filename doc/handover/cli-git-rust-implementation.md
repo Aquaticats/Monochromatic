@@ -4266,12 +4266,16 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `mise run //package/music-player/android-app:lint:clippy`
   (clippy `--release --all-targets` with warnings denied,
   through `cargo ndk` for arm64-v8a and x86_64)
-  compiled `turso_parser`, `turso_core`, `turso_sync_engine` and `turso` 0.8.3 and exited 0,
+  compiled `turso_parser`,
+  `turso_core`,
+  `turso_sync_engine` and
+  `turso` 0.8.3 and exited 0,
   `Finished release profile` in 39.53 s for arm64-v8a and 29.21 s for x86_64.
   The lock moved from turso 0.8.2 to 0.8.3 in the daily lock update `d61dc1934a`,
   so both the toolchain and the version this entry named have changed since it was written.
   Nothing was reported upstream and nothing needs to be:
-  the cycle was the compiler's, not this crate's.
+  the cycle was the compiler's,
+  not this crate's.
 - `package/mpm-shadow/cli/tests/shim.rs::passes_arguments_and_exit_code_through_then_prunes` was a pre-existing
   failure when last
   recorded (unsure whether fixed).
@@ -5763,9 +5767,11 @@ are in append mode now).
   `doc/research/wrapper-git-free-jobs-and-published-crates.md`).
   Evidence on the pin:
   `mise run //package/nested-wayland-session/cli:lint` (`cargo check` in the package's container)
-  finished with `Checking zbus v6.2.1` and `Checking monochromatic-nested-wayland-session v0.6.3`, exit 0,
+  finished with `Checking zbus v6.2.1` and `Checking monochromatic-nested-wayland-session v0.6.3`,
+  exit 0,
   and `lint:clippy` (`clippy --release --all-targets` with warnings denied) finished in 56.48 s.
-  The package locks `zbus` 6.2.1 now, not the 5.19.0 this entry named:
+  The package locks `zbus` 6.2.1 now,
+  not the 5.19.0 this entry named:
   the daily lock update `d61dc1934a` moved it,
   and `b159cc5228` ported every D-Bus use to zbus 6's async API.
   The container image had to be rebuilt first:
