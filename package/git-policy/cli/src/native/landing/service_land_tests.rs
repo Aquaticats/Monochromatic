@@ -210,9 +210,18 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
             move_branch(repo.as_path(), "moved by someone");
         }
     }));
-    let outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt");
+    let mut outcomes: Vec<Outcome> = Vec::new();
+    // The batch is built again under the number it already holds, so the record its first attempt wrote is the one that stays, and
+    //  a second write of it is no failure to report.
+    let entries = crate::service_timing::capture::entries_of(|| { outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt"); });
     assert!(matches!(outcomes[0], Outcome::Landed { .. }));
     assert_eq!(subjects(&world, base.as_str()), vec!["moved by someone", "message of mine"]);
+    assert!(
+        entries.iter().all(|entry| { return !entry.message.contains("record of its scratch reference could not be written"); }),
+        "the record of a batch built again is written once: {:?}",
+        entries.iter().map(|entry| { return entry.message.clone(); }).collect::<Vec<String>>()
+    );
+    assert!(!crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record of a landed batch goes with its landing");
     remove(world.root.as_path());
 }
 

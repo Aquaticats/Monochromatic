@@ -125,11 +125,15 @@ fn decode(text: &str) -> Option<(PathBuf, PathBuf)> {
 /// ```
 pub(crate) fn record_scratch_ref(journal: &Path, seq: u64, repository: &Path, git_dir: &Path) {
     let path: PathBuf = record_path(journal, seq);
-    if let Err(error) = crate::private_storage::write_private_file_unsynced(path.as_path(), encode(repository, git_dir).as_bytes()) {
-        crate::service_warn!(
+    match crate::private_storage::write_private_file_unsynced(path.as_path(), encode(repository, git_dir).as_bytes()) {
+        Ok(()) => {}
+        // A batch the branch moved under is built again under the same number, and the record of its first attempt already names
+        //  the same worktree: nothing is written a second time.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(error) => crate::service_warn!(
             "batch {seq}: the record of its scratch reference could not be written to {} ({error}), so a kill before its intent would leave that reference with nothing to find it by",
             path.display()
-        );
+        ),
     }
 }
 
