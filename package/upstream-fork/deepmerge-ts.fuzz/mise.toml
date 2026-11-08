@@ -1,3 +1,12 @@
+[vars]
+# The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR). Every
+# campaign container takes 2 GiB, 2 CPUs and 512 processes (the cargo-mutants defaultPidsLimit, whose rationale is a measured
+# `fork` failure at 128): adopted, not measured. Interpolated at the top of each task body that starts a container.
+container_limits = """
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+const nodeContainerBound = { memory: '2g', cpus: 2, pidsLimit: 512 }
+"""
+
 [tasks.lint]
 extends = "lint"
 
@@ -27,6 +36,7 @@ flag "--round-runs <runs>" help="fast-check runs per property per round (default
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -44,7 +54,7 @@ const targetArgs = (override === undefined || override === '')
   ? []
   : ['--volume', `${dirname(resolve(override))}:${dirname(resolve(override))}:ro`, '--env', `DEEPMERGE_FUZZ_TARGET=${resolve(override)}`]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${failureDir}:${failureDir}:rw`,
@@ -116,6 +126,7 @@ flag "--checkout <dir>" required=#true help="Absolute path of the deepmerge-ts c
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync, rmSync } = await import('node:fs')
@@ -127,7 +138,7 @@ rmSync(out, { recursive: true, force: true })
 mkdirSync(out, { recursive: true })
 const nodeMajor = process.versions.node.split('.')[0]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${checkout}:/checkout:ro`,
   '--volume', `${out}:/out:rw`,
@@ -154,6 +165,7 @@ flag "--no-unions" help="Skip union types, to reach other classes without the kn
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -165,7 +177,7 @@ mkdirSync(out, { recursive: true })
 const nodeMajor = process.versions.node.split('.')[0]
 const noUnions = (process.env.usage_no_unions === 'true') ? ['no-unions'] : []
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -182,6 +194,7 @@ if (code !== 0) throw new Error(`declared-type campaign container exited with ${
 description = "Regenerate src/declared-type-soundness.generated.ts from the fixed-seed draw, dropping cases in pinned classes, in a 2 GiB / 2 CPU podman container"
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -193,7 +206,7 @@ const corpus = join(packageRoot, 'src', 'declared-type-soundness.generated.ts')
 mkdirSync(out, { recursive: true })
 const nodeMajor = process.versions.node.split('.')[0]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -212,6 +225,7 @@ if (code !== 0) throw new Error(`declared-type corpus container exited with ${St
 description = "Positive control for the declared-type check in a 2 GiB / 2 CPU podman container"
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -222,7 +236,7 @@ const out = join(packageRoot, 'dist', 'declared-type')
 mkdirSync(out, { recursive: true })
 const nodeMajor = process.versions.node.split('.')[0]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -241,7 +255,7 @@ if (code !== 0) throw new Error(`declared-type positive control container exited
 # dist/mutation/ writable at /out, inside the usual 2 GiB / 2 CPU caps.
 [tasks."mutation:image"]
 description = "Build the pinned StrykerJS + Vitest + esbuild image the mutation tasks run in"
-run = "podman build --tag localhost/deepmerge-ts-mutation:stryker-10.0.0 --file container/mutation.Containerfile container"
+run = "podman build --memory=2g --cpu-period=100000 --cpu-quota=200000 --tag localhost/deepmerge-ts-mutation:stryker-10.0.0 --file container/mutation.Containerfile container"
 
 [tasks.mutation]
 description = "StrykerJS over a deepmerge-ts checkout with upstream's own Vitest suite; writes dist/mutation/mutation.json"
@@ -251,6 +265,7 @@ flag "--checkout <dir>" required=#true help="Absolute path of the deepmerge-ts c
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -260,7 +275,7 @@ const repoRoot = resolve(packageRoot, '../../..')
 const out = join(packageRoot, 'dist', 'mutation')
 mkdirSync(out, { recursive: true })
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${resolve(process.env.usage_checkout ?? '')}:/checkout:ro`,
   '--volume', `${repoRoot}:${repoRoot}:ro`,
@@ -283,6 +298,7 @@ arg "[ids]..." help="Mutant ids to sweep; default every Survived and NoCoverage 
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { join, resolve } = await import('node:path')
@@ -291,7 +307,7 @@ const repoRoot = resolve(packageRoot, '../../..')
 const out = join(packageRoot, 'dist', 'mutation')
 const mode = (process.env.usage_baseline === 'true') ? ['baseline'] : ['sweep', ...(process.env.usage_ids ?? '').split(' ').filter((id) => id !== '')]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${resolve(process.env.usage_checkout ?? '')}:/checkout:ro`,
   '--volume', `${repoRoot}:${repoRoot}:ro`,
@@ -314,6 +330,7 @@ arg "<ids>..." help="Mutant ids to compare"
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { join, resolve } = await import('node:path')
@@ -322,7 +339,7 @@ const repoRoot = resolve(packageRoot, '../../..')
 const out = join(packageRoot, 'dist', 'mutation')
 const ids = (process.env.usage_ids ?? '').split(' ').filter((id) => id !== '')
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:/out:rw`,
@@ -364,6 +381,7 @@ arg "[ids]..." help="Ledger row ids from src/recall-ledger-runtime.ts; default e
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -376,7 +394,7 @@ mkdirSync(out, { recursive: true })
 const trees = resolve((process.env.usage_trees ?? '') === '' ? join(homedir(), 'temp', 'agent', 'deepmerge-ts-recall-trees') : (process.env.usage_trees ?? ''))
 const ids = (process.env.usage_ids ?? '').split(' ').filter((id) => id !== '')
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${trees}:/trees:ro`,
@@ -402,6 +420,7 @@ arg "[args]..." help="corpus: <seed> <size>; check: npm versions; control: one t
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -415,7 +434,7 @@ const npmDir = resolve((process.env.usage_npm ?? '') === '' ? join(homedir(), 't
 const args = (process.env.usage_args ?? '').split(' ').filter((arg) => arg !== '')
 const nodeMajor = process.versions.node.split('.')[0]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -440,6 +459,7 @@ arg "<versions>..." help="npm versions to probe, such as 7.1.5 7.1.6"
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -452,7 +472,7 @@ mkdirSync(out, { recursive: true })
 const npmDir = resolve((process.env.usage_npm ?? '') === '' ? join(homedir(), 'temp', 'agent', 'deepmerge-ts-recall-npm') : (process.env.usage_npm ?? ''))
 const versions = (process.env.usage_versions ?? '').split(' ').filter((version) => version !== '')
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -509,6 +529,7 @@ await run('node', ['src/recall-types-report.ts'], false)
 description = "Write and install the surface toolchain (TypeScript 4.7 to 7.0 plus probes) into dist/surface/scratch, in a 2 GiB / 2 CPU podman container"
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { mkdirSync } = await import('node:fs')
@@ -521,7 +542,7 @@ mkdirSync(scratch, { recursive: true })
 const nodeMajor = process.versions.node.split('.')[0]
 const inContainer = async (workdir, command) => {
   const child = spawn('podman', [
-    'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+    'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
     '--security-opt', 'label=disable',
     '--volume', `${repoRoot}:${repoRoot}:ro`,
     '--volume', `${out}:${out}:rw`,
@@ -544,6 +565,7 @@ arg "[aliases]..." help="TypeScript aliases such as ts47 ts60 ts70; default ever
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { join, resolve } = await import('node:path')
@@ -553,7 +575,7 @@ const out = join(packageRoot, 'dist', 'surface')
 const aliases = (process.env.usage_aliases ?? '').split(' ').filter((alias) => alias !== '')
 const nodeMajor = process.versions.node.split('.')[0]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -574,6 +596,7 @@ flag "--repeat <runs>" default="1" help="Runs per case, to measure the run-to-ru
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { join, resolve } = await import('node:path')
@@ -582,7 +605,7 @@ const repoRoot = resolve(packageRoot, '../../..')
 const out = join(packageRoot, 'dist', 'surface')
 const nodeMajor = process.versions.node.split('.')[0]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   '--volume', `${out}:${out}:rw`,
@@ -605,6 +628,7 @@ flag "--runtime <name>" required=#true help="bun or deno"
 '''
 shell = "node --input-type=module-typescript -e"
 run = """
+{{vars.container_limits}}
 const { spawn } = await import('node:child_process')
 const { once } = await import('node:events')
 const { dirname, resolve } = await import('node:path')
@@ -623,7 +647,7 @@ const targetArgs = (override === undefined || override === '')
   ? []
   : ['--volume', `${dirname(resolve(override))}:${dirname(resolve(override))}:ro`, '--env', `DEEPMERGE_FUZZ_TARGET=${resolve(override)}`]
 const child = spawn('podman', [
-  'run', '--memory=2g', '--cpus=2', '--rm', '--init',
+  'run', ...containerLimitArguments(nodeContainerBound), '--rm', '--init',
   '--security-opt', 'label=disable',
   '--volume', `${repoRoot}:${repoRoot}:ro`,
   ...targetArgs,

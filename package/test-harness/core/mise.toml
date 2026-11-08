@@ -61,7 +61,11 @@ run = """
 {{vars.parse_usage_args}}
 {{vars.dispatch_workspace_node}}
 execFileSync('mise', ['run', 'prepare:playwright'], { cwd: monorepoRoot, stdio: 'inherit' })
-execFileSync('podman', ['run', '--rm', '--memory=2g', '--cpus=2', '--security-opt', 'label=disable', '--volume', `${monorepoRoot}:/work`, '--workdir', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', 'playwright.browser.config.ts', 'package/test-harness/core/src/sinon.browser.test.ts', '--workers=1', ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 2048 processes is what podman run --help prints as the default, so today's effective cap becomes explicit (browsers start many
+// threads, and threads count). Adopted, not measured.
+execFileSync('podman', ['run', '--rm', ...containerLimitArguments({ memory: '2g', cpus: 2, pidsLimit: 2048 }), '--security-opt', 'label=disable', '--volume', `${monorepoRoot}:/work`, '--workdir', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', 'playwright.browser.config.ts', 'package/test-harness/core/src/sinon.browser.test.ts', '--workers=1', ...parseUsageArgs(process.env.usage_args ?? '')], { stdio: 'inherit' })
 """
 
 [tasks.buildAndTest]

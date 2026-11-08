@@ -19,6 +19,8 @@ import {
 import { homedir, } from 'node:os';
 import { join, } from 'node:path';
 
+import { containerLimitArguments, } from '@monochromatic-dev/container-limit-core/ts';
+
 import { runCommand, } from './run-command.ts';
 
 /**
@@ -43,14 +45,16 @@ const PACKAGE_PATH = 'package/browserslist/core-rust';
 const CAUGHT_VALUE_PATH = 'package/caught-value/core';
 
 /**
- Memory cap of the oracle container.
- */
-const ORACLE_MEMORY = '2g';
+ Memory, CPU and process caps of the oracle container, and (through the shared helper) its lowest disk weight.
 
-/**
- CPU cap of the oracle container.
+ The process cap is 512, the cargo-mutants `defaultPidsLimit` whose rationale is a measured `fork` failure at 128;
+ adopted for one Node.js process, not measured.
  */
-const ORACLE_CPUS = '2';
+const ORACLE_LIMITS = {
+  memory: '2g',
+  cpus: 2,
+  pidsLimit: 512,
+};
 
 /**
  Mode of the scratch root: private to the owner, as trust checks on the scratch directory require.
@@ -288,8 +292,7 @@ async function runOracle({
     args: [
       'run',
       '--rm',
-      `--memory=${ORACLE_MEMORY}`,
-      `--cpus=${ORACLE_CPUS}`,
+      ...containerLimitArguments(ORACLE_LIMITS,),
       '--security-opt',
       'label=disable',
       '--volume',

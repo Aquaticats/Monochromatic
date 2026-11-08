@@ -5,6 +5,10 @@
  combination in the test matrix.
  */
 
+import {
+  containerLimitArguments,
+  type ContainerLimits,
+} from '@monochromatic-dev/container-limit-core/ts';
 import spawn from 'nano-spawn';
 import {
   detectPackageManager,
@@ -323,6 +327,62 @@ export function resolveImage({
 }
 
 /**
+ Bounds of every matrix cell.
+
+ 2 GiB and 2 CPUs are the bound the cell has had since an unbounded cell grew to 42 GB RSS on 2026-10-26 and the kernel
+ OOM killer ended a harness subprocess scope.
+ 2048 processes is what `podman run --help` prints as the default, so the cell's effective cap does not change and
+ becomes explicit; cells install packages and start runtimes, which start many threads, and threads count against the
+ limit.
+ It is adopted, not measured.
+ */
+export const CELL_LIMITS: ContainerLimits = {
+  memory: '2g',
+  cpus: 2,
+  pidsLimit: 2_048,
+};
+
+/**
+ Arguments after `podman` that run one matrix cell.
+
+ @param image - fully tagged image reference
+
+ @param monorepoRoot - absolute path to the monorepo root on the host
+
+ @param command - single shell string passed to `sh -c`
+
+ @returns `run` with the cell's limits and the lowest disk weight ahead of the volume and the image
+
+ @example
+ ```ts
+ const args = containerRunArguments({ image: 'docker.io/library/ubuntu:latest', monorepoRoot: '/repo', command: 'true' });
+ ```
+ */
+export function containerRunArguments({
+  image,
+  monorepoRoot,
+  command,
+}: {
+  readonly image: string;
+  readonly monorepoRoot: string;
+  readonly command: string;
+},): readonly string[] {
+  return [
+    'run',
+    '--rm',
+    // AGENTS.md RXI bounds for host-exhausting runs, and rule HXR's lowest disk weight: a container sits in its own
+    // cgroup scope and ignores the launcher's IOWeight.
+    ...containerLimitArguments(CELL_LIMITS,),
+    '-v',
+    `${monorepoRoot}:/workspace:Z`,
+    image,
+    'sh',
+    '-c',
+    command,
+  ];
+}
+
+/**
  Runs a single combination in a podman container.
  
  Mounts the monorepo root at `/workspace:Z` (SELinux relabel)
@@ -390,19 +450,11 @@ export async function runContainer({
   const result = await spawn(
     'podman',
     [
-      'run',
-      '--rm',
-      // AGENTS.md RXI bounds for host-exhausting runs: an unbounded cell grew to
-      // 42 GB RSS on 2026-10-26 and the kernel OOM killer terminated a harness
-      // subprocess scope. Every cell stays within these bounds.
-      '--memory=2g',
-      '--cpus=2',
-      '-v',
-      `${monorepoRoot}:/workspace:Z`,
-      image,
-      'sh',
-      '-c',
-      command,
+      ...containerRunArguments({
+        image,
+        monorepoRoot,
+        command,
+      },),
     ],
   );
 
