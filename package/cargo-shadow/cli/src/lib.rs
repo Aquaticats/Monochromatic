@@ -1012,3 +1012,45 @@ pub mod lean_rustup_toolchains;
 /// The tests of the toolchain retirement.
 #[cfg(test)]
 mod lean_rustup_toolchains_tests;
+
+/// The words of the repository's sources that can name an image or a volume.
+pub mod lean_container_references;
+
+/// The removal of unused container images and volumes.
+pub mod lean_podman_cleanup;
+
+/// Real Podman behind the cleanup's interface.
+pub mod lean_podman_real;
+
+/// The tests of the Podman cleanup.
+#[cfg(test)]
+mod lean_podman_cleanup_tests;
+
+/// The numbers of the lean-folder tools and what each rests on.
+pub mod lean_policy;
+
+/// Where the lean-folder run looks.
+pub mod lean_run_discovery;
+
+/// The free-space figures of a lean-folder run.
+pub mod lean_run_report;
+
+/// The run-record retention with the real clock.
+pub mod lean_run_records_glue;
+
+/// The steps of a lean-folder run.
+pub mod lean_run_steps;
+
+/// The lean-folder run.
+pub mod lean_run;
+
+/// Mechanism F:
+/// the daily systemd user timer and its installer.
+pub mod lean_timer_units;
+
+/// The tests of the timer units.
+#[cfg(test)]
+mod lean_timer_units_tests;
+
+/// The command-line glue of `cargo-shadow lean`.
+pub mod lean_command;

@@ -106,6 +106,18 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Keep the build folders lean:
+    /// remove build trees,
+    /// units,
+    /// run records,
+    /// toolchains and container images that nothing uses,
+    /// each only after a proof it is not in use,
+    /// or install the daily systemd timer that runs this.
+    Lean {
+        /// What to do.
+        #[command(subcommand)]
+        action: LeanAction,
+    },
     /// Acknowledge a journal that a recovery refuses:
     /// you assert that every process or worker of the run that left it,
     /// and can modify the workspace,
@@ -114,6 +126,49 @@ pub enum Command {
     Acknowledge {
         /// The journal directory the refusal named.
         journal: std::path::PathBuf,
+    },
+}
+
+/// The mechanisms of a lean run,
+/// by the name `--only` takes.
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum MechanismName {
+    /// Idle trees of the host build base.
+    Trees,
+    /// The older-compiler sweep and the size caps of profile directories.
+    Units,
+    /// Verification run records.
+    Records,
+    /// Dated nightly toolchains no checkout pins.
+    Toolchains,
+    /// Unused Podman images and volumes.
+    Podman,
+}
+
+/// What `cargo-shadow lean` does.
+#[derive(Subcommand)]
+pub enum LeanAction {
+    /// One pass over this machine from inside a checkout of the repository.
+    /// Nothing is removed unless a lock and a process scan show it is not in use.
+    Run {
+        /// Report what would be removed and remove nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Run only these mechanisms (all by default).
+        #[arg(long, value_delimiter = ',')]
+        only: Vec<MechanismName>,
+        /// The longest the whole run may take, in minutes.
+        #[arg(long)]
+        deadline_minutes: Option<u64>,
+    },
+    /// Install the systemd user timer that runs `lean run` once a day at 04:30 local time and at no other moment.
+    TimerInstall {
+        /// Write the unit files and leave the timer off.
+        #[arg(long)]
+        no_enable: bool,
+        /// Where the unit files go (default `~/.config/systemd/user`).
+        #[arg(long)]
+        unit_directory: Option<std::path::PathBuf>,
     },
 }
 

@@ -71,3 +71,16 @@ pub fn list_checkouts(start: &Path) -> Vec<PathBuf> {
     checkouts.sort();
     return checkouts;
 }
+
+/// What:
+/// `pub fn main_checkout(start: &Path) -> Option<PathBuf>` is the main checkout of the repository that holds `start`.
+/// Why:
+/// The timer's working directory and the source scan for named images are the main checkout's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function mainCheckout(start: string): string | undefined
+/// ```
+pub fn main_checkout(start: &Path) -> Option<PathBuf> {
+    return common_git_directory(start)?.parent().map(Path::to_path_buf);
+}
