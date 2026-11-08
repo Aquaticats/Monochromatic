@@ -20,6 +20,23 @@ so any of them can be undone.
 
 ## Answered in the question tool, recorded 2026-11-07T22:19:43-05:00
 
+- Whether a stop of the commit service may cut a running branch write
+  (the 2026-11-04 answer "Never cut a branch write" against the 2026-11-07 answer "C:
+  shutdown stops its Gits"):
+  "B:
+  let a branch write finish (Recommended)":
+  a stop ends every other Git at once,
+  but waits for a running branch write up to the stop limit;
+  systemd signals only the service (`KillMode=mixed`) and kills what is left only at that limit.
+  Measured with the question:
+  the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
+  (`/etc/systemd/user.conf.d/timeout.conf`),
+  below T11's `SETTLE_CEILING` (24.096 s) and `LAST_RESORT` (29.096 s).
+  Coordinator pick,
+  veto open:
+  the unit the wrapper writes sets its own `TimeoutStopSec`,
+  derived in code above `LAST_RESORT`.
+
 - When the repository move to the 860 runs:
   "Back to back,
   after agents (Recommended)":
@@ -93,7 +110,9 @@ so any of them can be undone.
   through one shared constant,
   including `vm-builder`'s rootful run.
   Done on `feat/container-limits-everywhere`;
-  the inventory, the evidence and the open items (the rootful run needs one root try, the workflow flags are unproven on
+  the inventory,
+  the evidence and the open items (the rootful run needs one root try,
+  the workflow flags are unproven on
   a hosted runner) are in `doc/handover/container-limits-everywhere.md`.
 
 - Porting the wrapper package's 145 TypeScript files to Rust
