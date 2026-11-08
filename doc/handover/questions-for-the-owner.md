@@ -18,6 +18,47 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
+
+None of these has been asked yet,
+and none is holding up running work.
+Each record is cited so the context is one read away.
+
+- Does the 2026-11-04 pause still cover the commit protocol that makes commits unable to fail by construction?
+  Your words then:
+  "aside from layout + linting fixes,
+  pause everything else - but let work already in flight run to their natural
+  conclusions".
+  Other wrapper work has resumed since,
+  but `feat/git-policy-cli-commit-protocol-models` and `fix/git-policy-cli-commits-never-fail` have not moved.
+  This matters because an agent's scratch commit stopped at its ceiling under load on 2026-11-08,
+  and an identical retry succeeded,
+  against your "Commits should never fail."
+- The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
+  which ask what each shipped limit should cite.
+- Does "never discard user data" cover the audit history?
+  The timing logs and the push trigger log keep one older generation,
+  so a rotation drops the one before it.
+- Should the unmerged branch `worktree-agent-ab3dd6294f9d91284` be kept or dropped,
+  and should the lock-based copy modules main still ships be reviewed?
+  The branch holds open review findings and fixes that exist nowhere else.
+- Should `package-paused/dev-script/inference-canary`,
+  `package-paused/webapp-edu/paper2vn` and the wrapper's own test runners get the container limits?
+- Should the mount unit's stop block guard its `luksClose`?
+  A stop with no mapper now fails where the old stop hid the failure
+  (`doc/handover/repository-move-dangling-link-items.md`).
+- May the stale detached worktrees under `.claude/worktrees/` be removed?
+- May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
+- Should there be an operator override that forces the native Git route when the commit service misbehaves?
+
+Checked and not asked,
+because you have already answered them:
+deleting the merged branches with nondescript names (done with your approval),
+bumping and publishing ("I'm authorizing you to bump and publish any updates this session."),
+and the root `vm-builder` run ("I authorize you to do and use all of it without my prior approval.",
+due after the move).
+The two library layout questions stay at your "Not yet.".
+
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
 
 - How subagents are used from now on,

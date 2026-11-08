@@ -3070,9 +3070,6 @@ A read-only audit listed the open work that can start
 Every item it lists has its own record,
 so this list only names what is left to start from it:
 
-- Removing the loaded units and the install folder of the pre-rename 0.5.34 wrapper,
-  recorded in the paragraph on old `cli-git@` units.
-  The folder stays until the owner says it may go.
 - A hosted run of the container-limit workflow flags,
   recorded in `doc/handover/container-limits-everywhere.md`.
 
