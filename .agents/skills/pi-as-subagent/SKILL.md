@@ -114,8 +114,7 @@ so a brief needs no step-by-step handholding.
 - At `xhigh` the feed went quiet for 20 seconds or more while it thought.
   Check the process state and the time of the last event before calling a run stuck.
 - It left scripts and compiled binaries in `/tmp`,
-  and notes and sources in its working directory,
-  and it ran long compiled jobs (one build used OpenMP).
+  and notes and sources in its working directory.
   Delete what it leaves by exact name afterwards.
 - It reads this repository's docs,
   including ones that describe the problem it was given.
