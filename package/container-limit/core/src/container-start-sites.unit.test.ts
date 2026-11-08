@@ -82,6 +82,7 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
     'package/browserslist/core-rust/bin/regenerate-conformance.ts',
     'package/config/pnpr/mise.toml',
     'package/config/pnpr/task.ts',
+    'package/container-limit/core/src/index.ts',
     'package/forbidden-strings/cli/bin/evidence-guard-comparison.ts',
     'package/forbidden-strings/cli/bin/observe-guards-container.ts',
     'package/forbidden-strings/cli/bin/snapshot-constants.ts',
