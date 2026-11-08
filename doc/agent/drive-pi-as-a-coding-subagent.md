@@ -342,6 +342,15 @@ with roughly three times the prefill and generation speed expected later.
 Read the seconds as that provider's,
   not as the model's.
 The counts of tool calls and turns do not depend on speed.
+On 2026-11-08 the owner reported that `deepseek-v4.1-flash` is available through the `neuralwatt` provider.
+`pi --list-models flash` lists `neuralwatt` with `deepseek-v4.1-flash`,
+`deepseek-v4.1-flash-flex`,
+and `deepseek-v4.1-flash-speed`,
+each with a 1.0M context and images,
+next to the plain and `-flex` and `-speed` variants of `deepseek-v4-flash`.
+No request has been sent to any of them from a driven session,
+so their speed and behavior under `xhigh` are unmeasured.
+A driven session needs `neuralwatt` credentials in its isolated Pi home before it can use one.
 - A second task sent through the inbox while the agent was idle became a new prompt in the same session,
   and the model started on it by reading the files its context did not yet hold.
 - No dialog request arrived in the runs so far.

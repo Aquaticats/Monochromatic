@@ -141,53 +141,8 @@ Owner decisions given in this session:
   `remains unsolved`),
   so a legitimate reviewer sentence that merely contains one is replaced by a fixed instruction,
   and the repository's rule against magic lists applies.
-  Whether the filter ever fired in a live run is unknown:
-  the first Collatz pass stored truncated entries,
-  so its absence of `policyViolations` proves nothing.
-
-## Collatz measurement, first pass, 2026-11-07T23:51:22-05:00
-
-- Setup:
-  three isolated Pi homes in `~/temp/agent/pi-goal-home-{baseline,handheld,solo}`,
-  each listing the synthetic provider and one goal package in `settings.json` `packages`
-  (the real home lists the main checkout's package by absolute path,
-  which is why earlier runs saw the old build),
-  primary `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
-  reviewer `hf:openai/gpt-oss-120b`,
-  objective `prove the Collatz conjecture (the 3x + 1 problem)`,
-  runner `~/temp/agent/pi-rpc-trial/run-collatz-matrix.ts`,
-  one lane per build run side by side in capped units,
-  arms `--tools read,bash` and no allowlist,
-  two repeats each.
-- Baseline (old build),
-  four arms:
-  every recorded denial told the primary to explain that no proof is known,
-  to ask the user,
-  or to offer alternative tasks,
-  and several began with `ask_user_question`.
-  One baseline arm recorded no denial inside its window.
-- Handheld (prompt change only),
-  four arms:
-  one denial each,
-  all of the form "attempt a proof",
-  "construct a formal argument",
-  or "provide a verification script up to a large bound".
-  None asked the user or told the primary to stop.
-- Unassisted (prompt change plus post-filter),
-  four arms:
-  three of four denials were proof attempts,
-  and one asked for "a comprehensive summary of known partial results",
-  which is a substitute objective that the filter's lists did not catch.
-- Control `solve 3x + 1 = 0 and state the value of x`:
-  approved on the first review on both branches in about 15 s.
-- Limit:
-  nearly every new arm ended at the observation cap with the primary still working on its second turn,
-  so these runs show the first denial only,
-  and the criterion "more than one distinct approach across cycles" is untested.
-  The old build looped through its eight turns inside the same window because its turns were short refusals.
-- A longer pass with all bounds tripled (`GOAL_BOUND_SCALE=3`,
-  prefix `_n_`) runs the new builds only,
-  with entry previews widened so `policyViolations` is visible if the filter fires.
+  In the Collatz runs with tripled bounds the filter never fired
+  (see the measurement section with that name).
 - Acceptance criteria,
   fixed before the run.
   Satisfactory means all of these hold and the model's report matches reality:
@@ -227,57 +182,117 @@ Owner decisions given in this session:
   which checks it ran and in what order,
   and any claim in its report that the checks contradict.
 
+## Collatz measurement with short bounds, 2026-11-07T23:51:22-05:00
+
+- Setup:
+  three isolated Pi homes in `~/temp/agent/pi-goal-home-{baseline,handheld,solo}`,
+  each listing the synthetic provider and one goal package in `settings.json` `packages`
+  (the real home lists the main checkout's package by absolute path,
+  which is why the earlier single runs saw the old build),
+  primary `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
+  reviewer `hf:openai/gpt-oss-120b`,
+  objective `prove the Collatz conjecture (the 3x + 1 problem)`,
+  runner `~/temp/agent/pi-rpc-trial/run-collatz-matrix.ts`
+  (a lane per build,
+  lanes side by side in capped units,
+  arms `--tools read,bash` and no allowlist,
+  two repeats each),
+  summarizer `summarize-matrix.ts`.
+- Baseline (old build),
+  four arms:
+  every recorded denial told the primary to explain that no proof is known,
+  to ask the user,
+  or to offer alternative tasks,
+  and several began with `ask_user_question`.
+  One baseline arm recorded no denial inside its window.
+- Handheld (prompt change only),
+  four arms:
+  one denial each,
+  all of the form "attempt a proof",
+  "construct a formal argument",
+  or "provide a verification script up to a large bound".
+  None asked the user or told the primary to stop.
+- Unassisted (prompt change plus post-filter),
+  four arms:
+  three of four denials were proof attempts,
+  and one asked for "a comprehensive summary of known partial results",
+  a substitute objective that the filter's lists did not catch.
+- Control `solve 3x + 1 = 0 and state the value of x`:
+  approved on the first review on both new builds in about 15 s.
+- Limit:
+  nearly every new arm ended at the observation cap with the primary still working on its second turn,
+  so these runs show the first denial only.
+  The old build looped through its eight turns inside the same window because its turns were short refusals.
+  The driver's entry previews were also cut at 360 characters,
+  so an audit field after the guidance text was not visible.
+
+## Collatz measurement with tripled bounds, 2026-11-08T00:02:17-05:00
+
+- Setup:
+  `GOAL_BOUND_SCALE=3` (hard kill,
+  phase one and observation windows tripled),
+  tag prefix `_n_`,
+  the two new builds only,
+  four arms each,
+  entry previews widened to 4000 characters.
+- Positive control for the audit fields:
+  the widened solo entries contain `reviewerRationale`,
+  so the absence of `policyViolations` in them is meaningful.
+- Result:
+  nine denials in six arms,
+  and two handheld arms with no denial because the primary was still in its first long turn when observation ended.
+  I read all nine guidance texts:
+  none asks the user,
+  none tells the primary to stop,
+  explain impossibility,
+  or request another task.
+  All name a proof attempt or a step toward one.
+- More than one distinct approach across cycles:
+  met in two solo arms
+  (a proof attempt,
+  then formalizing Terras' density theorem in Lean;
+  a proof outline,
+  then extending the outlined reductions),
+  and not met in the one handheld arm with two denials,
+  whose two guidance texts are the same instruction reworded.
+  Counts this small do not separate the builds.
+- The solo post-filter never replaced anything:
+  none of its six denials carries `policyViolations`.
+  In these runs the prompt change alone produced compliant guidance,
+  so the phrase lists added risk of false positives without a measured benefit.
+  That is one reviewer model and one objective,
+  not proof the filter is never needed.
+
 ## Next steps in order
 
-1. When the wait notifies,
-   read `out/summary_solo.json` and the model's report,
-   then `git diff` in the solo worktree.
-   Check by hand that no mutation is left in the source:
-   `rg 'violations.length >= 0' src`,
-   and read the prompt builder against its tests.
-2. Run `build`,
-   `lint:types`,
-   `test:unit` and `lint` of `//package/pi-plugin/goal` in the solo worktree myself,
-   each in its own capped `systemd-run --user`,
-   and confirm the new test names.
-   For criterion 6,
-   set aside the non-test source change,
-   rebuild,
-   run the new tests,
-   and expect failures,
-   then restore.
-3. Judge the solo attempt against the criteria and against the handheld one.
-   Review the post-filter for false positives on legitimate guidance:
-   a sentence that merely mentions "open problem" or "ask them" is replaced by the fixed instruction,
-   and the reviewer's specifics are lost.
-   The repository's rules also discourage magic lists.
-4. Commit the solo attempt on its branch with explicit pathspecs,
-   including the new files.
-   Auto-push is on.
-5. Measure both with the same Collatz rerun.
-   Baseline:
-   Collatz proof runs `f` (read only) and `h` (read and bash) in
-   `~/temp/agent/pi-rpc-trial/out/goal-summary_f.json` and `goal-summary_h.json`,
-   every denial cycle's `remaining_work` asked the user.
-   New runs use the isolated home with `settings.json` `packages` listing the synthetic provider and the branch's
-   `package/pi-plugin/goal` (rebuilt,
-   so `dist/final/node/index.mjs` is current),
-   the reviewer `synthetic/hf:openai/gpt-oss-120b`,
-   once with no `--tools` allowlist and once with `--tools read,bash`.
-   Success criteria,
-   fixed before the run:
-   zero `remaining_work` texts that ask the user,
-   and more than one distinct approach across cycles.
-   Run each arm twice for spread.
-   Rerun `solve 3x + 1 = 0 and state the value of x` once,
-   which must still be approved.
-6. Update `doc/agent/pi-goal-extension-driven-through-rpc.md` with the results,
+1. Show the new tests fail without the source change (criterion 6),
+   for the handheld branch and for the solo branch.
+   In each worktree set aside the non-test source change,
+   rebuild with `build`,
+   run the new tests under a capped `systemd-run --user --scope`,
+   expect failures,
+   then restore the files.
+   Solo worktree:
+   `.claude/worktrees/pi-goal-rubric-solo`,
+   handheld worktree:
+   `.claude/worktrees/pi-goal-reviewer-rubric`.
+2. Check for stray files outside the worktrees (criterion 7) in `/tmp`,
+   the main checkout,
+   and the throwaway fixture folder `~/temp/agent/dsh-rpc-trial/fixture`.
+3. Update `doc/agent/pi-goal-extension-driven-through-rpc.md` with the measurements above,
    the planning doc paragraph "Human decisions use `ask_user_question` inside the primary run" in
    `doc/planning/pi-goal-tool-free-completion.md`,
    and the matching line in `package/pi-plugin/goal/README.md`.
-7. Decide which branch lands,
+   The README edit belongs to whichever branch lands.
+4. The owner decides which branch lands,
    or a combination.
-   That is the owner's decision after the evidence is in.
+   The evidence so far:
+   both new builds removed every user-asking and stop-instruction guidance in the measured runs,
+   the baseline did not;
+   the solo build's post-filter never fired and carries phrase-list false-positive risk;
+   the handheld build is a prompt change only;
+   the one multi-cycle handheld arm reworded the same instruction while two solo arms changed approach,
+   on counts too small to separate them.
    The user's live Pi keeps the old build until someone rebuilds the goal package in the main checkout,
    because `package/pi-plugin/goal/dist` is git-ignored (`.gitignore` line 53) and Pi loads `dist/final/node/index.mjs`.
    Say so in the final report.
