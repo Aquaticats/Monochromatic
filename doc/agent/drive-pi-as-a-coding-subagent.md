@@ -360,12 +360,81 @@ On 2026-11-08 the owner reported that `deepseek-v4.1-flash` is available through
 and `deepseek-v4.1-flash-speed`,
 each with a 1.0M context and images,
 next to the plain and `-flex` and `-speed` variants of `deepseek-v4-flash`.
-No request has been sent to any of them from a driven session,
-so their speed and behavior under `xhigh` are unmeasured.
+Their speed against `synthetic` is measured in "Provider speed,
+  measured 2026-11-08T01:01:36-05:00".
 A driven session needs `neuralwatt` credentials in its isolated Pi home before it can use one.
 - A second task sent through the inbox while the agent was idle became a new prompt in the same session,
   and the model started on it by reading the files its context did not yet hold.
 - No dialog request arrived in the runs so far.
+
+## Provider speed, measured 2026-11-08T01:01:36-05:00
+
+Method:
+a fresh `pi --mode rpc --no-session --no-tools` process per run in the owner's real home,
+so `thinking-default` applied and `get_state` read `xhigh` on every arm.
+`--no-tools` and `--no-session` are for this measurement only:
+a first attempt with every tool enabled produced multi-turn runs (thousands of output tokens and hundreds of thousands
+of cache-read tokens for a one-word reply) whose tool time counted as generation time,
+and it was discarded.
+Arms alternated within each repeat,
+three repeats each:
+`neuralwatt` / `deepseek-v4.1-flash`,
+`neuralwatt` / `deepseek-v4.1-flash-speed`,
+and `synthetic` / `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`.
+Two prompts,
+each led by a unique line so a prefix cache could not serve it:
+a short one asking for the numbers 1 to 200,
+and a 472 KB file (about 130000 input tokens on every arm).
+Generation rate is output tokens over the time from the first message update to `agent_settled`;
+output tokens include thinking.
+Prefill is the time from sending the prompt to the first message update.
+The probe script was `pi-rpc-speed.ts` in scratch and is not kept.
+
+Results:
+
+- Generation,
+  short prompt,
+  tokens per second over three runs:
+  `neuralwatt` 351,
+  197,
+  368 (median 351);
+  `neuralwatt-speed` 284,
+  567,
+  826 (median 567);
+  `synthetic` 161,
+  132,
+  163 (median 161).
+  Every `neuralwatt` run beat every `synthetic` run,
+  about twice as fast at the median.
+  The `-speed` variant's three runs overlap the plain model's,
+  so the two are not separated by this sample.
+- First update after the large prompt:
+  `neuralwatt` 5.2,
+  5.7,
+  5.6 seconds;
+  `neuralwatt-speed` 11.0,
+  4.0,
+  5.2 seconds;
+  `synthetic` 3.9,
+  3.3,
+  10.3 seconds.
+  The medians are 5.6,
+  5.2 and 3.9 seconds,
+  and each of the `-speed` and `synthetic` arms had one slow run,
+  so `synthetic` is not slower at prefill here.
+- Time to the first update on the short prompt was 0.35 to 0.62 seconds on every arm,
+  with overlapping ranges.
+
+Limits:
+three runs per cell,
+one time of day,
+one prompt of each size.
+The tokens-per-second figures for the large prompt are meaningless (tiny outputs,
+or text arriving at once) and are not
+reported.
+Cached-input counts differ by provider,
+so prefill is compared by time and not by token rate.
+Behavior of the neuralwatt model under real tool-using work is not measured here.
 
 ## The detailed-brief run
 
