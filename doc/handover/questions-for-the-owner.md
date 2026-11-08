@@ -66,6 +66,9 @@ so any of them can be undone.
 - Which subagents this session uses,
   answering the coordinator's open question on how to use subagents:
   "Drive pi as subagents exclusively from now on for this session."
+- How many Pi subagents can run at once:
+  "Pi doesn't have a limit to number of concurrent subagents.
+  In practice it's 16."
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 

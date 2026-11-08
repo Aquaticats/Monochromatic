@@ -32,6 +32,14 @@ The owner decided this:
 We are not building another git wrapper or shim when we're already so busy with one.
 If it turns out this blows up we'll consider enhancing our own git wrapper."
 
+The owner on how many can run at once:
+"Pi doesn't have a limit to number of concurrent subagents.
+In practice it's 16."
+Each run is its own driver process with its own run folder and unit name.
+Runs in the main checkout share its files,
+so give concurrent runs different packages:
+two in one crate build each other's half-finished edits.
+
 ## Start a run
 
 `pi` is in `~/Monochromatic`,
