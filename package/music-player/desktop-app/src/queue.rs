@@ -247,9 +247,9 @@ impl Queue {
     /// static new(): Queue { return new Queue(seedFromClock()); }
     /// ```
     pub fn new() -> Queue {
-        // What:     `let seed = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map(...).unwrap_or(...);`.
-        //           `SystemTime::now()` is the wall clock; the chain turns "now" into a
-        //           64-bit seed (see each combinator below).
+        // What:     `let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH);` and the `match` below turn the
+        //           wall clock into a 64-bit seed: the nanoseconds since the epoch truncated to 64 bits, or a fixed
+        //           non-zero constant when the clock is before the epoch.
         // Why:      We derive a changing seed from the current time.
         //
         // In TS you'd write (pseudocode):
@@ -579,9 +579,8 @@ impl Queue {
     /// }
     /// ```
     pub fn current_index(&self) -> Option<usize> {
-        // What:     `self.pos.map(|p| self.order[p])`. `self.pos` is `Option<usize>`;
-        //           `.map` runs the closure only if `Some`. `self.order[p]` indexes the
-        //           scope order array. Tail -> return.
+        // What:     `let position = self.pos?;` returns `None` when no track is selected, and
+        //           `Some(self.order[position])` indexes the order with the cursor.
         // Why:      Translate the cursor's order-position into a track index.
         //
         // In TS you'd write (pseudocode):
@@ -610,9 +609,8 @@ impl Queue {
     /// }
     /// ```
     pub fn current_path(&self) -> Option<&PathBuf> {
-        // What:     `self.current_index().map(|i| &self.tracks[i])`. `self.current_index()`
-        //           gives `Option<usize>`; `.map(|i| &self.tracks[i])` borrows the element.
-        //           `&` here lends the path to the caller (no ownership transfer).
+        // What:     `match self.current_index() { Some(index) => Some(&self.tracks[index]), None => None }` borrows
+        //           the current track from the list, or answers `None` when no track is selected.
         // Why:      Avoid cloning the path on every access.
         //
         // In TS you'd write (pseudocode):
@@ -896,8 +894,8 @@ impl Queue {
         // } else this.rebuildScopeOrder(track);
         // ```
         if self.mode == PlaybackMode::InOrder || self.mode == PlaybackMode::Repeat {
-            // What:     `match self.order.iter().position(|&x| x == track) { ... }`. Find the
-            //           track's slot in the current sequential scope, if any.
+            // What:     `match self.order_position_of(track) { ... }` finds the track in the play order: `Some(p)`
+            //           moves the cursor there, and `None` (another page) rebuilds the scope around the track.
             // Why:      Stay in scope when possible; rebuild only on a jump to another page.
             //
             // In TS you'd write (pseudocode):

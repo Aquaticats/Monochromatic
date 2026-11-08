@@ -19,6 +19,7 @@ use crate::{
     layout_source_facts::collect_body_facts,
     run_test_support::write,
     rust_source::RustSource,
+    test_deadline::finished_within_deadline,
     test_fs::Fixture,
 };
 /// Import native paths.
@@ -40,12 +41,16 @@ pub(crate) fn package_with(files: &[(&str, &str)]) -> Fixture {
 
 /// Build the module tree of a fixture package from its discovered roots,
 ///  with glob targets linked as a lint run does.
+/// The build runs under the test deadline,
+///  so a tree build that stops advancing fails the test instead of hanging the run.
 pub(crate) fn tree_of(root: &Path) -> ModuleTree {
-    let roots: Vec<PathBuf> =
-        crate_root_files(&root.join("Cargo.toml")).expect("fixture roots are readable");
-    let mut tree: ModuleTree = build_module_tree(roots.as_slice());
-    link_glob_targets(&mut tree);
-    return tree;
+    let manifest: PathBuf = root.join("Cargo.toml");
+    return finished_within_deadline(move || {
+        let roots: Vec<PathBuf> = crate_root_files(&manifest).expect("fixture roots are readable");
+        let mut tree: ModuleTree = build_module_tree(roots.as_slice());
+        link_glob_targets(&mut tree);
+        return tree;
+    });
 }
 
 /// The index of the first module held by the file at a path relative to the fixture.

@@ -13,14 +13,20 @@
 /// Import the real extraction seam and the finding model.
 use crate::diagnostic::{Diagnostic, Severity, Span};
 use crate::processors::{ProcessorError, ProcessorLanguage, VirtualSource, extract};
+use crate::test_deadline::finished_within_deadline;
 
 /// Extract the virtual files of one workflow.
+/// The extraction runs under the test deadline,
+///  so a walk that stops advancing fails the test instead of hanging the run.
 fn steps(text: &str) -> Result<Vec<VirtualSource>, ProcessorError> {
-    return extract(
-        String::from(".github/workflows/ci.yml"),
-        String::from(text),
-        ProcessorLanguage::Yaml,
-    );
+    let owned: String = String::from(text);
+    return finished_within_deadline(move || {
+        return extract(
+            String::from(".github/workflows/ci.yml"),
+            owned,
+            ProcessorLanguage::Yaml,
+        );
+    });
 }
 
 /// The names of the extracted files.

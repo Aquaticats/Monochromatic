@@ -971,11 +971,9 @@ fn main() -> Result<()> {
         // ```
         let mut builder =
             Backend::builder().with_window_attributes_hook(launcher::set_window_app_id);
-        // What:     `let force_software = std::env::var("SLINT_BACKEND").map(|value| value.contains("software")).unwrap_or(false);`.
-        //           `var(...)` returns `Result<String, _>`; `.map(closure)` runs only
-        //           on `Ok`, testing whether the value contains "software";
-        //           `.unwrap_or(false)` extracts the `Ok(bool)` or SUBSTITUTES `false`
-        //           if the var was unset/non-UTF-8 (dropping the error).
+        // What:     `let force_software = match std::env::var("SLINT_BACKEND") { Ok(value) =>
+        //           value.contains("software"), Err(_) => false };` is true when the variable names the software
+        //           renderer. `var(...)` returns `Result<String, _>`, and an unset variable counts as false.
         // Why:      Honor the run task's software-renderer escape hatch.
         //
         // In TS you'd write (pseudocode):
@@ -1311,9 +1309,9 @@ fn main() -> Result<()> {
                     play: cli.start_playing,
                 });
             } else {
-                // What:     `path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| PathBuf::from("."))`.
-                //           The file's parent directory, or the current directory when the
-                //           path has no parent (a bare filename).
+                // What:     `let root = match path.parent() { Some(parent) => parent.to_path_buf(), None =>
+                //           PathBuf::from(".") };` is the folder that holds the path, or `.` for a path with no
+                //           parent.
                 // Why:      The parent folder is the Source Root for a single-file launch.
                 //
                 // In TS you'd write (pseudocode):
@@ -1349,8 +1347,8 @@ fn main() -> Result<()> {
             // const session = Session.load();
             // ```
             let session = Session::load();
-            // What:     `let root = session.source_root.clone().filter(|r| r.is_dir());`. The
-            //           saved Source Root, kept only if it still exists as a directory.
+            // What:     `let root = match session.source_root.clone() { Some(saved) if saved.is_dir() =>
+            //           Some(saved), _ => None };` keeps the saved Source Root only when it is still a folder.
             // Why:      A missing root falls back to the music directory (and is replaced on
             //           the next save), so a non-directory root is treated as absent.
             //

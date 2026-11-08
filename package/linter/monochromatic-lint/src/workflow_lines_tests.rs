@@ -114,3 +114,24 @@ fn comments_are_removed_outside_quotes() {
     assert_eq!(without_comment("# only"), "");
     assert_eq!(without_comment("a   "), "a");
 }
+
+/// A tab in the indentation is refused at the byte of the tab,
+///  after every space before it,
+///  whatever the length of the rest of the line.
+#[test]
+fn a_tab_is_refused_at_its_own_byte_after_deep_indentation() {
+    let text: &str = "a:\n    \tb: 1\n";
+    let error = read_lines(text).expect_err("tab");
+    assert_eq!(error.offset, text.find('\t').expect("the tab"));
+}
+
+/// A `#` starts a comment only after a space or at the start,
+///  and a quote hides it.
+#[test]
+fn a_hash_starts_a_comment_only_after_a_space() {
+    assert_eq!(without_comment("a #b"), "a");
+    assert_eq!(without_comment("a# b"), "a# b");
+    assert_eq!(without_comment("a#b"), "a#b");
+    assert_eq!(without_comment("#a"), "");
+    assert_eq!(without_comment("'a #b' c # d"), "'a #b' c");
+}

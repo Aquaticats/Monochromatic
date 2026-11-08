@@ -57,6 +57,12 @@ path = "src/embedded_differential_tests.rs"
 name = "closure_binary"
 path = "src/closure_binary_tests.rs"
 
+# Controls of the router of a build without the `semantic` feature; the file is empty with the feature,
+# so run it with `--no-default-features` (`mise run test:syntax-only`).
+[[test]]
+name = "syntax_only_engine"
+path = "src/syntax_only_engine_tests.rs"
+
 [features]
 # The Cargo-backed semantic engine (`rust/require-explicit-types`); the executable needs it.
 default = ["semantic"]

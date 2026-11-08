@@ -239,9 +239,25 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
       ],
     }
   ],
+  // The router of a build without the `semantic` feature. Its source file is compiled only when the feature is off,
+  // so a campaign built with the default features never compiles it: its first mutants all survived (workflow
+  // record: doc/handover/monochromatic-lint-layout-and-workflow-mutants.md). This scope builds without the default
+  // features and builds and runs only the one test target that reaches the file (the library's own tests do not compile
+  // without the feature), the same slice as `mise run test:syntax-only`.
+  [
+    '--syntax-only',
+    {
+      description: 'the router of a build without the semantic feature against its own test target, built without the default features',
+      select: fileArguments('src/rust_file_engine_syntax.rs'),
+      run: [
+        '--cargo-arg=--no-default-features',
+        '--cargo-arg=--test',
+        '--cargo-arg=syntax_only_engine',
+      ],
+    }
+  ],
   // The semantic engine: workspace discovery and loading, the compiler query, the per-invocation engine, the
-  // session and the explicit-type rule, with the manifest lookup and the router of a build without the `semantic`
-  // feature that sit beside them. Its tests are the Cargo-workspace suites, so this scope runs the whole
+  // session and the explicit-type rule, with the manifest lookup that sits beside them. Its tests are the Cargo-workspace suites, so this scope runs the whole
   // suite. Its first unmutated baseline tested in 251 seconds on a loaded host (mutation-VFaIKp), already over
   // the 180 second default, so its limit is 1,200 seconds: 4.8 times that baseline, just under cargo-mutants'
   // own automatic limit of five times the baseline. Record: doc/handover/unified-linter-mutation-close.md.
@@ -251,7 +267,6 @@ export const scopes: ReadonlyMap<string, MutationScope> = new Map<string, Mutati
       description: 'the semantic engine and the explicit-type rule against the whole suite',
       select: [
         'src/rust_file_engine.rs',
-        'src/rust_file_engine_syntax.rs',
         'src/rust_manifest.rs',
         'src/rust_toolchain.rs',
         'src/rust_workspace.rs',

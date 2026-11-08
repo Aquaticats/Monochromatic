@@ -296,7 +296,7 @@ pub(crate) fn project(app: &AppWindow) {
     let started = std::time::Instant::now();
     let (screen, request): (ScreenView, Option<ScrollRequest>) = {
         let mut state = write_screen();
-        // The template text is copied so the supporting-line closure does not keep `state` borrowed while the
+        // The template text is copied so the supporting line does not keep `state` borrowed while the
         // scroll decision below needs it mutably.
         let template = match state.track_rows_template.clone() {
             Some(text) => text,

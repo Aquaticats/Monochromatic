@@ -213,3 +213,8 @@ pub fn use_loops(
     }
     return findings;
 }
+
+/// Controls of the use records stay outside release artifacts.
+#[cfg(test)]
+#[path = "layout_folder_uses_tests.rs"]
+mod tests;

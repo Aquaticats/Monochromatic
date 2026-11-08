@@ -256,3 +256,97 @@ in the shape of the fade-in fix,
 so the tests need no sleeps and a guard test (`the_pass_step_covers_the_longest_animation_time_of_the_markup`) fails if a longer animation is written.
 The guard test failed with the pass step at zero,
 and passes with 150 ms.
+
+## Three wide-session checks failed together at host load 40 to 55, and the cause is not found
+
+Recorded 2026-11-07T19:20:00-05:00.
+One full run (123 checks,
+load average 40 to 55 on 28 hardware threads) failed `play/enter-plays-row`,
+`audio/private-sink` and `play/space-button`.
+The same binary passed 123 of 123 on the runs before and after it.
+
+### What the failure evidence shows
+
+- `play/enter-plays-row`:
+  the first Enter on the ring row was handled (a `key` state with `shortcut used`),
+  and no `now-playing` state followed within the 6 s `STATE_TIMEOUT_MS`,
+  so `current_index` stayed at `-1`.
+  In a passing run at a 25 percent CPU quota the same select to `now-playing` took 0.6 s.
+- `audio/private-sink`:
+  it never starts playback.
+  It polls the PipeWire graph for 9 s and needs a stream that an earlier check started,
+  so the first failure makes it fail with `0 output streams, 0 links`.
+- `play/space-button`:
+  the app was playing and the focus was on the Play button,
+  and Space did not pause within 6 s.
+  `press` accepts any state with a newer `seq` that satisfies the condition,
+  so after one missed or late effect the Space checks that ran before it are off by one toggle;
+  that is the reading the states support,
+  and it is not measured.
+
+### What was tried, and what it showed
+
+The e2e session units take `E2E_UNIT_CPU_QUOTA` (default `400%`).
+Runs of `E2E_ONLY=playback` (17 checks;
+the checks before and after them in the session are skipped):
+- 400 percent:
+  1 run,
+  17 of 17 pass,
+  17.3 s.
+- 40 percent:
+  1 run,
+  17 of 17 pass,
+  52.1 s.
+- 25 percent:
+  2 runs,
+  17 of 17 pass in both;
+  the session step after the checks failed in 1 of the 2 (below).
+- 15 percent:
+  12 runs,
+  17 of 17 pass in all;
+  the step after them failed in 5 of the 12.
+- 10 percent:
+  4 runs,
+  17 of 17 pass in all,
+  and the step after them passed in all 4.
+The three checks of the full run did not fail in any of these.
+A CPU quota alone did not reproduce them.
+The run time did not follow the quota either:
+the 10 percent runs took 20.5 s to 25.4 s and the 40 percent run 52.1 s,
+so the host's own load moved the result more than the cap did.
+
+The step that failed under the cap is not a recorded check:
+the click on the folder of thirty tracks (`WIDE_CLICK_POINTS.longFolder`) in `src/wide-interaction.ts`,
+`timed out waiting for the folder of thirty tracks shown in the track pane`.
+A screenshot taken after the 6 s wait showed the folder list laid out normally,
+with the click point over the name `Gotta Montage line`,
+the track pane still on `Zzz Tones`,
+and the app log held no line from the click.
+A `move` to the point plus 300 ms before the click did not change this in two runs.
+The failing runs took 33.0 s to 75.1 s and the passing capped runs 17.5 s to 52.1 s,
+at a host load average of 24 to 30 throughout,
+so neither the cap nor the duration decided it.
+So the click is lost or never reaches the touch area on some runs under load.
+This failure and the full-run failures are different symptoms (a pointer press lost,
+a key's effect missing);
+they are not shown to share a cause.
+
+### What is open
+
+- Whether the engine answered the first Enter late or never.
+  The failure file lists `ui_state` changes only,
+  and the scratch directory with the app log is removed at the end of a run.
+- Why a pointer press is lost on a slow run.
+  Neither the compositor (`package/nested-wayland-session/cli/src/input.rs` sends motion,
+  press and release in one batch)
+  nor the app log records the press.
+- Whether the baseline binary behaves the same;
+  a failure that no capped run reproduces on demand gives no comparison.
+
+### Next measurement
+
+Keep the app log and the unit's `cpu.stat` and `io.pressure` beside each failure file,
+then wait for a failing run under the host's own load.
+The failing check's own wait is not a fix:
+raising 6 s would hide the stall,
+which `SLW` in `CLAUDE.md` names as the defect to measure and remove.
