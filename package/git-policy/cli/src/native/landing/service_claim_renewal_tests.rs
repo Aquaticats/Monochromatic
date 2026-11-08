@@ -289,3 +289,57 @@ fn renewals_running_at_once_start_no_thread_each() {
     }
     assert!(growth < RENEWALS_RUNNING / 2, "{RENEWALS_RUNNING} renewals added {growth} threads: a renewal must be a task");
 }
+
+/// How long the control below keeps the blocking pool busy.
+const POOL_BUSY_FOR: Duration = Duration::from_secs(3);
+
+/// How long the control below lets dropping a renewal wait.
+const SHORT_STOP_CEILING: Duration = Duration::from_millis(300);
+
+/// Dropping a renewal whose task cannot end (every thread of the blocking pool is busy,
+/// so the renames wait for one) returns at the ceiling and not when the pool frees:
+/// the wait is bounded,
+/// and the claim is left to expire by its lease.
+#[test]
+fn dropping_a_renewal_whose_task_cannot_end_returns_at_the_ceiling() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("renewal-stop-bounded", &started);
+    let (held, renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let driver: DrivenRenewal = DrivenRenewal::default();
+    let renewal: ClaimRenewal = ClaimRenewal::driven_with_stop_ceiling(renewer, &driver, SHORT_STOP_CEILING);
+    // Every thread the blocking pool may have is kept busy, then the task is asked to renew: its job waits for a thread.
+    let workers: usize = match crate::lazy_runtime::built_flavor() {
+        Some(crate::lazy_runtime::BuiltFlavor::MultiThread { workers }) => workers,
+        _ => 1,
+    };
+    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
+        for _ in 0..workers * 2 + 2 {
+            drop(tokio::task::spawn_blocking(|| { std::thread::sleep(POOL_BUSY_FOR); }));
+        }
+    });
+    assert!(busy.is_some(), "the runtime has workers");
+    std::thread::sleep(Duration::from_millis(100));
+    let _asked = renewal.control.send(Control::Renew(clock(), None));
+    let began: std::time::Instant = std::time::Instant::now();
+    drop(renewal);
+    let waited: Duration = began.elapsed();
+    assert!(waited < POOL_BUSY_FOR / 2, "dropping waited {waited:?}, which is until the pool freed and not the ceiling");
+    assert!(waited >= SHORT_STOP_CEILING, "dropping did not wait for the task at all: {waited:?}");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// A renewal of a claim takes far less than its ceiling:
+/// the rename is a few system calls.
+#[test]
+fn a_renewal_takes_far_less_than_its_stop_ceiling() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("renewal-time", &started);
+    let began: std::time::Instant = std::time::Instant::now();
+    let renewed = renew_claim(work_dir.as_path(), claimed.name.as_str(), &started.advanced(Duration::from_secs(5)));
+    let took: Duration = began.elapsed();
+    assert!(renewed.is_some());
+    assert!(took * 1000 < RENEWAL_STOP_CEILING, "one renewal took {took:?}, a thousandth of the ceiling is the control's bar");
+    remove(root.as_path());
+}

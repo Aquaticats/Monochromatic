@@ -55,6 +55,18 @@ use std::time::Duration;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::time::Instant;
 
+/// How long dropping a renewal waits for its task to end:
+/// the wrapper's worst case with the owner's margin
+/// (`foundation/worst_delay_seen_on_this_host.rs`,
+/// "3x worst case": three times the longest delay of a check and a rename seen in any measurement,
+/// and a renewal is one rename of a claim file).
+/// A task still inside a rename after it is left behind;
+/// the claim then expires by its lease,
+/// and the rename it finishes later finds the claim moved on and changes nothing (a renewal renames only from the name it last
+/// wrote).
+/// Its own time is measured in `service_claim_renewal_tests.rs`.
+pub const RENEWAL_STOP_CEILING: Duration = crate::worst_delay_seen_on_this_host::WORST_CASE_WITH_MARGIN;
+
 /// How many times inside one lease a holder renews,
 /// so a renewal that is late by up to two intervals still beats the lease.
 pub const RENEWALS_PER_LEASE: u32 = 3;
@@ -487,6 +499,8 @@ pub struct ClaimRenewal {
     /// taken when it is waited for;
     /// nothing when no task could be started.
     ended: Option<Receiver<()>>,
+    /// How long dropping waits for the task to end.
+    stop_ceiling: Duration,
 }
 
 /// Does what a controller asked of the renewal task;
@@ -600,7 +614,7 @@ impl ClaimRenewal {
     pub fn start(renewer: Renewer, every: Duration) -> ClaimRenewal {
         let (control, requests) = unbounded_channel::<Control>();
         let ended: Option<Receiver<()>> = start_task(renewer, requests, Some(every));
-        return ClaimRenewal { control, ended };
+        return ClaimRenewal { control, ended, stop_ceiling: RENEWAL_STOP_CEILING };
     }
 
     /// Start the task of a driven renewal:
@@ -610,7 +624,16 @@ impl ClaimRenewal {
         let (control, requests) = unbounded_channel::<Control>();
         driver.attach(control.clone());
         let ended: Option<Receiver<()>> = start_task(renewer, requests, None);
-        return ClaimRenewal { control, ended };
+        return ClaimRenewal { control, ended, stop_ceiling: RENEWAL_STOP_CEILING };
+    }
+
+    /// `driven` with the wait of the drop set by the control,
+    /// so a control shows the wait is bounded in a moment.
+    #[cfg(test)]
+    pub(crate) fn driven_with_stop_ceiling(renewer: Renewer, driver: &DrivenRenewal, stop_ceiling: Duration) -> ClaimRenewal {
+        let mut renewal: ClaimRenewal = ClaimRenewal::driven(renewer, driver);
+        renewal.stop_ceiling = stop_ceiling;
+        return renewal;
     }
 }
 
