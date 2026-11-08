@@ -68,7 +68,10 @@ fn a_global_launcher_warns_with_the_global_upgrade_command() {
     let rig = Rig::new();
     let record = LaunchRecord { scope: ScopeKind::Global, ..record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4") };
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
-    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4"), &record.real)));
+    assert_eq!(
+        launch.warning,
+        Some(warning_naming_program(&older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4", &record.lock_file), &record.real))
+    );
     assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm update -g {TOOL}`")));
 }
 
@@ -84,7 +87,7 @@ fn a_current_link_that_forwards_to_the_other_roots_current_still_names_the_versi
     let launch = prepare_launch(&record, Some(&lock_text("0.4.4")));
     assert_eq!(
         launch.warning,
-        Some(warning_naming_program(&older_lock_message(TOOL, "0.4.4", "0.4.5"), &record.real)),
+        Some(warning_naming_program(&older_lock_message(TOOL, "0.4.4", "0.4.5", &record.lock_file), &record.real)),
         "the version behind the chain, not the word current"
     );
 }
@@ -94,7 +97,7 @@ fn the_launcher_warns_when_the_version_that_runs_is_newer_than_the_lock() {
     let rig = Rig::new();
     let record = record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4");
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
-    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(TOOL, "0.4.0", "0.4.4"), &record.real)));
+    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(TOOL, "0.4.0", "0.4.4", &record.lock_file), &record.real)));
     assert_eq!(launch.program, record.real);
 }
 

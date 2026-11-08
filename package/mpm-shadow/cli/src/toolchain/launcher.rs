@@ -48,6 +48,8 @@ use super::error::ToolchainError;
 use super::launcher_chain::chain_problem;
 /// Imports what this module uses from `super::launcher_current_link`.
 use super::launcher_current_link::{MissingProgram, locked_version, missing_program_advice, program_to_run, version_that_runs};
+/// Imports what this module uses from `super::launcher_source`.
+use super::launcher_source::{launcher_source, running_program};
 /// Imports what this module uses from `super::repository_link_cause`.
 use super::repository_link_cause::{CHECK_DEADLINE, LinkVerdict, repository_link_verdict};
 /// Imports what this module uses from `super::scope`.
@@ -171,67 +173,14 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
     return Ok(());
 }
 
-/// The running process's own executable as the Linux kernel exposes it,
-/// readable even after the file it was started from was deleted.
-pub const PROC_SELF_EXE: &str = "/proc/self/exe";
-
-/// What:
-/// The file to make a launcher from:
-/// the running executable's path,
-/// or (on Linux) `/proc/self/exe` when that path no longer names a file.
-/// Why:
-/// An `mpm-shadow` that installs a newer `mpm-shadow` deletes its own version directory (older repository tools are never
-/// kept) before it rebuilds the exposure directory,
-/// and the kernel then reports the running executable as `<path> (deleted)`;
-/// copying through `/proc/self/exe` still reads the open file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function runningBinary(): string
-/// ```
-fn running_binary() -> Result<PathBuf, ToolchainError> {
-    let path: PathBuf = match std::env::current_exe() {
-        Ok(found) => found,
-        Err(error) => return Err(ToolchainError::failure(format!("cannot find the running mpm-shadow to make a launcher: {error}"))),
-    };
-    return usable_source(path, cfg!(target_os = "linux"));
-}
-
-/// What:
-/// `path` when it names a file;
-/// otherwise the running process's own executable through `/proc` when `proc_available`;
-/// otherwise an error that says the running program's file is gone and what to do.
-/// Why:
-/// Only Linux has `/proc/self/exe`.
-/// On macOS a deleted running program reports its old path and no other way to read it exists,
-/// so naming `/proc/self/exe` there would end in a `cannot copy /proc/self/exe` message about a file that never existed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function usableSource(path: string, procAvailable: boolean): string  // throws
-/// ```
-pub fn usable_source(path: PathBuf, proc_available: bool) -> Result<PathBuf, ToolchainError> {
-    if path.exists() {
-        return Ok(path);
-    }
-    if proc_available {
-        return Ok(PathBuf::from(PROC_SELF_EXE));
-    }
-    return Err(ToolchainError::failure(format!(
-        "the running mpm-shadow, {}, no longer exists: installing a newer mpm-shadow removes the version directory this one was started from, \
-         and this operating system has no way to read a running program whose file was deleted, so the launchers could not be made. \
-         The newer mpm-shadow is installed; run the same command again with it \
-         (its `current` link in the toolchain root) and the launchers are made then",
-        path.display()
-    )));
-}
-
 /// What:
 /// Makes the launcher for binary `name` of a repository-published tool in this tree and returns its path.
 /// The record is written first,
 /// so a launcher never exists without one.
 /// Why:
-/// The tree's exposed links and postinstall links point here instead of at the real binary.
+/// The tree's exposed links and postinstall links point here instead of at the real binary,
+/// and the launcher is a copy of the newest installed `mpm-shadow`
+/// (`launcher_source`), never of whichever copy happened to run `install`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -250,7 +199,7 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
     let record: LaunchRecord =
         LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
     write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
-    let source: PathBuf = running_binary()?;
+    let source: PathBuf = launcher_source(scope, running_program()?, cfg!(target_os = "linux"))?;
     place_binary(&source, &launcher)?;
     return Ok(launcher);
 }
@@ -293,7 +242,7 @@ pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch 
         && let Some(locked) = locked_version(text, &record.tool_id)
         && is_newer_than_locked(&used, &locked)
     {
-        warning = Some(older_lock_message_for(record.scope, &record.tool_id, &locked, &used));
+        warning = Some(older_lock_message_for(record.scope, &record.tool_id, &locked, &used, &record.lock_file));
     }
     let program: PathBuf = program_to_run(&record.real);
     if let Some(message) = &warning {

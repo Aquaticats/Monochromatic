@@ -62,19 +62,34 @@ fn is_current_link(candidate: &&Path) -> bool {
     return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME)) && candidate.is_symlink();
 }
 
+/// What:
 /// The `current` link above a program's path:
 /// the nearest ancestor that is a link named `current`.
-fn current_link_above(real: &Path) -> Option<&Path> {
+/// Why:
+/// Both the program a launcher starts and the launcher's own source are found this way:
+/// the link is the boundary of one installed version, whichever route installed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function currentLinkAbove(real: string): string | undefined
+/// ```
+pub fn current_link_above(real: &Path) -> Option<&Path> {
     return real.ancestors().skip(1).find(is_current_link);
 }
 
-/// The version the tool's `current` link names,
-/// found from the real program's path:
-/// `<crate directory>/current/bin/<name>` for a crate,
-/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
-/// so the link is the nearest ancestor of the program that is named `current`.
-pub fn version_that_runs(real: &Path) -> Option<String> {
-    let link: &Path = current_link_above(real)?;
+/// What:
+/// The version `link` names: the final directory of its target,
+/// resolved through the link chain when it can be,
+/// so a `current` that forwards to the other root's `current` names the version behind the chain.
+/// Why:
+/// A link's own text is either a version name or another link;
+/// only the resolved target separates the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function versionNamedBy(link: string): string | undefined
+/// ```
+pub fn version_named_by(link: &Path) -> Option<String> {
     // The final directory's name, so a `current` that forwards to the other toolchain root's `current` still names the
     // version that runs; a link that does not resolve falls back to its own target.
     let target: PathBuf = match fs::canonicalize(link) {
@@ -86,6 +101,15 @@ pub fn version_that_runs(real: &Path) -> Option<String> {
         return None;
     }
     return Some(name);
+}
+
+/// The version the tool's `current` link names,
+/// found from the real program's path:
+/// `<crate directory>/current/bin/<name>` for a crate,
+/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
+/// so the link is the nearest ancestor of the program that is named `current`.
+pub fn version_that_runs(real: &Path) -> Option<String> {
+    return version_named_by(current_link_above(real)?);
 }
 
 /// What:
