@@ -1085,7 +1085,7 @@ jobs:
     # toolchain this step just installed as already at the locked version, reports it unchanged, and so never
     # reaches the `rustTargets` row of the lock (dry run 42521054342 failed with E0463, "can't find crate for
     # `core`", for the same reason). The triples are read from that row rather than repeated, and the step ends
-    # by proving they are installed, so the build can no longer be the first thing to report a missing one.
+    # by naming any declared triple that did not install, instead of leaving the build to report it.
     # The lock's `rustComponents` are deliberately not installed: nothing in this job compiles with them.
     - name: Install the Rust toolchain pinned in toolchain.lock.json
       shell: bash
@@ -1096,11 +1096,12 @@ jobs:
           nightly-????-??-?? | [0-9]*.[0-9]*.[0-9]*) ;;
           *) echo "::error::Unexpected Rust version in toolchain.lock.json: '$toolchain'"; exit 1 ;;
         esac
-        mapfile -t targets < <(jq --raw-output '.tools.rust.options.rustTargets // [] | .[]' toolchain.lock.json)
-        if [ "${#targets[@]}" -eq 0 ]; then
-          echo "::error::toolchain.lock.json names no rustTargets for the rust tool; the native build needs both 64-bit Android triples."
+        # `--exit-status` also fails on an empty list, so a missing or unreadable row stops the step here.
+        if ! lock_targets=$(jq --raw-output --exit-status '.tools.rust.options.rustTargets // [] | .[]' toolchain.lock.json); then
+          echo "::error::toolchain.lock.json names no readable rustTargets row for the rust tool; the native build needs both 64-bit Android triples."
           exit 1
         fi
+        mapfile -t targets <<< "$lock_targets"
         rustup toolchain install "$toolchain" --profile minimal --no-self-update
         rustup target add --toolchain "$toolchain" "${targets[@]}"
         echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
