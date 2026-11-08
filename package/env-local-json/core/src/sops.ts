@@ -21,6 +21,9 @@ import {
   SOPS_TIMEOUT_MS,
 } from './constants.ts';
 import {
+  collectChildStdout,
+} from './sops-stdout-capture.ts';
+import {
   EnvLocalJsonDecryptError,
   EnvLocalJsonWriteError,
   type EnvLocalJsonDecryptFailureKind,
@@ -80,26 +83,6 @@ type SopsFailure = {
    Numeric exit code when sops exited normally.
    */
   readonly exitCode?: number;
-};
-
-/**
- Captured stdout state for one sops invocation.
- */
-type CapturedOutput = {
-  /**
-   Text chunks received so far.
-   */
-  readonly chunks: string[];
-
-  /**
-   Number of characters received so far.
-   */
-  size: number;
-
-  /**
-   Whether the output bound was exceeded and the child killed.
-   */
-  overflow: boolean;
 };
 
 //endregion Types
@@ -310,17 +293,9 @@ export async function runSopsDecrypt({
    Timeout signal owned by this sops invocation.
    */
   const timeoutSignal = AbortSignal.timeout(SOPS_TIMEOUT_MS,);
-  /**
-   Stdout capture accumulated while sops runs.
-   */
-  const captured: CapturedOutput = {
-    chunks: [],
-    overflow: false,
-    size: 0,
-  };
   try {
     /**
-     Decryption child process with captured stdout.
+     Decryption child process.
      */
     const child = execFile(
       sopsPath,
@@ -338,33 +313,22 @@ export async function runSopsDecrypt({
         ...(signal === undefined ? {} : { signal, }),
       },
     );
-    child.stdout
-      ?.setEncoding('utf8',);
-    child.stdout
-      ?.on(
-      'data',
-      function captureChunk(chunk: string,): void {
-        captured.chunks
-          .push(chunk,);
-        captured.size += chunk.length;
-        if (captured.size > MAX_SOPS_OUTPUT_BYTES) {
-          captured.overflow = true;
-          child.kill();
-        }
+    /**
+     Whole stdout of the child, its overflow flag, and its completion payload.
+     */
+    const capture = await collectChildStdout({
+      completionSource: child,
+      stdoutSource: child,
+      onOverflow: function killOverflowingChild() {
+        child.kill();
       },
-      );
+      maxBytes: MAX_SOPS_OUTPUT_BYTES,
+    },);
     /**
-     Raw exit event of the sops child process.
+     Reported exit code from the completion tuple.
      */
-    const exitEvent: unknown = await once(
-      child,
-      'exit',
-    );
-    /**
-     Reported exit code from the event tuple.
-     */
-    const code = readExitCode({ exitEvent, });
-    if (captured.overflow) {
+    const code = readExitCode({ exitEvent: capture.endEvent, });
+    if (capture.overflow) {
       throw new EnvLocalJsonDecryptError({
         path: storePath,
         kind: 'output-limit',
@@ -386,8 +350,7 @@ export async function runSopsDecrypt({
         exitCode: code,
       },);
     }
-    return captured.chunks
-      .join('',);
+    return capture.output;
   }
   catch (error) {
     if (error instanceof EnvLocalJsonDecryptError)
@@ -493,7 +456,7 @@ export async function runSopsSet({
      */
     const exitEvent: unknown = await once(
       child,
-      'exit',
+      'close',
     );
     /**
      Reported exit code from the event tuple.
@@ -618,7 +581,7 @@ export async function runSopsEdit({
    */
   const exitEvent: unknown = await once(
     child,
-    'exit',
+    'close',
   );
   /**
    Reported exit code from the event tuple.
