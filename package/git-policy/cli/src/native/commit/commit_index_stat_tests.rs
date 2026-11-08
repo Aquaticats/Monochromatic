@@ -273,16 +273,22 @@ struct Stale {
 }
 
 /// The ceiling of the scratch commit in these controls:
-/// half of what reading every stale file costs,
-/// so a commit that pays the refresh in its own step is stopped and one that does not is not.
+/// three quarters of what reading every stale file costs,
+/// so a commit that pays the refresh in its own step is stopped and one that does not is not,
+/// with the rest of the room left for a loaded host.
 ///
 /// The commit names one path,
 /// and the preparation stages that path from the worktree before the commit runs,
 /// so the files the commit would read are all but the named one.
 fn stale_ceiling() -> std::time::Duration {
     let stale_files: u64 = u64::try_from(STALE_FILES - 1).expect("a file count fits");
-    return std::time::Duration::from_millis(stale_files * CLEAN_FILTER_MILLISECONDS / 2);
+    return std::time::Duration::from_millis(stale_files * CLEAN_FILTER_MILLISECONDS * STALE_CEILING_PART / STALE_CEILING_WHOLE);
 }
+
+/// The part of the stale read the ceiling allows,
+/// and its whole.
+const STALE_CEILING_PART: u64 = 3;
+const STALE_CEILING_WHOLE: u64 = 4;
 
 /// A repository of `STALE_FILES` files behind a clean filter,
 /// every file with a new inode,
