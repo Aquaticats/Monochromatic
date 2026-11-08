@@ -22,7 +22,7 @@ use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
 use super::prune_cargo::{PresentVersion, prune_toolchain};
-use super::layout::tool_directory;
+use super::layout::{find_tool_bin, tool_directory};
 use super::published_archive::{
     current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, running_version_archive,
 };
@@ -201,6 +201,42 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
     assert_eq!(fs::read_link(rig.scope.exposure_dir.join(BIN)).expect("a link"), launcher);
     let through_current = fs::canonicalize(current_link_of(&root, ID).expect("a plain name").join("release-folder").join(BIN)).expect("current resolves");
     assert!(through_current.to_string_lossy().ends_with("0.2.1/release-folder/mpm-shadow-release"), "{}", through_current.display());
+}
+
+/// What:
+/// The program a launcher record names is the version-carrying folder below `current`,
+/// so a newer install, which deletes the older folder, leaves another tree's record naming a path that no longer exists.
+/// Why:
+/// The census of this machine on 2026-11-08 found 284 such records and 891 launcher binaries that predate the code which
+/// follows `current` and rewrites the record.
+/// The rule that launchers are copies of the newest installed `mpm-shadow` changes which binary a launcher is,
+/// not where a record points,
+/// so it does not stop those records appearing;
+/// it stops such a record breaking the run, because the newest launcher follows `current` and rewrites it.
+#[test]
+fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool = release_tool(&rig, "0.2.0");
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let link = current_link_of(&root, ID).expect("a plain name");
+    let folder = |version: &str| return format!("monochromatic-mpm-shadow-{version}-x86_64-unknown-linux-gnu");
+
+    // The install of 0.2.0, in the folder a release archive of this repository unpacks into.
+    write_executable(&tool_dir.join("0.2.0").join(folder("0.2.0")).join(BIN));
+    write_complete_marker(&tool_dir.join("0.2.0"), ID, "0.2.0").expect("write the marker");
+    std::os::unix::fs::symlink("0.2.0", &link).expect("link current");
+    let named = find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[]).expect("a program");
+    assert_eq!(named, link.join(folder("0.2.0")).join(BIN), "the record names the version's own folder");
+
+    // Installing 0.2.1 moves `current` and deletes the folder of 0.2.0; no other tree's record is rewritten.
+    write_executable(&tool_dir.join("0.2.1").join(folder("0.2.1")).join(BIN));
+    write_complete_marker(&tool_dir.join("0.2.1"), ID, "0.2.1").expect("write the marker");
+    fs::remove_file(&link).expect("replace current");
+    std::os::unix::fs::symlink("0.2.1", &link).expect("link current");
+    fs::remove_dir_all(tool_dir.join("0.2.0")).expect("remove the older version");
+    assert!(!named.exists(), "the folder the record named is gone, which is the dangling record the census counts: {}", named.display());
+    assert!(find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[]).is_some_and(|found| return found.is_file()), "a launcher follows current to the program that is there");
 }
 
 #[test]
