@@ -263,6 +263,8 @@ struct ConversionReport<'a> {
     refused: usize,
     /// How many worktrees were converted or completed.
     converted: usize,
+    /// How many worktrees a dry run would convert or complete.
+    would_convert: usize,
     /// How many conversions failed.
     failed: usize,
 }
@@ -280,7 +282,10 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
                 self.converted += 1;
                 (self.say)(if self.dry_run { "  an unfinished conversion would be completed" } else { "  the unfinished conversion was completed" });
             }
-            Event::End(_index, Ok(Verdict::WouldConvert)) => (self.say)("  would convert"),
+            Event::End(_index, Ok(Verdict::WouldConvert)) => {
+                self.would_convert += 1;
+                (self.say)("  would convert");
+            }
             Event::End(_index, Ok(Verdict::AlreadySubvolume)) => (self.say)("  already a subvolume, skipped"),
             Event::End(_index, Ok(Verdict::Abandoned)) => (self.say)("  the unfinished conversion was undone"),
             Event::End(_index, Ok(Verdict::Skipped(reasons))) => {
@@ -319,7 +324,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
     //  filesystem. Lines and results come back to this thread, which says them in input order.
-    let mut report: ConversionReport<'_> = ConversionReport { say, list: list.as_slice(), dry_run: arguments.dry_run, refused: 0, converted: 0, failed: 0 };
+    let mut report: ConversionReport<'_> = ConversionReport { say, list: list.as_slice(), dry_run: arguments.dry_run, refused: 0, converted: 0, would_convert: 0, failed: 0 };
     run_ordered(OrderedRun {
         items: list.as_slice(),
         lanes: lanes.as_slice(),
@@ -327,9 +332,17 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
         work: &ConvertEachWorktree { platform, options, interrupt },
         on_event: &mut report,
     });
-    let (refused, converted, failed): (usize, usize, usize) = (report.refused, report.converted, report.failed);
+    let (refused, converted, would_convert, failed): (usize, usize, usize, usize) =
+        (report.refused, report.converted, report.would_convert, report.failed);
     let failures: String = if failed > 0 { format!(", {failed} failed") } else { String::new() };
-    (report.say)(format!("{} worktree(s) looked at, {converted} converted or completed, {refused} skipped{failures}.", list.len()).as_str());
+    // A dry run converts nothing, so its summary counts what it listed as a conversion it would make; the other counters
+    // would say "0 converted" beside lines that say "would convert".
+    let counted: String = if arguments.dry_run {
+        format!("{} would convert or complete", would_convert + converted)
+    } else {
+        format!("{converted} converted or completed")
+    };
+    (report.say)(format!("{} worktree(s) looked at, {counted}, {refused} skipped{failures}.", list.len()).as_str());
     if failed > 0 {
         return FAILED_EXIT_CODE;
     }

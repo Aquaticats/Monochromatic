@@ -909,6 +909,9 @@ and a manager that cannot be reached is logged and never fails the removal.
 Two forms are not seen afterwards because the process becomes Git
 (`git worktree remove --force` and `git worktree prune`),
 and a worktree deleted without Git leaves its units too.
+Those leftovers end at the first connection,
+when the service starts and finds the worktree gone,
+or when the command named next runs.
 `git monochromatic-git-policy-cli service stop-units-of-removed-worktrees` stops those:
 it takes no options and looks at every unit instance of the user,
 not at one repository.
@@ -931,6 +934,15 @@ running the command again tries it again.
 It starts nothing,
 nothing runs it by itself,
 and no unit it concerns is enabled for login.
+A service that starts and finds its own worktree gone stops its own socket and serves nothing,
+so those leftovers also go at the first connection without anyone running the command:
+the service asks the same question of the same note and journal records,
+stops its socket with the stop mode that leaves the units requiring it alone,
+removes the note and the socket file,
+and ends with status 0.
+Its own end is what stops its service unit,
+so it never asks the manager to stop the service it is,
+and a failure status would make `Restart=on-failure` start it again.
 `git monochromatic-git-policy-cli doctor` says on standard error
 how many removed worktrees still have units and names this command.
 
@@ -3285,6 +3297,9 @@ mise run //package/git-policy/cli:native:test:container
   both against the host's Git while iterating.
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
+  Before it copies or builds anything it runs `lint:sidecar-locks`,
+  so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
+  instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
   The test run uses `cargo nextest run --no-fail-fast`,
   so every test runs even after a failure and one flaky test
@@ -3403,6 +3418,7 @@ and the crate refuses to compile under `panic = "abort"`.
 # Run from the repository top level.
 mise run //package/git-policy/cli:lint
 mise run //package/git-policy/cli:lint:monochromatic-lint
+mise run //package/git-policy/cli:lint:sidecar-locks
 mise run //:format:monochromatic-lint -- package/git-policy/cli
 ```
 
@@ -3436,6 +3452,19 @@ mise run //:format:monochromatic-lint -- package/git-policy/cli
   so the root run lints this package twice,
   once through the package task and once in the repository-wide pass,
   as `package/ide/app` does.
+- `lint:sidecar-locks` fails when a sidecar crate beside this package
+  (`package/git-policy/cli.fuzz`)
+  locks one of this package's dependencies at another version,
+  or when Cargo refuses the sidecar's `Cargo.lock`
+  (`bin/native-sidecar-lock-check.ts`).
+  A sidecar links this package by path,
+  so a dependency this package gains,
+  drops or moves makes the sidecar's lock stale;
+  the sidecar's own build only meets that later,
+  and nothing else in this package's checks read its lock.
+  `mise run //package/git-policy/cli.fuzz:lock:members`
+  records the versions again,
+  and the container gate runs the same check before it builds anything.
 
 ### Merging main into a branch that edited doc comments
 

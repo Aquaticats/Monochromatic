@@ -500,6 +500,9 @@ Every sink now verifies concurrently,
  each under `withTimeout`;
  a verify that runs past the limit counts as unavailable with one breadcrumb,
  and an answer that arrives later is never observed.
+The record-loss half of that rule was reversed on 2026-11-08,
+ see "A verify deadline bounds the wait,
+ never the sink's records" below.
 The limit is one `createLogger` option,
  `verifyTimeoutMs`,
  with the exported default `DEFAULT_VERIFY_TIMEOUT_MS` (5000),
@@ -740,3 +743,73 @@ The `retention` argument,
  to the pre-0.4.5 flat `*.log.jsonl` backlog in every worktree of this repository
  while the deliberate run directories stay;
  it lands with `0.4.5`.
+
+## A verify deadline bounds the wait, never the sink's records (2026-11-08)
+
+The rule above retired a sink when its probe ran past `verifyTimeoutMs`,
+ and discarded the answer that arrived afterwards.
+Under a loaded host that turned a scheduling delay into permanent loss:
+the deadline is an event-loop timer,
+ so a probe whose filesystem work had already finished could still lose the race,
+ and every record that sink would have carried was dropped for the rest of the process.
+A logger built with that one sink then threw `No logging backends available`
+ on its next call,
+ because a slow backend and a wedged one looked identical.
+
+Reproduced on 2026-11-08 without synthetic load:
+ a process over the shipped default sinks blocked its own loop past the limit with
+ `Atomics.wait` (a sleep,
+ not a spin),
+ and the file sink's probe,
+ whose retention stamp proved the filesystem work had completed,
+ was retired anyway:
+
+```text
+logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify
+```
+
+The process wrote no log file.
+The host's load average was about 85 at the time,
+ which `AGENTS.md` rules `NHR` and `SLW` treat as normal,
+ and as our defect to absorb.
+
+What the limit means now:
+
+- It bounds how long startup waits,
+   nothing else.
+   `initialize()` and `flush()` still stop waiting for a probe at the limit,
+   so a wedged backend cannot hang startup or a shutdown.
+- The probe keeps running,
+   and its answer still decides the sink whenever it arrives.
+   A positive answer attaches the sink and replays the records held for it.
+- Records are held while any sink has no verdict,
+   not only until `initialized` flips.
+   A negative answer,
+   or one that never arrives,
+   therefore keeps up to `STARTUP_BUFFER_CAP` records resident for that sink.
+- A verifier that rejects,
+   throws,
+   or reports its backend unavailable still retires its sink.
+   A plain "backend unavailable" answer stays unreported,
+   because that is an election,
+   not a failure:
+   flagless Node reports it for `localStorage` on every process.
+
+Reports follow `AGENTS.md` rule `DGT`:
+they name the sink through the new optional `Sink.name`
+(falling back to the startup index for third-party sinks),
+say whether records were kept or dropped,
+and name `verifyTimeoutMs` as the setting that changes the wait.
+`Sink` gains that field additively;
+no consumer call site changed.
+
+Evidence:
+ `src/create-logger.unit.test.ts` pins a late positive answer receiving the held records,
+ a blocked loop writing the file sink's record,
+ a late negative answer dropping its records without a failure report,
+ a log call not throwing while a verdict is outstanding,
+ and the report naming the sink,
+ the limit,
+ and the kept records.
+`package/logger/core.fuzz` folds the new rules in its reference model
+(`undecided` sinks keep held records) and its campaign agrees with the real logger.

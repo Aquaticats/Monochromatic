@@ -18,6 +18,25 @@ the owner said "Forget about --print on a real coding task."
 In every prompt cite rule `ATH`,
 because the model writes scratch to `/tmp` unprompted,
 and quote the synthetic-load ban (rule `NLD`).
+Also tell every agent,
+in every prompt,
+to run Git only as plain `git` and never to use real Git:
+no `/usr/bin/git`,
+no other absolute path to a Git binary,
+and no other route around the wrapper that plain `git` reaches.
+Real Git skips every guard against discarding work and every commit policy,
+and agents here have committed and run `checkout --` through it.
+The owner:
+"Agents using real git is pretty bad.
+As a duct tape patch,
+put in the skill to always tell the agents to not use real git."
+Also tell every agent never to print the environment (`env`,
+`printenv`,
+`set`),
+even through a filter,
+and to name the one variable it wants:
+an agent's `env | rg` put a real GitHub token in its session,
+and all command output goes to the model provider.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,

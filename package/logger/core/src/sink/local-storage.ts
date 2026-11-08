@@ -180,6 +180,7 @@ export function createLocalStorageSink(): Sink {
 
   return {
     flush,
+    name: 'localStorage',
     verify: verifyLocalStorage,
     write,
   };

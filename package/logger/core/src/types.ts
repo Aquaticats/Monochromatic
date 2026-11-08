@@ -57,6 +57,14 @@ export type Verify = () => Promise<boolean>;
  */
 export type Sink = {
   readonly flush?: SinkFlush;
+  /**
+   Human-readable backend name quoted in logger diagnostics, such as `file` or
+   `sessionStorage`. Diagnostics fall back to the sink's startup-order index
+   when it is absent, so a third-party sink needs no change to keep working;
+   supply one when a failure report has to name the backend without the reader
+   looking up the sink order.
+   */
+  readonly name?: string;
   readonly verify: Verify;
   readonly write: (record: LogRecord,) => Promise<void>;
 };

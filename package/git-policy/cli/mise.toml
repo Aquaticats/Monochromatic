@@ -99,6 +99,13 @@ description = "Lint this package's Rust, rustdoc and Markdown with the repositor
 # so the threshold is stated here. Same shape as package/ide/app and package/wg/cli-quicker-exempt.
 run = "mise run //:lint:monochromatic-lint -- --max-warnings 0 package/git-policy/cli"
 
+[tasks."lint:sidecar-locks"]
+description = "Fail when a sidecar crate beside this package (package/git-policy/cli.fuzz) locks a package this package locks at another version, or when cargo refuses the sidecar's Cargo.lock; `mise run //package/git-policy/cli.fuzz:lock:members` records the versions again"
+# The shared `lint` template runs every direct `lint:*` child of this package, so a change to this package now fails on a
+# sidecar lock that fell behind it. The sidecar's own `lint` still compiles the fuzz targets against this package; that
+# build resolves this package's manifests, never the versions its lock records.
+run = "node bin/native-sidecar-locks.ts"
+
 [tasks."lint:types"]
 extends = "lint:types"
 

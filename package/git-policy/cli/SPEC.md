@@ -2954,6 +2954,20 @@ on the commit path:
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
   Hooks are never ended by the wrapper.
+- A landing that ends before its intent is in the journal,
+  and a restart that drops an open batch whose branch has not moved,
+  keep the same two things:
+  the commit the batch built is kept on `refs/cli-git/kept/<batch>`,
+  and the scratch reference of the batch (`refs/worktree/cli-git-service/<batch>`),
+  which held the batch's objects and nothing else,
+  is removed once that commit is kept,
+  so a batch that will not land leaves no reference behind.
+  A keep Git refused,
+  a kept reference that names another commit,
+  and a reference Git cannot read all leave the scratch reference where it is
+  (the landing sweeps its own batch when it fails,
+  the restart when it drops one;
+  `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -5448,6 +5462,20 @@ Owner,
 "Remove all three (Recommended)" for the CPU,
 task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
+A service that starts and finds the worktree it serves gone stops its own socket and serves nothing:
+the administrative directory is missing while the repository that held it is there
+(a repository on a drive that is not mounted proves nothing),
+and the note provisioning wrote beside the socket,
+or the `gitdir=` records of the service's own journal,
+names that directory and hashes to the instance.
+It stops its socket unit with the job mode that leaves the units requiring it alone,
+because its own end is what stops its service unit,
+and a stop of that unit from inside the service would signal it before it could remove the note and the socket file.
+It ends with status 0,
+not a refusal,
+because `Restart=on-failure` would start a refused unit again,
+and a socket that could not be stopped is left to `service stop-units-of-removed-worktrees` and to `doctor`'s count.
+Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
 Each commit passes through three phases:

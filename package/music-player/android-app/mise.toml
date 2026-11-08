@@ -10,7 +10,10 @@
 # cargo-ndk both read, so no machine-local local.properties is required. The SDK
 # *components* (platforms, build-tools, ndk, platform-tools) and the Android Rust
 # target are installed by the run-once root `prepare:android` task (auto-run by the
-# `prepare` umbrella).
+# `prepare` umbrella). That task installs the Rust target only when it installs the
+# toolchain; a toolchain already at the locked version keeps missing it, which the
+# release workflow's Rust step installs itself
+# (doc/troubleshooting/ci-steps-do-not-see-the-toolchain-environment.md).
 #
 # One engine, one variant: the media3 and hybrid flavors are gone (the full-Rust
 # engine won the head-to-head), so the tasks below drive the single debug/release

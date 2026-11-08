@@ -111,6 +111,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "owner_claim_record"
+path = "fuzz_targets/owner_claim_record.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "dependent_version"
 path = "fuzz_targets/dependent_version.rs"
 test = false
