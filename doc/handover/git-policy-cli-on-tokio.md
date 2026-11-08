@@ -143,8 +143,15 @@
   and one of them passed on a later single run (it was rerun once before this rule was applied,
   so there is no second sample to trust);
   the container gate of the same tree passed all of them.
-  The cause (a process of the host whose command line could not be proven,
-  as `command_line_of` reports `Unproven`) is not measured.
+  The cause is not measured:
+four later runs with a print at each of the scan's failure paths (the pool refusing a thread,
+the ceiling,
+the runtime not starting,
+a command line that could not be proven) passed with no print,
+and the scan runs only when a kept name exists under its earlier spelling
+(`foundation/earlier_names_folded_into_current.rs`,
+  `fold_kept_names`),
+so an ordinary command builds no runtime for it.
 - Not started:
   T11 (callers),
   T12 (parallel runner),

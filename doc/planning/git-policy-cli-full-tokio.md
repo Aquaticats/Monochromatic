@@ -3420,7 +3420,7 @@ not yet merged (see "Gate of T10").
   `drain` still waits for a barrier (the exit path's wait for durability).
 - The marker made ahead is a blocking job awaited by a task (`service_index_prestage.rs`);
   the look at the processes is a blocking job awaited under its ceiling (`landing/scan_awaited_under_a_ceiling.rs`).
-- Three closure-lint suppressions were added for the two tokio methods that accept only a callable
+- Two closure-lint suppressions were added for the two tokio methods that accept only a callable
   (`package/git-policy/cli/doc/closure-lint-suppressions.md`).
 
 #### What did not change, and why
@@ -3455,7 +3455,9 @@ after T10 27 threads (the main thread,
 the work-loop thread and 25 runtime workers) whatever the number of connections (27 with 32 connections).
 The workers are the runtime plan's (`foundation/runtime_plan.rs`),
 built when the acceptor starts (before,
-the first Git step of the first landing built it):
+the first call of `spawn_on_runtime` or `run_on_runtime` built it:
+the startup warm of a remembered repository,
+or the first Git step of the first landing):
 workers up to the budget,
 fewer under an address-space limit,
 `RLIMIT_NPROC` or `pids.max`,
@@ -3534,9 +3536,14 @@ Forwarded commands (`rev-parse`,
 `log`,
 `diff --stat`) added 1.2 to 1.7 ms before and after,
 inside their spread.
-The commit's median is about one millisecond higher after (18.8 against 17.7 on average);
-it is above the spread of the before runs by 0.3 ms,
-and the bar (every paired delta far under five seconds) holds.
+After minus before is 1.05 ms on the mean of the added medians (18.8 against 17.7),
+against a same-binary spread of 1.2 ms in the before runs,
+so the difference is within the spread and not a measured regression.
+A candidate cause,
+not measured:
+the instance check's path resolution now hops to the blocking pool before the request is queued,
+and the first connection pays the start of a pool thread.
+The bar (every paired delta far under five seconds) holds.
 
 ### Where the remaining steps stand after T5
 
