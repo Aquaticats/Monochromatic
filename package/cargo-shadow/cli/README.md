@@ -1254,6 +1254,23 @@ recorded in the log line of every removal:
   program,
   open file or mapped file lies under the entry;
   processes in another mount namespace are judged by the device and inode of what they hold.
+  A process whose entries cannot be read is classified from its `/proc/<pid>/status`,
+  which every process shows:
+  a kernel thread (`Kthread: 1`) and an ended process (`State: Z`) hold no file and are counted as such,
+  and what is left is counted as uninspectable,
+  split into the processes of another user that `other_uids_can_reach` shows the path lets in
+  (one directory between `/` and the entry that grants its group and every other user nothing stops every other user)
+  and those of this user or of root,
+  whose descriptors the kernel hides from a plain user.
+  Neither kind stops a removal:
+  the kernel shows a plain user no descriptors of either,
+  and refusing every removal while another user's system daemon exists would stop the sweep wherever the build base is
+  world-searchable (the host base here is on a `0777` mount with a `uid 70` daemon running,
+  measured 2026-11-08).
+  The limit is therefore narrowed and named, not closed:
+  the proof line says how many processes it could not judge and which kind,
+  and closing the rest needs `CAP_SYS_PTRACE` or root,
+  which this tool never takes.
 - The entry's device and inode are read when it is judged,
   before it is moved into a trash directory on the same file system by an atomic rename that never replaces,
   and again just before it is deleted.
