@@ -97,6 +97,10 @@ export type Session = Control & UiStateLog & {
    */
   readonly findAppPid: () => Promise<string>;
   readonly label: string;
+  /**
+   File the unit wrote the compositor's and the app's output to.
+   */
+  readonly logPath: string;
   readonly scheme: 'dark' | 'light';
   /**
    Directory of the screenshots.
@@ -455,6 +459,7 @@ export async function startSession(
     ...control,
     ...log,
     label,
+    logPath,
     scheme: options.scheme,
     shots,
     unit,
