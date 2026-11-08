@@ -268,6 +268,28 @@ fn temporary_name() -> String {
 }
 
 /// What:
+///  Whether one field of a temporary file's name is one or more ASCII digits and nothing else.
+/// Why:
+///  The process number and the clock reading are written as decimal text,
+/// and a name with anything else there is no temporary file of this module.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isDecimalField(field: string): boolean;
+/// ```
+fn is_decimal_field(field: &str) -> bool {
+    if field.is_empty() {
+        return false;
+    }
+    for byte in field.bytes() {
+        if !byte.is_ascii_digit() {
+            return false;
+        }
+    }
+    return true;
+}
+
+/// What:
 ///  The process number in the name of a temporary journal file,
 ///  nothing for every other name.
 /// Why:
@@ -283,10 +305,7 @@ fn maker_of(name: &str) -> Option<u32> {
     let rest: &str = name.strip_prefix(TEMPORARY_PREFIX)?;
     let (pid, nanos): (&str, &str) = rest.split_once('.')?;
     // Both fields are decimal digits and nothing else, as `temporary_name` writes them.
-    let digits: bool = [pid, nanos]
-        .iter()
-        .all(|field: &&str| { return !field.is_empty() && field.bytes().all(|byte: u8| { return byte.is_ascii_digit(); }); });
-    if !digits {
+    if !is_decimal_field(pid) || !is_decimal_field(nanos) {
         return None;
     }
     return pid.parse().ok();
@@ -298,7 +317,8 @@ fn maker_of(name: &str) -> Option<u32> {
 /// Why:
 ///  Each write makes `cli-git-convert.tmp.<pid>.<nanos>` and removes it only when its own rename or link fails,
 ///  so a conversion killed in between leaves one that nothing else cleans.
-///  A file stays unless its maker is gone: the name carries only a process number,
+///  A file stays unless its maker is gone:
+/// the name carries only a process number,
 /// so a number that still runs,
 ///  a record this host refuses to read,
 /// or a number a later process got keeps the file,

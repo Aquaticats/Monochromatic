@@ -423,7 +423,8 @@ fn a_directory_with_another_birth_time_is_not_removed() {
 }
 
 /// The first process number no process can have:
-/// the largest Linux hands out is bounded by `PID_MAX_LIMIT`, 4 * 1024 * 1024,
+/// the largest Linux hands out is bounded by `PID_MAX_LIMIT`,
+/// 4 * 1024 * 1024,
 /// so nothing can be running under a number above it.
 const A_PID_NO_PROCESS_HAS: u32 = 4 * 1024 * 1024 + 1;
 
@@ -440,7 +441,9 @@ fn administrative_directory(name: &str, files: &[&str]) -> PathBuf {
 }
 
 /// The sweep removes a temporary file only when the process that made it is gone:
-/// the journal, the claim of the conversion, the temporary file of a running process and every name that is no
+/// the journal,
+/// the claim of the conversion,
+/// the temporary file of a running process and every name that is no
 /// temporary file all stay.
 #[test]
 fn the_sweep_keeps_every_file_whose_maker_may_still_run() {
