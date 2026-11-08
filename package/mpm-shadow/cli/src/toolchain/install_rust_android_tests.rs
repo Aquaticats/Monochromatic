@@ -185,6 +185,19 @@ fn two_declarations_that_name_one_part_add_it_once() {
 }
 
 #[test]
+fn a_bare_declaration_added_first_covers_the_qualified_declaration_after_it() {
+    let rig = Rig::new();
+    let mut tool: LockedTool = rust_tool(&rig);
+    // The first declaration names the component bare, the second names the same part with its triple.
+    tool.declaration.options.rust_components = Some(vec!["clippy".to_string(), "clippy-x86_64-unknown-linux-gnu".to_string()]);
+    tool.declaration.options.rust_targets = None;
+    let added: Vec<String> = reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "").expect("listed");
+    assert_eq!(added.len(), 1, "{added:?}");
+    let adds: Vec<String> = rig.runner.lines().into_iter().filter(|line| return line.contains(" add ")).collect();
+    assert_eq!(adds, vec!["rustup component add clippy --toolchain nightly-2026-10-30".to_string()]);
+}
+
+#[test]
 fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
     let rig = Rig::new();
     let added: Vec<String> = reconcile_with(&rig, &rust_tool(&rig), "aarch64-linux-android\n", "rust-src\n").expect("one component added");

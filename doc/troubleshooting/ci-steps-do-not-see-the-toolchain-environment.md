@@ -174,17 +174,19 @@ After a component add the target listing is read once more,
 since `rustup component add rust-std-<triple>` also supplies a target.
 
 One declared shape stays wrong:
-a bare `rust-std`,
-which rustup has no such component for (`rustup component add rust-std` fails),
-counts as installed when any of the toolchain's targets has its standard library listed.
-Telling the host standard library from a cross-target one costs another `rustup` process on every
-sync,
-for a declaration rustup refuses anyway,
+a bare `rust-std` counts as installed when any of the toolchain's targets has its standard library
+listed,
+because the check cannot tell the host's standard library from a cross-target one.
+Telling them apart needs the toolchain's host triple,
+which costs another `rustup` process on every sync.
+No plan entry can ask for a bare one meaningfully:
+`rustup component list --toolchain nightly-2026-11-08` on the installed toolchain offers no
+`rust-std` without a triple,
 so name the triple (`rust-std-x86_64-unknown-linux-gnu`) if one is ever needed.
 A part added earlier in the same run is not added again,
-so two declarations that name one component,
-or one triple twice,
-add it once.
+in either spelling:
+a bare `clippy` added first covers a later `clippy-x86_64-unknown-linux-gnu`,
+and a repeated target triple adds it once.
 
 On a machine that already holds every declared part the whole cost is the two listings.
 Measured on 2026-11-08 on this machine,
@@ -192,22 +194,37 @@ on a throwaway scope holding one tool
 (the `rust` tool,
 `nightly-2026-11-08`,
 all four declared components and both Android targets present),
-9 rounds interleaved a no-change `mpm-shadow install` from a build of the commit before the fix with the
-same install from the fix build,
-and the control executable ran as two separate arms,
-which is the harness's noise floor:
-medians 30.2 ms and 28.9 ms for the two control arms,
-77.2 ms for the fix build,
-and 29.8 ms and 28.7 ms for the two listings timed on their own.
-An earlier session with a build of the first version of the fix read 21.0,
-21.6,
-60.6,
-21.2 and 21.9 ms the same way,
-so the absolute values move with the host's load while the difference stays the two listings:
-here the two control arms sat 1.3 ms apart and the fix build 47.0 ms above them.
-That difference is two more `rustup` starts plus a scan of the printed names,
-so it grows with the number of declared parts and listed names,
-not with the size of the toolchain.
+9 interleaved rounds ran a no-change `mpm-shadow install` from a build of the commit before the fix
+and the same install from the fix build,
+with the control executable as two separate arms:
+
+- control arm A:
+  23.2 to 72.3 ms,
+  median 30.2 ms;
+- control arm B,
+  the same executable:
+  22.6 to 32.5 ms,
+  median 28.9 ms;
+- the fix build:
+  66.0 to 101.6 ms,
+  median 77.2 ms;
+- `rustup target list --installed` alone:
+  23.8 to 44.1 ms,
+  median 29.8 ms;
+- `rustup component list --installed` alone:
+  20.7 to 34.9 ms,
+  median 28.7 ms.
+
+The fix build sits 47.0 ms above control arm A and 48.3 ms above control arm B,
+where the two control medians are 1.3 ms apart but their runs spread over tens of milliseconds,
+so the host's own noise is of the same order as that 1.3 ms.
+The difference is the same order as the two listings' 58.5 ms together,
+which is what it buys:
+two more `rustup` starts plus a scan of the printed names.
+An earlier session with a build of the first version of the fix read lower medians throughout
+(21.0 and 21.6 ms for the two control arms,
+60.6 ms for that build),
+so the absolute values follow the host's load while the shape of the difference did not change.
 
 ### What the workflow keeps until a release with the fix is locked
 

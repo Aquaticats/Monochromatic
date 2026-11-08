@@ -160,7 +160,9 @@ fn lists_exactly(installed: &[String], name: &str) -> bool {
 /// Whether `installed` holds the component `name`,
 /// either as that bare name (`rust-src`)
 /// or as that name plus one of the toolchain's target triples
-/// (`clippy` is installed when the listing shows `clippy-x86_64-unknown-linux-gnu`).
+/// (`clippy` is installed when the listing shows `clippy-x86_64-unknown-linux-gnu`),
+/// and in either spelling:
+/// a run that already added the bare name covers a declaration that names the triple.
 /// Why:
 /// `rustup component list --installed` spells a component with the target triple it was built for,
 /// while the lock declares the bare name,
@@ -176,24 +178,37 @@ fn lists_component(installed: &[String], name: &str, targets: &[String]) -> bool
         if listed == name {
             return true;
         }
-        // What: `strip_prefix(name + "-")` returns the text after that prefix as a borrowed `&str`,
-        // or `None` when the listed name does not start with it
-        // (`Option` is Rust's `string | undefined`; the siblings of `None` are `Some(value)`).
-        // Why: the leftover text is what must be one of the toolchain's target triples.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const suffix = listed.startsWith(name + '-') ? listed.slice(name.length + 1) : undefined;
-        // ```
-        let suffix: &str = match listed.strip_prefix(&format!("{name}-")) {
-            Some(rest) => rest,
-            None => continue,
-        };
-        if lists_exactly(targets, suffix) {
+        if spelled_with_one_of_the_targets(listed, name, targets) || spelled_with_one_of_the_targets(name, listed, targets) {
             return true;
         }
     }
     return false;
+}
+
+/// What:
+/// Whether `long` is `short` plus a hyphen and one of `targets`.
+/// Why:
+/// It is the one test both directions of `lists_component` need:
+/// the listing's spelling of the declared name,
+/// and the declared name's spelling of the listing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function spelledWithOneOfTheTargets(long: string, short: string, targets: string[]): boolean
+/// ```
+fn spelled_with_one_of_the_targets(long: &str, short: &str, targets: &[String]) -> bool {
+    // What: `let Some(leftover) = ... else { return false }` binds the text after the prefix and leaves the
+    // function with `false` when `long` does not start with it (the sibling is a plain `match`).
+    // Why: `long` need not carry the prefix at all, which is the common case.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (!long.startsWith(short + '-')) return false;
+    // ```
+    let Some(leftover) = long.strip_prefix(&format!("{short}-")) else {
+        return false;
+    };
+    return lists_exactly(targets, leftover);
 }
 
 /// What:
