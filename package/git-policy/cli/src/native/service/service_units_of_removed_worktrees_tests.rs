@@ -214,6 +214,8 @@ fn a_service_whose_worktree_is_gone_stops_its_own_socket_and_serves_nothing() {
 #[test]
 fn a_service_whose_worktree_is_on_a_device_that_is_not_mounted_serves() {
     let machine: Machine = machine("units-own-unmounted");
+    // The mount point is there and empty, as it is when a drive was not mounted: every path below it is missing.
+    std::fs::create_dir_all(machine.root.join("drive-not-mounted")).expect("mount point");
     let unmounted: PathBuf = machine.root.join("drive-not-mounted/repository/.git/worktrees/topic");
     let instance: String = instance_of(unmounted.as_path());
     record_worktree(machine.runtime.as_path(), instance.as_str(), unmounted.as_path()).expect("note");

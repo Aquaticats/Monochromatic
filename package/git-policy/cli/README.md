@@ -931,19 +931,18 @@ because the manager leaves the socket file of a stopped socket unit in place,
 and a file that stayed would count the instance again.
 A refused stop is named with the reason and makes the exit status 1;
 running the command again tries it again.
+It starts nothing,
+nothing runs it by itself,
+and no unit it concerns is enabled for login.
 A service that starts and finds its own worktree gone stops its own socket and serves nothing,
 so those leftovers also go at the first connection without anyone running the command:
 the service asks the same question of the same note and journal records,
 stops its socket with the stop mode that leaves the units requiring it alone,
 removes the note and the socket file,
-and ends with status 0,
-because the service's own end stops its service unit,
+and ends with status 0.
+Its own end is what stops its service unit,
+so it never asks the manager to stop the service it is,
 and a failure status would make `Restart=on-failure` start it again.
-Its own end is what stops the unit,
-so it never asks the manager to stop the service it is.
-It starts nothing,
-nothing runs it by itself,
-and no unit it concerns is enabled for login.
 `git monochromatic-git-policy-cli doctor` says on standard error
 how many removed worktrees still have units and names this command.
 

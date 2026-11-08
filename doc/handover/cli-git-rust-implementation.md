@@ -4318,6 +4318,11 @@ because the controls start no unit and look for the bus in a fixture runtime dir
 and a socket nobody ever connects to still listens,
 so the automatic stop needs a first connection and the sweep or `doctor` remains for the rest.
 `doctor` counted the leftovers before this change and counts them still.
+The stopped instance's state directory (`$XDG_STATE_HOME/monochromatic-git-policy-cli/service/<instance>`,
+the service's journal) stays after its units go:
+the sweep and the service read the `gitdir=` records in it to name an instance whose note is missing,
+so removing it would take that mapping away,
+and nothing sweeps it.
 
 Pre-existing,
 from the lock-removal pass,
