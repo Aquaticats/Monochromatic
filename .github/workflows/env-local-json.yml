@@ -79,6 +79,11 @@ jobs:
 
   container:
     runs-on: ubuntu-latest
+    env:
+      # Hosted runners do not delegate the cgroup io controller, so a container started with the disk weight is refused there
+      # (run 42447009237 of music-player-release.yml, 2026-11-08: `crun: opening file 'io.weight' for writing: No such file or
+      # directory`). This tells package/container-limit/core, which the matrix runner reads, to leave the weight out.
+      CONTAINER_LIMIT_DISK_WEIGHT: 'off'
     steps:
     - name: Checkout
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd

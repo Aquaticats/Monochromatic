@@ -212,10 +212,12 @@ jobs:
       # runner room for podman and the runner processes. container-bounds.ts reads exactly these variable names.
       IDE_CONTAINER_CPUS: '4'
       IDE_CONTAINER_MEMORY: '12g'
-      # The process limit and the weight of the three probe containers below. The tasks' own containers already carry the weight
-      # (package/ide/app/bin/container-bounds.ts, from package/container-limit/core); these steps start first, so a runner that
-      # refuses a weight option fails here, in seconds, and not an hour into the build.
-      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024 --blkio-weight=10 --cgroup-conf=io.weight=10'
+      # The process limit of the three probe containers below. There is no disk weight in this job: hosted runners do not delegate
+      # the cgroup io controller, and run 42447009237 of music-player-release.yml (2026-11-08), on the same runner images, failed with
+      # `crun: opening file 'io.weight' for writing: No such file or directory`. CONTAINER_LIMIT_DISK_WEIGHT=off tells
+      # package/container-limit/core (read by package/ide/app/bin/container-bounds.ts and the task bodies) to leave the weight out.
+      CONTAINER_EXTRA_OPTIONS: '--pids-limit=1024'
+      CONTAINER_LIMIT_DISK_WEIGHT: 'off'
       # The shipped executable is compiled in the Ubuntu 24.04 release image (Containerfile.release of the ide and terminal
       # packages), not in the CachyOS development image: the glibc of the build image sets the oldest glibc the
       # executable runs on (doc/decision/container-base-distro.md). The ide tasks read this variable to pick the image.
@@ -272,6 +274,10 @@ jobs:
       uses: ./.github/actions/task-cli-setup
       with:
         install-dependencies: 'false'
+        # The image tasks run package/test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts, which imports
+        # @monochromatic-dev/logger-core and @monochromatic-dev/container-limit-core by name; without a link node stops with
+        # ERR_MODULE_NOT_FOUND (run 42447007710, 2026-11-08, step "Build the base image (terminal release)").
+        install-filter: '@monochromatic-dev/test-harness-core-matrix...'
 
     # inspect:bundle writes its scratch below ~/temp/agent and refuses a directory open to group or others.
     - name: Create the private scratch directory
@@ -290,7 +296,7 @@ jobs:
 
     # A bounded container with the same kinds of limits the tasks pass (CPU, memory, processes, open files), so a
     # runner that refuses one of them fails here and not an hour into the build. The Alpine jobs of
-    # music-player-release.yml prove --memory and --cpus on this runner image; --pids-limit, --ulimit and the disk weight were not proven.
+    # music-player-release.yml prove --memory and --cpus on this runner image; --pids-limit and --ulimit were not proven; the disk weight is refused (CONTAINER_LIMIT_DISK_WEIGHT above).
     # The compiler version goes to the release notes: the image installs the stable toolchain of the day it is built
     # (package/terminal/app/Containerfile.release), so each leg records which one. A matrix job cannot hand a value to
     # a later job as an output (the legs would overwrite each other), so the line travels as a small artifact. Its name
