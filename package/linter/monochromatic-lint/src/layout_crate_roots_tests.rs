@@ -91,3 +91,21 @@ fn an_unreadable_manifest_is_an_error_naming_it() {
         crate_root_files(&fixture.path.join("missing.toml")).expect_err("no such manifest");
     assert!(message.contains("missing.toml"), "{message}");
 }
+
+/// Only regular files that end in `.rs` are roots of `src/bin`:
+/// a regular file of another kind and a folder whose name ends in `.rs` are neither.
+#[test]
+fn layout_only_regular_rust_files_of_the_bin_folder_are_roots() {
+    let fixture = package_with(&[
+        ("src/lib.rs", ""),
+        ("src/bin/tool.rs", ""),
+        ("src/bin/notes.txt", ""),
+        ("src/bin/folder.rs/inside.txt", ""),
+    ]);
+    let roots: Vec<PathBuf> = crate_root_files(&fixture.path.join("Cargo.toml")).expect("roots");
+    let expected: Vec<PathBuf> = ["src/bin/tool.rs", "src/lib.rs"]
+        .iter()
+        .map(|name| return fixture.path.join(name))
+        .collect::<Vec<PathBuf>>();
+    assert_eq!(roots, expected);
+}

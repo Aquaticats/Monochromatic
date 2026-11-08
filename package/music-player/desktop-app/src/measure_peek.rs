@@ -38,7 +38,8 @@ use crate::track_measure::{TrackMeasure, measure_from_decision};
 /// }
 /// ```
 pub(crate) fn peek_measure(path: &Path, cache: &CacheHandle) -> TrackMeasure {
-    // What:     `let decision = fingerprint(path).and_then(|key| cache.get(key));`. Read the cached decision.
+    // What:     `let decision = match fingerprint(path) { Some(key) => cache.get(key), None => None };` reads the
+    //           cached decision of the file, or nothing when the file has no fingerprint.
     // Why:      A read is a single indexed lookup, so it is cheap on the sweep thread.
     //
     // In TS you'd write (pseudocode):

@@ -214,3 +214,45 @@ fn bad_shell_values_are_refused() {
         assert!(result.is_err(), "{text:?}");
     }
 }
+
+/// Blank lines inside a block literal keep a payload inside their own text:
+///  the body's indentation or the end of the line's content,
+///  whichever comes first.
+#[test]
+fn blank_lines_inside_a_block_keep_their_payload_inside_their_own_text() {
+    // Each line with the byte, relative to the line, where its payload starts.
+    // Empty and spaces-only lines shorter than the body indentation end at their content,
+    // a longer one at the indentation,
+    // and a line of a space and a no-break space (blank to Unicode, three bytes) at its text's end.
+    let table: [(&str, usize); 7] = [
+        ("- run: |", 0),
+        ("    a", 4),
+        ("", 0),
+        ("  ", 2),
+        ("      ", 4),
+        (" \u{a0}", 3),
+        ("    b", 4),
+    ];
+    let mut text: String = String::new();
+    let mut starts: Vec<usize> = Vec::new();
+    for (line, _) in table {
+        starts.push(text.len());
+        text.push_str(line);
+        text.push('\n');
+    }
+    starts.push(text.len());
+    let Ok((RunBody::Block { lines }, next)) = run_of(text.as_str()) else {
+        panic!("not a block");
+    };
+    let expected: Vec<BodyLine> = (1..table.len())
+        .map(|index| {
+            return BodyLine {
+                envelope: starts[index],
+                payload: starts[index] + table[index].1,
+                end: starts[index + 1],
+            };
+        })
+        .collect::<Vec<BodyLine>>();
+    assert_eq!(lines, expected);
+    assert_eq!(next, table.len());
+}

@@ -233,14 +233,14 @@ pub mod markdown_semantic_breaks;
 /// Internal native Markdown/MDX parser interface.
 #[doc(hidden)]
 pub mod markdown_source;
-/// The whitespace set of JavaScript trim,
-/// shared by the LFS rules.
-mod markdown_trim_space;
 /// Pipe-table reporting.
 #[doc(hidden)]
 pub mod markdown_tables;
 /// Validated arena traversal lists built by the source adapter's walk.
 mod markdown_traversal;
+/// The whitespace set of JavaScript trim,
+/// shared by the LFS rules.
+mod markdown_trim_space;
 /// Native literal and glob command-input expansion.
 #[doc(hidden)]
 pub mod path_inputs;
@@ -409,6 +409,10 @@ mod workflow_walk;
 /// Disposable native filesystem helpers used only by tests.
 #[cfg(test)]
 mod test_fs;
+
+/// A deadline that turns a probe that never finishes into a failing test.
+#[cfg(test)]
+mod test_deadline;
 
 /// Compiles the stub `cargo` that the closure-check tests run instead of the real one.
 #[cfg(test)]

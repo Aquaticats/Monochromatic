@@ -301,3 +301,28 @@ fn a_use_through_a_reexport_needs_the_link_to_the_defining_folder_too() {
         );
     }
 }
+
+/// Glob re-exports of two modules on one line are one finding,
+///  and a glob re-export of the module itself is none.
+#[test]
+fn layout_two_globs_on_one_line_are_one_finding_and_a_self_glob_is_none() {
+    let fixture = package_with(&[
+        (
+            "src/lib.rs",
+            "mod native;\nmod other;\npub use native::*; pub use other::*;\n",
+        ),
+        ("src/native/mod.rs", "pub use self::*;\n"),
+        ("src/other/mod.rs", ""),
+    ]);
+    let found: Vec<String> = findings_of(&fixture.path);
+    let globs: Vec<&String> = found
+        .iter()
+        .filter(|item| return item.contains("re-exports every item"))
+        .collect::<Vec<&String>>();
+    assert_eq!(globs.len(), 1, "{found:#?}");
+    assert!(
+        globs[0].starts_with("src/lib.rs:3 `pub use native::*`"),
+        "{}",
+        globs[0]
+    );
+}

@@ -16,6 +16,7 @@ import {
   hookUnitEdit,
 } from './guided-stage-hooks.ts';
 import { externalNames, } from './guided-holders.ts';
+import { FOOTPRINT_MEASURE_ATTEMPTS, } from './constants.ts';
 import {
   STOP_PATH_MARKER,
   SUBVOLUME_REMOVAL_OPTION,
@@ -166,10 +167,10 @@ sudo findmnt --list --output TARGET,SOURCE,FSTYPE | grep --fixed-strings ${c.rep
     {
       id: 'p3a-footprint',
       title: 'Pre-flight: checkout footprint',
-      says: 'Pre-flight 1 of 3: the footprint of the nested checkout with extent sharing counted once, as root so unreadable files are included. The plan measured about 12.5 minutes for it.',
-      command: `sudo systemd-run ${c.rootScope} timeout --kill-after=${String(c.killGraceSeconds,)} ${String(c.measureTimeoutSeconds,)} btrfs filesystem du --summarize --raw ${c.repo} | tee ${c.wiz}/main-du.txt`,
-      check: `awk 'END { exit !(NF >= 4 && $2 + $3 > 0) }' ${c.wiz}/main-du.txt`,
-      checkText: 'the output has a total row with exclusive plus set shared above zero',
+      says: `Pre-flight 1 of 3: the footprint of the nested checkout with extent sharing counted once, as root so unreadable files are included. The plan measured about 12.5 minutes for it. A worktree an agent removes during the walk fails the walk, so the whole walk is made again, at most ${String(FOOTPRINT_MEASURE_ATTEMPTS,)} times, and only when every line btrfs printed says an entry was not there; the note above the table names what was removed. The walk stays one walk of the whole tree: a sum of one measurement per subvolume would count the data the worktrees share once per worktree (the plan's per-worktree figure is 3753 GiB against about 264 GiB counted once), which would refuse the move for a reason that is not real.`,
+      command: `sudo systemd-run ${c.rootScope} timeout --kill-after=${String(c.killGraceSeconds,)} ${String((c.measureTimeoutSeconds + c.killGraceSeconds) * FOOTPRINT_MEASURE_ATTEMPTS,)} ${c.nodePath} ${c.measureTool} ${c.repo} ${String(FOOTPRINT_MEASURE_ATTEMPTS,)} ${String(c.measureTimeoutSeconds,)} | tee ${c.wiz}/main-du.txt`,
+      check: `grep --fixed-strings 'measured: attempt' ${c.wiz}/main-du.txt && awk 'END { exit !(NF >= 4 && $2 + $3 > 0) }' ${c.wiz}/main-du.txt`,
+      checkText: 'the note says which attempt measured and what was removed meanwhile, and the table has a total row with exclusive plus set shared above zero',
       rollback: 'read-only',
       timer: {
         file: 'du-seconds',

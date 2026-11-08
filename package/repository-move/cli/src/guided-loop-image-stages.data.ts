@@ -297,7 +297,7 @@ ${rootCopy} --run --pass=first --main=${fx}/source/main --snapshots=${fx}/source
       id: 'f5c-corrupt',
       title: 'Fixture F5c: corrupted stream',
       says: 'Fixture F5c: a stream with one flipped byte must be refused by btrfs receive (a checksum error).',
-      command: `sudo bash -c 'btrfs send ${fx}/source/snap/s000 > ${fx}/stream.bin' && sudo chown ${c.userName}:${c.groupName} ${fx}/stream.bin
+      command: `sudo bash --noprofile --norc -c 'btrfs send ${fx}/source/snap/s000 > ${fx}/stream.bin' && sudo chown ${c.userName}:${c.groupName} ${fx}/stream.bin
 cp ${fx}/stream.bin ${fx}/stream.orig
 python3 -I -c "import sys; p=sys.argv[1]; f=open(p,'r+b'); f.seek(100000); b=f.read(1); f.seek(100000); f.write(bytes([b[0]^255]))" ${fx}/stream.bin
 if cmp --silent ${fx}/stream.orig ${fx}/stream.bin; then echo 'the flip changed nothing'; exit 1; fi
@@ -314,7 +314,7 @@ if sudo btrfs receive ${fx}/dest/recv-f5c < ${fx}/stream.bin; then echo 'UNEXPEC
       id: 'f6-staged',
       title: 'Fixture F6: staged verification',
       says: 'Fixture F6: the staged-verification pattern. A private mount namespace binds the copy over the source path; Git then reads the copy. Git runs as you, never as root.',
-      command: `sudo unshare --mount --propagation private bash -euo pipefail -c "
+      command: `sudo unshare --mount --propagation private bash --noprofile --norc -euo pipefail -c "
   mount --bind ${fx}/dest/final ${fx}/source/main
   runuser -u ${c.userName} -- env HOME=${c.homeDir} /usr/bin/git --no-optional-locks -C ${fx}/source/main worktree list
   runuser -u ${c.userName} -- env HOME=${c.homeDir} /usr/bin/git --no-optional-locks -C ${fx}/source/main fsck --full

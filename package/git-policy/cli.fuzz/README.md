@@ -143,24 +143,40 @@ and is itself left alone.
 
 ### `owner_records`
 
-Runs the owner lock record reader,
+Runs the copy owner token reader,
+the readers of the owner token in a journal name and a temporary file name,
 the transaction owner record reader
 and the `/proc/<pid>/stat` start-time reader
-over raw bytes and over records and stat lines built from the input.
-A built owner lock record is restated by the subject's encoder
+over raw bytes and over tokens,
+names,
+records and stat lines built from the input.
+A copy's journal,
+stage claim and temporary file name their owner in the file name
+(`package/git-policy/cli/src/native/worktree_copying/worktree_copy_owner.rs`),
+which replaced the owner lock record that commit `ee30d244f6` removed with the settlement lock.
+A built owner is restated by the subject's token encoder
 and then edited once by one of a fixed list of field edits
 (a PID of 0,
 negative,
 fractional,
-beyond the safe range or text,
-an empty or renamed token,
-an empty identity,
-another schema version,
-an equal schema version spelled `1.0`,
-a mistyped `transactionId` before the real one,
-an unknown field),
-and the reader must return exactly the outcome the edit implies,
-with the last of duplicate keys winning as in `JSON.parse`.
+beyond the integer range,
+empty or text,
+an empty birth identity,
+an escape cut short,
+not hexadecimal,
+or not UTF-8,
+a fourth field,
+a missing namespace field,
+and a plain letter respelled as its equal escape),
+and the reader must return exactly the outcome the edit implies.
+The built token must hold only characters a part of a file name can carry,
+and the journal and temporary names built around it must give it back.
+Any accepted token must have a positive PID and a non-empty birth identity,
+and must parse back to itself after being restated.
+Any text read as a journal or temporary name must end in its suffix and give a token without a dot.
+A transaction owner record is parsed as written
+and restated;
+an accepted one must have a positive safe PID and a non-empty identity.
 A built stat line carries a command name holding spaces,
 parentheses and `) ` sequences,
 a process state,
@@ -168,8 +184,6 @@ and the start time in field 22;
 the reader must return that start time for a running process,
 nothing for a zombie or dead one,
 and refuse a line without the start time or without a closing parenthesis.
-Any accepted record must have a positive safe PID and non-empty token and identity,
-and must parse back to itself after being restated.
 
 ### `dependent_version`
 
@@ -249,7 +263,7 @@ changed,
 removed and new paths of a staged delta,
 every `rulesFile` refusal,
 every final-newline outcome,
-accepted and refused owner lock records,
+accepted and refused owner tokens,
 running,
 exited and malformed stat lines,
 so an invariant that is never reached cannot pass unnoticed.
@@ -270,7 +284,7 @@ object content accepted past its declared size,
 a reply accepted for another object,
 a changed path left out of the staged delta,
 a `rulesFile` value with `..` accepted,
-an owner lock naming PID 0 accepted,
+an owner token naming PID 0 accepted,
 the start time read from the field before it,
 extra final line feeds kept),
 and requires a generator control to fail for each.

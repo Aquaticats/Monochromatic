@@ -8,7 +8,7 @@
 //! test('files that use each other in a loop are one finding', () => expect(check(tree)).toEqual([...]));
 //! ```
 
-use super::check_file_order;
+use super::{check_file_order, uses_between};
 use crate::{
     layout_module_uses::collect_uses,
     layout_test_support::{package_with, tree_of},
@@ -504,4 +504,36 @@ fn the_missing_list_help_shows_the_wrapped_marker() {
         help.contains(format!("`//! {head},` and `//! {tail}`").as_str()),
         "{help}"
     );
+}
+
+/// Of several uses between the same two files,
+///  the smallest proof is kept whatever order they were found in.
+#[test]
+fn layout_the_smallest_proof_of_a_use_between_two_files_wins_in_any_order() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\nmod b;\n"),
+        ("src/a.rs", ""),
+        (
+            "src/b.rs",
+            "use crate::a::First;\nuse crate::a::Second;\nuse crate::a::Third;\n",
+        ),
+    ]);
+    let tree = tree_of(&fixture.path);
+    let uses = collect_uses(&tree);
+    let listed: Vec<std::path::PathBuf> =
+        vec![fixture.path.join("src/a.rs"), fixture.path.join("src/b.rs")];
+    let mut backwards = uses.clone();
+    backwards.reverse();
+    let between: usize = uses
+        .iter()
+        .filter(|found| {
+            return tree.modules[found.from].file == listed[1]
+                && tree.modules[found.to].file == listed[0];
+        })
+        .count();
+    assert!(between >= 2, "the control needs several uses: {uses:?}");
+    for order in [uses, backwards] {
+        let edges = uses_between(&tree, order.as_slice(), listed.as_slice());
+        assert_eq!(edges[&(1, 0)].line, 1, "{order:?}");
+    }
 }

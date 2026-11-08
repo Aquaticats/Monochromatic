@@ -26,6 +26,7 @@ export type GuidedConfig = {
   readonly toolsFolder: string;
   readonly copyTool: string;
   readonly scanTool: string;
+  readonly measureTool: string;
   readonly inventory: string;
   readonly inventoryMain: string;
   readonly fixtureParent: string;
@@ -72,7 +73,7 @@ export type Stage = {
   readonly says: string;
 
   /**
-   Shell text run with `bash -e -o pipefail -c`, or a function that builds it when the stage runs (for text that
+   Shell text run with `bash --noprofile --norc -e -o pipefail -c`, or a function that builds it when the stage runs (for text that
    depends on files an earlier stage wrote). `@DEADLINE@` becomes the stage's per-step deadline in seconds, the smaller
    of the transfer deadline and the window's remainder; `@REMAINING@` becomes the window's remainder alone.
    */

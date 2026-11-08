@@ -499,12 +499,9 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
     // ```
     let mut hint = Hint::new();
 
-    // What:     `if let Some(ext) = path.extension().and_then(|e| e.to_str())`.
-    //           `path.extension()` returns `Option<&OsStr>` (the extension, or `None`).
-    //           `.and_then(|e| e.to_str())` runs the closure only if present; `e.to_str()`
-    //           converts the OS string to `Option<&str>` (fails on non-UTF-8). `if let
-    //           Some(ext) = ...` runs the body only when both succeeded, binding the inner
-    //           `&str` to `ext`. `|e| e.to_str()` is a closure of one arg.
+    // What:     `if let Some(ext) = path.extension().and_then(std::ffi::OsStr::to_str)` takes the extension as text
+    //           when the path has one and it is valid UTF-8. `OsStr::to_str`, passed as a path, replaces a one-
+    //           argument closure.
     // Why:      Feed the extension as a hint so probing is fast/reliable.
     //
     // In TS you'd write (pseudocode):
@@ -581,12 +578,9 @@ pub fn open(path: &Path) -> Result<Box<dyn Source>, PlayerError> {
             return Err(PlayerError::Unsupported("no audio track".to_string()));
         };
 
-        // What:     `track.codec_params.as_ref().and_then(|cp| cp.audio())`. In 0.6
-        //           `Track::codec_params` is `Option<CodecParameters>` (an enum over
-        //           audio/video/subtitle); `.as_ref()` turns `&Option<_>` into
-        //           `Option<&CodecParameters>`; `.and_then(|cp| cp.audio())` maps it to
-        //           `Option<&AudioCodecParameters>` (the audio variant) via the closure.
-        //           `.ok_or_else(...)?` unwraps or errors.
+        // What:     `audio_params_or_unsupported(track, ...)` gives the audio variant of the track's optional
+        //           `CodecParameters`, or the unsupported error with the message it was given. `?` unwraps the
+        //           parameters or returns the error.
         // Why:      We need the audio codec id to decide whether this is Opus.
         //
         // In TS you'd write (pseudocode):
@@ -709,13 +703,8 @@ pub(crate) fn seek_format(
     track_id: u32,
     secs: f64,
 ) -> Result<(), PlayerError> {
-    // What:     `format.tracks().iter().find(|t| t.id == track_id)`. `tracks()` borrows the
-    //           demuxer's track list (`&[Track]`, a borrowed slice; siblings
-    //           `Vec<Track>`/`[Track; N]` would be owned/fixed-size); `.iter()` makes a
-    //           read-only cursor over it; `.find(|t| ...)` returns the first track whose `id`
-    //           matches, as `Option<&Track>`. The closure `|t| t.id == track_id` takes each
-    //           track by reference `t` and compares its `id` field. `.ok_or_else(|| ...)`
-    //           turns `None` into our error. `?` unwraps the `Some` or returns the error.
+    // What:     The loop below walks `format.tracks()` and keeps the first track whose `id` equals `track_id`. `let
+    //           Some(track) = found else { return Err(...) };` turns a missing id into our error.
     // Why:      We need this track's timeline parameters; a missing id means the caller
     //           passed a stale track, which is a real failure.
     //
@@ -748,12 +737,9 @@ pub(crate) fn seek_format(
     // ```
     let start_ts: Timestamp = track.start_ts;
 
-    // What:     `let rate = track.codec_params.as_ref().and_then(|cp| cp.audio()).and_then(|a| a.sample_rate).ok_or_else(|| ...)?;`.
-    //           Dig the sample rate out of the optional audio codec params: `.as_ref()`
-    //           borrows the `Option<CodecParameters>`, `.and_then(|cp| cp.audio())` selects
-    //           the audio variant, `.and_then(|a| a.sample_rate)` reads its `Option<u32>`
-    //           rate. `.ok_or_else(|| ...)` turns any `None` along the way into our error;
-    //           `?` unwraps.
+    // What:     `audio_params_of(track)` gives the track's audio parameters, if any, and their `sample_rate` is an
+    //           `Option<u32>`. `let Some(rate) = known_rate else { return Err(...) };` turns a missing parameter set
+    //           or a missing rate into our error.
     // Why:      We convert seconds to frames with the rate; without it the seek target is
     //           undefined, so failing loudly beats guessing.
     //
@@ -1024,11 +1010,9 @@ impl SymphoniaSource {
         track: Track,
         track_id: u32,
     ) -> Result<Self, PlayerError> {
-        // What:     `let audio_params = track.codec_params.as_ref().and_then(|cp| cp.audio()).ok_or_else(|| ...)?;`.
-        //           Dig the audio codec params out of the optional `CodecParameters` enum:
-        //           `.as_ref()` borrows the `Option`, `.and_then(|cp| cp.audio())` selects the
-        //           audio variant. `.ok_or_else(...)` turns `None` into our error; `?` unwraps
-        //           to a `&AudioCodecParameters`.
+        // What:     `audio_params_or_unsupported(&track, ...)` gives the audio variant of the track's optional
+        //           `CodecParameters`, or the unsupported error with the message it was given. `?` unwraps the
+        //           parameters or returns the error.
         // Why:      `make_audio_decoder` and the initial spec both read from it.
         //
         // In TS you'd write (pseudocode):

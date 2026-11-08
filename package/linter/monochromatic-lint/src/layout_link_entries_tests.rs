@@ -147,3 +147,18 @@ fn the_link_command_is_relative_and_named_after_the_target() {
         "mkdir --parents src/top/uses && ln --symbolic ../../middle src/top/uses/middle"
     );
 }
+
+/// A `uses` path that cannot be read for a reason other than being absent is reported,
+///  not taken for a folder with no links.
+#[test]
+fn layout_a_uses_path_that_cannot_be_read_is_reported_and_not_skipped() {
+    let fixture = package_with(&[("plain.txt", "")]);
+    let read: LinkRead = read_links(
+        &fixture.path.join("plain.txt"),
+        &BTreeMap::<PathBuf, PathBuf>::new(),
+        &fixture.path,
+    );
+    let found: Vec<String> = messages(&read, &fixture.path);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].contains("cannot be read"), "{}", found[0]);
+}

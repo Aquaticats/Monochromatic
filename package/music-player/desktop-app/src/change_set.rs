@@ -319,15 +319,11 @@ impl DirtyPaths {
     /// sorted(): [string, boolean][] { return [...this.entries].sort(byPath); }
     /// ```
     pub(crate) fn sorted(&self) -> Vec<(PathBuf, bool)> {
-        // What:     `let mut all: Vec<(PathBuf, bool)> = self.entries.iter().map(|(path, structural)| return (path.clone(), *structural)).collect();`
-        //           copies the map into a list of pairs. `.iter()` walks the entries as borrowed pairs; `.map(f)` turns
-        //           each into a new value; `|(path, structural)| ...` is a closure (an anonymous function; its parameters sit
-        //           between bars) whose parameter is a pair split into two names. `path.clone()` copies the path into an owned
-        //           `PathBuf`, `*structural` reads the flag through its borrow, and `(a, b)` builds a tuple. `.collect()`
-        //           gathers the results into the annotated type, `Vec<(PathBuf, bool)>`.
+        // What:     `let mut all: Vec<(PathBuf, bool)> = Vec::with_capacity(..);` and the loop below copy the map
+        //           into a list of pairs: each entry's path is cloned and its flag copied through its borrow with
+        //           `*structural`.
         // Why:      A map has no order, and the planner needs one, so the entries are copied out and sorted without
         //           disturbing the set.
-        // Gotcha:   Nothing is computed until `.collect()` pulls the values through the lazy `.iter().map(...)` chain.
         //
         // In TS you'd write (pseudocode):
         // ```ts

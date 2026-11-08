@@ -140,8 +140,8 @@ impl Queue {
         // const played = new Set(this.order.slice(this.cycleStart));
         // ```
         let played: HashSet<usize> = self.order[self.cycle_start..].iter().copied().collect();
-        // What:     `let mut remaining: Vec<usize> = scope.iter().copied().filter(|i| !played.contains(i)).collect();`.
-        //           Scope tracks not yet played this cycle.
+        // What:     The loop below keeps the scope's tracks that have not played this cycle:
+        //           `played.contains(&index)` is false for them.
         // Why:      The candidates for the next pick.
         //
         // In TS you'd write (pseudocode):
@@ -171,8 +171,8 @@ impl Queue {
             // this.cycleStart = this.order.length;
             // ```
             self.cycle_start = self.order.len();
-            // What:     `remaining = scope.iter().copied().filter(|&i| i != current).collect();`.
-            //           All scope tracks except the one that just finished.
+            // What:     `remaining.clear();` and the loop below refill the candidates with every track of the scope
+            //           except the current one.
             // Why:      A fresh cycle should not immediately replay the current track.
             //
             // In TS you'd write (pseudocode):
@@ -324,8 +324,8 @@ impl Queue {
             // const scope = this.scopeIndices(anchor);
             // ```
             let scope = self.scope_indices(clamped_anchor);
-            // What:     `let pos = scope.iter().position(|&x| x == clamped_anchor);`. The
-            //           anchor's slot in the scope.
+            // What:     The loop below sets `pos` to the position of the clamped anchor in the scope, or leaves it
+            //           `None` when the scope does not hold it.
             // Why:      The cursor must point at the anchor after the rebuild.
             //
             // In TS you'd write (pseudocode):

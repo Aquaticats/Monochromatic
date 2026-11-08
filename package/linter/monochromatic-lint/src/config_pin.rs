@@ -55,7 +55,7 @@ pub const TOOL_TABLE: &str = "[[tools.\"cargo:monochromatic-lint\"]]";
 /// function staleBinaryHint(configDirectory: Path): string | undefined;
 /// ```
 pub(crate) fn stale_binary_hint(config_directory: &Path) -> Option<String> {
-    return stale_binary_hint_with(config_directory, &read_lock_text);
+    return stale_binary_hint_with(config_directory, VERSION, &read_lock_text);
 }
 
 /// What:
@@ -80,6 +80,8 @@ fn read_lock_text(path: &Path) -> Option<String> {
 ///  The nearest lockfile is the one governing the rejected configuration's repository;
 ///  a
 /// farther lockfile belongs to another repository and is not evidence here.
+///  The running version is a parameter so that a control can run
+/// with a plain `x.y.z` version when the manifest's own version is a pre-release the comparison refuses to order.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -87,6 +89,7 @@ fn read_lock_text(path: &Path) -> Option<String> {
 /// ```
 fn stale_binary_hint_with(
     config_directory: &Path,
+    own_version: &str,
     read: &dyn Fn(&Path) -> Option<String>,
 ) -> Option<String> {
     for directory in config_directory.ancestors() {
@@ -102,7 +105,7 @@ fn stale_binary_hint_with(
             continue;
         };
         let pin = pinned_tool_version(lock_text.as_str())?;
-        if !older_than_pin(VERSION, pin.as_str()) {
+        if !older_than_pin(own_version, pin.as_str()) {
             return None;
         }
         return Some(format!(
@@ -187,46 +190,137 @@ fn plain_version_byte(byte: u8) -> bool {
 }
 
 /// What:
-///  Whether one plain three-component numeric version is older than another.
+///  Whether one semantic version is older than another.
 /// Why:
 ///  "Stale" claims a direction;
-///  a version this module cannot order numerically is unmeasured,
+///  a version this module cannot order is unmeasured,
 ///  and an unmeasured direction must not produce a hint.
+///  A pre-release ranks below its own release and above the release before it,
+///  as the semantic versioning specification orders them,
+///  so a binary of an alpha series is measured like any other.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function olderThanPin(own: string, pinned: string): boolean;
 /// ```
 fn older_than_pin(own: &str, pinned: &str) -> bool {
-    let Some(own_parts) = numeric_triple(own) else {
+    let Some(own_version) = parse_version(own) else {
         return false;
     };
-    let Some(pin_parts) = numeric_triple(pinned) else {
+    let Some(pin_version) = parse_version(pinned) else {
         return false;
     };
-    return own_parts < pin_parts;
+    return compare_versions(&own_version, &pin_version) == std::cmp::Ordering::Less;
 }
 
 /// What:
-///  Parse one plain `x.y.z` version into its numeric components.
+///  A version split into its numeric core and its pre-release identifiers.
 /// Why:
-///  Lexicographic text comparison would rank 0.10.0 below 0.9.0,
-///  and a pre-release suffix is
-/// rejected rather than guessed.
+///  Build metadata after `+` never orders versions,
+///  so it is dropped when the version is parsed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function numericTriple(version: string): [number, number, number] | undefined;
+/// type Version = { core: [number, number, number]; preRelease: string[] };
 /// ```
-fn numeric_triple(version: &str) -> Option<(u64, u64, u64)> {
-    let mut parts = version.split('.');
+struct Version {
+    /// Major,
+    ///  minor and patch numbers.
+    core: (u64, u64, u64),
+    /// The dot-separated identifiers after `-`,
+    ///  empty for a release.
+    pre_release: Vec<String>,
+}
+
+/// What:
+///  Parse `x.y.z`,
+///  `x.y.z-identifiers` or either with `+metadata` into a version.
+/// Why:
+///  Lexicographic text comparison would rank 0.10.0 below 0.9.0,
+///  and a shape this function cannot read is rejected rather than guessed:
+///  a missing component,
+///  an empty pre-release or an empty identifier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function parseVersion(version: string): Version | undefined;
+/// ```
+fn parse_version(version: &str) -> Option<Version> {
+    let without_build: &str = version.split('+').next()?;
+    let (core_text, pre_text): (&str, Option<&str>) = match without_build.split_once('-') {
+        Some((core_text, pre_text)) => (core_text, Some(pre_text)),
+        None => (without_build, None),
+    };
+    let mut parts = core_text.split('.');
     let major = parts.next()?;
     let minor = parts.next()?;
     let patch = parts.next()?;
     if parts.next().is_some() {
         return None;
     }
-    return Some((decimal(major)?, decimal(minor)?, decimal(patch)?));
+    let mut pre_release: Vec<String> = Vec::<String>::new();
+    if let Some(text) = pre_text {
+        for identifier in text.split('.') {
+            if identifier.is_empty() {
+                return None;
+            }
+            pre_release.push(String::from(identifier));
+        }
+    }
+    return Some(Version {
+        core: (decimal(major)?, decimal(minor)?, decimal(patch)?),
+        pre_release,
+    });
+}
+
+/// What:
+///  The order of two parsed versions.
+/// Why:
+///  The numeric cores decide first;
+///  with equal cores a release is above any pre-release,
+///  and two pre-releases compare identifier by identifier.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function compareVersions(left: Version, right: Version): -1 | 0 | 1;
+/// ```
+fn compare_versions(left: &Version, right: &Version) -> std::cmp::Ordering {
+    let by_core = left.core.cmp(&right.core);
+    if by_core != std::cmp::Ordering::Equal {
+        return by_core;
+    }
+    return match (left.pre_release.is_empty(), right.pre_release.is_empty()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => compare_identifiers(&left.pre_release, &right.pre_release),
+    };
+}
+
+/// What:
+///  The order of two non-empty pre-release identifier lists.
+/// Why:
+///  Identifiers of digits compare as numbers and rank below identifiers with other characters,
+///  which compare as text,
+///  and a list that is a prefix of another ranks below it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function compareIdentifiers(left: string[], right: string[]): -1 | 0 | 1;
+/// ```
+fn compare_identifiers(left: &[String], right: &[String]) -> std::cmp::Ordering {
+    for (own, other) in left.iter().zip(right.iter()) {
+        let ordered = match (decimal(own), decimal(other)) {
+            (Some(own_number), Some(other_number)) => own_number.cmp(&other_number),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => own.as_str().cmp(other.as_str()),
+        };
+        if ordered != std::cmp::Ordering::Equal {
+            return ordered;
+        }
+    }
+    return left.len().cmp(&right.len());
 }
 
 /// What:

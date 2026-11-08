@@ -10,6 +10,7 @@
 //! ```
 
 use crate::layout_test_support::{aliases_of, references_of};
+use crate::test_deadline::finished_within_deadline;
 
 /// A plain path is one reference with every segment.
 #[test]
@@ -180,5 +181,56 @@ fn a_leading_name_is_kept_and_a_continued_path_is_not_split() {
             "use child::Thing;\nfn f() { std::mem::swap(a, b); <T as crate::tr::Tr>::run(); }"
         ),
         ["child::Thing", "std::mem::swap", "crate::tr::Tr"]
+    );
+}
+
+/// An entry that follows a nested group is still read,
+///  and an entry before it is not lost.
+#[test]
+fn layout_entries_after_a_nested_group_are_still_read() {
+    assert_eq!(
+        references_of("use crate::{a, b::{c, d}, e};"),
+        ["crate::a", "crate::b::c", "crate::b::d", "crate::e"]
+    );
+}
+
+/// A group that the source never closes ends with the source,
+///  and reading it must not stand still.
+#[test]
+fn layout_a_group_that_is_never_closed_ends_with_the_source() {
+    let found: Vec<String> =
+        finished_within_deadline(|| return references_of("use crate::{a, b::{c, d"));
+    assert_eq!(found, ["crate::a", "crate::b::c", "crate::b::d"]);
+}
+
+/// Group entries of several segments and group entries that end in a glob are read whole,
+///  and a glob entry adds no glob of the prefix.
+#[test]
+fn layout_group_entries_of_several_segments_and_globs_are_read_whole() {
+    assert_eq!(
+        references_of("use crate::{a::b::c, d::e, f::*, g::{h::*}};"),
+        [
+            "crate::a::b::c",
+            "crate::d::e",
+            "crate::f::*",
+            "crate::g::h::*"
+        ]
+    );
+}
+
+/// A path that starts with `self` and continues keeps its `self` segment inside a group,
+///  where a lone `self` names the prefix itself.
+#[test]
+fn layout_a_self_path_inside_a_group_keeps_its_self_segment() {
+    assert_eq!(references_of("use crate::{self::b};"), ["crate::self::b"]);
+}
+
+/// A path that starts exactly where a public `use` item ends is not part of that item,
+///  so it is not a re-export.
+#[test]
+fn layout_a_path_right_after_a_public_use_is_not_a_reexport() {
+    assert_eq!(
+        references_of("pub use a::B;crate::x::y!();"),
+        ["pub a::B", "crate::x::y"]
     );
 }
