@@ -26,12 +26,21 @@ import {
 /**
  The dialog methods that wait for an answer; the other interface methods need none.
  */
-const DIALOG_METHODS: ReadonlySet<string> = new Set(['select', 'confirm', 'input', 'editor',],);
+const DIALOG_METHODS: ReadonlySet<string> = new Set([
+  'select',
+  'confirm',
+  'input',
+  'editor',
+],);
 
 /**
  The events worth a feed line of their own detail.
  */
-const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set(['auto_retry_start', 'compaction_start', 'queue_update',],);
+const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'auto_retry_start',
+  'compaction_start',
+  'queue_update',
+],);
 
 /**
  Starts the record of a run.
@@ -53,7 +62,10 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
   /**
    Where feed lines go.
    */
-  const feed = createWriteStream(feedFile, { flags: 'a', },);
+  const feed = createWriteStream(
+    feedFile,
+    { flags: 'a', },
+  );
   /**
    How many times each tool started.
    */
@@ -85,9 +97,12 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
     lastAssistantText: '',
   };
 
-  feed.on('error', function onFeedError({ message, }: { readonly message: string; },) {
-    state.feedProblem = message;
-  },);
+  feed.on(
+    'error',
+    function onFeedError({ message, }: { readonly message: string; },) {
+      state.feedProblem = message;
+    },
+  );
 
   /**
    Writes one feed line.
@@ -97,7 +112,10 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
   function note(entry: PiRecord,): void {
     state.lastActivityAt = Date.now();
     if (state.feedProblem === undefined) {
-      feed.write(`${JSON.stringify({ t: Date.now() - startedAt, ...entry, },)}\n`,);
+      feed.write(`${JSON.stringify({
+        t: Date.now() - startedAt,
+        ...entry,
+      },)}\n`,);
     }
   }
 
@@ -111,8 +129,18 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
      The tool's name.
      */
     const tool = textOf(event.toolName,);
-    toolHistogram.set(tool, (toolHistogram.get(tool,) ?? 0) + 1,);
-    note({ kind: 'tool_start', tool, args: preview({ value: event.args, length: FEED_PREVIEW_CHARACTERS.toolArguments, },), },);
+    toolHistogram.set(
+      tool,
+      (toolHistogram.get(tool,) ?? 0) + 1,
+    );
+    note({
+      kind: 'tool_start',
+      tool,
+      args: preview({
+        value: event.args,
+        length: FEED_PREVIEW_CHARACTERS.toolArguments,
+      },),
+    },);
   }
 
   /**
@@ -129,13 +157,19 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
       kind: 'tool_end',
       tool: event.toolName,
       isError,
-      result: preview({ value: event.result, length: FEED_PREVIEW_CHARACTERS.toolResult, },),
+      result: preview({
+        value: event.result,
+        length: FEED_PREVIEW_CHARACTERS.toolResult,
+      },),
     },);
     if (isError) {
       toolErrors.push({
         t: Date.now() - startedAt,
         tool: event.toolName,
-        result: preview({ value: event.result, length: FEED_PREVIEW_CHARACTERS.toolError, },),
+        result: preview({
+          value: event.result,
+          length: FEED_PREVIEW_CHARACTERS.toolError,
+        },),
       },);
     }
   }
@@ -171,12 +205,21 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
     note({
       kind: 'assistant',
       stop: message.stopReason,
-      text: preview({ value: text, length: FEED_PREVIEW_CHARACTERS.assistantText, },),
+      text: preview({
+        value: text,
+        length: FEED_PREVIEW_CHARACTERS.assistantText,
+      },),
       thinkingChars: thinkingLengthOf(parts,),
       toolCalls: parts.filter(function isToolCall(part,) {
         return part.type === 'toolCall';
-      },).length,
-      usage: { input: usage.input, output: usage.output, cost: fieldsOf(usage.cost,).total, },
+      },)
+        .length,
+      usage: {
+        input: usage.input,
+        output: usage.output,
+        cost: fieldsOf(usage.cost,)
+          .total,
+      },
       error: message.errorMessage ?? null,
     },);
   }
@@ -188,7 +231,10 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
 
    @param declineDialog - how to decline
    */
-  function observeInterfaceRequest({ event, declineDialog, }: EventObservation,): void {
+  function observeInterfaceRequest({
+    event,
+    declineDialog,
+  }: EventObservation,): void {
     /**
      The interface method asked for.
      */
@@ -199,14 +245,24 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
     /**
      The dialog's title for the record.
      */
-    const title = preview({ value: event.title, length: FEED_PREVIEW_CHARACTERS.dialogTitle, },);
+    const title = preview({
+      value: event.title,
+      length: FEED_PREVIEW_CHARACTERS.dialogTitle,
+    },);
     dialogs.push({
       t: Date.now() - startedAt,
       method,
       title,
-      message: preview({ value: event.message, length: FEED_PREVIEW_CHARACTERS.dialogMessage, },),
+      message: preview({
+        value: event.message,
+        length: FEED_PREVIEW_CHARACTERS.dialogMessage,
+      },),
     },);
-    note({ kind: 'dialog', method, title, },);
+    note({
+      kind: 'dialog',
+      method,
+      title,
+    },);
     declineDialog(event.id,);
   }
 
@@ -216,30 +272,57 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
   const eventHandlers: ReadonlyMap<string, (observation: EventObservation,) => void> = new Map<
     string,
     (observation: EventObservation,) => void
-  >([
-    ['agent_start', function onAgentStart() {
-      state.running = true;
-    },],
-    ['agent_settled', function onAgentSettled() {
-      state.running = false;
-      state.settled += 1;
-      note({ kind: 'settled', n: state.settled, },);
-    },],
-    ['turn_start', function onTurnStart() {
-      state.turns += 1;
-      note({ kind: 'turn_start', n: state.turns, },);
-    },],
-    ['tool_execution_start', function onToolStart({ event, },) {
-      observeToolStart(event,);
-    },],
-    ['tool_execution_end', function onToolEnd({ event, },) {
-      observeToolEnd(event,);
-    },],
-    ['message_end', function onMessageEnd({ event, },) {
-      observeMessageEnd(event,);
-    },],
-    ['extension_ui_request', observeInterfaceRequest,],
-  ],);
+    >([
+      [
+        'agent_start',
+        function onAgentStart() {
+          state.running = true;
+        },
+      ],
+      [
+        'agent_settled',
+        function onAgentSettled() {
+          state.running = false;
+          state.settled += 1;
+          note({
+            kind: 'settled',
+            n: state.settled,
+          },);
+        },
+      ],
+      [
+        'turn_start',
+        function onTurnStart() {
+          state.turns += 1;
+          note({
+            kind: 'turn_start',
+            n: state.turns,
+          },);
+        },
+      ],
+      [
+        'tool_execution_start',
+        function onToolStart({ event, },) {
+          observeToolStart(event,);
+        },
+      ],
+      [
+        'tool_execution_end',
+        function onToolEnd({ event, },) {
+          observeToolEnd(event,);
+        },
+      ],
+      [
+        'message_end',
+        function onMessageEnd({ event, },) {
+          observeMessageEnd(event,);
+        },
+      ],
+      [
+        'extension_ui_request',
+        observeInterfaceRequest,
+      ],
+    ],);
 
   return {
     isRunning: function isRunning() {
@@ -260,20 +343,35 @@ export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
     },
     noteDriverFailure: function noteDriverFailure(failure,) {
       state.driverError = failure;
-      note({ kind: 'driver-failed', failure, },);
+      note({
+        kind: 'driver-failed',
+        failure,
+      },);
     },
     observe: function observe(observation,) {
       state.lastActivityAt = Date.now();
       /**
        The kind of event.
        */
-      const type = textOf(observation.event.type,);
+      const type = textOf(observation.event
+        .type,);
       if (NOTED_EVENT_TYPES.has(type,)) {
-        note({ kind: type, detail: preview({ value: observation.event, length: FEED_PREVIEW_CHARACTERS.eventDetail, },), },);
+        note({
+          kind: type,
+          detail: preview({
+            value: observation.event,
+            length: FEED_PREVIEW_CHARACTERS.eventDetail,
+          },),
+        },);
       }
       eventHandlers.get(type,)?.(observation,);
     },
-    summarize: function summarize({ endReason, piExit, piHasExited, sessionStats, },) {
+    summarize: function summarize({
+      endReason,
+      piExit,
+      piHasExited,
+      sessionStats,
+    },) {
       return {
         endReason,
         ...(piHasExited ? { piExit, } : {}),

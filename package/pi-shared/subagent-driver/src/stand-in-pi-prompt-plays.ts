@@ -130,13 +130,30 @@ async function emitFinalReplyInTwoPieces(text: string,): Promise<void> {
 }
 
 /**
- What each scenario does with a prompt. A scenario missing here finishes a normal run.
+ Scenarios that take time over a prompt.
  */
-const promptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Map<string, (id: unknown,) => Promise<void>>([
-  ['reject', async function rejectPrompt(id,) {
+const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Map<string, (id: unknown,) => Promise<void>>([
+  ['crash-later', async function crashLater(id,) {
+    answer({ id, },);
+    await wait(LATE_CRASH_MILLISECONDS,);
+    exit(CRASH_STATUS,);
+  },],
+  ['split-record', async function splitRecord(id,) {
+    answer({ id, },);
+    emit({ type: 'agent_start', },);
+    await emitFinalReplyInTwoPieces(`café line${LINE_SEPARATOR}separator`,);
+    emit({ type: 'agent_settled', },);
+  },],
+],);
+
+/**
+ What the other scenarios do with a prompt. A scenario missing from both maps finishes a normal run.
+ */
+const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string, (id: unknown,) => void>([
+  ['reject', function rejectPrompt(id,) {
     emit({ type: 'response', id, success: false, error: 'no key for this provider', },);
   },],
-  ['reject-inbox', async function rejectLaterPrompts(id,) {
+  ['reject-inbox', function rejectLaterPrompts(id,) {
     if (seen.prompts > 1) {
       emit({ type: 'response', id, success: false, error: 'refused', },);
       return;
@@ -144,37 +161,32 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Ma
     answer({ id, },);
     finishRun('done',);
   },],
-  ['handled', async function handlePrompt(id,) {
+  ['handled', function handlePrompt(id,) {
     answer({ id, data: { disposition: 'handled', }, },);
   },],
-  ['crash-later', async function crashLater(id,) {
-    answer({ id, },);
-    await wait(LATE_CRASH_MILLISECONDS,);
-    exit(CRASH_STATUS,);
-  },],
-  ['never-settles', async function neverSettle(id,) {
+  ['never-settles', function neverSettle(id,) {
     answer({ id, },);
     emit({ type: 'agent_start', },);
   },],
-  ['settle-gap', async function endWithoutSettling(id,) {
+  ['settle-gap', function endWithoutSettling(id,) {
     answer({ id, },);
     emit({ type: 'agent_start', },);
     emit({ type: 'agent_end', },);
   },],
-  ['many-turns', async function startManyTurns(id,) {
+  ['many-turns', function startManyTurns(id,) {
     answer({ id, },);
     emit({ type: 'agent_start', },);
     for (let turn = 0; turn < MANY_TURNS; turn += 1) {
       emit({ type: 'turn_start', },);
     }
   },],
-  ['dialog', async function askDialog(id,) {
+  ['dialog', function askDialog(id,) {
     answer({ id, },);
     emit({ type: 'agent_start', },);
     emit({ type: 'extension_ui_request', id: 'dialog-1', method: 'select', title: 'Pick one', message: 'Which?', },);
     emit({ type: 'extension_ui_request', id: 'notice-1', method: 'notify', message: 'hello', },);
   },],
-  ['tools', async function useTools(id,) {
+  ['tools', function useTools(id,) {
     answer({ id, },);
     emit({ type: 'agent_start', },);
     emit({ type: 'tool_execution_start', toolName: 'bash', args: { command: 'ls', }, },);
@@ -184,16 +196,10 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Ma
     emit({ type: 'auto_retry_start', },);
     emit({ type: 'agent_settled', },);
   },],
-  ['noise', async function writeNoise(id,) {
+  ['noise', function writeNoise(id,) {
     answer({ id, },);
     stdout.write('this line is not JSON\n',);
     finishRun('after the noise',);
-  },],
-  ['split-record', async function splitRecord(id,) {
-    answer({ id, },);
-    emit({ type: 'agent_start', },);
-    await emitFinalReplyInTwoPieces(`café line${LINE_SEPARATOR}separator`,);
-    emit({ type: 'agent_settled', },);
   },],
 ],);
 
@@ -209,11 +215,19 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Ma
  */
 export async function playPrompt(id: unknown,): Promise<void> {
   /**
-   The scenario's play, if it has one.
+   The scenario's play if it takes time.
+   */
+  const waitingPlay = waitingPromptPlays.get(scenario,);
+  if (waitingPlay !== undefined) {
+    await waitingPlay(id,);
+    return;
+  }
+  /**
+   The scenario's play if it has one.
    */
   const play = promptPlays.get(scenario,);
   if (play !== undefined) {
-    await play(id,);
+    play(id,);
     return;
   }
   answer({ id, },);

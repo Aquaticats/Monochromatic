@@ -21,12 +21,21 @@ import { textOf, } from './read-pi-fields.ts';
  const text = preview({ value: 'abc', length: 2, },);
  ```
  */
-export function preview({ value, length, }: { readonly value: unknown; readonly length: number; },): string {
+export function preview({
+  value,
+  length,
+}: {
+  readonly value: unknown;
+  readonly length: number
+},): string {
   /**
    The value as text.
    */
-  const text = (typeof value === 'string') ? value : (JSON.stringify(value,) ?? '');
-  return (text.length > length) ? `${text.slice(0, length,)}...[${String(text.length,)}]` : text;
+  const text = ((typeof value) === 'string') ? value : (JSON.stringify(value,) ?? '');
+  return (text.length > length) ? `${text.slice(
+    0,
+    length,
+  )}...[${String(text.length,)}]` : text;
 }
 
 /**
@@ -44,9 +53,11 @@ export function preview({ value, length, }: { readonly value: unknown; readonly 
 export function textOfParts(parts: readonly PiRecord[],): string {
   return parts.filter(function isTextPart(part,) {
     return part.type === 'text';
-  },).map(function textOfPart(part,) {
-    return textOf(part.text,);
-  },).join('\n',);
+  },)
+    .map(function textOfPart(part,) {
+      return textOf(part.text,);
+    },)
+    .join('\n',);
 }
 
 /**
@@ -64,7 +75,16 @@ export function textOfParts(parts: readonly PiRecord[],): string {
 export function thinkingLengthOf(parts: readonly PiRecord[],): number {
   return parts.filter(function isThinkingPart(part,) {
     return part.type === 'thinking';
-  },).reduce(function addLength(sum, part,) {
-    return sum + textOf(part.thinking,).length;
-  }, 0,);
+  },)
+    .reduce(
+    function addLength(
+      sum,
+      part,
+    ) {
+      return sum
+        + textOf(part.thinking,)
+          .length;
+    },
+    0,
+    );
 }

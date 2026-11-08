@@ -50,8 +50,15 @@ const log = env.STAND_IN_PI_LOG ?? '/dev/null';
 function writeOddLines(id: unknown,): void {
   stdout.write('\n',);
   stdout.write('[1]\n',);
-  emit({ type: 'response', id: 7, },);
-  emit({ type: 'response', id: 'nobody-asked', success: true, },);
+  emit({
+    type: 'response',
+    id: 7,
+  },);
+  emit({
+    type: 'response',
+    id: 'nobody-asked',
+    success: true,
+  },);
   answer({ id, },);
 }
 
@@ -64,9 +71,23 @@ async function startToolHoldingOutput(id: unknown,): Promise<void> {
   /**
    The tool.
    */
-  const tool = spawn('sleep', [TOOL_SECONDS,], { stdio: ['ignore', 'inherit', 'inherit',], detached: true, },);
+  const tool = spawn(
+    'sleep',
+    [TOOL_SECONDS,],
+    {
+      stdio: [
+        'ignore',
+        'inherit',
+        'inherit',
+      ],
+      detached: true,
+    },
+  );
   tool.unref();
-  await appendFile(log, `tool ${String(tool.pid,)}\n`,);
+  await appendFile(
+    log,
+    `tool ${String(tool.pid,)}\n`,
+  );
   answer({ id, },);
 }
 
@@ -83,7 +104,10 @@ async function actOnCommand(line: string,): Promise<void> {
   if (!isRecord(parsed,)) {
     return;
   }
-  await appendFile(log, `${String(parsed.type,)}\n`,);
+  await appendFile(
+    log,
+    `${String(parsed.type,)}\n`,
+  );
   if (scenario === 'silent') {
     return;
   }
@@ -107,21 +131,33 @@ async function actOnCommand(line: string,): Promise<void> {
     await playPrompt(parsed.id,);
     return;
   }
-  answer({ id: parsed.id, data: { sessionFile: 'stand-in.jsonl', }, },);
+  answer({
+    id: parsed.id,
+    data: { sessionFile: 'stand-in.jsonl', },
+  },);
   if ((parsed.type === 'steer') && (scenario === 'settle-gap')) {
     emit({ type: 'agent_settled', },);
   }
 }
 
-await appendFile(log, `arguments ${JSON.stringify(argv.slice(2,),)}\n`,);
-await appendFile(log, `nested ${env[NESTED_RUN_VARIABLE] ?? 'unset'}\n`,);
+await appendFile(
+  log,
+  `arguments ${JSON.stringify(argv.slice(2,),)}\n`,
+);
+await appendFile(
+  log,
+  `nested ${env[NESTED_RUN_VARIABLE] ?? 'unset'}\n`,
+);
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);
 }
 if (scenario === 'ignores-sigterm') {
-  process.on('SIGTERM', function ignoreSigterm() {
-    stdout.write('',);
-  },);
+  process.on(
+    'SIGTERM',
+    function ignoreSigterm() {
+      stdout.write('',);
+    },
+  );
 }
 for await (const line of createInterface({ input: stdin, },)) {
   await actOnCommand(line,);

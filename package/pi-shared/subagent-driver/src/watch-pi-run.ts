@@ -22,12 +22,10 @@ import {
 import type {
   DriverOptions,
   EndReason,
+  RecordOfPiRun,
   RunProgress,
 } from './driver-types.ts';
-import {
-  preview,
-  type RecordOfPiRun,
-} from './record-of-pi-run.ts';
+import { preview, } from './previews-of-pi-messages.ts';
 
 /**
  The polling interval stopped, which it never does by itself.
