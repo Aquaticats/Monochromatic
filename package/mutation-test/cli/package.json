@@ -31,6 +31,7 @@
     "@types/node": "catalog:"
   },
   "dependencies": {
+    "@monochromatic-dev/container-limit-core": "workspace:*",
     "@monochromatic-dev/logger-core": "workspace:*",
     "@monochromatic-dev/ownership-marker-foreign-borrowed": "workspace:*",
     "@monochromatic-dev/test-harness-core-matrix": "workspace:*",

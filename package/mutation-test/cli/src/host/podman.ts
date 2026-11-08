@@ -12,6 +12,7 @@ import { join, } from 'node:path';
 
 import spawn from 'nano-spawn';
 
+import { diskWeightArguments, } from '@monochromatic-dev/container-limit-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
 import {
@@ -36,38 +37,6 @@ const l = tagged({ tag: 'mutation-test', },);
  Report file name the container writes (mirrors container/main.ts).
  */
 export const REPORT_FILE_NAME = 'shard-report.json';
-
-/**
- Lowest weight podman accepts for a container's disk I/O (`podman run --blkio-weight` takes 10 to 1000; the default is 100).
- 
- Repository rule HXR (`AGENTS.md`) starts containers that can exhaust the host at this weight, because a rootless
- container sits in its own `libpod-<id>.scope` outside the launcher's unit and ignores the launcher's `IOWeight`.
- This package keeps its own copy instead of importing `diskWeightArguments` from
- `@monochromatic-dev/mutation-test-cli-cargo-mutants`, whose product is the cargo-mutants launcher; a generic
- JavaScript mutation tester must not depend on it.
- */
-export const LOWEST_DISK_WEIGHT: number = 10;
-
-/**
- Disk-weight options of a shard container, in the two forms the two block-layer weight files need.
- 
- `--blkio-weight` sets the cgroup file `io.bfq.weight`, which the BFQ I/O scheduler reads, and leaves `io.weight`
- (which other schedulers read) at the default; `--cgroup-conf=io.weight=` sets `io.weight` and leaves `io.bfq.weight`
- at the default. Passing both puts whichever file the host's scheduler reads at {@link LOWEST_DISK_WEIGHT}.
- 
- @returns `['--blkio-weight=10', '--cgroup-conf=io.weight=10']`.
- 
- @example
- ```ts
- const options = diskWeightArguments();
- ```
- */
-export function diskWeightArguments(): readonly string[] {
-  return [
-    `--blkio-weight=${String(LOWEST_DISK_WEIGHT,)}`,
-    `--cgroup-conf=io.weight=${String(LOWEST_DISK_WEIGHT,)}`,
-  ];
-}
 
 /**
  Resource caps applied to each shard container.
