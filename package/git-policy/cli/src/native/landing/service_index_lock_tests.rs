@@ -264,36 +264,33 @@ fn where_no_watch_can_be_set_the_wait_polls_until_the_lock_goes() {
 /// so only a wait with no bound lasts through it.
 const LONG_HOLD: Duration = Duration::from_millis(2500);
 
+/// The shortest ceiling a wait can be given:
+/// the wait's clock has already run out when it begins,
+/// so an ending that comes before the ceiling is proven to take no time over it,
+/// however long the host stalls.
+const NO_CEILING: Duration = Duration::ZERO;
+
 /// A PID file that names a process which no longer runs ends the wait at once,
 /// with the process named,
 /// and nothing is removed.
-/// The wait runs on a thread and the control gives it a few seconds,
-/// so a dead owner waited for like a live one fails the control
-///  instead of hanging it.
+/// The ceiling is already out when the wait begins,
+/// so a dead owner waited for like a live one ends in the ceiling's words instead,
+/// at once and without a stopwatch to read.
 #[test]
 fn a_dead_owner_ends_the_wait_at_once() {
     let (root, index) = index_in("index-lock-dead-owner");
     std::fs::write(lock_path_of(&index), "foreign").expect("foreign lock");
     let gone: i64 = dead_pid();
     std::fs::write(crate::recovery_files::lock_pid_path(&index), format!("pid {gone}\n")).expect("PID file");
-    let heard: std::sync::Arc<Mutex<Vec<Announce>>> = std::sync::Arc::new(Mutex::new(Vec::new()));
-    let (finished, ended) = std::sync::mpsc::channel::<FailureCode>();
-    let waiter_index: PathBuf = index.clone();
-    let waiter_heard: std::sync::Arc<Mutex<Vec<Announce>>> = std::sync::Arc::clone(&heard);
-    std::thread::spawn(move || {
-        let failure = acquire(&waiter_index, 5, &|note| { waiter_heard.lock().expect("lock").push(note); }).expect_err("refused");
-        let _sent = finished.send(failure.code);
-    });
-    let code: FailureCode = ended.recv_timeout(DEAD_OWNER_PATIENCE).expect("a dead owner was waited for like a live one");
-    assert_eq!(code, FailureCode::IndexInUse);
+    let heard: Mutex<Vec<Announce>> = Mutex::new(Vec::new());
+    let failure = acquire_within(&SYSTEM, &index, 5, NO_CEILING, &|note| { heard.lock().expect("lock").push(note); }).expect_err("refused");
+    assert_eq!(failure.code, FailureCode::IndexInUse);
     let said: Vec<Announce> = heard.lock().expect("lock").clone();
     assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains(format!("PID {gone}, which no longer runs").as_str())); }), "{said:?}");
+    assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("still held after")); }), "a dead owner is not waited for: {said:?}");
     assert_eq!(std::fs::read_to_string(lock_path_of(&index)).expect("foreign lock stands"), "foreign");
     remove(root.as_path());
 }
-
-/// The time a control gives a wait that must end at once before it calls it hung.
-const DEAD_OWNER_PATIENCE: Duration = Duration::from_secs(10);
 
 /// A holder proven alive is waited for with no bound:
 /// the wait goes on through the whole hold with the holder named and no line
