@@ -68,7 +68,7 @@ Owner decisions given in this session:
   The only thing the subagent got wrong in review is minor:
   its new tests sit in a second `describe` that reuses the existing suite name.
 
-### Unassisted attempt, running
+### Unassisted attempt, finished and committed as `9ac27cf235`
 
 - Branch `fix/pi-goal-reviewer-rubric-solo` in worktree `.claude/worktrees/pi-goal-rubric-solo`,
   based on `d3dab4839d`.
@@ -112,7 +112,82 @@ Owner decisions given in this session:
   saw the tests fail,
   and restored them (line 264 of `remaining-work-guidance.ts` was checked by hand);
   it fixed lint findings in rounds to 0 warnings and 0 errors.
-  The final result is not judged yet.
+  Run record:
+  the process ended on its own with `endReason` idle after 913702 ms,
+  132 assistant turns and 146 tool calls (109 bash,
+  32 edit,
+  3 read,
+  2 write),
+  2 tool errors (a stale edit anchor,
+  and a shell exit code 1 from a count that printed 0),
+  446128 input and 61684 output tokens,
+  cost about 0.72,
+  no dialog requests.
+  Checked by me after it ended,
+  in the solo worktree and each under a capped `systemd-run --user --scope`:
+  `build`,
+  `lint:types`,
+  `test:unit` and `lint` of `//package/pi-plugin/goal` all exit 0,
+  the new suite names appear in the unit output,
+  no mutation is left (`rg 'length >= 0' src` finds nothing),
+  and `git status` listed only files under `package/pi-plugin/goal/`.
+  Not yet checked:
+  criterion 6 (new tests failing on the base source),
+  and stray files outside the worktree.
+  Design concern:
+  the post-filter holds hand-written phrase lists (`open problem`,
+  `ask them`,
+  `different task`,
+  `remains unsolved`),
+  so a legitimate reviewer sentence that merely contains one is replaced by a fixed instruction,
+  and the repository's rule against magic lists applies.
+  Whether the filter ever fired in a live run is unknown:
+  the first Collatz pass stored truncated entries,
+  so its absence of `policyViolations` proves nothing.
+
+## Collatz measurement, first pass, 2026-11-07T23:51:22-05:00
+
+- Setup:
+  three isolated Pi homes in `~/temp/agent/pi-goal-home-{baseline,handheld,solo}`,
+  each listing the synthetic provider and one goal package in `settings.json` `packages`
+  (the real home lists the main checkout's package by absolute path,
+  which is why earlier runs saw the old build),
+  primary `hf:deepseek-ai/DeepSeek-V4.1-Flash-1017`,
+  reviewer `hf:openai/gpt-oss-120b`,
+  objective `prove the Collatz conjecture (the 3x + 1 problem)`,
+  runner `~/temp/agent/pi-rpc-trial/run-collatz-matrix.ts`,
+  one lane per build run side by side in capped units,
+  arms `--tools read,bash` and no allowlist,
+  two repeats each.
+- Baseline (old build),
+  four arms:
+  every recorded denial told the primary to explain that no proof is known,
+  to ask the user,
+  or to offer alternative tasks,
+  and several began with `ask_user_question`.
+  One baseline arm recorded no denial inside its window.
+- Handheld (prompt change only),
+  four arms:
+  one denial each,
+  all of the form "attempt a proof",
+  "construct a formal argument",
+  or "provide a verification script up to a large bound".
+  None asked the user or told the primary to stop.
+- Unassisted (prompt change plus post-filter),
+  four arms:
+  three of four denials were proof attempts,
+  and one asked for "a comprehensive summary of known partial results",
+  which is a substitute objective that the filter's lists did not catch.
+- Control `solve 3x + 1 = 0 and state the value of x`:
+  approved on the first review on both branches in about 15 s.
+- Limit:
+  nearly every new arm ended at the observation cap with the primary still working on its second turn,
+  so these runs show the first denial only,
+  and the criterion "more than one distinct approach across cycles" is untested.
+  The old build looped through its eight turns inside the same window because its turns were short refusals.
+- A longer pass with all bounds tripled (`GOAL_BOUND_SCALE=3`,
+  prefix `_n_`) runs the new builds only,
+  with entry previews widened so `policyViolations` is visible if the filter fires.
 - Acceptance criteria,
   fixed before the run.
   Satisfactory means all of these hold and the model's report matches reality:
