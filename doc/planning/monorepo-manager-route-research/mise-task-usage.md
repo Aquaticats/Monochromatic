@@ -1453,7 +1453,10 @@ so a worktree of an already-trusted repository at the same commit inherits trust
 - Pros:
    the worktree case disappears;
    `cli-git` already reasons about repository identity,
-   which rule `WXG` and `doc/planning/git-wrong-repository-identity-defense.md` cover.
+   which rule `WXG` and `doc/planning/git-wrong-repository-identity-defense.md` cover
+   (WXG:
+  retired from `AGENTS.md` 2026-09-29;
+  the README section that held it was dropped 2026-10-13).
 - Cons:
    a worktree can be checked out at an untrusted commit;
    identity is a weaker key than exact bytes,

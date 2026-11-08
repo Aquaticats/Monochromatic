@@ -260,7 +260,9 @@ No dependency on `ra_ap_hir`,
 
 `README.md:66` and `README.md:132` state there is deliberately no inline
 suppression,
- and `AGENTS.md` MXL and RDC say never disable those two rules.
+ and `AGENTS.md` MXL and RDC say never disable those two rules (RDC:
+retired from `AGENTS.md` 2026-09-29;
+`rust/require-rustdoc` now).
 oxlint ships `--report-unused-disable-directives` as a headline feature,
  and
 `AGENTS.md` LN3/LN6 do allow justified `oxlint-disable-next-line` for TypeScript.
@@ -284,7 +286,10 @@ No config key,
  override,
  or nested config can flip that declaration,
 which keeps MXL,
- MXR and RDC literally true.
+ MXR and RDC literally true (MXR and RDC:
+retired from `AGENTS.md` 2026-09-29;
+`rust/max-lines`,
+`rust/require-rustdoc` and `MXL` now).
 
 Settled alongside it,
  not asked:
@@ -787,7 +792,10 @@ Settled after the questions in `Open decisions`,
 - The crate dogfoods itself,
    so every new `.rs` file obeys MXR's 300 code-line
   cap with no disable,
-   and RDC rustdoc on every item.
+   and RDC rustdoc on every item (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
 
 ## Deferred to implementation
 

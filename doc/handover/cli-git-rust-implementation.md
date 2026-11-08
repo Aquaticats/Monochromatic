@@ -825,7 +825,7 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   so the reviewer works and the input was too heavy.
   A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
   (`~/temp/agent/issue-6261/sol-review-after-fixes/`).
-  The fourth run answered (see the release blockers below) and
+  The fourth run answered (see the release blockers entry dated 2026-11-07T02:03:01-05:00) and
   its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`;
   no cross-vendor review of that fix has
   run.
@@ -3410,7 +3410,7 @@ then the rung's own snapshot.
 The new worktree then lists `.cli-git-worktree-copy-<id>` at inode 2 on a device of its own:
 empty,
 and `btrfs subvolume show` answers `Not a Btrfs subvolume` for it.
-The cause is the one read above:
+The cause is the one the `worktree/worktree_snapshot.rs:237-243` reading gives:
 `remove_stubs` named the registered worktrees and the destination,
 and a stage container in flight is neither.
 An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:

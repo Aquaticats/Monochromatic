@@ -407,7 +407,7 @@ The new linter is `monochromatic-lint .` with the worktree configuration.
   and 46 probe findings.
   The 83 `monochromatic-lint` findings stay,
    because the owner has to decide whether that package
-  is inside the gate (see below).
+  is inside the gate (see "Left for step 8").
 
 ## Deleted paths
 
@@ -479,7 +479,7 @@ The git-policy packages named `markdown-lint` (`package/git-policy/markdown-lint
    and the owner decision of 2026-10-05 keeps it a warning.
 - `markdown/semantic-line-breaks` inside fenced Rust doc comments:
    123 errors in 32 files.
-  This is the new-linter over-report described above.
+  This is the new-linter over-report.
 - Shared Markdown errors,
    reported by the incumbent too (group b,
    not fixed here):

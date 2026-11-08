@@ -684,7 +684,7 @@ then `toolchain:update`,
 commit the lock;
 ask the coordinator first;
 the wrapper alpha.2 is the coordinator's).
-W6 and W7 stay the owner's call (blocked section above).
+W6 and W7 stay the owner's call (see "W6 and W7 edits to apply").
 
 Hot-path facts to keep:
 phase `before` is one `lstat`;

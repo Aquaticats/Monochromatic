@@ -16,7 +16,7 @@ Lint issues need to be taken care of asap."
 and "Mutation runs don't block publish and release."
 Nothing here releases the package.
 
-Inspect the survivor dispositions below,
+Inspect the layout and workflow-shell survivor dispositions,
 the units and logs,
 and the open items at the end.
 Respond by naming a disposition that the evidence does not support.
@@ -313,6 +313,7 @@ each with its reason in the code:
 - `layout_group_summary_links.rs:91` `summaries`,
   `<` to `<=` is not in this list:
   it is killed (see above).
+  it is killed by `layout_one_reference_that_reaches_two_folders_of_a_group_names_the_first`.
 - `layout_file_order.rs:275` `list_findings`,
   `<` to `<=`:
   equal places need equal names,

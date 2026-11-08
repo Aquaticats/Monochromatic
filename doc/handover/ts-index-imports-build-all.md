@@ -207,7 +207,8 @@ itself by name,
  plan-excluded;
  includes the intentional "tests import the built dist" pattern) and TSDoc/README
 `@example` comments (deferred,
- see "Doc examples" below).
+ see the "Doc examples" section,
+which is DEFERRED).
 
 ### The tools (repo root, UNTRACKED, throwaway)
 
@@ -233,7 +234,7 @@ touches bare string-literal package names (verified skips:
  reports files that would have DUPLICATE import statements after collapse
 (condition:
  `valueCount + typeCount > 1` for the target's `/ts`;
- see the rule finding below).
+ see the empirical duplicate-import findings).
  Used as the merge oracle
 (detector -> 0 after merging),
  cross-checked against real scoped oxlint.
@@ -914,7 +915,7 @@ preference,
 
 VERIFY-THEN-ROUTE:
  `mcp-stdio` — DONE (node bundle;
- see Done above).
+ see its entry in the Done list).
  Confirmed it uses `process` stdin/stdout.
 
 NEUTRAL but cross-runtime/OPFS:
@@ -992,7 +993,7 @@ PURE-CLI (bin only,
     For the remaining pure-CLIs:
     `mcp-mvm` + `dev-script-vm-builder` spin VMs -> ONLY `--help`/
    `--version` after confirming help is inert;
-    `cli-terminal-exec` (lib+bin below) must NOT be run at all (`AGENTS.md`:
+    `cli-terminal-exec` (its lib and bin packages) must NOT be run at all (`AGENTS.md`:
    probing terminal-exec opens a terminal) -- verify it by build + shebang + parser-read only.
 
 LIB+BIN (BOTH `.`/`./ts` exports AND a bin from a SEPARATE entry -- DUAL-ENTRY):

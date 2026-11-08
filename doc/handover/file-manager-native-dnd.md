@@ -271,7 +271,9 @@ Committed:
 
 ### RESOLVED: the co-bound wl_data_device inbound path works (automated test)
 
-The automated nested-compositor test (below) settles the open question.
+The automated nested-compositor test settles the open question;
+the "Automated inbound DnD test in the nested compositor (BUILT,
+PASSING)" section records it.
  Driving a
 scripted,
  compositor-originated drag onto the hosted file-manager produces the full

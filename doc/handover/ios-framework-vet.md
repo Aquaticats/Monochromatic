@@ -877,7 +877,8 @@ DONE (FULL PASS,
 it cannot render on the M1's native arm64 iOS 26.5 simulator,
  and the only arm64-sim path breaks the no-C++
 rule;
- see below and `device-gate-results.md`).
+ see the "Qt (rank 9,
+needs-device)" entry and `device-gate-results.md`).
  Dioxus (first appended gate) is DONE (FULL PASS both legs,
 below).
  SnapKit,
@@ -948,7 +949,7 @@ NET substrate's `RustTriple` fix);
 - NativeScript (rank 7,
    needs-device):
    FULL PASS,
-   DONE (above).
+   DONE.
    Jitless V8 10.3.22 initialized in ~60ms on
   the iPhone X with no AMFI/execmem kill (iOS inverse of its Android DENY_EXECMEM death),
    and the Rust
@@ -983,7 +984,7 @@ NET substrate's `RustTriple` fix);
 - Lynx (rank 8,
    expected-pass):
    FULL PASS,
-   DONE (above).
+   DONE.
    Native UIKit (`LynxView : UIView`,
   header-verified,
    no WKWebView);

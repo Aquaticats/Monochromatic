@@ -106,7 +106,8 @@ Label vocabulary lives in [`doc/agent/triage-labels.md`](../agent/triage-labels.
 The issue-first rule has exactly two exceptions:
 the tiny-fix carve-out below,
  and security,
-which routes through the private advisory flow and never a public issue (see below).
+which routes through the private advisory flow that [`SECURITY.md`](../../SECURITY.md) describes,
+and never a public issue.
 A PR references its approved issue by number with a `Closes #N` line,
 which auto-closes the issue when the PR merges to the default branch,
 per [`doc/agent/issue-tracker.md`](../agent/issue-tracker.md).
@@ -133,7 +134,8 @@ Tiny is defined exactly:
 `CONTRIBUTING.md` states rules only.
 It does not enumerate the attacks,
 because naming the games in the contributor-facing doc invites them.
-The threat-model reasoning is recorded in this handover instead (see below).
+The threat-model reasoning is recorded in this handover's "Threat model (kept here,
+deliberately not in CONTRIBUTING.md)" section instead.
 
 ### Maintainer obligation
 

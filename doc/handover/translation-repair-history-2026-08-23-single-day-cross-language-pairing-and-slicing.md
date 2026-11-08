@@ -225,7 +225,7 @@ one that item guessed at.
 
 `translate-document.unit.test.ts` had been failing since `#100` landing 5 landed,
 and the
-"suite 556 PASS" recorded above was measured before the last wiring of that landing.
+The "suite 556 PASS" result was measured before the last wiring of that landing.
 The case
 appends an untranslated passage to a pair whose translation runs 3.4 English code points per
 source point against a corpus median of 2.65,
