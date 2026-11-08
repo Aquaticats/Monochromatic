@@ -22,7 +22,10 @@ run = [{ tasks = ["lint:types", "lint:oxlint"] }]
 
 [tasks."lint:types"]
 description = "Check the fuzz helper library, every fuzz target and the generator controls compile against the subject, with denied Clippy warnings"
-run = ["cargo check --all-targets --locked --offline", "cargo clippy --all-targets --locked --offline -- -D warnings"]
+run = [
+  "cargo check --all-targets --locked --offline",
+  "cargo clippy --all-targets --locked --offline -- -D warnings",
+]
 
 [tasks.build]
 description = "Build AddressSanitizer targets in a 2 GiB / 2 CPU container"
