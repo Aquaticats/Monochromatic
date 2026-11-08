@@ -268,8 +268,8 @@ echo "subvolumes to freeze: $(grep --count '^btrfs property set -ts ' ${c.wiz}/f
         ''}touch ${c.wiz}/stopped-units.txt
 { cat ${c.wiz}/stopped-units.txt; systemctl --user list-units --plain --no-legend --all ${COMMIT_SERVICE_UNIT_PATTERNS} | awk '{ print $1 }'; if systemctl --user is-active --quiet claude-cpu-watch.service; then echo claude-cpu-watch.service; fi; } | sort --unique > ${c.wiz}/stopped-units.txt.new
 mv ${c.wiz}/stopped-units.txt.new ${c.wiz}/stopped-units.txt
-${ // A listed unit that is no longer loaded fails its stop; the check decides whether anything still runs.
-        ''}xargs --arguments-file=${c.wiz}/stopped-units.txt --no-run-if-empty systemctl --user stop || echo 'a listed unit could not be stopped (one no longer loaded fails this way); the check reads what still runs'`,
+${ // One call per unit, because systemctl refuses a whole list when any unit in it is not loaded. A listed unit that is no longer loaded fails its own stop; the check decides whether anything still runs.
+        ''}xargs --arg-file=${c.wiz}/stopped-units.txt --no-run-if-empty --max-args=1 systemctl --user stop || echo 'a listed unit could not be stopped (one no longer loaded fails this way); the check reads what still runs'`,
       check: `${ // Each query's own failure fails the check, so a manager that cannot be reached never reads as "stopped".
         ''}running="$(systemctl --user list-units --plain --no-legend --state=active,activating,deactivating,reloading ${COMMIT_SERVICE_UNIT_PATTERNS})" && test -z "$running" && watch="$(systemctl --user show --property=ActiveState --value claude-cpu-watch.service)" && test "$watch" != active && test "$watch" != activating`,
       checkText: 'no commit service is active, starting or stopping, and claude-cpu-watch.service is stopped',

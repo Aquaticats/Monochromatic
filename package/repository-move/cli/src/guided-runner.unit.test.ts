@@ -918,6 +918,10 @@ await describe({
               const listed = (await readFile(join(config.wiz, 'stopped-units.txt',), 'utf8',)).trim().split('\n',);
               expect(listed,).toContain(earlier,);
               expect(listed,).toContain('monochromatic-git-policy-cli@0123.socket',);
+              // One call per unit: systemctl refuses a whole list when any unit in it is not loaded.
+              const stopCalls = (await readFile(join(home, 'systemctl-stand-in.log',), 'utf8',)).trim().split('\n',);
+              expect(stopCalls,).toContain(`--user stop ${earlier}`,);
+              expect(stopCalls,).toContain('--user stop monochromatic-git-policy-cli@0123.socket',);
               const release = stages.find((s,) => s.id === 'c21-release',) as Stage;
               await writeFile(join(config.wiz, 'window-start',), '0\n',);
               const releaseRun = await runWithSystemctlStandIn({ text: await resolvedCommand({ stage: release, config, },), mode: 'idle', home, },);
