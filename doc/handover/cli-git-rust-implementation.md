@@ -4515,6 +4515,21 @@ lines of a retiring older service still share one stream timestamp (nothing to f
 
 ### Gate and tooling
 
+- `native:test:binary:host` fails nine controls on this machine for reasons that predate the branch
+  and are the host,
+  not the code (measured 2026-11-08 on a clean checkout of `8520518962`,
+  the commit the two leftovers above were fixed on):
+  the five `budget::*` controls that count Git starts report one extra
+  `git update-index --refresh` (`starts of git update-index: observed 1, budget 0`),
+  `fixture_guard::a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_is_serving`
+  and `service_mode::the_same_start_with_the_real_git_listens` fail because the fixture's socket path
+  under `CARGO_TARGET_DIR` (`/var/mnt/encrypted/cargo-build/toolchain/<toolchain>/<two>/<hash>/tmp/...`)
+  is longer than `SUN_LEN` (`path must be shorter than SUN_LEN`,
+  and the service ends before it listens),
+  and `commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+  reports the client's own lock rename.
+  The container gate is the authority for all nine;
+  a host run of the rest of that suite passed 720 of 729 (three skipped) with the full lib suite at 4725 of 4725.
 - Gate-slot and campaign-lock claim files are merged,
   with the 2026-11-03 liveness and signal fixes (see "Open review findings" for what remains).
 - Mutation campaigns for wrapper code merged since the last recorded campaigns (conversion,
