@@ -191,4 +191,7 @@ run = "node bin/e2e-native-container.ts run"
 
 [tasks."native:lock:scanner"]
 description = "Seed the native wrapper lockfile from the linked scanner's lockfile, then let Cargo add only the wrapper's own packages, so both lock the same registry versions"
-run = ["cp ../../forbidden-strings/cli/Cargo.lock Cargo.lock", "cargo update --workspace --offline"]
+run = [
+  "cp ../../forbidden-strings/cli/Cargo.lock Cargo.lock",
+  "cargo update --workspace --offline",
+]
