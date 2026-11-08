@@ -54,3 +54,8 @@ pub fn shown(path: &std::path::Path, base: &std::path::Path) -> String {
         _ => path.to_string_lossy().into_owned(),
     };
 }
+
+/// Controls of the path display stay outside release artifacts.
+#[cfg(test)]
+#[path = "layout_finding_tests.rs"]
+mod tests;

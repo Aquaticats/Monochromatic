@@ -108,3 +108,23 @@ fn invalid_settings_are_errors() {
     let missing: String = settings(r#"{"shell/no-pipe":{"max":1}}"#).expect_err("severity");
     assert!(missing.contains("severity"), "{missing}");
 }
+
+/// Settings are empty only when neither a line budget nor a construct rule is selected.
+#[test]
+fn shell_settings_with_only_one_kind_of_rule_are_not_empty() {
+    let budget: ShellBudget = ShellBudget {
+        severity: Severity::Error,
+        max: 0,
+    };
+    let only_lines: ShellRuleSettings = ShellRuleSettings {
+        max_lines: Some(budget),
+        constructs: Vec::new(),
+    };
+    let only_constructs: ShellRuleSettings = ShellRuleSettings {
+        max_lines: None,
+        constructs: vec![(Construct::Pipe, budget)],
+    };
+    assert!(ShellRuleSettings::default().is_empty());
+    assert!(!only_lines.is_empty());
+    assert!(!only_constructs.is_empty());
+}

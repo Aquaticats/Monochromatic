@@ -22,7 +22,9 @@ fn check(source: &str, mdx: bool) -> Vec<Diagnostic> {
     return no_pipe_tables(&context, Severity::Warn);
 }
 
-/// Standalone, quoted, indented and listed tables are each reported once and none gets an edit.
+/// Standalone,
+/// quoted,
+/// indented and listed tables are each reported once and none gets an edit.
 #[test]
 fn every_table_is_reported_and_none_is_rewritten() {
     for mdx in [false, true] {

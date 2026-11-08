@@ -177,3 +177,24 @@ fn a_ring_of_globs_ends() {
         Some(a)
     );
 }
+
+/// A `crate` path in the tree of a second root names that root,
+///  not the first root of the package.
+#[test]
+fn layout_a_crate_path_in_a_second_root_names_that_root() {
+    let fixture = package_with(&[
+        ("src/lib.rs", "mod a;\n"),
+        ("src/a.rs", ""),
+        ("src/main.rs", "mod b;\nmod c;\n"),
+        ("src/b.rs", ""),
+        ("src/c.rs", ""),
+    ]);
+    let tree: ModuleTree = tree_of(&fixture.path);
+    assert!(tree.problems.is_empty(), "{:?}", tree.problems);
+    let from: usize = module_in(&tree, &fixture.path, "src/b.rs");
+    let c: usize = module_in(&tree, &fixture.path, "src/c.rs");
+    assert_eq!(
+        resolve_path(&tree, from, &segments("crate::c::Item"), true),
+        Some(c)
+    );
+}

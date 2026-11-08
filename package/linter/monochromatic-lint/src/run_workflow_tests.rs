@@ -18,6 +18,7 @@
 use crate::run_failure::PROCESSING_FAILURE;
 use crate::run_output::RunOutput;
 use crate::run_test_support::{CONFIG, codes, records, run, write};
+use crate::test_deadline::finished_within_deadline;
 use crate::test_fs::Fixture;
 
 /// Every `shell/` rule at error over every dialect of a workflow or composite action,
@@ -47,9 +48,24 @@ const RULES: &str = r#"[
 /// A workflow with one clean step.
 const CLEAN: &str = "name: ci\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: mise run lint\n      - uses: actions/checkout@v4\n";
 
+/// Run the command over a tree under the test deadline,
+///  so a run that stops advancing fails the test instead of hanging the run.
+fn run_bounded(root: &std::path::Path, args: &[&str], input: &str) -> RunOutput {
+    let owned_root: std::path::PathBuf = root.to_path_buf();
+    let owned_args: Vec<String> = args
+        .iter()
+        .map(|argument| return String::from(*argument))
+        .collect::<Vec<String>>();
+    let owned_input: String = String::from(input);
+    return finished_within_deadline(move || {
+        let borrowed: Vec<&str> = owned_args.iter().map(String::as_str).collect::<Vec<&str>>();
+        return run(&owned_root, borrowed.as_slice(), owned_input.as_str());
+    });
+}
+
 /// Lint a tree and return the output.
 fn lint(root: &std::path::Path) -> RunOutput {
-    return run(root, &["."], "");
+    return run_bounded(root, &["."], "");
 }
 
 /// A clean workflow passes with no output.
@@ -191,7 +207,7 @@ fn a_directive_inside_a_script_suppresses_nothing() {
 #[test]
 fn the_listing_declares_the_rules_unsuppressible() {
     let fixture: Fixture = Fixture::new();
-    let output: RunOutput = run(&fixture.path, &["--rules"], "");
+    let output: RunOutput = run_bounded(&fixture.path, &["--rules"], "");
     let mut shell: Vec<serde_json::Value> = Vec::new();
     for record in records(&output.stdout) {
         let id: &str = record["id"].as_str().unwrap_or("");

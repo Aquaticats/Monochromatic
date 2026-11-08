@@ -60,6 +60,10 @@ run = "cargo fmt --check"
 description = "Run native unit and conformance tests"
 run = "cargo nextest run --all-targets"
 
+[tasks."test:syntax-only"]
+description = "Run the controls of the router of a build without the semantic feature, the only tests that reach src/rust_file_engine_syntax.rs"
+run = "cargo nextest run --locked --no-default-features --test syntax_only_engine"
+
 [tasks."test:layout"]
 description = "Run only the layout rule tests (the folder `uses` links and the file order) in this checkout: the library tests and the built-executable test"
 run = "cargo nextest run --lib --test binary layout_"
@@ -144,6 +148,11 @@ description = "Mutate the workflow walk and the shell dialect scanners against t
 depends = ["lint:container"]
 run = "node bin/mutate-container.ts --workflow-shell"
 
+[tasks."mutation:syntax-only"]
+description = "Mutate the router of a build without the semantic feature, built without the default features, against its own test target, after full container tests and Clippy"
+depends = ["lint:container"]
+run = "node bin/mutate-container.ts --syntax-only"
+
 [tasks."mutation:semantic"]
 description = "Mutate the semantic engine, the explicit-type rule, the manifest lookup and the syntax-only router against the whole suite, with a per-mutant limit set from this scope's own baseline, after full container tests and Clippy"
 depends = ["lint:container"]
@@ -168,6 +177,10 @@ run = "node bin/mutate-container.ts --list --layout"
 [tasks."mutation:list:workflow-shell"]
 description = "Inspect the workflow and shell mutant scope without mutating or building source"
 run = "node bin/mutate-container.ts --list --workflow-shell"
+
+[tasks."mutation:list:syntax-only"]
+description = "Inspect the syntax-only router mutant scope without mutating or building source"
+run = "node bin/mutate-container.ts --list --syntax-only"
 
 [tasks."mutation:list:semantic"]
 description = "Inspect the semantic engine and explicit-type rule mutant scope without mutating or building source"

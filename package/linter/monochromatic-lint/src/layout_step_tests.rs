@@ -11,7 +11,9 @@
 //! test('the rules are off by default', () => expect(run(root, [])).toHaveNoFindings());
 //! ```
 
+use super::line_span;
 use crate::{
+    diagnostic::Span,
     layout_test_support::package_with,
     run_output::RunOutput,
     run_test_support::{ALL_RULES, CONFIG, records, run, write},
@@ -172,4 +174,47 @@ fn files_behind_uses_links_are_linted_once() {
         "{}",
         output.stderr
     );
+}
+
+/// The span of a finding's line starts at that line,
+///  covers it without its line break,
+///  and falls back to the file start for line zero,
+///  a line the file does not have and a file that cannot be read.
+#[test]
+fn layout_the_span_of_a_line_starts_at_that_line() {
+    let text: &str = "first\nsecond line\r\nthird";
+    let fixture = package_with(&[("lines.txt", text)]);
+    let file = fixture.path.join("lines.txt");
+    let second_start: usize = text.find("second").expect("second line");
+    let third_start: usize = text.find("third").expect("third line");
+    assert_eq!(
+        line_span(&file, 1),
+        Span {
+            offset: 0,
+            length: "first".len(),
+            line: 1,
+            column: 1
+        }
+    );
+    assert_eq!(
+        line_span(&file, 2),
+        Span {
+            offset: second_start,
+            length: "second line".len(),
+            line: 2,
+            column: 1
+        }
+    );
+    assert_eq!(
+        line_span(&file, 3),
+        Span {
+            offset: third_start,
+            length: "third".len(),
+            line: 3,
+            column: 1
+        }
+    );
+    let at_start: Span = line_span(&file, 0);
+    assert_eq!(line_span(&file, 4), at_start);
+    assert_eq!(line_span(&fixture.path.join("missing.txt"), 2), at_start);
 }
