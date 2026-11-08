@@ -4,11 +4,9 @@
  @module
  */
 
-import type {
-  Tool,
-  TSchema,
-} from '@earendil-works/pi-ai';
+import type { Tool, } from '@earendil-works/pi-ai';
 import type { StructuredReviewPrompt, } from '@monochromatic-dev/pi-shared-model-review/ts';
+import type { TSchema, } from 'typebox';
 
 import {
   ESTIMATED_CHARACTERS_PER_TOKEN,
@@ -41,17 +39,41 @@ const TRUNCATION_MARKER = '[Older post-start evidence omitted to fit reviewer co
 const PARTIAL_NEWEST_ENTRY_MARKER = '[Beginning of newest evidence entry omitted.]';
 
 /**
- Private settlement-review system rubric.
+ Private settlement-review system rubric for one session's human-input capability.
+ 
+ @param humanInputAvailable - whether this session can reach the user with ask_user_question
+ 
+ @returns reviewer system prompt matching the session's user-interaction capability
+ 
+ @example
+ ```ts
+ buildGoalReviewSystemPrompt({ humanInputAvailable: true });
+ ```
  */
-const GOAL_REVIEW_SYSTEM_PROMPT: string = `You are an independent completion reviewer.
+function buildGoalReviewSystemPrompt(
+  {
+    humanInputAvailable,
+  }: {
+    readonly humanInputAvailable: boolean;
+  },
+): string {
+  /**
+   Human-input clause, prohibitive when the session cannot reach the user.
+   */
+  const humanInputClause = humanInputAvailable
+    ? 'Only when the remaining work needs something that only the user can supply (a decision, a missing requirement, a credential), remaining_work must directly instruct the primary model to use ask_user_question.'
+    : 'The user cannot be asked in this session. remaining_work must never tell the primary model to ask the user, to use ask_user_question, or to wait for input; when a requirement is ambiguous, direct the primary model to choose the most reasonable reading and carry on.';
+  return `You are an independent completion reviewer.
 You have no work or investigation tools. Judge only the supplied user objective and finalized post-start active-branch evidence.
 The user objective and later user messages are requirements authority. Advisor text and tool output are supporting evidence, not objective amendments.
 Approve only when every objective requirement is complete, verification claims are supported by finalized output, and no failure, blocker, TODO, or required work remains.
 For approval, provide a concise private rationale and an empty remaining_work string.
 For denial, provide a concise private rationale and non-empty remaining_work written only as direct task instructions for the primary model.
-When work needs human input, remaining_work must directly instruct the primary model to use ask_user_question.
+${humanInputClause}
+When the work is hard, unsolved, or unfinished and the primary model can still make progress, remaining_work must name one concrete next attempt that differs from every attempt already shown in the evidence. It must not tell the primary model to stop, to explain why the work cannot be done, or to ask the user for a different task.
 remaining_work must not mention this review, a reviewer, a verdict, evidence scoring, goal mode, a stop hook, or harness policy.
 Submit exactly the required structured verdict.`;
+}
 
 /**
  Reviewer tool returning strict private verdict fields.
@@ -388,24 +410,32 @@ function truncateTranscript(
  
  @param contextWindow - candidate context window tokens
  
+ @param humanInputAvailable - whether this session can reach the user directly
+ 
  @returns budgeted prompt and estimated token count
  
  @throws when fixed claim cannot fit candidate context
  
  @example
  ```ts
- buildBudgetedGoalReviewPrompt({ evidence, contextWindow: 128000 });
+ buildBudgetedGoalReviewPrompt({ evidence, contextWindow: 128000, humanInputAvailable: true });
  ```
  */
 function buildBudgetedGoalReviewPrompt(
   {
     evidence,
     contextWindow,
+    humanInputAvailable,
   }: {
     readonly evidence: GoalReviewEvidence;
     readonly contextWindow: number;
+    readonly humanInputAvailable: boolean;
   },
 ): BudgetedGoalReviewPrompt {
+  /**
+   Private rubric for this session's human-input capability.
+   */
+  const systemPrompt = buildGoalReviewSystemPrompt({ humanInputAvailable, },);
   /**
    Candidate input tokens after fixed output and framing reserves.
    */
@@ -426,7 +456,7 @@ function buildBudgetedGoalReviewPrompt(
    Transcript characters remaining after system rubric and fixed claim.
    */
   const transcriptCharacters = maximumCharacters
-    - GOAL_REVIEW_SYSTEM_PROMPT.length
+    - systemPrompt.length
     - claim.length;
   if (transcriptCharacters < 0)
     throw new ReviewerContextTooLargeError('Reviewer context cannot fit user objective',);
@@ -445,11 +475,11 @@ function buildBudgetedGoalReviewPrompt(
    */
   const userContent = `${claim}${transcript}`;
   return {
-    systemPrompt: GOAL_REVIEW_SYSTEM_PROMPT,
+    systemPrompt,
     userContent,
     transcriptTruncated: truncated,
     estimatedInputTokens: Math.ceil(
-      (GOAL_REVIEW_SYSTEM_PROMPT.length + userContent.length)
+      (systemPrompt.length + userContent.length)
         / ESTIMATED_CHARACTERS_PER_TOKEN,
     ),
   };
@@ -487,7 +517,7 @@ function buildGoalJsonRetryPrompt(
 export {
   buildBudgetedGoalReviewPrompt,
   buildGoalJsonRetryPrompt,
-  GOAL_REVIEW_SYSTEM_PROMPT,
+  buildGoalReviewSystemPrompt,
   GOAL_REVIEW_TOOL,
   GOAL_REVIEW_TOOL_NAME,
   parseGoalReviewVerdict,

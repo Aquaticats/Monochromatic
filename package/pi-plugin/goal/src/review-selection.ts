@@ -152,6 +152,7 @@ async function promptedReviewers(
           evidence,
           contextWindow: entry.model
             .contextWindow,
+          humanInputAvailable: context.mode === 'tui',
         },);
         return {
           eligible: true as const,

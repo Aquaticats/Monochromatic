@@ -330,6 +330,7 @@ await describe({
             ],
           },
           contextWindow: model.contextWindow,
+          humanInputAvailable: true,
         },);
         /** Candidate prompt containing only abandoned exploration. */
         const absentPrompt = buildBudgetedGoalReviewPrompt({
@@ -341,6 +342,7 @@ await describe({
             ],
           },
           contextWindow: model.contextWindow,
+          humanInputAvailable: true,
         },);
         const present = await runGoalReviewerPool({
           pool: {
