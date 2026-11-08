@@ -103,7 +103,12 @@ fn btrfs_a_nested_worktree_registered_before_the_move_behind_a_link_is_found() {
     std::os::unix::fs::symlink(&moved, &repo).expect("leave a link at the old name");
     let source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(moved.as_path()), &plan_to(root.join("topic"))).expect("a source");
     assert_eq!(source.nested, vec![moved.join("nested/wt")], "the registration names the worktree inside the source");
-    let blocker: String = snapshot_blocker(&source).expect("an ordinary directory inside the source blocks the rung");
+    // The leave-out of a main checkout's snapshot finds it by the path inside the source,
+    // and a linked source is refused for the ordinary directory it would carry in full.
+    let mut as_linked: SnapshotSource = source.clone();
+    as_linked.git_dir = moved.join(".git/worktrees/nested");
+    let blocker: String = snapshot_blocker(&as_linked).expect("an ordinary directory inside the source blocks the rung");
+    assert!(blocker.contains(&moved.join("nested/wt").display().to_string()), "{blocker}");
     assert!(blocker.contains("inside the source is an ordinary directory"), "{blocker}");
     remove(root.as_path());
 }
