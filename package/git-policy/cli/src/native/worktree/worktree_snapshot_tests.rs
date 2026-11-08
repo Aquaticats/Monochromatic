@@ -2,9 +2,10 @@
 //! the stage becomes a private snapshot with the new worktree's pointer,
 //! no
 //!  stubs and the source's index;
-//! a source that changed after the clean check is refused;
-//! and the swap leaves the
-//!  stage name holding what Git made.
+//! a main checkout that changed under the copy keeps the snapshot for a restore,
+//! a linked source that
+//!  changed is refused,
+//! and the swap leaves the stage name holding what Git made.
 
 use super::*;
 use crate::fs_btrfs_test_support::btrfs_fixture;
@@ -18,10 +19,11 @@ use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 use crate::worktree_add_plan::AddPlan;
 
-/// Take the snapshot with the administrative directory opened as the ladder holds it.
-fn take(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<(), String> {
+/// Take the snapshot with the administrative directory opened as the ladder holds it,
+/// and report what the index step settled.
+fn take(source: &SnapshotSource, plan: &AddPlan, stage: &Path, admin: &Path, pointer: &[u8]) -> Result<CopyState, String> {
     let held: File = open_root(admin).expect("administrative directory");
-    return take_snapshot(source, plan, stage, &held, pointer).map(|_made: Snapshotted| {}).map_err(|failure: SnapshotFailure| { return failure.reason; });
+    return take_snapshot(source, plan, stage, &held, pointer, &crate::test_support::content_environment()).map(|made: Snapshotted| { return made.state; }).map_err(|failure: SnapshotFailure| { return failure.reason; });
 }
 
 /// The identity of a directory by its canonical path.
@@ -66,17 +68,56 @@ fn btrfs_the_stage_becomes_a_worktree_with_the_new_pointer_and_the_sources_index
     remove(root.as_path());
 }
 
-/// A source that changed after the clean check is refused by the comparison of the snapshot with the copied index.
+/// A main checkout that changed in content after the clean check keeps the snapshot:
+/// the copy carries the main checkout's
+///  own index,
+/// which is one instant with its files,
+/// and the ladder restores it to the new `HEAD` instead of leaving the
+///  worktree to Git's own checkout.
 #[test]
-fn btrfs_a_source_that_changed_after_the_check_is_refused() {
+fn btrfs_a_main_source_that_changed_after_the_check_keeps_the_snapshot() {
     let Some(root) = btrfs_fixture("snapshot-changed") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
     let (destination, admin, pointer) = no_checkout_worktree(repo.as_path(), "topic");
     let plan = plan_to(destination);
     let source = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
-    // The same size, a different time: Git's fast path sees a change.
+    // The same size, a different time: Git's fast path sees a change, and the content differs too.
     std::fs::write(repo.join("shared.txt"), b"SECOND, LONGER\n").expect("edit after the check");
     age(repo.join("shared.txt").as_path());
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
+    let state: CopyState = take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect("the snapshot is kept");
+    assert_eq!(state, CopyState::ChangedUnderCopy, "the copy is restored, not refused");
+    assert!(admin.join("index").exists(), "the snapshot's own index is installed for the restore");
+    remove(root.as_path());
+}
+
+/// A linked worktree's own index lies outside it and is not in a snapshot of it,
+/// so a copy of a linked source that
+///  changed under the copy is refused:
+/// there is no index a restore could start from.
+#[test]
+fn btrfs_a_linked_source_that_changed_after_the_check_is_refused() {
+    let Some(root) = btrfs_fixture("snapshot-linked-changed") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    let linked: PathBuf = root.join("linked");
+    crate::fs_btrfs_ioctl::subvolume_create_at(linked.as_path()).expect("the linked worktree is a subvolume");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "linked", "../linked"]);
+    let linked: PathBuf = std::fs::canonicalize(linked.as_path()).expect("canonical");
+    // The checkout wrote every file as new as its index; only an aged tree is provably clean.
+    for name in [".gitignore", "shared.txt", "src/deep/leaf.txt", "new/added.txt"] {
+        age(linked.join(name).as_path());
+    }
+    git(linked.as_path(), &["update-index", "--refresh"]);
+    let identity = crate::worktree_identity::WorktreeIdentity::LinkedWorktree {
+        worktree_root: linked.clone(),
+        git_dir: repo.join(".git/worktrees/linked"),
+        common_dir: repo.join(".git"),
+    };
+    let (destination, admin, pointer) = no_checkout_worktree(repo.as_path(), "topic");
+    let plan = plan_to(destination);
+    let source = choose_snapshot_source(&git_context(), &identity, &plan).expect("a source");
+    std::fs::write(linked.join("shared.txt"), b"SECOND, LONGER\n").expect("edit after the check");
+    age(linked.join("shared.txt").as_path());
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
     let reason: String = take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect_err("refused");
     assert!(reason.contains("the source changed while it was copied"), "{reason}");
@@ -379,11 +420,11 @@ fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() 
     std::fs::write(admin.join("index.lock"), b"held by another Git").expect("a lock");
     let stage: PathBuf = root.join(".cli-git-worktree-copy-test");
     let held: File = open_root(admin.as_path()).expect("administrative directory");
-    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice()).expect_err("refused");
+    let failure: SnapshotFailure = take_snapshot(&source, &plan, stage.as_path(), &held, pointer.as_slice(), &crate::test_support::content_environment()).expect_err("refused");
     assert_eq!(failure.stage, Some(id_of_directory(stage.as_path())), "the failed run names the stage it made");
     std::fs::remove_file(admin.join("index.lock")).expect("lock gone");
     let stage_two: PathBuf = root.join(".cli-git-worktree-copy-test-two");
-    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice()).expect("snapshot").stage;
+    let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice(), &crate::test_support::content_environment()).expect("snapshot").stage;
     assert_eq!(made, id_of_directory(stage_two.as_path()));
     remove(root.as_path());
 }
