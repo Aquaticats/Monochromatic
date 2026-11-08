@@ -124,14 +124,14 @@ async function registerGuardrail(
 
   pi.on(
     'tool_call',
-    function handleToolCall(
+    async function handleToolCall(
       event: ForeignBorrowed<ToolCallEvent>,
       ctx: ExtensionContext,
     ) {
       /**
        Decision from the first guardrail matching this tool call.
        */
-      const decision = evaluateToolCall({
+      const decision = await evaluateToolCall({
         event,
         ctx,
         config,
@@ -176,6 +176,8 @@ export default async function piGuardrail(pi: ExtensionAPI,): Promise<void> {
 /**
  Evaluates guardrails for a single pi tool call.
  
+ The Bash guards answer asynchronously because the real-Git guard resolves the host's real Git executable.
+ 
  @param event - pi tool-call event
  
  @param ctx - pi extension context
@@ -184,28 +186,37 @@ export default async function piGuardrail(pi: ExtensionAPI,): Promise<void> {
  
  @param pathMatcher - compiled path matcher
  
+ @param realGitBasenames - executable names treated as the real Git binary, defaulting to the resolved install
+ 
  @returns block decision when a guardrail matches, otherwise {@link GUARDRAIL_NOT_BLOCKED}
  
  @example
  ```typescript
- evaluateToolCall({ event, ctx, config, pathMatcher });
+ await evaluateToolCall({ event, ctx, config, pathMatcher });
  ```
  */
-function evaluateToolCall(
+async function evaluateToolCall(
   {
     event,
     ctx,
     config,
     pathMatcher,
+    realGitBasenames,
   }: {
     readonly event: ToolCallEvent;
     readonly ctx: ExtensionContext;
     readonly config: GuardrailConfig;
     readonly pathMatcher: ReturnType<typeof createPathGuardMatcher>;
+    readonly realGitBasenames?: readonly string[];
   },
-): GuardrailDecision {
-  if ((event.toolName === 'bash') && config.blockBunTest)
-    return evaluateBashGuard(event.input,);
+): Promise<GuardrailDecision> {
+  if (event.toolName === 'bash') {
+    return await evaluateBashGuard({
+      input: event.input,
+      blockBunTest: config.blockBunTest,
+      ...(realGitBasenames === undefined ? {} : { realGitBasenames, }),
+    },);
+  }
 
   if ((event.toolName !== 'edit') && (event.toolName !== 'write'))
     return GUARDRAIL_NOT_BLOCKED;
