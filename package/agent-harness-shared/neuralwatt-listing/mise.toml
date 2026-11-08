@@ -40,39 +40,8 @@ depends = ["build"]
 shell = "node --input-type=module-typescript -e"
 run = """
 const { writeFileSync } = await import('node:fs')
-const { fetchNeuralWattListing, mapNeuralWattListing, neuralWattListingSnapshot } = await import('./dist/final/node/index.mjs')
+const { fetchNeuralWattListing, mapNeuralWattListing, neuralWattListingSnapshot, reduceListingEntry } = await import('./dist/final/node/index.mjs')
 const ENTRIES_PER_CHUNK = 4
-const ENTRY_FIELDS = ['id', 'max_model_len']
-const METADATA_FIELDS = ['display_name']
-const CAPABILITY_FIELDS = ['reasoning', 'vision']
-const REASONING_FIELDS = ['supported_efforts', 'accepted_efforts', 'effort_aliases']
-const LIMIT_FIELDS = ['max_context_length', 'max_output_tokens']
-const PRICING_FIELDS = ['input_per_million', 'output_per_million', 'cached_input_per_million', 'cached_output_per_million', 'currency', 'pricing_tbd', 'service_tier', 'flex_discount_multiplier']
-const pickFields = (source, fields) => {
-  const picked = {}
-  if (typeof source !== 'object' || source === null) return picked
-  for (const field of fields) {
-    const value = Reflect.get(source, field)
-    if (value !== undefined) { picked[field] = value }
-  }
-  return picked
-}
-const reduceEntry = (entry) => {
-  const rawMetadata = Reflect.get(entry, 'metadata') ?? {}
-  const metadata = pickFields(rawMetadata, METADATA_FIELDS)
-  const capabilities = pickFields(rawMetadata.capabilities ?? {}, CAPABILITY_FIELDS)
-  const reasoning = pickFields(rawMetadata.reasoning ?? {}, REASONING_FIELDS)
-  const limits = pickFields(rawMetadata.limits ?? {}, LIMIT_FIELDS)
-  const pricing = pickFields(rawMetadata.pricing ?? {}, PRICING_FIELDS)
-  if (Object.keys(capabilities).length > 0) { metadata.capabilities = capabilities }
-  if (Object.keys(reasoning).length > 0) { metadata.reasoning = reasoning }
-  if (Object.keys(limits).length > 0) { metadata.limits = limits }
-  if (Object.keys(pricing).length > 0) { metadata.pricing = pricing }
-  const reduced = { ...pickFields(entry, ENTRY_FIELDS), metadata }
-  // The observable chunk shape carries deprecation only when it names one.
-  if (entry.deprecated === true) { reduced.deprecated = true }
-  return reduced
-}
 const numberText = (value) => {
   if (!Number.isInteger(value)) return String(value)
   const digits = String(Math.abs(value))
@@ -131,7 +100,7 @@ ${body.join('\\n')}
 `
 }
 const listing = await fetchNeuralWattListing()
-const reduced = listing.map(reduceEntry)
+const reduced = listing.map((entry) => reduceListingEntry({ entry }))
 const liveFacts = mapNeuralWattListing({ listing })
 const servedFacts = mapNeuralWattListing({ listing: neuralWattListingSnapshot })
 console.log(`live listing entries: ${reduced.length}`)
