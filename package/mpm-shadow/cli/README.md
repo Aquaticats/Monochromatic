@@ -871,6 +871,15 @@ and the report prints `toolchain install: locked <id> <version> ...` for each.
 - `rustup toolchain install --no-self-update <channel>`,
   then `rustup component add` and `rustup target add`,
   straight from the lock.
+  A toolchain that is already at the locked version,
+  which another program installed,
+  is not skipped:
+  `install` asks `rustup component list --installed` and `rustup target list --installed` for that
+  toolchain,
+  adds only the declared parts `rustup` does not list,
+  and reports the tool as installed with
+  one line per part it added.
+  A listing or an add that fails fails that tool rather than counting it unchanged.
 - `cargo binstall --no-confirm --root <toolchain root>/cargo/<crate>/<locked> --version <locked> <crate>`
   (see "Cargo tool installs").
 - `pnpm add --global <package>@<locked>`,
