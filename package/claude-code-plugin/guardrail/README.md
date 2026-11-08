@@ -1,9 +1,10 @@
 # guardrail
 
-PreToolUse hook that guards Agent and Bash tool calls with three checks:
+PreToolUse hook that guards Agent and Bash tool calls with four checks:
 resume polling prevention,
 `bun test` blocking,
-and process-name wait loop blocking.
+process-name wait loop blocking,
+and mutating real-Git path blocking.
 
 ## Problem
 
@@ -27,7 +28,7 @@ see `doc/decision/general-purpose-subagent-ban.md`.
 
 ## Solution
 
-The handler implements denial responses for three cases:
+The handler implements denial responses for four cases:
 
 1. **Resume blocking**:
     when an Agent call includes a `resume` parameter,
@@ -49,6 +50,45 @@ The handler implements denial responses for three cases:
    or `systemd-run --user --wait`).
    Straight-line `pgrep` calls and `kill -0 "$pid"` loops stay allowed.
    `ps | grep` loops are not detected.
+
+4. **Mutating real-Git path blocking**:
+    when a Bash call runs a mutating Git subcommand through a path to the real Git binary
+   (as in `/usr/bin/git commit`),
+   it is denied
+   with a message naming `git -C <repository-root> <subcommand>` instead.
+   The repository's `git` on PATH is a wrapper that applies commit-time policies
+   and pushes after a commit;
+   the absolute path skips all of them.
+
+## Mutating real-Git paths
+
+The check lives in
+`@monochromatic-dev/agent-harness-shared-shell-command-analyzer`
+as `invokesMutatingGitThroughRealGitPath`,
+beside `invokesBunTest`,
+and it reads the executable name from
+`@monochromatic-dev/git-executable-core`
+rather than spelling a path.
+Covered spellings include a quoted path,
+`env X=1 /usr/bin/git commit`,
+`sudo /usr/bin/git reset`,
+`cd x && /usr/bin/git add .`,
+`bash -c '/usr/bin/git commit'`,
+a function body,
+and Git global options in front of the subcommand.
+Only a word carrying a path separator matches,
+so `/usr/share/doc/git/RelNotes` and `/usr/bin/gitk` stay allowed,
+and so does the PATH wrapper,
+including `git -C <root> commit`.
+Read-only subcommands (`for-each-ref`, `rev-parse`, `log`, `show`, `status`, `ls-remote`,
+`diff`, `cat-file`, `ls-files`, `merge-base` and the rest of the read set)
+stay allowed through the same absolute path.
+A subcommand this analyzer has never seen counts as mutating.
+
+The handler is asynchronous because the check resolves the real Git executable;
+the hook runtime awaits every handler.
+When resolution fails, the check reports nothing and logs at debug level,
+so a host without a resolvable Git does not fail every Bash call.
 
 ## Process-name wait loops
 

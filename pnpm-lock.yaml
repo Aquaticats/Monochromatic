@@ -749,6 +749,9 @@ importers:
 
   package/agent-harness-shared/shell-command-analyzer:
     dependencies:
+      '@monochromatic-dev/git-executable-core':
+        specifier: workspace:*
+        version: link:../../git-executable/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
@@ -1141,6 +1144,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/git-executable-core':
+        specifier: workspace:*
+        version: link:../../git-executable/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
