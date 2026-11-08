@@ -21,8 +21,8 @@ fn identity(root: &Path) -> WorktreeIdentity {
 fn a_clean_repository_and_a_place_outside_a_worktree_go_on() {
     let root: PathBuf = fixture("startup-gate-clean");
     git(&root, &["init", "--quiet"]);
-    assert_eq!(recover_for_command(&git_context(), &identity(root.as_path())), Gate::Clear);
-    assert_eq!(recover_for_command(&git_context(), &WorktreeIdentity::OutsideWorktree), Gate::Clear);
+    assert_eq!(recover_for_command(&git_context(), &identity(root.as_path()), &[]), Gate::Clear);
+    assert_eq!(recover_for_command(&git_context(), &WorktreeIdentity::OutsideWorktree, &[]), Gate::Clear);
     remove(root.as_path());
 }
 
@@ -35,7 +35,7 @@ fn the_previous_executables_journal_directory_stops_the_command() {
     let legacy: PathBuf = root.join(".git").join(LEGACY_JOURNAL_DIRECTORY_NAME);
     std::fs::create_dir(&legacy).expect("legacy directory");
     assert_eq!(
-        recover_for_command(&git_context(), &identity(root.as_path())),
+        recover_for_command(&git_context(), &identity(root.as_path()), &[]),
         Gate::Stop(legacy_notice(legacy.as_path()))
     );
     assert!(legacy.is_dir(), "nothing was removed");
@@ -128,6 +128,75 @@ fn a_registry_of_an_earlier_release_does_not_stop_the_command() {
     let root: PathBuf = fixture("startup-gate-registry-goes-on");
     git(&root, &["init", "--quiet"]);
     std::fs::create_dir_all(root.join(".git").join(REGISTRY_DIRECTORY_NAME).join(TRANSACTION)).expect("transaction directory");
-    assert_eq!(recover_for_command(&git_context(), &identity(root.as_path())), Gate::Clear);
+    assert_eq!(recover_for_command(&git_context(), &identity(root.as_path()), &[]), Gate::Clear);
     remove(root.as_path());
+}
+
+/// What:
+///  A canonical root,
+///  a home below it whose identity file is in phase `after`,
+///  a link to a folder on a drive that is not mounted,
+///  and the environment that names that home.
+/// Why:
+///  The link gate reads one file,
+///  so the control needs nothing else of a real move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = { root, home, link, environment: [['HOME', home]] };
+/// ```
+#[cfg(unix)]
+struct InvocationHome {
+    root: PathBuf,
+    link: PathBuf,
+    environment: Vec<(std::ffi::OsString, std::ffi::OsString)>,
+}
+
+/// A world whose recorded link dangles, with the environment that names its home.
+#[cfg(unix)]
+fn invocation_home(name: &str) -> InvocationHome {
+    let root: PathBuf = std::fs::canonicalize(fixture(name)).expect("root");
+    let home: PathBuf = root.join("home");
+    let mount_point: PathBuf = root.join("not-a-mount");
+    let link: PathBuf = root.join("repolink");
+    let target: PathBuf = mount_point.join("repository/Monochromatic");
+    std::fs::create_dir_all(mount_point.as_path()).expect("mount point stand-in");
+    std::os::unix::fs::symlink(target.as_path(), link.as_path()).expect("dangling link");
+    let identity: PathBuf = home.join(crate::repository_link_identity::IDENTITY_RELATIVE_PATH);
+    std::fs::create_dir_all(identity.parent().expect("parent")).expect("config folder");
+    std::fs::write(
+        identity,
+        format!(
+            "{{\"linkPath\":\"{}\",\"linkText\":\"{}\",\"canonicalRoot\":\"{}\",\"mountPoint\":\"{}\",\"driveUuid\":\"D\",\"nvmeUuid\":\"N\",\"rootCommit\":\"abc\",\"phase\":\"after\"}}",
+            link.display(),
+            target.display(),
+            target.display(),
+            mount_point.display()
+        ),
+    )
+    .expect("identity file");
+    return InvocationHome { root, link, environment: vec![(std::ffi::OsString::from("HOME"), home.into_os_string())] };
+}
+
+/// The link gate reads the home the invocation names,
+/// not this process's:
+/// a worktree under a recorded link that dangles stops the command,
+/// as the entry gate already stops it.
+#[cfg(unix)]
+#[test]
+fn the_link_gate_reads_the_home_the_invocation_names() {
+    let world: InvocationHome = invocation_home("startup-gate-invocation-home");
+    let worktree: WorktreeIdentity = WorktreeIdentity::MainWorktree {
+        common_dir: world.link.join(".git"),
+        git_dir: world.link.join(".git"),
+        worktree_root: world.link.clone(),
+    };
+    match recover_for_command(&git_context(), &worktree, world.environment.as_slice()) {
+        Gate::RepositoryUnreachable(stderr) => {
+            assert!(stderr.starts_with("fatal: the 860 drive is not mounted yet ("), "{stderr}");
+            assert!(stderr.contains(world.link.to_string_lossy().as_ref()), "{stderr}");
+        }
+        other => panic!("the invocation's home records a dangling link, so the command must stop: {other:?}"),
+    }
+    remove(world.root.as_path());
 }
