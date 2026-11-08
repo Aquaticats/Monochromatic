@@ -52,7 +52,16 @@ Options:
 Before you run it, stop agent sessions and editors that have their working directory inside the checkout: after the
 swap they would keep writing into the old tree. The dry run lists them. Run it on a machine with the checkout's
 filesystem mounted with enough free space; `git monochromatic-git-policy-cli doctor` explains the mount option that makes removal fast.
+
+Risk, accepted by running the command: it replaces or deletes files of the checkout while other programs may be
+changing the same files. A program that writes through an open file or a mapping, or that renames or replaces a path,
+between a check and the step that relies on it, can lose that change, and nothing undoes the deletion of a tree. Stop
+the programs working inside the checkout first. The command says so once on standard error before it changes anything,
+and in this help.
 ";
+
+/// The one line printed on standard error before a run changes the checkout.
+pub const MIGRATE_RISK_NOTICE: &str = "monochromatic-git-policy-cli: this command replaces or deletes files of the checkout while other programs may be changing them at the same moment. A change made between a check and the step that relies on it is lost, and that risk is yours; stop the programs working inside the checkout first.";
 
 /// What:
 ///  Which of the three things the command does.

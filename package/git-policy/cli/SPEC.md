@@ -41,6 +41,62 @@ and prompts.
 Production adapters own operating-system effects.
 Disposable tests replace those adapters without production environment overrides.
 
+## Other processes changing files
+
+No check or lock the wrapper takes excludes another program from changing the same files in the same moment,
+and the wrapper builds nothing further against it:
+a rename or a replacement of a path,
+a write through an open file or a shared mapping,
+and an edit between a check and the step that relies on it are accepted risk in every command and in the commit service.
+The owner's decision of 2026-11-03T00:15:33-05:00 is that a race another program causes is not the wrapper's to close,
+and that using a command or the program means accepting the risk;
+the wrapper states the risk plainly and keeps fixing its own
+ deterministic bugs (`doc/handover/cli-git-rust-implementation.md`,
+"Worktree add and package managers").
+
+The cheap guards stay,
+and each narrows the window without closing it:
+a lock where one is free,
+a second look before a removal,
+an identity compared when an object is opened,
+and a descriptor held on what a removal names.
+
+`README.md` states the risk once for the whole program ("Other processes changing files").
+A command that can change or delete files states it in its own `--help`,
+where it has one,
+and says it once on standard error;
+a command whose own notice states it prints only that one,
+never a second line.
+The commands are:
+
+- `git monochromatic-git-policy-cli migrate-to-subvolume`,
+in a run,
+a `--rollback` and a `--remove-old`:
+the notice comes before the first step that writes,
+keeps,
+swaps or deletes anything (`MIGRATE_RISK_NOTICE`,
+`src/native/subvolume/subvolume_arguments.rs`);
+a `--dry-run` and a refusal change nothing,
+so neither says it.
+- `git monochromatic-git-policy-cli convert-worktree-to-subvolume`,
+in a conversion:
+the notice comes before the first worktree is touched (`RISK_NOTICE`,
+`src/native/worktree/worktree_convert_arguments.rs`);
+a `--dry-run`,
+an `--abandon` and a run that names no worktree say nothing.
+- `git worktree remove`,
+when the wrapper destroys the worktree's subvolume in one step:
+the notice comes after the destroy,
+which cannot be undone,
+and that command's `--help` is Git's own (`DESTROY_NOTICE`,
+`src/native/worktree/worktree_remove.rs`).
+
+The sections that describe those commands carry the same statement beside their guards:
+"Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot of the main checkout,
+and "Cheap worktree creation and removal on btrfs,
+XFS and overlayfs" for the conversion,
+the removal and the migration.
+
 ## Single executable and shipped policies
 
 The release artifact is one executable,
@@ -1350,7 +1406,8 @@ check and the step that relies on it are accepted risk,
 stated in the help text,
 in one notice on standard error before the
 conversion runs,
-and in the README.
+and in the README;
+"Other processes changing files" states it for the whole program.
 The guards that cost little stay:
 the claim,
 the identity checks,
