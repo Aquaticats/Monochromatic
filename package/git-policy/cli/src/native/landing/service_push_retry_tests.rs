@@ -892,7 +892,8 @@ fn a_store_that_could_not_be_listed_at_the_start_is_listed_again_and_its_claim_i
     remove(stage.root.as_path());
 }
 
-/// Moves a Git directory's parent aside, the way an unmounted drive takes a repository away,
+/// Moves a Git directory's parent aside,
+/// the way an unmounted drive takes a repository away,
 /// and back.
 fn away(from: &Path, to: &Path) {
     std::fs::rename(from, to).expect("the directory goes away or comes back");
