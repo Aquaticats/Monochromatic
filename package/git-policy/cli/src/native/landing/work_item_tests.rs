@@ -7,7 +7,7 @@
 //! and refusal of bad records.
 
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
-use crate::work_item_state_directories_and_claim_names::NAME_SEPARATOR;
+use crate::work_item_state_directories_and_claim_names::{NAME_SEPARATOR, take_listings};
 use super::*;
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
@@ -116,6 +116,32 @@ fn enqueue_is_idempotent_across_states() {
     assert_eq!(enqueue(work.as_path(), &claimed.item), Ok(Enqueued::Known));
     assert_eq!(names(work.as_path(), DONE), vec![claimed.id.clone()]);
     remove(directory.as_path());
+}
+
+/// The listings one producer's round of `count` items costs.
+fn listings_of_an_enqueue_round(count: usize) -> usize {
+    let directory: PathBuf = fixture(format!("work-enqueue-listings-{count}").as_str());
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let items: Vec<WorkItem> = (0..count).map(|n| { return item(WorkKind::Push, format!("{n:040x}").as_str()); }).collect();
+    let _nothing_yet: usize = take_listings();
+    for entry in &items {
+        assert_eq!(enqueue(work.as_path(), entry), Ok(Enqueued::Added), "every item of the round is new");
+    }
+    let listings: usize = take_listings();
+    assert_eq!(names(work.as_path(), PENDING).len(), items.len(), "the round of {count} items queued every one of them");
+    remove(directory.as_path());
+    return listings;
+}
+
+/// A producer of many items walks the work queue once per round and not once per item (`RG2`):
+/// the number of directory listings it costs does not grow with the number of items it queues.
+#[test]
+fn a_producer_of_many_items_lists_the_state_directories_once() {
+    let measured: Vec<(usize, usize)> = [4, 24, 96].iter().map(|count| { return (*count, listings_of_an_enqueue_round(*count)); }).collect();
+    let first: usize = measured[0].1;
+    for (_count, listings) in &measured {
+        assert_eq!(*listings, first, "the listings of a producer's round do not grow with its items: {measured:?}");
+    }
 }
 
 /// Claims go oldest first,
