@@ -165,15 +165,6 @@ While verifying,
  advance independent work without changing inputs.
 Stop at completion or an external blocker.
 
-WUC:
- When a wakeup,
- cron,
- or loop's work finishes,
- cancel it that turn (`ScheduleWakeup` stop,
- `CronDelete`);
- a stale fire is a harness slip to stop,
- not a task to redo.
-
 PXQ:
  "Completion" means the queue:
  tracked work left -> start the next item unasked.

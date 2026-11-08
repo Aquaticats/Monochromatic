@@ -22,6 +22,15 @@ MWK:
  emit only lines you'd act on,
  never routine progress.
 
+WUC:
+ When a wakeup,
+ cron,
+ or loop's work finishes,
+ cancel it that turn (`ScheduleWakeup` stop,
+ `CronDelete`);
+ a stale fire is a harness slip to stop,
+ not a task to redo.
+
 Use `spawn-claude` outside sandbox to launch a steerable child Claude Code session in a visible terminal window.
 The child runs independently,
 but result forwarding back to the parent is unreliable (a Claude Code limitation),
@@ -242,15 +251,6 @@ PX1:
 While verifying,
  advance independent work without changing inputs.
 Stop at completion or an external blocker.
-
-WUC:
- When a wakeup,
- cron,
- or loop's work finishes,
- cancel it that turn (`ScheduleWakeup` stop,
- `CronDelete`);
- a stale fire is a harness slip to stop,
- not a task to redo.
 
 PXQ:
  "Completion" means the queue:

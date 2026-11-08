@@ -47,6 +47,11 @@ so any of them can be undone.
   `pi --help` names no wakeup,
   monitor,
   cron or schedule option.
+  Then,
+  on `WUC` (`ScheduleWakeup`,
+  `CronDelete`) and `OPA` (`AskUserQuestion`):
+  "Move WUC and keep OPA."
+  `WUC` moved to the same preamble and `OPA` stays in `AGENTS.md`.
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
