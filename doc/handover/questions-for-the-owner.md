@@ -18,31 +18,33 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
-## Waiting on you: two actions the auto-mode safety check refused to agents (2026-11-07)
+## Answered in the question tool, recorded 2026-11-07T21:28:26-05:00
 
-The coordinator will not route around a refusal,
-so each needs you to run it,
-or to allow it in the permission settings.
-- Release `monochromatic-lint` 0.5.2-alpha.6
-  (refused as "[Create Public Surface]";
-  the dry run passed,
-  run 42427210564;
-  an alpha goes to a GitHub release only).
-  It makes the closure check run on `ide/app` and `terminal/app`,
-  merged as `1d3e9bcdec`.
-  The command,
-  from the repository root:
-  `mise run //package/linter/monochromatic-lint:release -- 0.5.2-alpha.5 0.5.2-alpha.6 "The closure check builds ide/app and terminal/app: IDE links where build.rs reads them; new prerequisite libghostty-offline-inputs hands the fetched Ghostty source and Zig packages to the build"`.
-  After it,
-  the coordinator does the wait,
-  lock,
-  install and proof.
+- Old agent scratch on the 860:
+  "Delete old scratch (Recommended)",
+  option A in the record kept below.
+- The refused `monochromatic-lint` 0.5.2-alpha.6 release:
+  "Allow release tasks (Recommended)",
+  so agents run this repository's release tasks without asking.
+  Done as an auto-mode allow entry in `~/.claude/settings.json`
+  after the owner wrote "I authorize you to edit Claude Code Settings and especially auto mode settings.";
+  the release was dispatched as run 42438318626.
 - The repository move's W6 and W7 edits to `~/.claude/settings.json`,
   `~/.claude.json` and `~/.codex/config.toml`
-  (the exact new values are in `doc/handover/repository-move-dangling-link-items.md`,
-  section "W6 and W7 edits to apply").
+  (values in `doc/handover/repository-move-dangling-link-items.md`,
+  section "W6 and W7 edits to apply"):
+  "I apply them at cutover (Recommended)",
+  so the coordinator makes them right before the cutover.
+- The coordinator's picks made while the owner was away
+  (tokio worker cap,
+  the strict memory test,
+  the full repository link check):
+  "Keep all (Recommended)".
+- In plain messages,
+  the owner asked:
+  "Modify the auto mode config in Claude Code global settings to reduce false denials."
 
-## Open: may agents' old scratch on the 860 be deleted to make room for the move? (not asked yet)
+### Record of the scratch question as asked
 
 The move's space rule refused on 2026-11-07,
 as designed
