@@ -57,3 +57,93 @@ not the extracted JDK inside it (`.../temurin-21.0.13+9.0.LTS/jdk-21.0.13+9`).
 which `mise exec -- ./gradlew --version` in `package/music-player/android-app` reproduces on 2026-11-08.
 The release workflow sets `JAVA_HOME` and `RUSTUP_TOOLCHAIN` from its own JDK download and `rustup` instead,
 so the export step carries only the Android names.
+
+## The Rust toolchain a CI step installs first never gets the lock's Android targets
+
+### Symptom
+
+The Android job of `music-player-release.yml` fails its first native crate with a missing standard library,
+while the same task passes on a developer machine:
+
+```text
+error[E0463]: can't find crate for `core`
+  = note: the `aarch64-linux-android` target may not be installed
+  = help: consider downloading the target with `rustup target add aarch64-linux-android`
+error: could not compile `cfg-if` (lib) due to 1 previous error
+```
+
+Dry run 42521054342 failed the `build-android` job this way in "Build the signed release APK".
+
+### Cause
+
+`toolchain:install` (the Android job runs it as `task-run prepare:android`) applies the `rustTargets` row of
+`toolchain.lock.json` from `install_rust_components`,
+which `install_tool` calls.
+`sync_tools` calls `install_tool` only for a tool it does not observe as current:
+for the `rust` tool it runs `rustup toolchain list`,
+takes a listed toolchain whose name starts with the locked version as current,
+and returns before `install_tool`.
+
+The Android job installed that same toolchain one step earlier,
+with `rustup toolchain install "$toolchain" --profile minimal`,
+so the sync always observes it as current and the Android standard library is never added.
+A developer machine reaches the other branch:
+a lock that moves to a new nightly date no longer matches the toolchain name
+`rustup toolchain list` reports,
+so the tool is not current,
+and `install_tool` installs that toolchain and applies the same row.
+The dated nightlies this machine held on 2026-11-08,
+from 2026-10-29 to 2026-11-08,
+each carry both Android standard libraries,
+which is what that branch leaves behind,
+while the toolchain the workflow installed with `--profile minimal` carried neither.
+
+### Evidence
+
+Two runs of the installed `mpm-shadow` 0.2.7-alpha.6 (the version the lock names) against a throwaway scope
+whose `toolchain.lock.json` held only the `rust` tool,
+with a fake `rustup` first on `PATH` that logged its
+arguments:
+
+- with `rustup toolchain list` answering the locked nightly,
+  as on the runner after that step,
+  `mpm-shadow install` ran that one command and printed `1 unchanged, 0 installed`,
+  with no `component add` and no `target add`;
+- with the same fake answering a toolchain that is not there,
+  the same command ran `toolchain install`,
+  the four `component add` calls and
+  `target add aarch64-linux-android`,
+  then `target add x86_64-linux-android`.
+
+The Android job's own log line agrees:
+`toolchain install: 64 installed, 2 unchanged, 0 failed`.
+
+The consumer path was measured too,
+because installing a standard library proves nothing about the compiler that reads it:
+with the exposure directory first on `PATH` and `RUSTUP_TOOLCHAIN` set from the lock,
+the `rustc` the build finds is the `rustup` proxy,
+`rustc --print sysroot` names `~/.rustup/toolchains/nightly-2026-11-08-x86_64-unknown-linux-gnu`,
+and a `#![no_std]` fixture compiles for both `aarch64-linux-android` and `x86_64-linux-android`.
+The step installs into that same toolchain,
+which is the one the export step's `RUSTUP_TOOLCHAIN` selects.
+
+### What the workflow does about it
+
+The step "Install the Rust toolchain pinned in toolchain.lock.json" reads the triples from the lock's
+`rustTargets` row and runs `rustup target add` for them,
+then fails the step when `rustup target list --installed` does not list every one,
+so a missing standard library names itself there instead of in the first crate the build compiles.
+It proves the triples the lock declares are installed,
+not that the lock declares both ABIs `build:native` asks for;
+that stays a property of the lock.
+It installs no `rustComponents`:
+nothing in that job compiles with them.
+
+The skip itself stays in `sync_tools` (`package/mpm-shadow/cli/src/toolchain/sync.rs`),
+so any toolchain this repository did not install itself keeps missing the components and targets its lock row
+declares.
+The fix belongs there:
+reconcile the declared components and targets even when the toolchain's version is current,
+rather than only on the install path.
+That reaches CI with a new `mpm-shadow` release and the lock row that pins it,
+which is why the workflow carries the two lines meanwhile.

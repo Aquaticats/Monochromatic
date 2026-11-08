@@ -366,7 +366,7 @@ fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     std::fs::create_dir_all(&directory).expect("make the launcher directory");
     let count: PathBuf = directory.join("count");
     let script: String = format!(
-        "#!/bin/sh\necho run >> '{count}'\ndepth=$((${{LAUNCHER_DEPTH:-0}} + 1))\nif [ \"$depth\" -gt 3 ]; then echo 'launcher nested too deep' >&2; exit 99; fi\nexport LAUNCHER_DEPTH=$depth\nexec '{shadow}' \"$@\"\n",
+        "#!/bin/sh\ndepth=$((${{LAUNCHER_DEPTH:-0}} + 1))\necho \"run $depth ${{MONOCHROMATIC_SHADOW_STARTED_BY:-none}}\" >> '{count}'\nif [ \"$depth\" -gt 3 ]; then echo 'launcher nested too deep' >&2; exit 99; fi\nexport LAUNCHER_DEPTH=$depth\nexec '{shadow}' \"$@\"\n",
         count = count.display(),
         shadow = world.shadow_directory.join("cargo").display()
     );
@@ -421,10 +421,20 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     // The second start stops before doing any work, with status 2: no lockfile was touched, and no cargo ran.
     let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(2), "{said}");
-    let runs: usize = std::fs::read_to_string(&count).unwrap_or_default().lines().count();
+    let entries: Vec<String> = std::fs::read_to_string(&count).unwrap_or_default().lines().map(str::to_string).collect();
+    let runs: usize = entries.len();
     // The first shadow reaches the launcher once for each real-cargo start it makes (the install step's calls, then the command itself);
     // every one of those starts is a second cargo-shadow that stopped at once, so no cargo ran and nothing was changed.
     assert!(runs >= 1, "the launcher never ran, so the schedule was not built");
+    // The append-only entry trace is depth-aware: every launcher invocation is at depth 1 (started directly by the first shadow),
+    // so no second shadow re-entered a launcher and every second shadow is the terminal shadow of its chain (sixth pass,
+    // group 14).
+    // A regression that lets the second shadow run on would add a depth-2 entry and a second starter before it printed anything.
+    let depths: Vec<&str> = entries.iter().map(|entry| { return entry.split(' ').nth(1).unwrap_or("?"); }).collect();
+    assert!(depths.iter().all(|depth| { return *depth == "1"; }), "a launcher was entered at a depth other than the first shadow's: {entries:?}");
+    // A second shadow that entered this launcher again would inherit the launcher's depth and add a depth-2 entry before it printed
+    // anything; one that began an install step would add a second "snapshotted" line, which the assertion above forbids.
+    assert!(runs <= entries.len(), "the entry trace lost an invocation: {entries:?}");
     assert_eq!(read_lock(&world), STALE, "the second start touched the lockfile");
     assert!(log_lines(&world).is_empty(), "a cargo ran: {:?}", log_lines(&world));
     assert!(said.matches("snapshotted").count() <= 1, "a second start began an install step: {said}");
@@ -454,6 +464,8 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     assert!(written.status.success(), "the record line does not run as printed: {record_command}: {}", String::from_utf8_lossy(&written.stderr));
     assert!(launcher_directory.join("cargo.launch").exists(), "the record line did not write the record beside the launcher");
     std::fs::remove_file(&world.log).ok();
+    // A second run is a fresh chain: the entry trace is cleared so its one starting shadow is what the assertions above mean.
+    std::fs::remove_file(&count).ok();
     write_lock(&world, STALE);
     let after_b = run();
     assert_eq!(after_b.status.code(), Some(0), "{}", String::from_utf8_lossy(&after_b.stderr));

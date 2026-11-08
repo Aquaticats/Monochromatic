@@ -624,7 +624,7 @@ pub fn make_durable(path: &Path) -> io::Result<()> {
         // `?`: returns the failure of the call before it to the caller, otherwise unwraps the value.
         Ok(file) => {
             #[cfg(test)]
-            if crate::failpoints::fires(crate::failpoints::Point::OutputFileSync) {
+            if crate::failpoints::fires(crate::failpoints::Point::OutputFileSync) || crate::failpoints::output_file_sync_of(path) {
                 return Err(io::Error::other("injected failure to sync an output file"));
             }
             file.sync_all()?;
@@ -639,7 +639,7 @@ pub fn make_durable(path: &Path) -> io::Result<()> {
         // `Some`: the present or the absent value of an `Option`.
         Some(parent) if !parent.as_os_str().is_empty() => {
             #[cfg(test)]
-            if crate::failpoints::fires(crate::failpoints::Point::OutputDirectorySync) {
+            if crate::failpoints::fires(crate::failpoints::Point::OutputDirectorySync) || crate::failpoints::output_directory_sync_of(path) {
                 return Err(io::Error::other("injected failure to sync the directory of an output file"));
             }
             sync_directory(parent)

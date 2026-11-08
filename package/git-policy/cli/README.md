@@ -3297,6 +3297,9 @@ mise run //package/git-policy/cli:native:test:container
   both against the host's Git while iterating.
 - `native:test:container` is the authority.
   It builds the crate and runs the tests and Clippy in bounded containers with pacman's current Git and no network.
+  Before it copies or builds anything it runs `lint:sidecar-locks`,
+  so a sidecar lock this package's dependencies moved past stops the gate in milliseconds
+  instead of surfacing later in the sidecar's own build.
   Set `GIT_POLICY_NATIVE_IMAGE_TAG=<name>` to keep the images of parallel runs apart.
   The test run uses `cargo nextest run --no-fail-fast`,
   so every test runs even after a failure and one flaky test
@@ -3415,6 +3418,7 @@ and the crate refuses to compile under `panic = "abort"`.
 # Run from the repository top level.
 mise run //package/git-policy/cli:lint
 mise run //package/git-policy/cli:lint:monochromatic-lint
+mise run //package/git-policy/cli:lint:sidecar-locks
 mise run //:format:monochromatic-lint -- package/git-policy/cli
 ```
 
@@ -3448,6 +3452,19 @@ mise run //:format:monochromatic-lint -- package/git-policy/cli
   so the root run lints this package twice,
   once through the package task and once in the repository-wide pass,
   as `package/ide/app` does.
+- `lint:sidecar-locks` fails when a sidecar crate beside this package
+  (`package/git-policy/cli.fuzz`)
+  locks one of this package's dependencies at another version,
+  or when Cargo refuses the sidecar's `Cargo.lock`
+  (`bin/native-sidecar-lock-check.ts`).
+  A sidecar links this package by path,
+  so a dependency this package gains,
+  drops or moves makes the sidecar's lock stale;
+  the sidecar's own build only meets that later,
+  and nothing else in this package's checks read its lock.
+  `mise run //package/git-policy/cli.fuzz:lock:members`
+  records the versions again,
+  and the container gate runs the same check before it builds anything.
 
 ### Merging main into a branch that edited doc comments
 
@@ -4574,6 +4591,17 @@ all durations in whole milliseconds taken from the monotonic clock:
   `handoffMs` (leaving the push and the upkeep for the service) and `otherMs`,
   which is whatever no phase
   covers.
+- `indexBuilds` states how each build of the private commit index was made,
+  in the order built:
+  `kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
+  and `statDataKept` says whether that build started from a copy of the real index,
+  so every entry its tree shares with the real index kept its cached stat data.
+  A build from the base or the tree alone holds none,
+  and the scratch `git commit` then hashes every file of the work tree
+  (233,618,538 bytes of LFS content cleaned and 3.6 s,
+  measured on 2026-11-07).
+  The list is empty for a commit that built no index,
+  so a reader never has to tell a missing field from a commit that stopped first.
 - `submitMs` contains `reachMs`,
   the time to reach a service of this release.
   `connectTries`,

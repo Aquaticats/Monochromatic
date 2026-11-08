@@ -6,9 +6,6 @@
  */
 
 import { spawn, } from 'node:child_process';
-import { createWriteStream, } from 'node:fs';
-import type { Readable, } from 'node:stream';
-import { pipeline, } from 'node:stream/promises';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   COMMAND_ANSWER_MILLISECONDS,
@@ -18,12 +15,9 @@ import type {
   PiExit,
   PiRecord,
 } from './driver-types.ts';
+import { keepStandardError, } from './keep-standard-error.ts';
 import { isRecord, } from './read-pi-fields.ts';
-
-/**
- The byte that ends a record. Records are split on it alone, because Unicode line separators are valid inside JSON strings.
- */
-const LINE_FEED = 0x0A;
+import { startLineSplitter, } from './split-pi-output.ts';
 
 /**
  Stands for a line that held no record.
@@ -69,6 +63,31 @@ export type CommandRequest = {
 };
 
 /**
+ What ending Pi needs.
+ */
+export type ShutDownRequest = {
+  /**
+   How long each stage of ending Pi may take. The whole ending takes at most `SHUTDOWN_STAGES` of these, so a caller that has its
+   own bound divides it by that count.
+   */
+  readonly graceMilliseconds?: number;
+};
+
+/**
+ How ending Pi went.
+ */
+export type ShutDownOutcome =
+  | { readonly stopped: true }
+    | {
+      readonly stopped: false;
+
+    /**
+     Why the driver could not confirm that Pi had gone.
+     */
+      readonly reason: string;
+    };
+
+/**
  A running Pi.
  */
 export type ConnectionToPi = {
@@ -90,67 +109,11 @@ export type ConnectionToPi = {
   readonly send: (request: CommandRequest,) => Promise<PiRecord>;
 
   /**
-   Ends Pi: closes its input, then signals it if it stays.
+   Ends Pi: closes its input, then signals it if it stays, then settles every handle. It reports whether Pi's leaving could be
+   confirmed, because a signal the operating system refused is not proof that Pi went.
    */
-  readonly shutDown: () => Promise<void>;
+  readonly shutDown: (request?: ShutDownRequest,) => Promise<ShutDownOutcome>;
 };
-
-/**
- Copies Pi's standard error to a file for as long as Pi writes it.
-
- @param source - Pi's standard error
-
- @param file - file that receives it
-
- @param onProblem - where to report a failure
-
- @example
- ```ts
- await keepStandardError({ source: child.stderr, file: 'stderr.log', onProblem: report, },);
- ```
- */
-async function keepStandardError(
-  {
-    source,
-    file,
-    onProblem,
-  }: {
-    readonly source: Readable;
-    readonly file: string;
-    readonly onProblem: (problem: string,) => void;
-  },
-): Promise<void> {
-  try {
-    await pipeline(
-      source,
-      createWriteStream(file,),
-    );
-  }
-  catch (error) {
-    onProblem(`could not keep Pi's standard error: ${String(error,)}`,);
-  }
-}
-
-/**
- Finds where each record in a chunk ends.
-
- @param chunk - bytes as they arrived
-
- @returns offset of each line feed, one at a time
-
- @example
- ```ts
- const ends = [...lineEndsIn(Buffer.from('a\nb\n',),),];
- ```
- */
-function* lineEndsIn(chunk: Buffer,): Generator<number> {
-  for (let lineEnd = chunk.indexOf(LINE_FEED,); lineEnd !== (-1); lineEnd = chunk.indexOf(
-    LINE_FEED,
-    lineEnd + 1,
-  )) {
-    yield lineEnd;
-  }
-}
 
 /**
  Starts Pi and returns the connection to it.
@@ -209,15 +172,32 @@ export function startConnectionToPi(
    */
   const closed = Promise.withResolvers<'closed'>();
   /**
+   The copy of Pi's standard error, kept so that ending the run waits for it instead of leaving it to outlive the run.
+   */
+  const standardErrorKept = keepStandardError({
+    source: child.stderr,
+    file: standardErrorFile,
+    onProblem: listeners.onProblem,
+  },);
+  /**
    What changes while Pi runs.
    */
   const state: {
     exit?: PiExit;
     commandsSent: number;
-    partialLine: Buffer[]
+
+    /**
+     Whether the operating system started Pi, which tells a failed spawn from a failed signal.
+     */
+    spawned: boolean;
+
+    /**
+     The last problem of this channel, such as a signal the operating system refused, which is never proof that Pi went.
+     */
+    problem?: string;
   } = {
     commandsSent: 0,
-    partialLine: [],
+    spawned: false,
   };
 
   /**
@@ -314,44 +294,6 @@ export function startConnectionToPi(
   }
 
   /**
-   Splits a chunk of Pi's output into records. Pieces of an unfinished line are joined once, when it ends, so a long line costs
-   one pass.
-
-   @param chunk - bytes as they arrived, which may end inside a record or inside a character
-   */
-  function readChunk(chunk: Buffer,): void {
-    /**
-     Where the part after the last complete line starts.
-     */
-    const tailStart = [...lineEndsIn(chunk,),].reduce(
-      function readOneLine(
-        lineStart,
-        lineEnd,
-      ) {
-      /**
-       The whole line.
-       */
-        const line = Buffer.concat([
-          ...state.partialLine,
-          chunk.subarray(
-            lineStart,
-            lineEnd,
-          ),
-        ],)
-          .toString('utf8',);
-        state.partialLine = [];
-        readLine(line,);
-        return lineEnd + 1;
-      },
-      0,
-    );
-    if (tailStart < chunk.length) {
-      state.partialLine
-        .push(chunk.subarray(tailStart,),);
-    }
-  }
-
-  /**
    Writes a command if Pi can still read it.
 
    @param command - record to send
@@ -410,8 +352,8 @@ export function startConnectionToPi(
       answer.resolve,
     );
     write({
-      id,
       ...command,
+      id,
     },);
     /**
      What came back.
@@ -425,16 +367,18 @@ export function startConnectionToPi(
   /**
    Waits for Pi to go, within a bound. The timer holds nothing open once Pi has gone.
 
+   @param grace - longest wait
+
    @returns whether Pi went in time
    */
-  async function wentWithinGrace(): Promise<boolean> {
+  async function wentWithin(grace: number,): Promise<boolean> {
     /**
      Which came first.
      */
     const outcome = await Promise.race([
       closed.promise,
       wait(
-        graceMilliseconds,
+        grace,
         'still-running' as const,
         { ref: false, },
       ),
@@ -443,31 +387,108 @@ export function startConnectionToPi(
   }
 
   /**
-   Ends Pi, closing its input first and then signalling it if it stays.
+   Waits for Pi's standard error copy to end, so a failure of it is reported while the run still has a feed to report it to.
+
+   @param grace - longest wait
    */
-  async function shutDown(): Promise<void> {
-    if (state.exit !== undefined) {
+  async function settleStandardError(grace: number,): Promise<void> {
+    /**
+     Which came first: the copy's end, or the bound.
+     */
+    const outcome = await Promise.race([
+      standardErrorKept,
+      wait(
+        grace,
+        'still-copying' as const,
+        { ref: false, },
+      ),
+    ],);
+    if (outcome === 'still-copying') {
+      listeners.onProblem(
+        `Pi's standard error was still being copied ${String(grace,)} ms after the run ended, so the rest of it is not in ${standardErrorFile}.`,
+      );
+    }
+  }
+
+  /**
+   Sends Pi a signal, saying so when the operating system refuses it. A refused signal is a problem of this channel, never a
+   notification that Pi went.
+
+   @param signal - signal to send
+   */
+  function signalPi(signal: NodeJS.Signals,): void {
+    if ((child.exitCode !== null) || (child.signalCode !== null)) {
       return;
     }
-    child.stdin
-      .end();
-    if (await wentWithinGrace()) {
-      return;
+    if (!child.kill(signal,)) {
+      state.problem = `the operating system refused ${signal}`;
+      listeners.onProblem(`could not send ${signal} to Pi: the operating system refused it.`,);
     }
-    child.kill('SIGTERM',);
-    if (await wentWithinGrace()) {
-      return;
+  }
+
+  /**
+   Closes Pi's input, then signals it while it stays, and reports whether it went in time.
+
+   @param stageMilliseconds - how long each stage may take
+
+   @returns whether Pi went
+   */
+  async function leavePi(stageMilliseconds: number,): Promise<boolean> {
+    if (!child.stdin
+      .destroyed) {
+      child.stdin
+        .end();
     }
-    child.kill('SIGKILL',);
-    await wentWithinGrace();
-    releaseHandles();
+    if (await wentWithin(stageMilliseconds,)) {
+      return true;
+    }
+    signalPi('SIGTERM',);
+    if (await wentWithin(stageMilliseconds,)) {
+      return true;
+    }
+    signalPi('SIGKILL',);
+    return await wentWithin(stageMilliseconds,);
+  }
+
+  /**
+   Ends Pi, closing its input first and then signalling it if it stays, and settles Pi's standard error before letting go of any
+   handle.
+
+   @param graceMilliseconds - how long each stage may take
+
+   @returns whether Pi's leaving could be confirmed
+   */
+  async function shutDown({
+    graceMilliseconds: stageMilliseconds = graceMilliseconds,
+  }: ShutDownRequest = {},): Promise<ShutDownOutcome> {
+    /**
+     Whether Pi went, which is settled by its input closing and then by each signal in turn.
+     */
+    const stopped = (state.exit !== undefined) || (await leavePi(stageMilliseconds,));
+    await settleStandardError(stageMilliseconds,);
+    if (!stopped) {
+      releaseHandles();
+      return {
+        stopped: false,
+        reason: (state.problem === undefined)
+          ? `Pi was still running ${String(stageMilliseconds,)} ms after SIGKILL.`
+          : `Pi was still running ${String(stageMilliseconds,)} ms after SIGKILL, and a signal had failed: ${state.problem}.`,
+      };
+    }
+    return { stopped: true, };
   }
 
   child.stdout
     .on(
     'data',
-    readChunk,
+    startLineSplitter({ onLine: readLine, },),
     );
+  child.on(
+    'spawn',
+    function onSpawn() {
+      state.spawned = true;
+    },
+  );
   child.stdin
     .on(
     'error',
@@ -478,7 +499,13 @@ export function startConnectionToPi(
   child.on(
     'error',
     function onProcessError({ message, }: { readonly message: string; },) {
-      markExited({ processError: message, },);
+      if (!state.spawned) {
+        markExited({ processError: message, },);
+        return;
+      }
+      // A signal or a message that failed says this channel broke, never that Pi went: its exit is still what closes this.
+      state.problem = message;
+      listeners.onProblem(`could not signal Pi: ${message}`,);
     },
   );
   child.on(
@@ -501,11 +528,6 @@ export function startConnectionToPi(
       markExited(exitOfChild(),);
     },
   );
-  void keepStandardError({
-    source: child.stderr,
-    file: standardErrorFile,
-    onProblem: listeners.onProblem,
-  },);
 
   return {
     hasExited: function hasExited() {

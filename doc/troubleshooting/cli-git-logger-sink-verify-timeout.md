@@ -8,6 +8,13 @@ The cause remains unknown;
 no production behavior or verification deadline was changed.
 The investigation is concluded.
 
+On 2026-11-08 the consequence of that deadline was fixed:
+a verify that runs past the limit no longer retires its sink,
+so the quoted line now reports a wait,
+ not a loss.
+See "A deadline no longer costs a sink its records" below.
+Sections written before that date describe the behavior as it was.
+
 ## Symptom
 
 The original 2026-09-26 report recorded this line on every `git` command in that session.
@@ -27,13 +34,19 @@ Long tool calls that budget tightly around `git`
 ## Emitter
 
 `@monochromatic-dev/logger-core`,
- from `package/logger/core/src/create-logger.ts`:
- `verifyAndApply` runs each sink's `verify()` under `withHostTimeout`
- with `verifyTimeoutMs` (5000 ms),
- and a timed-out verify reports the quoted diagnostic,
- then drops that sink
- (`markEntryUnavailable`),
- so the records that sink would carry are lost for that process.
+ from `package/logger/core/src/sink-probe-watch.ts`:
+ `watchOneProbe` runs each sink's `verify()` under `withHostTimeout`
+ with `verifyTimeoutMs` (5000 ms).
+Until 2026-11-08 a timed-out verify reported the quoted diagnostic
+ and then dropped that sink,
+ so the records it would carry were lost for that process.
+The quoted text is now the deadline report,
+ which leaves the probe running and says that the sink's records are held:
+a positive answer received later still attaches the sink and replays them.
+A verifier that rejects,
+ throws,
+ or reports its backend unavailable still drops its sink,
+ as it should.
 
 ## Working diagnosis
 
@@ -146,6 +159,73 @@ not implemented at this writing:
 should capture schedule and clear from one clock domain
 so a global replacement mid-race cannot cross domains.
 The owner paused fix implementation while the issue #1762 remedy design settles.
+
+## A deadline no longer costs a sink its records (2026-11-08)
+
+The deadline is an event-loop timer racing a `verify()` that awaits filesystem work.
+When that work finished but the loop was blocked,
+the timer still won the race and the sink was retired,
+and because `verifyAndApply` discarded the late answer,
+nothing distinguished a loaded host from a wedged backend.
+`AGENTS.md` rules `NHR` and `SLW` say load is normal here,
+ and slowness under it is our defect.
+
+Reproduction on 2026-11-08,
+ without synthetic load and without touching real log state
+ (the scripts are local diagnostics under `${HOME}/temp/agent/logger-sink/repro/`):
+a throwaway destination was given to the shipped default sinks,
+the process logged one record,
+then blocked its own loop for six seconds with `Atomics.wait`
+(a kernel sleep,
+ no CPU) so the 5000 ms timer expired,
+then logged and flushed.
+
+Before the fix the run printed the quoted line and wrote no log file at all,
+only the retention stamp that proves the sink's probe had already completed:
+
+```text
+logged; blocking the event loop
+loop resumed; flushing
+[info] [...] record logged while the default sinks verify
+logger internal error: sink verification failed for entry 3: Timed out after 5000ms: sink 3 verify
+flushed
+```
+
+The empty destination is the loss the earlier sections describe.
+After the fix the same run keeps the record and says what happened:
+
+```text
+logger internal error: file sink (entry 3) verification had not answered within 5000ms; the probe is still running, so this sink simply receives nothing yet and the records logged meanwhile are kept for it. Logging continues through the remaining sinks. Pass a larger verifyTimeoutMs to createLogger if a slow but working probe is expected.
+```
+
+and the log file holds the record.
+The number stayed at 5000 ms on purpose:
+it never was a statement about how fast a probe must be,
+only how long startup waits before logging proceeds.
+
+What a reader can now tell from the line,
+ per `AGENTS.md` rule `DGT`:
+which sink missed the wait (`file sink (entry 3)`),
+that its records are kept rather than dropped,
+that the rest of logging continues,
+and the one option that changes the wait.
+A verifier that rejects or throws keeps its own report,
+ which now also names the sink and counts the records it takes with it.
+
+Guards:
+`package/logger/core/src/create-logger.unit.test.ts` covers a late positive answer receiving the held records,
+ a blocked loop writing the file sink's record,
+ a late negative answer dropping its records without a failure report,
+ a log call not throwing while a verdict is outstanding,
+ and the report text.
+`package/logger/core.fuzz` folds the same rules into its reference model,
+ so its campaign and the real logger agree again.
+
+What this does not establish:
+which operation exceeded the deadline in the original 2026-09-25 and 2026-09-26 reports,
+or whether their reporting processes were the same.
+The open questions below remain open,
+and the fix removes the loss those reports caused without explaining their delay.
 
 ## Workarounds and rejected interpretations
 
@@ -333,7 +413,16 @@ not an applied change to agent instructions.
 
 ## Documentation verification
 
-`mise run lint:markdown -- doc/troubleshooting/cli-git-logger-sink-verify-timeout.md` passed.
+Rechecked on 2026-11-08 with
+`mise run //:lint:monochromatic-lint -- doc/troubleshooting/cli-git-logger-sink-verify-timeout.md`,
+ which passed,
+and with a `pandoc --from=gfm` render whose headings,
+ fenced blocks,
+ and diagnostic text were inspected.
+
+The original check used the task name of its day,
+`mise run lint:markdown -- doc/troubleshooting/cli-git-logger-sink-verify-timeout.md`,
+ which passed.
 Sätteri 0.10.5 rendered the document to HTML;
 headings,
 code spans,

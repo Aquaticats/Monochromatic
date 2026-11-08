@@ -20,12 +20,17 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   preview,
   type RecordOfPiRun,
+  type RunFailure,
   type RunSummary,
   startRecordOfPiRun,
 } from '../dist/final/node/index.mjs';
 
-/** Milliseconds a record is left silent, so a later note can be seen to reset it. */
+/** Milliseconds a record's clock is moved by, so a silence is measured on a clock the test owns. */
 const SILENCE_MILLISECONDS = 30;
+/** Milliseconds between looks at what a test waits for. */
+const LOOK_MILLISECONDS = 10;
+/** Milliseconds a test waits for the feed's failure to show before giving up on it. */
+const FEED_FAILURE_DEADLINE_MILLISECONDS = 5_000;
 
 type DisposableFolder = {
   readonly path: string;
@@ -42,6 +47,35 @@ async function makeFolder(): Promise<DisposableFolder> {
   };
 }
 
+/**
+ Makes a record whose clock only moves when a test says so, so nothing about its counts depends on how long a test took.
+
+ @param feedFile - file the record writes
+
+ @returns the record and the clock it reads
+ */
+function recordOnOwnClock(feedFile: string,): { readonly record: RecordOfPiRun; readonly clock: { at: number }; } {
+  const clock = { at: 1_000, };
+  return {
+    record: startRecordOfPiRun({
+      feedFile,
+      now: () => clock.at,
+    },),
+    clock,
+  };
+}
+
+/**
+ The problem a failure names, or the empty text when nothing failed.
+
+ @param failure - what the record reported
+
+ @returns the problem's words
+ */
+function problemOf(failure: RunFailure,): string {
+  return failure.failed ? failure.problem : '';
+}
+
 async function summaryOf(record: RecordOfPiRun,): Promise<RunSummary> {
   await record.close();
   return record.summarize({ endReason: 'idle', piExit: {}, piHasExited: true, sessionStats: null, },);
@@ -51,8 +85,18 @@ function declineNothing(): void {
   throw new Error('no dialog was expected',);
 }
 
-function assistantMessage(content: readonly Record<string, unknown>[],): Record<string, unknown> {
-  return { type: 'message_end', message: { role: 'assistant', content, }, };
+function assistantMessage(
+  content: readonly Record<string, unknown>[],
+  ending: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content,
+      ...ending,
+    },
+  };
 }
 
 await describe({
@@ -71,11 +115,11 @@ await describe({
       name: 'a note counts as activity, so a message just delivered does not look like a long silence',
       fn: async () => {
         await using folder = await makeFolder();
-        const record = startRecordOfPiRun(join(folder.path, 'feed.jsonl',),);
-        await wait(SILENCE_MILLISECONDS,);
-        const before = record.silentMilliseconds();
+        const { record, clock, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        clock.at += SILENCE_MILLISECONDS;
+        expect(record.silentMilliseconds(),).toBe(SILENCE_MILLISECONDS,);
         record.note({ kind: 'inbox', },);
-        expect(record.silentMilliseconds(),).toBeLessThan(before,);
+        expect(record.silentMilliseconds(),).toBe(0,);
         await record.close();
       },
     },),
@@ -83,7 +127,7 @@ await describe({
       name: 'keeps the assistant text, ignoring other roles and messages without text',
       fn: async () => {
         await using folder = await makeFolder();
-        const record = startRecordOfPiRun(join(folder.path, 'feed.jsonl',),);
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
         record.observe({ event: assistantMessage([{ type: 'text', text: 'first', },],), declineDialog: declineNothing, },);
         record.observe({ event: { type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: 'asked', },], }, }, declineDialog: declineNothing, },);
         record.observe({ event: assistantMessage([{ type: 'toolCall', },],), declineDialog: declineNothing, },);
@@ -91,11 +135,21 @@ await describe({
       },
     },),
     it({
+      name: 'a later reply with text replaces the one before it',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({ event: assistantMessage([{ type: 'text', text: 'first', },],), declineDialog: declineNothing, },);
+        record.observe({ event: assistantMessage([{ type: 'text', text: 'second', },],), declineDialog: declineNothing, },);
+        expect((await summaryOf(record,)).lastAssistantText,).toBe('second',);
+      },
+    },),
+    it({
       name: 'notes the thinking length and the tool calls of a message',
       fn: async () => {
         await using folder = await makeFolder();
         const feedFile = join(folder.path, 'feed.jsonl',);
-        const record = startRecordOfPiRun(feedFile,);
+        const { record, } = recordOnOwnClock(feedFile,);
         record.observe({
           event: assistantMessage([{ type: 'thinking', thinking: 'abcd', }, { type: 'toolCall', }, { type: 'toolCall', },],),
           declineDialog: declineNothing,
@@ -110,7 +164,7 @@ await describe({
       name: 'only agent_settled ends a run: agent_end leaves it running',
       fn: async () => {
         await using folder = await makeFolder();
-        const record = startRecordOfPiRun(join(folder.path, 'feed.jsonl',),);
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
         record.observe({ event: { type: 'agent_start', }, declineDialog: declineNothing, },);
         record.observe({ event: { type: 'agent_end', }, declineDialog: declineNothing, },);
         expect(record.isRunning(),).toBe(true,);
@@ -121,12 +175,90 @@ await describe({
       },
     },),
     it({
-      name: 'a feed that cannot be written does not stop the run and is named in the summary',
+      name: 'a model error of the last reply is known only once Pi settles, because a retry may still come',
       fn: async () => {
         await using folder = await makeFolder();
-        const record = startRecordOfPiRun(join(folder.path, 'missing', 'feed.jsonl',),);
-        await wait(SILENCE_MILLISECONDS,);
-        record.note({ kind: 'state', },);
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: 'no key', },),
+          declineDialog: declineNothing,
+        },);
+        expect(record.unrecoveredModelError().failed,).toBe(false,);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        expect(record.unrecoveredModelError(),).toEqual({
+          failed: true,
+          problem: 'no key',
+        },);
+        await record.close();
+      },
+    },),
+    it({
+      name: 'a reply that succeeded after a model error leaves no model error',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: 'no key', },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'auto_retry_start', }, declineDialog: declineNothing, },);
+        record.observe({ event: assistantMessage([{ type: 'text', text: 'recovered', },],), declineDialog: declineNothing, },);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        expect(record.unrecoveredModelError().failed,).toBe(false,);
+        await record.close();
+      },
+    },),
+    it({
+      name: 'a later reply that succeeded clears a model error Pi settled on',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', errorMessage: 'no key', },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        record.observe({ event: assistantMessage([{ type: 'text', text: 'steered back', },],), declineDialog: declineNothing, },);
+        expect(record.unrecoveredModelError().failed,).toBe(false,);
+        await record.close();
+      },
+    },),
+    it({
+      name: 'a model error with no message is still an error the run reports',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({
+          event: assistantMessage([], { stopReason: 'error', },),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'agent_settled', }, declineDialog: declineNothing, },);
+        expect(record.unrecoveredModelError(),).toEqual({
+          failed: true,
+          problem: 'the model reported an error and said nothing about it',
+        },);
+        await record.close();
+      },
+    },),
+    it({
+      name: 'a feed that fails is named at once, and a note after it is still safe',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'missing', 'feed.jsonl',),);
+        /**
+         When to give up waiting for the feed's open to fail.
+         */
+        const deadline = Date.now() + FEED_FAILURE_DEADLINE_MILLISECONDS;
+        while ((!record.feedProblem().failed) && (Date.now() <= deadline)) {
+          // oxlint-disable-next-line eslint/no-await-in-loop -- the feed's open fails on its own schedule, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+          await wait(LOOK_MILLISECONDS,);
+        }
+        expect(
+          problemOf(record.feedProblem(),),
+        ).toContain('ENOENT',);
+        expect(() => {
+          record.note({ kind: 'state', },);
+        },).not.toThrow();
         expect((await summaryOf(record,)).feedProblem,).toContain('ENOENT',);
       },
     },),
@@ -135,7 +267,7 @@ await describe({
       fn: async () => {
         await using folder = await makeFolder();
         const feedFile = join(folder.path, 'feed.jsonl',);
-        const record = startRecordOfPiRun(feedFile,);
+        const { record, } = recordOnOwnClock(feedFile,);
         record.noteDriverFailure('it broke',);
         expect((await summaryOf(record,)).driverError,).toBe('it broke',);
         expect(await readFile(feedFile, 'utf8',),).toContain('"kind":"driver-failed"',);
@@ -145,7 +277,7 @@ await describe({
       name: 'leaves how Pi ended out of the summary when Pi outlasted every signal',
       fn: async () => {
         await using folder = await makeFolder();
-        const record = startRecordOfPiRun(join(folder.path, 'feed.jsonl',),);
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
         await record.close();
         const summary = record.summarize({ endReason: 'idle', piExit: {}, piHasExited: false, sessionStats: null, },);
         expect('piExit' in summary,).toBe(false,);

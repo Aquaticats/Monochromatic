@@ -150,6 +150,14 @@ export const plants: readonly Plant[] = [
     }],
   },
   {
+    name: 'a claim naming PID 0 is accepted',
+    file: 'package/git-policy/cli/src/native/lock/single_owner_claim.rs',
+    edits: [{
+      from: 'if pid <= 0 {',
+      to: 'if pid < 0 {',
+    }],
+  },
+  {
     name: 'the start time is read from the field before it',
     file: 'package/git-policy/cli/src/native/process/process_identity.rs',
     edits: [{

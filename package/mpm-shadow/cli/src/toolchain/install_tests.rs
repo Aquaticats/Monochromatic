@@ -201,13 +201,64 @@ fn an_npm_tool_installs_with_the_physical_spelling_of_the_pnpm_home() {
     );
 }
 
+/// The listing `uv tool list` prints for a Python tool at the version the sample lock pins.
+const SLOPO_1_2_3_LISTING: &str = "slopo v1.2.3\n- slopo\n";
+
 #[test]
 fn a_python_tool_needs_uv_and_installs_the_pinned_requirement() {
     let rig = Rig::new();
     assert!(install_tool(&rig.context(), &rig.tool("pipx:slopo")).is_err());
     rig.install_binary("uv", "uv");
+    rig.runner.answer("uv tool list", SLOPO_1_2_3_LISTING, 0);
     install_tool(&rig.context(), &rig.tool("pipx:slopo")).expect("installed");
-    assert_eq!(rig.runner.lines(), vec!["uv tool install --force slopo==1.2.3".to_string()]);
+    assert_eq!(
+        rig.runner.lines(),
+        vec!["uv tool install --force slopo==1.2.3".to_string(), "uv tool list".to_string()],
+        "the install reads the tool back with the listing `list` uses"
+    );
+}
+
+/// What:
+/// A `uv tool install` that exits 0 while its own `uv tool list` reports nothing fails the install.
+/// Why:
+/// The pnpm route learned this from eleven npm tools that `pnpm add --global` reported installed and the next
+/// `toolchain:list:global` reported absent (`doc/troubleshooting/pnpm-symlinked-store-path.md`);
+/// `uv` may leave a tool its listing cannot read the same way,
+/// and only a read-back makes that surface at `install` instead of at the next `list`.
+#[test]
+fn a_python_tool_that_uv_installed_but_does_not_list_is_a_failed_install() {
+    let rig = Rig::new();
+    rig.install_binary("uv", "uv");
+    let error = install_tool(&rig.context(), &rig.tool("pipx:slopo")).expect_err("uv listed nothing");
+    assert!(error.message.contains("slopo"), "{error}");
+    assert!(error.message.contains("1.2.3"), "the message names the locked version: {error}");
+    assert!(error.message.contains("absent"), "the message names what was observed: {error}");
+    assert!(error.message.contains("uv tool dir"), "the message names the directory to check: {error}");
+}
+
+#[test]
+fn a_python_tool_that_uv_lists_at_another_version_is_a_failed_install() {
+    let rig = Rig::new();
+    rig.install_binary("uv", "uv");
+    rig.runner.answer("uv tool list", "slopo v0.9.0\n- slopo\n", 0);
+    let error = install_tool(&rig.context(), &rig.tool("pipx:slopo")).expect_err("another version");
+    assert!(error.message.contains("0.9.0"), "the message names the observed version: {error}");
+    assert!(error.message.contains("1.2.3"), "the message names the locked version: {error}");
+}
+
+/// The positive control of the two tests before it:
+/// a tool `uv tool list` reports at the locked version is installed once,
+/// with one read-back.
+#[test]
+fn a_python_tool_that_uv_lists_at_the_locked_version_is_installed() {
+    let rig = Rig::new();
+    rig.install_binary("uv", "uv");
+    rig.runner.answer("uv tool list", SLOPO_1_2_3_LISTING, 0);
+    install_tool(&rig.context(), &rig.tool("pipx:slopo")).expect("installed");
+    assert_eq!(
+        rig.runner.lines(),
+        vec!["uv tool install --force slopo==1.2.3".to_string(), "uv tool list".to_string()]
+    );
 }
 
 #[test]
@@ -220,9 +271,14 @@ fn a_wheel_bootstrap_is_downloaded_verified_and_only_then_handed_to_uv() {
     rig.lock.tools[9].declaration.options.bootstrap =
         Some(super::model::Bootstrap { requires_tool: Some("uv".to_string()), distribution: "wheel".to_string() });
     set_artifact(&mut rig, "pipx:slopo", url, &sha256_hex(wheel));
+    rig.runner.answer("uv tool list", SLOPO_1_2_3_LISTING, 0);
     install_tool(&rig.context(), &rig.tool("pipx:slopo")).expect("installed");
     let downloaded = rig.scope.toolchain_root.join("downloads").join("meta_package_manager-8.2.0-py3-none-any.whl");
-    assert_eq!(rig.runner.lines(), vec![format!("uv tool install --force {}", downloaded.display())]);
+    assert_eq!(
+        rig.runner.lines(),
+        vec![format!("uv tool install --force {}", downloaded.display()), "uv tool list".to_string()],
+        "the wheel route reads the tool back too"
+    );
     assert_eq!(fs::read(&downloaded).expect("the verified wheel is in place"), wheel);
 }
 
