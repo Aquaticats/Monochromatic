@@ -199,14 +199,9 @@ fn a_hold_that_outlasts_the_ceiling_ends_the_wait_and_stays() {
     let lock: PathBuf = lock_path_of(index.as_path());
     let identity: String = crate::service_index_marker::own_identity().expect("identity");
     std::fs::write(&lock, format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id())).expect("lock");
-    let (finished, ended) = std::sync::mpsc::channel();
-    let waiter_index: PathBuf = index.clone();
-    std::thread::spawn(move || {
-        let mut out: Vec<u8> = Vec::new();
-        let outcome: Waited = wait_for_service_hold_within(waiter_index.as_path(), "add", Duration::from_millis(300), QUICK, &mut out);
-        let _sent = finished.send((outcome, String::from_utf8_lossy(&out).into_owned()));
-    });
-    let (outcome, text) = ended.recv_timeout(Duration::from_secs(10)).expect("the wait ended at its ceiling");
+    let mut out: Vec<u8> = Vec::new();
+    let outcome: Waited = wait_for_service_hold_within(index.as_path(), "add", Duration::from_millis(300), QUICK, &mut out);
+    let text: String = String::from_utf8_lossy(&out).into_owned();
     assert_eq!(outcome, Waited::GaveUp);
     assert!(text.contains("still finishing a commit") && text.contains("git add runs now"), "{text}");
     assert!(lock.exists(), "the hold is not the command's to remove");

@@ -563,30 +563,22 @@ fn a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scrat
     remove(world.root.as_path());
 }
 
-/// How long the controls give a landing that must end at its ceiling before they call it hung.
-const CEILING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
-
 /// The ceiling the controls give the lock wait:
 /// short,
 /// so the control ends in a moment.
 const SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(300);
 
-/// Runs `land_batch_announcing` for `requests` on a thread of its own with a ceiling of `SHORT_CEILING`,
-/// and returns what it
-///  answered and said,
-/// or nothing when it was still waiting after `CEILING_PATIENCE`.
-/// The thread builds its own context.
-fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> Option<(Result<Vec<Outcome>, FailureCode>, Vec<Announce>)> {
-    let (finished, ended) = std::sync::mpsc::channel();
-    let journal: PathBuf = world.context.journal.clone();
-    std::thread::spawn(move || {
-        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
-        let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-        let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| { said.lock().expect("lock").push(note); });
-        let heard: Vec<Announce> = said.lock().expect("lock").clone();
-        let _sent = finished.send((answered, heard));
-    });
-    return ended.recv_timeout(CEILING_PATIENCE).ok();
+/// Runs `land_batch_announcing` for `requests` with a ceiling of `SHORT_CEILING`,
+/// and returns what it answered and said.
+/// The wait ends by itself at that ceiling,
+/// so the control reads the ending rather than timing it,
+/// and a wait that never ends is the whole run's watchdog to report.
+fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> (Result<Vec<Outcome>, FailureCode>, Vec<Announce>) {
+    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| { said.lock().expect("lock").push(note); });
+    let heard: Vec<Announce> = said.lock().expect("lock").clone();
+    return (answered, heard);
 }
 
 /// A foreign owner nothing proves alive that keeps `index.lock` past the ceiling:
@@ -603,7 +595,7 @@ fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_si
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
-    let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
+    let (answered, said) = land_at_the_ceiling(&world, vec![request]);
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let kept: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]);
     assert_eq!(kept, "refs/cli-git/kept/1", "the built commit is kept on a side ref");
@@ -632,7 +624,7 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
     std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {}\n", std::process::id())).expect("PID file");
-    let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
+    let (answered, said) = land_at_the_ceiling(&world, vec![request]);
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
     let ending: String = texts.join("");
@@ -1659,15 +1651,10 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
-    let journal: PathBuf = world.context.journal.clone();
-    let (finished, ended) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        crate::service_fault::hooks::take_events();
-        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
-        let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
-        let _sent = finished.send((answered, crate::service_fault::hooks::take_events()));
-    });
-    let (answered, events) = ended.recv_timeout(CEILING_PATIENCE).expect("the landing ended at its ceiling");
+    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    crate::service_fault::hooks::take_events();
+    let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
