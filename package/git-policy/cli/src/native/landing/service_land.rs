@@ -33,7 +33,7 @@ use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, history_is_plain, read_commit};
 use crate::service_head::{follows_move, still_checked_out};
 use crate::service_pruned::batch_content_missing;
-use crate::service_journal::{Intent, OPEN_EXTENSION, batch_path, remove_start, write_intent, write_start};
+use crate::service_journal::{Intent, OPEN_EXTENSION, remove_start, write_intent, write_start};
 pub use crate::service_land_finish::{Handled, RecoveryReport, recover, recover_instance, recover_instance_without_drops};
 #[cfg(test)]
 use crate::service_land_finish::follow_up;
@@ -46,7 +46,7 @@ use crate::service_land_start::witness_of;
 use crate::service_index_lock::{Announce, Announcer, IndexLock};
 use crate::service_timing::LandTiming;
 use crate::config_snapshot::{ConfigSnapshot, read_config_snapshot};
-use crate::service_scratch_ref_of_a_dropped_batch::{clear_after_dropped_batch, scratch_ref};
+use crate::service_scratch_ref_of_a_dropped_batch::{clear_after_a_failed_landing, scratch_ref};
 use crate::service_land_follow::storage_failure;
 use crate::service_protocol::{CommitRequest, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, NO_REFLOG_SETTING};
@@ -169,15 +169,10 @@ pub fn land_batch_timed(
         }
     }
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
-    //  can land them: only an intent lets a restart decide the batch from the branch. The commit is kept where a commit that was
-    //  not made is kept, and the scratch branch goes, so a failed landing leaves no reference of the wrapper holding objects alone.
-    //  A failed landing that did write its intent leaves its batch to the restart, which settles it from the branch.
-    if result.is_err()
-        && !batch_path(context.journal.as_path(), seq, OPEN_EXTENSION).exists()
-        && let Some(first) = requests.first()
-    {
-        let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-        clear_after_dropped_batch(&git, first.repository.as_path(), seq);
+    //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and
+    //  removes the branch itself (`service_scratch_ref_of_a_dropped_batch.rs`). One that wrote its intent leaves it to the restart.
+    if result.is_err() {
+        clear_after_a_failed_landing(context, requests, seq);
     }
     let published: bool = match result.as_ref() {
         Ok(outcomes) => any_landed(outcomes.as_slice()),

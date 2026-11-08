@@ -24,6 +24,9 @@
 //! await keepThenRemove(scratchRef(seq), keptRef(seq)); // only for a batch that will not land
 //! ```
 
+use crate::service_journal::{OPEN_EXTENSION, batch_path};
+use crate::service_land_context::LandContext;
+use crate::service_protocol::CommitRequest;
 use crate::transaction_git::{GitContext, GitRequest, NO_REFLOG_SETTING, run_git};
 use std::path::Path;
 
@@ -203,4 +206,27 @@ pub(crate) fn clear_after_dropped_batch(git: &GitContext, repository: &Path, seq
     } else {
         left(seq, format!("the scratch reference {scratch} could not be removed; its commit {tip} is kept at {kept}").as_str());
     }
+}
+
+/// What:
+///  Clears the scratch reference of the batch a failed landing left,
+/// when no open intent names the batch.
+/// Why:
+///   A landing that ends before its intent reaches the journal leaves the batch's objects on the scratch reference and
+///  nothing that names them,
+/// so no restart can land the batch and nothing else would remove the reference.
+/// A failed landing that did write its intent leaves its batch to the restart,
+/// which settles it from the branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = requests[0]; if (first && !openIntent(journal, seq)) await clearAfterDroppedBatch(git, first.repository, seq)
+/// ```
+pub(crate) fn clear_after_a_failed_landing(context: &LandContext, requests: &[CommitRequest], seq: u64) {
+    let Some(first) = requests.first() else { return };
+    if batch_path(context.journal.as_path(), seq, OPEN_EXTENSION).exists() {
+        return;
+    }
+    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    clear_after_dropped_batch(&git, first.repository.as_path(), seq);
 }
