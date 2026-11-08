@@ -561,7 +561,7 @@ each with a failing test first:
   so the stage cannot pass here.
   The other stages' commands and checks in `guided-cutover-stages.data.ts` were read for this shell trap
   and nothing else was found
-  (a second pass by a Claude subagent,
+  (a second pass by a Claude Code native subagent,
   not an independent review).
 - A stage after the swap that rewrites each index:
   the move gives every file a new inode,

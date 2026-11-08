@@ -168,7 +168,7 @@ Stop at completion or an external blocker.
 MWK:
  Monitors,
  wakeups,
- and waiting subagents rarely wake main agent:
+ and waiting Claude Code native subagents rarely wake main agent:
  wait in one command that ends at a terminal state;
  emit only lines you'd act on,
  never routine progress.

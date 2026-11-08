@@ -4,7 +4,7 @@ Workspace packages for Claude Code plugins,
  plus the source package that owns
 their handler logic.
 
-## Account-wide subagent model policy
+## Account-wide Claude Code native subagent model policy
 
 Accepted and installed on 2026-10-15.
 The policy covers ordinary Agent delegation on this machine.
@@ -12,7 +12,7 @@ The built-in general-purpose agent defaults to Sonnet;
 explicit Opus and Fable model selections are denied.
 The separately configured Fable advisor remains enabled.
 Forks,
-subagent skills,
+Claude Code native subagent skills,
 and teammates are outside this policy's scope.
 
 The live configuration is `~/.claude/settings.json`,

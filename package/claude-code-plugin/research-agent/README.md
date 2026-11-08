@@ -1,13 +1,13 @@
 # research-agent
 
-Provides a `research` subagent with anti-hallucination guardrails
+Provides a Claude Code native `research` subagent with anti-hallucination guardrails
 for investigating external projects,
  GitHub discussions,
  and technical questions.
 
 ## Motivation
 
-The built-in Explore subagent uses Haiku,
+The built-in Claude Code native Explore subagent uses Haiku,
  which confidently fabricates content
 when source data fails to load (e.g. JavaScript-rendered GitHub pages returning error states).
 This agent replaces Explore for external research tasks by:

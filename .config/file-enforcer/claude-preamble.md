@@ -10,7 +10,7 @@ and that plain-text reply is the answer.
 
 Reset times provided by the harness are unreliable:
 never record one or wait for one;
-when a subagent model is refused,
+when a Claude Code native subagent model is refused,
 try it again at the next delegation,
 or delegate to another model meanwhile.
 

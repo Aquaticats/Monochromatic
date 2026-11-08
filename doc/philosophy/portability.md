@@ -12,7 +12,7 @@ No platform-specific solutions.
 A cloned repository should not dictate what software on someone else's machine can do.
 Root `.claude/` is ignored because it can contain machine-local permissions,
  hooks,
- subagents,
+ Claude Code native subagents,
  skills,
 and agent memory.
 Commit Claude Code project configuration only when it is intentionally shared infrastructure.
