@@ -298,6 +298,19 @@ pub fn prepare_launch(record: &LaunchRecord, lock_text: Option<&str>) -> Launch 
     return Launch { warning, program: program_to_run(&record.real) };
 }
 
+/// What:
+/// The older-lock sentence followed by the program the launcher is about to start.
+/// Why:
+/// Placeholder so the new tests fail on behavior: this version names no program.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function warningNamingProgram(message: string, program: string): string
+/// ```
+pub fn warning_naming_program(message: &str, _program: &Path) -> String {
+    return message.to_string();
+}
+
 /// Replaces this process with `program`,
 /// keeping `arguments` (argv[0] included) as they were;
 /// returns only when that failed.

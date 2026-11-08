@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use super::cargo_installs::{older_lock_message, older_lock_message_for};
 use super::fakes::Rig;
-use super::launcher::{LaunchRecord, ensure_launcher, parse_record, prepare_launch, record_path, render_record};
+use super::launcher::{LaunchRecord, ensure_launcher, parse_record, prepare_launch, record_path, render_record, warning_naming_program};
 use super::scope::ScopeKind;
 
 /// The id the tests use for the tool.
@@ -68,7 +68,7 @@ fn a_global_launcher_warns_with_the_global_upgrade_command() {
     let rig = Rig::new();
     let record = LaunchRecord { scope: ScopeKind::Global, ..record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4") };
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
-    assert_eq!(launch.warning, Some(older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4")));
+    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4"), &record.real)));
     assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm update -g {TOOL}`")));
 }
 
@@ -82,7 +82,11 @@ fn a_current_link_that_forwards_to_the_other_roots_current_still_names_the_versi
         .expect("forward current");
     let record = LaunchRecord { real: emptied_crate.join("current").join("bin").join("cli-git-native"), ..winner };
     let launch = prepare_launch(&record, Some(&lock_text("0.4.4")));
-    assert_eq!(launch.warning, Some(older_lock_message(TOOL, "0.4.4", "0.4.5")), "the version behind the chain, not the word current");
+    assert_eq!(
+        launch.warning,
+        Some(warning_naming_program(&older_lock_message(TOOL, "0.4.4", "0.4.5"), &record.real)),
+        "the version behind the chain, not the word current"
+    );
 }
 
 #[test]
@@ -90,7 +94,7 @@ fn the_launcher_warns_when_the_version_that_runs_is_newer_than_the_lock() {
     let rig = Rig::new();
     let record = record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4");
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
-    assert_eq!(launch.warning, Some(older_lock_message(TOOL, "0.4.0", "0.4.4")));
+    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(TOOL, "0.4.0", "0.4.4"), &record.real)));
     assert_eq!(launch.program, record.real);
 }
 
@@ -265,4 +269,29 @@ fn a_launcher_is_made_under_a_repository_the_check_says_is_ready() {
     repository_on_a_drive_that_is_gone(&rig, "ready", 0);
     let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
     assert!(ensure_launcher(&rig.scope, TOOL, "git", &real).is_ok());
+}
+
+#[test]
+fn the_warning_names_the_program_under_current_when_the_recorded_folder_was_deleted() {
+    let rig = Rig::new();
+    let directory: &Path = rig._directory.path();
+    let crate_dir: PathBuf = directory.join("cargo").join("monochromatic-git-policy-cli");
+    let recorded: PathBuf = crate_dir.join("current").join("0.4.0-folder").join("cli-git-native");
+    let now_folder: PathBuf = crate_dir.join("0.4.4").join("0.4.4-folder");
+    fs::create_dir_all(&now_folder).expect("make the folder of the version that runs");
+    fs::write(now_folder.join("cli-git-native"), "#!/bin/sh\n").expect("write the program");
+    fs::set_permissions(now_folder.join("cli-git-native"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("chmod");
+    std::os::unix::fs::symlink("0.4.4", crate_dir.join("current")).expect("link current");
+    let record = LaunchRecord {
+        tool_id: TOOL.to_string(),
+        lock_file: directory.join("toolchain.lock.json"),
+        real: recorded.clone(),
+        scope: ScopeKind::Global,
+    };
+    let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
+    let started: PathBuf = crate_dir.join("current").join("0.4.4-folder").join("cli-git-native");
+    assert_eq!(launch.program, started);
+    let warning: String = launch.warning.expect("the lock is older than the version that runs");
+    assert!(warning.ends_with(&format!("; starting {}", started.display())), "{warning}");
+    assert!(!warning.contains(&recorded.display().to_string()), "the deleted path is never named as the one started: {warning}");
 }

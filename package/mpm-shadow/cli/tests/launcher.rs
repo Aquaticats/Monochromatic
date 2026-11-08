@@ -24,11 +24,12 @@ const TOOL_ID: &str = "cargo:monochromatic-demo-tool";
 /// and exits with `TOOL_EXIT` or dies of SIGTERM when `TOOL_KILL` is set.
 const REAL_PROGRAM: &str = "#!/bin/sh\nprintf 'out:'\nfor argument in \"$@\"; do printf '[%s]' \"$argument\"; done\nprintf '\\n'\nprintf 'env:%s\\n' \"$TOOL_ENV\"\necho 'err-from-the-tool' >&2\nif [ -n \"$TOOL_KILL\" ]; then kill -TERM $$; fi\nexit ${TOOL_EXIT:-0}\n";
 
-/// The warning text the launcher prints for the given versions.
-fn expected_warning(locked: &str, used: &str) -> String {
+/// The warning text the launcher prints for the given versions and the program it starts.
+fn expected_warning(locked: &str, used: &str, started: &Path) -> String {
     return format!(
         "mpm-shadow: warning: {TOOL_ID} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
-         once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main\n"
+         once a newer one is installed; upgrade this tree's lock with `mpm update {TOOL_ID}` or merge main; starting {}\n",
+        started.display()
     );
 }
 
@@ -102,7 +103,7 @@ fn an_older_lock_prints_the_warning_on_standard_error_and_leaves_standard_output
     let launched = run(&tree.launcher(), &arguments, &[]);
     assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
     assert!(!launched.stdout.is_empty());
-    let expected_stderr = format!("{}{}", expected_warning("0.4.0", "0.4.4"), String::from_utf8_lossy(&direct.stderr));
+    let expected_stderr = format!("{}{}", expected_warning("0.4.0", "0.4.4", &tree.real()), String::from_utf8_lossy(&direct.stderr));
     assert_eq!(String::from_utf8_lossy(&launched.stderr), expected_stderr);
     assert_eq!(launched.status.code(), Some(0));
 }
@@ -138,7 +139,9 @@ fn a_missing_real_program_exits_127_naming_it_and_never_writes_standard_output()
     let launched = run(&tree.launcher(), &[], &[]);
     assert_eq!(launched.status.code(), Some(NOT_FOUND_EXIT_CODE));
     assert!(launched.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&launched.stderr).contains("could not start"), "{}", String::from_utf8_lossy(&launched.stderr));
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    assert!(stderr.contains(&format!("not starting {}: no file exists there", tree.real().display())), "{stderr}");
+    assert!(!stderr.contains("os error"), "the launcher checked and did not try to start it: {stderr}");
 }
 
 #[test]
@@ -309,8 +312,11 @@ fn a_release_archive_tool_warns_on_every_run_when_the_lock_pins_an_older_version
     let launched = run(&launcher, &["x"], &[]);
     assert_eq!(launched.stdout, direct.stdout, "standard output is the real program's, byte for byte");
     let warning = "mpm-shadow: warning: demo-release is locked at 0.2.0 in this tree but 0.2.1 runs, because older repository tools are never kept \
-                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main\n";
-    assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}", String::from_utf8_lossy(&direct.stderr)));
+                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ";
+    assert_eq!(
+        String::from_utf8_lossy(&launched.stderr),
+        format!("{warning}{}\n{}", real.display(), String::from_utf8_lossy(&direct.stderr))
+    );
 
     let (_matching_directory, matching_launcher, matching_real) = archive_tree("0.2.1", "0.2.1");
     let quiet = run(&matching_launcher, &["x"], &[]);
@@ -342,6 +348,10 @@ struct MovedArchive {
 
 impl MovedArchive {
     fn new(locked: &str, recorded: &str, now: &str) -> MovedArchive {
+        return MovedArchive::in_scope(ScopeKind::Repo, locked, recorded, now);
+    }
+
+    fn in_scope(scope: ScopeKind, locked: &str, recorded: &str, now: &str) -> MovedArchive {
         let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
         let tool_dir = directory.path().join("root").join("demo-release");
         let lock_file = directory.path().join("toolchain.lock.json");
@@ -359,7 +369,7 @@ impl MovedArchive {
             tool_id: "demo-release".to_string(),
             lock_file: moved.lock_file.clone(),
             real: moved.program_of(recorded),
-            scope: ScopeKind::Repo,
+            scope,
         };
         fs::write(record_path(&moved.launcher), render_record(&record)).expect("write the record");
         moved.install(now);
@@ -393,8 +403,14 @@ fn a_launcher_whose_recorded_version_was_deleted_runs_the_version_current_names(
     assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
     assert_eq!(launched.stdout, direct.stdout, "standard output is the new version's program, byte for byte");
     let warning = "mpm-shadow: warning: demo-release is locked at 0.1.4 in this tree but 0.1.5 runs, because older repository tools are never kept \
-                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main\n";
-    assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}", String::from_utf8_lossy(&direct.stderr)));
+                   once a newer one is installed; upgrade this tree's lock with `mpm update demo-release` or merge main; starting ";
+    let started = moved.program_of("0.1.5");
+    assert_eq!(
+        String::from_utf8_lossy(&launched.stderr),
+        format!("{warning}{}\n{}", started.display(), String::from_utf8_lossy(&direct.stderr)),
+        "the warning names the program under current, not the deleted folder the record named"
+    );
+    assert!(!String::from_utf8_lossy(&launched.stderr).contains("0.1.4-linux"), "the deleted folder is never named as the one started");
 }
 
 #[test]
@@ -416,7 +432,8 @@ fn a_launcher_that_finds_no_program_under_current_names_both_versions_and_the_on
     assert!(launched.stdout.is_empty());
     let stderr = String::from_utf8_lossy(&launched.stderr);
     let tree = moved.lock_file.parent().expect("the tree").display().to_string();
-    assert!(stderr.contains("could not start"), "{stderr}");
+    assert!(stderr.contains("not starting"), "{stderr}");
+    assert!(!stderr.contains("os error"), "the launcher checked and did not try to start it: {stderr}");
     assert!(stderr.contains("demo-release"), "the tool is named: {stderr}");
     assert!(stderr.contains("locked at 0.1.4"), "the locked version is named: {stderr}");
     assert!(stderr.contains("0.1.5"), "the version current names is named: {stderr}");
@@ -453,4 +470,34 @@ fn a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs() {
     let stderr = String::from_utf8_lossy(&launched.stderr);
     assert!(stderr.contains("could not update the launcher record"), "{stderr}");
     assert!(stderr.ends_with(&*String::from_utf8_lossy(&direct.stderr)), "{stderr}");
+}
+
+/// Guard, green before the change except for the named path:
+/// the machine-global launcher (`~/.local/bin/git` on the owner's machine) went through the same follow-current route
+/// when it ran as a current build,
+/// and only a launcher binary older than that route started the deleted folder.
+#[test]
+fn a_global_launcher_whose_recorded_version_was_deleted_names_the_path_it_starts_and_the_global_command() {
+    let moved = MovedArchive::in_scope(ScopeKind::Global, "0.1.4", "0.1.4", "0.1.5");
+    let direct = run(&moved.program_of("0.1.5"), &["x"], &[]);
+    let launched = run(&moved.launcher, &["x"], &[]);
+    assert_eq!(launched.status.code(), Some(0), "{}", String::from_utf8_lossy(&launched.stderr));
+    assert_eq!(launched.stdout, direct.stdout);
+    let warning = "mpm-shadow: warning: demo-release is locked at 0.1.4 in this machine's global lock but 0.1.5 runs, because older repository tools \
+                   are never kept once a newer one is installed; upgrade the global lock with `mpm update -g demo-release`; starting ";
+    let started = moved.program_of("0.1.5");
+    assert_eq!(String::from_utf8_lossy(&launched.stderr), format!("{warning}{}\n{}", started.display(), String::from_utf8_lossy(&direct.stderr)));
+    let record = mpm_shadow::toolchain::launcher::parse_record(&fs::read_to_string(record_path(&moved.launcher)).expect("the record")).expect("a record");
+    assert_eq!(record.real, started, "the record names the program that ran");
+    assert_eq!(record.scope, ScopeKind::Global, "rewriting the program keeps the scope");
+}
+
+#[test]
+fn a_launcher_never_prints_the_older_lock_warning_for_a_program_it_does_not_start() {
+    let moved = MovedArchive::new("0.1.4", "0.1.4", "0.1.5");
+    fs::remove_file(moved.program_of("0.1.5")).expect("remove the program");
+    let launched = run(&moved.launcher, &[], &[]);
+    let stderr = String::from_utf8_lossy(&launched.stderr);
+    assert!(!stderr.contains("starting"), "a warning that says starting is printed only when a program starts: {stderr}");
+    assert!(!stderr.contains("warning:"), "{stderr}");
 }
