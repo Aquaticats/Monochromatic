@@ -38,7 +38,12 @@ type Folder = { readonly path: string; readonly [Symbol.asyncDispose]: () => Pro
 
 async function makeFolder(): Promise<Folder> {
   const path = await mkdtemp(join(scratchRoot(), 'measure-footprint-',),);
-  return { path, async [Symbol.asyncDispose]() { await rm(path, { recursive: true, force: true, },); }, };
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
 }
 
 /** A stand-in `btrfs` that counts its calls in `calls` and behaves as `body` says on call number `$count`. */
@@ -74,7 +79,7 @@ await describe({
         expect(result.code,).toBe(0,);
         expect(result.calls,).toBe(1,);
         expect(result.out,).toContain('measured: attempt 1 of 3; nothing was removed during the measurement',);
-        expect(result.out.trim().split('\n',).at(-1,),).toBe(TOTAL_ROW.trim(),);
+        expect(result.out.trim().split('\n',).at(-1,)?.trim(),).toBe(TOTAL_ROW.trim(),);
       },
     },),
     it({
@@ -89,7 +94,7 @@ await describe({
         expect(result.code,).toBe(0,);
         expect(result.calls,).toBe(2,);
         expect(result.out,).toContain(`measured: attempt 2 of 3; removed during the measurement: ${VANISHED_NAME}`,);
-        expect(result.out.trim().split('\n',).at(-1,),).toBe(TOTAL_ROW.trim(),);
+        expect(result.out.trim().split('\n',).at(-1,)?.trim(),).toBe(TOTAL_ROW.trim(),);
       },
     },),
     it({

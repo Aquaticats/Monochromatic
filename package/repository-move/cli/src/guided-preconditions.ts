@@ -194,6 +194,7 @@ export async function requirePreconditions(
   const tools = [
     config.copyTool,
     config.scanTool,
+    config.measureTool,
     config.nodePath,
   ];
   /**

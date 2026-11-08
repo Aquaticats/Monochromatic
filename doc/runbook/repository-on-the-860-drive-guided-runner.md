@@ -181,6 +181,19 @@ in order:
     Check:
     `pre-flight passed`.
     A `REFUSED` line is the rule working.
+    `p3a-footprint` runs `measure-footprint.ts`,
+    which walks the whole checkout with `btrfs filesystem du` (sharing counted once).
+    A worktree an agent removes during the walk fails that walk,
+    so the walk is made again,
+    at most three times,
+    and only when every line btrfs printed says an entry was not there;
+    the first line of `main-du.txt` says which attempt measured and which entries were removed meanwhile.
+    Any other error stops the stage at once.
+    The measurement is not split by subvolume:
+    the worktrees share extents,
+    so one measurement per subvolume would count the shared data once per worktree
+    (the plan's per-worktree figure is 3753 GiB against about 264 GiB counted once)
+    and the space rule would refuse for a reason that is not real.
 8.  `p4a-folders` (root for the first folder only):
     the snapshot folder on the NVMe,
     and on the 860 the repository folder (0700,

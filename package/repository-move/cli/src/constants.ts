@@ -239,3 +239,10 @@ export function fixtureImageGiB(): number {
   const neededGiB = ((writtenMiB * BYTES_PER_MIB) / BYTES_PER_GIB) + FIXTURE_GUARD_MIN_GIB;
   return Math.ceil(neededGiB * (1 + (FIXTURE_IMAGE_MARGIN_PERCENT / 100)),);
 }
+
+/**
+ How many times the footprint measurement walks the checkout when worktrees removed meanwhile make a walk fail: the author's
+ bound. One walk takes about 12.5 minutes (plan, section "Measurements") and agents remove a worktree a few times an hour, so
+ one more walk usually succeeds; three bounds the wait.
+ */
+export const FOOTPRINT_MEASURE_ATTEMPTS = 3;

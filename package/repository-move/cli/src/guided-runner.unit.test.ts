@@ -796,6 +796,20 @@ await describe({
           },
         },),
         it({
+          name: 'the footprint of the checkout is measured by the tool that measures again when a worktree vanishes, and the preflight still reads its output',
+          fn: async () => {
+            await withConfig(async ({ config, },) => {
+              const stages = await prepareStages({ c: config, fixtureFolder: '/x', },);
+              const footprint = stages.find((s,) => s.id === 'p3a-footprint',) as Stage;
+              const command = await resolvedCommand({ stage: footprint, config, },);
+              expect(command,).toContain(`${config.nodePath} ${config.measureTool} ${config.repo}`,);
+              expect(command,).not.toContain('btrfs filesystem du',);
+              expect(footprint.check,).toContain('measured: attempt',);
+              expect(footprintOf('measured: attempt 2 of 3; removed during the measurement: x\n     Total   Exclusive  Set shared  Filename\n300 100 50 /tree\n',),).toBe(150,);
+            },);
+          },
+        },),
+        it({
           name: 'the checks after the cut-over (W12 to W15) come after the release, each with its own check, and none uses sudo',
           fn: async () => {
             await withConfig(async ({ config, },) => {
