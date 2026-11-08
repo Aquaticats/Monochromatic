@@ -484,13 +484,9 @@ the daily timer runs at 04:30 and never at login.
     run records 14 days and 2 GiB per folder,
     caps 12 GiB in a checkout and 24 GiB in the shared build folder,
     each measured (`doc/planning/lean-build-dirs.md`).
-- Work queued without a question:
-  the timer runs its mechanisms under one 3-hour limit,
-  so a long units pass starves the Podman pass (cheap mechanisms first);
-  Podman refused 1,350 of 1,601 judged images for three fixable reasons
-  (working containers need `--external`,
-  multi-tag images need `rmi repository:tag`,
-  children vanish with their parent).
+- The timer's pass order and Podman's three refusals are fixed in the sources (merge `a5b31ab7de`);
+  the facts are in `doc/handover/cargo-shadow-lean-build-folders.md`,
+  and they reach the timer with the next `cargo-shadow` release.
 
 ## Open: where a blank at the end of a row goes in the IDE (not asked yet; the owner asked to focus on the Git wrapper)
 
