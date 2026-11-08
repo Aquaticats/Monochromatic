@@ -53,9 +53,9 @@ so a run ends even when Pi answers nothing at the end.
 - `summary.json`: appears whole and last,
   so its presence means the driver has finished.
   `piExit` is there only when Pi's exit was seen,
-  and `piHasExited` says whether the driver could confirm Pi had gone,
-  which a summary that names `pi-not-stopped` could not.
-  `feedProblem` names why the feed is incomplete when it is.
+  so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
+  `feedProblem` names why the feed is incomplete when it is,
+  and `modelError` carries what the model said when the run ended on it.
 - `stderr.log`: Pi's standard error.
 - `inbox/`: drop a message here to steer the run.
   Write it under a name starting with a dot,
@@ -97,5 +97,33 @@ so the summary claims nothing about Pi having gone.
 A run started as a systemd unit gets its processes cleaned up by the unit,
 which is what ends a Pi that outlived these signals.
 
+A run that ended on its own terms still fails as `pi-exited` when Pi left afterwards with a status other than zero,
+such as while the driver was asking it for the run's statistics.
+A signal the driver itself sent is not a failure.
+
 A driver started by a Pi that a driver runs refuses at once,
 so agents cannot start agents without end.
+
+## What is bounded, and what is not
+
+Every wait for Pi is bounded:
+Pi's start-up,
+each command,
+the watch,
+and putting the run away.
+Each command keeps its own limit as well,
+so one silent answer cannot spend the whole run,
+and the run's wall limit shortens it rather than extending it.
+
+What no in-process bound reaches:
+a file system call on a folder that stops answering,
+and a path where `feed.jsonl` or `stderr.log` belongs that is not an ordinary file.
+A named pipe there can keep the driver's own process alive after it has written the summary,
+because opening it cannot be cancelled once it has started.
+The driver reports what it could not do and writes the summary,
+and a run started as a systemd unit is ended by that unit's own deadline.
+Its `RuntimeMaxSec` is what bounds the driver itself;
+`--wall-seconds` bounds the run.
+
+A failure to keep Pi's standard error is reported as a `problem` line and does not by itself change how the run ends,
+because it is the diagnostic record and not the record the caller reads.

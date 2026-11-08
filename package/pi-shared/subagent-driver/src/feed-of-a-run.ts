@@ -38,6 +38,8 @@ export type Feed = {
 
  @param startedAt - when the run started, as milliseconds since the epoch
 
+ @param now - where the feed reads the time
+
  @returns the feed, and how to finish writing it
 
  @example
@@ -48,9 +50,11 @@ export type Feed = {
 export function startFeed({
   feedFile,
   startedAt,
+  now = Date.now,
 }: {
   readonly feedFile: string;
-  readonly startedAt: number
+  readonly startedAt: number;
+  readonly now?: () => number
 },): Feed & { readonly close: () => Promise<void> } {
   /**
    Where feed lines go.
@@ -86,7 +90,7 @@ export function startFeed({
     note: function note(entry: PiRecord,) {
       if (state.problem === undefined) {
         feed.write(`${JSON.stringify({
-          t: Date.now() - startedAt,
+          t: now() - startedAt,
           ...entry,
         },)}\n`,);
       }

@@ -1,21 +1,21 @@
 /**
- What the stand-in Pi does with a prompt or a steer in each test scenario, how it writes records, and the log lines a test can
- wait for instead of sleeping.
+ What the stand-in Pi does with a prompt or a steer in each test scenario, and how it writes records.
 
  @module
  */
 
-import { appendFile, } from 'node:fs/promises';
-import {
-  env,
-  stdout,
-} from 'node:process';
+import { stdout, } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   FEED_PREVIEW_CHARACTERS,
   POLL_MILLISECONDS,
   type PiRecord,
 } from '../dist/final/node/index.mjs';
+import {
+  scenario,
+  seen,
+  writeLogLine,
+} from './stand-in-pi-log-fixture.ts';
 
 /**
  Status the crashing scenarios exit with.
@@ -72,63 +72,6 @@ export const RECOVERED_REPLY = 'recovered';
  The text the standard-error scenario writes, so a test can see the copy reach its file.
  */
 export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard error';
-
-/**
- One sentence of the long reply.
- */
-const LONG_REPLY_SENTENCE = 'a reply long enough to need cutting.';
-
-/**
- A reply longer than a feed line keeps, so a summary that held only the preview would show.
- */
-export const LONG_REPLY: string = `${LONG_REPLY_SENTENCE} `.repeat(
-  Math.ceil((FEED_PREVIEW_CHARACTERS.assistantText * 2) / (LONG_REPLY_SENTENCE.length + 1),),
-);
-
-/**
- Where a scenario writes the lines a test waits for.
- */
-const log = env.STAND_IN_PI_LOG ?? '/dev/null';
-
-/**
- The behaviour chosen by the test.
- */
-export const scenario: string = env.STAND_IN_PI_SCENARIO ?? 'normal';
-
-/**
- What the stand-in has seen and is doing.
- */
-export const seen: {
-  prompts: number;
-  answering: number
-} = {
-  /**
-   How many prompts and steers have arrived.
-   */
-  prompts: 0,
-
-  /**
-   How many answers are still being prepared, so a command that arrives meanwhile is an overlap.
-   */
-  answering: 0,
-};
-
-/**
- Writes a line a test can wait for, saying which point the stand-in has reached.
-
- @param line - line to write
-
- @example
- ```ts
- await writeLogLine('marker agent_end',);
- ```
- */
-export async function writeLogLine(line: string,): Promise<void> {
-  await appendFile(
-    log,
-    `${line}\n`,
-  );
-}
 
 /**
  Writes one record.
@@ -285,6 +228,18 @@ const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> =
 ],);
 
 /**
+ One sentence of the long reply.
+ */
+const LONG_REPLY_SENTENCE = 'a reply long enough to need cutting.';
+
+/**
+ A reply longer than a feed line keeps, so a summary that held only the preview would show.
+ */
+export const LONG_REPLY: string = `${LONG_REPLY_SENTENCE} `.repeat(
+  Math.ceil((FEED_PREVIEW_CHARACTERS.assistantText * 2) / (LONG_REPLY_SENTENCE.length + 1),),
+);
+
+/**
  What the other scenarios do with a prompt or a steer. A scenario missing from both maps finishes a normal run.
  */
 const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string, (id: unknown,) => void>([
@@ -327,6 +282,16 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
   [
     'never-settles',
     function neverSettle(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+    },
+  ],
+  [
+    'silent-inbox',
+    function acceptThenStaySilent(id,) {
+      if (seen.prompts > 1) {
+        return;
+      }
       answer({ id, },);
       emit({ type: 'agent_start', },);
     },

@@ -39,12 +39,14 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          piExit: { code: 0, },
         },),).toBe('idle',);
         expect(finalEndReason({
           endReason: 'stop-file',
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          piExit: { code: 0, },
         },),).toBe('stop-file',);
       },
     },),
@@ -56,6 +58,7 @@ await describe({
           stopped: false,
           modelError: failed('no key',),
           feedProblem: failed('EISDIR',),
+          piExit: { code: 1, },
         },),).toBe('wall-clock',);
       },
     },),
@@ -67,6 +70,7 @@ await describe({
           stopped: false,
           modelError: NO_RUN_FAILURE,
           feedProblem: NO_RUN_FAILURE,
+          piExit: {},
         },),).toBe('pi-not-stopped',);
       },
     },),
@@ -78,7 +82,32 @@ await describe({
           stopped: true,
           modelError: failed('no key',),
           feedProblem: NO_RUN_FAILURE,
+          piExit: { code: 0, },
         },),).toBe('model-error',);
+      },
+    },),
+    it({
+      name: 'a Pi that failed after a run ended on its own terms never leaves that run clean',
+      fn: async () => {
+        expect(finalEndReason({
+          endReason: 'idle',
+          stopped: true,
+          modelError: NO_RUN_FAILURE,
+          feedProblem: NO_RUN_FAILURE,
+          piExit: { code: 3, },
+        },),).toBe('pi-exited',);
+      },
+    },),
+    it({
+      name: 'a Pi that a signal ended leaves the run its own reason, because that is how it was asked to go',
+      fn: async () => {
+        expect(finalEndReason({
+          endReason: 'stop-file',
+          stopped: true,
+          modelError: NO_RUN_FAILURE,
+          feedProblem: NO_RUN_FAILURE,
+          piExit: { signal: 'SIGTERM', },
+        },),).toBe('stop-file',);
       },
     },),
     it({
@@ -89,6 +118,7 @@ await describe({
           stopped: true,
           modelError: NO_RUN_FAILURE,
           feedProblem: failed('EISDIR',),
+          piExit: { code: 0, },
         },),).toBe('driver-failed',);
       },
     },),

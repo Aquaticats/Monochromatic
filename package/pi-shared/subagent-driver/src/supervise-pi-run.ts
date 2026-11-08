@@ -4,11 +4,7 @@
  @module
  */
 
-import {
-  mkdir,
-  rename,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   type ConnectionToPi,
@@ -24,11 +20,18 @@ import {
   TEARDOWN_ANSWER_MILLISECONDS,
   TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
-import { millisecondsLeftUntil, } from './deadline.ts';
+import {
+  answerMillisecondsBefore,
+  millisecondsLeftUntil,
+} from './deadline.ts';
 import {
   CLEAN_END_REASONS,
   finalEndReason,
 } from './end-reasons.ts';
+import {
+  DRIVER_USAGE,
+  DriverOptionsError,
+} from './parse-driver-options.ts';
 import type {
   DriverOptions,
   EndReason,
@@ -46,6 +49,7 @@ import {
   type WatchRequest,
   watchUntilEnded,
 } from './watch-pi-run.ts';
+import { writeSummary, } from './write-summary.ts';
 
 /**
  A driver started by a Pi that a driver runs.
@@ -91,44 +95,6 @@ function piCommandLine(options: DriverOptions,): readonly string[] {
 }
 
 /**
- Writes the summary so that a reader sees all of it or none.
-
- @param runFolder - run's folder
-
- @param summary - what to write
- */
-async function writeSummary({
-  runFolder,
-  summary,
-}: {
-  readonly runFolder: string;
-  readonly summary: RunSummary
-},): Promise<void> {
-  /**
-   Where the summary is written first.
-   */
-  const unfinished = join(
-    runFolder,
-    '.summary.json.unfinished',
-  );
-  await writeFile(
-    unfinished,
-    `${JSON.stringify(
-      summary,
-      null,
-      2,
-    )}\n`,
-  );
-  await rename(
-    unfinished,
-    join(
-      runFolder,
-      'summary.json',
-    ),
-  );
-}
-
-/**
  Notes the model and commands Pi starts with, which show at a glance what the run is using.
 
  @param connection - running Pi
@@ -145,7 +111,7 @@ async function noteStartingState({
    */
   const state = fieldsOf((await connection.send({
     command: { type: 'get_state', },
-    answerMilliseconds: millisecondsLeftUntil(deadline,),
+    answerMilliseconds: answerMillisecondsBefore(deadline,),
   },)).data,);
   record.note({
     kind: 'state',
@@ -158,7 +124,7 @@ async function noteStartingState({
    */
   const { commands, } = fieldsOf((await connection.send({
     command: { type: 'get_commands', },
-    answerMilliseconds: millisecondsLeftUntil(deadline,),
+    answerMilliseconds: answerMillisecondsBefore(deadline,),
   },)).data,);
   record.note({
     kind: 'commands',
@@ -198,7 +164,7 @@ async function sendFirstPrompt({
       type: 'prompt',
       message: prompt,
     },
-    answerMilliseconds: millisecondsLeftUntil(deadline,),
+    answerMilliseconds: answerMillisecondsBefore(deadline,),
   },);
   /**
    What Pi did with the prompt.
@@ -284,9 +250,16 @@ export async function supervisePiRun(
     );
   }
   /**
+   The wall limit in milliseconds, which is what every deadline and timer is computed from.
+   */
+  const wallMilliseconds = options.wallSeconds * MILLISECONDS_PER_SECOND;
+  if ((!Number.isFinite(wallMilliseconds,)) || (!Number.isFinite(Date.now() + wallMilliseconds,))) {
+    throw new DriverOptionsError(`--wall-seconds must be a number of seconds whose milliseconds stay finite; it was "${String(options.wallSeconds,)}".\nUsage: ${DRIVER_USAGE}`,);
+  }
+  /**
    When the run must be over, counted from before Pi starts so that Pi's start-up is inside the limit.
    */
-  const deadline = Date.now() + (options.wallSeconds * MILLISECONDS_PER_SECOND);
+  const deadline = Date.now() + wallMilliseconds;
   /**
    Where messages for Pi arrive.
    */
@@ -430,18 +403,26 @@ export async function supervisePiRun(
   /**
    Why the run ended, once those two are known.
    */
+  /**
+   How Pi ended, which the summary and the reason both read.
+   */
+  const piExit = connection.exitDetails();
+  /**
+   Why the run ended, once every late failure is known.
+   */
   const finalReason = finalEndReason({
     endReason,
     stopped: shutDown.stopped,
     modelError,
     feedProblem,
+    piExit,
   },);
   /**
    What the caller reads.
    */
   const summary = record.summarize({
     endReason: finalReason,
-    piExit: connection.exitDetails(),
+    piExit,
     piHasExited: connection.hasExited(),
     sessionStats: stats.data ?? stats.error
       ?? null,

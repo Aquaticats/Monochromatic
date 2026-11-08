@@ -113,8 +113,10 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     which appears last,
     so its presence means the driver has finished.
     `piExit` is there only when Pi's exit was seen,
-    and a summary naming `pi-not-stopped` claims nothing about Pi having gone:
-    the unit's own cleanup ends that process.
+    so a summary naming `pi-not-stopped` claims nothing about Pi having gone:
+    the unit's own cleanup ends that process,
+    and its `RuntimeMaxSec` is what bounds the driver when a file system call or a named pipe keeps it alive past the
+    summary.
     `endReason` says how it ended:
     `idle` and `stop-file` exit 0,
     and `prompt-rejected`,
@@ -122,7 +124,8 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     `turn-cap`,
     `wall-clock`,
     `driver-failed`,
-    `model-error` and `pi-not-stopped` fail the unit.
+    `model-error` and `pi-not-stopped` fail the unit,
+    and a Pi that left with a failing status after the run ended as `idle` fails it as `pi-exited`.
     `lastAssistantText` holds the whole final report,
     `sessionStats` holds the cost and names the session file,
     `modelError` holds what the model said when it settled on an error nothing recovered from,

@@ -6,6 +6,7 @@
 
 import type {
   EndReason,
+  PiExit,
   RunFailure,
 } from './driver-types.ts';
 
@@ -19,8 +20,8 @@ export const CLEAN_END_REASONS: ReadonlySet<EndReason> = new Set<EndReason>([
 
 /**
  The reason a run finally ends with, once the failures that only show at the end are known. A run whose Pi outlived every
- signal, whose last assistant message ended in a model error nothing recovered from, or whose feed could not be written did not
- end on its own terms, so none of those may pass for `idle`.
+ signal, whose last assistant message ended in a model error nothing recovered from, whose feed could not be written, or whose
+ Pi left with a failing status did not end on its own terms, so none of those may pass for `idle`.
 
  @param endReason - why the run ended, as the watch found it
 
@@ -29,6 +30,8 @@ export const CLEAN_END_REASONS: ReadonlySet<EndReason> = new Set<EndReason>([
  @param modelError - the error Pi settled on, when nothing after it recovered
 
  @param feedProblem - why the feed is incomplete, when writing it failed
+
+ @param piExit - how Pi ended
 
  @returns the reason the summary and the exit status carry
 
@@ -39,6 +42,7 @@ export const CLEAN_END_REASONS: ReadonlySet<EndReason> = new Set<EndReason>([
    stopped: true,
    modelError: NO_RUN_FAILURE,
    feedProblem: NO_RUN_FAILURE,
+   piExit: { code: 0, },
  },);
  ```
  */
@@ -48,11 +52,13 @@ export function finalEndReason(
     stopped,
     modelError,
     feedProblem,
+    piExit,
   }: {
     readonly endReason: EndReason;
     readonly stopped: boolean;
     readonly modelError: RunFailure;
     readonly feedProblem: RunFailure;
+    readonly piExit: PiExit;
   },
 ): EndReason {
   if (!CLEAN_END_REASONS.has(endReason,)) {
@@ -64,5 +70,13 @@ export function finalEndReason(
   if (modelError.failed) {
     return 'model-error';
   }
-  return feedProblem.failed ? 'driver-failed' : endReason;
+  if (feedProblem.failed) {
+    return 'driver-failed';
+  }
+  /**
+   The status Pi left with, when it left with one rather than a signal.
+   */
+  const { code, } = piExit;
+  // A run that ended on its own terms was not supposed to see Pi fail afterwards, such as while it was asked for statistics.
+  return ((code === undefined) || (code === 0)) ? endReason : 'pi-exited';
 }

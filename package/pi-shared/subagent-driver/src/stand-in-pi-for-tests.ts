@@ -24,14 +24,17 @@ import { NESTED_RUN_VARIABLE, } from './driver-constants.ts';
 import type { PiRecord, } from './driver-types.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import {
+  LOG,
+  scenario,
+  seen,
+  writeLogLine,
+} from './stand-in-pi-log-fixture.ts';
+import {
   answer,
   CRASH_STATUS,
   emit,
   playPrompt,
-  scenario,
-  seen,
   STANDARD_ERROR_TEXT,
-  writeLogLine,
 } from './stand-in-pi-prompt-plays-fixture.ts';
 
 /**
@@ -212,6 +215,9 @@ async function actOnCommand(line: string,): Promise<void> {
     }
     await playPrompt(parsed.id,);
     return;
+  }
+  if ((parsed.type === 'get_session_stats') && (scenario === 'crash-on-stats')) {
+    exit(CRASH_STATUS,);
   }
   if ((parsed.type === 'get_session_stats') && (scenario === 'statless')) {
     emit({

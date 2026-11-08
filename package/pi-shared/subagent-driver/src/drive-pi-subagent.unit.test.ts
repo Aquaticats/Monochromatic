@@ -76,6 +76,8 @@ const CLEAN_STATUS = 0;
 const FAILED_STATUS = 1;
 /** Seconds a test allows a driver beyond the run's own wall limit, so a stalled driver fails rather than hangs it. */
 const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
+/** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
+const LONGEST_FILE_NAME_CHARACTERS = 250;
 /** Milliseconds a driver runs before a test's own timeout ends it, which is a safety net and not a bound of the driver. */
 const OUTER_DEADLINE_MILLISECONDS = (WALL_SECONDS + TEST_TEARDOWN_ALLOWANCE_SECONDS) * MILLISECONDS_PER_SECOND;
 /** What a test sees when the driver wrote no summary; no field of it can pass for a real run's. */
@@ -258,8 +260,8 @@ async function dropInInbox({
   readonly name?: string;
 },): Promise<void> {
   const published = join(runFolder, 'inbox', name,);
-  await writeFile(join(runFolder, 'inbox', `.writing-${name}`,), text,);
-  await rename(join(runFolder, 'inbox', `.writing-${name}`,), published,);
+  await writeFile(join(runFolder, 'inbox', '.writing',), text,);
+  await rename(join(runFolder, 'inbox', '.writing',), published,);
 }
 
 /**
@@ -568,6 +570,32 @@ await describe({
       },
     },),
     it({
+      name: 'an inbox answer that stalls ends at the wall clock, not on a delivery that never returns',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'silent-inbox',
+          wallSeconds: SHORT_WALL_SECONDS,
+          whileRunning: async ({ runFolder, log, },) => {
+            await waitForLine({ file: log, text: '"message":"hello"', },);
+            await dropInInbox({ runFolder, text: 'never answered', },);
+          },
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        expect(run.feed.find((entry,) => entry.kind === 'inbox',)?.success,).toBe(false,);
+        expect(String(run.feed.find((entry,) => entry.kind === 'inbox',)?.error,),).toContain('no answer',);
+      },
+    },),
+    it({
+      name: 'a Pi that fails while it is asked for its statistics leaves the run pi-exited, not idle',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'crash-on-stats', },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('pi-exited',);
+        expect(run.summary.piExit?.code,).toBe(3,);
+      },
+    },),
+    it({
       name: 'a run over its turn cap ends as turn-cap',
       fn: async () => {
         const run = await runDriver({ scenario: 'many-turns', },);
@@ -803,6 +831,31 @@ await describe({
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('stop-file',);
         expect(run.inbox,).toEqual(['.failed-folder',],);
+      },
+    },),
+    it({
+      name: 'a message whose name is too long to keep is held under its claim, and the run goes on',
+      fn: async () => {
+        /**
+         A name that leaves no room for the `.failed-` prefix within the file system's name limit.
+         */
+        const tooLong = 'n'.repeat(LONGEST_FILE_NAME_CHARACTERS,);
+        const run = await runDriver({
+          scenario: 'reject-inbox',
+          idleSeconds: LONG_IDLE_SECONDS,
+          whileRunning: async ({ runFolder, },) => {
+            await waitForFeed({ runFolder, text: '"kind":"settled","n":1', },);
+            await dropInInbox({
+              runFolder,
+              text: 'kept but unnamed',
+              name: tooLong,
+            },);
+            await waitForFeed({ runFolder, text: 'could not keep', },);
+            await writeFile(join(runFolder, 'stop',), '',);
+          },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.inbox.filter((entry,) => entry.startsWith('.claimed-',)).length,).toBe(1,);
       },
     },),
     it({

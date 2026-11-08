@@ -6,6 +6,7 @@
 
 import { randomUUID, } from 'node:crypto';
 import {
+  link,
   readdir,
   rename,
   unlink,
@@ -25,7 +26,7 @@ import type {
   RecordOfPiRun,
   RunProgress,
 } from './driver-types.ts';
-import { millisecondsLeftUntil, } from './deadline.ts';
+import { answerMillisecondsBefore, } from './deadline.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 
@@ -39,6 +40,66 @@ export type WatchRequest = {
   readonly inbox: string;
   readonly deadline: number;
 };
+
+/**
+ The code the operating system gave a failure, when it gave one.
+
+ @param error - what was caught
+
+ @returns the code, or nothing when the failure carries none
+ */
+function codeOf(error: unknown,): string {
+  if (((typeof error) !== 'object') || (error === null)
+    || (!('code' in error))) {
+    return '';
+  }
+  return ((typeof error.code) === 'string') ? error.code : '';
+}
+
+/**
+ Publishes a kept failure under one name, without ever replacing a file already there: a link fails when its name is taken, so
+ the caller tries the next number.
+
+ @param claim - where the message now is
+
+ @param target - the name this attempt would keep it under
+
+ @returns what this attempt achieved, so the caller knows whether to try another name
+ */
+async function publishFailure({
+  claim,
+  target,
+}: {
+  readonly claim: string;
+  readonly target: string
+},): Promise<'published' | 'name-taken' | 'kept-by-rename'> {
+  try {
+    await link(
+      claim,
+      target,
+    );
+    await unlink(claim,);
+    return 'published';
+  }
+  catch (error) {
+    /**
+     What the operating system said about this name.
+     */
+    const code = codeOf(error,);
+    if (code === 'EEXIST') {
+      return 'name-taken';
+    }
+    if ((code === 'EPERM') || (code === 'EACCES')) {
+      // A folder cannot be linked, and holding one of Pi's messages is not at stake in it.
+      await rename(
+        claim,
+        target,
+      );
+      return 'kept-by-rename';
+    }
+    throw error;
+  }
+}
 
 /**
  Claims one inbox entry by renaming it, so that a producer publishing a newer message under the same name cannot be deleted or
@@ -58,11 +119,12 @@ async function claimMessage({
   readonly name: string
 },): Promise<string> {
   /**
-   Where the claim goes, under a name of its own.
+   Where the claim goes, under a name of its own that does not grow with the message's own, so any name a producer may publish
+   stays claimable.
    */
   const claimed = join(
     watch.inbox,
-    `.claimed-${randomUUID()}-${name}`,
+    `.claimed-${randomUUID()}`,
   );
   await rename(
     join(
@@ -75,56 +137,8 @@ async function claimMessage({
 }
 
 /**
- Finds a name for a kept failure that no earlier failure holds: the first failure of a message keeps its plain name, and a later
- one takes a number, so no failure replaces another.
-
- @param inbox - inbox folder
-
- @param name - message's name
-
- @returns the path the failure goes to
- */
-async function freeFailurePath({
-  inbox,
-  name,
-}: {
-  readonly inbox: string;
-  readonly name: string
-},): Promise<string> {
-  /**
-   The names the inbox already holds.
-   */
-  const taken = new Set(await readdir(inbox,),);
-  /**
-   The plainest name for a failure of this message.
-   */
-  const first = join(
-    inbox,
-    `.failed-${name}`,
-  );
-  if (!taken.has(`.failed-${name}`,)) {
-    return first;
-  }
-  /**
-   The first number no kept failure of this message uses; there are always fewer of them than names in the inbox.
-   */
-  for (let attempt = 2; attempt <= (taken.size + 2); attempt += 1) {
-    /**
-     The numbered name of this attempt.
-     */
-    const numbered = `.failed-${name}.${String(attempt,)}`;
-    if (!taken.has(numbered,)) {
-      return join(
-        inbox,
-        numbered,
-      );
-    }
-  }
-  throw new Error(`every name for a kept failure of ${name} is taken`,);
-}
-
-/**
- Keeps a message that did not reach Pi, so it stays readable and is never sent again.
+ Keeps a message that did not reach Pi, so it stays readable and is never sent again. Publication never replaces an earlier
+ kept failure: a link fails when its name is taken, so the next number is tried instead.
 
  @param watch - watch request
 
@@ -141,13 +155,31 @@ async function keepFailure({
   readonly name: string;
   readonly claim: string
 },): Promise<void> {
-  await rename(
-    claim,
-    await freeFailurePath({
-      inbox: watch.inbox,
-      name,
-    },),
-  );
+  /**
+   The most numbered names to try before giving up: there are always fewer kept failures than names in the inbox.
+   */
+  const attempts = (await readdir(watch.inbox,)).length + 2;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    /**
+     The name this attempt would keep the failure under.
+     */
+    const target = join(
+      watch.inbox,
+      (attempt === 1) ? `.failed-${name}` : `.failed-${name}.${String(attempt,)}`,
+    );
+    /**
+     What this attempt achieved.
+     */
+    // oxlint-disable-next-line eslint/no-await-in-loop -- one name after another until one is free, and a kept failure must never replace another; see doc/lint/sequential-awaits.md
+    const outcome = await publishFailure({
+      claim,
+      target,
+    },);
+    if ((outcome === 'published') || (outcome === 'kept-by-rename')) {
+      return;
+    }
+  }
+  throw new Error(`every name for a kept failure of ${name} is taken`,);
 }
 
 /**
@@ -187,13 +219,27 @@ async function deliverMessage({
         type: sentAs,
         message: text,
       },
-      answerMilliseconds: millisecondsLeftUntil(watch.deadline,),
+      answerMilliseconds: answerMillisecondsBefore(watch.deadline,),
     },);
-  await (answer.success === true ? unlink(claim,) : keepFailure({
-    watch,
-    name,
-    claim,
-  },));
+  if (answer.success === true) {
+    try {
+      await unlink(claim,);
+    }
+    catch (error) {
+      watch.record
+        .note({
+          kind: 'problem',
+          problem: `Pi took ${name}, but its file could not be removed: ${String(error,)}`,
+        },);
+    }
+  }
+  else {
+    await keepFailure({
+      watch,
+      name,
+      claim,
+    },);
+  }
   watch.record
     .note({
       kind: 'inbox',
@@ -243,11 +289,21 @@ async function deliverOrSetAside({
           kind: 'problem',
           problem: `could not deliver ${name}: ${String(error,)}`,
         },);
-      await keepFailure({
-        watch,
-        name,
-        claim,
-      },);
+      try {
+        await keepFailure({
+          watch,
+          name,
+          claim,
+        },);
+      }
+      catch (keepError) {
+        // The message stays where the claim put it, under a dot name, so it is neither lost nor sent again.
+        watch.record
+          .note({
+            kind: 'problem',
+            problem: `could not keep ${name}: ${String(keepError,)}`,
+          },);
+      }
     }
   }
   catch (error) {

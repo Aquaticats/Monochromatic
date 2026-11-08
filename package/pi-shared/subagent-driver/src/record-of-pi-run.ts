@@ -91,6 +91,7 @@ export function startRecordOfPiRun({
   const feed = startFeed({
     feedFile,
     startedAt,
+    now,
   },);
   /**
    What changes about the driver's own part of the run.
