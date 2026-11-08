@@ -138,10 +138,11 @@ fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result
 
 A stage of another add in flight is not registered,
 so its placeholder stays in the new worktree.
-This part is read from the wrapper's code and matches the five names;
-it was reproduced on 2026-11-08 by a control that makes another add's stage the way an add does,
-with one snapshot ioctl at the stage name beside its destination,
-and then makes the worktree through the rung's own snapshot.
+This part is read from the wrapper's code and matches the five names.
+A control reproduced it on 2026-11-08,
+by making another add's stage the way an add does:
+one snapshot ioctl at the stage name beside its destination,
+and then making the worktree through the rung's own snapshot.
 The new worktree lists that name at inode 2 on a device of its own and holds nothing,
 and an `rmdir` of it removes the snapshot's entry alone:
 the subvolume it stands for stays in the source,

@@ -3137,8 +3137,13 @@ and removes every stand-in there as an empty directory
 (`worktree/worktree_snapshot_placeholders.rs`),
 with the package's controls green,
 Clippy and `monochromatic-lint` too.
-The branch is not pushed:
-this checkout's shared `remote.origin.pushurl` is `DISABLED`.
+Verified at the user boundary:
+with the built binary as `git` in a throwaway btrfs checkout,
+a stage of another add in the worktrees folder leaves no stand-in in the new worktree,
+and the installed `0.6.1-alpha.4` wrapper on the same shape leaves one.
+The package's whole lib suite passes:
+`native:test:host` ran 4700 of 4700 with `--no-fail-fast`.
+The branch is pushed to `origin`.
 The five worktrees that hold one keep it:
 those belong to other sessions,
 and the move tool already excuses such a folder.
