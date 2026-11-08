@@ -52,6 +52,40 @@ const PACKAGE_NAME_PREFIX = '@';
  // => Set(1) { '@monochromatic-dev/git-executable-core' }
  ```
  */
+/**
+ Reports whether a parsed package manifest declares a package name.
+ 
+ @param parsed - Value parsed from a package manifest.
+ 
+ @returns Whether the value is an object whose `name` is a string.
+ 
+ @example
+ ```ts
+ isNamedManifest({ name: '@monochromatic-dev/git-executable-core' });
+ // => true
+ ```
+ */
+function isNamedManifest(parsed: unknown,): parsed is { readonly name: string } {
+  if ((typeof parsed) !== 'object')
+    return false;
+  if (parsed === null)
+    return false;
+  if (!('name' in parsed))
+    return false;
+  return (typeof parsed.name) === 'string';
+}
+
+/**
+ Names every package manifest under the repository's package directory declares.
+ 
+ @returns Declared names of workspace packages, dependency trees excluded.
+ 
+ @example
+ ```ts
+ await declaredPackageNames();
+ // => Set(1) { '@monochromatic-dev/git-executable-core' }
+ ```
+ */
 async function declaredPackageNames(): Promise<ReadonlySet<string>> {
   /**
    Workspace manifests outside dependency and build directories.
@@ -64,25 +98,24 @@ async function declaredPackageNames(): Promise<ReadonlySet<string>> {
     ],
   },),);
   /**
-   Declared name of every manifest that has one.
+   Manifest texts, read together so one slow disk read does not delay the rest.
    */
-  const names = new Set<string,>();
-  for (const manifest of manifests) {
+  const manifestTexts: string[] = await Promise.all(
+    manifests.map(async function readManifest(manifest,) {
+      return await readFile(join(REPOSITORY_ROOT, manifest,), 'utf8',);
+    },),
+  );
+  /**
+   Names the manifests declare.
+   */
+  const names = new Set<string>();
+  for (const text of manifestTexts) {
     /**
      Parsed manifest carrying the declared name.
      */
-    const parsed: unknown = JSON.parse(await readFile(
-      join(REPOSITORY_ROOT, manifest,),
-      'utf8',
-    ),);
-    if ((typeof parsed) !== 'object' || parsed === null || !('name' in parsed))
-      continue;
-    /**
-     Declared name of the current manifest.
-     */
-    const { name, } = parsed;
-    if ((typeof name) === 'string')
-      names.add(name,);
+    const parsed: unknown = JSON.parse(text,);
+    if (isNamedManifest(parsed,))
+      names.add(parsed.name,);
   }
   return names;
 }
