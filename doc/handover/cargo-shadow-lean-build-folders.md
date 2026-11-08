@@ -84,6 +84,37 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   the service has no `[Install]` section.
   See "First run" for whether it was installed.
 
+- Deviation from the owner's words, veto open:
+  the owner allowed reading fingerprint files "for that sweep only" (B).
+  The amendment of `doc/decision/cargo-build-dir-host-cache.md` extends the same reader to the size caps (E),
+  which evict by the same units and times.
+  That extension is a coordinator reading, not the owner's sentence.
+- Legacy trees of live workspaces stay for good.
+  A moved every shadow-run build to `<base>/toolchain/<toolchain>/...`,
+  so the old `<base>/<xx>/<hash>` tree of a live worktree has no ledger and a dependency lead that exists,
+  and mechanism C keeps it.
+  B and E shrink it to the cap;
+  nothing removes it.
+  Most of the 6884 trees the first pass kept are these.
+  This needs an owner decision:
+  retire a legacy tree after the idle period once a keyed folder exists for the same workspace.
+- Every host workspace's next shadow build starts cold at once
+  (the keyed folder is new),
+  not per toolchain change as the plan framed it.
+- Timer starvation:
+  `lean run` goes trees, units, records, toolchains, Podman under one three-hour deadline.
+  The units pass did about 700 profile directories in an hour of several thousand,
+  so for the first firings it uses the deadline and Podman (which needs the whole source scan to finish) may be skipped.
+  Cheap mechanisms first,
+  or a budget per mechanism,
+  is open work.
+- Podman removed 251 of 1601 judged.
+  Three causes seen in its errors, each a fix:
+  Buildah working containers are not in `podman ps --all` (it needs `--external`),
+  an image with several tags needs `rmi repository:tag`,
+  and a child image goes with its parent in the same batch (so later ids read "image not known").
+  Nothing was forced.
+
 ## Incident in the build
 
 At 2026-11-07T23:19 an early debug build of `cargo-shadow lean run --only units` was started in a disposable fixture
@@ -122,7 +153,8 @@ The log lines with the proof of each removal are in `~/temp/agent/lean`
 
 - Run records: 493 records removed (7.33 GiB by disk blocks) in 120 verification directories of all checkouts,
   none in use.
-- Toolchains: 12 of 17 dated nightlies retired (28.39 GiB by disk blocks),
+- Toolchains: 12 of 17 dated nightlies retired (28.39 GiB by disk blocks;
+  `du` of `~/.rustup/toolchains` 52.95 GB before, 22.47 GB after),
   by `rustup toolchain uninstall`;
   five stayed because a checkout's lock or rustup's settings pin them
   (2026-10-29, 2026-10-30, 2026-10-31, 2026-11-01, 2026-11-07).
@@ -150,7 +182,7 @@ The log lines with the proof of each removal are in `~/temp/agent/lean`
   `/var/mnt/encrypted` (the 860 drive, which also holds the repository move's 150 GiB margin) 976.30 GB to 1113.87 GB
   available, +137.56 GB (128.1 GiB), 142.25 GB less used;
   `/var/home` (the filesystem of the home directory,
-  rustup and Podman storage) 303.03 GB to 303.66 GB available, +0.63 GB (the figure is noise:
+  rustup and Podman storage) 303.03 GB to 303.66 GB available, +0.63 GB (not the freed amount: 30.5 GB of toolchains alone went by `du`;
   other sessions write there, and snapshot-shared extents free nothing until their last reference goes);
   `/` is composefs, 50 MiB, always 0 B free, and no tool here can change it.
 - Timer: installed and enabled on 2026-11-08 before 01:00;
