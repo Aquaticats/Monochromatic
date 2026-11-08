@@ -479,7 +479,9 @@ this branch does not implement it.
 Today the path is resolved in one function and nowhere else:
 
 ```rust
+//! Where the rules path is resolved
 // package/git-policy/cli/src/native/candidate/scanner_selection.rs
+/// Returns the rules file to load from the passed value or from the default file.
 pub fn rules_source(configured: Option<&OsStr>, repository_root: &Path) -> RulesSource;
 ```
 
@@ -558,7 +560,9 @@ which this delegation does not own.
 The hook the scanner's own executable installs is:
 
 ```rust
+//! The panic hook the scanner's own executable installs
 // package/cli/forbidden-strings/src/process_boundary.rs
+/// Prints nothing for a panic so no byte of a scanned file reaches the terminal.
 pub(super) fn omit_panic_payload(_information: &std::panic::PanicHookInfo<'_>) {}
 ```
 
@@ -636,10 +640,15 @@ This branch does not edit the enum.
 `src/native/candidate/scanner_failure_code.rs` (commit `21f93b471`) holds the mapping as four pure functions:
 
 ```rust
+//! The four pure functions that map a failure to its engine failure code
 // package/git-policy/cli/src/native/candidate/scanner_failure_code.rs
+/// Maps a candidate failure to the code that names its cause.
 pub fn candidate_failure_code(failure: CandidateFailure) -> EngineFailureCode;
+/// Maps a scanner failure to the code that names its cause.
 pub fn scanner_failure_code(failure: ScannerFailure) -> EngineFailureCode;
+/// Returns the code of the failure a scan run wraps.
 pub fn scan_run_failure_code(error: &ScanRunError) -> EngineFailureCode;
+/// Returns no code for a violation and the machinery's code for a fail-closed finding.
 pub fn finding_failure_code(finding: &ScanFinding) -> Option<EngineFailureCode>;
 ```
 
@@ -1468,43 +1477,92 @@ No file under `package/` was edited while they ran.
 All under `git_policy_cli::`.
 
 ```rust
+//! The public API the optional-policy phase builds on
 // package/git-policy/cli/src/native/candidate/candidate_store.rs
+/// Reads candidate versions and their bytes from Git and keeps what it read.
 impl CandidateStore {
+    /// Starts a store that runs the real Git with the given global options and environment overlay.
     pub fn new(real_git: &Path, global_prefix: &[OsString], overlay: &[(OsString, OsString)]) -> CandidateStore;
+    /// Returns the listed candidates of one version and keeps the list for later calls.
     pub fn version(&mut self, source: &CandidateSource) -> Result<Rc<CandidateVersion>, CandidateError>;
+    /// Returns the bytes of one candidate.
     pub fn bytes(&mut self, candidate: &Candidate) -> Result<Rc<[u8]>, CandidateError>;
+    /// Forgets every kept version so the next request reads Git again.
     pub fn invalidate(&mut self);
 }
 
 // package/git-policy/cli/src/native/candidate/candidate_version.rs
-pub enum CandidateSource { StagedAgainstHead, StagedAgainstCommit(ObjectId), Committed(ObjectId) }
-pub struct CandidateIdentity { pub generation: u64, pub index: usize }
+/// Which version of the repository a scan reads.
+pub enum CandidateSource {
+    /// The index compared with `HEAD`.
+    StagedAgainstHead,
+    /// The index compared with a given commit.
+    StagedAgainstCommit(
+        /// The commit the index is compared with.
+        ObjectId,
+    ),
+    /// One commit's own content.
+    Committed(
+        /// The commit that is read.
+        ObjectId,
+    ),
+}
+/// Names one candidate within one version of the store.
+pub struct CandidateIdentity {
+    /// The version the candidate belongs to.
+    pub generation: u64,
+    /// The candidate's position in the list of its version.
+    pub index: usize,
+}
+/// One path that a version adds or changes.
 pub struct Candidate {
+    /// Which version and position this candidate is.
     pub identity: CandidateIdentity,
+    /// The path as raw bytes.
     pub path: Vec<u8>,
+    /// The file mode the version gives the path.
     pub mode: CandidateMode,
+    /// How the path changed against the baseline.
     pub change: CandidateChange,
+    /// The object that holds the bytes when Git has one.
     pub object: Option<ObjectId>,
 }
+/// One listed version that callers read and never change.
 impl CandidateVersion {
+    /// Returns every candidate in list order.
     pub fn candidates(&self) -> &[Candidate];
+    /// Returns the candidate at a path when the version has one.
     pub fn candidate_at_path(&self, path: &[u8]) -> Option<&Candidate>;
 }
 
 // package/git-policy/cli/src/native/candidate/scanner_adapter.rs
-pub struct RulesSource { pub path: PathBuf, pub explicit: bool }
+/// The rules file a scan loads.
+pub struct RulesSource {
+    /// Where the rules file is.
+    pub path: PathBuf,
+    /// Whether a caller named the file so that a missing file is a load failure.
+    pub explicit: bool,
+}
+/// The forbidden-strings scanner loaded once for a run.
 impl CandidateScanner {
+    /// Loads the rules once so that later scans are cheap and repeatable.
     pub fn load(rules: &RulesSource, builtin_rules: bool) -> Result<CandidateScanner, ScannerError>;
+    /// Returns the cache warnings the load produced for the caller to report once.
     pub fn cache_warnings(&self) -> &[forbidden_strings::CacheWarning];
+    /// Scans the bytes of one candidate.
     pub fn scan(&self, candidate: &Candidate, bytes: &[u8]) -> Result<forbidden_strings::CandidateScan, ScannerError>;
 }
 
 // package/git-policy/cli/src/native/candidate/scanner_selection.rs
+/// Returns the rules file to load from the passed value or from the default file.
 pub fn rules_source(configured: Option<&OsStr>, repository_root: &Path) -> RulesSource;
+/// Returns the repository path of the rules file itself so that it is never scanned.
 pub fn rules_candidate_path(rules_path: &Path, repository_root: &Path) -> Option<Vec<u8>>;
+/// Says whether a candidate is scanned.
 pub fn is_scannable(candidate: &Candidate, rules_path: Option<&[u8]>) -> bool;
 
 // package/git-policy/cli/src/native/candidate/scanner_run.rs
+/// Scans every scannable candidate of one version.
 pub fn scan_version(
     scanner: &CandidateScanner,
     store: &mut CandidateStore,
@@ -1513,9 +1571,13 @@ pub fn scan_version(
 ) -> Result<Vec<forbidden_strings::CandidateScan>, ScanRunError>;
 
 // package/git-policy/cli/src/native/candidate/scanner_failure_code.rs
+/// Maps a candidate failure to the code that names its cause.
 pub fn candidate_failure_code(failure: CandidateFailure) -> EngineFailureCode;
+/// Maps a scanner failure to the code that names its cause.
 pub fn scanner_failure_code(failure: ScannerFailure) -> EngineFailureCode;
+/// Returns the code of the failure a scan run wraps.
 pub fn scan_run_failure_code(error: &ScanRunError) -> EngineFailureCode;
+/// Returns no code for a violation and the machinery's code for a fail-closed finding.
 pub fn finding_failure_code(finding: &forbidden_strings::ScanFinding) -> Option<EngineFailureCode>;
 ```
 
