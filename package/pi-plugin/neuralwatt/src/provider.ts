@@ -12,9 +12,12 @@
  */
 
 import {
+  NEURALWATT_BASE_URL,
+  NEURALWATT_ROUTE,
   fetchNeuralWattListing,
   mapNeuralWattListing,
   neuralWattListingSnapshot,
+  type NEURALWATT_API,
   type NeuralWattListingFetcher,
 } from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
@@ -34,17 +37,12 @@ import type {
   TranscriptContext,
 } from '@earendil-works/pi-ai';
 import {
-  projectNeuralWattModels,
-  type NeuralWattPiModel,
-} from './projection.ts';
-import {
   NEURALWATT_PROVIDER_NAME,
 } from './constants.ts';
 import {
-  NEURALWATT_API,
-  NEURALWATT_BASE_URL,
-  NEURALWATT_ROUTE,
-} from '@monochromatic-dev/agent-harness-shared-neuralwatt-listing/ts';
+  projectNeuralWattModels,
+  type NeuralWattPiModel,
+} from './projection.ts';
 
 //region Types
 
@@ -67,12 +65,30 @@ export type NeuralWattProviderRuntime = {
   readonly abortInFlightRefresh: () => void;
 };
 
+/**
+ Private catalog state one provider owns.
+ A plain state object keeps the refresh loop free of root bindings while
+ still carrying the catalog and the in-flight cancellation.
+ */
+type NeuralWattProviderState = {
+  /**
+   Served catalog, replaced only inside a published update callback.
+   */
+  models: NeuralWattPiModel[];
+  /**
+   Cancellation for the refresh currently running, absent when idle.
+   */
+  inFlight?: AbortController;
+};
+
 //endregion Types
 
 //region Catalog state
 
 /**
  Snapshot catalog the provider serves before any successful refresh.
+
+ @returns the projected checked-in snapshot, in listing order
  */
 function snapshotModels(): NeuralWattPiModel[] {
   return projectNeuralWattModels({
@@ -81,6 +97,68 @@ function snapshotModels(): NeuralWattPiModel[] {
 }
 
 //endregion Catalog state
+
+//region Transport
+
+/**
+ Default listing transport: the runtime fetch against the public listing
+ endpoint.
+
+ @param options - endpoint and the fetch's own abort signal
+
+ @returns the runtime's response promise
+ */
+function runtimeListingFetch(options: {
+  readonly url: string;
+  readonly signal: AbortSignal;
+},): ReturnType<NeuralWattListingFetcher> {
+  return globalThis.fetch(
+    options.url,
+    { signal: options.signal, },
+  );
+}
+
+/**
+ Compose the listing fetcher so the host's abort signal reaches the transport
+ alongside the fetch's own timeout signal.
+
+ @param fetcher - transport override, defaulting to the runtime fetch
+
+ @param signal - cancellation this refresh owns
+
+ @returns a fetcher whose requests die with either signal
+
+ @example
+ ```typescript
+ const fetcher = composeFetcher({ signal: controller.signal });
+ ```
+ */
+function composeFetcher({
+  fetcher,
+  signal,
+}: {
+  readonly fetcher?: NeuralWattListingFetcher;
+  readonly signal: AbortSignal;
+},): NeuralWattListingFetcher {
+  /**
+   Transport every request goes through.
+   */
+  const transport: NeuralWattListingFetcher = fetcher ?? runtimeListingFetch;
+  return function composedNeuralWattListingFetch(options: {
+    readonly url: string;
+    readonly signal: AbortSignal;
+  },): ReturnType<NeuralWattListingFetcher> {
+    return transport({
+      url: options.url,
+      signal: AbortSignal.any([
+        options.signal,
+        signal,
+      ],),
+    },);
+  };
+}
+
+//endregion Transport
 
 //region Provider construction
 
@@ -123,14 +201,11 @@ export function createNeuralWattProvider({
     l: logger,
   },);
   /**
-   Private catalog state, replaced only inside a published update callback.
+   Private catalog state, seeded from the snapshot projection.
    */
-  let models: NeuralWattPiModel[] = snapshotModels();
-  /**
-   In-flight refresh cancellation, replaced on every refresh and cleared when
-   that refresh settles.
-   */
-  let inFlight: AbortController | undefined = undefined;
+  const state: NeuralWattProviderState = {
+    models: snapshotModels(),
+  };
   /**
    OpenAI-completions stream implementation the provider delegates to.
    */
@@ -144,10 +219,10 @@ export function createNeuralWattProvider({
     baseUrl: NEURALWATT_BASE_URL,
     auth: { apiKey: apiKeyAuth, },
     getModels: function getNeuralWattModels(): NeuralWattPiModel[] {
-      return models;
+      return state.models;
     },
     getAllModels: function getAllNeuralWattModels(): NeuralWattPiModel[] {
-      return models;
+      return state.models;
     },
     stream: function streamNeuralWatt<T extends typeof NEURALWATT_API>(
       model: Model<T>,
@@ -181,7 +256,8 @@ export function createNeuralWattProvider({
         tag: refreshNeuralWattModels.name,
         l,
       },);
-      if (context.signal.aborted)
+      if (context.signal
+        .aborted)
         return;
       if (!context.allowNetwork) {
         rl.debug(
@@ -190,19 +266,25 @@ export function createNeuralWattProvider({
         return;
       }
       /**
-       Cancellation for this refresh, chained to the host's signal.
+       Cancellation for this refresh, chained to the host's signal below.
        */
       const controller = new AbortController();
-      inFlight?.abort();
-      inFlight = controller;
-      const onHostAbort = function onHostAbort(): void {
+      state.inFlight
+        ?.abort();
+      state.inFlight = controller;
+      /**
+       Host-abort listener this refresh registers and then removes, declared
+       before its first use.
+       */
+      function onHostAbort(): void {
         controller.abort();
-      };
-      context.signal.addEventListener(
+      }
+      context.signal
+        .addEventListener(
         'abort',
         onHostAbort,
         { once: true, },
-      );
+        );
       try {
         /**
          Live listing entries, bounded and abortable through the composed
@@ -210,10 +292,10 @@ export function createNeuralWattProvider({
          */
         const listing = await fetchNeuralWattListing({
           fetcher: composeFetcher({
-            fetcher,
+            ...(fetcher === undefined ? {} : { fetcher, }),
             signal: controller.signal,
           },),
-          ...(timeoutMs === undefined ? {} : { timeoutMs, },),
+          ...(timeoutMs === undefined ? {} : { timeoutMs, }),
         },);
         /**
          Live catalog the listing earns under the shared mapping.
@@ -221,82 +303,44 @@ export function createNeuralWattProvider({
         const next = projectNeuralWattModels({
           facts: mapNeuralWattListing({ listing, },),
         },);
-        if (next.length === 0) {
+        if (next.length === 0)
           rl.warn(
             'live listing mapped to zero serviceable models, so the served catalog stands',
           );
-          return;
+        else {
+          await context.publish({
+            update: function replaceServedCatalog(): void {
+              state.models = next;
+            },
+          },);
+          rl.debug(
+            `served catalog replaced with ${String(next.length,)} live models`,
+          );
         }
-        await context.publish({
-          update: function replaceServedCatalog(): void {
-            models = next;
-          },
-        },);
-        rl.debug(
-          `served catalog replaced with ${String(next.length,)} live models`,
-        );
       } catch (error) {
         rl.warn(
           `live listing refresh failed, so the served catalog stands: ${caughtValueText(error,)}`,
         );
-      } finally {
-        context.signal.removeEventListener(
-          'abort',
-          onHostAbort,
-        );
-        if (inFlight === controller)
-          inFlight = undefined;
       }
+      /**
+       Lifecycle cleanup runs on both the published and the failed path,
+       since the guarded region above returns on neither.
+       */
+      context.signal
+        .removeEventListener(
+        'abort',
+        onHostAbort,
+        );
+      delete state.inFlight;
     },
   };
   return {
     provider,
     abortInFlightRefresh: function abortInFlightRefresh(): void {
-      inFlight?.abort();
+      state.inFlight
+        ?.abort();
     },
   };
 }
 
 //endregion Provider construction
-
-//region Transport composition
-
-/**
- Compose the listing fetcher so the host's abort signal reaches the transport
- alongside the fetch's own timeout signal.
-
- @param fetcher - transport override, defaulting to the runtime fetch
-
- @param signal - cancellation this refresh owns
-
- @returns a fetcher whose requests die with either signal
- */
-function composeFetcher({
-  fetcher,
-  signal,
-}: {
-  readonly fetcher: NeuralWattListingFetcher | undefined;
-  readonly signal: AbortSignal;
-},): NeuralWattListingFetcher {
-  /**
-   Transport every request goes through.
-   */
-  const transport: NeuralWattListingFetcher = fetcher
-    ?? function runtimeFetch({ url, signal: timeoutSignal, }) {
-      return globalThis.fetch(
-        url,
-        { signal: timeoutSignal, },
-      );
-    };
-  return function composedNeuralWattListingFetch(options: {
-    readonly url: string;
-    readonly signal: AbortSignal;
-  },): ReturnType<NeuralWattListingFetcher> {
-    return transport({
-      url: options.url,
-      signal: AbortSignal.any([options.signal, signal],),
-    },);
-  };
-}
-
-//endregion Transport composition

@@ -39,6 +39,11 @@ containerImageBuild({ image: 'localhost/monochromatic/terminal-release', contain
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -58,7 +63,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -71,6 +76,11 @@ execFileSync('task-run', ['//package/terminal/app:stage:runtime-libs:release'], 
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -90,7 +100,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -191,6 +201,11 @@ stageLibghosttyRuntimeLibs('debug')
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -210,7 +225,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -222,6 +237,11 @@ runCargo(['check'])
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -241,7 +261,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -253,6 +273,11 @@ runCargo(['clippy', '--release', '--all-targets', '--', '--deny', 'warnings'])
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -272,7 +297,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -284,6 +309,11 @@ runCargo(['clippy', '--fix', '--allow-dirty', '--allow-staged', '--allow-no-vcs'
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -303,7 +333,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -315,6 +345,11 @@ runCargo(['nextest', 'run', '--release'])
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -334,7 +369,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -415,6 +450,11 @@ console.error('rendered ui/app.slint -> target/app.slint.png')
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -434,7 +474,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -447,6 +487,11 @@ execFileSync('task-run', ['//package/terminal/app:stage:runtime-libs:release'], 
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -466,7 +511,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -478,6 +523,11 @@ containerCargo(['clippy', '--release', '--', '--deny', 'warnings'])
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -497,7 +547,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -509,6 +559,11 @@ containerCargo(['nextest', 'run', '--release'])
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -528,7 +583,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -543,6 +598,11 @@ containerCargo(['nextest', 'run', '--release'])
     env: {"SLINT_ENABLE_EXPERIMENTAL_FEATURES":"1","LIBCLANG_PATH":"/usr/lib64"},
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
+// The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+// 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
 const hostOk = onPath('cargo') && onPath('zig') && pkgConfigOk()
@@ -562,7 +622,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', '--memory=4g', '--cpus=4', '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 

@@ -47,7 +47,10 @@ run = """
 const { execFileSync } = await import('node:child_process')
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArgument = execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()
-execFileSync('podman', ['build', '--build-arg', rustToolchainBuildArgument, '--tag', 'forbidden-regex-mutants', '--file', 'mutants.Containerfile', '.'], { stdio: 'inherit' })
+// The image build takes the bound the snapshot build of this package has by default (2 GiB and 2 CPUs, from
+// package/mutation-test/cli-cargo-mutants); podman build has no process or disk-weight option (package/container-limit/core).
+const { imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
+execFileSync('podman', ['build', ...imageBuildLimitArguments({ memory: '2g', cpus: 2 }), '--build-arg', rustToolchainBuildArgument, '--tag', 'forbidden-regex-mutants', '--file', 'mutants.Containerfile', '.'], { stdio: 'inherit' })
 """
 
 [tasks."test:mutation:snapshot"]

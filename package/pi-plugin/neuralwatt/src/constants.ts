@@ -72,6 +72,6 @@ export const ENV_LOCAL_JSON_PATH_VARIABLE = 'ENV_LOCAL_JSON_PATH';
  naming every accepted home so the remediation is actionable without reading
  code.
  */
-export const NEURALWATT_CREDENTIAL_GUIDANCE = `No NeuralWatt credential resolved, so requests will fail until one lands. Store ${NEURALWATT_API_KEY_ENV} in the sops/age-encrypted .env.local.json store, or hand it to pi (--api-key or pi's auth.json), or export ${NEURALWATT_API_KEY_ENV}. Models stay listed meanwhile.`;
+export const NEURALWATT_CREDENTIAL_GUIDANCE: string = `No NeuralWatt credential resolved, so requests will fail until one lands. Store ${NEURALWATT_API_KEY_ENV} in the sops/age-encrypted .env.local.json store, or hand it to pi (--api-key or pi's auth.json), or export ${NEURALWATT_API_KEY_ENV}. Models stay listed meanwhile.`;
 
 //endregion Credential seam

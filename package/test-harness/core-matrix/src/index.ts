@@ -33,6 +33,7 @@ export {
  */
 export {
   buildContainerCommand,
+  containerRunArguments,
   parseOs,
   resolveImage,
 } from './container.ts';

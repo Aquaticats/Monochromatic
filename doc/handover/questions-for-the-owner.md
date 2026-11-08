@@ -92,6 +92,9 @@ so any of them can be undone.
   every container start gets the lowest disk weight and limits sized to its job,
   through one shared constant,
   including `vm-builder`'s rootful run.
+  Done on `feat/container-limits-everywhere`;
+  the inventory, the evidence and the open items (the rootful run needs one root try, the workflow flags are unproven on
+  a hosted runner) are in `doc/handover/container-limits-everywhere.md`.
 
 - Porting the wrapper package's 145 TypeScript files to Rust
   (`doc/planning/git-policy-cli-typescript-to-rust.md`):

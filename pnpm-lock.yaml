@@ -969,6 +969,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -1333,6 +1336,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../typescript
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -1394,6 +1400,18 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
+
+  package/container-limit/core:
+    devDependencies:
+      '@monochromatic-dev/config-typescript':
+        specifier: workspace:*
+        version: link:../../config/typescript
+      '@monochromatic-dev/test-harness-core':
+        specifier: workspace:*
+        version: link:../../test-harness/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.6
 
   package/crate-release/cli:
     dependencies:
@@ -2993,6 +3011,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -3033,6 +3054,9 @@ importers:
 
   package/mutation-test/cli:
     dependencies:
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/logger-core':
         specifier: workspace:*
         version: link:../../logger/core
@@ -3079,6 +3103,9 @@ importers:
 
   package/mutation-test/cli-cargo-mutants:
     dependencies:
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/ownership-marker-foreign-borrowed':
         specifier: workspace:*
         version: link:../../ownership-marker/foreign-borrowed
@@ -4228,6 +4255,9 @@ importers:
       '@monochromatic-dev/config-typescript':
         specifier: workspace:*
         version: link:../../config/typescript
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/test-harness-core':
         specifier: workspace:*
         version: link:../../test-harness/core
@@ -4876,6 +4906,9 @@ importers:
 
   package/test-harness/core-matrix:
     dependencies:
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/fs-path-core':
         specifier: workspace:*
         version: link:../../fs-path/core
@@ -8234,6 +8267,9 @@ importers:
       '@monochromatic-dev/caught-value-core':
         specifier: workspace:*
         version: link:../../caught-value/core
+      '@monochromatic-dev/container-limit-core':
+        specifier: workspace:*
+        version: link:../../container-limit/core
       '@monochromatic-dev/fs-path-core':
         specifier: workspace:*
         version: link:../../fs-path/core
