@@ -78,7 +78,7 @@ which lists every file of this record.
     which is
     the question a guard refusing rosters that could not decide HOWEVER they
     voted has to ask.
-    The case above still refuses.
+    The same case still refuses.
     ONE EXCEPTION worth your veto if you dislike it:
     four models returning
     byte-identical text collapse into one candidate,
@@ -829,7 +829,7 @@ which lists every file of this record.
     refusals whose reasons do not distinguish the cases.
     C over B because C can ship a genuinely missing section now and B is the
     largest item here,
-    and because the correction above raised how many section
+    and because correcting the section-scale misreading raised how many section
     candidates are genuine rather than lowering it.
     B over D because B is work that pays off in every stage,
     where D is a

@@ -13,7 +13,7 @@ for this before was a cold run.
 
 This document is long and append-only.
 What follows is where things stand;
- everything below it is the record of getting here,
+ everything from the `Landed` heading onward is the record of getting here,
 including four claims that were withdrawn.
 
 ### Landed

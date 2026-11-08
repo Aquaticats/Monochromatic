@@ -2612,7 +2612,7 @@ because the single-writer service makes it unnecessary (landing moves to the ser
   `transaction_registry.rs`,
   `transaction_gate.rs`:
   4 440 and
-  3 532 lines with the files above;
+  3 532 lines between them;
   replaced by the service's journal replay.
   Keep a one-time reader that removes the old
   registry directory.

@@ -55,7 +55,7 @@ A settled item is adopted without a question unless it is vetoed.
 
 Every question in this brief is now decided,
 so none of them is open any more,
-even where an item section below still reads "Needs the owner".
+even where an item section under `Question batches` still reads "Needs the owner".
 The answers are recorded in this document,
 section `User decisions 2026-10-05` (moved here on 2026-11-03 from the cli-git handover):
 the owner answered the optional-policy batch and four transactions-phase questions

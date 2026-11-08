@@ -10,7 +10,7 @@ or does dismissing them normalise duplication and miss shared utilities that are
 Maintainer decision recorded while this investigation ran:
 `body_node_count_threshold: 13` in `slopo.conf.yaml` is hand-tuned and is the floor.
 Lowering it is rejected,
-so every option below works at 13.
+so every option works at 13.
 
 The answer has three parts.
 The per-pair dismissals mostly survive a re-read.
