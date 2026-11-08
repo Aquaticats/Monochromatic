@@ -56,6 +56,32 @@ fn a_registration_belongs_to_the_invoking_repository_and_the_pointers_agree() {
     remove(root.as_path());
 }
 
+/// A registration that spells the worktree through a symbolic link belongs to the same worktree,
+/// so a removal named either way is served;
+/// a registration that records another place is still refused.
+#[test]
+fn a_registration_spelled_through_a_link_belongs_to_the_same_worktree() {
+    let root: PathBuf = fixture("registry-link");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common");
+    // The worktree moved behind a link: a link is left at the old name,
+    // so the registration still spells the old name while naming the same directory.
+    let moved: PathBuf = root.join("moved");
+    std::fs::rename(root.join("wt"), &moved).expect("rename the worktree");
+    std::os::unix::fs::symlink(&moved, root.join("wt")).expect("leave a link at the old name");
+    let typed: PathBuf = root.join("wt");
+    let found: Registration = registration_of(common.as_path(), moved.as_path(), typed.as_os_str()).expect("the two spellings are one worktree");
+    assert_eq!(found.id, OsString::from("wt"));
+    assert_eq!(found.admin, common.join("worktrees/wt"));
+    registration_of(common.as_path(), moved.as_path(), OsStr::new("moved")).expect("the name matches only the target");
+    // A record that names another place is still refused.
+    std::fs::write(common.join("worktrees/wt/gitdir"), b"/elsewhere/.git\n").expect("overwrite");
+    let elsewhere: String = registration_of(common.as_path(), moved.as_path(), typed.as_os_str()).expect_err("another place");
+    assert!(elsewhere.contains("records /elsewhere/.git"), "{elsewhere}");
+    remove(root.as_path());
+}
+
 /// A name that Git would match to a different registered worktree is refused with both paths named;
 /// a name that matches
 ///  only the target is accepted.

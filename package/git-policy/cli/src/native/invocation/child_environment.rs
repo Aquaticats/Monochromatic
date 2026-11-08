@@ -23,7 +23,7 @@
 /// ```
 use std::ffi::{OsStr, OsString};
 /// `Path` is a borrowed filesystem path made of the same raw OS bytes.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Git's count variable for environment-supplied configuration.
 pub const COUNT_VARIABLE: &str = "GIT_CONFIG_COUNT";
@@ -101,6 +101,29 @@ pub fn environment_value(environment: &[(OsString, OsString)], name: &str) -> Op
     }
     // `None` is the "absent" variant: the variable is not set.
     return None;
+}
+
+/// What:
+///  The home directory this invocation's environment names,
+///  nothing when it names none or names an empty one.
+///       `&[(OsString, OsString)]` borrows the environment as name/value pairs.
+/// Why:
+///   A per-user file (the repository link identity,
+/// the exempt tool caches) belongs to the home the invocation gives,
+/// which a wrapper started by a program with another home must read instead of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const home = environmentValue(environment, 'HOME'); const homeDirectory = home === undefined || home === '' ? undefined : home;
+/// ```
+pub fn environment_home(environment: &[(OsString, OsString)]) -> Option<PathBuf> {
+    // `?` returns `None` from this function when the variable is absent.
+    let value: OsString = environment_value(environment, "HOME")?;
+    // An empty value names no directory, as an absent variable names none.
+    if value.is_empty() {
+        return None;
+    }
+    return Some(PathBuf::from(value));
 }
 
 /// What:

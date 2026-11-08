@@ -312,6 +312,11 @@ the endpoint and positive-control results constrain that hypothesis.
 
 An isolated sparse worktree at `d322d083e` rebuilt the wrapper with
 `mise run //package/git-policy/cli:build:js:node`.
+That address no longer resolves:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript wrapper,
+its tasks,
+and its trust workflow.
+The package now builds the Rust binary through `//package/git-policy/cli:native:build`.
 Its configured root and linked-worktree commits also passed without the warning.
 Historical source and package-local build configuration are used;
 Node 26.10.0,

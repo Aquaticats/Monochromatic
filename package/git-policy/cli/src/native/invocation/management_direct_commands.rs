@@ -291,7 +291,7 @@ pub(crate) fn plan_direct(
         Err(message) => return failure(message.as_str()),
     };
     // A direct command forwards nothing, so only an isolated merge whose process died matters here: it is settled first.
-    match recover_for_command(&checks.facts.transaction_context(), &location.identity) {
+    match recover_for_command(&checks.facts.transaction_context(), &location.identity, environment) {
         Gate::Clear => {}
         Gate::Stop(stderr) => {
             return Action::Exit {

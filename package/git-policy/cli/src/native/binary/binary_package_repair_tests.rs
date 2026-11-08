@@ -24,7 +24,8 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::support::{Fixture, Observed, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, stderr_of, wrapped};
-use super::worktree_snapshot::{commit_all, on_btrfs_or_acknowledged, subvolume_repository};
+use super::support::on_btrfs_or_acknowledged;
+use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};

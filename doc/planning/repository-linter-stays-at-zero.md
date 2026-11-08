@@ -253,7 +253,8 @@ because:
   so it follows directly.
 - C over B:
   C needs no change to a package under active work and covers more rules,
-  while B would rewrite quoted records without a proof step until the fixer defects above are fixed in the linter.
+  while B would rewrite quoted records without a proof step until the fixer defects under
+  Two linter behaviors that make a clean run harder are fixed in the linter.
 - B over D:
   B at least puts a fixed file into the commit,
   while D only counts what is already wrong.

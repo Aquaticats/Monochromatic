@@ -625,6 +625,15 @@ End-to-end `mise run //package/file-enforcer/core:lint:oxlint` measured:
 - after a one-line edit:
   5.6 seconds.
 
+`//package/file-enforcer/core:lint:oxlint` no longer resolves:
+commit `e7b5130459` (2026-10-31) deleted the TypeScript file-enforcer and its `mise.toml`.
+The Rust crate that replaced it is `package/file-enforcer/core-rust`,
+whose tasks are `build`,
+`lint`,
+`lint:clippy`,
+and `test`,
+with no Oxlint task.
+
 ## Verified workarounds
 
 ### Repeat after semantic inputs stabilize

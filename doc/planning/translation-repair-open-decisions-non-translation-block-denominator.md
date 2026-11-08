@@ -114,7 +114,7 @@ the only option that gives `XIEPT2` an honest outcome,
 which is
     neither clean nor blocked but unexaminable;
 the floor is one number and the
-    measurement above says where it would sit.
+    measured slice coverage says where it would sit.
     Cons:
 a third terminal outcome to represent,
 and `#96` says the artifact

@@ -129,7 +129,7 @@ The library itself still loads,
 but the per-session resume is lost on each launch.
 
 This is an ordering bug,
- walked through under "How resume state is persisted" below.
+ walked through under the "How resume state is persisted" heading.
 
 ## How the relevant parts work today
 
@@ -200,7 +200,7 @@ Two ordering details matter:
   outside that gate.
   They are live during the load,
    not just after it.
-  This is what makes the mid-load interaction cases below real.
+  This is what makes the mid-load interaction cases under `Edge cases the plan handles` real.
 
 ### How resume state is persisted
 

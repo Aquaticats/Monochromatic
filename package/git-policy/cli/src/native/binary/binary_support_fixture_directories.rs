@@ -158,16 +158,17 @@ fn what_a_folder_holds(label: &str, folder: &Path) -> String {
 /// see `fixture`.
 pub fn fixture_in(directory: &Path, name: &str) -> Fixture {
     forbid_core_dumps();
-    std::fs::create_dir_all(directory).expect("fixture directory root");
+    if let Err(error) = std::fs::create_dir_all(directory) {
+        // A root that vanished (a container gate lost `target/tmp` after 5,018 of 5,265 tests on 2026-11-04) leaves nothing
+        //  to say what became of it: the report names the root, its parent and its grandparent.
+        panic!("fixture directory root: {error}; {}", missing_fixture_root_report(directory));
+    }
     let created: PathBuf = directory.join(format!("native-binary-{}-{name}", std::process::id()));
     if created.exists() {
         std::fs::remove_dir_all(&created).expect("remove stale fixture");
     }
     if let Err(error) = std::fs::create_dir(&created) {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            panic!("fresh fixture: {error}; {}", missing_fixture_root_report(directory));
-        }
-        panic!("fresh fixture: {error}");
+        panic!("fresh fixture: {error}; {}", missing_fixture_root_report(directory));
     }
     let root: PathBuf = std::fs::canonicalize(&created).expect("canonical fixture");
     for subdirectory in ["wrapper", "bin", "home"] {

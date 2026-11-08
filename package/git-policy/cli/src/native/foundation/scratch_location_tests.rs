@@ -311,8 +311,16 @@ fn a_write_to_a_scratch_file_after_it_was_emptied_lands_at_the_start_and_leaves_
     let env: Vec<(OsString, OsString)> = environment(&[("HOME", home.as_path())]);
     let mut file: std::fs::File = scratch_file(env.as_slice()).expect("scratch file");
     let for_child: std::fs::File = file.try_clone().expect("a clone for the child");
-    let script: String = format!("echo first >&2; while [ ! -e '{}' ]; do sleep 0.01; done; echo second >&2", go.display());
-    let mut child = std::process::Command::new("sh").args(["-c", script.as_str()]).stderr(for_child).spawn().expect("the child");
+    // The wait ends when the fixture goes or this test process ends, and the child's own group is ended with the test thread:
+    //  a loop that waits for a release a failed test never writes would otherwise run on in a removed fixture.
+    let script: String = format!(
+        "echo first >&2; while [ ! -e '{}' ] && {}; do sleep 0.01; done; echo second >&2",
+        go.display(),
+        crate::test_support::while_test_lives(root.as_path())
+    );
+    let mut command: std::process::Command = std::process::Command::new("sh");
+    command.args(["-c", script.as_str()]).current_dir(root.as_path()).stderr(for_child);
+    let mut child = crate::test_support::spawn_owned(&mut command).expect("the child");
     // The child writes to its standard error, which is the file; wait until its first line is there.
     let began: std::time::Instant = std::time::Instant::now();
     while file.metadata().expect("metadata").len() == 0 {

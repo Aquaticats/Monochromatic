@@ -32,6 +32,11 @@ Valibot `1.4.2` defines `GenericSchema` as an alias of `BaseSchema` in its publi
 That contract includes callable behavior and generic positions whose effects are not represented by `Readonly<T>`.
 Cli-git's `PolicyDefinition` in `package/git-policy/api/src/policy-types.ts` combines a schema with an executable
 policy callback.
+That path is gone:
+commit `a2b56c548c` (2026-10-13) deleted the four git-policy authoring packages,
+`package/git-policy/api/` among them.
+No TypeScript `PolicyDefinition` remains;
+the policy surface is now the Rust tree under `package/git-policy/cli/src/native/policy/`.
 
 A type-name allowlist cannot prove that a particular function observes the capability without invoking or mutating it.
 Conversely,
@@ -64,6 +69,11 @@ The corresponding sources are:
 
 - `package/git-policy/api/src/authoring.ts`;
 - `package/git-policy/cli/src/api/authoring.ts`.
+
+Both are gone:
+`a2b56c548c` (2026-10-13) deleted `package/git-policy/api/`,
+and `642b6d72cb` of the same day deleted `package/git-policy/cli/src/api/`
+with the TypeScript wrapper.
 
 `ForeignBorrowed` records that the object and its reachable capabilities remain caller-owned.
 It does not claim structural immutability.
@@ -102,7 +112,11 @@ rg --line-number "ForeignBorrowed<GenericSchema|ForeignBorrowed<PolicyDefinition
   package/git-policy/cli/src/api/authoring.ts
 ```
 
-Both public authoring mirrors place the marker on the actual ingress parameter.
+That check no longer resolves:
+both files were deleted on 2026-10-13 (`a2b56c548c` for `package/git-policy/api/`,
+`642b6d72cb` for `package/git-policy/cli/src/api/`).
+The recorded result below stands as the observation it was.
+Both authoring mirrors placed the marker on the actual ingress parameter while they existed.
 The full cli-git semantic migration remains an active package in
 `doc/planning/replace-prefer-readonly-parameter-types.md`;
 this document does not claim that every cli-git finding is resolved.

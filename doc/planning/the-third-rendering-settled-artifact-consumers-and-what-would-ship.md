@@ -308,7 +308,7 @@ So a reading carries either wording plus the decider that settled it,
 or a named silence,
 and never a `text` key holding nothing.
 
-This corrects one line of the decision recorded earlier in this document.
+This corrects one line of the decision under `Decided that the shipped text is derived once`.
 That line said any terminal other than `consolidated` yields the standing text.
 Taken literally it returns the empty string at `no-standing-text`.
 The archive is the floor underneath both declines instead:
@@ -643,7 +643,7 @@ which made `UnansweredContestSliceError` reachable on the production pass path.
 It was computed AFTER `writeFileAtomic`,
 so a document whose lanes differ at a slice the contest names nowhere
 would have its complete artifact written
-and then be reported `status=ERROR` by the entry catch below.
+and then be reported `status=ERROR` by the entry catch in `pass-entry.ts`.
 Every later reader would find a settled file the pass reported as failed.
 
 Asking first makes the refusal truthful,

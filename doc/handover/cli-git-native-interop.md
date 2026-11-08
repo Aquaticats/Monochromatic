@@ -1,5 +1,9 @@
 # cli-git native interoperability matrix
 
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:native:interop` went on 2026-11-01 (`cd67a90f6c`);
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

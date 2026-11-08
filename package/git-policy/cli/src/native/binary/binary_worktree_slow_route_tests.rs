@@ -23,7 +23,8 @@
 /// Import the shared fixtures,
 /// and the helpers of the snapshot controls.
 use super::support::{Fixture, Observed, fixture, git, observe, remove, run_wrapped, stderr_of, wrapped};
-use super::worktree_snapshot::{on_btrfs_or_acknowledged, subvolume_repository};
+use super::support::on_btrfs_or_acknowledged;
+use super::worktree_snapshot::subvolume_repository;
 use std::path::{Path, PathBuf};
 
 /// The words that mark the line under test:

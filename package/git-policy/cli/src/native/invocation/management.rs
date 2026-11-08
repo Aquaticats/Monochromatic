@@ -17,7 +17,7 @@
 use crate::management_direct_commands::{direct_config_failure, plan_direct, refusal};
 use crate::management_service_repository_selection::{Selection, status_git_dir};
 use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
-use crate::child_environment::{child_environment_overlay, environment_value};
+use crate::child_environment::{child_environment_overlay, environment_home, environment_value};
 /// The traditional-hook listing of `git monochromatic-git-policy-cli doctor`.
 use crate::doctor::doctor_action_with_section;
 use crate::service_route::service_status;
@@ -289,11 +289,12 @@ fn run_convert(_arguments: &ConvertArguments, _cwd: &Path, _environment: &[(OsSt
     return failure("git monochromatic-git-policy-cli convert-worktree-to-subvolume works on Linux with btrfs only");
 }
 
-/// The doctor's filesystem section read from the running system.
+/// The doctor's filesystem section read from the running system,
+/// followed by its line about the repository's link to the
+/// 860 drive below the home the invocation names.
 #[cfg(target_os = "linux")]
-pub fn host_filesystem_section(common_directory: &Path) -> String {
-    let home: Option<std::path::PathBuf> = crate::service_route::non_empty_path_variable("HOME");
-    return filesystem_section_with_link_line(common_directory, home.as_deref());
+pub fn host_filesystem_section(common_directory: &Path, home: Option<&Path>) -> String {
+    return filesystem_section_with_link_line(common_directory, home);
 }
 
 /// The doctor's filesystem section followed by its line about the repository's link to the 860 drive (plan item W15),
@@ -305,7 +306,7 @@ pub fn filesystem_section_with_link_line(common_directory: &Path, home: Option<&
 
 /// Other platforms have no btrfs or overlayfs section.
 #[cfg(not(target_os = "linux"))]
-pub fn host_filesystem_section(_common_directory: &Path) -> String {
+pub fn host_filesystem_section(_common_directory: &Path, _home: Option<&Path>) -> String {
     return String::new();
 }
 
@@ -326,7 +327,7 @@ fn plan_doctor(
     git_global_arguments: &[OsString],
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
-    filesystem_section: &dyn Fn(&Path) -> String,
+    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
 ) -> Action {
     let resolved: ResolvedGit = match resolve_real_git(inputs) {
         Ok(found) => found,
@@ -345,7 +346,8 @@ fn plan_doctor(
         // The doctor sends no input, so no scratch directory is needed.
         common_dir: None,
     };
-    let action: Action = doctor_action_with_section(&context, cwd.as_path(), filesystem_section);
+    let home: Option<PathBuf> = environment_home(environment);
+    let action: Action = doctor_action_with_section(&context, cwd.as_path(), home.as_deref(), filesystem_section);
     let batches_noted: Action = with_earlier_batches_note(action, git_global_arguments, environment, context.real_git.as_path());
     let noted: Action = with_units_note(batches_noted, environment);
     return with_leading_notice(noted, resolved.notice.as_deref());
@@ -437,13 +439,14 @@ pub fn plan_management(
 /// ```ts
 /// const noFilesystemSection = (_cwd: string): string => '';
 /// ```
-fn no_filesystem_section(_cwd: &Path) -> String {
+fn no_filesystem_section(_cwd: &Path, _home: Option<&Path>) -> String {
     return String::new();
 }
 
 /// What:
 ///  The same decision with the doctor's filesystem section supplied by the caller.
-///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
+///  `&dyn Fn(&Path, Option<&Path>) -> String` is a borrowed function from the repository's common Git directory and the
+/// home the invocation names to the section text.
 /// Why:
 ///   The executable passes the section read from the running system (`host_filesystem_section`);
 /// the controls of the
@@ -460,7 +463,7 @@ pub fn plan_management_with_section(
     controls: &Controls,
     environment: &[(OsString, OsString)],
     inputs: &ResolutionInputs,
-    filesystem_section: &dyn Fn(&Path) -> String,
+    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
 ) -> Action {
     // What: `match` on the parse `Result`: keep the action or return the refusal.
     // Why:  Nothing else may run for an invocation the grammar rejects.

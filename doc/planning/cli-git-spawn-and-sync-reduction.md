@@ -169,7 +169,7 @@ Measured process lifetimes of one commit (strace):
   exist plus `hook.<event>.enabled=false` for every event,
   and the wrapper starts no hook and no hook shim.
   The S1
-  shim record above,
+  shim record,
   `write_hook_dispatch`,
   `run_post_commit_hook` and the fifteen-shape parity suite describe code that
   no longer exists;
@@ -181,7 +181,7 @@ Measured process lifetimes of one commit (strace):
   and `/dev/disk/by-uuid` when the mapping is unambiguous;
   otherwise `findmnt` stays.
   Needs a check of how the
-  identity is consumed before choosing (recorded below when read).
+  identity is consumed before choosing (recorded under `What must stay identical` when read).
 - One configuration snapshot (`git config --list -z --show-scope`) in place of the separate `config` runs
   (`core.hooksPath`,
   the four `hook.<event>.enabled` reads already batched,
@@ -287,7 +287,7 @@ Measured process lifetimes of one commit (strace):
 - Merging `core.hooksPath` with the maintenance reads by hand:
   different phases and a `--type=path` value;
   covered
-  instead by the snapshot above.
+  instead by `config_snapshot.rs`.
 - Capping Git's threads (`pack.threads=1`,
   `core.preloadindex=false`):
   101 ms against 105 and 100 ms baseline,
@@ -398,7 +398,7 @@ or nothing.
 If a filesystem persisted the unlinks but not the
 rename,
 the published name `<id>` would be left without `owner.json`,
-and the J3 outcome below shows that this state
+and the `J3 outcome: what recovery does with emptied, halved and dropped records` section shows that this state
 sticks (deleting `owner.json` fails closed at every phase,
 naming the directory).
 No such state was produced by any
@@ -618,7 +618,7 @@ and the unsynced
 `store-held.json` is benign before the
 ref moves and sticks after it,
 so it can lose its own sync only if the landing barrier makes it durable.
-Everything else listed under the first two bullets above stays.
+Everything else listed in the torn snapshots bullet and in the records that are synced today bullet stays.
 
 #### Outcomes by phase
 
@@ -1655,7 +1655,7 @@ none hidden:
   On a busy host the number can be reused soon;
   the lock then
   stays until it is removed by hand with the command the message names.
-- A lock of unknown origin (see the limits above).
+- A lock of unknown origin (see the unknown-origin limit under `Named limits of rule B2`).
 - A `.pending` staging candidate whose `owner.json` name was lost is kept in place and reported as live
   (`StagingUnattributed`).
   This is not a stuck case:

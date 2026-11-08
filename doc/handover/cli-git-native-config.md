@@ -1,5 +1,29 @@
 # cli-git native repository configuration
 
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:native:interop` went on 2026-11-01 (`cd67a90f6c`);
+`//package/git-policy/cli:native:config:differential` went on 2026-10-13 (`a2b56c548c`);
+
+Note 2026-11-08:
+the `package/module/...` paths this document names are names inside a throwaway fixture
+repository it built to exercise the dependent-version policy;
+the repository-level `package/module` category has not existed since 2026-10-29
+(`592d78b143`).
+`package/module/a/package.json`
+`package/module/b/package.json`
+`package/module/[ab]/src/index.ts`
+and `package/module/a/src/index.ts` are names inside that fixture repository.
+
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

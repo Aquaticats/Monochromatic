@@ -14,6 +14,11 @@ export {
   invokesBunTest,
 } from './bun-test.ts';
 export {
+  invokesMutatingGitThroughRealGitPath,
+  REAL_GIT_MUTATION_BAN_REASON,
+} from './real-git-mutation.ts';
+export type { RealGitMutationCheck, } from './real-git-mutation.ts';
+export {
   PROCESS_NAME_WAIT_BAN_REASON,
   waitsOnProcessName,
 } from './process-name-wait.ts';

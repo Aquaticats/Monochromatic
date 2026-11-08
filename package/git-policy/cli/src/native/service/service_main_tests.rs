@@ -155,6 +155,17 @@ fn the_service_start_takes_its_process_setup_first() {
     assert!(refusal < first_directory, "the refusal of a start with no socket comes before anything is created");
 }
 
+/// A start that serves nothing because the worktree is gone ends without a failure status:
+/// the unit is meant to be gone,
+/// and `Restart=on-failure` would start it again for a failure status.
+#[test]
+fn a_start_that_serves_nothing_is_not_a_failure() {
+    assert_eq!(EXIT_NOTHING_TO_SERVE, 0);
+    for refusal in [EXIT_REFUSED, EXIT_NOT_LISTENING] {
+        assert_ne!(EXIT_NOTHING_TO_SERVE, refusal);
+    }
+}
+
 /// The fewest workers a multi-thread runtime has that the owner's "Full on tokio.
 /// Multi-thread."
 /// leaves room for.

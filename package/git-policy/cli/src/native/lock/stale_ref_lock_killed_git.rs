@@ -257,8 +257,14 @@ impl Drop for Helper {
 /// A judge that sees the processes of this kernel completely,
 /// takes any lock as old enough,
 /// and trusts local disks.
+///  The scan for open holders is given no process:
+/// every control of this module plants the processes it judges,
+/// and a scan of the whole machine would let another program's Git veto a clearance
+/// (a non-dumpable process denies its descriptors to its own account);
+/// the veto keeps its own controls,
+/// which name the holder they plant.
 pub fn judge() -> crate::stale_ref_lock_judge::Judge {
-    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, ..crate::stale_ref_lock_judge::Judge::here() };
+    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, scan_scope: Some(Vec::new()), ..crate::stale_ref_lock_judge::Judge::here() };
 }
 
 /// Make a new commit and start `git push origin main`,
