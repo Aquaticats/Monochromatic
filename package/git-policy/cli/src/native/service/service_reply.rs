@@ -7,13 +7,13 @@
 //!  A client waits for its answer with no clock of its own (`service_client.rs`),
 //! so the only thing that ends its wait is
 //!  silence.
-//! The thread that read the request has nothing else to do while the request is queued or landing,
+//! The task that read the request has nothing else to do while the request is queued or landing,
 //! so it writes
 //!  the heartbeats,
 //! and a long batch,
 //! a long queue or a slow disk in front of the landing never reads as a dead service.
 //! The
-//!  landing thread hands its messages to that same thread through a channel instead of writing the connection itself,
+//!  landing thread hands its messages to that same task through a channel instead of writing the connection itself,
 //! so the
 //!  connection has one writer,
 //! a line is written whole,
@@ -25,10 +25,9 @@
 //! ```
 
 use crate::service_protocol::{ServiceMessage, encode_service};
-use std::io::Write;
-use std::os::unix::net::UnixStream;
-use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, channel};
 use std::time::Duration;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// What:
 ///  The landing thread's end of one client's messages.
@@ -45,18 +44,20 @@ use std::time::Duration;
 /// ```
 pub struct Reply {
     /// Where the messages for the client go.
-    sender: Sender<ServiceMessage>,
+    sender: UnboundedSender<ServiceMessage>,
 }
 
 impl Reply {
-    /// A reply and the end the writer loop reads.
-    pub fn new() -> (Self, Receiver<ServiceMessage>) {
-        let (sender, receiver) = channel();
+    /// A reply and the end the writer task reads.
+    pub fn new() -> (Self, UnboundedReceiver<ServiceMessage>) {
+        let (sender, receiver) = unbounded_channel();
         return (Self { sender }, receiver);
     }
 
     /// Queues `message` for the client;
     /// a client that went away has nothing to be told.
+    /// Never waits,
+    /// so the landing thread that sends and a task that writes never hold each other.
     pub fn send(&self, message: &ServiceMessage) {
         let _queued = self.sender.send(message.clone());
     }
@@ -64,11 +65,10 @@ impl Reply {
 
 /// Writes `message` and a newline to `stream` as one write;
 /// false when the client is gone.
-fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
+async fn write_line<Stream: AsyncWrite + Unpin>(stream: &mut Stream, message: &ServiceMessage) -> bool {
     let mut line: String = encode_service(message);
     line.push('\n');
-    let mut writer: &UnixStream = stream;
-    return writer.write_all(line.as_bytes()).is_ok();
+    return stream.write_all(line.as_bytes()).await.is_ok();
 }
 
 /// What:
@@ -82,13 +82,16 @@ fn write_line(stream: &UnixStream, message: &ServiceMessage) -> bool {
 /// in order,
 /// so a beat never
 ///  stands between a notice and the answer that follows it.
+/// The writer is a task:
+/// the wait for the next message is an `.await`,
+/// so a connection that waits holds no thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (!write(m ?? heartbeat)) return; }
 /// ```
-pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMessage>, every: Duration) {
-    write_until_answered_noting(stream, messages, every, &mut NothingToSay);
+pub async fn write_until_answered<Stream: AsyncWrite + Unpin>(stream: &mut Stream, messages: &mut UnboundedReceiver<ServiceMessage>, every: Duration) {
+    write_until_answered_noting(stream, messages, every, &mut NothingToSay).await;
 }
 
 /// What:
@@ -101,15 +104,17 @@ pub fn write_until_answered(stream: &UnixStream, messages: &Receiver<ServiceMess
 /// the request's identity,
 /// the last words said) is the state of a small
 ///  struct that implements this.
+///  The question may wait on storage (the board is files in the journal),
+/// so it is asked with an `.await`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface NoteSource { note(): ServiceMessage | undefined }
+/// interface NoteSource { note(): Promise<ServiceMessage | undefined> }
 /// ```
 pub trait NoteSource {
     /// The message to write before the beat,
     /// or nothing.
-    fn note(&mut self) -> Option<ServiceMessage>;
+    fn note(&mut self) -> impl std::future::Future<Output = Option<ServiceMessage>> + Send;
 }
 
 /// What:
@@ -119,12 +124,12 @@ pub trait NoteSource {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const nothingToSay = { note: (): ServiceMessage | undefined => undefined };
+/// const nothingToSay = { note: async (): Promise<ServiceMessage | undefined> => undefined };
 /// ```
 struct NothingToSay;
 
 impl NoteSource for NothingToSay {
-    fn note(&mut self) -> Option<ServiceMessage> {
+    async fn note(&mut self) -> Option<ServiceMessage> {
         return None;
     }
 }
@@ -137,37 +142,38 @@ impl NoteSource for NothingToSay {
 /// Why:
 ///   A client queued behind a write that never ends is told what the service is stuck in (`service_busy.rs`);
 /// the beat is the
-///  one moment this thread has nothing queued to write,
+///  one moment this task has nothing queued to write,
 /// so the notice rides on it and is asked for at most once a beat.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (m === undefined) { const n = note(); if (n && !write(n)) return; } if (!write(m ?? heartbeat)) return; }
+/// for (;;) { const m = await messages.next({ timeout: every }); if (m === END) return; if (m === undefined) { const n = await note(); if (n && !write(n)) return; } if (!write(m ?? heartbeat)) return; }
 /// ```
-pub fn write_until_answered_noting(
-    stream: &UnixStream,
-    messages: &Receiver<ServiceMessage>,
+pub async fn write_until_answered_noting<Stream: AsyncWrite + Unpin, Notes: NoteSource>(
+    stream: &mut Stream,
+    messages: &mut UnboundedReceiver<ServiceMessage>,
     every: Duration,
-    note: &mut dyn NoteSource,
+    note: &mut Notes,
 ) {
     loop {
-        match messages.recv_timeout(every) {
-            Ok(message) => {
-                if !write_line(stream, &message) {
+        match tokio::time::timeout(every, messages.recv()).await {
+            Ok(Some(message)) => {
+                if !write_line(stream, &message).await {
                     return;
                 }
             }
-            Err(RecvTimeoutError::Timeout) => {
-                if let Some(notice) = note.note()
-                    && !write_line(stream, &notice)
+            // The reply was dropped and everything it queued has been read.
+            Ok(None) => return,
+            Err(_every_passed) => {
+                if let Some(notice) = note.note().await
+                    && !write_line(stream, &notice).await
                 {
                     return;
                 }
-                if !write_line(stream, &ServiceMessage::Heartbeat) {
+                if !write_line(stream, &ServiceMessage::Heartbeat).await {
                     return;
                 }
             }
-            Err(RecvTimeoutError::Disconnected) => return,
         }
     }
 }
