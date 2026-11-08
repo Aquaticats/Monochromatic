@@ -63,6 +63,9 @@ so any of them can be undone.
   "Expensive models are also not necessarily more trustworthy than cheap models."
 - Running Pi for real work without the driver:
   "Forget about --print on a real coding task."
+- Which subagents this session uses,
+  answering the coordinator's open question on how to use subagents:
+  "Drive pi as subagents exclusively from now on for this session."
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
