@@ -52,6 +52,7 @@ export * from './manual-review-dialog.ts';
 export * from './message.ts';
 export * from './prompt.ts';
 export * from './reducer.ts';
+export * from './remaining-work-guidance.ts';
 export * from './review-context.ts';
 export * from './review-contract.ts';
 export * from './review-runner.ts';

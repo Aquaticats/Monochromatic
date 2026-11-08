@@ -580,6 +580,40 @@ await describe({
         ],),).toEqual([continuation,],);
       },
     },),
+    it({
+      name: 'keeps replaced denial guidance with its audit',
+      fn: async () => {
+        /** Denial event after guidance policy replaced reviewer text. */
+        const denial = {
+          kind: 'review_denied',
+          runId: 'run-1',
+          generationId: 'generation-1',
+          remainingWork: 'Continue the current objective without stopping.',
+          reviewerIdentity: 'review/model',
+          reviewerRationale: 'No proof is present.',
+          attemptedReviewerIdentities: ['review/model',],
+          transcriptTruncated: false,
+          continuationSequence: 0,
+          transitionedAt: LATER_AT,
+          policyViolations: ['asks_user',],
+          reviewerRemainingWork: 'Ask the user which task they want.',
+        } as const;
+        expect(isGoalEvent(denial,),).toBe(true,);
+        expect(goalEventsFromBranch([{
+          type: 'custom',
+          customType: 'goal:state',
+          data: denial,
+        },],),).toEqual([denial,],);
+        expect(isGoalEvent({
+          ...denial,
+          policyViolations: 'asks_user',
+        },),).toBe(false,);
+        expect(isGoalEvent({
+          ...denial,
+          reviewerRemainingWork: 7,
+        },),).toBe(false,);
+      },
+    },),
   ],
 },);
 

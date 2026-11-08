@@ -169,7 +169,11 @@ function isGoalEvent(value: unknown,): value is GoalEvent {
         ],
       },)
         && isStringArray(value.attemptedReviewerIdentities,)
-        && ((typeof value.transcriptTruncated) === 'boolean');
+        && ((typeof value.transcriptTruncated) === 'boolean')
+        && ((value.policyViolations === undefined)
+          || isStringArray(value.policyViolations,))
+        && ((value.reviewerRemainingWork === undefined)
+          || ((typeof value.reviewerRemainingWork) === 'string'));
     }
     return (typeof value.feedback) === 'string';
   }

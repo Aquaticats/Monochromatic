@@ -1,6 +1,9 @@
 /**
  Harness-owned settlement review and stale-result handling.
  
+ A model denial is assessed before its guidance reaches the primary model,
+ so a truthful dead end never ends goal work.
+ 
  @module
  */
 
@@ -19,6 +22,10 @@ import type {
   GoalSettlementReviewRequest,
 } from './completion-types.ts';
 import type { GoalLifecycleHandle, } from './lifecycle-services.ts';
+import {
+  canReachUser,
+  requiredProductiveRemainingWork,
+} from './remaining-work-guidance.ts';
 import type { GoalControllerState, } from './types.ts';
 
 /**
@@ -304,6 +311,14 @@ async function executeGoalSettlementReview(
         controller: revalidation.controller,
         request,
         review,
+        /**
+         Reviewer guidance kept only when it can still produce work.
+         */
+        guidance: requiredProductiveRemainingWork({
+          remainingWork: review.verdict
+            .remainingWork,
+          userReachable: canReachUser(context.mode,),
+        },),
         marker: createId(),
         timestamp: now(),
       },),

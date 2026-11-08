@@ -4,6 +4,8 @@
  @module
  */
 
+import type { RemainingWorkViolation, } from './remaining-work-guidance.ts';
+
 //region Domain identifiers
 
 /**
@@ -159,6 +161,14 @@ type GoalReviewDeniedEvent = {
   readonly transcriptTruncated: boolean;
   readonly continuationSequence: number;
   readonly transitionedAt: string;
+  /**
+   Guidance defects replaced with a work instruction.
+   */
+  readonly policyViolations?: readonly RemainingWorkViolation[];
+  /**
+   Reviewer text replaced because it would have halted work.
+   */
+  readonly reviewerRemainingWork?: string;
 };
 
 /**

@@ -10,6 +10,7 @@ import type {
 } from './completion-types.ts';
 import { buildGoalMessage, } from './message.ts';
 import { reduceGoalEvent, } from './reducer.ts';
+import type { ProductiveRemainingWork, } from './remaining-work-guidance.ts';
 import type {
   GoalControllerState,
   GoalControllerTransition,
@@ -102,6 +103,8 @@ function settlementReviewStillCurrent(
  
  @param review - valid private reviewer result
  
+ @param guidance - assessed denial guidance for the primary model
+ 
  @param marker - private continuation identity
  
  @param timestamp - ISO denial timestamp
@@ -110,7 +113,7 @@ function settlementReviewStillCurrent(
  
  @example
  ```ts
- continueGoalAfterDenial({ controller, request, review, marker, timestamp });
+ continueGoalAfterDenial({ controller, request, review, guidance, marker, timestamp });
  ```
  */
 function continueGoalAfterDenial(
@@ -118,12 +121,14 @@ function continueGoalAfterDenial(
     controller,
     request,
     review,
+    guidance,
     marker,
     timestamp,
   }: {
     readonly controller: GoalControllerState;
     readonly request: GoalSettlementReviewRequest;
     readonly review: GoalSettlementReview;
+    readonly guidance: ProductiveRemainingWork;
     readonly marker: GoalMessageMarker;
     readonly timestamp: string;
   },
@@ -136,6 +141,14 @@ function continueGoalAfterDenial(
     .approved)
     throw new Error('Cannot continue approved goal as denial',);
   /**
+   Guidance defects recorded by the policy assessment.
+   */
+  const { violations, } = guidance;
+  /**
+   Whether reviewer guidance was replaced before reaching the primary model.
+   */
+  const guidanceWasReplaced = violations.length > 0;
+  /**
    Persisted private reviewer audit.
    */
   const denialEvent = {
@@ -144,8 +157,7 @@ function continueGoalAfterDenial(
       .runId,
     generationId: request.goal
       .generationId,
-    remainingWork: review.verdict
-      .remainingWork,
+    remainingWork: guidance.remainingWork,
     reviewerIdentity: review.reviewerIdentity,
     reviewerRationale: review.verdict
       .rationale,
@@ -154,6 +166,13 @@ function continueGoalAfterDenial(
     continuationSequence: controller.goal
       .continuationSequence,
     transitionedAt: timestamp,
+    ...(guidanceWasReplaced
+      ? {
+        policyViolations: violations,
+        reviewerRemainingWork: review.verdict
+          .remainingWork,
+      }
+      : {}),
   } as const;
   /**
    Active state retaining task-only remaining work.
@@ -195,9 +214,18 @@ function continueGoalAfterDenial(
     kind: 'continuation',
     continuationSequence,
     marker,
-    remainingWork: review.verdict
-      .remainingWork,
+    remainingWork: guidance.remainingWork,
   },);
+  /**
+   Replacement audit effect, empty when reviewer guidance was used as written.
+   */
+  const replacementLogEffects = guidanceWasReplaced
+    ? [{
+      type: 'log' as const,
+      level: 'warn' as const,
+      message: `denial guidance replaced after ${violations.join(', ',)} for run ${goal.runId}`,
+    }]
+    : [];
   /**
    Runtime settlement sequence after continuation.
    */
@@ -224,6 +252,7 @@ function continueGoalAfterDenial(
         message,
         triggerTurn: true,
       },
+      ...replacementLogEffects,
       {
         type: 'log',
         level: 'debug',

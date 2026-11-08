@@ -275,6 +275,7 @@ await describe({
             transcriptChunks: ['x'.repeat(20_000,),],
           },
           contextWindow: 20_000,
+          userReachable: false,
         },);
         expect(prompt.userContent,).toContain('Exact objective',);
         expect(prompt.userContent,).not.toContain('Completion summary',);
@@ -285,6 +286,7 @@ await describe({
             transcriptChunks: [],
           },
           contextWindow: 100,
+          userReachable: false,
         },),).toThrow(ReviewerContextTooLargeError,);
       },
     },),

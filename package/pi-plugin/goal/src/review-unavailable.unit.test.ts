@@ -238,6 +238,37 @@ await describe({
       },
     },),
     it({
+      name: 'keeps human rejection reason verbatim',
+      fn: async () => {
+        /** Human reason a model-guidance policy would replace. */
+        const humanReason = 'Stop working on the proof and ask the user which task they want.';
+        const harness = fallbackHarness('tui',);
+        const handler = createGoalReviewerUnavailableHandler({
+          lifecycle: harness.lifecycle,
+          async promptManualReview(): Promise<ManualGoalReviewDecision> {
+            return { action: 'reject', reason: humanReason, };
+          },
+          createId() {
+            return 'human-marker';
+          },
+          now() {
+            return FALLBACK_AT;
+          },
+        },);
+        expect(await handler({
+          error: REVIEW_ERROR,
+          request: fallbackRequest(),
+          context: harness.context,
+        },),).toBe('continued',);
+        const message = harness.effects.find(function isMessageEffect(effect,) {
+          return effect.type === 'send_message';
+        },);
+        if (message?.type !== 'send_message')
+          throw new Error('human manual rejection omitted task message',);
+        expect(message.message.content,).toBe(humanReason,);
+      },
+    },),
+    it({
       name: 'ignores stale result after manual dialog changes branch',
       fn: async () => {
         const harness = fallbackHarness('tui',);

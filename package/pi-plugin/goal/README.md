@@ -70,6 +70,8 @@ so goal does not poll or override process notifications.
 Human decisions use Pi's `ask_user_question` tool inside primary run.
 That tool blocks until user answers or cancels,
 so settlement review does not need separate blocked-on-user state.
+The tool answers only in TUI mode,
+so goal never sends the primary model to a user that a non-interactive session cannot reach.
 
 ## Private independent review
 
@@ -97,6 +99,29 @@ Private verdict is binary:
 
 - approval records terminal completion without another primary-model response
 - denial injects only contracted task-level `remaining_work` and starts one guarded continuation
+
+Denial guidance keeps the primary model working.
+It names one concrete next attempt that differs from the attempts already in evidence.
+The reviewer rubric asks for that,
+and the extension enforces it:
+reviewer text is replaced by an extension-authored work instruction
+when it would stop work,
+wait,
+call the objective hard,
+unsolved,
+impossible,
+or an open problem,
+hand the objective back,
+or ask for a different objective.
+Asking the user is allowed only for one detail that only the user can supply,
+and `ask_user_question` answers only in TUI mode,
+so a denial in RPC,
+JSON,
+or print mode never sends the primary model to an absent user.
+A replaced denial keeps both texts in the `review_denied` entry
+(`reviewerRemainingWork`,
+`policyViolations`).
+A human rejection reason from the TUI dialog is used verbatim.
 
 There is no arbitrary denial cap.
 Goal continues until approval,

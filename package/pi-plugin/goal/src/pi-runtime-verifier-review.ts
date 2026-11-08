@@ -31,20 +31,23 @@ type ReviewFixture = {
 };
 
 /**
+ Dead-end denial guidance produced by the measured Collatz runs.
+ */
+const UNREACHABLE_USER_GUIDANCE = 'Explain that a proof is currently unknown and ask the user which alternative task they want.';
+
+/**
  Build active controller and settlement identity.
  
- @returns controller cell, lifecycle adapter, context, and request
+ @param mode - Pi session mode deciding human reachability
  
- @example
- ```ts
- const fixture = createReviewFixture();
- ```
+ @returns controller cell, lifecycle adapter, context, request, and continuation text
  */
-function createReviewFixture(): {
+function createReviewFixture(mode: 'tui' | 'rpc' = 'rpc',): {
   readonly state: { value: GoalControllerState; };
   readonly lifecycle: GoalLifecycleHandle;
   readonly context: ExtensionContext;
   readonly request: GoalSettlementReviewRequest;
+  readonly messages: string[];
 } {
   /**
    Pure start transition supplying active state.
@@ -65,6 +68,10 @@ function createReviewFixture(): {
    */
   const state = { value: started.controller, };
   /**
+   Continuation text emitted by denial transitions.
+   */
+  const messages: string[] = [];
+  /**
    Lifecycle capability consumed by settlement implementation.
    */
   const lifecycle: GoalLifecycleHandle = {
@@ -73,6 +80,15 @@ function createReviewFixture(): {
     },
     applyTransition({ transition, },) {
       state.value = transition.controller;
+      for (const effect of transition.effects) {
+        if (effect.type !== 'send_message')
+          continue;
+        /**
+         Emitted task message.
+         */
+        const { message, } = effect;
+        messages.push(message.content,);
+      }
     },
     deliverPendingKickoff() {
       return false;
@@ -83,7 +99,7 @@ function createReviewFixture(): {
    Focused context for stale-result leaf validation.
    */
   const context = {
-    mode: 'rpc',
+    mode,
     hasUI: false,
     isIdle() {
       return true;
@@ -119,6 +135,7 @@ function createReviewFixture(): {
     lifecycle,
     context,
     request,
+    messages,
   };
 }
 
@@ -206,6 +223,69 @@ async function verifyReviewOutcome(
 }
 
 /**
+ Verify that a noninteractive denial keeps the primary model at work.
+ 
+ @returns unreachable-user scenario summary
+ 
+ @throws when dead-end denial guidance reaches the primary model
+ 
+ @example
+ ```ts
+ await verifyUnreachableUserGuidance();
+ ```
+ */
+async function verifyUnreachableUserGuidance(): Promise<string> {
+  /**
+   RPC settlement fixture without a reachable person.
+   */
+  const fixture = createReviewFixture('rpc',);
+  /**
+   Built settlement result after dead-end denial guidance.
+   */
+  const result = await executeGoalSettlementReview({
+    request: fixture.request,
+    context: fixture.context,
+    lifecycle: fixture.lifecycle,
+    reviewer() {
+      return Promise.resolve({
+        verdict: {
+          approved: false,
+          rationale: 'No proof is present.',
+          remainingWork: UNREACHABLE_USER_GUIDANCE,
+        },
+        reviewerIdentity: 'fake-reviewer/distinct-model',
+        attemptedReviewerIdentities: ['fake-reviewer/distinct-model',],
+        transcriptTruncated: false,
+      },);
+    },
+    handleReviewerUnavailable() {
+      return Promise.reject(new Error('fake reviewer unexpectedly became unavailable',),);
+    },
+    createId() {
+      return 'fake-dead-end-marker';
+    },
+    now() {
+      return REVIEW_TIMESTAMP;
+    },
+  },);
+  if (result !== 'continued')
+    throw new Error(`expected continued RPC denial, received ${result}`,);
+  /**
+   Continuation text handed to the primary model.
+   */
+  const [continuation,] = fixture.messages;
+  if (continuation === undefined)
+    throw new Error('RPC denial emitted no continuation',);
+  if (!continuation.includes('concrete next step',)) {
+    throw new Error(`RPC continuation names no concrete next step: ${continuation}`,);
+  }
+  if (continuation.includes('ask the user',)) {
+    throw new Error(`RPC continuation asks an unreachable user: ${continuation}`,);
+  }
+  return 'rpc denial kept work going';
+}
+
+/**
  Verify fake denial and approval through built artifact.
  
  @returns review scenario summary
@@ -233,7 +313,11 @@ async function verifyInjectedReviewerOutcomes(): Promise<string> {
       remainingWork: '',
     },),
   ],);
-  return `fake reviewer ${outcomes.join(' and ')}`;
+  /**
+   Noninteractive dead-end denial scenario.
+   */
+  const unreachable = await verifyUnreachableUserGuidance();
+  return `fake reviewer ${outcomes.join(' and ')}; ${unreachable}`;
 }
 
 export { verifyInjectedReviewerOutcomes, };

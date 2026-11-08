@@ -18,6 +18,7 @@ import {
   createGoalSettlementReviewRequest,
   executeGoalSettlementReview,
   GOAL_SETTLEMENT_NOT_REVIEWABLE,
+  PRODUCTIVE_REMAINING_WORK,
   reduceGoalEvents,
   registerGoalSettlementReview,
   type ActiveGoalState,
@@ -85,13 +86,16 @@ function settlementRequest(): GoalSettlementReviewRequest {
 /**
  Build mutable fake lifecycle and context.
  
+ @param mode - Pi session mode deciding human reachability
+ 
  @returns lifecycle, context, and transition observations
  */
-function executionHarness(): {
+function executionHarness(mode: 'tui' | 'rpc' = 'tui',): {
   readonly lifecycle: GoalLifecycleHandle;
   readonly context: ExtensionContext;
   readonly transitions: GoalControllerState[];
   readonly messages: unknown[];
+  readonly persisted: unknown[];
   readonly leaf: { value: string; };
   readonly pending: { value: boolean; };
 } {
@@ -105,6 +109,8 @@ function executionHarness(): {
   const transitions: GoalControllerState[] = [];
   /** Task messages emitted by transition effects. */
   const messages: unknown[] = [];
+  /** Persisted events emitted by transition effects. */
+  const persisted: unknown[] = [];
   /** Fake lifecycle boundary. */
   const lifecycle: GoalLifecycleHandle = {
     currentController() {
@@ -116,6 +122,8 @@ function executionHarness(): {
       for (const effect of transition.effects) {
         if (effect.type === 'send_message')
           messages.push(effect.message,);
+        if (effect.type === 'persist')
+          persisted.push(effect.event,);
       }
     },
     deliverPendingKickoff() {
@@ -124,7 +132,7 @@ function executionHarness(): {
   };
   /** Fake Pi context exposing selected leaf. */
   const context = {
-    mode: 'tui',
+    mode,
     isIdle() {
       return true;
     },
@@ -142,6 +150,7 @@ function executionHarness(): {
     context,
     transitions,
     messages,
+    persisted,
     leaf,
     pending,
   };
@@ -185,6 +194,112 @@ await describe({
         expect(harness.messages,).toHaveLength(1,);
         expect(harness.messages[0],).toMatchObject({
           content: 'Add and run the integration test.',
+        },);
+      },
+    },),
+    it({
+      name: 'replaces denial guidance that asks a user this session cannot reach',
+      fn: async () => {
+        /** Guidance produced by the measured Collatz runs. */
+        const deadEndGuidance = 'Explain that a proof is currently unknown and ask the user which alternative task they want.';
+        const harness = executionHarness('rpc',);
+        const outcome = await executeGoalSettlementReview({
+          request: settlementRequest(),
+          context: harness.context,
+          lifecycle: harness.lifecycle,
+          async reviewer() {
+            return {
+              verdict: {
+                approved: false,
+                rationale: 'No proof is present.',
+                remainingWork: deadEndGuidance,
+              },
+              reviewerIdentity: 'review/model',
+              attemptedReviewerIdentities: ['review/model',],
+              transcriptTruncated: false,
+            };
+          },
+          async handleReviewerUnavailable() {
+            throw new Error('unexpected unavailable fallback',);
+          },
+          createId() {
+            return 'continuation-marker';
+          },
+          now() {
+            return COMPLETED_AT;
+          },
+        },);
+        expect(outcome,).toBe('continued',);
+        expect(harness.messages,).toHaveLength(1,);
+        expect(harness.messages[0],).toMatchObject({ content: PRODUCTIVE_REMAINING_WORK, },);
+        expect(harness.persisted[0],).toEqual({
+          kind: 'review_denied',
+          runId: 'run-1',
+          generationId: 'generation-1',
+          remainingWork: PRODUCTIVE_REMAINING_WORK,
+          reviewerIdentity: 'review/model',
+          reviewerRationale: 'No proof is present.',
+          attemptedReviewerIdentities: ['review/model',],
+          transcriptTruncated: false,
+          continuationSequence: 0,
+          transitionedAt: COMPLETED_AT,
+          policyViolations: [
+            'asks_user',
+            'declares_impossible',
+            'hands_back_objective',
+          ],
+          reviewerRemainingWork: deadEndGuidance,
+        },);
+        expect(harness.transitions.at(-1,)
+          ?.goal
+          .phase,).toBe('active',);
+      },
+    },),
+    it({
+      name: 'keeps a user question only when the session reaches the user',
+      fn: async () => {
+        /** Guidance needing one detail only the user holds. */
+        const userDetailGuidance = 'Ask the user which of the two configuration files owns the migration table.';
+        const harness = executionHarness('tui',);
+        const outcome = await executeGoalSettlementReview({
+          request: settlementRequest(),
+          context: harness.context,
+          lifecycle: harness.lifecycle,
+          async reviewer() {
+            return {
+              verdict: {
+                approved: false,
+                rationale: 'Ownership is unrecorded.',
+                remainingWork: userDetailGuidance,
+              },
+              reviewerIdentity: 'review/model',
+              attemptedReviewerIdentities: ['review/model',],
+              transcriptTruncated: false,
+            };
+          },
+          async handleReviewerUnavailable() {
+            throw new Error('unexpected unavailable fallback',);
+          },
+          createId() {
+            return 'continuation-marker';
+          },
+          now() {
+            return COMPLETED_AT;
+          },
+        },);
+        expect(outcome,).toBe('continued',);
+        expect(harness.messages[0],).toMatchObject({ content: userDetailGuidance, },);
+        expect(harness.persisted[0],).toEqual({
+          kind: 'review_denied',
+          runId: 'run-1',
+          generationId: 'generation-1',
+          remainingWork: userDetailGuidance,
+          reviewerIdentity: 'review/model',
+          reviewerRationale: 'Ownership is unrecorded.',
+          attemptedReviewerIdentities: ['review/model',],
+          transcriptTruncated: false,
+          continuationSequence: 0,
+          transitionedAt: COMPLETED_AT,
         },);
       },
     },),

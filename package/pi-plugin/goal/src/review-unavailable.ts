@@ -218,6 +218,13 @@ function createGoalReviewerUnavailableHandler(
           attemptedReviewerIdentities: audit.attemptedReviewerIdentities,
           transcriptTruncated: false,
         },
+        /**
+         Human rejection reason is authority and is never rewritten by model-guidance policy.
+         */
+        guidance: {
+          remainingWork,
+          violations: [],
+        },
         marker: createId(),
         timestamp: now(),
       },),

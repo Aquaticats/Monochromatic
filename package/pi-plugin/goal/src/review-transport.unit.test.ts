@@ -179,6 +179,75 @@ function goalReviewTransport(
   };
 }
 
+/**
+ Build scoped reviewer context bound to one session mode.
+ 
+ @param mode - Pi session mode deciding human reachability
+ 
+ @returns effective-scope context with one distinct authenticated reviewer
+ */
+function scopedReviewContext(
+  mode: 'tui' | 'rpc',
+): ExtensionContext {
+  /** Primary model excluded from reviewer selection. */
+  const primary = reviewerModel({
+    provider: 'primary',
+    id: 'model',
+    inputCost: 100,
+    outputCost: 100,
+  },);
+  /** Single distinct reviewer candidate. */
+  const reviewer = reviewerModel({
+    provider: 'review',
+    id: 'prompt',
+    inputCost: 1,
+    outputCost: 1,
+  },);
+  return {
+    mode,
+    cwd: process.cwd(),
+    model: primary,
+    getScopedModels() {
+      return [{ model: reviewer, },];
+    },
+    modelRegistry: {
+      getAvailable() {
+        return [primary, reviewer,];
+      },
+      getApiKeyAndHeaders() {
+        return Promise.resolve({
+          ok: true,
+          apiKey: 'key',
+        },);
+      },
+    },
+  } as unknown as ExtensionContext;
+}
+
+/**
+ Ask one mode-scoped pool for its single reviewer system prompt.
+ 
+ @param mode - Pi session mode deciding human reachability
+ 
+ @returns reviewer system prompt built for that session mode
+ 
+ @throws when the scoped pool prompts no reviewer
+ */
+async function promptedReviewerPrompt(mode: 'tui' | 'rpc',): Promise<string> {
+  const pool = await resolveGoalReviewerPool({
+    context: scopedReviewContext(mode,),
+    evidence: {
+      objective: 'Prove an open problem',
+      transcriptChunks: ['Assistant:\nNothing attempted yet.',],
+    },
+  },);
+  /** Single distinct prompted candidate. */
+  const [candidate,] = pool.candidates;
+  if (candidate === undefined)
+    throw new Error(`expected one prompted reviewer in ${mode} mode`,);
+  return candidate.systemPrompt;
+}
+
 await describe({
   name: resolveGoalReviewerPool.name,
   children: [
@@ -245,6 +314,18 @@ await describe({
             estimatedInputTokens: 100,
           } satisfies PromptedReviewer;
         },),)[0]?.canonicalSlug,).toBe('review/higher',);
+      },
+    },),
+    it({
+      name: 'builds reviewer prompt that matches session reachability',
+      fn: async () => {
+        /** Reviewer system prompt in a terminal session. */
+        const reachablePrompt = await promptedReviewerPrompt('tui',);
+        /** Reviewer system prompt in a session with no person present. */
+        const unreachablePrompt = await promptedReviewerPrompt('rpc',);
+        expect(reachablePrompt,).toContain('use ask_user_question once',);
+        expect(unreachablePrompt,).toContain('No person can answer in this session',);
+        expect(unreachablePrompt,).not.toContain('use ask_user_question once',);
       },
     },),
   ],
@@ -330,6 +411,7 @@ await describe({
             ],
           },
           contextWindow: model.contextWindow,
+          userReachable: false,
         },);
         /** Candidate prompt containing only abandoned exploration. */
         const absentPrompt = buildBudgetedGoalReviewPrompt({
@@ -341,6 +423,7 @@ await describe({
             ],
           },
           contextWindow: model.contextWindow,
+          userReachable: false,
         },);
         const present = await runGoalReviewerPool({
           pool: {

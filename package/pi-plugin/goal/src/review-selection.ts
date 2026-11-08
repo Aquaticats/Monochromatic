@@ -25,6 +25,7 @@ import {
   buildBudgetedGoalReviewPrompt,
   ReviewerContextTooLargeError,
 } from './review-contract.ts';
+import { canReachUser, } from './remaining-work-guidance.ts';
 
 /**
  Prompted scoped candidate before auth resolution.
@@ -133,6 +134,10 @@ async function promptedReviewers(
    */
   const scope = await resolveEffectiveScope<Model<Api>>({ ctx: context, },);
   /**
+   Whether the reviewer may send the primary model to the user at all.
+   */
+  const userReachable = canReachUser(context.mode,);
+  /**
    Prompt construction outcomes preserving ineligible diagnostics.
    */
   const outcomes = scope.entries
@@ -152,6 +157,7 @@ async function promptedReviewers(
           evidence,
           contextWindow: entry.model
             .contextWindow,
+          userReachable,
         },);
         return {
           eligible: true as const,
