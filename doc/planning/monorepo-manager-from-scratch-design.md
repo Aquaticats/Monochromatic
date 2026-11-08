@@ -520,7 +520,7 @@ meow writes a small Rust equivalent rather than choosing one destination.
 
 #### Which terminal speaks which language
 
-Derived from the answers above,
+Derived from the answers under `User-stated design requirements`,
 not separately stated:
 
 - The `meow watch` stream is JSON,

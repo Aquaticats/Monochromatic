@@ -1313,7 +1313,8 @@ That removes most of the 63.8 warm worker-seconds now spent before the cache che
 changing which index is selected for any file:
  the set it keys on is identical either way,
  by
-the argument above rather than by measurement.
+the argument under `The filter does not depend on the active file, so the memo is sound`
+rather than by measurement.
 
 Still not implemented,
  and the remaining risk is no longer soundness but placement:

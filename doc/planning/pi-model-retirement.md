@@ -387,7 +387,7 @@ when any of these hold.
 - Either entry has an empty version vector (decision 7).
 - The name-shapes differ,
   so they are not in the same family.
-- Any comparison step above reports the pair unordered.
+- Any comparison step under `Ordering` reports the pair unordered.
 - The two entries have the same provider,
   api,
   and id.

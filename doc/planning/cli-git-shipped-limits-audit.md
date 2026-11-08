@@ -282,7 +282,7 @@ and one design is still in review.
   Update,
   2026-11-03:
   it is in the 0.5.27 integration tip,
-  and picks 5 and 12 below were then built on branch
+  and picks 5 and 12 were then built on branch
   `feat/git-policy-cli-pushes-wait-while-connected-lfs-5xx`;
   the entries of "Pushes" carry their outcomes.
 Read with `git show`:
@@ -336,7 +336,8 @@ Pick
 options as if I had picked them and invite veto when I say I'm back."
 Clarified:
 "\"As if I had chosen\" means what I would have picked most likely if I'm always here."
-Every pick below is therefore the coordinator's pick under that delegation,
+Every pick under the `Delegated picks applied on 2026-11-03` heading
+is therefore the coordinator's pick under that delegation,
 open to the owner's veto;
 none of them is
 an owner decision,
@@ -374,7 +375,8 @@ the index-lock holder wait and the waits on the service,
 and the
 commit service unit (it has no limits,
 by owner decision).
-Where one of the limits above sits in a file those agents own,
+Where one of the limits in the `Left to other agents and not touched here` list
+sits in a file those agents own,
 its entry is unchanged and says so.
 
 Each measurement is recorded with its command,
@@ -1066,7 +1068,8 @@ The one interim the owner approved ("Ship interim now") names the index-lock wai
   a second quiet run fails with
   "showed no
   sign of work for {n} seconds and was stopped".
-  The redo count of once is the coordinator's reading of the owner's "ended and its step redone" and is flagged below.
+  The redo count of once is the coordinator's reading of the owner's
+  "ended and its step redone" and is flagged under `Time limits on Git child steps of a commit`.
   A writer that may not be run twice (`update-ref`,
   a commit Git builds) is announced and waited for,
   never ended.
@@ -3393,7 +3396,7 @@ each audit line names the saved copies by path (`doc/handover/cli-git-logging.md
     and the rotation size and the history
     horizon are judgements on it.
 - Conflict:
-  resolved for the audit file by the pick above,
+  resolved for the audit file by delegated pick 11,
   because no generation that explains a copy on disk is dropped.
   A timing log still drops its older generation;
   it is a diagnostic,
@@ -3581,7 +3584,8 @@ by content" and the path is not judged clean;
   "Reference locks left by a Git that was
   killed".
   `COARSE_CLOCK_SLACK` (50 ms,
-  measurement unchanged above) returned in `stale_ref_lock_judge.rs` for one use:
+  measurement unchanged in `Empty-lock settle time, one second`) returned in
+  `stale_ref_lock_judge.rs` for one use:
   telling a lock
   born in a stopped child's life from an older one,
   in the wrapper's own proof for a child it stopped and saw end.

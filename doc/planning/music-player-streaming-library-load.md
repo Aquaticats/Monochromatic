@@ -200,7 +200,7 @@ Two ordering details matter:
   outside that gate.
   They are live during the load,
    not just after it.
-  This is what makes the mid-load interaction cases below real.
+  This is what makes the mid-load interaction cases under `Edge cases the plan handles` real.
 
 ### How resume state is persisted
 

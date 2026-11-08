@@ -646,7 +646,7 @@ Crate defaults (`toml_edit` 0.25.13 with `TableLike::insert`) against today's `a
    `REG/toml_edit-0.25.13+spec-1.1.0/src/inline_table.rs:94`),
    but every placement and formatting rule of `module-toml-edit` that file-enforcer reaches must be ported and tested
    against the TypeScript output.
-  Only the cases above were probed.
+  Only the cases in the `TOML` section were probed.
 
 ### JSON
 
