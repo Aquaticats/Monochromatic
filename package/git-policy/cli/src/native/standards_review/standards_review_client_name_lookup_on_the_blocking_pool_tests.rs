@@ -34,6 +34,6 @@ fn where_no_thread_can_start_the_lookup_is_an_error_and_not_a_panic() {
         return PoolResolver.call(name).await;
     })
     .expect("a current-thread runtime stands in where no thread can start");
-    let error: std::io::Error = outcome.err().expect("no thread, so no lookup");
+    let error: std::io::Error = outcome.expect_err("no thread, so no lookup");
     assert!(error.to_string().contains("refused a thread"), "{error}");
 }

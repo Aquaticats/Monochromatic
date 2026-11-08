@@ -501,12 +501,12 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
 fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository() {
     let headrooms: Vec<u64> = (0..=MEMORY_STEPS).collect();
     let failures: Mutex<Vec<String>> = Mutex::new(Vec::new());
-    let landed: AtomicUsize = AtomicUsize::new(0);
-    let refused: AtomicUsize = AtomicUsize::new(0);
+    let landed_count: AtomicUsize = AtomicUsize::new(0);
+    let refused_count: AtomicUsize = AtomicUsize::new(0);
     for batch in headrooms.chunks(SWEEP_WIDTH) {
         std::thread::scope(|scope| {
             for headroom in batch {
-                let (collected, landings, refusals): (&Mutex<Vec<String>>, &AtomicUsize, &AtomicUsize) = (&failures, &landed, &refused);
+                let (collected, landings, refusals): (&Mutex<Vec<String>>, &AtomicUsize, &AtomicUsize) = (&failures, &landed_count, &refused_count);
                 scope.spawn(move || {
                     let case: Case = run_case_lowered(format!("as-service-lowered-{headroom}").as_str(), *headroom);
                     if case.landed {
@@ -523,7 +523,7 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     }
     let found: Vec<String> = failures.into_inner().expect("failure list");
     assert!(found.is_empty(), "{} of {} limits left the repository unrecovered:\n{}", found.len(), headrooms.len(), found.join("\n"));
-    let (landed, refused): (usize, usize) = (landed.load(Ordering::SeqCst), refused.load(Ordering::SeqCst));
+    let (landed, refused): (usize, usize) = (landed_count.load(Ordering::SeqCst), refused_count.load(Ordering::SeqCst));
     assert!(refused > 0, "no limit stopped a commit, so the limits tested nothing (steps {headrooms:?})");
     assert!(landed > 0, "no limit let the commit land, so none was close to exhaustion (steps {headrooms:?})");
 }

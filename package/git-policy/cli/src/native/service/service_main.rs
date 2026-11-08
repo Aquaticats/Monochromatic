@@ -69,7 +69,9 @@ pub const EARLIER_SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.earlier, "service", "
 
 /// The most workers and blocking-pool threads the service's runtime has: 4.
 /// A service runs per worktree and lives for hours,
-/// so the budget-sized default (one worker per CPU less a margin: 25 on a 28-CPU host, 27 idle threads in all) is a standing
+/// so the budget-sized default (one worker per CPU less a margin:
+/// 25 on a 28-CPU host,
+/// 27 idle threads in all) is a standing
 /// cost of every service.
 /// Measured 2026-11-07 on that host with release binaries that differ only in this constant,
 /// four rounds alternating 2,
@@ -105,7 +107,8 @@ pub const EARLIER_SERVICE_WORDS: [&str; 3] = [COMMAND_WORD.earlier, "service", "
 /// 27 MiB before T10):
 /// that is the runtime plan's reserve (`ADDRESS_SPACE_RESERVE_BYTES`).
 /// The numbers are kept in `doc/planning/git-policy-cli-full-tokio.md`,
-/// "Step T10, the worker cap".
+/// "Step T10,
+/// the worker cap".
 pub const SERVICE_WORKER_CAP: usize = 4;
 
 /// The exit status of a start that was refused for its arguments or its Git.

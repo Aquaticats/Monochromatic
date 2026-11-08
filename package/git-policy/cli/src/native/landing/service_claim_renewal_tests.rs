@@ -7,6 +7,7 @@
 
 use crate::work_item_recovery::requeue_expired;
 use super::*;
+use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWAL_STOP_CEILING};
 use crate::service_work::MAX_TRIES;
 use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};

@@ -156,12 +156,13 @@ fn the_service_start_takes_its_process_setup_first() {
 }
 
 /// The fewest workers a multi-thread runtime has that the owner's "Full on tokio.
-/// Multi-thread." leaves room for.
+/// Multi-thread."
+/// leaves room for.
 const FEWEST_WORKERS_OF_A_MULTI_THREAD_RUNTIME: usize = 2;
 
 /// The service's cap keeps it multi-thread:
 /// never below two workers.
 #[test]
 fn the_workers_cap_of_the_service_keeps_it_a_multi_thread_runtime() {
-    assert!(SERVICE_WORKER_CAP >= FEWEST_WORKERS_OF_A_MULTI_THREAD_RUNTIME, "{SERVICE_WORKER_CAP}");
+    const { assert!(SERVICE_WORKER_CAP >= FEWEST_WORKERS_OF_A_MULTI_THREAD_RUNTIME) };
 }

@@ -42,7 +42,7 @@ use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with};
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::{Retrying, final_failure, plain_words, unrecognised_rejection};
-use crate::service_claim_renewal::Renewal;
+use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_variables};
 use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
