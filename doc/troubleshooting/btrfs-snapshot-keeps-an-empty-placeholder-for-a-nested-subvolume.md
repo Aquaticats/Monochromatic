@@ -139,7 +139,13 @@ fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result
 A stage of another add in flight is not registered,
 so its placeholder stays in the new worktree.
 This part is read from the wrapper's code and matches the five names;
-it was not reproduced.
+it was reproduced on 2026-11-08 by a control that makes another add's stage the way an add does,
+with one snapshot ioctl at the stage name beside its destination,
+and then makes the worktree through the rung's own snapshot.
+The new worktree lists that name at inode 2 on a device of its own and holds nothing,
+and an `rmdir` of it removes the snapshot's entry alone:
+the subvolume it stands for stays in the source,
+with its files.
 
 ## Verification
 
@@ -213,7 +219,12 @@ No filing.
 `.out-of-scope/` was not consulted,
 since nothing is filed.
 
-The wrapper's own fix is queued in `doc/handover/cli-git-rust-implementation.md`:
-after a snapshot,
-remove every placeholder the new worktree holds,
-not only those of registered worktrees.
+The wrapper removes them after a snapshot since `63dce988a0`
+(`package/git-policy/cli/src/native/worktree/worktree_snapshot_placeholders.rs`):
+one listing of each folder that holds a worktree,
+the parent of each registered worktree and of the destination,
+and every entry that is a directory with btrfs's stand-in inode number removed as an empty directory.
+A stand-in whose subvolume no worktree names stays,
+since the snapshot never carried its files and their absence must stay visible.
+The five worktrees made before that commit keep theirs;
+only the sessions that own them can remove those.

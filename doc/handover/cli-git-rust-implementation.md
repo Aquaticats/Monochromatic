@@ -3115,8 +3115,36 @@ remove every placeholder the new snapshot holds below the parents of the registe
 inode 2 and empty,
 removed as an empty directory),
 with a test that adds two worktrees while a third add is staging.
-Read from the code and matched against the five names;
-not reproduced yet.
+Reproduced 2026-11-08T15:29:10-05:00 by a control:
+no race is needed.
+One call of the same snapshot ioctl another add makes at its stage name beside its destination,
+then the rung's own snapshot.
+The new worktree then lists `.cli-git-worktree-copy-<id>` at inode 2 on a device of its own:
+empty,
+and `btrfs subvolume show` answers `Not a Btrfs subvolume` for it.
+The cause is the one read above:
+`remove_stubs` named the registered worktrees and the destination,
+and a stage container in flight is neither.
+An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:
+the subvolume it stands for stays in the source,
+with its files.
+Done on branch `fix/git-policy-cli-snapshot-add-removes-every-placeholder`:
+`eb28d26f52` is the failing control
+(the two adds while a third stages,
+and a stand-in for a subvolume no worktree names that must stay),
+`63dce988a0` lists each folder that holds a worktree
+and removes every stand-in there as an empty directory
+(`worktree/worktree_snapshot_placeholders.rs`),
+with the package's controls green,
+Clippy and `monochromatic-lint` too.
+The branch is not pushed:
+this checkout's shared `remote.origin.pushurl` is `DISABLED`.
+The five worktrees that hold one keep it:
+those belong to other sessions,
+and the move tool already excuses such a folder.
+A clean-up of them is separate work:
+only the session that owns a worktree may remove a folder in it,
+and no command offers that today.
 
 ### Verify 0.5.26 against native Git
 
