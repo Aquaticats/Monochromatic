@@ -40,6 +40,7 @@ import {
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
   type RunSummary,
+  VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
 import {
   LONG_REPLY,
@@ -82,6 +83,28 @@ const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /** Milliseconds a driver runs before a test's own timeout ends it, which is a safety net and not a bound of the driver. */
 const OUTER_DEADLINE_MILLISECONDS = (WALL_SECONDS + TEST_TEARDOWN_ALLOWANCE_SECONDS) * MILLISECONDS_PER_SECOND;
+
+/**
+ A variable name the credential rule removes: the one an agent's `env` dump leaked into a model provider's context.
+ */
+const CREDENTIAL_SHAPED_VARIABLE = 'MISE_GITHUB_TOKEN';
+
+/**
+ A value a test hands the driver, which no command may read. The run reads names, so a leak shows as a name nothing asked for.
+ */
+const CREDENTIAL_VALUE = 'value-that-must-not-reach-a-command';
+
+/**
+ A variable name the rule keeps, so a run cannot pass by handing Pi an empty environment.
+ */
+const ORDINARY_VARIABLE = 'MONOCHROMATIC_ORDINARY_VARIABLE';
+
+/**
+ Every name the allow list keeps, taken from the list so a new entry is covered without editing this file.
+ */
+const KEPT_NAMES = VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME.map(function toName(kept,) {
+  return kept.name;
+},);
 /** What a test sees when the driver wrote no summary; no field of it can pass for a real run's. */
 const ABSENT_SUMMARY: RunSummary = {
   endReason: 'driver-failed',
@@ -104,6 +127,11 @@ type Finished = {
   readonly sentCommands: readonly Record<string, unknown>[];
   readonly markers: readonly string[];
   readonly nestedVariable: string;
+
+  /**
+   The names of the variables Pi started with, never their values.
+   */
+  readonly environmentNames: readonly string[];
   readonly piArguments: readonly string[];
   readonly inbox: readonly string[];
   readonly inboxContents: Readonly<Record<string, string>>;
@@ -408,6 +436,9 @@ async function runDriver(
     sentCommands,
     markers: logged.filter((line,) => line.startsWith('marker ',)).map((line,) => line.slice('marker '.length,)),
     nestedVariable: logged.find((line,) => line.startsWith('nested ',))?.slice('nested '.length,) ?? '',
+    environmentNames: JSON.parse(
+      logged.find((line,) => line.startsWith('environment-names ',))?.slice('environment-names '.length,) ?? '[]',
+    ) as readonly string[],
     piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
       JSON.parse(line.slice('arguments '.length,),) as string[]
     ),
@@ -938,6 +969,49 @@ await describe({
       fn: async () => {
         const run = await runDriver({ scenario: 'normal', },);
         expect(run.nestedVariable,).toBe('1',);
+      },
+    },),
+    it({
+      name: 'removes a credential-named variable from what Pi gets and keeps the ordinary ones',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          environment: {
+            [CREDENTIAL_SHAPED_VARIABLE]: CREDENTIAL_VALUE,
+            [ORDINARY_VARIABLE]: CREDENTIAL_VALUE,
+          },
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.environmentNames,).not.toContain(CREDENTIAL_SHAPED_VARIABLE,);
+        expect(run.environmentNames,).toContain(ORDINARY_VARIABLE,);
+      },
+    },),
+    it({
+      name: 'keeps every variable the allow list names, so a GUI check still reaches its display',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          environment: Object.fromEntries(
+            KEPT_NAMES.map(function toVariable(name,) {
+              return [name, '/run/user/0/probe-path',];
+            },),
+          ),
+        },);
+        for (const name of KEPT_NAMES) {
+          expect(run.environmentNames,).toContain(name,);
+        }
+      },
+    },),
+    it({
+      name: 'notes the names it removed on the feed and no value of them',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'normal',
+          environment: { [CREDENTIAL_SHAPED_VARIABLE]: CREDENTIAL_VALUE, },
+        },);
+        const noted = run.feed.find((entry,) => entry.kind === 'environment',);
+        expect(noted?.removedNames,).toEqual([CREDENTIAL_SHAPED_VARIABLE,],);
+        expect(JSON.stringify(run.feed,),).not.toContain(CREDENTIAL_VALUE,);
       },
     },),
     it({
