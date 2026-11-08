@@ -18,6 +18,22 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
+
+- How subagents are used from now on,
+  sent 2026-11-08T07:27:21-05:00:
+  "When you reach a point where you'd use subagents,
+  do not continue.
+  Pause there and I'll restart Claude Code again and we'll discuss how to use subagents from then on."
+  The coordinator starts no subagent until that discussion has happened.
+  The move needs none;
+  the first likely stopping point is the Git wrapper work queued after the move.
+- The hourly backup during the cut-over:
+  "Sorry I forgot to quit the 2nd Claude Code session.
+  You can temporarily disable the kopia job if you need to."
+  The coordinator stopped `kopia-snapshot-all.timer` at 2026-11-08T07:02-05:00
+  and started it again at 2026-11-08T12:43:36-05:00.
+
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
 - Who checks the IDE at the cut-over stage `c28-ide-through-link`:

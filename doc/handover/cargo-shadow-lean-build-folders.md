@@ -123,6 +123,26 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
   and a child image goes with its parent in the same batch (so later ids read "image not known").
   Nothing was forced.
 
+## Timer off until the moved checkouts are checked, recorded 2026-11-08T12:43:37-05:00
+
+`cargo-shadow-lean.timer` was paused for the 860 move.
+When the coordinator enabled it again at 2026-11-08T12:43:37-05:00 it fired at once,
+although its calendar time is 04:30 and it has `Persistent=false`;
+why is not established.
+The run printed `lean run: 339 checkouts, removing`,
+and the coordinator stopped it after 44 seconds,
+because the checkouts had moved behind a link that morning and no lean run had been checked against that.
+The journal holds no removal line for that run,
+and removal lines stream as they happen since 0.1.5-alpha.6;
+the service ended with `Result=signal`.
+
+The timer is disabled again.
+Before enabling it,
+read the dry run `cargo-shadow-lean-dry-run-after-860-move` (`--dry-run --only trees`,
+in the user journal),
+confirm it keeps every live checkout's folders,
+and wait until the cut-over stages from `c22-verify-final-checksum` to `c28-ide-through-link` are recorded done.
+
 ## Incident in the build
 
 At 2026-11-07T23:19 an early debug build of `cargo-shadow lean run --only units` was started in a disposable fixture
