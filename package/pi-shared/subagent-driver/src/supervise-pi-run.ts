@@ -1,42 +1,51 @@
 /**
- One whole run: starts Pi, sends the prompt, watches the limits and the inbox until the run ends, and writes the summary.
+ One whole run: starts Pi, sends the prompt, hands the run to the watch, ends Pi, and writes the summary.
 
  @module
  */
 
 import {
-  access,
   mkdir,
-  readdir,
   readFile,
   rename,
-  unlink,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import { setTimeout as wait, } from 'node:timers/promises';
-import { ConnectionToPi, } from './connection-to-pi.ts';
+import {
+  type ConnectionToPi,
+  startConnectionToPi,
+} from './connection-to-pi.ts';
 import {
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
-  POLL_MILLISECONDS,
 } from './driver-constants.ts';
 import type {
   DriverOptions,
   EndReason,
-  PiRecord,
+  RunProgress,
   RunSummary,
 } from './driver-types.ts';
 import {
+  fieldsOf,
+  recordsIn,
+} from './read-pi-fields.ts';
+import {
   preview,
-  RecordOfPiRun,
+  startRecordOfPiRun,
 } from './record-of-pi-run.ts';
+import {
+  type WatchRequest,
+  watchUntilEnded,
+} from './watch-pi-run.ts';
 
 /**
  A driver started by a Pi that a driver runs.
  */
 export class NestedDriverError extends Error {
+  /**
+   The name printed with the message.
+   */
   override readonly name = 'NestedDriverError';
 }
 
@@ -44,6 +53,9 @@ export class NestedDriverError extends Error {
  A run that did not end on its own terms. The summary is already written.
  */
 export class PiRunEndedEarlyError extends Error {
+  /**
+   The name printed with the message.
+   */
   override readonly name = 'PiRunEndedEarlyError';
 }
 
@@ -51,23 +63,6 @@ export class PiRunEndedEarlyError extends Error {
  Reasons a run ends on its own terms.
  */
 const CLEAN_END_REASONS: ReadonlySet<EndReason> = new Set<EndReason>(['idle', 'stop-file',],);
-
-/**
- Tells whether a path exists.
-
- @param path - path to look at
-
- @returns whether it can be reached
- */
-async function exists(path: string,): Promise<boolean> {
-  try {
-    await access(path,);
-    return true;
-  }
-  catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ENOENT';
-  }
-}
 
 /**
  Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
@@ -84,7 +79,7 @@ function piCommandLine(options: DriverOptions,): readonly string[] {
     options.provider,
     '--model',
     options.model,
-    ...(options.session === null ? [] : ['--session', options.session,]),
+    ...(options.session === undefined ? [] : ['--session', options.session,]),
     ...options.piArguments,
   ];
 }
@@ -92,7 +87,9 @@ function piCommandLine(options: DriverOptions,): readonly string[] {
 /**
  Writes the summary so that a reader sees all of it or none.
 
- @param request - run folder and summary
+ @param runFolder - run's folder
+
+ @param summary - what to write
  */
 async function writeSummary({ runFolder, summary, }: { readonly runFolder: string; readonly summary: RunSummary; },): Promise<void> {
   /**
@@ -104,128 +101,42 @@ async function writeSummary({ runFolder, summary, }: { readonly runFolder: strin
 }
 
 /**
- What the loop that watches a run needs.
- */
-type WatchRequest = {
-  readonly connection: ConnectionToPi;
-  readonly record: RecordOfPiRun;
-  readonly options: DriverOptions;
-  readonly inbox: string;
-  readonly stopFile: string;
-  readonly deadline: number;
-};
+ Notes the model and commands Pi starts with, which show at a glance what the run is using.
 
-/**
- Delivers one inbox message. The file goes only once Pi has it; a refused or unanswered one stays readable under a dot name,
- which this loop skips, so it is neither lost nor sent again.
+ @param connection - running Pi
 
- @param request - watch request and file name
+ @param record - run's record
  */
-async function deliverMessage({ watch, name, }: { readonly watch: WatchRequest; readonly name: string; },): Promise<void> {
+async function noteStartingState({ connection, record, }: WatchRequest,): Promise<void> {
   /**
-   The message file.
+   Pi's state.
    */
-  const path = join(watch.inbox, name,);
+  const state = fieldsOf((await connection.send({ command: { type: 'get_state', }, },)).data,);
+  record.note({ kind: 'state', model: fieldsOf(state.model,).id, thinkingLevel: state.thinkingLevel, },);
   /**
-   The message.
+   Pi's commands.
    */
-  const text = await readFile(path, 'utf8',);
-  /**
-   How the message reaches Pi: a steer while it works, a new prompt while it rests.
-   */
-  const sentAs = watch.record.running ? 'steer' : 'prompt';
-  /**
-   Pi's answer.
-   */
-  const answer = await watch.connection.send({ command: { type: sentAs, message: text, }, },);
-  await (answer.success === true ? unlink(path,) : rename(path, join(watch.inbox, `.failed-${name}`,),));
-  watch.record.note({
-    kind: 'inbox',
-    file: name,
-    sentAs,
-    success: answer.success,
-    error: answer.error ?? null,
-    preview: preview({ value: text, length: FEED_PREVIEW_CHARACTERS.inboxMessage, },),
+  const { commands, } = fieldsOf((await connection.send({ command: { type: 'get_commands', }, },)).data,);
+  record.note({
+    kind: 'commands',
+    names: recordsIn(commands,).map(function nameOf(command,) {
+      return command.name;
+    },),
   },);
-}
-
-/**
- Looks once at every reason a run could end.
-
- @param watch - watch request
-
- @returns why the run is over, or null while it goes on
- */
-async function reasonToEnd(watch: WatchRequest,): Promise<EndReason | null> {
-  if (watch.connection.exit !== null) {
-    return 'pi-exited';
-  }
-  if (Date.now() >= watch.deadline) {
-    return 'wall-clock';
-  }
-  if (await exists(watch.stopFile,)) {
-    return 'stop-file';
-  }
-  if (watch.record.turns >= watch.options.turnCap) {
-    return 'turn-cap';
-  }
-  return null;
-}
-
-/**
- Delivers what is in the inbox, then decides whether the run has been idle long enough, until something ends it.
-
- @param watch - watch request
-
- @returns why the run ended
- */
-async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
-  for (;;) {
-    /**
-     Why the run is over, if it is.
-     */
-    const reason = await reasonToEnd(watch,);
-    if (reason !== null) {
-      return reason;
-    }
-    /**
-     Messages ready to read; a name starting with a dot is still being written, or was refused.
-     */
-    const messages = (await readdir(watch.inbox,)).filter((name,) => !name.startsWith('.',)).toSorted();
-    for (const name of messages) {
-      await deliverMessage({ watch, name, },);
-    }
-    if (
-      !watch.record.running && (watch.record.settled >= 1) && (messages.length === 0)
-      && (watch.record.silentMilliseconds > (watch.options.idleSeconds * MILLISECONDS_PER_SECOND))
-    ) {
-      return 'idle';
-    }
-    await wait(POLL_MILLISECONDS,);
-  }
-}
-
-/**
- Reads a field that holds an object.
-
- @param value - field's value
-
- @returns the object, or an empty one when field holds anything else
- */
-function fieldsOf(value: unknown,): PiRecord {
-  return ((typeof value === 'object') && (value !== null)) ? value as PiRecord : {};
 }
 
 /**
  Sends the first prompt and notes what Pi made of it.
 
- @param request - connection, record and options
+ @param connection - running Pi
 
- @returns why the run is already over, or null when it goes on
+ @param record - run's record
+
+ @param options - options of this run
+
+ @returns why the run is already over, or that it goes on
  */
-async function sendFirstPrompt(
-  { connection, record, options, }: { readonly connection: ConnectionToPi; readonly record: RecordOfPiRun; readonly options: DriverOptions; },
-): Promise<EndReason | null> {
+async function sendFirstPrompt({ connection, record, options, }: WatchRequest,): Promise<RunProgress> {
   /**
    The prompt.
    */
@@ -237,41 +148,46 @@ async function sendFirstPrompt(
   /**
    What Pi did with the prompt.
    */
-  const disposition = fieldsOf(answer.data,).disposition;
+  const { disposition, } = fieldsOf(answer.data,);
   record.note({ kind: 'prompt_sent', success: answer.success, disposition, error: answer.error ?? null, chars: prompt.length, },);
   if (disposition === 'handled') {
     record.countHandledPrompt();
   }
-  return answer.success === false ? 'prompt-rejected' : null;
+  if (answer.success !== false) {
+    return 'still-running';
+  }
+  return connection.hasExited() ? 'pi-exited' : 'prompt-rejected';
 }
 
 /**
- Notes the model and commands Pi starts with, which show at a glance what the run is using.
+ Takes a run from a started Pi to its end. A failure in the driver itself still ends in a summary and a stopped Pi.
 
- @param request - connection and record
+ @param watch - what the run needs
+
+ @returns why the run ended
  */
-async function noteStartingState(
-  { connection, record, }: { readonly connection: ConnectionToPi; readonly record: RecordOfPiRun; },
-): Promise<void> {
-  /**
-   Pi's state.
-   */
-  const state = fieldsOf((await connection.send({ command: { type: 'get_state', }, },)).data,);
-  record.note({ kind: 'state', model: fieldsOf(state.model,).id, thinkingLevel: state.thinkingLevel, },);
-  /**
-   Pi's commands.
-   */
-  const commands = fieldsOf((await connection.send({ command: { type: 'get_commands', }, },)).data,).commands;
-  record.note({
-    kind: 'commands',
-    names: Array.isArray(commands,) ? (commands as readonly PiRecord[]).map((command,) => command.name) : [],
-  },);
+async function endReasonOfRun(watch: WatchRequest,): Promise<EndReason> {
+  try {
+    await noteStartingState(watch,);
+    /**
+     Where the run stands once the prompt is sent.
+     */
+    const afterPrompt = await sendFirstPrompt(watch,);
+    return afterPrompt === 'still-running' ? await watchUntilEnded(watch,) : afterPrompt;
+  }
+  catch (error) {
+    watch.record.noteDriverFailure(String(error,),);
+    return 'driver-failed';
+  }
 }
 
 /**
- Runs Pi once and writes everything the caller reads afterwards.
+ Runs Pi once and writes everything the caller reads afterwards. `summary.json` appears last, so its presence means the feed is
+ complete and Pi has gone.
 
- @param request - options of this run and the environment Pi inherits
+ @param options - options of this run
+
+ @param environment - environment Pi inherits
 
  @returns the summary, which is also in `summary.json`
 
@@ -293,6 +209,10 @@ export async function supervisePiRun(
     );
   }
   /**
+   When the run must be over, counted from before Pi starts so that Pi's start-up is inside the limit.
+   */
+  const deadline = Date.now() + (options.wallSeconds * MILLISECONDS_PER_SECOND);
+  /**
    Where messages for Pi arrive.
    */
   const inbox = join(options.runFolder, 'inbox',);
@@ -300,60 +220,58 @@ export async function supervisePiRun(
   /**
    The run's feed and counts.
    */
-  const record = new RecordOfPiRun(join(options.runFolder, 'feed.jsonl',),);
+  const record = startRecordOfPiRun(join(options.runFolder, 'feed.jsonl',),);
   /**
    The running Pi.
    */
-  const connection: ConnectionToPi = new ConnectionToPi({
+  const connection: ConnectionToPi = startConnectionToPi({
     piArguments: piCommandLine(options,),
     workingFolder: options.workingFolder,
     environment: { ...environment, [NESTED_RUN_VARIABLE]: '1', },
     standardErrorFile: join(options.runFolder, 'stderr.log',),
     listeners: {
-      onEvent: (event,) => {
+      onEvent: function onEvent(event,) {
         record.observe({
           event,
-          declineDialog: (id,) => {
+          declineDialog: function declineDialog(id,) {
             connection.write({ type: 'extension_ui_response', id, cancelled: true, },);
           },
         },);
       },
-      onUnreadableLine: (line,) => {
+      onUnreadableLine: function onUnreadableLine(line,) {
         record.note({ kind: 'non-json', line: preview({ value: line, length: FEED_PREVIEW_CHARACTERS.unreadableLine, },), },);
       },
-      onExit: (exit,) => {
+      onExit: function onExit(exit,) {
         record.note({ kind: 'exit', ...exit, },);
       },
-      onProblem: (problem,) => {
+      onProblem: function onProblem(problem,) {
         record.note({ kind: 'problem', problem, },);
       },
     },
   },);
-  await noteStartingState({ connection, record, },);
   /**
    Why the run ended.
    */
-  const endReason = await sendFirstPrompt({ connection, record, options, },) ?? await watchUntilEnded({
-    connection,
-    record,
-    options,
-    inbox,
-    stopFile: join(options.runFolder, 'stop',),
-    deadline: Date.now() + (options.wallSeconds * MILLISECONDS_PER_SECOND),
-  },);
+  const endReason = await endReasonOfRun({ connection, record, options, inbox, deadline, },);
   /**
    Pi's own statistics, asked for while it can still answer.
    */
   const stats = await connection.send({ command: { type: 'get_session_stats', }, },);
-  if (record.running) {
+  if (record.isRunning()) {
     await connection.send({ command: { type: 'abort', }, },);
   }
+  await connection.shutDown();
+  await record.close();
   /**
    What the caller reads.
    */
-  const summary = record.summarize({ endReason, piExit: connection.exit, sessionStats: stats.data ?? stats.error ?? null, },);
+  const summary = record.summarize({
+    endReason,
+    piExit: connection.exitDetails(),
+    piHasExited: connection.hasExited(),
+    sessionStats: stats.data ?? stats.error ?? null,
+  },);
   await writeSummary({ runFolder: options.runFolder, summary, },);
-  await connection.shutDown();
   if (!CLEAN_END_REASONS.has(endReason,)) {
     throw new PiRunEndedEarlyError(
       `The Pi run ended with "${endReason}". The summary is in ${join(options.runFolder, 'summary.json',)} and Pi's standard error in ${

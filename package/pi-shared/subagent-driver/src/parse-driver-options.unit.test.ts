@@ -12,7 +12,7 @@ import {
 import {
   DriverOptionsError,
   parseDriverOptions,
-} from './parse-driver-options.ts';
+} from '../dist/final/node/index.mjs';
 
 const COMPLETE = [
   '--run-folder=/run',
@@ -44,18 +44,17 @@ function errorOf(commandLine: readonly string[],): string {
 }
 
 await describe({
-  name: 'parseDriverOptions',
+  name: parseDriverOptions.name,
   children: [
     it({
       name: 'reads a complete command line, with no session and no extra words by default',
-      fn: () => {
+      fn: async () => {
         expect(parseDriverOptions(COMPLETE,),).toEqual({
           runFolder: '/run',
           workingFolder: '/work',
           promptFile: '/prompt',
           provider: 'p',
           model: 'm',
-          session: null,
           piArguments: [],
           wallSeconds: 60,
           idleSeconds: 1.5,
@@ -65,7 +64,7 @@ await describe({
     },),
     it({
       name: 'keeps a session path with spaces and each extra word whole, in order',
-      fn: () => {
+      fn: async () => {
         const options = parseDriverOptions([...COMPLETE, '--session=/a b/c.jsonl', '--pi-argument=--x', '--pi-argument=y z',],);
         expect(options.session,).toBe('/a b/c.jsonl',);
         expect(options.piArguments,).toEqual(['--x', 'y z',],);
@@ -73,7 +72,7 @@ await describe({
     },),
     it({
       name: 'requires every limit, so a run is always bounded',
-      fn: () => {
+      fn: async () => {
         for (const name of ['wall-seconds', 'idle-seconds', 'turn-cap',]) {
           expect(errorOf(COMPLETE.filter((option,) => !option.startsWith(`--${name}`,)),),).toContain(`--${name} is required`,);
         }
@@ -81,7 +80,7 @@ await describe({
     },),
     it({
       name: 'refuses a limit that is not a number above zero',
-      fn: () => {
+      fn: async () => {
         for (const value of ['0', '-1', 'soon', 'Infinity',]) {
           expect(errorOf([...COMPLETE.filter((option,) => !option.startsWith('--wall-seconds',)), `--wall-seconds=${value}`,],),)
             .toContain('must be a number above zero',);
@@ -90,13 +89,13 @@ await describe({
     },),
     it({
       name: 'refuses an empty required value',
-      fn: () => {
+      fn: async () => {
         expect(errorOf([...COMPLETE.filter((option,) => !option.startsWith('--model',)), '--model=',],),).toContain('--model is required',);
       },
     },),
     it({
       name: 'refuses an unknown option and a stray word, showing the usage',
-      fn: () => {
+      fn: async () => {
         expect(errorOf([...COMPLETE, '--nope=1',],),).toContain('Usage:',);
         expect(errorOf([...COMPLETE, 'stray',],),).toContain('Usage:',);
       },

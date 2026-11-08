@@ -5,10 +5,7 @@
  @module
  */
 
-import {
-  type ChildProcessWithoutNullStreams,
-  spawn,
-} from 'node:child_process';
+import { spawn, } from 'node:child_process';
 import { createWriteStream, } from 'node:fs';
 import type { Readable, } from 'node:stream';
 import { pipeline, } from 'node:stream/promises';
@@ -21,11 +18,17 @@ import type {
   PiExit,
   PiRecord,
 } from './driver-types.ts';
+import { isRecord, } from './read-pi-fields.ts';
 
 /**
  The byte that ends a record. Records are split on it alone, because Unicode line separators are valid inside JSON strings.
  */
-const LINE_FEED = 0x0a;
+const LINE_FEED = 0x0A;
+
+/**
+ Stands for a line that held no record.
+ */
+const UNREADABLE_LINE: PiRecord = Object.freeze({},);
 
 /**
  What the connection tells the run about.
@@ -50,20 +53,68 @@ export type ConnectionRequest = {
   readonly environment: NodeJS.ProcessEnv;
   readonly standardErrorFile: string;
   readonly listeners: ConnectionListeners;
+
+  /**
+   How long Pi gets at each stage of ending; tests shorten it.
+   */
+  readonly graceMilliseconds?: number;
+};
+
+/**
+ A command to send and how long to wait for its answer.
+ */
+export type CommandRequest = {
+  readonly command: PiRecord;
+  readonly answerMilliseconds?: number;
+};
+
+/**
+ A running Pi.
+ */
+export type ConnectionToPi = {
+  readonly hasExited: () => boolean;
+
+  /**
+   How Pi ended, or nothing while it runs.
+   */
+  readonly exitDetails: () => PiExit;
+
+  /**
+   Writes a command with no answer to wait for.
+   */
+  readonly write: (command: PiRecord,) => void;
+
+  /**
+   Sends a command and waits for its answer, within a bound. Pi's silence or absence comes back as a failed answer.
+   */
+  readonly send: (request: CommandRequest,) => Promise<PiRecord>;
+
+  /**
+   Ends Pi: closes its input, then signals it if it stays.
+   */
+  readonly shutDown: () => Promise<void>;
 };
 
 /**
  Copies Pi's standard error to a file for as long as Pi writes it.
 
- @param request - stream, file and where to report a failure
+ @param source - Pi's standard error
+
+ @param file - file that receives it
+
+ @param onProblem - where to report a failure
 
  @example
  ```ts
- await keepStandardError({ source: child.stderr, file: 'stderr.log', onProblem: console.error, },);
+ await keepStandardError({ source: child.stderr, file: 'stderr.log', onProblem: report, },);
  ```
  */
 async function keepStandardError(
-  { source, file, onProblem, }: { readonly source: Readable; readonly file: string; readonly onProblem: (problem: string,) => void; },
+  { source, file, onProblem, }: {
+    readonly source: Readable;
+    readonly file: string;
+    readonly onProblem: (problem: string,) => void;
+  },
 ): Promise<void> {
   try {
     await pipeline(source, createWriteStream(file,),);
@@ -74,102 +125,137 @@ async function keepStandardError(
 }
 
 /**
- One running Pi and the commands waiting for its answers.
+ Finds where each record in a chunk ends.
+
+ @param chunk - bytes as they arrived
+
+ @yields offset of each line feed
+
+ @example
+ ```ts
+ const ends = [...lineEndsIn(Buffer.from('a\nb\n',),),];
+ ```
  */
-export class ConnectionToPi {
-  readonly #child: ChildProcessWithoutNullStreams;
-  readonly #listeners: ConnectionListeners;
-  readonly #waitingForAnswer = new Map<string, (answer: PiRecord,) => void>();
-  readonly #closed = Promise.withResolvers<'closed'>();
-
-  /**
-   Pieces of a record whose line has not ended yet; joined once, when it does, so a long line costs one pass.
-   */
-  #partialLine: Buffer[] = [];
-  #exit: PiExit | null = null;
-  #commandsSent = 0;
-
-  /**
-   Starts Pi.
-
-   @param request - arguments, folder, environment, file for standard error, and listeners
-
-   @example
-   ```ts
-   const connection = new ConnectionToPi(request,);
-   ```
-   */
-  constructor({ piArguments, workingFolder, environment, standardErrorFile, listeners, }: ConnectionRequest,) {
-    this.#listeners = listeners;
-    this.#child = spawn('pi', [...piArguments,], { cwd: workingFolder, stdio: ['pipe', 'pipe', 'pipe',], env: environment, },);
-    this.#child.stdout.on('data', (chunk: Buffer,) => {
-      this.#readChunk(chunk,);
-    },);
-    this.#child.stdin.on('error', (error: Error,) => {
-      listeners.onProblem(`could not write to Pi: ${error.message}`,);
-    },);
-    this.#child.on('error', (error: Error,) => {
-      if (this.#child.pid === undefined) {
-        this.#markExited({ code: null, signal: null, startError: error.message, },);
-      }
-      else {
-        listeners.onProblem(`Pi's process reported: ${error.message}`,);
-      }
-    },);
-    this.#child.on('close', (code: number | null, signal: string | null,) => {
-      this.#markExited({ code, signal, startError: null, },);
-    },);
-    void keepStandardError({ source: this.#child.stderr, file: standardErrorFile, onProblem: listeners.onProblem, },);
+function* lineEndsIn(chunk: Buffer,): Generator<number> {
+  for (let lineEnd = chunk.indexOf(LINE_FEED,); lineEnd !== -1; lineEnd = chunk.indexOf(LINE_FEED, lineEnd + 1,)) {
+    yield lineEnd;
   }
+}
 
+/**
+ Starts Pi and returns the connection to it.
+
+ @param piArguments - Pi's command line
+
+ @param workingFolder - folder Pi starts in
+
+ @param environment - Pi's environment
+
+ @param standardErrorFile - file for Pi's standard error
+
+ @param listeners - what the run wants to hear about
+
+ @param graceMilliseconds - how long Pi gets at each stage of ending
+
+ @returns the connection
+
+ @example
+ ```ts
+ const connection = startConnectionToPi(request,);
+ ```
+ */
+export function startConnectionToPi(
+  {
+    piArguments,
+    workingFolder,
+    environment,
+    standardErrorFile,
+    listeners,
+    graceMilliseconds = SHUTDOWN_GRACE_MILLISECONDS,
+  }: ConnectionRequest,
+): ConnectionToPi {
   /**
-   How Pi ended, or null while it runs.
-
-   @returns the exit, once there is one
+   The Pi process.
    */
-  get exit(): PiExit | null {
-    return this.#exit;
-  }
+  const child = spawn('pi', [...piArguments,], {
+    cwd: workingFolder,
+    stdio: ['pipe', 'pipe', 'pipe',],
+    env: environment,
+  },);
+  /**
+   The commands waiting for Pi's answers, by identifier.
+   */
+  const waitingForAnswer = new Map<string, (answer: PiRecord,) => void>();
+  /**
+   Settles once Pi is known to have gone.
+   */
+  const closed = Promise.withResolvers<'closed'>();
+  /**
+   What changes while Pi runs.
+   */
+  const state: { exit?: PiExit; commandsSent: number; partialLine: Buffer[]; } = { commandsSent: 0, partialLine: [], };
 
   /**
    Records that Pi has gone, once, and answers every command still waiting.
 
    @param exit - how Pi ended
    */
-  #markExited(exit: PiExit,): void {
-    if (this.#exit !== null) {
+  function markExited(exit: PiExit,): void {
+    if (state.exit !== undefined) {
       return;
     }
-    this.#exit = exit;
-    this.#listeners.onExit(exit,);
-    for (const answer of this.#waitingForAnswer.values()) {
+    state.exit = exit;
+    listeners.onExit(exit,);
+    for (const answer of waitingForAnswer.values()) {
       answer({ success: false, error: 'pi exited', },);
     }
-    this.#closed.resolve('closed',);
+    closed.resolve('closed',);
   }
 
   /**
-   Splits a chunk of Pi's output into records.
+   Reads how Pi ended from the process.
 
-   @param chunk - bytes as they arrived, which may end inside a record or inside a character
+   @returns the exit status or signal
    */
-  #readChunk(chunk: Buffer,): void {
-    /**
-     Where the part of the chunk not yet read starts.
-     */
-    let start = 0;
-    for (let lineEnd = chunk.indexOf(LINE_FEED,); lineEnd !== -1; lineEnd = chunk.indexOf(LINE_FEED, start,)) {
-      this.#partialLine.push(chunk.subarray(start, lineEnd,),);
+  function exitOfChild(): PiExit {
+    return {
+      ...(child.exitCode === null ? {} : { code: child.exitCode, }),
+      ...(child.signalCode === null ? {} : { signal: child.signalCode, }),
+    };
+  }
+
+  /**
+   Lets go of Pi's pipes and handle, so a process that will not end cannot keep the driver alive.
+   */
+  function releaseHandles(): void {
+    child.stdin.destroy();
+    child.stdout.destroy();
+    child.stderr.destroy();
+    child.unref();
+  }
+
+  /**
+   Parses a line.
+
+   @param line - text of one record
+
+   @returns the record, or the marker for a line that held none, after reporting it
+   */
+  function parseLine(line: string,): PiRecord {
+    try {
       /**
-       The whole line.
+       The line's value, of any shape.
        */
-      const line = Buffer.concat(this.#partialLine,).toString('utf8',);
-      this.#partialLine = [];
-      start = lineEnd + 1;
-      this.#readLine(line,);
+      const parsed: unknown = JSON.parse(line,);
+      if (isRecord(parsed,)) {
+        return parsed;
+      }
+      listeners.onUnreadableLine(line,);
+      return UNREADABLE_LINE;
     }
-    if (start < chunk.length) {
-      this.#partialLine.push(chunk.subarray(start,),);
+    catch (error) {
+      listeners.onUnreadableLine(`${line} (${String(error,)})`,);
+      return UNREADABLE_LINE;
     }
   }
 
@@ -178,80 +264,79 @@ export class ConnectionToPi {
 
    @param line - text of one record
    */
-  #readLine(line: string,): void {
+  function readLine(line: string,): void {
     if (line.trim() === '') {
       return;
     }
     /**
-     The parsed record, or undefined for a line that is not JSON.
+     The record, or the marker for a line that held none.
      */
-    const record = this.#parse(line,);
-    if (record === undefined) {
+    const record = parseLine(line,);
+    if (record === UNREADABLE_LINE) {
       return;
     }
     if ((record.type === 'response') && (typeof record.id === 'string')) {
-      this.#waitingForAnswer.get(record.id,)?.(record,);
+      waitingForAnswer.get(record.id,)?.(record,);
       return;
     }
-    this.#listeners.onEvent(record,);
+    listeners.onEvent(record,);
   }
 
   /**
-   Parses a line.
+   Splits a chunk of Pi's output into records. Pieces of an unfinished line are joined once, when it ends, so a long line costs
+   one pass.
 
-   @param line - text of one record
-
-   @returns the record, or undefined after reporting a line that is not JSON
+   @param chunk - bytes as they arrived, which may end inside a record or inside a character
    */
-  #parse(line: string,): PiRecord | undefined {
-    try {
-      return JSON.parse(line,) as PiRecord;
-    }
-    catch (error) {
-      this.#listeners.onUnreadableLine(`${line} (${String(error,)})`,);
-      return undefined;
+  function readChunk(chunk: Buffer,): void {
+    /**
+     Where the part after the last complete line starts.
+     */
+    const tailStart = [...lineEndsIn(chunk,),].reduce(function readOneLine(lineStart, lineEnd,) {
+      /**
+       The whole line.
+       */
+      const line = Buffer.concat([...state.partialLine, chunk.subarray(lineStart, lineEnd,),],).toString('utf8',);
+      state.partialLine = [];
+      readLine(line,);
+      return lineEnd + 1;
+    }, 0,);
+    if (tailStart < chunk.length) {
+      state.partialLine.push(chunk.subarray(tailStart,),);
     }
   }
 
   /**
-   Writes a command with no answer to wait for.
+   Writes a command if Pi can still read it.
+
+   @param command - record to send
+   */
+  function write(command: PiRecord,): void {
+    if (state.exit === undefined) {
+      child.stdin.write(`${JSON.stringify(command,)}\n`,);
+    }
+  }
+
+  /**
+   Sends a command and waits for its answer.
 
    @param command - record to send
 
-   @example
-   ```ts
-   connection.write({ type: 'extension_ui_response', id: 'd1', cancelled: true, },);
-   ```
-   */
-  write(command: PiRecord,): void {
-    if (this.#exit === null) {
-      this.#child.stdin.write(`${JSON.stringify(command,)}\n`,);
-    }
-  }
-
-  /**
-   Sends a command and waits for its answer, within a bound.
-
-   @param request - command and how long to wait
+   @param answerMilliseconds - longest wait
 
    @returns Pi's answer, or a failed answer when Pi has gone or stays silent
-
-   @example
-   ```ts
-   const state = await connection.send({ command: { type: 'get_state', }, },);
-   ```
    */
-  async send(
-    { command, answerMilliseconds = COMMAND_ANSWER_MILLISECONDS, }: { readonly command: PiRecord; readonly answerMilliseconds?: number; },
+  async function send(
+    { command, answerMilliseconds = COMMAND_ANSWER_MILLISECONDS, }: CommandRequest,
   ): Promise<PiRecord> {
-    if (this.#exit !== null) {
+    if (state.exit !== undefined) {
       return { success: false, error: 'pi exited', };
     }
-    this.#commandsSent += 1;
+    state.commandsSent += 1;
     /**
      The identifier that ties the answer to this command.
      */
-    const id = `driver-${String(this.#commandsSent,)}`;
+    const id = `driver-${String(state.commandsSent,)}`;
     /**
      The answer, settled by whichever comes first.
      */
@@ -259,57 +344,84 @@ export class ConnectionToPi {
     /**
      The bound on the wait.
      */
-    const timer = setTimeout(() => {
+    const timer = setTimeout(function giveUpOnAnswer() {
       answer.resolve({ success: false, error: `no answer in ${String(answerMilliseconds,)} ms`, },);
     }, answerMilliseconds,);
-    this.#waitingForAnswer.set(id, answer.resolve,);
-    this.write({ id, ...command, },);
+    waitingForAnswer.set(id, answer.resolve,);
+    write({ id, ...command, },);
     /**
      What came back.
      */
     const result = await answer.promise;
     clearTimeout(timer,);
-    this.#waitingForAnswer.delete(id,);
+    waitingForAnswer.delete(id,);
     return result;
   }
 
   /**
-   Waits for Pi to go, within a bound.
+   Waits for Pi to go, within a bound. The timer holds nothing open once Pi has gone.
 
    @returns whether Pi went in time
    */
-  async #wentWithinGrace(): Promise<boolean> {
+  async function wentWithinGrace(): Promise<boolean> {
     /**
-     Which came first; the timer holds nothing open once Pi has gone.
+     Which came first.
      */
     const outcome = await Promise.race([
-      this.#closed.promise,
-      wait(SHUTDOWN_GRACE_MILLISECONDS, 'still-running' as const, { ref: false, },),
+      closed.promise,
+      wait(graceMilliseconds, 'still-running' as const, { ref: false, },),
     ],);
     return outcome === 'closed';
   }
 
   /**
-   Ends Pi: closes its input, then signals it if it stays.
-
-   @example
-   ```ts
-   await connection.shutDown();
-   ```
+   Ends Pi, closing its input first and then signalling it if it stays.
    */
-  async shutDown(): Promise<void> {
-    if (this.#exit !== null) {
+  async function shutDown(): Promise<void> {
+    if (state.exit !== undefined) {
       return;
     }
-    this.#child.stdin.end();
-    if (await this.#wentWithinGrace()) {
+    child.stdin.end();
+    if (await wentWithinGrace()) {
       return;
     }
-    this.#child.kill('SIGTERM',);
-    if (await this.#wentWithinGrace()) {
+    child.kill('SIGTERM',);
+    if (await wentWithinGrace()) {
       return;
     }
-    this.#child.kill('SIGKILL',);
-    await this.#wentWithinGrace();
+    child.kill('SIGKILL',);
+    await wentWithinGrace();
+    releaseHandles();
   }
+
+  child.stdout.on('data', readChunk,);
+  child.stdin.on('error', function onInputError({ message, }: { readonly message: string; },) {
+    listeners.onProblem(`could not write to Pi: ${message}`,);
+  },);
+  child.on('error', function onProcessError({ message, }: { readonly message: string; },) {
+    markExited({ processError: message, },);
+  },);
+  child.on('exit', function onChildExit() {
+    // A tool Pi started can keep Pi's output open after Pi has gone, and then 'close' never comes.
+    setTimeout(function stopWaitingForOutput() {
+      releaseHandles();
+      markExited(exitOfChild(),);
+    }, graceMilliseconds,).unref();
+  },);
+  child.on('close', function onChildClose() {
+    markExited(exitOfChild(),);
+  },);
+  void keepStandardError({ source: child.stderr, file: standardErrorFile, onProblem: listeners.onProblem, },);
+
+  return {
+    hasExited: function hasExited() {
+      return state.exit !== undefined;
+    },
+    exitDetails: function exitDetails() {
+      return state.exit ?? {};
+    },
+    write,
+    send,
+    shutDown,
+  };
 }

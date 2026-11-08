@@ -17,18 +17,18 @@ export const DRIVER_USAGE =
  A command line the driver cannot use.
  */
 export class DriverOptionsError extends Error {
+  /**
+   The name printed with the message.
+   */
   override readonly name = 'DriverOptionsError';
 }
 
 /**
- Values as `parseArgs` gives them.
- */
-type ParsedValues = Readonly<Record<string, string | boolean | (string | boolean)[] | undefined>>;
-
-/**
  Reads an option that must be present.
 
- @param request - parsed values and option name
+ @param value - option's value as parsed
+
+ @param name - option's name for the message
 
  @returns option's text
 
@@ -36,14 +36,10 @@ type ParsedValues = Readonly<Record<string, string | boolean | (string | boolean
 
  @example
  ```ts
- const folder = requiredText({ values: { 'run-folder': 'x', }, name: 'run-folder', },);
+ const folder = requiredText({ value: 'x', name: 'run-folder', },);
  ```
  */
-function requiredText({ values, name, }: { readonly values: ParsedValues; readonly name: string; },): string {
-  /**
-   The value given, of any shape.
-   */
-  const value = values[name];
+function requiredText({ value, name, }: { readonly value: unknown; readonly name: string; },): string {
   if ((typeof value !== 'string') || (value === '')) {
     throw new DriverOptionsError(`--${name} is required.\nUsage: ${DRIVER_USAGE}`,);
   }
@@ -53,7 +49,9 @@ function requiredText({ values, name, }: { readonly values: ParsedValues; readon
 /**
  Reads an option that must be a number above zero.
 
- @param request - parsed values and option name
+ @param value - option's value as parsed
+
+ @param name - option's name for the message
 
  @returns option's number
 
@@ -61,22 +59,22 @@ function requiredText({ values, name, }: { readonly values: ParsedValues; readon
 
  @example
  ```ts
- const seconds = requiredPositiveNumber({ values: { 'wall-seconds': '60', }, name: 'wall-seconds', },);
+ const seconds = requiredPositiveNumber({ value: '60', name: 'wall-seconds', },);
  ```
  */
-function requiredPositiveNumber({ values, name, }: { readonly values: ParsedValues; readonly name: string; },): number {
+function requiredPositiveNumber({ value, name, }: { readonly value: unknown; readonly name: string; },): number {
   /**
    The option's text.
    */
-  const text = requiredText({ values, name, },);
+  const text = requiredText({ value, name, },);
   /**
    The option's number.
    */
-  const value = Number(text,);
-  if (!Number.isFinite(value,) || (value <= 0)) {
+  const parsed = Number(text,);
+  if (!Number.isFinite(parsed,) || (parsed <= 0)) {
     throw new DriverOptionsError(`--${name} must be a number above zero; it was "${text}".\nUsage: ${DRIVER_USAGE}`,);
   }
-  return value;
+  return parsed;
 }
 
 /**
@@ -116,16 +114,16 @@ export function parseDriverOptions(commandLine: readonly string[],): DriverOptio
       },
     },);
     return {
-      runFolder: requiredText({ values, name: 'run-folder', },),
-      workingFolder: requiredText({ values, name: 'working-folder', },),
-      promptFile: requiredText({ values, name: 'prompt-file', },),
-      provider: requiredText({ values, name: 'provider', },),
-      model: requiredText({ values, name: 'model', },),
-      session: values.session ?? null,
+      runFolder: requiredText({ value: values['run-folder'], name: 'run-folder', },),
+      workingFolder: requiredText({ value: values['working-folder'], name: 'working-folder', },),
+      promptFile: requiredText({ value: values['prompt-file'], name: 'prompt-file', },),
+      provider: requiredText({ value: values.provider, name: 'provider', },),
+      model: requiredText({ value: values.model, name: 'model', },),
+      ...(values.session === undefined ? {} : { session: values.session, }),
       piArguments: values['pi-argument'] ?? [],
-      wallSeconds: requiredPositiveNumber({ values, name: 'wall-seconds', },),
-      idleSeconds: requiredPositiveNumber({ values, name: 'idle-seconds', },),
-      turnCap: requiredPositiveNumber({ values, name: 'turn-cap', },),
+      wallSeconds: requiredPositiveNumber({ value: values['wall-seconds'], name: 'wall-seconds', },),
+      idleSeconds: requiredPositiveNumber({ value: values['idle-seconds'], name: 'idle-seconds', },),
+      turnCap: requiredPositiveNumber({ value: values['turn-cap'], name: 'turn-cap', },),
     };
   }
   catch (error) {

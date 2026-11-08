@@ -10,35 +10,39 @@
 export type PiRecord = Readonly<Record<string, unknown>>;
 
 /**
- How the Pi process ended.
+ How the Pi process ended. A field is absent when it does not apply: a signalled process has no code, and a process that could
+ not be started has neither.
  */
 export type PiExit = {
-  readonly code: number | null;
-  readonly signal: string | null;
+  readonly code?: number;
+  readonly signal?: string;
 
   /**
-   Why Pi never started, or null when it did.
+   Why the operating system refused to start or signal Pi.
    */
-  readonly startError: string | null;
+  readonly processError?: string;
 };
 
 /**
  Why a run ended. `idle` and `stop-file` are the ends a run chooses; the others fail the driver.
  */
-export type EndReason =
-  | 'idle'
-  | 'stop-file'
-  | 'prompt-rejected'
-  | 'pi-exited'
-  | 'turn-cap'
-  | 'wall-clock';
+export type EndReason = 'idle' | 'stop-file' | 'prompt-rejected' | 'pi-exited' | 'turn-cap' | 'wall-clock' | 'driver-failed';
+
+/**
+ Where a run stands: over for a reason, or still going.
+ */
+export type RunProgress = EndReason | 'still-running';
 
 /**
  What `summary.json` holds.
  */
 export type RunSummary = {
   readonly endReason: EndReason;
-  readonly piExit: PiExit | null;
+
+  /**
+   How Pi ended; absent only when Pi outlasted every signal.
+   */
+  readonly piExit?: PiExit;
   readonly totalMilliseconds: number;
   readonly turns: number;
   readonly settled: number;
@@ -51,6 +55,16 @@ export type RunSummary = {
    */
   readonly sessionStats: unknown;
   readonly lastAssistantText: string;
+
+  /**
+   Why the feed is incomplete, when writing it failed.
+   */
+  readonly feedProblem?: string;
+
+  /**
+   What went wrong in the driver itself, when `endReason` is `driver-failed`.
+   */
+  readonly driverError?: string;
 };
 
 /**
@@ -64,9 +78,9 @@ export type DriverOptions = {
   readonly model: string;
 
   /**
-   Session file to resume, or null for a new session.
+   Session file to resume; absent for a new session.
    */
-  readonly session: string | null;
+  readonly session?: string;
 
   /**
    Further arguments for Pi, each kept whole.

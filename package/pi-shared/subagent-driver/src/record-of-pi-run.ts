@@ -4,7 +4,8 @@
  @module
  */
 
-import { appendFileSync, } from 'node:fs';
+import { createWriteStream, } from 'node:fs';
+import { finished, } from 'node:stream/promises';
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import type {
   EndReason,
@@ -12,6 +13,11 @@ import type {
   PiRecord,
   RunSummary,
 } from './driver-types.ts';
+import {
+  fieldsOf,
+  recordsIn,
+  textOf,
+} from './read-pi-fields.ts';
 
 /**
  The dialog methods that wait for an answer; the other interface methods need none.
@@ -24,9 +30,69 @@ const DIALOG_METHODS: ReadonlySet<string> = new Set(['select', 'confirm', 'input
 const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set(['auto_retry_start', 'compaction_start', 'queue_update',],);
 
 /**
+ One event and how to decline a dialog so it cannot stall the session.
+ */
+export type EventObservation = {
+  readonly event: PiRecord;
+  readonly declineDialog: (id: unknown,) => void;
+};
+
+/**
+ What the summary needs from the end of the run.
+ */
+export type RunEnding = {
+  readonly endReason: EndReason;
+  readonly piExit: PiExit;
+  readonly piHasExited: boolean;
+  readonly sessionStats: unknown;
+};
+
+/**
+ The feed and the counts of one run.
+ */
+export type RecordOfPiRun = {
+  /**
+   Whether Pi is at work. Only `agent_settled` clears this: `agent_end` ends one low-level run, and retries or follow-up work can
+   still come.
+   */
+  readonly isRunning: () => boolean;
+  readonly settledCount: () => number;
+  readonly turnCount: () => number;
+
+  /**
+   How long nothing has been heard or noted.
+   */
+  readonly silentMilliseconds: () => number;
+
+  /**
+   Writes one feed line, which also counts as activity: a message just delivered must not look like a long silence.
+   */
+  readonly note: (entry: PiRecord,) => void;
+
+  /**
+   Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
+   */
+  readonly countHandledPrompt: () => void;
+
+  /**
+   Keeps what went wrong in the driver itself, for the summary.
+   */
+  readonly noteDriverFailure: (failure: string,) => void;
+  readonly observe: (observation: EventObservation,) => void;
+  readonly summarize: (ending: RunEnding,) => RunSummary;
+
+  /**
+   Finishes writing the feed.
+   */
+  readonly close: () => Promise<void>;
+};
+
+/**
  Shortens a value for a feed line, saying how long it was.
 
- @param request - value and longest text to keep
+ @param value - value to show
+
+ @param length - longest text to keep
 
  @returns the value as text, cut if long
 
@@ -44,174 +110,100 @@ export function preview({ value, length, }: { readonly value: unknown; readonly 
 }
 
 /**
- Reads a field that holds an object.
+ Joins the text parts of a message.
 
- @param value - field's value
+ @param parts - message's parts
 
- @returns the object, or an empty one when field holds anything else
+ @returns the message's text
  */
-function asRecord(value: unknown,): PiRecord {
-  return ((typeof value === 'object') && (value !== null)) ? value as PiRecord : {};
+function textOfParts(parts: readonly PiRecord[],): string {
+  return parts.filter(function isTextPart(part,) {
+    return part.type === 'text';
+  },).map(function textOfPart(part,) {
+    return textOf(part.text,);
+  },).join('\n',);
 }
 
 /**
- Reads a field that holds a list of objects.
+ Counts the characters of a message's thinking.
 
- @param value - field's value
+ @param parts - message's parts
 
- @returns the list, or an empty one when field holds anything else
+ @returns the count
  */
-function asRecordList(value: unknown,): readonly PiRecord[] {
-  return Array.isArray(value,) ? value as readonly PiRecord[] : [];
+function thinkingLengthOf(parts: readonly PiRecord[],): number {
+  return parts.filter(function isThinkingPart(part,) {
+    return part.type === 'thinking';
+  },).reduce(function addLength(sum, part,) {
+    return sum + textOf(part.thinking,).length;
+  }, 0,);
 }
 
 /**
- The feed and the counts of one run.
+ Starts the record of a run.
+
+ @param feedFile - file that receives one JSON line per noted event
+
+ @returns the record
+
+ @example
+ ```ts
+ const record = startRecordOfPiRun('feed.jsonl',);
+ ```
  */
-export class RecordOfPiRun {
-  readonly #feedFile: string;
-  readonly #startedAt = Date.now();
-  readonly #toolHistogram = new Map<string, number>();
-  readonly #toolErrors: PiRecord[] = [];
-  readonly #dialogs: PiRecord[] = [];
-  #running = false;
-  #settled = 0;
-  #turns = 0;
-  #lastActivityAt = Date.now();
-  #lastAssistantText = '';
-
+export function startRecordOfPiRun(feedFile: string,): RecordOfPiRun {
   /**
-   Starts a record.
-
-   @param feedFile - file that receives one JSON line per noted event
-
-   @example
-   ```ts
-   const record = new RecordOfPiRun('feed.jsonl',);
-   ```
+   When the run started.
    */
-  constructor(feedFile: string,) {
-    this.#feedFile = feedFile;
-  }
-
+  const startedAt = Date.now();
   /**
-   Whether Pi is at work. Only `agent_settled` clears this: `agent_end` ends one low-level run, and retries or follow-up work can
-   still come.
-
-   @returns true from `agent_start` until `agent_settled`
+   Where feed lines go.
    */
-  get running(): boolean {
-    return this.#running;
-  }
-
+  const feed = createWriteStream(feedFile, { flags: 'a', },);
   /**
-   How many times Pi has come to rest.
-
-   @returns the count, including prompts Pi handled without a run
+   How many times each tool started.
    */
-  get settled(): number {
-    return this.#settled;
-  }
-
+  const toolHistogram = new Map<string, number>();
   /**
-   How many model turns have started.
-
-   @returns the count
+   The tools that failed.
    */
-  get turns(): number {
-    return this.#turns;
-  }
-
+  const toolErrors: PiRecord[] = [];
   /**
-   How long Pi has been silent.
-
-   @returns milliseconds since the last event
+   The dialogs declined.
    */
-  get silentMilliseconds(): number {
-    return Date.now() - this.#lastActivityAt;
-  }
+  const dialogs: PiRecord[] = [];
+  /**
+   What changes during the run.
+   */
+  const state: {
+    running: boolean;
+    settled: number;
+    turns: number;
+    lastActivityAt: number;
+    lastAssistantText: string;
+    feedProblem?: string;
+    driverError?: string;
+  } = {
+    running: false,
+    settled: 0,
+    turns: 0,
+    lastActivityAt: startedAt,
+    lastAssistantText: '',
+  };
+
+  feed.on('error', function onFeedError({ message, }: { readonly message: string; },) {
+    state.feedProblem = message;
+  },);
 
   /**
    Writes one feed line.
 
    @param entry - fields of the line
-
-   @example
-   ```ts
-   record.note({ kind: 'state', model: 'x', },);
-   ```
    */
-  note(entry: PiRecord,): void {
-    appendFileSync(this.#feedFile, `${JSON.stringify({ t: Date.now() - this.#startedAt, ...entry, },)}\n`,);
-  }
-
-  /**
-   Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
-
-   @example
-   ```ts
-   record.countHandledPrompt();
-   ```
-   */
-  countHandledPrompt(): void {
-    this.#settled += 1;
-  }
-
-  /**
-   Takes in one event.
-
-   @param request - event, and how to decline a dialog so it cannot stall the session
-
-   @example
-   ```ts
-   record.observe({ event, declineDialog: (id,) => { connection.write({ id, cancelled: true, },); }, },);
-   ```
-   */
-  observe(
-    { event, declineDialog, }: { readonly event: PiRecord; readonly declineDialog: (id: unknown,) => void; },
-  ): void {
-    this.#lastActivityAt = Date.now();
-    /**
-     The kind of event.
-     */
-    const type = String(event.type,);
-    switch (type) {
-      case 'agent_start': {
-        this.#running = true;
-        return;
-      }
-      case 'agent_settled': {
-        this.#running = false;
-        this.#settled += 1;
-        this.note({ kind: 'settled', n: this.#settled, },);
-        return;
-      }
-      case 'turn_start': {
-        this.#turns += 1;
-        this.note({ kind: 'turn_start', n: this.#turns, },);
-        return;
-      }
-      case 'tool_execution_start': {
-        this.#observeToolStart(event,);
-        return;
-      }
-      case 'tool_execution_end': {
-        this.#observeToolEnd(event,);
-        return;
-      }
-      case 'message_end': {
-        this.#observeMessageEnd(event,);
-        return;
-      }
-      case 'extension_ui_request': {
-        this.#observeInterfaceRequest({ event, declineDialog, },);
-        return;
-      }
-      default: {
-        if (NOTED_EVENT_TYPES.has(type,)) {
-          this.note({ kind: type, detail: preview({ value: event, length: FEED_PREVIEW_CHARACTERS.eventDetail, },), },);
-        }
-      }
+  function note(entry: PiRecord,): void {
+    state.lastActivityAt = Date.now();
+    if (state.feedProblem === undefined) {
+      feed.write(`${JSON.stringify({ t: Date.now() - startedAt, ...entry, },)}\n`,);
     }
   }
 
@@ -220,13 +212,13 @@ export class RecordOfPiRun {
 
    @param event - `tool_execution_start` record
    */
-  #observeToolStart(event: PiRecord,): void {
+  function observeToolStart(event: PiRecord,): void {
     /**
      The tool's name.
      */
-    const tool = String(event.toolName,);
-    this.#toolHistogram.set(tool, (this.#toolHistogram.get(tool,) ?? 0) + 1,);
-    this.note({ kind: 'tool_start', tool, args: preview({ value: event.args, length: FEED_PREVIEW_CHARACTERS.toolArguments, },), },);
+    const tool = textOf(event.toolName,);
+    toolHistogram.set(tool, (toolHistogram.get(tool,) ?? 0) + 1,);
+    note({ kind: 'tool_start', tool, args: preview({ value: event.args, length: FEED_PREVIEW_CHARACTERS.toolArguments, },), },);
   }
 
   /**
@@ -234,20 +226,20 @@ export class RecordOfPiRun {
 
    @param event - `tool_execution_end` record
    */
-  #observeToolEnd(event: PiRecord,): void {
+  function observeToolEnd(event: PiRecord,): void {
     /**
      Whether the tool failed.
      */
     const isError = event.isError === true;
-    this.note({
+    note({
       kind: 'tool_end',
       tool: event.toolName,
       isError,
       result: preview({ value: event.result, length: FEED_PREVIEW_CHARACTERS.toolResult, },),
     },);
     if (isError) {
-      this.#toolErrors.push({
-        t: Date.now() - this.#startedAt,
+      toolErrors.push({
+        t: Date.now() - startedAt,
         tool: event.toolName,
         result: preview({ value: event.result, length: FEED_PREVIEW_CHARACTERS.toolError, },),
       },);
@@ -259,39 +251,38 @@ export class RecordOfPiRun {
 
    @param event - `message_end` record
    */
-  #observeMessageEnd(event: PiRecord,): void {
+  function observeMessageEnd(event: PiRecord,): void {
     /**
      The finished message.
      */
-    const message = asRecord(event.message,);
+    const message = fieldsOf(event.message,);
     if (message.role !== 'assistant') {
       return;
     }
     /**
      The message's parts.
      */
-    const parts = asRecordList(message.content,);
+    const parts = recordsIn(message.content,);
     /**
      The message's text.
      */
-    const text = parts.filter((part,) => part.type === 'text').map((part,) => String(part.text ?? '',)).join('\n',);
+    const text = textOfParts(parts,);
     /**
      The message's usage.
      */
-    const usage = asRecord(message.usage,);
+    const usage = fieldsOf(message.usage,);
     if (text !== '') {
-      this.#lastAssistantText = text;
+      state.lastAssistantText = text;
     }
-    this.note({
+    note({
       kind: 'assistant',
       stop: message.stopReason,
       text: preview({ value: text, length: FEED_PREVIEW_CHARACTERS.assistantText, },),
-      thinkingChars: parts.filter((part,) => part.type === 'thinking').reduce(
-        (sum, part,) => sum + String(part.thinking ?? '',).length,
-        0,
-      ),
-      toolCalls: parts.filter((part,) => part.type === 'toolCall').length,
-      usage: { input: usage.input, output: usage.output, cost: asRecord(usage.cost,).total, },
+      thinkingChars: thinkingLengthOf(parts,),
+      toolCalls: parts.filter(function isToolCall(part,) {
+        return part.type === 'toolCall';
+      },).length,
+      usage: { input: usage.input, output: usage.output, cost: fieldsOf(usage.cost,).total, },
       error: message.errorMessage ?? null,
     },);
   }
@@ -299,15 +290,15 @@ export class RecordOfPiRun {
   /**
    Declines a dialog, which would otherwise wait forever, and leaves the other interface requests alone.
 
-   @param request - event and how to decline
+   @param event - `extension_ui_request` record
+
+   @param declineDialog - how to decline
    */
-  #observeInterfaceRequest(
-    { event, declineDialog, }: { readonly event: PiRecord; readonly declineDialog: (id: unknown,) => void; },
-  ): void {
+  function observeInterfaceRequest({ event, declineDialog, }: EventObservation,): void {
     /**
      The interface method asked for.
      */
-    const method = String(event.method,);
+    const method = textOf(event.method,);
     if (!DIALOG_METHODS.has(method,)) {
       return;
     }
@@ -315,42 +306,103 @@ export class RecordOfPiRun {
      The dialog's title for the record.
      */
     const title = preview({ value: event.title, length: FEED_PREVIEW_CHARACTERS.dialogTitle, },);
-    this.#dialogs.push({
-      t: Date.now() - this.#startedAt,
+    dialogs.push({
+      t: Date.now() - startedAt,
       method,
       title,
       message: preview({ value: event.message, length: FEED_PREVIEW_CHARACTERS.dialogMessage, },),
     },);
-    this.note({ kind: 'dialog', method, title, },);
+    note({ kind: 'dialog', method, title, },);
     declineDialog(event.id,);
   }
 
   /**
-   Builds the summary of the finished run.
-
-   @param request - how the run ended, how Pi exited, and Pi's session statistics
-
-   @returns what `summary.json` holds
-
-   @example
-   ```ts
-   const summary = record.summarize({ endReason: 'idle', piExit: null, sessionStats: {}, },);
-   ```
+   What each kind of event changes.
    */
-  summarize(
-    { endReason, piExit, sessionStats, }: { readonly endReason: EndReason; readonly piExit: PiExit | null; readonly sessionStats: unknown; },
-  ): RunSummary {
-    return {
-      endReason,
-      piExit,
-      totalMilliseconds: Date.now() - this.#startedAt,
-      turns: this.#turns,
-      settled: this.#settled,
-      toolHistogram: Object.fromEntries(this.#toolHistogram,),
-      toolErrors: this.#toolErrors,
-      dialogs: this.#dialogs,
-      sessionStats,
-      lastAssistantText: this.#lastAssistantText,
-    };
-  }
+  const eventHandlers: ReadonlyMap<string, (observation: EventObservation,) => void> = new Map<
+    string,
+    (observation: EventObservation,) => void
+  >([
+    ['agent_start', function onAgentStart() {
+      state.running = true;
+    },],
+    ['agent_settled', function onAgentSettled() {
+      state.running = false;
+      state.settled += 1;
+      note({ kind: 'settled', n: state.settled, },);
+    },],
+    ['turn_start', function onTurnStart() {
+      state.turns += 1;
+      note({ kind: 'turn_start', n: state.turns, },);
+    },],
+    ['tool_execution_start', function onToolStart({ event, },) {
+      observeToolStart(event,);
+    },],
+    ['tool_execution_end', function onToolEnd({ event, },) {
+      observeToolEnd(event,);
+    },],
+    ['message_end', function onMessageEnd({ event, },) {
+      observeMessageEnd(event,);
+    },],
+    ['extension_ui_request', observeInterfaceRequest,],
+  ],);
+
+  return {
+    isRunning: function isRunning() {
+      return state.running;
+    },
+    settledCount: function settledCount() {
+      return state.settled;
+    },
+    turnCount: function turnCount() {
+      return state.turns;
+    },
+    silentMilliseconds: function silentMilliseconds() {
+      return Date.now() - state.lastActivityAt;
+    },
+    note,
+    countHandledPrompt: function countHandledPrompt() {
+      state.settled += 1;
+    },
+    noteDriverFailure: function noteDriverFailure(failure,) {
+      state.driverError = failure;
+      note({ kind: 'driver-failed', failure, },);
+    },
+    observe: function observe(observation,) {
+      state.lastActivityAt = Date.now();
+      /**
+       The kind of event.
+       */
+      const type = textOf(observation.event.type,);
+      if (NOTED_EVENT_TYPES.has(type,)) {
+        note({ kind: type, detail: preview({ value: observation.event, length: FEED_PREVIEW_CHARACTERS.eventDetail, },), },);
+      }
+      eventHandlers.get(type,)?.(observation,);
+    },
+    summarize: function summarize({ endReason, piExit, piHasExited, sessionStats, },) {
+      return {
+        endReason,
+        ...(piHasExited ? { piExit, } : {}),
+        totalMilliseconds: Date.now() - startedAt,
+        turns: state.turns,
+        settled: state.settled,
+        toolHistogram: Object.fromEntries(toolHistogram,),
+        toolErrors,
+        dialogs,
+        sessionStats,
+        lastAssistantText: state.lastAssistantText,
+        ...(state.feedProblem === undefined ? {} : { feedProblem: state.feedProblem, }),
+        ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
+      };
+    },
+    close: async function close() {
+      try {
+        feed.end();
+        await finished(feed,);
+      }
+      catch (error) {
+        state.feedProblem = String(error,);
+      }
+    },
+  };
 }

@@ -38,7 +38,8 @@ so a run is always bounded.
 
 - `feed.jsonl`: one line per event worth watching,
   as it happens.
-- `summary.json`: appears whole once the run has ended.
+- `summary.json`: appears whole and last,
+  so its presence means Pi has gone and the feed is complete.
 - `stderr.log`: Pi's standard error.
 - `inbox/`: drop a message here to steer the run.
   Write it under a name starting with a dot,
@@ -54,7 +55,10 @@ so a run is always bounded.
 `idle` and `stop-file` exit 0.
 `prompt-rejected`,
 `pi-exited`,
-`turn-cap` and `wall-clock` exit non-zero after writing the summary.
+`turn-cap`,
+`wall-clock` and `driver-failed` exit non-zero after writing the summary.
+`driver-failed` means the driver itself hit an error;
+the summary's `driverError` says which.
 
 A driver started by a Pi that a driver runs refuses at once,
 so agents cannot start agents without end.

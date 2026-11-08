@@ -27,10 +27,15 @@ export const POLL_MILLISECONDS = 300;
 export const COMMAND_ANSWER_MILLISECONDS = 30_000;
 
 /**
- Longest wait for Pi to leave after its input closes, and again after each signal. Pi left 19 milliseconds after its input
- closed in a real run on 2026-11-08 (`doc/agent/drive-pi-as-a-coding-subagent.md`).
+ Longest wait for Pi to leave after its input closes and again after each signal, and for its output to end once it has gone.
+ Pi left 19 milliseconds after its input closed in a real run on 2026-11-08 (`doc/agent/drive-pi-as-a-coding-subagent.md`).
  */
 export const SHUTDOWN_GRACE_MILLISECONDS = 5_000;
+
+/**
+ Name of the file that ends a run early.
+ */
+export const STOP_FILE_NAME = 'stop';
 
 /**
  Longest text of one kind kept on a feed line, carried over from the driver the recorded runs used. They bound the size of a feed
@@ -47,8 +52,3 @@ export const FEED_PREVIEW_CHARACTERS = {
   inboxMessage: 300,
   unreadableLine: 160,
 } as const;
-
-/**
- Exit status for options the driver cannot use, from `sysexits.h`.
- */
-export const EXIT_USAGE = 64;
