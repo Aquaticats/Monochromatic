@@ -35,6 +35,7 @@ use crate::worktree_path_failure_message::subject_failure;
 use crate::worktree_clean_content::ConversionEnvironment;
 pub use crate::worktree_snapshot_index_step::CopyState;
 use crate::worktree_snapshot_index_step::{install_index, read_own_index};
+use crate::worktree_snapshot_placeholders::remove_snapshot_placeholders;
 use crate::worktree_snapshot_source::SnapshotSource;
 use crate::worktree_trash::{Pruned, TrashManifest, prune_snapshot};
 use std::ffi::{OsStr, OsString};
@@ -222,14 +223,17 @@ fn remove_stub(root: &File, source_root: &Path, path: &Path, pointer: bool) -> R
 /// What:
 ///  Remove the stub that each nested worktree leaves in the snapshot,
 /// and the destination's own directory when it lies
-///  inside the source.
+///  inside the source,
+/// and then the stand-ins the snapshot holds for subvolumes no worktree names.
 /// Why:
 ///   A nested worktree that is a subvolume is an empty directory in the snapshot;
 /// the destination was made by Git before
 ///  the snapshot,
 /// so a source that contains it holds a directory with Git's `.git` file there.
 /// Neither belongs in the new
-///  worktree.
+///  worktree,
+/// and neither does the stand-in of a stage container of an add in flight
+/// (`worktree_snapshot_placeholders.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -240,7 +244,8 @@ fn remove_stubs(stage: &Path, source: &SnapshotSource, plan: &AddPlan) -> Result
     for nested in &source.nested {
         remove_stub(&root, source.root.as_path(), nested.as_path(), false)?;
     }
-    return remove_stub(&root, source.root.as_path(), plan.destination.as_path(), true);
+    remove_stub(&root, source.root.as_path(), plan.destination.as_path(), true)?;
+    return remove_snapshot_placeholders(&root, source, plan);
 }
 
 /// What:

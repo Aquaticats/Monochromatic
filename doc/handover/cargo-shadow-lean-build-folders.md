@@ -9,6 +9,21 @@ built in `package/cargo-shadow/cli` and released as cargo-shadow 0.1.5-alpha.5.
 Written 2026-11-07T23:55:00-05:00;
 the first run was still going,
 so the numbers of what it freed are in the section "First run" only as far as they were known.
+Updated 2026-11-08T15:42:45-05:00:
+what the run takes next (the cheap mechanisms first,
+the units pass last),
+the three Podman refusals the first run met,
+and what of each is still unmeasured.
+Both changes are in the sources only,
+so nothing of this is installed or released yet.
+Updated 2026-11-08T16:18:47-05:00:
+D is wired to its five producers through a new scoped entry point (`lean records`),
+and the Cargo repair without the shadow and the two open questions of the plan are measured,
+with their answers below.
+All of this is in the sources only.
+Until cargo-shadow is released and installed,
+a producing task stops at its first step,
+because the installed 0.1.5-alpha.7 lists only `lean run` and `lean timer-install`.
 
 ## State
 
@@ -57,27 +72,182 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
 ## Open
 
 - D at its producers:
-  the run-record retention runs from `cargo-shadow lean run`.
-  The producing tasks (the TypeScript runners of `package/git-policy/cli`,
-  `package/git-policy/cli.fuzz`,
-  `package/linter/monochromatic-lint`,
-  `package/linter/monochromatic-lint.fuzz` and `package/forbidden-strings/cli`) do not call it first.
+  wired on 2026-11-08 in the five producing packages,
+  and not yet released.
+  The retention still runs from `cargo-shadow lean run` over every checkout,
+  and now also from `cargo-shadow lean records <directory>...` over the directories one producing task names
+  (`package/cargo-shadow/cli/src/lean_command.rs`,
+  section "Keeping the build folders lean" of the crate README).
+  Each of these tasks runs that first,
+  over its own `target/verification`:
+  `native:test:container` and `native:mutation` of `package/git-policy/cli`,
+  `smoke` and `test:planted` of `package/git-policy/cli.fuzz`,
+  `test:container` of `package/linter/monochromatic-lint`,
+  `smoke` and `test:planted` of `package/linter/monochromatic-lint.fuzz`,
+  and `test:container` and `test:mutation:container` of `package/forbidden-strings/cli`.
   The plan assigned D to those packages;
-  the owner's answer put all six in cargo-shadow.
+  the owner's answer put all six mechanisms in cargo-shadow,
+  so the tasks call its retention rather than reimplementing it.
+  What that leaves uncovered,
+  each measured from the task files rather than assumed:
+  the linter's `test:markdown`,
+  `test:processors`,
+  `test:processors:slice`,
+  `test:inferred-constants` and `test:rust-style` write records without depending on `test:container`,
+  and so does `mutation:rust-style`;
+  `package/git-policy/cli`'s `native:mutation:scoped` and `native:mutation:planted` write
+  `native-mutation-*` records of their own,
+  as do the units `native:mutation:parallel` starts;
+  most of `package/forbidden-strings/cli`'s other container tasks write records too.
+  They wait for the coordinator to say whether the sweep belongs on each of them or in the shared runners,
+  because a producing task that a wired task starts must not sweep a second time.
+  Why a scoped entry point and not the whole pass:
+  a machine-wide dry run of the records mechanism alone measured 398 s on this host on 2026-11-08
+  (359 checkouts,
+  119 verification directories read,
+  nothing due for removal),
+  which is too much in front of every producing task.
+  Not measured:
+  what the scoped sweep costs on a package whose records are due,
+  and what each of these tasks now takes.
+  A second finding,
+  from the main checkout's five `target/verification` directories on 2026-11-08,
+  is that the retention's name list is narrower than what the producers write.
+  `lean_run_records.rs` removes only names starting `campaign-`,
+  `native-`,
+  `git-image-`,
+  `mutation-` or `planted-`.
+  So `processors-mutation-*` and `coverage-*` in `package/linter/monochromatic-lint`,
+  and every record of `package/forbidden-strings/cli`
+  (`container-`,
+  `clippy-`,
+  `guard-`,
+  `pathname-mutation-`,
+  `startup-mutation-`,
+  `release-test-`,
+  `test-`,
+  `windows-`),
+  are never swept,
+  by the daily run or by these tasks.
+  Widening that list changes which real records are removed,
+  so it is left to the coordinator and the owner.
+  A producing task that runs before the release and install stops at its first step
+  with `error: unrecognized subcommand 'records'`;
+  no producing task was run while making this change.
 - A for container builds:
   `package/ide/app/mise.toml` and `package/nested-wayland-session/cli/mise.toml` do not set the keyed folder.
   Their in-tree builds are kept lean by B and E only.
 - The Git wrapper's Cargo repair clones whichever build directory `cargo metadata` reports
   (`package/git-policy/cli/src/native/repair/package_repair_cargo_workspaces.rs`).
-  Run through the shadow that is the keyed folder on both sides;
-  run without the shadow it is Cargo's own hash folder on both sides and the next build under the shadow starts cold.
-  Not measured.
+  Measured 2026-11-08 in this worktree's `package/cargo-shadow/cli`,
+  with `cargo metadata --no-deps --locked --offline`:
+  with the shadow on `PATH` the reported `build_directory` is the keyed folder
+  `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-08/9f/66d64bfdfa2aab`
+  (929 MiB,
+  its ledger naming this worktree),
+  and with the shadow off `PATH` (the real cargo of `.cache/toolchain-bin`) it is Cargo's own hash folder
+  `/var/mnt/encrypted/cargo-build/fb/b51766dd97b6cf`,
+  which held 2.0 KiB (a `CACHEDIR.TAG` and an empty `debug/`).
+  Both sides of a worktree add are read with the same `cargo` from the person's `PATH`
+  (`read_workspace` for the worktree,
+  `cargoMetadataSource` for the source),
+  so without the shadow the repair clones a hash folder into a hash folder.
+  For this workspace the hash side held 2 KiB,
+  which is nothing to carry,
+  and only the keyed side (929 MiB) is what a shadow build reads;
+  another workspace's hash folder could hold real state,
+  which would then be carried,
+  but the shadow still reads the keyed folder.
+  So what the repair cannot do without the shadow is carry the source checkout's keyed state,
+  and no build state at all in the case measured.
+  The measurement left that 2 KiB hash folder in the real build base;
+  nothing was built into it and nothing else was touched.
+  A change would need the repair to ask for the keyed folder,
+  which means the Git wrapper carrying cargo-shadow's keying rule;
+  that crosses the boundary that keeps the rule in cargo-shadow,
+  so it is named here for the coordinator and the owner and not proposed as this branch's work.
+  The alternative,
+  carrying whichever of the two build folders holds newer state,
+  keeps the rule where it is and still needs an owner decision.
 - Containers in any state use their image:
   an image an exited container holds is kept.
   Whether exited containers should go too is a question for the owner.
-- What runs `cargo package` or `cargo publish --dry-run` about 90 times per crate,
-  and which wrapper build is installed:
-  both open questions of the plan are still open.
+- What runs `cargo package` or `cargo publish --dry-run` about 90 times per crate
+  (the plan's first open question):
+  measured,
+  and the "about 90 times per crate" figure is not reproducible as a run count.
+  What a run leaves is exact:
+  `cargo package` verifies by unpacking the crate and building it.
+  Measured 2026-11-08 in a disposable crate with `CARGO_BUILD_BUILD_DIR=<base>/{workspace-path-hash}`,
+  the same shape as this host's `~/.cargo/config.toml`:
+  it compiled
+  `<base>/75/4a9477468c27be/package/tiny-probe-0.1.0`,
+  so the unpacked copy lives inside the workspace's own build tree and no new tree is made.
+  The hash-shaped trees of the host build base hold 2,131 `package/tmp-crate` directories
+  and 6,763 unpacked crate directories over 45 distinct crate versions
+  (`find /var/mnt/encrypted/cargo-build -maxdepth 4 -mindepth 4 -type d -path '*/package/*'`);
+  25 of those versions are `monochromatic-git-policy-cli`,
+  which has 70 distinct versions in Git history and 69 release tags.
+  The order-of-magnitude figure is therefore somewhere between the versions of a crate that were packaged
+  and the trees those copies reached;
+  which of the two the "about 90" counted is not established,
+  and neither is a loop that runs 90 times.
+  The copies reach many trees because the Cargo repair clones a workspace's build tree into each new worktree,
+  which is how 25 versions became 4,165 `monochromatic-git-policy-cli-*` directories.
+  Who runs it,
+  counted in the files rather than observed in a log:
+  `.github/workflows/cargo-publish.yml` has 16 `run: cargo package` steps and 16 `run: cargo publish --dry-run` steps,
+  one of each per crate job,
+  and every one of the dry runs there passes `--no-verify`,
+  so the workflow does not verify twice;
+  `package/crate-release/cli` runs one `cargo publish --dry-run --locked --allow-dirty` per release,
+  without `--no-verify`,
+  so that one does verify;
+  and each crate has a manual `package` and `publish:dry-run` task.
+  Whether it should stop at the source is the owner's call,
+  and it has two verifies to judge:
+  the workflow's `cargo package` step and the release preflight's `cargo publish --dry-run`.
+  Both compile the packaged crate,
+  which is the check that a `--no-verify` would remove.
+  What can stop at the source without losing either check is the copy:
+  the build trees these runs fill are cloned into every new worktree by the Cargo repair,
+  and nothing skips `package/` in a tree that is cloned.
+- Which wrapper build an add uses
+  (the plan's second open question):
+  the installed and locked one,
+  `monochromatic-git-policy-cli` 0.6.1-alpha.4
+  (`toolchain.lock.json`,
+  route `archive`;
+  the launcher record `.cache/toolchain-launchers/monochromatic-git-policy-cli.launch` names
+  `.../toolchain/cargo-monochromatic-git-policy-cli/current/monochromatic-git-policy-cli-0.6.1-alpha.4-x86_64-unknown-linux-gnu/monochromatic-git-policy-cli`,
+  which is there and executable).
+  That build carries the whole copy rule:
+  the skip of `target/**/incremental`,
+  `target/verification` and the caches entered at version 0.5.14
+  (`5e773a62f4`,
+  2026-11-02)
+  and first shipped in `monochromatic-git-policy-cli-v0.5.18`.
+  The brief's 49.5 GB per add is within a percent of its listed total minus incremental state only (49.2 GB),
+  which is what a build before 0.5.18 would have written;
+  a build carrying this rule would also have left out `target/verification` (6.2 GiB),
+  so about 43 GB.
+  That subtraction compares two measurements of different things and settles nothing on its own.
+  Which build ran for that measurement is still not established;
+  what a new add uses is 0.6.1-alpha.4.
+- The proof of "not in use" has a stated limit,
+  and the scoped sweep inherits it unchanged.
+  `scan_processes` counts a process whose `/proc/<pid>/cwd` cannot be read as unreadable and does not inspect it
+  (`package/cargo-shadow/cli/src/lean_proc_scan.rs`),
+  and `blocks` consults only the uses it found,
+  so a record a process of another user holds can be removed.
+  The sweep of one package's directory printed this line on 2026-11-08:
+  426 processes read,
+  681 unreadable (other users),
+  58 in other mount namespaces judged by identity,
+  0 uses under the root.
+  The removal messages name that line as the proof,
+  so a reader can see the uncertainty;
+  whether a record held by another user's process may go is the owner's call.
 - The timer:
   `cargo-shadow lean timer-install` writes `cargo-shadow-lean.service` and `cargo-shadow-lean.timer` to
   `~/.config/systemd/user` and enables the timer.
@@ -104,24 +274,48 @@ with the real one it reads the real `build.build-dir` and sweeps the real host b
 - Every host workspace's next shadow build starts cold at once
   (the keyed folder is new),
   not per toolchain change as the plan framed it.
-- Timer starvation:
-  `lean run` goes trees,
-  units,
-  records,
+- The run's order and the three Podman refusals are fixed in the sources,
+  not released and not installed (2026-11-08,
+  branch `fix/cargo-shadow-lean-pass-order-and-podman-refusals`):
+  `lean run` takes the cheapest mechanism first and the units pass last (run records,
   toolchains,
-  Podman under one three-hour deadline.
-  The units pass did about 700 profile directories in an hour of several thousand,
-  so for the first firings it uses the deadline and Podman (which needs the whole source scan to finish) may be skipped.
-  Cheap mechanisms first,
-  or a budget per mechanism,
-  is open work.
-- Podman removed 251 of 1601 judged.
-  Three causes seen in its errors,
-  each a fix:
-  Buildah working containers are not in `podman ps --all` (it needs `--external`),
-  an image with several tags needs `rmi repository:tag`,
-  and a child image goes with its parent in the same batch (so later ids read "image not known").
-  Nothing was forced.
+  Podman,
+  idle trees,
+  then the older-compiler sweep and the size caps).
+  The order rests on the first run's timestamps:
+  2.5 minutes for records and toolchains together,
+  20.5 minutes for Podman,
+  29 minutes for the idle trees,
+  and hours for the units pass,
+  which that run stopped 40 minutes in after about 700 of several thousand profile directories.
+  A budget per mechanism is still open work;
+  today the deadline cuts the units pass,
+  and the next run starts it again at the front of the profile list.
+  Until a release and `mise run toolchain:install`,
+  the timer keeps running the installed 0.1.5-alpha.7 and its old order.
+- Podman removed 251 of 1,601 judged on the first run.
+  The three refusals its errors showed are answered in the same branch:
+  the container list asks for `--external`,
+  because a Buildah working container holds its image and is invisible to `podman ps --all`;
+  an image is asked for by every `repository:tag` it carries,
+  because `podman rmi <id>` refuses an image with more than one tag;
+  and a refusal that says `image not known` counts the image as gone.
+  Measured 2026-11-08 in a throwaway storage root (`~/temp/agent/podman-probe`,
+  podman 6.1.3,
+  buildah 1.45.1,
+  no real storage touched):
+  `ps --all --external` lists both the external and the ordinary containers,
+  `rmi <id>` refuses a two-tag image while `rmi <tag> <tag>` untags both and deletes it,
+  and removing an image also deletes an ancestor that only that image referenced,
+  which is the direction the first run's `image not known` errors came from.
+  Unmeasured:
+  how many of the 1,601 a fixed run removes,
+  and the time a per-image `podman rmi` costs against the old batches of 25.
+  Nothing is forced,
+  and no image,
+  volume,
+  container,
+  build folder or timer was touched while fixing this.
 
 ## Timer off until the moved checkouts are checked, recorded 2026-11-08T12:43:37-05:00
 
@@ -142,6 +336,22 @@ read the dry run `cargo-shadow-lean-dry-run-after-860-move` (`--dry-run --only t
 in the user journal),
 confirm it keeps every live checkout's folders,
 and wait until the cut-over stages from `c22-verify-final-checksum` to `c28-ide-through-link` are recorded done.
+
+Enabled again at 2026-11-08T16:19:00-05:00,
+before those stages finished,
+after the owner questioned the wait.
+The stages read the repository,
+and nothing in the move's sources names the build folders,
+so the wait had no reason behind it.
+The dry run read 6,923 trees,
+would remove 18 (26.31 GiB) and kept 6,905:
+each of the 18 names a source that is gone or names no workspace,
+and each is past its idle limit.
+This time enabling it started no run;
+the next is 04:30.
+It still runs the installed 0.1.5-alpha.7,
+without the fixes merged in `a5b31ab7de`,
+until the next release.
 
 ## Incident in the build
 

@@ -187,6 +187,11 @@ thread_local! {
     /// so a test can overlap other work with the start at a boundary of its own choosing.
     pub(crate) static START_HOOK: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 
+    /// A hook that runs right after the scope's launcher was spawned and before the launcher record is appended,
+    /// with the launcher's process id,
+    /// so a test can kill the wrapper inside that window.
+    static AFTER_LAUNCH_HOOK: RefCell<Option<Rc<dyn Fn(u32)>>> = const { RefCell::new(None) };
+
     /// A hook that runs right after the program has started and decides whether the completion of the startup fails:
     /// it returns
     /// `true` to make it fail,
@@ -495,6 +500,43 @@ fn current_scope() -> Option<Rc<ScopeState>> {
 #[cfg(test)]
 pub(crate) fn on_start_for_test(hook: Option<Rc<dyn Fn()>>) {
     START_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
+/// What:
+/// `pub fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>)` sets the hook that runs after the scope's launcher was spawned and
+/// before its record is appended,
+/// with the launcher's process id.
+/// Why:
+/// The wrapper's pending-launcher window is real,
+/// and a test kills a real wrapper inside it (sixth pass,
+/// group 12).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function afterLaunchForTest(hook?: (pid: number) => void): void
+/// ```
+#[cfg(test)]
+pub(crate) fn after_launch_for_test(hook: Option<Rc<dyn Fn(u32)>>) {
+    AFTER_LAUNCH_HOOK.with(|slot| { *slot.borrow_mut() = hook; });
+}
+
+/// What:
+/// `fn run_after_launch_hook(pid: u32)` runs the pending-launcher hook,
+/// if any.
+/// Why:
+/// The production build has no hook.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runAfterLaunchHook(pid: number): void
+/// ```
+pub(crate) fn run_after_launch_hook(pid: u32) {
+    #[cfg(test)]
+    if let Some(hook) = AFTER_LAUNCH_HOOK.with(|slot| { return slot.borrow().clone(); }) {
+        hook(pid);
+    }
+    #[cfg(not(test))]
+    let _ = pid;
 }
 
 /// What:

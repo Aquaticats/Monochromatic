@@ -1878,3 +1878,36 @@ fn an_update_whose_run_cannot_show_quiescence_stops_without_rollback_or_acceptan
     assert_eq!(calls.len(), 1, "cargo was asked something after the failed resolution, or never asked: {calls:?}");
     assert!(calls[0].contains("generate-lockfile") || calls[0].starts_with("update"), "the resolution never ran, so the test shows nothing: {calls:?}");
 }
+
+/// Acceptance row V5 (sixth pass,
+/// group 8,
+/// the update caller):
+/// a mandatory recovery finish failure stops the update before any work,
+/// and cargo is not asked anything.
+/// The journal of the earlier run is kept,
+/// and its snapshot is untouched.
+/// The guard at the update call site is what does this: without it the update would recover again,
+/// begin its own transaction and ask cargo,
+/// and the assertions on the journal set and the runner's calls fail.
+#[test]
+fn an_update_stops_before_any_work_when_a_mandatory_recovery_finish_fails() {
+    let world = world(&lock_with("0.9.0"), "");
+    let snapshot = crate::crates::LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "snapshot of the killed run".to_string() };
+    let journal: PathBuf = crate::journal_support::plant(world.root.path(), &[snapshot], &[]);
+    let snapshot_before: String = fs::read_to_string(journal.join("0.lock")).expect("the snapshot");
+    crate::failpoints::arm(crate::failpoints::Point::CompletionSync);
+    let cargo = FakeCargo { commands: RefCell::new(Vec::new()), resolved: lock_with("1.0.0"), fail: false };
+    let registry: FakeRegistry = FakeRegistry { histories: BTreeMap::new() };
+
+    let result = run(&world, &settings(), &cargo, &registry, false, &UpdateKind::Full);
+
+    assert!(!crate::failpoints::fires(crate::failpoints::Point::CompletionSync), "the completion barrier of the earlier run's journal was never reached");
+    let error: UpdateError = result.expect_err("an update ran on after a mandatory recovery failure");
+    assert!(error.to_string().contains("recovery of an earlier run") && error.to_string().contains("journal"), "{error}");
+    let journals: Vec<PathBuf> = crate::journal_support::journal_dirs(world.root.path());
+    assert_eq!(journals.len(), 1, "the earlier journal was removed or a new one was begun: {journals:?}");
+    // The completion rename itself succeeded; the failed parent barrier is what leaves the `.done` journal for a later run.
+    assert!(journals[0].file_name().is_some_and(|name| { return name.to_string_lossy().starts_with(journal.file_name().unwrap_or_default().to_string_lossy().as_ref()); }), "the surviving journal is not the earlier one: {journals:?}");
+    assert_eq!(fs::read_to_string(journals[0].join("0.lock")).expect("the snapshot"), snapshot_before, "the earlier journal's snapshot was changed");
+    assert!(cargo.commands.borrow().is_empty(), "cargo was asked {:?} although the earlier run's journal could not be finished", cargo.commands.borrow());
+}

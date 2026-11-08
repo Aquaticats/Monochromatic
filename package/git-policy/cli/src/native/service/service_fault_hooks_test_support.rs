@@ -40,6 +40,11 @@ pub(super) fn failing(point: &str) -> bool {
     return FAILING.with(|failing| { return failing.borrow().iter().any(|named| { return named == point; }); });
 }
 
+/// Run nothing at any point again.
+pub(crate) fn clear() {
+    HOOK.with(|hook| { *hook.borrow_mut() = None; });
+}
+
 /// Run `code` whenever the landing of this thread reaches `point`.
 pub(crate) fn set(point: &str, code: std::rc::Rc<dyn Fn()>) {
     HOOK.with(|hook| { *hook.borrow_mut() = Some((point.to_string(), code)); });

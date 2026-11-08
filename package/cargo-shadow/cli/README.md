@@ -1110,8 +1110,8 @@ caps) are in `src/lean_policy.rs`,
 each beside the measurement it rests on,
 and are coordinator picks with the owner's veto open.
 
-Six mechanisms,
-in the plan's order:
+Six mechanisms
+(the order a run takes them in is its own section below):
 
 - A,
   toolchain-keyed build folders.
@@ -1184,7 +1184,32 @@ rustup's default and overrides),
 and removes Podman images and volumes that no container uses and no current source names,
 as the user and never as root.
 A container in any state uses its image,
-so an image an exited container holds is kept.
+so an image a container holds is kept;
+that includes a Buildah working container,
+which only `podman ps --external` lists.
+An image is asked for by every tag it carries,
+because Podman refuses an image with more than one tag when it is named by its id,
+and a refusal that says the image is not known counts it as gone,
+because removing one image also removes an ancestor that only it referenced.
+
+### The order a run takes its mechanisms in
+
+One deadline covers the whole run,
+so the run takes the cheapest mechanism first and the units pass last:
+run records,
+toolchains,
+Podman,
+idle trees,
+then the older-compiler sweep and the size caps.
+Measured in the first run (2026-11-07T23:52:28-05:00 to 2026-11-08T01:24:39-05:00):
+2.5 minutes for records and toolchains together,
+20.5 minutes for Podman,
+29 minutes for the idle trees,
+and hours for the units pass,
+which reached about 700 of several thousand profile directories in 40 minutes.
+In the plan's order that pass came second and starved the Podman pass of the deadline.
+What a deadline cuts off waits for the next run;
+the units pass starts again at the front of the profile list.
 
 The proof of "not in use",
 recorded in the log line of every removal:

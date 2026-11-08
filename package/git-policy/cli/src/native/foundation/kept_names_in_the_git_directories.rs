@@ -27,8 +27,12 @@
 use crate::earlier_name_moved_to_current_in_place::{existing_kept_name, kept_name_for_use};
 /// The rename that never replaces.
 use crate::rename_that_never_replaces::rename_noreplace;
-/// The fold of a name that exists under both spellings.
-use crate::earlier_names_folded_into_current::{KeptKind, KeptName, fold_and_tell};
+/// The fold of a name that exists under both spellings,
+/// and the surroundings its look reads.
+use crate::earlier_names_folded_into_current::{FoldSurroundings, KeptKind, KeptName, fold_and_tell, fold_kept_names_and_tell};
+/// The steps a fold reports through,
+/// and the ones a command that stops for nothing uses.
+use crate::earlier_log_lines_added_to_current_log::{FoldSteps, NeverStopped};
 /// The pairs of names.
 use crate::wrapper_names_old_and_new::{
     COMMIT_TIMING_LOG, DATA_FOLDER, DISCARD_AUDIT_LOG, MERGE_INTENT_FOLDER, PUSH_TRIGGER_LOG, RenamedName, WORKTREE_ADD_TIMING_LOG,
@@ -124,14 +128,28 @@ fn move_numbered_copies(parent: &Path, name: RenamedName) {
 /// function settleKeptNames(gitDir: string, commonDir: string): void;
 /// ```
 pub fn settle_kept_names(git_dir: &Path, common_dir: &Path) {
+    settle_kept_names_within(git_dir, common_dir, &FoldSurroundings::of_this_process(), &mut NeverStopped);
+}
+
+/// What:
+///  `settle_kept_names` with the surroundings and steps given.
+/// Why:
+///   The fold's look reads a process table and a state folder,
+/// and a control must give its own so its result does not depend on the machine's services.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settleKeptNamesWithin(gitDir, commonDir, { procRoot: fixtureProc, stateDir: null }, steps);
+/// ```
+pub fn settle_kept_names_within(git_dir: &Path, common_dir: &Path, surroundings: &FoldSurroundings, steps: &mut dyn FoldSteps) {
     rename_worktree_directory_names(git_dir);
     rename_common_directory_names(common_dir);
     // The main worktree's directory is both, and its looks at the earlier program are made once.
     if git_dir == common_dir {
-        fold_and_tell(common_dir, &MAIN_DIRECTORY_FOLDS);
+        fold_kept_names_and_tell(common_dir, &MAIN_DIRECTORY_FOLDS, surroundings, steps);
     } else {
-        fold_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS);
-        fold_and_tell(common_dir, &COMMON_DIRECTORY_FOLDS);
+        fold_kept_names_and_tell(git_dir, &WORKTREE_DIRECTORY_FOLDS, surroundings, steps);
+        fold_kept_names_and_tell(common_dir, &COMMON_DIRECTORY_FOLDS, surroundings, steps);
     }
 }
 

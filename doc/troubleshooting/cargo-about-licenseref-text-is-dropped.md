@@ -66,3 +66,32 @@ Any other crate without a text stops the script.
 The 10 warnings still print on every run;
 they are expected.
 No upstream report has been filed.
+
+## The vendored copy is verbatim, and a rewrap breaks its checksum
+
+`bin/third-party-notices.mjs` then fails with
+`notices/slint-royalty-free-2.0.md does not match the checksum recorded in this script; review it first`
+whenever the vendored file's bytes differ from the SHA-256 it pins,
+and the neighbouring check fails with `<crate> does not ship <file> with the vendored license text` when a Slint
+crate's own copy differs from the vendored one.
+The message naming a crate can only report an upstream change;
+the message naming the vendored file can also report a change made here.
+
+The Markdown whitespace fixer did exactly that twice,
+through the `markdown/semantic-line-breaks` rule of
+`mise run format:monochromatic-lint`.
+It reflowed the file in 5513294572 and again in 2f369455ca on 2026-11-07;
+5b9e9be057 had restored the bytes in between,
+and the `notices` job of the release dry run 42448767356 failed on the second reflow.
+The license itself did not change:
+every Slint 1.18.1 crate still ships the file with
+SHA-256 `5167f5056e850419106ab6265efbdca7cba4d99c849d1445ca0bbf6a1e2315fe`.
+Pinning the constant to a reflowed copy would therefore fail the check that compares each crate's file with it.
+
+The root `monochromatic-lint.config.jsonc` therefore exempts
+`package/music-player/desktop-app/notices/` from `markdown/semantic-line-breaks` alone.
+Every other Markdown rule still judges those files,
+and the checksum stays the check that protects them.
+A reflowed copy is restored from the revision that had the plain bytes
+(`git checkout 5b9e9be057 -- package/music-player/desktop-app/notices/slint-royalty-free-2.0.md`);
+changing the constant is not the fix.

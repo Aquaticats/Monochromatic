@@ -8,12 +8,13 @@
 //! and the swap leaves the stage name holding what Git made.
 
 use super::*;
+use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::fs_kind::is_subvolume_root;
 use crate::repo_read_index::parse_index;
 use crate::repo_read_layout::ObjectFormat;
 use crate::test_support::{age, git, git_context, remove};
-use crate::worktree_ladder_test_support::{main_identity, plan_to, subvolume_repository};
+use crate::worktree_ladder_test_support::{commit_all, main_identity, plan_to, subvolume_repository, tracked};
 use crate::worktree_snapshot_source::choose_snapshot_source;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
@@ -430,5 +431,105 @@ fn btrfs_the_stage_a_snapshot_made_is_identified_even_when_the_snapshot_fails() 
     let stage_two: PathBuf = root.join(".cli-git-worktree-copy-test-two");
     let made: ObjectId = take_snapshot(&source, &plan, stage_two.as_path(), &held, pointer.as_slice(), &crate::fixture_content_decision::content_environment()).expect("snapshot").stage;
     assert_eq!(made, id_of_directory(stage_two.as_path()));
+    remove(root.as_path());
+}
+
+/// The names of the inode-2 directories a held folder lists:
+/// what btrfs shows at an entry naming a subvolume a snapshot does not carry.
+fn placeholder_names(directory: &File) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for entry in std::fs::read_dir(crate::fs_beneath::handle_path(directory)).expect("listing") {
+        let listed: std::fs::DirEntry = entry.expect("a listed entry");
+        let found: std::fs::Metadata = listed.metadata().expect("metadata of a listed entry");
+        if found.is_dir() && found.ino() == 2 {
+            names.push(listed.file_name().to_string_lossy().into_owned());
+        }
+    }
+    names.sort();
+    return names;
+}
+
+/// Git's own `--no-checkout` worktree at a destination of the caller's choosing,
+/// with its administrative directory and its pointer.
+fn no_checkout_worktree_at(repo: &Path, destination: &Path) -> (PathBuf, PathBuf, Vec<u8>) {
+    let name: String = destination.file_name().expect("a name").to_string_lossy().into_owned();
+    let arguments: Vec<String> = vec![String::from("worktree"), String::from("add"), String::from("--quiet"), String::from("--no-checkout"), String::from("-b"), name.clone(), destination.to_string_lossy().into_owned()];
+    git(repo, arguments.as_slice());
+    let pointer: Vec<u8> = std::fs::read(destination.join(".git")).expect("pointer");
+    let admin: PathBuf = repo.join(".git/worktrees").join(name);
+    return (destination.to_path_buf(), admin, pointer);
+}
+
+/// A minimal source whose worktrees folder is ignored and already holds two stage containers of adds in flight,
+///  each a subvolume of its own.
+/// Why:
+///   the rung pays one btrfs transaction commit for each snapshot it takes:
+/// that commit is the whole cost of a control like this one,
+/// so the fixture keeps one tracked file and one commit of its own.
+/// A stage is an empty subvolume because the snapshot carries a stand-in for every nested subvolume,
+/// whatever that subvolume holds.
+fn source_with_staging_adds(root: &Path) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = root.join("repo");
+    subvolume_create_at(repo.as_path()).expect("repository subvolume");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    tracked(repo.as_path(), ".gitignore", b"ignored/\n.claude/\n");
+    tracked(repo.as_path(), "tracked.txt", b"tracked\n");
+    commit_all(repo.as_path(), "first");
+    let worktrees: PathBuf = repo.join(".claude/worktrees");
+    std::fs::create_dir_all(worktrees.as_path()).expect("the worktrees folder");
+    for name in [".cli-git-worktree-copy-third", ".cli-git-worktree-copy-fourth"] {
+        subvolume_create_at(worktrees.join(name).as_path()).expect("a stage of an add in flight");
+    }
+    return (repo, worktrees);
+}
+
+/// A snapshot of a source whose worktrees folder holds stages of adds in flight carries no stand-in for them,
+/// and keeps
+///  the stand-in of a subvolume no worktree names,
+/// with that subvolume's files where they were.
+#[test]
+fn btrfs_a_snapshot_removes_the_stand_ins_of_stages_and_keeps_the_one_no_worktree_names() {
+    let Some(root) = btrfs_fixture("snapshot-stage-placeholder") else { return };
+    let (repo, worktrees) = source_with_staging_adds(root.as_path());
+    // A subvolume no worktree names, in a folder that holds no worktree:
+    // the snapshot carries a stand-in for it and none of
+    // its files.
+    let outside: PathBuf = repo.join(".claude/stages/.cli-git-worktree-copy-outside");
+    std::fs::create_dir_all(outside.parent().expect("parent")).expect("the folder that holds it");
+    subvolume_create_at(outside.as_path()).expect("a subvolume in a folder that holds no worktree");
+    std::fs::write(outside.join("kept.bin"), b"data the snapshot never carries").expect("a file on the subvolume");
+    let (destination, admin, pointer) = no_checkout_worktree_at(repo.as_path(), worktrees.join("topic").as_path());
+    let plan: AddPlan = plan_to(destination);
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
+    let stage: PathBuf = worktrees.join(".cli-git-worktree-copy-topic");
+    take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect("snapshot");
+    let staged: File = open_root(stage.join(".claude/worktrees").as_path()).expect("the snapshot's worktrees folder");
+    assert_eq!(placeholder_names(&staged), Vec::<String>::new(), "the new worktree carries no stand-in for a stage it does not hold");
+    let kept: File = open_root(stage.join(".claude/stages").as_path()).expect("the snapshot's stages folder");
+    assert_eq!(placeholder_names(&kept), vec![String::from(".cli-git-worktree-copy-outside")], "a stand-in no worktree names stays");
+    assert_eq!(std::fs::read(outside.join("kept.bin")).expect("the data in the source"), b"data the snapshot never carries");
+    remove(root.as_path());
+}
+
+/// The parent of a registered worktree is listed even when the destination lies outside the source:
+/// the stand-ins of
+///  stages in flight below that parent go,
+/// and the destination is no folder of the snapshot.
+#[test]
+fn btrfs_a_stage_below_a_registered_worktrees_parent_goes_with_the_destination_outside_the_source() {
+    let Some(root) = btrfs_fixture("snapshot-placeholder-registered-parent") else { return };
+    let (repo, worktrees) = source_with_staging_adds(root.as_path());
+    // One worktree registered inside the source, whose parent is the worktrees folder,
+    // and a destination beside the source.
+    let (own_root, _own_admin, _own_pointer) = no_checkout_worktree_at(repo.as_path(), worktrees.join("own").as_path());
+    assert!(own_root.starts_with(repo.as_path()), "the worktree lies inside the source");
+    let (destination, admin, pointer) = no_checkout_worktree_at(repo.as_path(), root.join("topic").as_path());
+    assert!(!destination.starts_with(repo.as_path()), "the destination lies outside the source");
+    let plan: AddPlan = plan_to(destination);
+    let source: SnapshotSource = choose_snapshot_source(&git_context(), &main_identity(repo.as_path()), &plan).expect("a source");
+    let stage: PathBuf = root.join(".cli-git-worktree-copy-topic");
+    take(&source, &plan, stage.as_path(), admin.as_path(), pointer.as_slice()).expect("snapshot");
+    let staged: File = open_root(stage.join(".claude/worktrees").as_path()).expect("the snapshot's worktrees folder");
+    assert_eq!(placeholder_names(&staged), Vec::<String>::new(), "the stand-ins below the registered worktree's parent go");
     remove(root.as_path());
 }
