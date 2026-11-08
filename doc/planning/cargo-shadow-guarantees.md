@@ -384,7 +384,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   `the_kept_files_warning_point_is_exact_and_repeated_runs_agree`,
   `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning`.
 - **K2.**
-  A kept copy's directory entries are durable when preservation reports success (assumption b below).
+  A kept copy's directory entries are durable when preservation reports success (assumption b).
   Test:
   `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
   `a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable`,
@@ -467,7 +467,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   `write`,
   `fsync`,
   `rename`) have no deadline of their own;
-  they are covered by the progress assumption d below,
+  they are covered by the progress assumption d,
   which mirrors the owner's "Assume the final disk save would never be cut
   short."
   Test:

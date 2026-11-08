@@ -265,7 +265,8 @@ pre-existing local drift in
 - `package/linter/monochromatic-lint.fuzz/Cargo.toml`
 - `package/mpm-shadow/cli/Cargo.toml`
 
-For the other crates the pin sets below come from the `cargo metadata` graph and the same rule,
+For the other crates the pin sets in the `Pins that move when a dependency gets its new version` section
+come from the `cargo metadata` graph and the same rule,
 not from a second
 `file-enforcer check` (`file-enforcer write` was never run):
 
@@ -1034,7 +1035,7 @@ do not publish a fix.
 
 ### Steps
 
-1.  Preparatory steps above.
+1.  The `Preparatory steps` section.
 2.  Dry run of the leaf that is most likely to break:
     `gh workflow run cargo-publish.yml --ref main
     -f crate=monochromatic-nested-wayland-session -f dry-run=true`,

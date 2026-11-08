@@ -331,7 +331,7 @@ and where the text is.
     `btrfs device add` refuses a device that holds a filesystem unless forced
     (`btrfs-device(8)`:
     "A device with existing filesystem detected by blkid ... will prevent device addition and has to be forced").
-    Option D below is corrected.
+    Option D is corrected.
 
 [claude-mcp]: https://code.claude.com/docs/en/mcp
 
@@ -1409,7 +1409,7 @@ the mounted 860,
 with no `i` flag.
 
 Whether a mount can be placed over an immutable directory is proven before any login depends on it,
-in the loop-file test F7 below.
+in the loop-file test F7.
 The next login then repeats the proof with the real mount:
 `mount-860.service` mounts at login and notifies on failure.
 If the real mount fails with the flag set,
@@ -2475,7 +2475,7 @@ so nothing is discarded.
 The table exists for two checks:
 any row with an unfinished operation or a held `index.lock` is settled by its owner before the freeze,
 and the table taken on the staged tree must equal this one byte for byte (the paths are equal because the
-verification below runs under a bind mount).
+verification in the `Verification of the real copy` section runs under a bind mount).
 
 Measured scan before the freeze was designed,
 run from 2026-11-07T06:15:00-05:00 to 2026-11-07T06:26:00-05:00 in a bounded scope with the first version of the script

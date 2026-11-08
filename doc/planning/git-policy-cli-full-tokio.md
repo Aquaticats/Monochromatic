@@ -1874,7 +1874,7 @@ so no step waits for the layout moves.
   `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
 - Linux calls (`rustix`):
   started with `getrlimit` and the pidfd;
-  the file calls move with the safe-file-saving replacement below.
+  the file calls move with the safe-file-saving replacement in the `Safe file saving` section.
 
 ### Step T4, children without a blocking wait (partly)
 
@@ -2090,7 +2090,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
      `tempfile-v2.56.0.c` (tag `v2.56.0`).
 - The index lock without links,
   branch `fix/git-policy-cli-index-lock-without-links`:
-  item 2 above is built.
+  item 2 of the coordinator's settlements is built.
   `907416dba7` is the red test
   (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`:
   `EOPNOTSUPP` on `link`,
@@ -2543,7 +2543,8 @@ Neither is a T5 regression.
   as a process held in a stalled disk call does,
   or one that the
   scheduler did not run (this host once took 6.03 s of wall time for a check and a rename,
-  section c above;
+  section c under the heading
+  `The coordinator's three settlements after T5, 2026-11-07T10:20:00-05:00 to 2026-11-07T11:10:00-05:00`;
   whether disk or scheduler is not measured).
   A load of 70 on the gate's few CPUs is the trigger;
   the cause is the escalation
@@ -3945,7 +3946,8 @@ the shutdown now writes its one line without waiting (`send_without_waiting`).
 
 #### Owner answer of 2026-11-08 and what it changed
 
-The coordinator put the first judgment call below to the owner (question tool,
+The coordinator put the first judgment call in the `Judgment calls open to the owner's veto` section
+to the owner (question tool,
 verbatim answer "B:
 let a branch write finish (Recommended)").
 The option read:
@@ -4015,7 +4017,7 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
 
 #### Judgment calls open to the owner's veto
 
-- Superseded on 2026-11-08 by the owner's answer above:
+- Superseded on 2026-11-08 by the owner's answer in the `Owner answer of 2026-11-08 and what it changed` section:
   a stop ends a branch write too (the landing's `Unbounded` step),
   with `SIGTERM` first,
   the kill after `STOP_GRACE`,
@@ -4592,7 +4594,7 @@ The owner's answer to choice 6 says a signal reaches only the children of the op
 and that a stop of the service is an operation of its own.
 Before T7 a commit prepared inside the service swapped the service's stop handler for the length of the Git step,
 so a stop of the service reached that one Git (and the service went on running).
-T7 builds the owner's rule literally (option A below),
+T7 builds the owner's rule literally (option A),
 which leaves that Git running when the service is stopped.
 
 - A.

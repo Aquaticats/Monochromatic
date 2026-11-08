@@ -197,7 +197,9 @@ and that names the rule identifiers to disable
 (Verified:
  `file-enforcer.config.ts:1307-1367`).
 Only the destination is a fact about the user's machine.
-That split is the hinge of the whole design and recurs in every question below.
+That split is the hinge of the whole design and recurs in every question
+in the `Question 1: discovery` to `Question 5: multiple repositories and multiple daemons` sections
+and in the `Questions for the user` section.
 
 ## Comparable tools, measured
 

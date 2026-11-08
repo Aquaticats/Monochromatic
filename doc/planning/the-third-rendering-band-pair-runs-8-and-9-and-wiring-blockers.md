@@ -393,7 +393,7 @@ and `keyword233#0` in run 8.
 All three ship 198 or 221 characters against a standing text of the same length,
 and once wrapped they are the standing text exactly.
 
-So measurement one above overstates.
+So measurement one overstates.
 The roster backed a consolidation carrying a real content change
 at 9 of 11 decided slices in run 8,
 not 11 of 11,

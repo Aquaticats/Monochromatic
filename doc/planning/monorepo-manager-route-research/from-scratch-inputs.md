@@ -1837,7 +1837,8 @@ Commands that need root are marked `sudo`.
   Reason:
   freezer,
   kill,
-  and delegation files used below are v2 interfaces (`SRC/linux/cgroup-v2.rst:1025-1064`,
+  and the delegation files in the `Sandbox (required: at least cgroups)` section are v2 interfaces
+  (`SRC/linux/cgroup-v2.rst:1025-1064`,
   `:537-590`).
 - **Daemon runs in a delegated cgroup.**
   Detect:

@@ -1101,7 +1101,7 @@ the record).
   because a found wrapper that cannot run Git is the failure the owner's rules name,
   and the notice keeps the cause visible;
   the stop is the safer reading if the owner wants `PATH` mistakes loud.
-- A record that survives logout (option B above).
+- A record that survives logout (option B).
   Ranking:
   leave as built > build B,
   because B adds state and a cost on

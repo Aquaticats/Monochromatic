@@ -34,7 +34,7 @@ Every mention of the `Dockerfile` in this document describes the file as it stoo
 not a current file or instruction;
 `playwright.Dockerfile` and the package Containerfiles stay.
 
-Verbs renamed 2026-10-31 (after the "Rehearsal" runs below,
+Verbs renamed 2026-10-31 (after the "Rehearsal" runs,
 which used the old ones):
 the owner remarked "Wait,
 pnpm doesn't have a "sync" keyword.",

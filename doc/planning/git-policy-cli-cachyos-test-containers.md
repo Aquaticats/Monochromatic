@@ -114,7 +114,8 @@ B beats C because C is excluded by the owner's directive while B only costs spee
 
 ## Owner decisions of 2026-11-04
 
-Asked to veto the picks above (Git 2.56.0 built from source in the gate image,
+Asked to veto the picks in the `Picks (agent's pick, veto open)` section
+(Git 2.56.0 built from source in the gate image,
 Rust from pacman,
 Node 24.11.0 from the
 upstream tarball,

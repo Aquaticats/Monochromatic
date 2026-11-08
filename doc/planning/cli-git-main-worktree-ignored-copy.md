@@ -822,7 +822,9 @@ which its author measured at 2.43 s for a whole main-checkout add.
   and the nested count
   is 48
   ordinary and 91 subvolume worktrees instead of 4 and 4;
-  per-worktree figures below are multiplied for that,
+  per-worktree figures in the
+  `Measured costs (three rounds, shuffled, a same-command control, one-minute load 2.1 to 6.0)`
+  section are multiplied for that,
   and
   marked.
 

@@ -6,7 +6,7 @@ the proposal for keeping it latest was answered by the owner (move anyway,
 fix forward;
 update everything daily)
 and is carried out in [`toolchain-always-latest.md`](toolchain-always-latest.md),
-which supersedes the proposal and the open question below.
+which supersedes the proposal and the open question in the `Proposal: keeping the nightly latest` section.
 The failure branch of "move anyway" (a fix-forward issue per newly failing package,
 found by checking every package
 before and after the update) is built and described in that note,
@@ -21,7 +21,8 @@ verbatim):
 This note takes the rule at its plain meaning:
 the `rust` row of `toolchain.lock.json` follows the newest published nightly,
 and a person or a job moves it without being asked.
-Whether "latest" tolerates a short lag when the newest nightly breaks a package is the one open question below.
+Whether "latest" tolerates a short lag when the newest nightly breaks a package is the one open question
+in the `Proposal: keeping the nightly latest` section.
 
 ## What was found before the move
 
