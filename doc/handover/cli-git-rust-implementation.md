@@ -7794,6 +7794,17 @@ though nothing conflicted.
   Both ways of building the index now leave a debug line (`initializeCommitIndex`,
   `initializeRetryIndex`) saying whether the stat data was kept;
   a trace of the next slow first build is still wanted.
+  Gap found 2026-11-08:
+  those lines are written only when `MONOCHROMATIC_VERBOSE` is set (`foundation/diagnostic_log.rs`),
+  which nothing sets in normal use,
+  and the journal since 01:00 that day holds none of them,
+  so the wanted trace is never collected.
+  Queued after the move to the 860:
+  the commit timing record gains whether each index build kept the stat data
+  (the record is written on every commit).
+  Since 0.6.1-alpha.4 no commit of the main checkout has had a build over 20 s
+  (the record's largest since then is under that;
+  the 26,396 ms build at 05:49:59Z ran on the earlier release).
 - The count of five builds is gone:
   a commit whose branch moved is built again until `MOVED_BRANCH_REBUILD_CEILING` (`ANSWER_CEILING`,
   20 minutes,
