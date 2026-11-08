@@ -4108,7 +4108,7 @@ so its ceiling is the metadata part of `repairCargo`,
 hidden only as far as the snapshot lasts (median 360 ms in the fixture's add records,
 162 and 4115 ms in the real repository's records of 2026-11-08);
 overlap
-`repairPnpm` and `repairCargo` with the trash disposal (the item above):
+`repairPnpm` and `repairCargo` with the trash disposal (the overlap that landed):
 that is the first item of the `Done` list in this section;
 it took a median 4504 ms off the critical path;
 a per-workspace snapshot of the build
