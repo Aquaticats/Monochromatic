@@ -4,11 +4,9 @@
  @module
  */
 
-import type {
-  Tool,
-  TSchema,
-} from '@earendil-works/pi-ai';
+import type { Tool, } from '@earendil-works/pi-ai';
 import type { StructuredReviewPrompt, } from '@monochromatic-dev/pi-shared-model-review/ts';
+import type { TSchema, } from 'typebox';
 
 import {
   ESTIMATED_CHARACTERS_PER_TOKEN,
