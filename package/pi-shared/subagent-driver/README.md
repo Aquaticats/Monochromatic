@@ -15,24 +15,33 @@ Evidence for how Pi behaves is in `doc/agent/drive-pi-as-a-coding-subagent.md`.
 `drive-pi-subagent` takes these options,
 each written as `--name=value`:
 
-- `--run-folder`: the folder this run writes to.
+- `--run-folder`:
+  the folder this run writes to.
   Use a new one for each run.
-- `--working-folder`: the folder Pi starts in.
-- `--prompt-file`: the first prompt.
-- `--provider` and `--model`: what Pi runs on.
-- `--wall-seconds`: how long the run may last.
+- `--working-folder`:
+  the folder Pi starts in.
+- `--prompt-file`:
+  the first prompt.
+- `--provider` and `--model`:
+  what Pi runs on.
+- `--wall-seconds`:
+  how long the run may last.
   It bounds Pi's start-up,
   every answer the driver waits for,
   and the watch,
   so a Pi that never answers still ends at this limit.
   A value whose milliseconds would be infinite is refused,
   because a deadline of `Infinity` is no deadline.
-- `--idle-seconds`: how long the driver stays up for a steering message after Pi comes to rest.
-- `--turn-cap`: how many model turns the run may start.
-- `--session`: a session file to resume.
+- `--idle-seconds`:
+  how long the driver stays up for a steering message after Pi comes to rest.
+- `--turn-cap`:
+  how many model turns the run may start.
+- `--session`:
+  a session file to resume.
   It stays one argument,
   so a path holding spaces is safe.
-- `--pi-argument`: one more word for Pi's command line.
+- `--pi-argument`:
+  one more word for Pi's command line.
   Repeat it for more words.
 
 The first eight options are required,
@@ -48,16 +57,20 @@ so a run ends even when Pi answers nothing at the end.
 
 ## Files a run writes
 
-- `feed.jsonl`: one line per event worth watching,
+- `feed.jsonl`:
+  one line per event worth watching,
   as it happens.
-- `summary.json`: appears whole and last,
+- `summary.json`:
+  appears whole and last,
   so its presence means the driver has finished.
   `piExit` is there only when Pi's exit was seen,
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   and `modelError` carries what the model said when the run ended on it.
-- `stderr.log`: Pi's standard error.
-- `inbox/`: drop a message here to steer the run.
+- `stderr.log`:
+  Pi's standard error.
+- `inbox/`:
+  drop a message here to steer the run.
   Write it under a name starting with a dot,
   then rename it to one without the dot,
   because any other name is read at once.
@@ -69,7 +82,54 @@ so a run ends even when Pi answers nothing at the end.
   so no kept message replaces another.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
-- `stop`: create this file to end the run early.
+- `stop`:
+  create this file to end the run early.
+
+## What Pi's environment holds
+
+Pi hands every command of its `bash` tool the whole of its own environment,
+so one `env` dump prints whatever the driver inherited,
+and everything a command prints reaches a model provider.
+The driver therefore hands Pi its own environment with every variable whose name holds
+`TOKEN`,
+`SECRET`,
+`KEY`,
+`PASSWORD`,
+`CREDENTIAL` or
+`AUTH` removed,
+and notes the names it removed as the feed's `environment` line,
+which carries names and never a value.
+
+The rule fails closed:
+a credential nobody listed yet is removed too,
+and the only way back is the allow list in `src/environment-without-credentials.ts`,
+where each entry states what breaks without it.
+The list holds `XAUTHORITY`:
+the X server cookie file a browser check reads,
+where `xrandr --query` exits 0 with the variable and exits 1 with
+`Authorization required, but no authorization protocol specified` without it.
+
+The rule costs the names whose own tools were shown to manage without them:
+`SSH_AUTH_SOCK`,
+`ICEAUTHORITY` and
+`STARSHIP_SESSION_KEY` all match and all go.
+`gh` reads its token from the keyring,
+a push reaches that keyring through the configured `gh auth git-credential` helper,
+commit signing here signs with the key file (a throwaway commit signed with and without `SSH_AUTH_SOCK`),
+and `mise` keeps a GitHub token in its own store
+(`github.credential_command` or `mise token github`) rather than in the environment.
+
+A provider credential still reaches Pi,
+which is why no provider key is on the allow list:
+a stored credential owns the provider,
+so pi-ai reads an environment variable only when `auth.json` holds nothing
+(`dist/auth/resolve.js` in Pi 1.5.0),
+and the neuralwatt plugin reads its encrypted store before the environment
+(`package/pi-plugin/neuralwatt/src/credential.ts`).
+A run whose provider key exists only in the environment now fails to authenticate:
+store it with `/login`,
+which writes `auth.json`,
+or in the provider's own store.
 
 ## How a run ends
 
