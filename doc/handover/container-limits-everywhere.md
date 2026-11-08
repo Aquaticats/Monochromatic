@@ -236,21 +236,26 @@ Passed: lint, types and tests of `container-limit-core`, `vm-builder-cli`, `mono
 `config-pnpr`; `test:bin` of `ide/app`; `lint:scripts:types` of `browserslist-core-rust`, `forbidden-strings-cli`,
 `monochromatic-lint`; `lint:types` of `git-policy-cli` (read only).
 
-Failures that this branch did not cause:
-- `mutation-test-cli-cargo-mutants` `test:unit`: the product golden `linter-semantic` (and `linter-reject-unknown-scope`)
-  lists `src/rust_file_engine_syntax.rs` among the semantic scope's files, which `package/linter/monochromatic-lint/bin/mutation-scopes.ts`
-  no longer emits there (commits `00bb13db2c` and `40e24c8cda` came after golden commit `a49dd27a52`).
-  The branch changes no file of the linter and no argument list of a golden.
-  The timing test `acquireCampaignLock refuses at once` measured 15268 ms against a 5000 ms bound inside the suite run
-  and passed when `campaign-lock.unit.test.ts` ran alone: a contention or ordering defect until measured otherwise,
-  cause not measured.
+Failures that this branch did not cause (rerun on the tree after `main` was merged in at 2026-11-08T04:25-05:00;
+`git diff main HEAD` over `package/mutation-test/cli-cargo-mutants/src/golden`,
+`package/linter/monochromatic-lint/bin/mutation-scopes.ts` and `package/config/pnpr/config.yaml` is empty, so the
+branch changes none of the inputs these tests compare):
+- `mutation-test-cli-cargo-mutants` `test:unit`: four product goldens (`linter-semantic`, `linter-reject-unknown-scope`,
+  `linter-reject-two-scopes`, `linter-coverage`) list `src/rust_file_engine_syntax.rs` among the semantic scope's files,
+  which `package/linter/monochromatic-lint/bin/mutation-scopes.ts` no longer emits there (commits `00bb13db2c` and
+  `40e24c8cda` came after golden commit `a49dd27a52`).
+  The timing test `acquireCampaignLock refuses at once` measured 15268 ms against a 5000 ms bound inside the first suite
+  run, and passed in the rerun and when `campaign-lock.unit.test.ts` ran alone: a contention or ordering defect until
+  measured otherwise, cause not measured.
 - `config-pnpr` `test:unit`: three `real workspace` tests fail because the checked-in `config.yaml` lacks
   `@monochromatic-dev/repository-link-check` and `@monochromatic-dev/repository-move-cli` (171 published names, file
   holds 169); `container-limit-core` is not among them.
 - `mutation-test-cli` `lint`: two errors and six warnings in `src/host/shards.ts`, `src/host/selection.ts` and
   `src/scratch-parent.ts`, files this branch does not touch.
-- `monorepo-task-core-exec` `lint:parse` reads changed files, including the deleted `disk-weight.ts`, and fails on the
-  uncommitted deletion; it passes once the deletion is committed.
+- `monorepo-task-core-exec` `lint:parse` failed while `disk-weight.ts` was a deleted, uncommitted file; `lint` passes now
+  that the deletion is committed.
+- `git-policy-cli` `bin/native-gate-proof.unit.test.ts`, which consumes `diskWeightArguments` through the re-export
+  chain, passes (read only run).
 
 ### Releases
 
