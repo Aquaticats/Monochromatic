@@ -214,6 +214,32 @@ async function runWithSystemctlStandIn(
   }
 }
 
+/**
+ Runs stage shell text the way the runner does, with stand-in commands (name to script) first on the path; resolves
+ to the exit status and both outputs.
+ */
+async function runWithStandInCommands(
+  { text, home, scripts, }: { text: string; home: string; scripts: Readonly<Record<string, string>>; },
+): Promise<{ status: number; output: string; errors: string; }> {
+  const folder = join(home, 'command-stand-ins',);
+  await mkdir(folder, { recursive: true, },);
+  await Promise.all(Object.entries(scripts,).map(async ([name, script,],) => {
+    await writeFile(join(folder, name,), script,);
+    await chmod(join(folder, name,), EXECUTABLE_MODE,);
+  },),);
+  try {
+    const result = await execFileAsync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', '-c', text,], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${folder}:${process.env.PATH ?? ''}`, },
+    },);
+    return { status: 0, output: result.stdout, errors: result.stderr, };
+  }
+  catch (error) {
+    const failed = error as { code?: number; stdout?: string; stderr?: string; };
+    return { status: failed.code ?? Number.NaN, output: failed.stdout ?? '', errors: failed.stderr ?? '', };
+  }
+}
+
 /** Marks stages of the prepare phase done, as a completed earlier run would have. */
 async function markPrepareDone({ config, ids, }: { config: GuidedConfig; ids: readonly string[]; },): Promise<void> {
   await mkdir(join(config.wiz, 'done', 'prepare',), { recursive: true, },);
@@ -897,6 +923,56 @@ await describe({
               const releaseRun = await runWithSystemctlStandIn({ text: await resolvedCommand({ stage: release, config, },), mode: 'idle', home, },);
               expect(releaseRun.status,).toBe(0,);
               expect(releaseRun.output,).toContain(`not listening again: ${earlier}`,);
+            },);
+          },
+        },),
+        it({
+          name: 'the content compare in the window skips and names each placeholder folder whose live path holds a placeholder or nothing, compares one whose live path holds a real folder, and matches a name with pattern characters only itself',
+          fn: async () => {
+            await withConfig(async ({ config, home, },) => {
+              const stages = await cutoverStages({ c: config, stamp: 'S', },);
+              const compare = stages.find((s,) => s.id === 'c13b-rsync',) as Stage;
+              const name = 's000';
+              const snapshot = join(config.snapshots, name,);
+              const target = join(home, 'placed', name,);
+              const live = join(home, 'live', name,);
+              // Placeholders in the snapshot: a[1] and back\slash] are gone from the live tree, still-placeholder is a
+              // placeholder there too, live-real is a real folder there. a1 is a real folder the copy lacks, which an
+              // unescaped a[1] would match.
+              const placeholders = ['a[1]', String.raw`back\slash]`, 'still-placeholder', 'live-real',];
+              await Promise.all([...placeholders, 'a1', 'kept',].map((folder,) => mkdir(join(snapshot, folder,), { recursive: true, },)),);
+              await Promise.all(['still-placeholder', 'live-real',].map((folder,) => mkdir(join(live, folder,), { recursive: true, },)),);
+              await mkdir(join(target, 'kept',), { recursive: true, },);
+              await mkdir(config.wiz, { recursive: true, },);
+              await mkdir(config.moveState, { recursive: true, },);
+              await writeFile(join(config.wiz, 'verify-set.tsv',), `${name}\t${live}\n`,);
+              await writeFile(join(config.moveState, `${name}.placed.json`,), `{"target":"${target}"}\n`,);
+              const findLog = join(home, 'find-arguments.log',);
+              const realStat = (await execFileAsync('sh', ['-c', 'command -v stat',], { encoding: 'utf8', },)).stdout.trim();
+              const run = await runWithStandInCommands({
+                text: await resolvedCommand({ stage: compare, config, },),
+                home,
+                scripts: {
+                  sudo: '#!/bin/sh\nexec "$@"\n',
+                  // What the real find prints for the placeholders with the stage's -printf format.
+                  find: `#!/bin/sh\nprintf '%s\\n' "$*" >> ${findLog}\nprintf '%s\\0' ${placeholders.map((folder,) => `'${folder}'`).join(' ',)}\n`,
+                  // A test cannot make a real placeholder, so the live still-placeholder answers with the placeholder inode.
+                  stat: `#!/bin/sh\ncase "$*" in *still-placeholder*) echo 2 ;; *) exec ${realStat} "$@" ;; esac\n`,
+                },
+              },);
+              expect(run.status,).toBe(0,);
+              expect(await readFile(findLog, 'utf8',),).toContain('-inum 2 -type d',);
+              const report = await readFile(join(config.wiz, 'rsync-compare.txt',), 'utf8',);
+              expect(report,).toContain('a1/',);
+              expect(report,).toContain('live-real/',);
+              expect(report,).not.toContain('a[1]',);
+              expect(report,).not.toContain('back',);
+              expect(report,).not.toContain('still-placeholder',);
+              for (const excused of ['a[1]', String.raw`back\slash]`, 'still-placeholder',]) {
+                expect(run.errors,).toContain(`${name}: not compared, an empty placeholder folder of a subvolume: ${excused}\n`,);
+              }
+              expect(run.errors,).not.toContain('live-real',);
+              expect(compare.check,).toContain('rsync-compare.txt',);
             },);
           },
         },),

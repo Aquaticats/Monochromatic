@@ -414,6 +414,60 @@ await describe({
             expect(result.stderr,).not.toContain('wt/a[1]',);
           },
         },),
+        it({
+          name: 'excuses and names an empty placeholder folder of a subvolume the inventory does not list, and still refuses a missing real folder beside it',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['s000', 's001',], },);
+            await mkdir(join(fixture.base, 'recv', 's000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'a',), { recursive: true, },);
+            // A test cannot make a real btrfs placeholder (inode 2), so the tool is told the inode of a folder made here.
+            const placeholder = join(fixture.base, 'snap', 's000', 'wt', '.stage-1',);
+            await mkdir(placeholder,);
+            const placeholderInode = `--placeholder-inode=${String((await stat(placeholder, { bigint: true, },)).ino,)}`;
+            const unmarked = await runCopyTool({ fixture, pass: 'verify-first', },);
+            expect(unmarked.status,).toBe(1,);
+            expect(unmarked.stderr,).toContain('wt/.stage-1',);
+            // A real folder at that path in the live tree is a subvolume the inventory missed: its files were not copied.
+            const livePath = join(fixture.main, 'wt', '.stage-1',);
+            await mkdir(livePath, { recursive: true, },);
+            const uncopied = await runCopyTool({ fixture, pass: 'verify-first', extra: [placeholderInode,], },);
+            expect(uncopied.status,).toBe(1,);
+            expect(uncopied.stderr,).toContain('the inventory does not list',);
+            expect(uncopied.stderr,).toContain(livePath,);
+            await rm(livePath, { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'real-dir',),);
+            const beside = await runCopyTool({ fixture, pass: 'verify-first', extra: [placeholderInode,], },);
+            expect(beside.status,).toBe(1,);
+            expect(beside.stderr,).toContain('differs from its snapshot',);
+            expect(beside.stderr,).toContain('real-dir',);
+            await mkdir(join(fixture.base, 'recv', 's000', 'real-dir',),);
+            const excused = await runCopyTool({ fixture, pass: 'verify-first', extra: [placeholderInode,], },);
+            expect(excused.status,).toBe(0,);
+            expect(excused.stderr,).toContain('not in the inventory',);
+            expect(excused.stderr,).toContain('wt/.stage-1',);
+            expect(excused.stderr,).toContain('verify-first finished',);
+          },
+        },),
+        it({
+          name: 'excludes a placeholder whose name holds a backslash and a closing bracket but no wildcard character, which rsync reads literally',
+          fn: async () => {
+            await using fixture = await makeFixture({ names: ['a',], },);
+            await writeInventory({ fixture, rows: [['a', 'u-a',],], },);
+            expect((await runCopyTool({ fixture, pass: 'first', },)).status,).toBe(0,);
+            await alignCopies({ fixture, names: ['s000', 's001',], },);
+            await mkdir(join(fixture.base, 'recv', 's000', 'wt',), { recursive: true, },);
+            await mkdir(join(fixture.base, 'snap', 's000', 'wt', 'a',), { recursive: true, },);
+            const placeholder = join(fixture.base, 'snap', 's000', 'wt', String.raw`back\slash]`,);
+            await mkdir(placeholder,);
+            const placeholderInode = `--placeholder-inode=${String((await stat(placeholder, { bigint: true, },)).ino,)}`;
+            const result = await runCopyTool({ fixture, pass: 'verify-first', extra: [placeholderInode,], },);
+            expect(result.status,).toBe(0,);
+            expect(result.stderr,).toContain('verify-first finished',);
+          },
+        },),
       ],
     },),
     describe({

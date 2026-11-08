@@ -8,6 +8,7 @@
 
 import { containerLimitArguments, } from '@monochromatic-dev/container-limit-core/ts';
 
+import { EMPTY_SUBVOLUME_PLACEHOLDER_INODE, } from './constants.ts';
 import { realArguments, } from './guided-prepare-stages.data.ts';
 import type {
   GuidedConfig,
@@ -395,10 +396,20 @@ for f in ${c.moveState}/external-*.deleted.txt; do [ -e "$f" ] && echo "$f: $(wc
       id: 'c13b-rsync',
       title: 'Verify 4: content compare',
       window: true,
-      says: 'Verification 4: rsync --checksum --dry-run of each chosen source snapshot against its placed copy must print nothing (--one-file-system keeps the comparison at the subvolume boundary).',
+      says: 'Verification 4: rsync --checksum --dry-run of each chosen source snapshot against its placed copy must print nothing (--one-file-system keeps the comparison at the subvolume boundary). An empty placeholder folder the snapshot shows for a subvolume (inode 2) is not compared when the live tree holds the same placeholder at its path or nothing, since a send never carries one and nothing can be stored in one; each is named in the output. One where the live tree holds a real folder or subvolume is compared, so a subvolume the inventory missed shows as a difference.',
       command: `while IFS=$'\\t' read -r name path; do
   target=$(sed -n 's/.*"target":"\\([^"]*\\)".*/\\1/p' ${c.moveState}/$name.placed.json)
-  sudo rsync --archive --checksum --dry-run --itemize-changes --delete --one-file-system --omit-dir-times ${c.snapshots}/$name/ $target/
+  sudo find ${c.snapshots}/$name/ -xdev -inum ${String(EMPTY_SUBVOLUME_PLACEHOLDER_INODE,)} -type d -printf '%P\\0' > ${c.wiz}/placeholders-$name.found
+  : > ${c.wiz}/placeholders-$name.bin
+  while IFS= read -r -d '' folder; do
+    if sudo test -e "$path/$folder" || sudo test -L "$path/$folder"; then live=$(sudo stat --format=%i -- "$path/$folder"); else live=gone; fi
+    if [ "$live" = ${String(EMPTY_SUBVOLUME_PLACEHOLDER_INODE,)} ] || [ "$live" = gone ]; then
+      echo "$name: not compared, an empty placeholder folder of a subvolume: $folder" >&2
+      ${ // One NUL-ended rsync pattern per excused folder; rsync reads a backslash as an escape only in a pattern with a wildcard character, so only such a pattern is escaped.
+  ''}printf '/%s/\\0' "$folder" | sed --null-data '/[*?[]/ s/[][*?\\\\]/\\\\&/g' >> ${c.wiz}/placeholders-$name.bin
+    fi
+  done < ${c.wiz}/placeholders-$name.found
+  sudo rsync --archive --checksum --dry-run --itemize-changes --delete --one-file-system --omit-dir-times --from0 --exclude-from=${c.wiz}/placeholders-$name.bin ${c.snapshots}/$name/ $target/
 done < ${c.wiz}/verify-set.tsv > ${c.wiz}/rsync-compare.txt`,
       check: `test ! -s ${c.wiz}/rsync-compare.txt || { head --lines=20 ${c.wiz}/rsync-compare.txt; exit 1; }`,
       checkText: 'rsync printed nothing for every chosen subvolume',

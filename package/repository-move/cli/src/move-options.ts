@@ -10,6 +10,7 @@ import {
   DEFAULT_MIN_FREE_GIB,
   DEFAULT_TOTAL_DEADLINE_SECONDS,
   DEFAULT_TRANSFER_DEADLINE_SECONDS,
+  EMPTY_SUBVOLUME_PLACEHOLDER_INODE,
 } from './constants.ts';
 import { MoveStopError, } from './errors.ts';
 
@@ -44,6 +45,11 @@ export type MoveOptions = {
   readonly checksum: boolean;
   readonly noScope: boolean;
   readonly subvolumeMarker: string;
+  /**
+   Inode number that marks an empty placeholder folder of a subvolume; btrfs's own number unless a test names the inode
+   of a folder it made, since a test cannot make a real placeholder.
+   */
+  readonly placeholderInode: number;
   readonly externalSource: string;
   readonly externalFinal: string;
 };
@@ -305,6 +311,11 @@ export function parseMoveOptions(argv: readonly string[],): MoveOptions {
     subvolumeMarker: flagValue({
       argv,
       name: 'subvolume-marker',
+    },),
+    placeholderInode: numberFlag({
+      argv,
+      name: 'placeholder-inode',
+      fallback: EMPTY_SUBVOLUME_PLACEHOLDER_INODE,
     },),
     externalSource: flagValue({
       argv,

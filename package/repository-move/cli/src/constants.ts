@@ -74,6 +74,14 @@ export const MAX_OUTPUT_BYTES: number = CHILD_OUTPUT_MIB * BYTES_PER_MIB;
 export const SUBVOLUME_ROOT_INODE = 256n;
 
 /**
+ Inode number of the empty folder a btrfs snapshot shows where its source held a nested subvolume
+ (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID` in `linux/btrfs_tree.h`). Nothing can be made inside such a folder, and a send
+ never carries one. A snapshot of a worktree taken while another subvolume stood inside it keeps that folder after the
+ subvolume is gone (measured 2026-11-08: five such folders named `.cli-git-worktree-copy-<id>` in five worktrees).
+ */
+export const EMPTY_SUBVOLUME_PLACEHOLDER_INODE = 2;
+
+/**
  Resource bounds of one transfer's systemd scope, sized to one stream by the plan author (not measured).
  */
 export const TRANSFER_SCOPE_BOUNDS: readonly string[] = [
