@@ -7613,6 +7613,14 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+`indexBuilds`
+(one entry per build of the private commit index,
+in the order built:
+`kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
+and `statDataKept` says whether that build started from a copy of the real index,
+keeping the cached stat data of every entry its tree shares with it;
+a build from the base or the tree alone holds none,
+and the scratch commit then hashes every file of the work tree),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,

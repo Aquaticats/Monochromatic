@@ -98,6 +98,9 @@ pub mod commit_index;
 /// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
 pub mod commit_index_copying;
 
+/// How each build of the private commit index was made and whether it kept the real index's stat data, for the timing record.
+pub mod commit_index_builds;
+
 /// Native `git commit` in the shadow,
 /// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
