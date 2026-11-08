@@ -291,7 +291,7 @@ fn a_change_during_the_copy_is_caught_before_the_swap() {
 ///  registration and the index fast;
 /// elsewhere the control prints its one loud line and returns.
 #[test]
-fn a_real_conversion_makes_a_subvolume_and_clones_file_data() {
+fn btrfs_a_real_conversion_makes_a_subvolume_and_clones_file_data() {
     use crate::fs_btrfs_test_support::btrfs_fixture;
     use crate::subvolume_platform::LinuxPlatform;
     let Some(probe) = btrfs_fixture("convert-real") else { return };
