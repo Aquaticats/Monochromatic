@@ -5540,6 +5540,21 @@ are in append mode now).
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
 
+- `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works` failed once
+  (2026-11-08) in the first `native:test:container` run of `feat/repository-move-dangling-link-items-2` after main
+  `5083511eed` was merged into it, image tag `localhost/git-policy-native-test:dangling-merge-main-1794102283`
+  (log of that run: `${HOME}/temp/agent/860-w-items-2/m-gate-first.log`; it summarized 5319 tests, 5318 passed, 1 failed).
+  The assertion at `src/native/lock/stale_ref_locks_tests.rs:114` failed with `left: 1`, `right: 2`
+  (the `cleared.len()` check, "2 expected, 1 cleared"),
+  and the printed outcome showed `packed-refs.lock` cleared with `Stale(PidGone(24472))`.
+  The branch has no diff in `src/native/lock`.
+  The test passed alone on the host (`native:test:host -- stale_ref_locks`, 35 of 35)
+  and in the next full container run (image `localhost/git-policy-native-test:dangling-merge-main-2-1794103009`,
+  5319 of 5319; that run's log is `${HOME}/temp/agent/860-w-items-2/m-gate.log`).
+  Cause and failure rate are not measured;
+  the merge into main was `f981e1b493`.
+  The two images were removed afterwards, so the tags name the runs only.
+
 ### Questions waiting for the owner
 
 - Container disk weight:
