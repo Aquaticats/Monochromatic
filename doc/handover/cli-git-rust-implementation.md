@@ -4258,21 +4258,130 @@ No opt-out of the repair exists for a person who wants a fast add:
 `--no-checkout` (a no-checkout add has nothing to repair),
 and a search of `README.md` found no key that turns it off.
 Not done (proposals for the owner,
-not decided):
+not decided),
+with what each would save measured where it was cheap:
 skip the clone and the clean for a workspace whose source has no build
-state;
-start the 35 `cargo metadata` reads of the source at the first step so they overlap the snapshot;
+state:
+already the code's behaviour
+(`plan_build_state` answers `Nothing` when neither side holds build state,
+`package_repair_cargo.rs`),
+so it saves nothing more,
+and every workspace the measurement of 2026-11-08 in this section recorded did hold state;
+start the 35 `cargo metadata` reads of the source at the first step so they overlap the snapshot:
+`cargo metadata --offline --no-deps` took 1.36 s cold and 70 ms warm for a 400-member fixture workspace,
+against a `cargo clean` of about 11 s for the same workspace,
+so its ceiling is the metadata part of `repairCargo`,
+hidden only as far as the snapshot lasts (median 360 ms in the fixture's add records,
+162 and 4115 ms in the real repository's records of 2026-11-08);
 overlap
-`repairPnpm` and `repairCargo` with the trash disposal (the item above);
+`repairPnpm` and `repairCargo` with the trash disposal (the overlap that landed):
+that is the first item of the `Done` list in this section;
+it took a median 4504 ms off the critical path;
 a per-workspace snapshot of the build
-directory when it is a subvolume.
+directory when it is a subvolume:
+on one 150203-entry tree a `btrfs subvolume snapshot` took 2242 to 12593 ms (median 5270) where a file-by-file reflink
+copy of it,
+  which is what the repair's clone does,
+  took 27136 to 45477 ms (median 42775,
+about an eighth of the copy),
+so against the `cargoCloneTree` 66305 ms of worker time recorded on 2026-11-08 it is an estimated 58 s of worker time saved and
+some wall time,
+since those clones already run beside each other.
+
+Done (2026-11-08,
+`b1e1818bab`
+on `perf/git-policy-cli-worktree-add-remaining-work`):
+
+- The inline trash disposal runs beside the package repair.
+  The ladder hands the trash out in `LadderResult.trash` (`PendingTrash` in `worktree_trash_dispose.rs`);
+  `worktree_copy.rs` starts the disposal on a scoped thread,
+  repairs the created worktrees on the calling thread,
+  and waits before the command ends,
+  so the person waits for the slower of the two.
+  The wait is a step of its own (`disposeTrashWait`) and the disposal is worker time (`disposeTrash`),
+  because a thread's work is summed per thread like every repair tool's.
+  A disposal that fails,
+  or stops unexpectedly,
+  is a log line and never the add's failure.
+- A post-snapshot mismatch of a main source keeps the snapshot and takes the restore path.
+  The snapshot's own index is one instant with the files it copied,
+  so `install_index` reads it,
+  installs it,
+  and the copy is reset to the new `HEAD` with `read-tree --reset -u` and `clean --force -d` (`restore_dirty`),
+  which rewrites only the paths that differ instead of the whole worktree.
+  The install moved before `replace_git_pointer` in `take_snapshot`,
+  so the snapshot's own `.git`,
+  and with it its index,
+  is still there to read.
+  A linked worktree's index lies outside it and is not in the snapshot,
+  so a linked source that changed is still refused and Git's own checkout completes that worktree.
+- The snapshot rung settles entries its stat data cannot vouch for by content,
+  as the conversion does,
+  instead of falling to the slow route.
+  `tree_fields_by_content` is now the one walk that judges the tracked files of a copy and returns the stat fields the
+  installed index carries;
+  `tree_fields_beneath` is gone,
+  and the conversion's proof (`tree_differs_from_index_by_content`) reads through the same walk.
+
+Measured 2026-11-08 with the add's own timing record,
+on a disposable btrfs fixture of 400 workspace members and 150 thousand entries in a pruned cache
+(`target/incremental`),
+so that both the repair and the disposal are real;
+the record's own timestamps run from 2026-11-08T20:33:19.173Z to 2026-11-08T20:46:47.573Z,
+and the host's load average was 60 to 240 through the runs.
+The fixture and the harness are outside the repository,
+in `~/temp/agent/wt-add-measure`;
+both binaries are the release executable of this crate,
+the same checkout at `1a907ccfb9` before the change and with it after.
+
+- The run-to-run spread on unchanged input came first,
+  five adds of the old binary:
+  `totalMs` ranged 16591 to 26541,
+  median 20691.
+  That spread is the host's fsync latency inside the add's durable steps and not its file work:
+  `claimStage` ranged 30 to 5571 ms in those five runs and reached 23057 ms in one later run,
+  `recordBinding` reached 13805 ms and `installIndexFile` 14788 ms.
+- Fifteen interleaved pairs followed,
+  one add of each binary per pair,
+  alternating which went first,
+  on the same unchanged input:
+  `totalMs` median 19832 before and 16603 after,
+  and the median of the fifteen per-pair differences 4133 ms in the after binary's favour
+  (two pairs ran the other way,
+  by 27360 and 28534 ms,
+  on the fsync stalls above).
+- The disposal left the critical path:
+  before,
+  the person waited for it inside `disposeTrash`,
+  a median of 4504 ms (range 3598 to 9440);
+  after,
+  `disposeTrashWait` was 0 ms in all fifteen runs (at most 0.001).
+- The work it does did not shrink,
+  it moved:
+  the disposal took a median 5865 ms as worker time after (range 4902 to 9915) against 4504 ms inline,
+  about 30 percent slower while it shares the disk with the repair,
+  and the repair took a median 12766 ms before and 14034 ms after,
+  about 10 percent slower beside the disposal,
+  and still outlasted the disposal in every run,
+  which is why the wait is zero.
+- Five more pairs confirmed it with the binary built from the final commit of this branch
+  (`aaf0e711d0`,
+  whose file split changes no behaviour):
+  `totalMs` medians 15303 before and 14275 after,
+  the wait 0 ms in every run,
+  and a per-pair median of 2332 ms.
+  The disposal itself took 3294 to 10050 ms there and the repair about 1 s longer beside it,
+  so the person's saving is the disposal's duration less that contention,
+  which is what separates 2332 ms from the 4504 ms median of the fifteen pairs.
+- A smaller fixture cross-checked the mechanism (160 members,
+  200 thousand cache entries):
+  `totalMs` median 7514 over five adds of the old binary (7065 to 8802),
+  against 6077 and 6794 in two adds of the new one,
+  with the wait 3237 and 2999 ms and the disposal 5871 and 5658 ms beside a repair of 2632 and 2657 ms.
+  There the disposal was the longer of the two,
+  so the saving is the repair's length.
 
 Not done:
-overlap the inline trash disposal with the package repair;
-on a post-snapshot mismatch of a main source,
-keep the snapshot and take the restore path instead of the full copy;
-make the snapshot rung settle racily clean entries by content (as the conversion does) instead of falling to the slow
-route;
 parallelism audit of loops over independent items (branch `perf/git-policy-cli-parallel-independent-work` merged the
 first round;
 the audit's remaining findings are not recorded here).
