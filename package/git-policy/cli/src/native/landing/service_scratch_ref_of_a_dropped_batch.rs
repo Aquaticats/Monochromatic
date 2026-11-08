@@ -92,13 +92,15 @@ pub(crate) enum ScratchRefRemoval {
 /// a reference that names an object and a question Git gave no answer to are three
 ///  different answers,
 /// and removing a reference on the third would be removing it on no answer.
+/// The restart that keeps a batch's commit asks the same question about the kept reference,
+/// so it never replaces a commit another batch was kept under.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type RefValue = { names: string } | 'absent' | 'unasked'
 /// ```
 #[derive(Debug, Eq, PartialEq)]
-enum RefValue {
+pub(crate) enum RefValue {
     /// The reference names this object.
     Names(String),
     /// Git said for certain that the reference is not there.
@@ -122,7 +124,7 @@ enum RefValue {
 /// ```ts
 /// async function valueOf(git, repository, name) { const asked = await git(['rev-parse', '--verify', '--quiet', name]); return asked.code === 0 ? { names: asked.out.trim() } : asked.code === 1 && !asked.err ? 'absent' : 'unasked'; }
 /// ```
-fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefValue {
+pub(crate) fn value_of(git: &GitContext, repository: &Path, name: &str) -> RefValue {
     let request: GitRequest = GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", name]);
     let Ok(output) = run_git(git, &request) else {
         return RefValue::Unasked;

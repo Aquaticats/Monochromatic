@@ -34,6 +34,14 @@ Each record is cited so the context is one read away.
   This matters because an agent's scratch commit stopped at its ceiling under load on 2026-11-08,
   and an identical retry succeeded,
   against your "Commits should never fail."
+- Should the Claude Code guardrail be registered in `~/.claude/settings.json`?
+  A real-Git commit from the coordinator's session went through on 2026-11-08,
+  because `~/.claude/settings.json` does not name the guardrail;
+  fed directly,
+  the hook refuses it.
+  Pi agents are covered.
+  Details:
+  `doc/handover/pi-agents-blocked-from-real-git.md`.
 - The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
   which ask what each shipped limit should cite.
 - Does "never discard user data" cover the audit history?

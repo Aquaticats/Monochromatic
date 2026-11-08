@@ -1874,7 +1874,7 @@ so no step waits for the layout moves.
   `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
 - Linux calls (`rustix`):
   started with `getrlimit` and the pidfd;
-  the file calls move with the safe-file-saving replacement below.
+  the file calls move with the safe-file-saving replacement in the `Safe file saving` section.
 
 ### Step T4, children without a blocking wait (partly)
 
@@ -1960,7 +1960,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
 
 ### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
 
-- The owner's answer on G1 is recorded above,
+- The owner's answer on G1 is recorded in the Safe file saving section,
   verbatim:
   "Keep the fallback (Recommended)".
 - `1cff4935cd` records it;
@@ -2090,7 +2090,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
      `tempfile-v2.56.0.c` (tag `v2.56.0`).
 - The index lock without links,
   branch `fix/git-policy-cli-index-lock-without-links`:
-  item 2 above is built.
+  item 2 of the coordinator's settlements is built.
   `907416dba7` is the red test
   (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`:
   `EOPNOTSUPP` on `link`,
@@ -2543,7 +2543,8 @@ Neither is a T5 regression.
   as a process held in a stalled disk call does,
   or one that the
   scheduler did not run (this host once took 6.03 s of wall time for a check and a rename,
-  section c above;
+  section c under the heading
+  `The coordinator's three settlements after T5, 2026-11-07T10:20:00-05:00 to 2026-11-07T11:10:00-05:00`;
   whether disk or scheduler is not measured).
   A load of 70 on the gate's few CPUs is the trigger;
   the cause is the escalation
@@ -3742,7 +3743,8 @@ not by gate reruns.
 - Not starvation of the look:
   the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
   so the one look returned `ProvenAlive`,
-  and in every instrumented run below the only holder notice was proven.
+  and in every instrumented run under "Counts of the one test under the gate's limits"
+  the only holder notice was proven.
   The look did not reach its ceiling in any run.
   The pool's busy count was not recorded,
   because no look waited on the pool.
@@ -3899,7 +3901,7 @@ and why").
   `LAST_RESORT` (the alarm) = `SETTLE_CEILING` plus `STOP_GRACE`,
   29.096 s;
   the manager's default stop timeout was taken to be 90 s and this crate's unit set none (wrong,
-  see "Owner answer of 2026-11-08" below:
+  see the "Owner answer of 2026-11-08 and what it changed" section:
   the host's default is 15 s,
   and the unit now sets its own).
 
@@ -3944,7 +3946,8 @@ the shutdown now writes its one line without waiting (`send_without_waiting`).
 
 #### Owner answer of 2026-11-08 and what it changed
 
-The coordinator put the first judgment call below to the owner (question tool,
+The coordinator put the first judgment call in the `Judgment calls open to the owner's veto` section
+to the owner (question tool,
 verbatim answer "B:
 let a branch write finish (Recommended)").
 The option read:
@@ -3988,7 +3991,36 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   The commit is not copied to `refs/cli-git/kept/<n>` in that case,
   because the landing is still inside the write when the service ends and cannot unwind;
   recovery reads the open intent as it does after any kill.
-  Whether the commit should also be copied to a kept ref at the limit is not decided.
+  Whether the commit should also be copied to a kept ref at the limit is decided (2026-11-08,
+  branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`):
+  it is,
+  by the recovery that settles the batch,
+  never by the stop.
+  What that touched was read first:
+  a start of the service does not settle its own journal
+  (only an earlier release's shared journal is settled at a start),
+  the next batch settles it,
+  and that drop left the commit on the landing's scratch branch alone,
+  which a commit Git built never has.
+  The drop now writes `refs/cli-git/kept/<n>` before the intent goes
+  (`keep_what_the_branch_does_not_show` in `service_land_finish.rs`),
+  it is a side-ref write,
+  so a stop cuts it like any other Git of a landing,
+  and a drop whose kept write fails is logged with Git's words and still drops,
+  so a ref nobody can write does not leave every later commit waiting on the batch's index lock.
+  The stop waits for nothing more than it did,
+  so the ref is named once the worktree commits again.
+  Main's own sweep of a dropped batch's scratch reference came in the merge (`f293f8f58d`,
+  `service_scratch_ref_of_a_dropped_batch.rs`),
+  so the drop keeps this commit and then removes that reference;
+  a kept reference that already names another commit is never replaced,
+  and the scratch reference then stays too.
+  Controls,
+  red first (`70d04ae08a`):
+  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`,
+  `a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref`
+  and
+  `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`.
 - The measured host facts behind the unit:
   the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
   from `DefaultTimeoutStopSec=15s` in `/etc/systemd/user.conf.d/timeout.conf`,
@@ -4014,7 +4046,7 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
 
 #### Judgment calls open to the owner's veto
 
-- Superseded on 2026-11-08 by the owner's answer above:
+- Superseded on 2026-11-08 by the owner's answer in the `Owner answer of 2026-11-08 and what it changed` section:
   a stop ends a branch write too (the landing's `Unbounded` step),
   with `SIGTERM` first,
   the kill after `STOP_GRACE`,
@@ -4591,7 +4623,7 @@ The owner's answer to choice 6 says a signal reaches only the children of the op
 and that a stop of the service is an operation of its own.
 Before T7 a commit prepared inside the service swapped the service's stop handler for the length of the Git step,
 so a stop of the service reached that one Git (and the service went on running).
-T7 builds the owner's rule literally (option A below),
+T7 builds the owner's rule literally (option A),
 which leaves that Git running when the service is stopped.
 
 - A.

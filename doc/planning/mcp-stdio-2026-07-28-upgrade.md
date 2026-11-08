@@ -124,7 +124,8 @@ A client that opens with `initialize` instead is not served.
 
 ### Correction, measured later the same day: the CLI health check never probes
 
-The paragraph above describes the in-session connection.
+The `Consequence` paragraph of `Measured client behavior: Claude Code 2.1.233 is dual-era`
+describes the in-session connection.
 The `claude mcp get` and `claude mcp list` health checks behave differently,
  and this was measured by tapping a disposable registration pointed at the same binary:
 

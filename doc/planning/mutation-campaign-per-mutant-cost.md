@@ -151,4 +151,4 @@ D only moves the cost.
 Recommended order:
 A,
 then B,
-each measured on one file against the numbers above before the next campaign.
+each measured on one file against the numbers in `Measurements` before the next campaign.

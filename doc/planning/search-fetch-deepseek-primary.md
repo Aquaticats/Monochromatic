@@ -3,7 +3,7 @@
 ## Status
 
 Proposed 2026-10-18.
-Interview settled the decisions below,
+Interview settled the decisions under `Settled decisions`,
 and the work landed in the same session.
 Question ids (Q1 to Q13) are kept so the interview and the decision record can
 be traced against each other.

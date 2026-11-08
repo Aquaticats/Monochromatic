@@ -644,8 +644,8 @@ It is also why `native-core` must not import platform output or UI crates.
 
 ## Recommended target state by package set
 
-The category ownership reference above covers every current category.
-The subsections below go deeper on the package sets with a near-term move,
+The "Category ownership reference" section covers every current category.
+The subsections from "Music-player" to "Broad utility categories" go deeper on the package sets with a near-term move,
 plus the buckets and dependency edges deliberately left unclustered.
 
 ### Music-player
@@ -1449,7 +1449,7 @@ Do not attempt all moves in one commit.
 
 This document is Phase 0,
 and its decisions are adopted.
-The rules below are the agreed policy:
+The Phase 0 rules are the agreed policy:
 
 - `package/<category>/<project>` remains mandatory for active project roots.
 - Category means ownership boundary.

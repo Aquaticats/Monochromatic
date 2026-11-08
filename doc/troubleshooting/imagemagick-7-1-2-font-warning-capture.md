@@ -162,6 +162,9 @@ They do **not** show that ImageMagick promises an all-warnings-fatal switch.
   `mise run //package/music-player/design:prototype:sanitize:search`
   failed on its first image with
   `ImageMagick status 0; magick: unable to read font ...`.
+  That task exists only on branch `prototype/music-player-theme-compose`
+  (commit `948894d3c4` on 2026-09-24),
+  and `main`'s `package/music-player/design/mise.toml` declares no `prototype:*` task.
   The output pointed at a disposable directory,
   not the user's review assets.
   Repeating the task with the installed font succeeded.

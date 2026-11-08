@@ -25,7 +25,8 @@
 /// Import the shared fixtures,
 /// and the helpers of the snapshot controls.
 use super::support::{Fixture, Observed, fixture, git, observe, remove, run_wrapped, stderr_of, wrapped};
-use super::worktree_snapshot::{add_pair, carries_ignored_state, commit_all, on_btrfs_or_acknowledged, subvolume_repository, tracked, tracked_content};
+use super::support::on_btrfs_or_acknowledged;
+use super::worktree_snapshot::{add_pair, carries_ignored_state, commit_all, subvolume_repository, tracked, tracked_content};
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};

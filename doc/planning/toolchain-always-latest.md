@@ -286,7 +286,7 @@ None does now.
 - The service is `Type=oneshot` with no `[Install]` section:
   only the timer starts it,
   never a login or a boot.
-- Caps from the measured run (next section):
+- Caps from the measured run (see `Measured run`):
   `CPUQuota=200%`,
   `MemoryMax=8G`,
   `TasksMax=2048`,
@@ -312,7 +312,7 @@ a failed group never stops the next one.
    if a
    person had changed it and left it dirty,
    the run refuses;
-   see below).
+   see `Failure, dirty files and reporting`).
 2. Machine-global toolchain:
    `toolchain:update:global`,
    `toolchain:install:global`.

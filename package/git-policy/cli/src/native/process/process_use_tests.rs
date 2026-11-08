@@ -106,12 +106,27 @@ fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
     std::fs::write(root.join("index.lock"), b"").expect("lock");
     std::fs::hard_link(root.join("index.lock"), root.join("alias")).expect("alias");
     let metadata: std::fs::Metadata = std::fs::metadata(root.join("index.lock")).expect("lock metadata");
-    let target: UseTarget = UseTarget::File { device: metadata.dev(), inode: metadata.ino() };
+    let target: UseTarget = UseTarget::File { mount: mount_of(root.join("index.lock").as_path()), inode: metadata.ino() };
     assert!(processes_using(&target).users.is_empty());
     let holder: Sleeper = Sleeper::start(root.as_path(), Some(root.join("alias").as_path()));
     let scan: UseScan = processes_using(&target);
     assert!(scan.users.iter().any(|user| { return user.pid == holder.pid(); }), "{scan:?}");
     drop(holder);
+    remove(root.as_path());
+}
+
+/// A file system is found in the mount table by the device number of its files,
+/// and a descriptor is recognised by the mount number and the inode the kernel writes for it,
+/// so no descriptor of another process is ever resolved on its own disk.
+#[test]
+fn a_descriptor_is_named_by_its_mount_and_inode_rather_than_by_resolving_it() {
+    let root: PathBuf = fixture("process-use-fdinfo");
+    std::fs::write(root.join("fdinfo"), "pos:\t0\nflags:\t0100000\nmnt_id:\t40\nino:\t4242\n").expect("one descriptor");
+    let described: PathBuf = root.join("fdinfo");
+    assert!(descriptor_is_the_file(described.as_path(), 40, 4242).expect("a descriptor of this mount"), "the descriptor on the mount is the file");
+    assert!(!descriptor_is_the_file(described.as_path(), 40, 4243).expect("a descriptor of this mount"), "another inode on the same mount is another file");
+    assert!(!descriptor_is_the_file(described.as_path(), 41, 4242).expect("a descriptor of another mount"), "the same inode number on another mount is another file");
+    assert!(!descriptor_is_the_file(described.as_path(), 0, 4242).expect("a descriptor without a mount"), "a file whose mount is not known matches no descriptor");
     remove(root.as_path());
 }
 
@@ -122,7 +137,7 @@ fn the_scanning_process_is_not_reported() {
     let root: PathBuf = fixture("process-use-self").canonicalize().expect("canonical root");
     let held: std::fs::File = std::fs::File::create(root.join("held")).expect("held");
     let metadata: std::fs::Metadata = held.metadata().expect("metadata");
-    let scan: UseScan = processes_using(&UseTarget::File { device: metadata.dev(), inode: metadata.ino() });
+    let scan: UseScan = processes_using(&UseTarget::File { mount: mount_of(root.join("held").as_path()), inode: metadata.ino() });
     assert!(!scan.users.iter().any(|user| { return user.pid == i64::from(std::process::id()); }), "{scan:?}");
     drop(held);
     remove(root.as_path());

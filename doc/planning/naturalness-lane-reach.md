@@ -352,7 +352,7 @@ which is a separate decision from this one and is not blocking it.
 
 ## What the line-structure change actually is, measured
 
-The question below was left abstract when it was written.
+The question `Whether changing line structure counts as damage` was left abstract when it was written.
 It is measurable,
 and
  the magnitude bears on the ranking:

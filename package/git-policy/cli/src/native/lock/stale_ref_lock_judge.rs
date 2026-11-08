@@ -23,8 +23,9 @@
 
 use crate::fs_mount_options::read_mount_facts;
 use crate::pid_namespace::current_pid_namespace;
+use crate::stale_ref_lock_judge_environment::{INITIAL_PID_NAMESPACE, PROC_MOUNT_POINT, boot_time, nanoseconds_to_time, newest_time, proc_hides_no_process};
 use crate::process_start::{ProcessStart, linux_start, now_ms};
-use crate::process_use::{UseScan, UseTarget, processes_using_through};
+use crate::process_use::{ProcessUser, UseScan, UseTarget, processes_using_through};
 use crate::stale_ref_lock_found::PidFile;
 pub use crate::stale_ref_lock_own_ended::{ClaimedLock, OwnEnded};
 use crate::stale_ref_lock_nested_numbers::nested_holders_of;
@@ -85,19 +86,6 @@ pub const MARGIN_MULTIPLE: u64 = 2;
 /// against a live lock removed (`doc/planning/cli-git-shipped-limits-audit.md`,
 ///  "Margins for removing left-behind locks").
 pub const MARGIN: Duration = Duration::from_secs((LONGEST_LIVE_REF_STEP.as_millis() as u64 * MARGIN_MULTIPLE).div_ceil(1000));
-
-/// The kernel's name for the initial PID namespace,
-/// where every process of the machine has the number it is seen by.
-const INITIAL_PID_NAMESPACE: &str = "pid:[4026531836]";
-
-/// The mount point of the process table the judge reads.
-const PROC_MOUNT_POINT: &str = "/proc";
-
-/// The start of the mount option that hides other accounts' processes from this account.
-const HIDEPID_OPTION: &str = "hidepid=";
-
-/// The values of `hidepid` that hide nothing.
-const HIDEPID_OFF: [&str; 2] = ["0", "off"];
 
 /// The file system types a lock may sit on:
 /// disks and memory of this machine.
@@ -206,6 +194,15 @@ pub struct Judge {
     /// The ended processes of a child this wrapper stopped,
     /// where the judgement follows a stop.
     pub own_ended: Option<OwnEnded>,
+    /// The process numbers a scan for open holders may consider,
+    /// where a caller judges one fixture and nothing else.
+    /// Every process of the machine is evidence about a lock,
+    /// so a control that plants its own would depend on every other program's,
+    /// a Git the account cannot look into vetoing the clearance
+    /// whatever repository it works in.
+    /// `None` is every process of the table,
+    /// which is what the wrapper itself reads.
+    pub scan_scope: Option<Vec<i64>>,
 }
 
 /// Everything one judgement found out.
@@ -240,7 +237,43 @@ impl Judge {
             boot: boot_time(),
             local_file_systems,
             own_ended: None,
+            scan_scope: None,
         };
+    }
+
+    /// The processes that may use `identity`'s file,
+    /// among every process of the table or only among the numbers this judge was given.
+    /// A file whose mount the kernel does not name is not looked for,
+    /// because a scan cannot recognise it in any process.
+    /// A reason about a process outside the scope is dropped with the process it names:
+    /// what the scan could not read of another program cannot be a holder this judgement is about.
+    fn users_of(&self, identity: &Identity) -> UseScan {
+        let target: UseTarget = UseTarget::File { mount: identity.mount, inode: identity.inode };
+        let mut scan: UseScan = processes_using_through(self.proc_root.as_path(), &target, std::process::id());
+        if identity.mount == 0 {
+            scan.unavailable = Some(String::from("the kernel reported no mount number for the file, so no descriptor can be matched to it"));
+        }
+        let Some(scope) = self.scan_scope.as_ref() else {
+            return scan;
+        };
+        let mut users: Vec<ProcessUser> = Vec::new();
+        for user in scan.users {
+            if scope.contains(&user.pid) {
+                users.push(user);
+            }
+        }
+        scan.users = users;
+        let mut unreadable: Vec<String> = Vec::new();
+        for reason in scan.unreadable {
+            let Some(pid) = pid_of_reason(reason.as_str()) else {
+                continue;
+            };
+            if scope.contains(&pid) {
+                unreadable.push(reason);
+            }
+        }
+        scan.unreadable = unreadable;
+        return scan;
     }
 
     /// Whether the file system holding `path` is on the local list;
@@ -399,18 +432,14 @@ impl Judge {
     ///  scan starts `PID <number>`.
     fn unreadable_git(&self, scan: &UseScan) -> Option<String> {
         for reason in &scan.unreadable {
-            let number: Option<&str> = match reason.strip_prefix("PID ") {
-                Some(rest) => rest.split(' ').next(),
-                None => None,
+            let Some(pid) = pid_of_reason(reason.as_str()) else {
+                return Some(reason.clone());
             };
-            let command: Option<String> = match number {
-                Some(pid) => std::fs::read_to_string(self.proc_root.join(pid).join("comm")).ok(),
-                None => None,
-            };
-            match (number, command) {
-                (Some(_), None) => {}
-                (_, Some(name)) if !name.trim().starts_with(GIT_COMMAND_PREFIX) => {}
-                _ => return Some(reason.clone()),
+            let command: Option<String> = std::fs::read_to_string(self.proc_root.join(pid.to_string()).join("comm")).ok();
+            match command {
+                None => {}
+                Some(name) if !name.trim().starts_with(GIT_COMMAND_PREFIX) => {}
+                Some(_) => return Some(reason.clone()),
             }
         }
         return None;
@@ -433,7 +462,7 @@ impl Judge {
         if let Err(reason) = self.local_check(staging) {
             return verdict_with(Verdict::Unproven(reason), PidFile::Absent, identity, born);
         }
-        let scan: UseScan = processes_using_through(self.proc_root.as_path(), &UseTarget::File { device: identity.device, inode: identity.inode }, std::process::id());
+        let scan: UseScan = self.users_of(&identity);
         if let Some(reason) = scan.unavailable.as_ref() {
             return verdict_with(Verdict::Unproven(format!("the process table could not be listed: {reason}")), PidFile::Absent, identity, born);
         }
@@ -467,7 +496,7 @@ impl Judge {
         if let Err(reason) = self.local_check(lock) {
             return verdict_with(Verdict::Unproven(reason), pid_file.clone(), identity, born);
         }
-        let scan: UseScan = processes_using_through(self.proc_root.as_path(), &UseTarget::File { device: identity.device, inode: identity.inode }, std::process::id());
+        let scan: UseScan = self.users_of(&identity);
         if let Some(reason) = scan.unavailable {
             return verdict_with(Verdict::Unproven(format!("the process table could not be listed: {reason}")), pid_file.clone(), identity, born);
         }
@@ -495,61 +524,17 @@ impl Judge {
     }
 }
 
-/// Whether the mount of `/proc` shows this account every process:
-/// it has no `hidepid` option,
-/// or one that hides nothing.
-///  A table that hides processes lists fewer than exist,
-/// so a number missing from it is no proof.
-/// Where the mount cannot be
-///  read the answer is no.
-fn proc_hides_no_process() -> bool {
-    let Ok(Some(mount)) = read_mount_facts(Path::new(PROC_MOUNT_POINT)) else {
-        return false;
-    };
-    for option in mount.mount_options.iter().chain(mount.super_options.iter()) {
-        if let Some(value) = option.strip_prefix(HIDEPID_OPTION)
-            && !HIDEPID_OFF.contains(&value)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-/// The later of the lock's birth (when known) and its last modification.
-fn newest_time(born: Option<SystemTime>, identity: &Identity) -> SystemTime {
-    let modified: SystemTime = nanoseconds_to_time(identity.modified_ns);
-    return match born {
-        Some(at) => at.max(modified),
-        None => modified,
-    };
+/// The process number an unreadable process's reason starts with,
+/// as the scan words it (`PID <number> ...`).
+fn pid_of_reason(reason: &str) -> Option<i64> {
+    let rest: &str = reason.strip_prefix("PID ")?;
+    return rest.split(' ').next()?.parse::<i64>().ok();
 }
 
 /// The result of judging one file:
 /// the verdict with the facts gathered on the way.
 fn verdict_with(verdict: Verdict, pid_file: PidFile, identity: Identity, born: Option<SystemTime>) -> Option<Examined> {
     return Some(Examined { verdict, pid_file, identity, born });
-}
-
-/// A time given as nanoseconds since the epoch.
-fn nanoseconds_to_time(nanoseconds: i128) -> SystemTime {
-    let magnitude: u64 = u64::try_from(nanoseconds.unsigned_abs()).unwrap_or(u64::MAX);
-    return if nanoseconds >= 0 { SystemTime::UNIX_EPOCH + Duration::from_nanos(magnitude) } else { SystemTime::UNIX_EPOCH - Duration::from_nanos(magnitude) };
-}
-
-/// When the machine booted:
-/// the `btime` line of `/proc/stat`,
-/// in whole seconds since the epoch.
-fn boot_time() -> Option<SystemTime> {
-    let text: String = std::fs::read_to_string("/proc/stat").ok()?;
-    for line in text.lines() {
-        if let Some(rest) = line.strip_prefix("btime ")
-            && let Ok(seconds) = rest.trim().parse::<u64>()
-        {
-            return Some(SystemTime::UNIX_EPOCH + Duration::from_secs(seconds));
-        }
-    }
-    return None;
 }
 
 /// Controls on the margins stay out of the release executable.

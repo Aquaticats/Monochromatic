@@ -6,7 +6,8 @@ the tool picks were then replaced by the owner's
  decisions of 2026-11-04 (section "Owner decisions of 2026-11-04",
 on branch
  `feat/git-policy-cli-test-images-from-pacman`).
-Where a bullet of "Picks" below names a source build,
+Where a bullet of "Picks (agent's pick,
+veto open)" names a source build,
 a checksum or a version pin,
 the owner decisions supersede it.
 
@@ -114,7 +115,8 @@ B beats C because C is excluded by the owner's directive while B only costs spee
 
 ## Owner decisions of 2026-11-04
 
-Asked to veto the picks above (Git 2.56.0 built from source in the gate image,
+Asked to veto the picks in the `Picks (agent's pick, veto open)` section
+(Git 2.56.0 built from source in the gate image,
 Rust from pacman,
 Node 24.11.0 from the
 upstream tarball,

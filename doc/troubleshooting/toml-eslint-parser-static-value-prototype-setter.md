@@ -134,6 +134,11 @@ Run the campaign boundary with:
 mise run //package/toml-edit/core:fuzz
 ```
 
+That address moved on 2026-09-06:
+commit `abe8b94343` moved the fuzz campaign into the
+`toml-edit.fuzz` sidecar,
+whose task is `mise run //package/toml-edit/core.fuzz:fuzz`.
+
 ### Inputs that project cleanly
 
 - ordinary bare and quoted keys;

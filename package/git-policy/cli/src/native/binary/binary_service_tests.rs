@@ -32,7 +32,8 @@ use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::earlier_service_process_look::Hold;
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
-use git_policy_cli::service_instance::instance_of;
+use git_policy_cli::service_instance::{instance_of, socket_path};
+use git_policy_cli::service_units_of_removed_worktrees::record_worktree;
 use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED, landed_commits};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
@@ -279,6 +280,41 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         assert!(shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the newest and is kept");
     }
     stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service that starts and finds its own worktree gone serves nothing and ends without a failure status:
+/// the manager starts a service on the first connection,
+/// so a removal Git ran with the wrapper replaced took its units with it at that connection,
+/// and a failure status would make `Restart=on-failure` start it again.
+#[test]
+fn a_service_whose_worktree_is_gone_serves_nothing() {
+    let fixture: Fixture = fixture("service-gone-worktree");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("canonical Git directory");
+    let instance: String = instance_of(git_dir.as_path());
+    // The runtime directory a user's units live in, and the note the wrapper writes beside them.
+    let runtime: PathBuf = fixture.root.join("runtime");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("socket directory");
+    record_worktree(runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("the note provisioning writes");
+    std::fs::write(socket_path(runtime.as_path(), instance.as_str()), b"listening").expect("the socket file the manager leaves");
+    // A worktree deleted without Git, as after a removal run by another Git.
+    std::fs::remove_dir_all(git_dir.as_path()).expect("the Git directory is gone");
+    let name: String = address(&fixture, "gone-worktree");
+    let journal: PathBuf = runtime.join("state/monochromatic-git-policy-cli/service").join(instance.as_str());
+    let mut command: Command = super::support::service_command();
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
+        .env("XDG_RUNTIME_DIR", runtime.as_path())
+        // The bus is looked for in the fixture's runtime directory, so no real user manager is asked anything.
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    let mut service: Service = Service { child: command.spawn().expect("the service starts") };
+    let status: std::process::ExitStatus = ended_at_fault(&mut service, "a service of a gone worktree");
+    assert!(status.success(), "serving nothing is not a failure, or `Restart=on-failure` starts the unit again: {status}");
+    assert!(!reachable(name.as_str()), "the service listened for a worktree that is gone");
     remove_settled(&fixture);
 }
 

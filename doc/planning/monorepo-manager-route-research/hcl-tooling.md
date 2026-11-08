@@ -13,7 +13,7 @@ No meow code was written,
 and nothing in the main worktree changed except the troubleshooting documents named in "Tool quirks documented"
 and the vet reports named in "Vet reports".
 
-Date of every measurement below:
+Date of every measurement in this document:
 2026-09-17.
 Merged into "HCL tooling" in `doc/planning/monorepo-manager-from-scratch-design.md` on 2026-09-17.
 Correction on the same day:
@@ -503,7 +503,7 @@ Verified (`data/sizes.jsonl` first `tower-lsp-server` row,
  status 101):
 the first `tower-lsp-server` build failed with `E0063` for a missing `offset_encoding` field in
 `InitializeResult`;
-the measurement above is the successful rebuild using `..InitializeResult::default()`.
+the `tower-lsp-server` 0.23.0 measurement is the successful rebuild using `..InitializeResult::default()`.
 
 ## Question 1: the evaluator
 
@@ -2120,7 +2120,7 @@ and the vetted libraries are the parse layer and the protocol layer underneath t
 
 ## Questions for the user
 
-Each question below has options,
+Each question in `Questions for the user` has options,
  pros,
  cons,
  and my ranking.
