@@ -4269,20 +4269,33 @@ not its own;
 the next batch settles its own (`settle_open_batches` in `service_server_land_group.rs`),
 and that drop (`recover_selected` in `service_land_finish.rs`) left the commit on `refs/worktree/cli-git-service/<seq>`
 alone,
-which a commit Git built never has.
+which a commit only Git can build never has.
 So the drop now writes `refs/cli-git/kept/<seq>` at the batch's own `new` before the intent goes
-(`keep_what_never_landed`),
-a write that fails is logged and does not hold up the drop,
-and the stop waits for nothing more than it did,
-so the commit reaches a ref the wrapper names and the scratch branch is left where it is.
+(`keep_what_the_branch_does_not_show`),
+through the one function that names that ref (`keep_on_a_side_ref`,
+which `keep_unlanded` uses too),
+and the stop waits for nothing more than it did.
+Limits,
+both deliberate:
+the ref exists only once a commit in that worktree has settled the batch,
+so the client that saw the stop still gets "the commit service stopped before it confirmed this commit",
+which names `git log -1` and `git status` and not the kept ref;
+and a kept write that fails is logged with Git's words and the commit's name and still drops,
+because the drop is what releases the worktree's index lock,
+so a ref nobody can write does not leave every later commit waiting on that lock.
+The kept write is a side-ref write,
+so a stop cuts it like every other Git of a landing.
 Controls:
-`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` (unit)
+`a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref` (unit),
+`a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref` (unit,
+the route with no scratch branch),
 and `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`
 (real service stopped inside the write,
 then the next commit).
-The client that saw the stop still gets "the commit service stopped before it confirmed this commit",
-which names `git log -1` and `git status` and not the kept ref:
-at that moment recovery has not run yet and no kept ref exists.
+Planted control:
+removing the call failed both unit controls at once (2026-11-08,
+the same command);
+the binary control was not re-run with the call removed.
 
 Commit service units and removed worktrees (2026-11-08):
 the unit instance is the 128-bit FNV-1a hash of the worktree's real own Git directory (`service_instance.rs`),

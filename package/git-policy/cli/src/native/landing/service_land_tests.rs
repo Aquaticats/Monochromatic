@@ -793,6 +793,40 @@ fn a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref(
     remove(world.root.as_path());
 }
 
+/// A batch that lands a commit Git built makes no scratch branch:
+/// the commit is written by the client's own `git commit`,
+/// and the landing's transaction only moves the branch.
+/// A stop inside that branch write therefore leaves the commit on no ref at all,
+/// and the restart that drops the batch keeps it on `refs/cli-git/kept/<number>`:
+/// without that,
+/// only `git fsck` would find it,
+/// and only until maintenance prunes it.
+#[test]
+fn a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref() {
+    let world: World = world("service-land-recover-kept-built");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let built: String = git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", base.as_str(), "-m", "the stopped built commit"]);
+    let mut stopped: CommitRequest = request(&world, "built", "built.txt", "built\n");
+    stopped.commit = Some(built.clone());
+    stopped.changes = Vec::new();
+    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the commit Git built lands");
+    assert_eq!(outcomes, vec![Outcome::Landed { commit: built.clone() }]);
+    // The kill inside the branch write: the branch where it was, the intent open, and no scratch branch ever made.
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/worktree/cli-git-service"]);
+    assert_eq!(scratch, "", "a commit Git built is on no ref while it lands");
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing of the batch is on the branch");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit Git built is kept on the ref the wrapper names");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "the stopped built commit");
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    remove(world.root.as_path());
+}
+
 /// An instance takes over the open batches of its own worktree even when the batch used an index outside the Git
 ///  directory (`GIT_INDEX_FILE`):
 /// the worktree is named by the Git directory the request carried,

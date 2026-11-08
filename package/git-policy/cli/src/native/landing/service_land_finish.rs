@@ -298,7 +298,7 @@ pub enum Handled {
     /// it stays open.
     StillOpen,
     /// The batch never landed;
-    /// its commit is kept on `refs/cli-git/kept/<number>`,
+    /// its commit is written to `refs/cli-git/kept/<number>` when Git writes that ref,
     /// and its intent and records are removed.
     Dropped,
     /// The batch looks as if it never landed,
@@ -337,7 +337,7 @@ enum JournalOwner {
 }
 
 /// What:
-///  Keeps the commit of a batch that never landed on `refs/cli-git/kept/<number>`,
+///  Keeps the commit of a batch that recovery drops on `refs/cli-git/kept/<number>`,
 /// the ref the wrapper names for a commit it did not land,
 /// before the batch's intent goes.
 /// Why:
@@ -349,30 +349,31 @@ enum JournalOwner {
 /// which a commit Git built never makes,
 /// and which no message names;
 /// the drop that follows would leave it where nothing points a person.
-/// A write that cannot be made is said and does not hold up the drop:
-/// the scratch branch,
-/// where the batch made one,
-/// still protects the commit from maintenance.
-fn keep_what_never_landed(git: &GitContext, intent: &Intent) {
-    if keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
-        crate::service_log!("batch {} never landed, so its commit {} is kept at refs/cli-git/kept/{}", intent.seq, intent.new, intent.seq);
-        return;
+/// A write that cannot be made keeps nothing,
+/// and it does not hold up the drop either:
+/// the drop is what releases the worktree's index lock and forgets the batch,
+/// so a commit whose ref cannot be written is still the commit the person runs again.
+fn keep_what_the_branch_does_not_show(git: &GitContext, intent: &Intent) {
+    match keep_on_a_side_ref(git, intent.repository.as_path(), intent.seq, intent.new.as_str()) {
+        None => crate::service_log!("batch {} is not on its branch, so its commit {} is kept at refs/cli-git/kept/{}", intent.seq, intent.new, intent.seq),
+        Some(words) => crate::service_error!(
+            "batch {} is not on its branch, and its commit {} could not be kept on refs/cli-git/kept/{} ({words}), so the commit is left where the landing put it",
+            intent.seq,
+            intent.new,
+            intent.seq
+        ),
     }
-    crate::service_error!(
-        "batch {} never landed, and its commit {} could not be kept on refs/cli-git/kept/{}; the commit is left where the landing put it",
-        intent.seq,
-        intent.new,
-        intent.seq
-    );
 }
 
 /// What:
 ///  Finishes or drops every batch the journal holds open.
 /// Why:
-///   Runs before the service accepts a connection,
-/// and again before each batch (`service_server.rs`),
+///   Runs before each batch of a service that serves one worktree (`settle_open_batches`),
+/// and before each batch of a development run that serves none,
 /// so an index update
 ///  that gave up while another program held Git's index lock is finished by the next commit and not only by a restart.
+/// An earlier release's shared journal is settled at a service's start instead
+/// (`service_main.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -562,7 +563,7 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
         let handled: Handled = match (decision, owner) {
             (Recovery::Drop, JournalOwner::EarlierHelper) => Handled::Left,
             (Recovery::Drop, JournalOwner::ThisService) => {
-                keep_what_never_landed(&git, &intent);
+                keep_what_the_branch_does_not_show(&git, &intent);
                 remove_stale(intent.index.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));

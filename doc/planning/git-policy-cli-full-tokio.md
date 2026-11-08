@@ -4000,13 +4000,17 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   and that drop left the commit on the landing's scratch branch alone,
   which a commit Git built never has.
   The drop now writes `refs/cli-git/kept/<n>` before the intent goes
-  (`keep_what_never_landed` in `service_land_finish.rs`),
-  a write that fails is logged and does not hold up the drop,
-  and the stop waits for nothing more than it did,
+  (`keep_what_the_branch_does_not_show` in `service_land_finish.rs`),
+  it is a side-ref write,
+  so a stop cuts it like any other Git of a landing,
+  and a drop whose kept write fails is logged with Git's words and still drops,
+  so a ref nobody can write does not leave every later commit waiting on the batch's index lock.
+  The stop waits for nothing more than it did,
   so the ref is named once the worktree commits again.
   Controls,
   red first (`70d04ae08a`):
-  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`
+  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`,
+  `a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref`
   and
   `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`.
 - The measured host facts behind the unit:
