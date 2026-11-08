@@ -430,6 +430,35 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 }
 
 /// What:
+///  Claims every pending item of the given kinds,
+/// from one listing of `pending`,
+/// oldest first.
+/// Why:
+///   A drain that claims its work with `claim_next_of` lists and sorts `pending` for each claim,
+/// so a queue of N items
+///  costs N listings and N sorts (`RG2`).
+/// The round takes the listing once and tries every entry of it,
+/// so a drain of N
+///  items costs one listing.
+/// Each claim still carries the reading of the moment it is taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claimed = []; for (const name of entriesOldestFirst(workDir, 'pending')) { const item = await take(name, now()); if (item) claimed.push(item) }; return claimed
+/// ```
+pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind]) -> Result<Vec<Claimed>, String> {
+    let mut claimed: Vec<Claimed> = Vec::new();
+    for (id, queued) in entries_oldest_first(work_dir, PENDING) {
+        // Each claim carries the reading of the moment it is taken, not of the start of the round, which a long round makes
+        //  most of a lease old.
+        if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, &ClaimTime::read(), &stamp_modification_time)? {
+            claimed.push(taken);
+        }
+    }
+    return Ok(claimed);
+}
+
+/// What:
 ///  `claim_next_of` with the stamp of the claim's modification time given,
 /// so a test can make the stamp fail.
 /// Why:
@@ -451,66 +480,89 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 /// ```
 fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {
-        let mut found_kind: Option<&WorkKind> = None;
-        for candidate in kinds {
-            if id.starts_with(format!("{}-", candidate.name()).as_str()) {
-                found_kind = Some(candidate);
-                break;
-            }
-        }
-        let Some(kind) = found_kind else {
-            continue;
-        };
-        // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
-        if !is_object_name(&id[kind.name().len() + 1..]) {
-            quarantine_pending(work_dir, id.as_str(), format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
-            continue;
-        }
-        let name: String = claim_file_name(id.as_str(), new_generation()?.as_str(), now);
-        let pending_path: PathBuf = state_directory(work_dir, PENDING).join(id.as_str());
-        let staged: PathBuf = state_directory(work_dir, RECOVERING).join(name.as_str());
-        let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
-        if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
-            continue;
-        }
-        let stamped: std::io::Result<()> = stamp(staged.as_path());
-        let published: std::io::Result<()> = match stamped {
-            Ok(()) => std::fs::rename(staged.as_path(), claimed_path.as_path()),
-            Err(error) => Err(error),
-        };
-        if let Err(error) = published {
-            log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
-            // The staged file is this instance's alone:
-            // the age it had is put back before it is queued again,
-            // whatever the stamp did.
-            let opened: std::io::Result<std::fs::File> = std::fs::File::open(staged.as_path());
-            let restored: std::io::Result<()> = match opened {
-                Ok(file) => file.set_modified(queued),
-                Err(open_error) => Err(open_error),
-            };
-            let requeued: std::io::Result<()> = match restored {
-                Ok(()) => std::fs::rename(staged.as_path(), pending_path.as_path()),
-                Err(restore_error) => Err(restore_error),
-            };
-            if let Err(requeue_error) = requeued {
-                log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());
-            }
-            continue;
-        }
-        let text: String = match std::fs::read_to_string(claimed_path.as_path()) {
-            Ok(read) => read,
-            Err(error) => return Err(format!("reading the claim of {id} failed: {error}")),
-        };
-        match WorkItem::decode(text.as_str()) {
-            // The record is the work the file name says;
-            // a record of other work would be settled as done under this id.
-            Ok(item) if item.id() == id => return Ok(Some(Claimed { id, name, item })),
-            _ => {
-                let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id.as_str()));
-            }
+        if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, now, stamp)? {
+            return Ok(Some(taken));
         }
     }
     return Ok(None);
+}
+
+/// What:
+///  Claims the pending entry `id` of one of `kinds`,
+/// or answers nothing when it is no entry to claim.
+/// Why:
+///   The two ways of claiming,
+/// one item at a time and a whole round,
+/// differ only in the listing they walk,
+/// so one function
+///  takes an entry and each caller drives it through its own listing.
+/// `queued` is the entry's modification time,
+///  which a claim that cannot be taken puts back.
+///
+/// # Errors
+///
+/// A generation that cannot be made,
+/// or a claim that cannot be read.
+fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind], now: &ClaimTime, stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
+    let mut found_kind: Option<&WorkKind> = None;
+    for candidate in kinds {
+        if id.starts_with(format!("{}-", candidate.name()).as_str()) {
+            found_kind = Some(candidate);
+            break;
+        }
+    }
+    let Some(kind) = found_kind else {
+        return Ok(None);
+    };
+    // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
+    if !is_object_name(&id[kind.name().len() + 1..]) {
+        quarantine_pending(work_dir, id, format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
+        return Ok(None);
+    }
+    let name: String = claim_file_name(id, new_generation()?.as_str(), now);
+    let pending_path: PathBuf = state_directory(work_dir, PENDING).join(id);
+    let staged: PathBuf = state_directory(work_dir, RECOVERING).join(name.as_str());
+    let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
+    if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
+        return Ok(None);
+    }
+    let stamped: std::io::Result<()> = stamp(staged.as_path());
+    let published: std::io::Result<()> = match stamped {
+        Ok(()) => std::fs::rename(staged.as_path(), claimed_path.as_path()),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = published {
+        log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
+        // The staged file is this instance's alone:
+        // the age it had is put back before it is queued again,
+        // whatever the stamp did.
+        let opened: std::io::Result<std::fs::File> = std::fs::File::open(staged.as_path());
+        let restored: std::io::Result<()> = match opened {
+            Ok(file) => file.set_modified(queued),
+            Err(open_error) => Err(open_error),
+        };
+        let requeued: std::io::Result<()> = match restored {
+            Ok(()) => std::fs::rename(staged.as_path(), pending_path.as_path()),
+            Err(restore_error) => Err(restore_error),
+        };
+        if let Err(requeue_error) = requeued {
+            log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());
+        }
+        return Ok(None);
+    }
+    let text: String = match std::fs::read_to_string(claimed_path.as_path()) {
+        Ok(read) => read,
+        Err(error) => return Err(format!("reading the claim of {id} failed: {error}")),
+    };
+    return match WorkItem::decode(text.as_str()) {
+        // The record is the work the file name says;
+        // a record of other work would be settled as done under this id.
+        Ok(item) if item.id() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
+        _ => {
+            let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id));
+            Ok(None)
+        }
+    };
 }
 
 /// Moves the entry `id` of `pending` to `failed` and says why,
