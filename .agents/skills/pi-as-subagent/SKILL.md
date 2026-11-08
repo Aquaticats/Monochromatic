@@ -30,6 +30,13 @@ The owner:
 "Agents using real git is pretty bad.
 As a duct tape patch,
 put in the skill to always tell the agents to not use real git."
+Also tell every agent never to print the environment (`env`,
+`printenv`,
+`set`),
+even through a filter,
+and to name the one variable it wants:
+an agent's `env | rg` put a real GitHub token in its session,
+and all command output goes to the model provider.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
