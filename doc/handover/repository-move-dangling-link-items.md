@@ -213,17 +213,27 @@ from the brief and the plan:
   as root.
 - Bash startup files in `package/repository-move/cli` (coordinator item):
   every bash the package starts passes `--noprofile --norc`
-  (the runner shell, the copy tool's send and receive shells,
+  (the runner shell,
+  the copy tool's send and receive shells,
   the inner `sudo unshare ... bash` of the cut-over and loop-image stages);
   `src/bash-without-startup-files.unit.test.ts` holds a marker test and a static scan for a bash start without both flags.
   Measured 2026-11-07 for the troubleshooting doc `doc/troubleshooting/bash-c-started-by-node-reads-bashrc.md`
-  (still on the unmerged W3 branch, to be amended there):
+  (still on the unmerged W3 branch,
+  to be amended there):
   the trigger needs a socket on standard input and an inherited `SHLVL` that is not a positive number
-  (unset, `0` and `x` read `~/.bashrc`; `1` and `2` do not),
-  so a run from an interactive terminal usually does not trip it, but one from systemd, `sudo` or a scrubbed environment does.
-  The runner shell gives its child `stdin: 'ignore'`, so it never tripped; the copy tool's `execFile` shells could.
+  (unset,
+  `0` and `x` read `~/.bashrc`;
+  `1` and `2` do not),
+  so a run from an interactive terminal usually does not trip it,
+  but one from systemd,
+  `sudo` or a scrubbed environment does.
+  The runner shell gives its child `stdin: 'ignore'`,
+  so it never tripped;
+  the copy tool's `execFile` shells could.
   No other package this work touched starts bash from TypeScript
-  (the Rust `Command::new("bash")` calls are tests, started with an anonymous pipe, not a socket).
+  (the Rust `Command::new("bash")` calls are tests,
+  started with an anonymous pipe,
+  not a socket).
 - Runner fix (coordinator,
   after fixture run `prepare-9` stopped at `f5a-deadline`):
   the fixture images are sized by `fixtureImageGiB()`
@@ -457,6 +467,9 @@ from the brief and the plan:
   `~/.codex/config.toml` (self-modification and credential files),
   and refused the backup copy of the last two.
   Nothing was changed.
+  The owner then picked "I apply them at cutover (Recommended)"
+  (`doc/handover/questions-for-the-owner.md`),
+  so the coordinator makes the edits right before the cutover starts.
   The exact edits are in the section "W6 and W7 edits to apply" below.
 - Releases:
   wrapper,
@@ -489,6 +502,21 @@ the manager and Claude do not read the shell's PATH):
 - Cost measured:
   `repository-link-run true` takes about 0.03 s on this host,
   added to every Bash hook and status line start.
+- Pipe-tested 2026-11-08T03:43:42-05:00 with no config changed
+  (scripts `${HOME}/temp/agent/860-move/pipe-test-w6-w7.ts` and `run-mcp-probes.ts`):
+  the hook and the status line gave byte-identical stdout and status 0 plain and through `repository-link-run`
+  (one sample each:
+  hook 33 ms plain and 93 ms wrapped,
+  status line 58 ms and 85 ms,
+  so the added time on this loaded host was 27 to 60 ms rather than the 0.03 s measured earlier;
+  no spread was taken).
+  The three MCP commands (`mvm`,
+  `search-fetch` and Codex's `search_fetch`) gave the same first JSON-RPC reply plain and wrapped,
+  17 to 27 ms later wrapped.
+  That reply is error -32601 for `initialize`
+  (the servers say they implement a later MCP revision),
+  so the probe shows only that stdin and stdout pass through the wrapper unchanged,
+  not a full handshake.
 - A running Claude session rewrites `~/.claude.json` often:
   make the edit with the sessions idle,
   or expect to redo it.
@@ -619,19 +647,27 @@ Coordinator answers during the second agent's work (2026-11-07):
 
 ## Next, in order
 
-Merged into main as `f981e1b493` (2026-11-08, gate 5319 of 5319 in the container, package lint 0 warnings):
-the second branch with W3, the freeze text, W12 to W15, the doctor line and the sibling tools.
+Merged into main as `f981e1b493` (2026-11-08,
+gate 5319 of 5319 in the container,
+package lint 0 warnings):
+the second branch with W3,
+the freeze text,
+W12 to W15,
+the doctor line and the sibling tools.
 The first gate run on it failed one test,
 `lock::stale_ref_locks::tests::locks_left_by_a_killed_fetch_are_cleared_and_the_next_fetch_works`
-(two locks expected cleared, one was);
+(two locks expected cleared,
+one was);
 the branch does not touch `src/native/lock`,
 the test passed alone and in the second full run,
-and no cause or rate was measured: an open flake for an owner.
+and no cause or rate was measured:
+an open flake for an owner.
 Then the releases (alphas for the crates changed,
 then `toolchain:update`,
 `toolchain:install`,
 commit the lock;
-ask the coordinator first; the wrapper alpha.2 is the coordinator's).
+ask the coordinator first;
+the wrapper alpha.2 is the coordinator's).
 W6 and W7 stay the owner's call (blocked section above).
 
 Hot-path facts to keep:
