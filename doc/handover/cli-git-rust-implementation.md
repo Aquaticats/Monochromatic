@@ -4114,10 +4114,35 @@ Remaining:
 - sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
   and read the migration journal without following
   a link (`Journal::load` uses `read_to_string`);
-- count existing worktrees whose `node_modules` links are broken (made from main after main moved to pnpm's global
-  virtual store,
-  before the package repair shipped in 0.5.21) and ask the owner before relinking worktrees that belong to other
-  sessions.
+- the `node_modules` links that point nowhere are counted (read only,
+  nothing relinked,
+  2026-11-08T16:49:36-05:00):
+  of 358 registered worktrees,
+  228 hold a `node_modules` and 122 hold none,
+  8 registered worktrees are absent from disk,
+  and 153 of the 228 hold at least one dangling link,
+  16,139 links in all,
+  over 46,185 `node_modules` folders and 457,394 symlinks.
+  Sampling 304 of the 16,139 links found 254 pointing into the pnpm global store's `<name>/<version>/<hash>` folders
+  and 50 into a local `node_modules/.pnpm/<name>@<version>` folder,
+  every one of them gone,
+  which is the failure this bullet expected;
+  the counts cluster at 3,
+  4 and 11 links,
+  and at 289 to 328.
+  The main checkout holds 11,
+  in `package/file-enforcer/core`,
+  `package/test-fixture/file-enforcer-perf`,
+  `package/search-fetch/pi-plugin` and `package/search-fetch/mcp`.
+  The sweep was `find <worktree>/node_modules -xtype l`,
+  plus the same over every `package/*/*/node_modules` folder,
+  and a planted broken link proved it reports one;
+  its script and listing are `${HOME}/temp/agent/node-modules-dangling-count/`
+  (`dangling-per-worktree.tsv` has one row per worktree,
+  `report.jsonl` every dangling path).
+  Relinking a worktree another session owns still waits on the owner's word.
+  The package repair shipped in 0.5.21 is the change the record expected to keep new worktrees out of this state,
+  so the count above covers worktrees made before that repair.
 
 ### Worktree add follow-ups
 
@@ -4320,21 +4345,96 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   other btrfs-only tests still skip in the gate container,
   so a btrfs host run of the ladder is a standing gap.
 - Older umbrella items from October,
-  still unchecked in the former queue,
-  with no later closing record found (all unsure):
-  the scanner pathname mutation scope on Windows without a timeout
-  (`doc/handover/scanner-native-verification.md`);
-  the Windows checks and release-artifact performance gates that trail the cutover;
-  long fuzz campaigns;
-  mutation campaigns of non-core modules (hooks plumbing,
-  auto-push,
-  automatic maintenance,
-  signals);
-  the linter cutover task,
-  the slice 6 convergence mutation rerun and the post-cutover non-core campaigns
-  (the coordinator's task list names them as 24,
-  25 and 29);
-  reconcile each against Git state and either close it with evidence or move it here.
+  reconciled against Git state on 2026-11-08T16:49:36-05:00 (read only;
+  no campaign,
+  fuzz run or Windows check was started).
+  Each entry gives its verdict and where its evidence or its open work lives.
+- The scanner's pathname mutation scope on Windows is paused,
+  not closed.
+  `doc/handover/scanner-native-verification.md`,
+  "Windows rerun paused on 2026-11-01",
+  records that the rerun was stopped before any command ran in the guest,
+  because the owner said "Ignore Win and mac until I say so.",
+  and that the guest was destroyed with nothing run.
+  The one timeout the 2026-10-06 Windows campaign ended with is still unverified
+  (the timeout mutant in `count_prefix_parts`,
+  `src/path_name_bytes.rs` line 59,
+  as that section locates it),
+  so the item resumes there in that section when the owner lifts the pause.
+- The Windows checks are paused by that same sentence:
+  `doc/handover/cli-git-native-pathbytes.md` and
+  `doc/handover/cli-git-native-signals.md` both record `native:clippy:windows` as compiling the Windows
+  code and never running it.
+  The release-artifact performance gate is closed instead of paused.
+  It is the `native:perf` task,
+  which measures the added latency of the release binary against paired direct Git within the limits its
+  description states (added p95 under 2,000 ms on forwarded commands,
+  every paired delta under 5,000 ms on commits),
+  and its figures are recorded for the alpha.2 release in
+  `doc/planning/one-release-each-batch-2026-11.md`,
+  "Latency",
+  including the same-binary spread the comparison needs.
+- Long fuzz campaigns stay open.
+  Neither recorded pause names them:
+  one covers Windows and macOS ("Ignore Win and mac until I say so."),
+  the other covers wrapper mutation campaigns
+  (`doc/handover/questions-for-the-owner.md`,
+  the entry of 2026-11-07 about the campaign that ran against that pause).
+  Every lane defers them to this list
+  (`doc/handover/cli-git-native-interop.md`,
+  `doc/handover/cli-git-native-capture.md`,
+  `doc/handover/cli-git-native-pathbytes.md`,
+  each under "Trailing gates").
+  The one recorded start left no result:
+  unit `cli-git-fuzz-campaign` ran
+  `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900` three times on 2026-10-15,
+  and each exited 1 (11:38,
+  11:45 and 12:53:55,
+  the last after 57 minutes and 20 seconds of wall clock),
+  its log `fuzz-campaign-20261015.log` is gone from `${HOME}/temp/agent`,
+  and no crash or total from it is recorded anywhere.
+  What starts it is that same command,
+  with the totals recorded here.
+- Mutation campaigns of non-core modules are paused by the owner's 2026-11-04 pause:
+  the owner asked "We're not close to doing mutation runs though,
+  right?
+  Don't we still have a lot of things to fix before doing them?",
+  and `doc/handover/questions-for-the-owner.md` adds "No further wrapper campaign starts until you lift the
+  pause."
+  in its entry of 2026-11-07 about the campaign that ran against that pause.
+  Hook plumbing is done anyway:
+  the post-landing campaign over `landed_disposal.rs`,
+  `post_commit_hook.rs` and `post_landing.rs` recorded 19 mutants,
+  16 caught,
+  3 unviable,
+  0 missed and 0 timeouts
+  (`doc/handover/cli-git-native-post-landing.md`,
+  "Mutation"),
+  and that record says nothing remains for the mutation of hook plumbing.
+  The pause still holds the auto-push timeouts to rerun at a larger limit
+  (`doc/handover/cli-git-native-auto-push.md`,
+  "Trailing gates",
+  "Not yet rerun at 300 seconds")
+  and the signals and automatic-maintenance scope
+  (`doc/handover/cli-git-native-signals.md`,
+  "Trailing gates").
+- The linter cutover task is closed.
+  It landed on 2026-10-10 as the fast-forward merge `b111c0ca39`,
+  the five incumbent packages were deleted in `5bc05682e`,
+  and `main` holds both,
+  while the root lint and format tasks have run `monochromatic-lint` since `0b49ae109e`.
+  The durable record is `doc/handover/unified-linter-cutover.md`.
+- The slice 6 convergence mutation rerun and the post-cutover non-core campaigns are paused by that same
+  2026-11-04 pause.
+  The rerun was waiting on a multi-pass control,
+  and the control exists now:
+  `commit_convergence_tests::stored_states_compare_equal_exactly_when_the_corrected_bytes_match` drives
+  `snapshots_equal` through two corrections,
+  and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports,
+  so only the campaign remains.
+  The coordinator's task list that names these as 24,
+  25 and 29 is not in the repository,
+  so what those numbers cover beyond this item is unverified here.
 - macOS is not a release target (the GitHub release carries Linux assets only);
   the `native_binary` tests still fail there (`/dev/full` is absent,
   several fixture spawns fail with NotFound);
