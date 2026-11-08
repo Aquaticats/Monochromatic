@@ -911,8 +911,10 @@ which are not limits.
 - Note 2026-11-08T16:01:42-05:00:
   the basis this entry states is stale.
   The merge waits `MERGE_LOCK_CEILING` (one minute) since the entry
-  "Timing record names every step; the other lock waits" of 2026-11-07,
-  so twice the longest a merge waits is two minutes, not twenty;
+  "Timing record names every step;
+  the other lock waits" of 2026-11-07,
+  so twice the longest a merge waits is two minutes,
+  not twenty;
   the constant keeps its value because another change owns it.
   The timing log read that day (1,332 records,
   "The lock ceiling and the three waits it fed" in the measurement record) holds a whole command of 1,228,797 ms,
@@ -3790,13 +3792,19 @@ each with its measurement beside it:
   2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z).
   The six logged waits for another program's hold on the index were two that landed after 3,636
   and 23,783 ms of answer time and four queued behind the lock that never went on 2026-11-07
-  (62 waiting notices each, 644,710 to 1,200,776 ms, every one stopped).
-  No wait a holder released came near the ten minutes, and the longest of those four is just past the client's
+  (62 waiting notices each,
+  644,710 to 1,200,776 ms,
+  every one stopped).
+  No wait a holder released came near the ten minutes,
+  and the longest of those four is just past the client's
   twenty-minute `ANSWER_CEILING`.
   No wait takes it:
-  it stays as the basis of `FOREIGN_OWNER_PATIENCE` (twice this), which another change owns,
-  and the three waits it once bounded take `MERGE_LOCK_CEILING`, `SETTLE_LOCK_CEILING` and
-  `RECONCILE_LOCK_CEILING`, one minute each.
+  it stays as the basis of `FOREIGN_OWNER_PATIENCE` (twice this),
+  which another change owns,
+  and the three waits it once bounded take `MERGE_LOCK_CEILING`,
+  `SETTLE_LOCK_CEILING` and
+  `RECONCILE_LOCK_CEILING`,
+  one minute each.
   See "The lock ceiling and the three waits it fed" in the measurement record.
 - `CONNECTED_PUSH_QUIET_WINDOW` 150 seconds:
   unmeasured,
@@ -4771,7 +4779,8 @@ the settling of earlier batches and the index reconciliation of a commit whose c
 By this date none of the three takes `LOCK_CEILING` any more:
 each takes a ceiling of its own beside it in `src/native/service/wait_ceilings.rs`
 (`MERGE_LOCK_CEILING`,
-`SETTLE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING`, one minute each),
+`SETTLE_LOCK_CEILING` and `RECONCILE_LOCK_CEILING`,
+one minute each),
 and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
 (`src/native/process/pid_namespace.rs`).
 
@@ -4779,32 +4788,42 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   read-only reads of both generations of the commit timing log,
   `<common Git dir>/monochromatic-git-policy-cli-commit-timing.jsonl` and its `.1`
   (the file moves aside at one mebibyte and keeps one generation),
-  by a scratch script under `${HOME}/temp/agent/lock-ceiling`, not committed.
+  by a scratch script under `${HOME}/temp/agent/lock-ceiling`,
+  not committed.
   No journal was read for this measurement and nothing was written to the repository.
 - Window and count:
   1,332 records from 2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z,
   from 102 worktrees and releases 0.5.34 to 0.6.1-alpha.4:
   1,307 landed,
   23 stopped and 2 ended.
-  The file grows as commits land, so a later read counts more;
+  The file grows as commits land,
+  so a later read counts more;
   anything before 2026-11-05T03:13:38Z was replaced at the rotation and is not in the sample.
-- Whole commands (`totalMs`, milliseconds), 1,332 records:
+- Whole commands (`totalMs`,
+  milliseconds),
+  1,332 records:
   p50 1,214,
   p90 13,300,
   p99 58,782,
   longest 1,228,797.
-  The answer wait (`answerWaitMs`, which holds the queue, another program's hold on the index and the landing):
+  The answer wait (`answerWaitMs`,
+  which holds the queue,
+  another program's hold on the index and the landing):
   p50 109,
   p99 14,875,
   longest 1,200,776.
-  The preparation (`prepareMs`, which holds the reconciliation when it runs):
+  The preparation (`prepareMs`,
+  which holds the reconciliation when it runs):
   p50 379,
   p99 21,878,
   longest 230,525.
-  The work after the landing (`afterLandingMs`): at most 7,856.
-- The waits for another program's hold on the index, the population these ceilings are about:
+  The work after the landing (`afterLandingMs`):
+  at most 7,856.
+- The waits for another program's hold on the index,
+  the population these ceilings are about:
   six records hold a waiting notice.
-  Two landed, after 3,636 and 23,783 ms of answer time.
+  Two landed,
+  after 3,636 and 23,783 ms of answer time.
   Five of the six ended with a notice whose holder kind was `unproven`,
   the sixth with one that named no kind,
   and no notice in the sample ever proved a holder alive.
@@ -4817,7 +4836,8 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
 - Under load:
   the reading ran at load average 115.9 of 32 threads (`/proc/loadavg`),
   and the log itself says which hours were busy.
-  Within one release, which is one binary on both sides:
+  Within one release,
+  which is one binary on both sides:
   the two quietest hours of 0.6.1-alpha.1 (15 and 16 landed commits) had answer waits of 114 and 599 ms at the 99th percentile,
   against 2,890 to 9,086 ms in its five hours of 29 to 81;
   the quietest hour of 0.6.0 (13 records) had 3,892 ms,
@@ -4828,7 +4848,10 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   below the 38,545 ms of the 116-commit hour beside it,
   where the longest landed answer wait of the sample (46,061 ms) is.
   Grouping instead by how many other commits of this repository started within a minute of each landed record
-  (alone, 1 to 3, 4 to 9, 10 or more) gives 23,783,
+  (alone,
+  1 to 3,
+  4 to 9,
+  10 or more) gives 23,783,
   11,842,
   7,895 and 5,918 ms at the 99th percentile,
   an order that runs the other way.
@@ -4841,7 +4864,8 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   `src/native/commit/commit_command.rs` alone),
   and 278 merge commits were made in the window without one;
   the settling is the management command `service settle-earlier-batches`.
-  The reconciliation runs in the client's preparation, and no record of the window names the `git reset` it runs,
+  The reconciliation runs in the client's preparation,
+  and no record of the window names the `git reset` it runs,
   so it did not run in this sample.
   Each of the three keeps the sample its own entry already names:
   the landing's journal waits for the merge's and the reconciliation's ceiling,
@@ -4852,15 +4876,20 @@ and the ten minutes remains only as the basis of `FOREIGN_OWNER_PATIENCE`
   and the file's five-times margin over the journal's 8 s is the one minute those ceilings take;
   ten minutes is 25 times the log's largest self-released wait.
   The four waits that passed a minute are the ones where nothing proved a live holder:
-  the longest is 1,200,776 ms, 776 ms past the client's twenty-minute `ANSWER_CEILING`,
+  the longest is 1,200,776 ms,
+  776 ms past the client's twenty-minute `ANSWER_CEILING`,
   which bounds the whole wait rather than any one step of it.
 - Figure this measurement would pick,
-  recorded and not applied, because the owner decides limits case by case:
-  one minute for the merge's wait, which is the value shipped;
+  recorded and not applied,
+  because the owner decides limits case by case:
+  one minute for the merge's wait,
+  which is the value shipped;
   two minutes if the file's five-times margin were applied to the log's 23,783 ms instead of the journal's 8 s,
-  which that figure does not justify, since it is the whole answer wait and not a measured wait for a lock.
+  which that figure does not justify,
+  since it is the whole answer wait and not a measured wait for a lock.
   Twice the merge's wait would make `FOREIGN_OWNER_PATIENCE` two minutes rather than the twenty it ships;
-  that constant is left as it is, because another change owns it,
+  that constant is left as it is,
+  because another change owns it,
   and its stated basis no longer holds.
 - Limit of the data:
   one repository on one host,
