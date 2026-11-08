@@ -3355,11 +3355,14 @@ so every stop now waits up to its ceiling and tests sized to the old five-second
 
 ### Step T10, the service on tokio, 2026-11-07T20:40:00-05:00
 
-Branch `feat/git-policy-cli-tokio-t10-service`, from main at `f2a90d3fe2`, not yet merged (see "Gate of T10").
+Branch `feat/git-policy-cli-tokio-t10-service`,
+from main at `f2a90d3fe2`,
+not yet merged (see "Gate of T10").
 
 #### What changed
 
-- The landing's per-thread state is carried by the landing's scope (owner's choice 4, "Rewrite per-thread state").
+- The landing's per-thread state is carried by the landing's scope (owner's choice 4,
+  "Rewrite per-thread state").
   `landing/landing_state_carried_by_its_task.rs` holds one `LandingState` of `Cell`s and `RefCell`s in a `tokio::task_local!`,
   entered once by `serve` (`in_a_landing_with`) and readable by `on_the_landing_state(arguments, named_function)`;
   a task entered with `in_a_landing_task` carries it across workers.
@@ -3375,21 +3378,33 @@ Branch `feat/git-policy-cli-tokio-t10-service`, from main at `f2a90d3fe2`, not y
   which is what a thread-local gave a thread that never began a landing;
   the wrapper's own commands never enter a scope (the index lock is the service's alone in production;
   `landing_reset_copy` in `index/index_reset_support.rs` is a test helper).
-  The two counters only controls read (`name_steps`, `loose_looks`) are counted in test builds only.
-  What stays a thread-local, with the reason:
+  The two counters only controls read (`name_steps`,
+  `loose_looks`) are counted in test builds only.
+  What stays a thread-local,
+  with the reason:
   `#[cfg(test)]` fault hooks (they set a value on the test thread and the code under test runs there),
-  the panic hook's count in `invocation/panic_notice.rs` (a hook runs on the thread that panics, so the thread is the right owner),
-  `worktree/add_timing.rs` (`ACTIVE`, the wrapper's `worktree add`, with worker threads that share a `Mutex`; T12),
-  `repo_read/repo_read_tree.rs` (`SHARED_LISTS`, an `Rc` cache of the wrapper's reads; T11).
+  the panic hook's count in `invocation/panic_notice.rs` (a hook runs on the thread that panics,
+  so the thread is the right owner),
+  `worktree/add_timing.rs` (`ACTIVE`,
+  the wrapper's `worktree add`,
+  with worker threads that share a `Mutex`;
+  T12),
+  `repo_read/repo_read_tree.rs` (`SHARED_LISTS`,
+  an `Rc` cache of the wrapper's reads;
+  T11).
 - Connections are tasks.
   `service/service_server_accept_connections_as_tasks.rs` starts one acceptor task on the process's runtime
-  (`spawn_on_runtime`; no worker thread ends the service with status 4 and a plain line, as the start of a thread did)
+  (`spawn_on_runtime`;
+  no worker thread ends the service with status 4 and a plain line,
+  as the start of a thread did)
   and a task per connection;
   `handle_connection` is `async` on `tokio::net::UnixStream` halves,
   the request line is read under `REQUEST_READ_TIMEOUT`,
-  `Reply` is an unbounded `tokio::sync::mpsc` sender (never waits, so the landing thread cannot block on a client),
+  `Reply` is an unbounded `tokio::sync::mpsc` sender (never waits,
+  so the landing thread cannot block on a client),
   and `write_until_answered_noting` is an `async fn` whose beat is `tokio::time::timeout` on the channel.
-  The board's file reads, the withdrawal decision (files in the journal),
+  The board's file reads,
+  the withdrawal decision (files in the journal),
   and the instance name of a Git directory (a path resolution) run on the blocking pool (`run_blocking_job`),
   by the plan's rule "by what a call can wait on".
   A pool that cannot start a thread answers the client `Unavailable` (instance check),
@@ -3399,7 +3414,8 @@ Branch `feat/git-policy-cli-tokio-t10-service`, from main at `f2a90d3fe2`, not y
   `select!` over the control channel and `sleep_until`,
   the renames on the blocking pool with the renewer going there and back,
   and `Drop` still waits until the task has ended (the same wait as the join it replaces;
-  it is not bounded, which is open below).
+  it is not bounded,
+  which is open below).
 - The landing's background syncs are a task that hands each batch to the blocking pool (`landing/service_durable.rs`);
   `drain` still waits for a barrier (the exit path's wait for durability).
 - The marker made ahead is a blocking job awaited by a task (`service_index_prestage.rs`);
@@ -3412,7 +3428,8 @@ Branch `feat/git-policy-cli-tokio-t10-service`, from main at `f2a90d3fe2`, not y
 - `serve` is still a synchronous loop on the main thread.
   Its Git steps reach the runtime through the synchronous bridges (`run_on_runtime`),
   which refuse a call from inside the runtime;
-  an `async` landing loop is T11 (callers `async`, bridges gone).
+  an `async` landing loop is T11 (callers `async`,
+  bridges gone).
   Its sleeps (`landing/service_land_follow.rs`,
   `service_index_hold.rs`,
   `service_index_wait.rs`,
@@ -3437,7 +3454,8 @@ one more) and one thread more for each open connection (36 with 32 connections);
 after T10 27 threads (the main thread,
 the work-loop thread and 25 runtime workers) whatever the number of connections (27 with 32 connections).
 The workers are the runtime plan's (`foundation/runtime_plan.rs`),
-built when the acceptor starts (before, the first Git step of the first landing built it):
+built when the acceptor starts (before,
+the first Git step of the first landing built it):
 workers up to the budget,
 fewer under an address-space limit,
 `RLIMIT_NPROC` or `pids.max`,
@@ -3451,7 +3469,8 @@ and the landing is its own thread) is a question for the owner.
 
 #### Controls
 
-Red first, then green:
+Red first,
+then green:
 `landing_state_carried_by_its_task_tests.rs` (two tasks that interleave on one thread keep their own state;
 a task polled on one thread and finished on another keeps it;
 a scope inside a scope shadows;
@@ -3461,8 +3480,10 @@ outside a scope a write is not kept),
 now none),
 `service_claim_renewal_tests.rs` (16 renewals added 17 threads),
 `service_durable_tests.rs` (a thread named `cli-git-durable`),
-`service_index_prestage_tests.rs` (a thread named `cli-git-prestag`, the kernel's 15-character name),
-and `earlier_service_process_look_tests.rs` (the awaited look beside a ticker, and a look that outlasts its ceiling).
+`service_index_prestage_tests.rs` (a thread named `cli-git-prestag`,
+the kernel's 15-character name),
+and `earlier_service_process_look_tests.rs` (the awaited look beside a ticker,
+and a look that outlasts its ceiling).
 The tests of `service_reply_tests.rs` were ported to tasks on a current-thread runtime with their assertions
 and a counting task beside the writer.
 Forty-six tests that read state across calls were wrapped in `in_a_landing`;
@@ -3488,7 +3509,8 @@ the runtime's plan sizes its workers to the limit,
 so everything a commit needs from threads is reserved when the service starts,
 and an empty band would be a service that is safer under exhaustion and a control whose premise is gone.
 
-Latency (`native:perf`'s own tool, three alternating rounds,
+Latency (`native:perf`'s own tool,
+three alternating rounds,
 `${HOME}/temp/agent/t10-perf/`),
 added median of a commit through the service:
 before 18.4,

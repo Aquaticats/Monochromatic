@@ -97,7 +97,8 @@
 - Written for the owner:
   open choice 12 (what a stop of the service does to the Git child of a commit it is preparing),
   with a ranking.
-- T10 (the service), 2026-11-07T20:40:00-05:00:
+- T10 (the service),
+  2026-11-07T20:40:00-05:00:
   branch `feat/git-policy-cli-tokio-t10-service` in `.claude/worktrees/git-policy-cli-tokio-t10-service`,
   from main at `f2a90d3fe2`,
   NOT merged:
@@ -105,13 +106,16 @@
   the one main already has (`fault_limits::a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_repository`,
   `no address-space limit stopped a commit, so the limits tested nothing (service starts at 110, commit lands at 110)`),
   which waits for the startup rules warm fix (`service/service_main.rs`,
-  `landing/service_rules_precompile.rs`, another agent's).
-  Done in it: the landing's per-thread state in a task-local scope,
+  `landing/service_rules_precompile.rs`,
+  another agent's).
+  Done in it:
+  the landing's per-thread state in a task-local scope,
   the acceptor and every connection as tasks,
   the renewals,
   the background syncs,
   the pre-staged marker and the process look as blocking jobs awaited by tasks.
-  Details, thread counts and stacks,
+  Details,
+  thread counts and stacks,
   controls,
   gate and latency:
   the plan,
