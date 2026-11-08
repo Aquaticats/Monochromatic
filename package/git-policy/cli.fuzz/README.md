@@ -196,10 +196,16 @@ A built file chooses its first line
 the earlier one,
 the current one in capitals,
 or the header with no folder name)
-and then a released claim,
-a claim holding only the process id,
-a whole claim whose last field line is missing,
-or a whole claim followed by lines no reader acts on.
+and then one of six shapes:
+a released claim,
+the same followed by a line no reader acts on,
+a whole owned claim,
+the same followed by such a line,
+an owned claim one field edit leaves naming no process
+(a process id that names none,
+an empty birth identity,
+or no namespace line),
+or a released line a trailing space makes a near miss.
 Its process id is a positive one,
 zero,
 a negative one,

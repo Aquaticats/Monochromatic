@@ -144,8 +144,8 @@ fn claim_text(header: &str, record: &ClaimRecord) -> String {
 /// never by the decoder under test,
 /// and every shape is built so its outcome cannot depend on which byte
 ///  happened to hold which choice.
-/// The shapes are a declared claim,
-/// one followed by a line no reader acts on,
+/// The shapes are a released claim,
+/// the same followed by a line no reader acts on,
 /// a whole owned claim,
 /// the same followed by such a line,
 /// an owned claim one field edit leaves naming no process,
