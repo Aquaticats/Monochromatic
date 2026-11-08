@@ -5,7 +5,8 @@ written 2026-11-07T22:30:07-05:00
 from the grilling interview opened 2026-11-07T22:02:14-05:00,
 its repo and installed-API measurements,
 and two cross-vendor design reviews folded in before confirmation.
-Implementation stays locked until the owner accepts this proposal.
+The owner accepted this proposal 2026-11-07T22:33:58-05:00,
+which unlocked implementation.
 
 ## Contents
 
