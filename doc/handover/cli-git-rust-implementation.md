@@ -3291,6 +3291,34 @@ and this checkout (22,161 entries):
   and a refresh that meets another program's lock is not kept,
   leaves the index as it was and does not wait for it).
 
+Owner question:
+`package/git-policy/cli/SPEC.md:5471` says a commit prepares
+"in parallel with other commits and without the real index lock",
+and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
+The step here takes that lock when the index is stale,
+which the two controls this branch fixed do not see,
+because their repositories have an index Git has just written.
+It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
+and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
+so concurrent commits still never fail on it and nothing waits on it in preparation.
+Two readings are open:
+
+- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
+  which is what this branch does and what keeps the scratch step inside its ceiling.
+- Keep preparation lock-free,
+  and hand the write to the landing,
+  which already holds `index.lock`:
+  it would build its private copy,
+  answer the same in-process staleness question over the live index,
+  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
+  and install that copy.
+  Then nothing outside the landing writes the real index,
+  and the cost moves to the landing,
+  inside its lock,
+  on every commit after the worktree moved.
+  The first commit after the move would still pay the refresh on its private copy in preparation,
+  as the locked-index fallback does today.
+
 Still to do:
 
 - The landing's in-process index reset writes the commit's paths with all-zero stat data
