@@ -26,7 +26,7 @@ import {
 } from './tunnel-bypass-types.ts';
 
 /**
- Module logger for update-host reconciliation.
+ Module logger for clearnet-host reconciliation.
  */
 const l = tagged({ tag: 'tunnel-bypass-hosts-sync', },);
 
@@ -66,7 +66,7 @@ async function listOwnedRules(
  Asks the resolver about every host,
  turning a throwing resolver into a failure for that host.
 
- @param hosts - The update-host list.
+ @param hosts - The host lists whose rules this rule set carries.
 
  @param lookup - Resolver.
 
@@ -176,7 +176,7 @@ async function applyPlan(
           state,
         },);
         done.added += 1;
-        fl.info(`update-host rule added: ${rule.family} ${rule.address} for ${(hostsOf.get(`${rule.family}|${rule.address}`,) ?? []).join(', ',)}`,);
+        fl.info(`clearnet-host rule added: ${rule.family} ${rule.address} for ${(hostsOf.get(`${rule.family}|${rule.address}`,) ?? []).join(', ',)}`,);
       }
       catch (error) {
         failures.push(`cannot add rule for ${rule.address}: ${String(error,)}`,);
@@ -193,7 +193,7 @@ async function applyPlan(
           state,
         },);
         done.removed += 1;
-        fl.info(`update-host rule removed: ${rule.family} ${rule.address}`,);
+        fl.info(`clearnet-host rule removed: ${rule.family} ${rule.address}`,);
       }
       catch (error) {
         failures.push(`cannot remove rule for ${rule.address}: ${String(error,)}`,);
@@ -254,7 +254,7 @@ function didTimeOut(answer: HostAnswer,): boolean {
 
  @param state - Claimed table and preference.
 
- @param hosts - The update-host list.
+ @param hosts - The host lists whose rules this rule set carries.
 
  @param lookup - Resolver.
 

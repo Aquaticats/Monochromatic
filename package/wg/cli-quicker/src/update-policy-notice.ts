@@ -32,17 +32,20 @@ export const KIND_ROUTE_WATCHER_DIED = 'route watcher died';
 export const POLICY_NOT_IN_FORCE_MARKER = 'POLICY NOT IN FORCE';
 
 /**
- Name of the update-host policy,
+ Name of the host-rule policy,
  used in every report about it.
+ One rule set carries two lists,
+ kept apart in the notice because each leaves the tunnel for its own reason:
+ the update hosts and the model provider hosts.
  */
-export const POLICY_UPDATE_HOSTS = 'update hosts: traffic to the update-host list stays outside the tunnel for every program';
+export const POLICY_CLEARNET_HOSTS = 'clearnet hosts: traffic to the update-host and provider-host lists stays outside the tunnel for every program';
 
 /**
  Name of the process policy,
  which `wg-quicker-exempt` enforces and reports under the same name.
  A test compares this text with the Rust constant.
  */
-export const POLICY_PROCESS_WATCH = 'process watch: update entry points and toolchain install roots stay outside the tunnel';
+export const POLICY_PROCESS_WATCH = 'process watch: update entry points, toolchain install roots and Pi stay outside the tunnel';
 
 /**
  Name of the socket-marking policy,
@@ -68,14 +71,24 @@ export const POLICY_BYPASS_TABLE = 'bypass table: marked traffic follows the phy
 
  @param hosts - The update-host list.
 
+ @param providerHosts - The host list of the model providers Pi reaches.
+
  @returns Multi-line notice.
 
  @example
  ```ts
- updatePolicyNotice({ hosts: ['crates.io',] });
+ updatePolicyNotice({ hosts: ['crates.io',], providerHosts: ['api.deepseek.com',] });
  ```
  */
-export function updatePolicyNotice({ hosts, }: { readonly hosts: readonly string[]; },): string {
+export function updatePolicyNotice(
+  {
+    hosts,
+    providerHosts,
+  }: {
+    readonly hosts: readonly string[];
+    readonly providerHosts: readonly string[];
+  },
+): string {
   return [
     'POLICY NOTICE: by this repository\'s policy, and without any switch to turn it off,',
     'the following traffic leaves OUTSIDE the WireGuard tunnel while ExemptMark is configured:',
@@ -85,21 +98,33 @@ export function updatePolicyNotice({ hosts, }: { readonly hosts: readonly string
     '     and toolchain-global directories of the monochromatic-dev data directory, together with every process it starts.',
     '     That is every script and dev server run by the toolchain\'s node, every build by its compilers,',
     '     and everything they fetch. The start notice of wg-quicker-exempt lists the tools installed on this machine now.',
-    '  3. Update hosts, for every program including browsers, as whole addresses:',
+    '  3. Pi: every process of a pi-<name>.service agent unit, and every node process whose first command-line word is pi,',
+    '     together with every process they start. A unit is not moved: the user\'s service manager cannot move a service\'s',
+    '     main process, so the socket mark the watcher attaches to that cgroup covers it and every process below it,',
+    '     which is the same rule the terminals have.',
+    '  4. Update hosts, for every program including browsers, as whole addresses:',
     `     ${hosts.join(', ',)}.`,
     '     A rule carries an address and not a site, so a shared CDN address sends every other site on it outside the tunnel too.',
     '     For example docs.python.org shares all its addresses with pypi.org,',
     '     and raw.githubusercontent.com and avatars.githubusercontent.com share half of theirs with the GitHub release-asset hosts.',
     '     Host rules use only answers from the tunnel\'s own DNS = servers, asked through the tunnel;',
     '     the tunnel\'s DNS servers and peer endpoints never get a rule.',
+    '  5. Model provider hosts, for every program including browsers, as whole addresses:',
+    `     ${providerHosts.join(', ',)}.`,
+    '     These are the API hosts of Pi\'s deepseek, neuralwatt, opencode-go, qwen token plan and synthetic providers,',
+    '     apart from the update hosts because they leave the tunnel for another reason: they carry the agents\' requests.',
+    '     Their rules are installed with the update-host rules, from the same tunnel DNS answers, and carry whole addresses',
+    '     the same way, so a shared CDN address serves those providers and every other site on it outside the tunnel.',
     'How a process is recognized, and what can imitate it: the executable\'s file name (mise, mpm-shadow, mpm, node)',
     'together with its command-line words, the tail of a toolchain script path, any executable named mpm,',
     'and any executable under the install roots, which are inside a home directory the user can write.',
     'Any program the user can run from such a path, or under such a name, leaves outside the tunnel too.',
+    'Pi is matched by the first command-line word it sets for itself, together with the node file name,',
+    'so `exec -a pi node` imitates it, and by the name of the unit it runs in, which is a name the user can choose.',
     'A toolchain folder that is a link is ignored: links are not followed, wherever they point,',
     'and each such root is reported loudly as not in force every time the watcher starts.',
-    'Not covered: processes in another pid namespace (containers and sandboxes), and processes the user\'s service manager',
-    'cannot move (login sessions and the main process of a service); the watcher reports each one when it matches.',
+    'Not covered: processes in another pid namespace (containers and sandboxes), processes of a login session,',
+    'and the main process of a service whose cgroup the watcher does not mark; the watcher reports each one when it matches.',
     'Why: the repository keeps toolchain updates on the physical network so they are fast and do not depend on a tunnel exit.',
     'Anyone who must not reach these hosts or run these programs outside the tunnel must not use this tool.',
   ].join('\n',);
@@ -117,8 +142,8 @@ export function updatePolicyNotice({ hosts, }: { readonly hosts: readonly string
  ```
  */
 export function policiesNotInForceWithoutMark(): string {
-  return `${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_PROCESS_WATCH}; ${POLICY_UPDATE_HOSTS}. `
-    + 'No ExemptMark is configured, so the bypass table that carries them does not exist and update traffic uses the tunnel.';
+  return `${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_PROCESS_WATCH}; ${POLICY_CLEARNET_HOSTS}. `
+    + 'No ExemptMark is configured, so the bypass table that carries them does not exist and update and provider traffic uses the tunnel.';
 }
 
 /**
@@ -136,9 +161,9 @@ export function policiesNotInForceWithoutMark(): string {
  ```
  */
 export function policiesNotInForceWithTableOff(): string {
-  return `${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_PROCESS_WATCH}; ${POLICY_UPDATE_HOSTS}. `
+  return `${POLICY_NOT_IN_FORCE_MARKER}: ${POLICY_PROCESS_WATCH}; ${POLICY_CLEARNET_HOSTS}. `
     + 'The config says Table = off, so wg-quicker installs no routing rule and no bypass table at all: '
-    + 'it routes no update traffic around the tunnel, and where any traffic goes is decided by your own routing.';
+    + 'it routes no update or provider traffic around the tunnel, and where any traffic goes is decided by your own routing.';
 }
 
 /**
@@ -207,7 +232,7 @@ export function watcherMissingAtStopReport({ searched, }: { readonly searched: r
 
  @example
  ```ts
- policyNotInForce({ policy: POLICY_UPDATE_HOSTS, detail: 'DNS refresh failed' });
+ policyNotInForce({ policy: POLICY_CLEARNET_HOSTS, detail: 'DNS refresh failed' });
  ```
  */
 export function policyNotInForce(
@@ -253,6 +278,11 @@ export type StartNoticeInput = {
   readonly hosts: readonly string[];
 
   /**
+   The host list of the model providers Pi reaches.
+   */
+  readonly providerHosts: readonly string[];
+
+  /**
    Mark the user should add to the config when none is set.
    */
   readonly recommendedMark: number;
@@ -272,13 +302,13 @@ export type StartNoticeInput = {
 
  @example
  ```ts
- startNotices({ target: 'wg0', exemptMark: 100, tableOff: false, dnsServers: ['1.1.1.1'], hosts: [], recommendedMark: 100 });
+ startNotices({ target: 'wg0', exemptMark: 100, tableOff: false, dnsServers: ['1.1.1.1'], hosts: [], providerHosts: [], recommendedMark: 100 });
  ```
  */
 export function startNotices(input: StartNoticeInput,): readonly string[] {
   if (input.exemptMark === undefined)
     return [
-      `Config for ${input.target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox, Firefox Nightly, ChatGPT, Interpreter, Qure, and OdyTTY will use the tunnel. `
+      `Config for ${input.target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox, Firefox Nightly, ChatGPT, Interpreter, Qure, OdyTTY and Pi will use the tunnel. `
         + `So will toolchain sync and update runs. ${policiesNotInForceWithoutMark()} `
         + `Add \`ExemptMark = ${String(input.recommendedMark,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
     ];
@@ -287,15 +317,15 @@ export function startNotices(input: StartNoticeInput,): readonly string[] {
   /**
    Notices every start with an exemption mark prints.
    */
-  const notices = [updatePolicyNotice({ hosts: input.hosts, },),];
+  const notices = [updatePolicyNotice({ hosts: input.hosts, providerHosts: input.providerHosts, },),];
   if (input.dnsServers
     .length
     === 0)
     notices.push(policyNotInForce({
-      policy: POLICY_UPDATE_HOSTS,
-      detail: `the config for ${input.target} sets no DNS = server, so no update-host rule will be installed and traffic to the update hosts uses the tunnel: `
+      policy: POLICY_CLEARNET_HOSTS,
+      detail: `the config for ${input.target} sets no DNS = server, so no host rule will be installed and traffic to the update hosts and the model provider hosts uses the tunnel: `
         + 'host rules use only answers from the tunnel\'s own DNS = servers, asked through the tunnel. '
-        + 'The process watch and the toolchain paths still run.',
+        + 'The process watch, the toolchain paths and the Pi coverage still run.',
     },),);
   return notices;
 }

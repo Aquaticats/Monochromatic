@@ -23,8 +23,9 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Name of the policy the process watcher enforces,
-/// used in every report.
-pub const POLICY_PROCESS_WATCH: &str = "process watch: update entry points and toolchain install roots stay outside the tunnel";
+/// used in every report,
+/// and the same text the TypeScript package prints.
+pub const POLICY_PROCESS_WATCH: &str = "process watch: update entry points, toolchain install roots and Pi stay outside the tunnel";
 
 /// The words that mark every loud report,
 /// which the starting command also looks for in the watcher log to relay startup failures.

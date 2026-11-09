@@ -17,18 +17,29 @@ import {
 } from './tunnel-dependencies.ts';
 import { createTunnelHostLookup, } from './tunnel-dns-lookup.ts';
 import type { FailureDelivery, } from './runtime-failure-report.ts';
+import { PROVIDER_HOSTS, } from './provider-hosts.data.ts';
 import { UPDATE_HOSTS, } from './update-hosts.data.ts';
 import {
   KIND_UPDATE_HOST_PROBLEMS,
   KIND_UPDATE_HOST_REFRESH_FAILED,
-  POLICY_UPDATE_HOSTS,
+  POLICY_CLEARNET_HOSTS,
   policyNotInForce,
 } from './update-policy-notice.ts';
 
 /**
- Module logger for the update-host refresh.
+ Module logger for the clearnet-host refresh.
  */
 const l = tagged({ tag: 'bypass-host-refresh', },);
+
+/**
+ Every host whose traffic the wg tools keep outside the tunnel for every program:
+ the update hosts and the model provider hosts Pi reaches.
+ They share one rule set,
+ because a refresh that installed only its own list would remove the other list's
+ rules as unwanted,
+ and each list keeps its own reason in the start notice.
+ */
+export const CLEARNET_HOSTS: readonly string[] = [...UPDATE_HOSTS, ...PROVIDER_HOSTS,];
 
 /**
  Milliseconds in one second.
@@ -77,7 +88,7 @@ export async function reportHostSync(
    */
   const loud = hostSyncFailureText({ report, },);
   if (loud === '') {
-    fl.debug(`update-host rules current: ${String(report.added,)} added, ${String(report.removed,)} removed`,);
+    fl.debug(`clearnet-host rules current: ${String(report.added,)} added, ${String(report.removed,)} removed`,);
     return;
   }
   fl.error(loud,);
@@ -127,7 +138,7 @@ export function hostSyncFailureText({ report, }: { readonly report: HostSyncRepo
     .length
     - listed.length;
   return policyNotInForce({
-    policy: POLICY_UPDATE_HOSTS,
+    policy: POLICY_CLEARNET_HOSTS,
     detail: `${String(report.failures
       .length,)} problem(s); traffic to the affected hosts uses the tunnel until the next refresh `
       + `in ${String(report.nextRefreshSeconds,)} s: ${listed
@@ -148,9 +159,9 @@ export function hostSyncFailureText({ report, }: { readonly report: HostSyncRepo
  ```
  */
 export function noDnsFailure({ interfaceName, }: { readonly interfaceName: string; },): string {
-  return `the tunnel ${interfaceName} sets no DNS server, so no update-host rule is installed: `
+  return `the tunnel ${interfaceName} sets no DNS server, so no host rule is installed: `
     + 'host rules use only answers from the tunnel\'s own DNS = servers, queried through the tunnel, '
-    + 'and the process watch and the toolchain paths still run';
+    + 'and the process watch, the toolchain paths and the Pi coverage still run';
 }
 
 /**
@@ -224,7 +235,7 @@ export async function refreshUpdateHostRules(
    */
   const report = await syncUpdateHostRules({
     state,
-    hosts: hasDns ? UPDATE_HOSTS : [],
+    hosts: hasDns ? CLEARNET_HOSTS : [],
     lookup,
     tools,
     absentCounts,
@@ -304,8 +315,8 @@ export async function refreshOrReport(
      Loud report of the failed refresh.
      */
     const loud = policyNotInForce({
-      policy: POLICY_UPDATE_HOSTS,
-      detail: `the refresh failed: ${String(error,)}; no update-host rule was added or changed by this attempt`,
+      policy: POLICY_CLEARNET_HOSTS,
+      detail: `the refresh failed: ${String(error,)}; no host rule was added or changed by this attempt`,
     },);
     fl.error(loud,);
     await deliver?.({
@@ -411,7 +422,7 @@ export async function refreshThenWait(
 }
 
 /**
- Refreshes the update-host rules until the watcher is asked to stop.
+ Refreshes the clearnet-host rules, of the update hosts and the model provider hosts, until the watcher is asked to stop.
 
  @param state - Claimed table and preference.
 
