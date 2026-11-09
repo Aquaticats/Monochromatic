@@ -6,6 +6,7 @@
 //! and an item that awaits a Git child is what this form exists for.
 
 use super::*;
+use crate::line_sink::LineSink;
 use crate::parallel_runner::Event;
 use crate::parallel_test_support::{PATIENCE, Rendezvous};
 use crate::test_support::{fixture, git_context, remove, repository};
@@ -48,7 +49,7 @@ fn run_beside_each_other<R: Send + 'static>(items: Vec<u64>, work: Arc<dyn Order
 /// Items that wait for the time they are given say one line and return ten times their index.
 struct WaitThenSay;
 impl OrderedAwaitingWork<u64, u64> for WaitThenSay {
-    fn run<'a>(&'a self, index: usize, item: &'a u64, say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(&'a self, index: usize, item: &'a u64, mut say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             tokio::time::sleep(Duration::from_millis(*item)).await;
             say.say(format!("item {index}").as_str());
@@ -107,7 +108,7 @@ struct MeetTheOthers {
 }
 
 impl OrderedAwaitingWork<u64, bool> for MeetTheOthers {
-    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: LinesToTheConsumer<bool>) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         return Box::pin(async move {
             return tokio::time::timeout(PATIENCE, self.point.wait()).await.is_ok();
         });
@@ -150,7 +151,7 @@ struct EnterAndLeave {
 }
 
 impl OrderedAwaitingWork<u64, u64> for EnterAndLeave {
-    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             self.order.lock().expect("lock").push(format!("enter {index}"));
             tokio::time::sleep(Duration::from_millis(BUSY_MILLIS)).await;
@@ -203,7 +204,7 @@ struct AskGit {
 }
 
 impl OrderedAwaitingWork<u64, Option<String>> for AskGit {
-    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>> {
+    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: LinesToTheConsumer<Option<String>>) -> Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>> {
         return Box::pin(async move {
             let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(self.directory.as_path(), &["rev-parse", "--show-toplevel"]);
             let output = crate::transaction_git_awaiting::run_git_awaiting(&self.context, &request).await.ok()?;
@@ -262,12 +263,13 @@ struct SayFromThePool {
 }
 
 impl OrderedAwaitingWork<u64, u64> for SayFromThePool {
-    fn run<'a>(&'a self, index: usize, _item: &'a u64, say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(&'a self, index: usize, _item: &'a u64, say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             let seen: Arc<Rendezvous> = Arc::clone(&self.seen_by_the_consumer);
-            // The job takes the sink: it is `'static`, so what it carries must be `'static` too.
+            // The job takes the sink: it is `'static`, and a sink the item owns may travel with it.
             let said: bool = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
-                say.say("halfway");
+                let mut sink: LinesToTheConsumer<u64> = say;
+                sink.say("halfway");
                 return seen.wait_for_target();
             })
             .await

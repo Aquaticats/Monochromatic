@@ -32,7 +32,6 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::line_sink::LineSink;
 use crate::parallel_runner::{Message, OrderedEvents, refuse_lanes_that_do_not_cover_every_item};
 use crate::parallel_runner_on_the_runtime::{CountedOut, LinesToTheConsumer, OrderedRunError, SlotsStillRunning, finish_the_run};
 use std::future::Future;
@@ -51,6 +50,12 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 ///  this is the same shape with the result handed back through a boxed future,
 /// because a trait with an `async` method
 ///  cannot be made into a `dyn` value behind an `Arc`.
+/// The lines an item says are handed to it as a value it owns
+///  (`LinesToTheConsumer`),
+/// not as a borrow,
+/// so the item may move them into a job of the blocking pool,
+/// which must be `'static`,
+///  and so say them while that job works.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -60,7 +65,7 @@ pub trait OrderedAwaitingWork<T, R>: Send + Sync {
     /// Do the item at `index`,
     /// saying its lines through `say`,
     /// and return its result when its waits are over.
-    fn run<'a>(&'a self, index: usize, item: &'a T, say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>;
+    fn run<'a>(&'a self, index: usize, item: &'a T, say: LinesToTheConsumer<R>) -> Pin<Box<dyn Future<Output = R> + Send + 'a>>;
 }
 
 /// What:
@@ -138,9 +143,9 @@ async fn run_a_lane<T: Send + Sync + 'static, R: Send + 'static>(lane: Lane<T, R
         let Some(indices) = lane.lanes.get(lane_index) else { return Ok(()) };
         for &index in indices {
             let Some(item) = lane.items.get(index) else { continue };
-            // `mut` lets the item say its lines through this sink.
-            let mut say: LinesToTheConsumer<'_, R> = LinesToTheConsumer { sender: &lane.sender, index };
-            let result: R = lane.work.run(index, item, &mut say).await;
+            // The sink is a value the item owns, so a `'static` job of the pool can carry it.
+            let say: LinesToTheConsumer<R> = LinesToTheConsumer::new(&lane.sender, index);
+            let result: R = lane.work.run(index, item, say).await;
             let _sent = lane.sender.send(Message::Done(index, result));
         }
     }

@@ -151,22 +151,46 @@ impl<T: Send + Sync + 'static, R: Send + 'static> OneItem<T, R> {
     fn run(self) {
         let OneItem { items, work, sender, index } = self;
         let Some(item) = items.get(index) else { return };
-        let mut say: LinesToTheConsumer<'_, R> = LinesToTheConsumer { sender: &sender, index };
+        let mut say: LinesToTheConsumer<R> = LinesToTheConsumer::new(&sender, index);
         let result: R = work.run(index, item, &mut say);
         let _sent = sender.send(Message::Done(index, result));
     }
 }
 
-/// The lines of one item,
-/// sent to the consumer of the calling task with the item's index.
-pub(crate) struct LinesToTheConsumer<'sender, R> {
+/// What:
+///  The lines of one item,
+/// sent to the consumer of the calling task with the item's index,
+/// as a value the item owns.
+/// Why:
+///   A job of the blocking pool must own what it reads
+/// (`run_blocking_job_within_the_budget`),
+/// and the items of an awaited ordered run are just such jobs,
+///  so an item that says its lines while it works
+/// (`parallel_runner_on_the_runtime_awaiting.rs`)
+///  carries a clone of the one sending end the run already uses
+/// instead of a borrow of it.
+/// No lock is taken:
+/// the channel is the whole of the sharing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LinesToTheConsumer { constructor(readonly sender: Sender, readonly index: number) {} say(text: string) { this.sender.send({ line: [this.index, text] }) } }
+/// ```
+pub struct LinesToTheConsumer<R> {
     /// Where the lines go.
-    pub(crate) sender: &'sender UnboundedSender<Message<R>>,
+    sender: UnboundedSender<Message<R>>,
     /// The item that says them.
-    pub(crate) index: usize,
+    index: usize,
 }
 
-impl<R> LineSink for LinesToTheConsumer<'_, R> {
+impl<R> LinesToTheConsumer<R> {
+    /// The lines of the item at `index` of the run whose consumer reads `sender`.
+    pub(crate) fn new(sender: &UnboundedSender<Message<R>>, index: usize) -> Self {
+        return LinesToTheConsumer { sender: sender.clone(), index };
+    }
+}
+
+impl<R> LineSink for LinesToTheConsumer<R> {
     fn say(&mut self, text: &str) {
         // The consumer is gone only when the calling task was ended, and that end is the answer of the run.
         let _sent = self.sender.send(Message::Line(self.index, text.to_string()));
