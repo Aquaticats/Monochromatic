@@ -145,6 +145,18 @@ fn abandon(platform: &dyn Platform, candidate: &Candidate, journal: Journal, say
 /// const verdict = await convertWorktree({ platform, path, options, interrupt, say });
 /// ```
 pub fn convert_worktree(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
+    // A platform that stands in for a filesystem that loses nothing keeps the journal and index writes in the page cache.
+    if !platform.flushes_to_disk() {
+        return crate::subvolume_file_write_steps::without_flushing_for_this_thread(|| {
+            return convert_in_phases(platform, path, options, interrupt, say);
+        });
+    }
+    return convert_in_phases(platform, path, options, interrupt, say);
+}
+
+/// The phases of one conversion,
+/// which `convert_worktree` wraps in the platform's answer about flushing.
+fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptions, interrupt: &Interrupt, say: &mut dyn LineSink) -> Result<Verdict, MigrateError> {
     let candidate: Candidate = match inspect(path) {
         Ok(found) => found,
         Err(reason) => return Ok(Verdict::Skipped(vec![reason])),

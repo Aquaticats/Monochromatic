@@ -150,6 +150,13 @@ impl Platform for PlainPlatform {
     fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError> {
         return exchange_paths(first, second);
     }
+
+    /// A control that uses this platform simulates a kill in the process,
+    /// which loses no page cache,
+    /// so the journal's flushes are left out.
+    fn flushes_to_disk(&self) -> bool {
+        return false;
+    }
 }
 
 /// A platform that runs a hook before every clone and can make every hard link fail with `EXDEV`,
@@ -200,6 +207,9 @@ impl Platform for Hooked {
             return Err(std::io::Error::from_raw_os_error(libc::EXDEV));
         }
         return std::fs::hard_link(existing, new);
+    }
+    fn flushes_to_disk(&self) -> bool {
+        return self.inner.flushes_to_disk();
     }
 }
 

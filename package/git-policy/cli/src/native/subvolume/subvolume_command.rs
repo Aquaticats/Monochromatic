@@ -142,6 +142,18 @@ fn say_refusals(say: &mut dyn FnMut(&str), refusals: &[Refusal]) {
 /// const code = await execute(platform, args, root, interrupt, say);
 /// ```
 pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
+    // A platform that stands in for a filesystem that loses nothing keeps the journal and index writes in the page cache.
+    if !platform.flushes_to_disk() {
+        return crate::subvolume_file_write_steps::without_flushing_for_this_thread(|| {
+            return run_to_a_status(platform, arguments, root, interrupt, say);
+        });
+    }
+    return run_to_a_status(platform, arguments, root, interrupt, say);
+}
+
+/// The status mapping of one run,
+/// which `execute` wraps in the platform's answer about flushing.
+fn run_to_a_status(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
     let outcome: Result<i32, MigrateError> = run_mode(platform, arguments, root, interrupt, &mut *say);
     match outcome {
         Ok(code) => return code,
