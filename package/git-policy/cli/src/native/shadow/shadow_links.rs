@@ -25,6 +25,8 @@
 
 /// The conclusion state names a shadow keeps privately.
 use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
+/// The name prefix of every private copy of an index the wrapper makes beside the real one.
+use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -59,6 +61,11 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
 /// Why:
 ///   A shadow Git that locks the same name as the real owner would collide with it,
 ///  so lock files are never linked.
+///  The wrapper's own private copy of an index is private for a second reason:
+/// its directory sits beside the real index,
+///  a common directory collects one for every command that died before it removed its own,
+///  so the number of names to link grows with no limit the person chose,
+/// and no hook resolves one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,6 +75,7 @@ pub fn is_private_shadow_entry(name: &str) -> bool {
     return PRIVATE_SHADOW_ENTRIES.contains(&name)
         || CONCLUSION_STATE_FILES.contains(&name)
         || name == SEQUENCER_DIRECTORY
+        || name.starts_with(PRIVATE_INDEX_PREFIX)
         || name.ends_with(".lock");
 }
 
