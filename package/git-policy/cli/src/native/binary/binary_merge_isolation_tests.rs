@@ -906,7 +906,7 @@ fn a_live_merges_record_is_left_alone() {
     let tip: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     let intent = git_policy_cli::merge_isolation_journal::MergeIntent {
         owner,
-        repository_root: repo.to_string_lossy().into_owned(),
+        repository_root: repo.to_path_buf(),
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: tip.clone(),
         new_oid: tip,

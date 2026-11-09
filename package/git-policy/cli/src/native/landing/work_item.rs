@@ -24,10 +24,11 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
+use crate::path_bytes_in_records as path_bytes;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_timing::log;
 pub use crate::work_item_kinds_and_their_names::WorkKind;
-pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
+pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
 pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
@@ -58,7 +59,7 @@ pub struct WorkItem {
     /// What to do.
     pub kind: WorkKind,
     /// The worktree root.
-    pub repository: String,
+    pub repository: PathBuf,
     /// The Git directory of the worktree that made the commit and whose service instance runs the item:
     /// the common directory
     ///  for the main worktree,
@@ -66,7 +67,7 @@ pub struct WorkItem {
     /// The work records are under it,
     /// and
     ///  `is_acceptable` refuses an item whose value is not the directory it is read from.
-    pub git_dir: String,
+    pub git_dir: PathBuf,
     /// The branch reference that received the commit.
     pub branch_ref: String,
     /// The landed commit.
@@ -94,11 +95,12 @@ impl WorkItem {
         let mut fields: Map<String, Value> = Map::new();
         fields.insert(String::from("v"), Value::from(VERSION));
         fields.insert(String::from("tries"), Value::from(self.tries));
+        // A directory goes in as plain text and as its bytes, so a reader of either form finds the one the wrapper named.
+        path_bytes::write_field(&mut fields, "repository", self.repository.as_path());
+        path_bytes::write_field(&mut fields, "gitDir", self.git_dir.as_path());
         for (name, text) in [
             ("kind", self.kind.name()),
             ("id", self.id().as_str()),
-            ("repository", self.repository.as_str()),
-            ("gitDir", self.git_dir.as_str()),
             ("ref", self.branch_ref.as_str()),
             ("oid", self.oid.as_str()),
             ("parent", self.parent.as_str()),
@@ -135,8 +137,8 @@ impl WorkItem {
         };
         let item: WorkItem = WorkItem {
             kind,
-            repository: text_field(&value, "repository")?,
-            git_dir: text_field(&value, "gitDir")?,
+            repository: path_bytes::read_field(&value, "repository")?,
+            git_dir: path_bytes::read_field(&value, "gitDir")?,
             branch_ref: text_field(&value, "ref")?,
             oid: text_field(&value, "oid")?,
             parent: text_field(&value, "parent")?,
@@ -230,6 +232,8 @@ pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
     };
     return Ok(*answer);
 }
+
+pub use crate::work_item_holding::{block, forget_held, hold, promote};
 
 /// What:
 ///  Write every item of one producer's round as a pending record,

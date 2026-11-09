@@ -3,6 +3,14 @@
 Status:
 audit,
 2026-11-12.
+Findings 1 to 4 are fixed on branch `fix/git-policy-cli-commit-and-landing-route-findings`
+(`package/git-policy/cli/SPEC.md`,
+"What a landed batch leaves behind";
+the copy of a conclusion's state in the journal;
+the push record the service leaves before it answers).
+Finding 5 is open:
+it is the owner's question,
+and no kept ref is removed by this branch.
 Audited revision:
 `main` at `554f973343`,
 which is `origin/main`.

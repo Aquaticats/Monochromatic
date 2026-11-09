@@ -303,10 +303,26 @@ pub fn point_current_at_newest(toolchain_root: &Path, crate_name: &str) -> Resul
     let Some(newest) = newest_installed(toolchain_root, crate_name) else {
         return Ok(None);
     };
-    if running_version(toolchain_root, crate_name).as_deref() != Some(newest.as_str()) {
-        atomic_symlink(&current_link(toolchain_root, crate_name), Path::new(&newest))?;
-    }
+    point_current_at(toolchain_root, crate_name, &newest)?;
     return Ok(Some(newest));
+}
+
+/// What:
+/// Points `current` at `version`, unless it already names it.
+/// Why:
+/// Every tree's exposed link goes through `current`,
+/// and a caller that knows which version survives (the prune, for one) must be able to name it,
+/// rather than have the newest installed version chosen for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pointCurrentAt(root: string, crate: string, version: string): void
+/// ```
+pub fn point_current_at(toolchain_root: &Path, crate_name: &str, version: &str) -> Result<(), ToolchainError> {
+    if running_version(toolchain_root, crate_name).as_deref() != Some(version) {
+        atomic_symlink(&current_link(toolchain_root, crate_name), Path::new(version))?;
+    }
+    return Ok(());
 }
 
 /// What:
