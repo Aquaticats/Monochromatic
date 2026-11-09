@@ -174,6 +174,62 @@ fn address(name: &str) -> String {
     return format!("cli-git-test-reach-{}-{name}", std::process::id());
 }
 
+/// What:
+///  A unit the manager reports `inactive` while nothing listens on its socket,
+/// which is what a person's `systemctl --user stop` leaves:
+/// the socket file stays,
+///  provisioning counts the installation as in place,
+/// and nothing listens.
+/// Why:
+///  The client asked the manager to start such a unit only after the start wait had passed,
+/// and that wait is ten seconds
+///  (`START_WAIT`),
+/// so the first commit after a stop took ten seconds longer than native Git, against the owner's "commits vs
+///  native git should not take 5s longer"
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 5).
+/// An `inactive` unit with the client's connection refused is one nothing is starting,
+/// so the first such answer is
+///  reason enough to ask.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(stateAsksBeforeTheStart).toBeLessThanOrEqual(2);
+/// ```
+#[test]
+fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
+    let socket: String = address("client-reach-inactive");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.socket = Some(socket.clone());
+        manager.state = Some(String::from("inactive"));
+        manager.asked.clear();
+    }
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut announced: bool = false;
+    let reached = reach(
+        &config(socket.as_str(), unit.as_str(), socket_unit.as_str()),
+        &mut std::io::sink(),
+        &mut announced,
+        &mut crate::commit_timing::ReachTrace::default(),
+        false,
+    );
+    let asked_of_the_manager: Vec<String> = asked();
+    let (reader, version, _release) = reached.unwrap_or_else(|failure| {
+        panic!("the service the manager was asked to start must be reached: {failure:?} after {asked_of_the_manager:?}")
+    });
+    assert_eq!(version, PROTOCOL_VERSION);
+    drop(reader);
+    // The start comes from the first answer, not from the start wait: the answers before it are counted, not timed.
+    let before_the_start: usize = asked_of_the_manager
+        .iter()
+        .take_while(|call| { return !call.starts_with("start "); })
+        .filter(|call| { return call.starts_with("state "); })
+        .count();
+    assert!(before_the_start <= 2, "{before_the_start} state answers came before the start request: {asked_of_the_manager:?}");
+}
+
 /// The instance name every control's unit carries,
 /// in the shape systemd's instance units use.
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
