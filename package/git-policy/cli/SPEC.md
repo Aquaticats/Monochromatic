@@ -5333,8 +5333,17 @@ and
   The owner chose this on 2026-11-04 ("A:
   fail,
   retry (Recommended)").
+  A git that is older than the service that answers it,
+  which is what a rollback to an earlier release leaves running,
+  cannot ask it to retire at all,
+  and that message names both ways out:
+  update this git,
+  or install the release it belongs to and stop the newer service with `STOP_COMMAND`
+  (`systemctl --user stop 'monochromatic-git-policy-cli@*.service'`),
+  because a restart starts the program the manager's unit still names.
   Test:
-  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`.
+  `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
+  and `an_older_git_is_told_how_to_get_a_service_it_can_work_with`.
 - Provisioning asks the manager for the reload its own writes need,
   and a kill between writing a template and that reload is repaired
   by the next commit:
