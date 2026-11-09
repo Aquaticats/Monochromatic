@@ -1,51 +1,14 @@
 /**
  Phrase lists and word-bounded scans used by the uncertainty detection
- engine. Apostrophe normalisation is centralised here so every consumer
- folds curly quotes to ASCII before lookup.
+ engine. The apostrophe fold every consumer applies before lookup lives in
+ `../normalise-apostrophes.ts` and is re-exported here for this folder's readers.
  
  @module
  */
 
 import { isWordChar, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
-//region Apostrophe normalisation
-
-/**
- Unicode left single quotation mark (`U+2018`).
- */
-const LEFT_SINGLE_QUOTE = '‘';
-
-/**
- Unicode right single quotation mark (`U+2019`).
- */
-const RIGHT_SINGLE_QUOTE = '’';
-
-/**
- Folds curly single quotation marks to ASCII apostrophes so phrase lookups
- only need the straight-apostrophe variant of each entry.
- 
- @param text - input text
- 
- @returns text with curly single quotes replaced by `'`
- 
- @example
- ```ts
- normaliseApostrophes('that’s wrong'); // => "that's wrong"
- ```
- */
-function normaliseApostrophes(text: string,): string {
-  return text
-    .replaceAll(
-    LEFT_SINGLE_QUOTE,
-    "'",
-    )
-    .replaceAll(
-    RIGHT_SINGLE_QUOTE,
-    "'",
-    );
-}
-
-//endregion
+import { normaliseApostrophes, } from '../normalise-apostrophes.ts';
 
 //region Uncertainty phrase list
 
@@ -313,7 +276,11 @@ export {
   DISMISSAL_PHRASES,
   ER_NOT_FOUND,
   findErThanMost,
-  normaliseApostrophes,
-  RIGHT_SINGLE_QUOTE,
   UNCERTAINTY_PHRASES,
 };
+
+// Sibling module fold, re-exported so this folder's readers keep importing one module.
+export {
+  normaliseApostrophes,
+  RIGHT_SINGLE_QUOTE,
+} from '../normalise-apostrophes.ts';
