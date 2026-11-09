@@ -10,6 +10,16 @@ removed / kept" rationale and explicitly do not file upstream because
 the upstream packages are not defective,
  only unsuitable for this
 workspace's policy.
+
+Note 2026-11-09:
+four citations in this record no longer resolve.
+`package/dependency-catalog/cli-cube/src/scripts/controller.ts` has no `src/scripts/` folder
+in that package today,
+`package/pnpm-override/shim-ms/` is not in the tree,
+`.github/ISSUE_TEMPLATE/bug-report.yml` is not in the tree,
+and `doc/troubleshooting/stryker-container-runtime.md` was never written.
+`package/pi-plugin/terminal-title:test` names a task,
+not a path.
  See "Why we do not file the policy entries
 upstream" at the bottom of this file for the 5-constraint walk.
 

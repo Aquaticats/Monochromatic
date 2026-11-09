@@ -12,6 +12,16 @@ The native executable's runtime floor is its own Rust toolchain,
 not a Node line,
 so nothing in the tree carries the policy the paragraphs below describe.
 
+Note 2026-11-09:
+the remaining citations in this record name files of the same deleted wrapper.
+`package/git-policy/cli/src/management.ts` is now
+`package/git-policy/cli/src/native/invocation/management.rs`;
+`package/git-policy/cli/src/worktree-copy/` is now
+`package/git-policy/cli/src/native/worktree_copying/`;
+`package/git-policy/cli/src/bin.ts` is now `package/git-policy/cli/src/native/main.rs`,
+the path `[[bin]]` in `package/git-policy/cli/Cargo.toml` names;
+and `.github/workflows/cli-git-trust.yml` is not in the tree.
+
 Issue #429 aligned cli-git's declared floor with the latest published Node LTS line.
 Issue #475 keeps that exact floor and adds the verified newer Node line.
 `package/git-policy/cli/package.json` is the source of truth and carries one caret branch per supported line,
