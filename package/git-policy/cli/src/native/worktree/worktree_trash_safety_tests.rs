@@ -520,6 +520,108 @@ fn a_trash_that_cannot_be_emptied_here_is_reported_as_the_persons_to_remove() {
     remove(root.as_path());
 }
 
+/// Review round 5,
+/// finding 3:
+/// a trash that was replaced under the recorded name is not handed to the person with the command that removes
+///  a recursive tree,
+/// because that command would delete the directory standing there now.
+/// Why:
+///   The emptying refused to delete it precisely because it is not the object the snapshot made;
+/// a line that still
+///  ends in `rm --recursive --force` overrides that refusal and tells the person to delete somebody else's
+///  data.
+/// The line names the path,
+/// says what stands there instead,
+/// and gives no removal command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rename(join(worktree, TRASH_PARENT, name), movedAway); put(join(worktree, TRASH_PARENT, name), 'theirs/file', 'x');
+/// const reason = await disposePendingTrash(...); expect(reason).toContain('not the directory the snapshot made'); expect(reason).not.toContain('rm --recursive --force');
+/// ```
+#[test]
+fn a_trash_that_is_not_the_snapshots_is_not_given_a_removal_command() {
+    let name: String = "8".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-replaced-message", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    std::fs::rename(&trash, worktree.join(TRASH_PARENT).join("moved-away")).expect("move the real trash away");
+    put(trash.as_path(), "theirs/file", b"somebody else's data\n");
+    let mut notices: Vec<u8> = Vec::new();
+    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
+    let reason: String = outcome.expect_err("a trash that is not the snapshot's is left alone");
+    let quoted: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
+    assert!(reason.contains(quoted.as_str()), "the reason names the path that stays: {reason}");
+    assert!(reason.contains("not the directory the snapshot made"), "the reason says why it was left: {reason}");
+    assert!(!reason.contains("rm --recursive --force"), "no removal command is given for a directory the snapshot did not make: {reason}");
+    assert!(trash.join("theirs/file").exists(), "what stands there is untouched");
+    remove(root.as_path());
+}
+
+/// Review round 5,
+/// finding 3:
+/// a trash that holds a file the snapshot did not put there is not handed to the person with the command that removes
+///  a recursive tree either.
+/// Why:
+///   The emptying emptied the recorded entry and then left the whole trash directory because of that file;
+/// the file
+///  is deliberately kept,
+/// so a command that removes the trash recursively deletes exactly what the refusal
+///  preserved.
+/// The line names the path and the file and gives no removal command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(join(worktree, TRASH_PARENT, name, 'unrecorded/file'), 'not ours');
+/// const reason = await disposePendingTrash(...); expect(reason).toContain('unrecorded'); expect(reason).not.toContain('rm --recursive --force');
+/// ```
+#[test]
+fn a_trash_holding_what_was_not_moved_there_is_not_given_a_removal_command() {
+    let name: String = "c".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-extra-message", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    put(trash.as_path(), "unrecorded/file", b"not ours\n");
+    let mut notices: Vec<u8> = Vec::new();
+    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
+    let reason: String = outcome.expect_err("a trash holding what the snapshot did not put there is left alone");
+    let quoted: String = crate::shell_quote::shell_quote(trash.as_os_str().as_bytes());
+    assert!(reason.contains(quoted.as_str()) && reason.contains("unrecorded"), "the reason names the path and what it kept: {reason}");
+    assert!(!reason.contains("rm --recursive --force"), "no removal command is given for a directory holding what the emptying kept: {reason}");
+    assert!(trash.join("unrecorded/file").exists(), "the file the emptying kept is untouched");
+    remove(root.as_path());
+}
+
+/// Review round 5,
+/// finding 3:
+/// a trash entry that is no longer the object the snapshot moved there is deliberately left,
+/// so the line that
+///  reports it gives no removal command for the trash either.
+/// Why:
+///   The emptying compares each entry's identity and skips the ones that changed;
+/// those are the entries the
+///  person would lose by following a recursive removal of the trash,
+/// and the line must not suggest one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rename(join(trash, 'd0'), join(worktree, 'moved-away')); put(join(trash, 'd0/precious'), 'theirs');
+/// const reason = await disposePendingTrash(...); expect(reason).toContain('d0'); expect(reason).not.toContain('rm --recursive --force');
+/// ```
+#[test]
+fn a_trash_entry_that_was_replaced_is_not_given_a_removal_command() {
+    let name: String = "e".repeat(40);
+    let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("trash-entry-message", name.as_str(), 1);
+    let trash: PathBuf = worktree.join(TRASH_PARENT).join(&name);
+    std::fs::rename(trash.join(entry_name(0).as_str()), worktree.join("moved-away")).expect("move the recorded entry away");
+    put(trash.as_path(), format!("{}/precious", entry_name(0)).as_str(), b"somebody else's directory\n");
+    let mut notices: Vec<u8> = Vec::new();
+    let outcome: Result<(), String> = dispose_pending_trash(&git_context(), worktree.as_path(), git_dir.as_path(), Some(&manifest), &mut notices);
+    let reason: String = outcome.expect_err("an entry that changed is left where it is");
+    assert!(reason.contains(entry_name(0).as_str()), "the reason names the entry it kept: {reason}");
+    assert!(!reason.contains("rm --recursive --force"), "no removal command is given for a directory whose entry stayed: {reason}");
+    assert!(trash.join(entry_name(0).as_str()).join("precious").exists(), "the entry that changed is untouched");
+    remove(root.as_path());
+}
+
 /// Finding 15:
 /// the handler reports a trash it cannot remove as a failure,
 /// never as done.
