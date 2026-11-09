@@ -68,16 +68,24 @@ fn is_nul_byte(byte: &u8) -> bool {
 }
 
 /// What:
-///  Read the patch of `sha` with one `git show`.
+///  Read the patch of `sha` with one `git show`,
+/// with color,
+/// external diff drivers and text converters switched off.
 /// Why:
-///   Color and external diff drivers are switched off so the text does not depend on the account's configuration.
+///   The patch is the candidate's committed bytes,
+/// so nothing this account's configuration runs may stand in for them.
+/// `--no-ext-diff` leaves a `diff.<driver>.textconv` command alone,
+/// because a text converter is not an external diff driver,
+/// and `git show --patch` runs one by default:
+/// without `--no-textconv` the patch carries whatever a local converter reads,
+/// including files the person never staged and files outside the repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// git('show', '--format=', '--patch', sha)
+/// git('show', '--format=', '--patch', '--no-color', '--no-ext-diff', '--no-textconv', sha)
 /// ```
 fn read_patch(context: &GitContext, cwd: &Path, sha: &str) -> Result<String, String> {
-    let request: GitRequest = GitRequest::new(cwd, &["show", "--format=", "--patch", "--no-color", "--no-ext-diff", sha]);
+    let request: GitRequest = GitRequest::new(cwd, &["show", "--format=", "--patch", "--no-color", "--no-ext-diff", "--no-textconv", sha]);
     let output = match run_git(context, &request) {
         Ok(done) => done,
         Err(error) => return Err(format!("starting git show failed: {error}")),
