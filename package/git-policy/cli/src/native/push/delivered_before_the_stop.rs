@@ -57,6 +57,13 @@ use std::time::Duration;
 /// so the question is asked about a reference and not about a pattern.
 const REFERENCE_PREFIX: &str = "refs/";
 
+/// The configuration key that makes Git attempt the annotated tags pointing into the pushed history,
+/// besides the references the push names.
+const FOLLOW_TAGS_KEY: &str = "push.followTags";
+
+/// The configuration key that makes a push send submodule references too.
+const RECURSE_SUBMODULES_KEY: &str = "push.recurseSubmodules";
+
 /// What:
 ///  The references one stopped push was asked to deliver,
 /// and where it was delivering them.
@@ -77,6 +84,11 @@ pub struct DeliveryQuestion {
     pub remote: OsString,
     /// The reference on each side.
     pub refs: Vec<(OsString, OsString)>,
+    /// Whether the configuration still decides that annotated tags follow this push,
+    /// so the question does not name every reference Git sends.
+    pub tags_follow_from_config: bool,
+    /// Whether the configuration still decides that a submodule push sends references of its own.
+    pub submodules_follow_from_config: bool,
 }
 
 /// What:
@@ -127,6 +139,23 @@ pub fn after_the_subcommand(arguments: &[OsString]) -> Option<&[OsString]> {
 }
 
 /// What:
+///  Whether Git reads the text as a pattern of references rather than as one reference.
+/// Why:
+///   Git's refspecs take `*`,
+/// `?` and a bracket expression,
+/// and the proof asks about exactly one reference per
+///  side,
+/// so a pattern is no question it can answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /[*?[\]]/.test(text)
+/// ```
+fn is_a_pattern(text: &str) -> bool {
+    return text.contains('*') || text.contains('?') || text.contains('[') || text.contains(']');
+}
+
+/// What:
 ///  The reference on each side of a refspec,
 /// when the proof can ask about it.
 /// Why:
@@ -151,6 +180,10 @@ pub fn refspec_pair(refspec: &OsStr) -> Option<(OsString, OsString)> {
         None => (without_force, without_force),
     };
     if source.is_empty() || !destination.starts_with(REFERENCE_PREFIX) {
+        return None;
+    }
+    // A pattern stands for a set of references, so one answer about it would stand for references the question never read.
+    if is_a_pattern(source) || is_a_pattern(destination) {
         return None;
     }
     return Some((OsString::from(source), OsString::from(destination)));
@@ -178,6 +211,14 @@ impl DeliveryQuestion {
         if shape.branches || shape.tags || shape.mirror || shape.deletes {
             return None;
         }
+        // A push that sends more than the references on its command line sends references this question never names, so
+        //  nothing can be claimed about them; the configuration is asked later for the two keys that add references.
+        if shape.follow_tags {
+            return None;
+        }
+        if shape.recurse_submodules.as_ref().is_some_and(|value| value != "no") {
+            return None;
+        }
         let remote: OsString = shape.repository?;
         let mut refs: Vec<(OsString, OsString)> = Vec::new();
         for refspec in &shape.refspecs {
@@ -186,7 +227,12 @@ impl DeliveryQuestion {
         if refs.is_empty() {
             return None;
         }
-        return Some(Self { remote, refs });
+        return Some(Self {
+            remote,
+            refs,
+            tags_follow_from_config: !shape.follow_tags_stated,
+            submodules_follow_from_config: shape.recurse_submodules.is_none(),
+        });
     }
 }
 
@@ -374,6 +420,91 @@ async fn destination(git: &AskingGit, remote: &OsStr, window: Duration, grace: D
 }
 
 /// What:
+///  The answer of one boolean configuration key,
+/// or nothing when it cannot be read.
+/// Why:
+///   "Not set" (Git's status 1) is an answer and a bad value (status 128) is not,
+/// so a proof that could not read the key
+///  must not read it as unset.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, stdout } = await askAnswering(git, ['config', '--bool', '--get', key]);
+/// code === 1 ? { set: false } : code === 0 ? { set: true, value: stdout.trim() === 'true' } : undefined;
+/// ```
+async fn configured_bool(git: &AskingGit, key: &str, window: Duration, grace: Duration) -> Option<Option<bool>> {
+    let arguments: Vec<OsString> =
+        [OsString::from("config"), OsString::from("--bool"), OsString::from("--get"), OsString::from(key)].to_vec();
+    let (code, text): (Option<i32>, String) = ask_answering(git, arguments.as_slice(), "git config", window, grace).await?;
+    return match code {
+        Some(0) => match text.trim() {
+            "true" => Some(Some(true)),
+            "false" => Some(Some(false)),
+            _ => None,
+        },
+        Some(1) => Some(None),
+        _ => None,
+    };
+}
+
+/// What:
+///  The text of one configuration key,
+/// or nothing when it cannot be read,
+/// and `Some(None)` when it is not set.
+/// Why:
+///   The submodule switches are not booleans,
+/// and an unset key and an unreadable one must not read the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { code, stdout } = await askAnswering(git, ['config', '--get', key]);
+/// code === 1 ? undefined : code === 0 ? stdout.trim() : null;
+/// ```
+async fn configured_text(git: &AskingGit, key: &str, window: Duration, grace: Duration) -> Option<Option<String>> {
+    let arguments: Vec<OsString> = [OsString::from("config"), OsString::from("--get"), OsString::from(key)].to_vec();
+    let (code, text): (Option<i32>, String) = ask_answering(git, arguments.as_slice(), "git config", window, grace).await?;
+    return match code {
+        Some(0) => Some(Some(text.trim().to_owned())),
+        Some(1) => Some(None),
+        _ => None,
+    };
+}
+
+/// What:
+///  Whether Git sends references this question does not name,
+/// because the configuration adds them.
+/// Why:
+///   `push.followTags` adds the annotated tags pointing into the pushed history and
+/// `push.recurseSubmodules` sends
+///  submodule references;
+/// a reference the push tried and the remote does not hold leaves the push unfinished although every named
+///  reference is there,
+/// and a key this release cannot read is no proof either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (question.tagsFollowFromConfig && (await configBool('push.followTags')) !== false) || (question.submodulesFollowFromConfig && (await configText('push.recurseSubmodules') ?? 'no') !== 'no');
+/// ```
+pub async fn sends_more_than_the_command_line_names(
+    git: &AskingGit,
+    question: &DeliveryQuestion,
+    window: Duration,
+    grace: Duration,
+) -> bool {
+    if question.tags_follow_from_config && !matches!(configured_bool(git, FOLLOW_TAGS_KEY, window, grace).await, Some(Some(false)) | Some(None)) {
+        return true;
+    }
+    if question.submodules_follow_from_config {
+        match configured_text(git, RECURSE_SUBMODULES_KEY, window, grace).await {
+            Some(None) => {}
+            Some(Some(value)) if value.eq_ignore_ascii_case("no") => {}
+            _ => return true,
+        }
+    }
+    return false;
+}
+
+/// What:
 ///  The objects the push was going to send,
 /// one per reference it names,
 /// or nothing when the local repository names none of them.
@@ -423,6 +554,10 @@ pub async fn refs_already_delivered(
     grace: Duration,
 ) -> Option<Vec<String>> {
     if sending.len() != question.refs.len() {
+        return None;
+    }
+    // A push the configuration widens may have tried references this question does not name, and the delivery is the whole push.
+    if sends_more_than_the_command_line_names(git, question, window, grace).await {
         return None;
     }
     let where_it_went: OsString = destination(git, question.remote.as_os_str(), window, grace).await?;
