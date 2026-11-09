@@ -171,8 +171,13 @@ fn a_preview_refuses_what_the_real_run_would_refuse() {
         let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
         let said: String = lines.join("\n");
         assert_eq!(code, REFUSED_EXIT_CODE, "{mode:?}: {said}");
-        assert!(said.contains("refused") && said.contains("no migration journal"), "{mode:?}: {said}");
+        let expected: &str = if mode == MigrateMode::Rollback { "no migration journal" } else { "not recorded as finished" };
+        assert!(said.contains("refused") && said.contains(expected), "{mode:?}: {said}");
         assert!(!said.contains("dry run:"), "{mode:?}: a preview promises nothing the run refuses: {said}");
+        // The real run of the same mode refuses with the same lines, which is what the preview promises.
+        let (real_code, real_lines) = run_command(&platform, &MigrateArguments { dry_run: false, ..arguments.clone() }, root.as_path(), &Interrupt::never());
+        assert_eq!(real_code, REFUSED_EXIT_CODE, "{mode:?}: {real_lines:#?}");
+        assert_eq!(refusals_said(&lines), refusals_said(&real_lines), "{mode:?}");
     }
     // The positive control: a finished migration is previewed as the deletion the real run makes.
     let (migrated, migration_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
@@ -182,4 +187,16 @@ fn a_preview_refuses_what_the_real_run_would_refuse() {
     assert_eq!(code, 0, "{lines:#?}");
     assert!(lines.join("\n").contains("would delete"), "{lines:#?}");
     remove(parent.as_path());
+}
+
+/// The refusal lines of a run,
+/// which are the ones a preview must match.
+fn refusals_said(lines: &[String]) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for line in lines {
+        if line.contains("refused:") || line.starts_with("  What to do:") {
+            found.push(line.clone());
+        }
+    }
+    return found;
 }

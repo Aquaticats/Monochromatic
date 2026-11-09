@@ -34,7 +34,7 @@ use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_migrate::{MigrateOptions, Verdict, migrate};
 use crate::subvolume_platform::{LinuxPlatform, Platform};
 use crate::subvolume_preflight::{Refusal, layout_of};
-use crate::subvolume_rollback::{remove_old_tree, rollback};
+use crate::subvolume_rollback::{refusals_of_the_mode, remove_old_tree, rollback};
 use crate::subvolume_run::Run;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -191,6 +191,13 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
     }
     let mut run: Run<'_> = Run::open(platform, &layout, interrupt, say)?;
     if arguments.dry_run {
+        // A preview runs the refusals of the mode it previews, in the words the real run uses, so it never promises a
+        // step the real run refuses; it changes nothing either way.
+        let refusals: Vec<Refusal> = refusals_of_the_mode(&run, arguments.mode, arguments.discard_unreadable);
+        if !refusals.is_empty() {
+            say_refusals(run.say, refusals.as_slice());
+            return Ok(REFUSED_EXIT_CODE);
+        }
         let what: &str = if arguments.mode == MigrateMode::Rollback { "restore the original directory" } else { "delete the original tree" };
         run.line(format!("dry run: the command would {what} of {}; nothing was changed.", layout.root.display()).as_str());
         return Ok(0);

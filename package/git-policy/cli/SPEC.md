@@ -1540,6 +1540,15 @@ exit status 1,
 the owner's process id and the file named,
 and nothing changed;
 a preview takes no claim.
+A preview runs the refusals of the mode it previews and prints them in the same words the real run
+uses (`refusals_of_the_mode` in `subvolume_rollback.rs`),
+exiting with status 1 when any stands;
+only a mode whose refusals are all clear says what it would do.
+So `--dry-run --remove-old` on a checkout with no finished migration refuses with the lines the
+real run gives instead of promising a deletion the real run refuses.
+The one refusal a preview cannot reach is the one a later read of the old tree adds while the
+carry-back copies it,
+because finding it writes files.
 Before this release
 the migration had no such guard:
 a second run resumed the first one's journal with the first one's token.
