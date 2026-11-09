@@ -132,7 +132,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   `2b309f8f25` the test-coverage branch,
   `87f5771748` the index offset guard,
   `cc6ebc3a07` the wording for a refused blocking thread,
-  and `dea0f5d24e` the landing branch's follow-up on a failed head probe.
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  and `8026d49827` the alias branch.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -144,8 +145,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   merge run 8,
   the wrapper-issue resume (run 2),
   shadow run 2,
-  push run 6
-  and literal-pathspec run 3.
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
   Worktree-add and child-process open with a merge of main in conflict,
   which their briefs tell them to resolve first,
   so neither branch has landed.
@@ -153,8 +156,11 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `locks-and-transactions-round-4-prompt.md`
-  and `commit-scratch-removal-round-3-prompt.md`.
+  `resume-after-wall-clock-prompt.md` for `worktree-copy-records-keep-path-bytes`,
+  which reached its time limit with four files of its worktree holding older versions for a comparison run,
+  so its worktree is not to be merged or landed until that run restores them,
+  and `invocation-route-round-2-prompt.md` for the alias branch's review,
+  whose five findings are cases the guard on main also misses.
 - The locks branch passed 379 of 379 on top of main.
   `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
   and a pid file declaring an owner dead while a holder could not be resolved.
@@ -162,7 +168,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
   an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
   and stalled removal threads with no cap.
-- The alias branch's merge with main is committed and its tests are running.
+- The intent-to-add branch is being tested on top of main.
 - `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
   and is with `wrapper-tests-that-fail-only-in-a-suite`.
 - The shadow branch has passed its tests on top of main and its round 2 is running:
