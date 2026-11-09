@@ -14,9 +14,12 @@ This record keeps the names of its time.
 ## Status
 
 Being grilled with the user,
-started 2026-10-29.
-Nothing here is accepted yet;
-decisions land in this file as the user answers them.
+started 2026-10-29,
+and accepted 2026-10-29:
+the record is [`doc/decision/file-enforcer-rust-rewrite.md`](../decision/file-enforcer-rust-rewrite.md).
+The sections below keep the state each was written in;
+this file is the history,
+not the decision.
 
 Superseded next action (2026-10-29;
 the current one is the section "Next action (2026-10-29,
@@ -777,7 +780,9 @@ since nothing reads the spelling and Mise is due to be removed.
 
 ### Root mise.toml PATH: existence-based, as today
 
-Asked 2026-10-29 how `_.path` (`mise.toml:1262`) lists `package/*/*/node_modules/.bin` directories;
+Asked 2026-10-29 how `_.path` (`mise.toml:1348` in that day's generated file,
+`.config/mise/conf.d/20-env.toml:42` and the generated `10-bin.local.toml` today)
+lists `package/*/*/node_modules/.bin` directories;
 the user chose "Keep existence-based",
 noting:
 "The existence of option 1 means you don't understand how pnpm,
@@ -833,7 +838,9 @@ the user chose "One switch" over two stages (my recommendation).
 
 Asked 2026-10-29 about `~/.config/monochromatic-dev/toolchain/plan.tools.data.ts`
 (mode 0600,
-59 entries);
+59 entries counted that day;
+the cutover doc counts 60 on 2026-10-31,
+one tool later);
 the user answered "Convert,
 you just do it,
 no need for my review."
@@ -1398,6 +1405,11 @@ the user asked for an outside review before confirming.
   as already designed in `doc/decision/monorepo-manager-all-rust.md` ("Consequences").
 - The root `mise.toml` stays generated from `mise.no-env.toml` until Mise is removed,
   as `doc/decision/monorepo-manager-all-rust.md` already decides.
+  Superseded by the re-asked decision in the section
+  "mise.toml:
+  committed conf.d files",
+  where the user chose the conf.d layout:
+  `mise.no-env.toml` becomes the hand-written `mise.toml`.
 - Long fixed text (the `CLAUDE.md` preamble,
   the `mise.toml` `[env]` block) lives in content files the config names,
   never inline in the config.
