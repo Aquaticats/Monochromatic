@@ -15,8 +15,9 @@ import {
   RECHECK_MILLISECONDS,
   type RunningPiUnit,
   lookAtPiRuns,
+  standInRunsFolder,
 } from '../dist/final/node/index.mjs';
-import { standInRunsFolder, } from './stand-in-runs-folder-for-tests.ts';
+
 
 /**
  A call that ended after thirty seconds, which the call limit is computed from.
@@ -267,7 +268,7 @@ await describe({
           runsFolder: runs.path,
           units: [unit,],
           checked: first.reported,
-          now: NOW + RECHECK_MILLISECONDS - 1,
+          now: (NOW + RECHECK_MILLISECONDS) - 1,
           recheckMilliseconds: RECHECK_MILLISECONDS,
         },);
         expect(tooSoon.lines,).toEqual([],);

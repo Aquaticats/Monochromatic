@@ -10,12 +10,28 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  type CommandOutput,
   ProcessListingUnreadableError,
   type RunCommand,
   parseProcessListing,
   processesUnder,
   startProcessTable,
 } from '../dist/final/node/index.mjs';
+
+/**
+ What one question of a stand-in command was.
+ */
+type Question = {
+  /**
+   The program asked.
+   */
+  readonly command: string;
+
+  /**
+   Its arguments.
+   */
+  readonly words: readonly string[];
+};
 
 /**
  A listing shaped as `ps -e --no-headers -o pid=,ppid=,etimes=,stat=,wchan:18=,args=` prints it: the kernel wait is padded to
@@ -31,7 +47,7 @@ const LISTING = [
   '  1 0 30',
 ].join(
   '\n',
-  );
+);
 
 await describe({
   name: parseProcessListing.name,
@@ -45,8 +61,8 @@ await describe({
         const table = parseProcessListing({ listing: LISTING, },);
         expect(table,).toHaveLength(6,);
         expect(table[2],).toEqual({
-          pid: 4300,
-          parentPid: 4242,
+          pid: 4_300,
+          parentPid: 4_242,
           elapsedSeconds: 120,
           state: 'S',
           waitingIn: 'do_wait',
@@ -66,7 +82,7 @@ await describe({
             '  5000       1      10',
           ].join(
             '\n',
-            ),
+          ),
         },);
         expect(table,).toHaveLength(1,);
       },
@@ -85,11 +101,11 @@ await describe({
          */
         const under = processesUnder({
           table: parseProcessListing({ listing: LISTING, },),
-          rootPid: 4242,
+          rootPid: 4_242,
         },);
         expect(under.map(function pidOf(entry,) {
           return entry.pid;
-        },),).toEqual([4300, 4301, 4400,],);
+        },),).toEqual([4_300, 4_301, 4_400,],);
       },
     },),
     it({
@@ -97,7 +113,7 @@ await describe({
       fn: async () => {
         expect(processesUnder({
           table: parseProcessListing({ listing: LISTING, },),
-          rootPid: 5000,
+          rootPid: 5_000,
         },),).toEqual([],);
       },
     },),
@@ -113,18 +129,32 @@ await describe({
         /**
          What the command was asked.
          */
-        const asked: { command: string; words: readonly string[] }[] = [];
+        const asked: Question[] = [];
         /**
-         A stand-in for `ps`.
+         Answers `ps` with the listing it would have printed.
+
+         @param request - the program and its arguments
+
+         @returns what `ps` would have printed
+
+         @example
+         ```ts
+         const listing = await standInPs({ command: 'ps', words: [], },);
+         ```
          */
-        const run: RunCommand = async function standInPs(request,) {
+        async function standInPs(request: Question,): Promise<CommandOutput> {
           asked.push(request,);
           return {
             status: 0,
             stdout: LISTING,
             stderr: '',
           };
-        };
+        }
+
+        /**
+         A stand-in for `ps`.
+         */
+        const run: RunCommand = standInPs;
         /**
          Reads the table.
          */
@@ -144,15 +174,27 @@ await describe({
       fn: async () => {
         /**
          A stand-in for a `ps` that is not there.
+
+         @returns what a missing program reports
+
+         @example
+         ```ts
+         const missing = await refuse();
+         ```
          */
-        const run: RunCommand = async function refuse() {
+        async function refuse(): Promise<CommandOutput> {
           return {
             status: -1,
             stdout: '',
             stderr: '',
             problem: 'spawn ps ENOENT',
           };
-        };
+        }
+
+        /**
+         A stand-in for a `ps` that is not there.
+         */
+        const run: RunCommand = refuse;
         try {
           await startProcessTable({ run, },)();
         }

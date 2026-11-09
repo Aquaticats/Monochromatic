@@ -88,9 +88,13 @@ await describe({
       name: 'requires the runs folder and the deadline, so no look is taken without either',
       fn: async () => {
         for (const name of ['runs-folder', 'deadline-seconds',]) {
-          expect(errorOf(COMPLETE.filter(function named(option,) {
+          /**
+           The same command line with this option left out.
+           */
+          const without = COMPLETE.filter(function named(option,) {
             return !option.startsWith(`--${name}`,);
-          },),),).toContain(`--${name} is required`,);
+          },);
+          expect(errorOf(without,),).toContain(`--${name} is required`,);
         }
       },
     },),

@@ -9,8 +9,11 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { toolCallTimesOfFeed, } from '../dist/final/node/index.mjs';
-import { standInRunsFolder, } from './stand-in-runs-folder-for-tests.ts';
+import {
+  standInRunsFolder,
+  toolCallTimesOfFeed,
+} from '../dist/final/node/index.mjs';
+
 
 /**
  One second, in the milliseconds a feed counts with.
@@ -148,7 +151,7 @@ await describe({
                 '{"t":3000,"kind":"tool_st',
               ].join(
                 '\n',
-                ),
+              ),
             },
           ],
         },);

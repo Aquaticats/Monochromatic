@@ -13,8 +13,9 @@ import {
   NO_SAMPLE,
   evidenceFromRunsFolder,
   percentileOf,
+  standInRunsFolder,
 } from '../dist/final/node/index.mjs';
-import { standInRunsFolder, } from './stand-in-runs-folder-for-tests.ts';
+
 
 /**
  A finished run of a minute, as a summary reports it.
@@ -37,27 +38,28 @@ const TEN_MINUTES = 600_000;
 const TWELVE_MINUTES = 12 * MINUTE;
 
 /**
- Reads the percentiles this test expects without going through the module under test.
+ Reads the percentiles this test expects without going through the module under test. Every sample it is asked about holds a
+ value, so the answer is always one of them.
 
  @param sample - the measured values
 
  @param fraction - the share of the sample at or below the answer
 
- @returns the value at that rank, or nothing for an empty sample
+ @returns the value at that rank
 
  @example
  ```ts
  const expected = rankOf([1, 2, 3,], 0.9,);
  ```
  */
-function rankOf(sample: readonly number[], fraction: number,): number | undefined {
+function rankOf(sample: readonly number[], fraction: number,): number {
   /**
    The sample from the smallest value to the largest.
    */
-  const sorted = [...sample,].sort(function bySize(left, right,) {
+  const sorted = sample.toSorted(function bySize(left, right,) {
     return left - right;
   },);
-  return sorted[Math.ceil(fraction * sorted.length,) - 1];
+  return sorted[Math.ceil(fraction * sorted.length,) - 1] ?? 0;
 }
 
 await describe({

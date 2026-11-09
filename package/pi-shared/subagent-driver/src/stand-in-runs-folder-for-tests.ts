@@ -16,6 +16,8 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 
 /**
  One entry a test puts in its runs folder.
+
+ @internal
  */
 export type RunFixture = {
   /**
@@ -46,6 +48,8 @@ export type RunFixture = {
 
 /**
  A runs folder a test describes its runs in.
+
+ @internal
  */
 export type DisposableRunsFolder = {
   /**
@@ -118,9 +122,10 @@ async function writeRun({
         path,
         'feed.jsonl',
       ),
-      run.feedLines.map(function asLine(line,) {
-        return `${JSON.stringify(line,)}\n`;
-      },)
+      run.feedLines
+        .map(function asLine(line,) {
+          return `${JSON.stringify(line,)}\n`;
+        },)
         .join('',),
       { encoding: 'utf8', },
     );
@@ -144,6 +149,8 @@ async function writeRun({
 
  @returns the folder, and how to remove it
 
+ @internal
+
  @example
  ```ts
  await using runs = await standInRunsFolder({ runs: [{ name: 'a-1', summary: { totalMilliseconds: 5, }, },], },);
@@ -157,7 +164,10 @@ export async function standInRunsFolder({
   /**
    The folder.
    */
-  const path = await mkdtemp(join(scratchRoot(), 'pi-overdue-runs-',),);
+  const path = await mkdtemp(join(
+    scratchRoot(),
+    'pi-overdue-runs-',
+  ),);
   await Promise.all(runs.map(async function writeOne(run,) {
     await writeRun({
       runsFolder: path,

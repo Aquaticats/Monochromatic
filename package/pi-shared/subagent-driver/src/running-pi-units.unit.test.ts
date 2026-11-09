@@ -10,12 +10,28 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  type CommandOutput,
   PiUnitsUnreadableError,
   parseRunningPiUnits,
   type RunCommand,
   startRunningPiUnits,
   unitNameOfGiven,
 } from '../dist/final/node/index.mjs';
+
+/**
+ What one question of a stand-in command was.
+ */
+type Question = {
+  /**
+   The program asked.
+   */
+  readonly command: string;
+
+  /**
+   Its arguments.
+   */
+  readonly words: readonly string[];
+};
 
 /**
  Microseconds in one minute, which is the unit systemd counts the start of a unit in.
@@ -43,7 +59,7 @@ const SHOWN = [
   '',
 ].join(
   '\n',
-  );
+);
 
 await describe({
   name: parseRunningPiUnits.name,
@@ -63,7 +79,7 @@ await describe({
             name: 'alpha',
             unitName: 'pi-alpha.service',
             elapsedMilliseconds: 5 * 60_000,
-            mainPid: 4242,
+            mainPid: 4_242,
           },
         ],);
       },
@@ -87,7 +103,7 @@ await describe({
             'MainPID=7',
           ].join(
             '\n',
-            ),
+          ),
           nowMicroseconds: 1_000,
         },);
         expect(units).toHaveLength(1,);
@@ -115,18 +131,32 @@ await describe({
         /**
          What the command was asked.
          */
-        const asked: { command: string; words: readonly string[] }[] = [];
+        const asked: Question[] = [];
         /**
-         A stand-in for systemd.
+         Answers systemd's question with the text systemd would have printed.
+
+         @param request - the program and its arguments
+
+         @returns what systemd would have printed
+
+         @example
+         ```ts
+         const shown = await standInSystemctl({ command: 'systemctl', words: [], },);
+         ```
          */
-        const run: RunCommand = async function standInSystemctl(request,) {
+        async function standInSystemctl(request: Question,): Promise<CommandOutput> {
           asked.push(request,);
           return {
             status: 0,
             stdout: SHOWN,
             stderr: '',
           };
-        };
+        }
+
+        /**
+         A stand-in for systemd.
+         */
+        const run: RunCommand = standInSystemctl;
         /**
          Reads the units.
          */
@@ -141,7 +171,7 @@ await describe({
             name: 'alpha',
             unitName: 'pi-alpha.service',
             elapsedMilliseconds: 2 * 60_000,
-            mainPid: 4242,
+            mainPid: 4_242,
           },
         ],);
         expect(asked,).toHaveLength(1,);
@@ -154,14 +184,26 @@ await describe({
       fn: async () => {
         /**
          A stand-in for a systemd that is not running for this user.
+
+         @returns what a systemd with no bus to talk to prints
+
+         @example
+         ```ts
+         const shown = await refuse({ command: 'systemctl', words: [], },);
+         ```
          */
-        const run: RunCommand = async function refuse() {
+        async function refuse(): Promise<CommandOutput> {
           return {
             status: 1,
             stdout: '',
             stderr: 'Failed to connect to bus',
           };
-        };
+        }
+
+        /**
+         A stand-in for a systemd that refuses.
+         */
+        const run: RunCommand = refuse;
         try {
           await startRunningPiUnits({ run, },)();
         }

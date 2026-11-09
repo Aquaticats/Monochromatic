@@ -161,6 +161,17 @@ export {
 } from './watch-for-overdue-runs.ts';
 
 /**
+ A runs folder a test writes its own runs into, so no test reads the real one.
+
+ @internal
+ */
+export {
+  type DisposableRunsFolder,
+  type RunFixture,
+  standInRunsFolder,
+} from './stand-in-runs-folder-for-tests.ts';
+
+/**
  Exported so a test can hand the splitter the chunks it chooses, instead of hoping a scheduler splits a record.
  @internal
  */
