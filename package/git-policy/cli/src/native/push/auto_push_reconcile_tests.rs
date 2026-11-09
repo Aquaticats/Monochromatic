@@ -1480,7 +1480,7 @@ fn a_status_differs_only_when_its_bytes_do() {
 /// `git merge origin/main` while `feature` is checked out made
 /// `Merge remote-tracking branch 'origin/main' into feature`
 /// (measured on this host with Git 2.56.0,
-/// 2026-11-09).
+/// 2026-11-09T09:33:10-05:00).
 /// Issue 2646:
 /// the message named the tracked ref,
 /// a branch that was never checked out or merged into.

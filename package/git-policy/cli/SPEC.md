@@ -3982,7 +3982,7 @@ in-process reader can) gives every value of the multi-valued keys.
   Its message reads `Merge <remote>/<tracked ref> into <branch>`,
   naming the branch whose tip is that first parent,
   the way `git merge` names the branch it is on,
-  measured on this host with native Git 2.56.0
+  measured on this host at 2026-11-09T09:33:10-05:00 with native Git 2.56.0
   (`feature` tracking `origin/main` wrote
   `Merge remote-tracking branch 'origin/main' into feature`),
   and a branch whose name differs from the tracked ref's short name also gets
