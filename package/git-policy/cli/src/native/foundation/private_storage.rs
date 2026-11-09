@@ -12,8 +12,9 @@
 //!  must never be written through a planted link,
 //!  and must be private to
 //!      the account.
-//!  Each primitive is the one place that rule is written, so every record of the
-//!      wrapper is created, synced and read the same way.
+//!  Each primitive is the one place that rule is written,
+//!  so every record of the wrapper is created,
+//!      synced and read the same way.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

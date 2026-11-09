@@ -49,7 +49,8 @@ fn registry_order_and_names_are_stable() {
 ///  `package/git-policy/cli/src/optional/repository-policy/index.ts`,
 /// `package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts` and
 ///  `package/git-policy/cli/src/optional/forbidden-strings/index.ts`,
-/// all deleted on 2026-10-13 in `642b6d72cb`, so `git show 642b6d72cb^` holds each.
+/// all deleted on 2026-10-13 in `642b6d72cb`,
+/// so `git show 642b6d72cb^` holds each.
 #[test]
 fn every_identity_resolves_to_its_declared_row() {
     // (identity, name, TypeScript defaultSeverity, warnSafe, accepts options, off unless listed)
