@@ -99,6 +99,12 @@ pub mod worktree_copy_install_log;
 #[cfg(unix)]
 pub mod worktree_copy_transaction;
 
+/// Whose destination a copy may write into,
+/// how the reservation answers it,
+/// and the line that says so when it may not.
+#[cfg(unix)]
+pub mod worktree_copy_notices;
+
 /// The staging,
 /// journaling and installation of one created worktree's ignored state,
 /// bound to the registration real Git made.
