@@ -421,7 +421,7 @@ pub fn run_guarded<T: Send + 'static>(
         let _abandoned = sender.send(outcome);
     });
     if let Err(error) = spawned {
-        return Err(GuardFailure::Start(error.to_string()));
+        return Err(GuardFailure::Start(crate::scoped_start::refused_thread_sentence("run the markdown check", &error)));
     }
     let (result, longest): (Result<T, GuardFailure>, Duration) =
         wait_for(&receiver, &thread_numbers, limits, cadence, waiting_for, notices);
