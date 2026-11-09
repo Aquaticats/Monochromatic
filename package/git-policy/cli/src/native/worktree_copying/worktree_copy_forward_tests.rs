@@ -420,30 +420,30 @@ fn btrfs_a_snapshot_leaves_nothing_left_out_in_the_new_worktree() {
     use crate::fs_btrfs_test_support::btrfs_fixture;
     use crate::worktree_copy_selection::STAGE_PREFIX;
     let Some(root) = btrfs_fixture("forward-trash-not-carried") else { return };
-    let main: PathBuf = root.join("main");
-    subvolume_create_at(main.as_path()).expect("the source is a subvolume root");
-    git(main.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    let source_root: PathBuf = root.join("main");
+    subvolume_create_at(source_root.as_path()).expect("the source is a subvolume root");
+    git(source_root.as_path(), &["init", "--quiet", "--initial-branch=main"]);
     let ignore_with: &[u8] = b".claude/\nnode_modules/\n";
     let ignore_without: &[u8] = b"node_modules/\n";
-    std::fs::write(main.join(".gitignore"), ignore_with).expect("the ignore rule that hides the trash");
-    std::fs::write(main.join("tracked.txt"), b"one\n").expect("a tracked file");
-    git(main.as_path(), &["add", "."]);
-    git(main.as_path(), &["commit", "--quiet", "--message=one"]);
+    std::fs::write(source_root.join(".gitignore"), ignore_with).expect("the ignore rule that hides the trash");
+    std::fs::write(source_root.join("tracked.txt"), b"one\n").expect("a tracked file");
+    git(source_root.as_path(), &["add", "."]);
+    git(source_root.as_path(), &["commit", "--quiet", "--message=one"]);
     // The target commit stops ignoring `.claude/`, which is the place the trash is made in.
-    git(main.as_path(), &["checkout", "--quiet", "-b", "later"]);
-    std::fs::write(main.join(".gitignore"), ignore_without).expect("the ignore rule removed");
-    git(main.as_path(), &["add", ".gitignore"]);
-    git(main.as_path(), &["commit", "--quiet", "--message=two"]);
-    git(main.as_path(), &["checkout", "--quiet", "main"]);
+    git(source_root.as_path(), &["checkout", "--quiet", "-b", "later"]);
+    std::fs::write(source_root.join(".gitignore"), ignore_without).expect("the ignore rule removed");
+    git(source_root.as_path(), &["add", ".gitignore"]);
+    git(source_root.as_path(), &["commit", "--quiet", "--message=two"]);
+    git(source_root.as_path(), &["checkout", "--quiet", "main"]);
     // A command that works at once needs the ignored state, and another command's stage is filling its own beside it.
-    std::fs::create_dir_all(main.join("node_modules/pkg")).expect("ignored state");
-    std::fs::write(main.join("node_modules/pkg/index.js"), b"module\n").expect("ignored state");
+    std::fs::create_dir_all(source_root.join("node_modules/pkg")).expect("ignored state");
+    std::fs::write(source_root.join("node_modules/pkg/index.js"), b"module\n").expect("ignored state");
     let container: String = format!(".claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
-    std::fs::create_dir_all(main.join(container.as_str()).join("payload")).expect("the other command's stage");
-    std::fs::write(main.join(container.as_str()).join("payload/credentials"), b"another worktree's token\n").expect("its credentials");
+    std::fs::create_dir_all(source_root.join(container.as_str()).join("payload")).expect("the other command's stage");
+    std::fs::write(source_root.join(container.as_str()).join("payload/credentials"), b"another worktree's token\n").expect("its credentials");
     // An uncommitted change, so the dirty restore runs before the proof.
-    std::fs::write(main.join("tracked.txt"), b"one, edited\n").expect("an edit");
-    let main: PathBuf = std::fs::canonicalize(main.as_path()).expect("canonical main");
+    std::fs::write(source_root.join("tracked.txt"), b"one, edited\n").expect("an edit");
+    let main: PathBuf = std::fs::canonicalize(source_root.as_path()).expect("canonical main");
     let topic: PathBuf = root.join("topic");
     let facts: CopyFacts = CopyFacts {
         identity: main_identity(main.as_path(), main.join(".git").as_path()),

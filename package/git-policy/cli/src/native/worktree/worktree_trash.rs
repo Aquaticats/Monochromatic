@@ -530,8 +530,8 @@ fn inherited_trash_entries(stage: &Path, aside: &Aside) -> Result<Vec<PathBuf>, 
         Err(error) => return Err(format!("{} cannot be listed ({error})", parent.display())),
     };
     let own: Option<&str> = aside.trash.as_ref().map(trash_name);
-    for entry in listed {
-        let entry: std::fs::DirEntry = path_failure(entry, parent.as_path(), "cannot be listed")?;
+    for listed_entry in listed {
+        let entry: std::fs::DirEntry = path_failure(listed_entry, parent.as_path(), "cannot be listed")?;
         let name: OsString = entry.file_name();
         if own == name.to_str() || !is_directory_entry(&entry) {
             continue;
