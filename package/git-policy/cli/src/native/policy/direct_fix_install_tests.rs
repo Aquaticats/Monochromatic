@@ -875,6 +875,28 @@ fn a_journal_never_lands_beside_an_alternate_index() {
         original: Rc::from(&b"a"[..]),
         replacement: Rc::from(&b"a\n"[..]),
     }];
+    // A writer holding the file open makes the fix keep its journal, so this control sees where a journal lives.
+    let for_the_hook: (PathBuf, PathBuf) = (repo.join(".git"), repo.clone());
+    super::AFTER_SWAP.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move |swapped: &Path| {
+            if !swapped.ends_with("a.txt") {
+                return;
+            }
+            for directory in [for_the_hook.0.as_path(), for_the_hook.1.as_path()] {
+                for entry in std::fs::read_dir(directory).expect("a directory") {
+                    let path: PathBuf = entry.expect("entry").path();
+                    if path
+                        .file_name()
+                        .expect("name")
+                        .to_string_lossy()
+                        .starts_with("cli-git-direct-fix-")
+                    {
+                        std::fs::write(path.join("content"), b"a late save\n").expect("a late write");
+                    }
+                }
+            }
+        }));
+    });
     let outcome: super::InstallOutcome = install_corrections(
         repo.as_path(),
         repo.join(".git").as_path(),
@@ -882,7 +904,8 @@ fn a_journal_never_lands_beside_an_alternate_index() {
         changes.as_slice(),
     )
     .expect("the correction goes in");
-    assert_eq!(outcome.notices, Vec::<String>::new());
+    super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
+    assert_eq!(outcome.notices.len(), 1, "a journal stays: {outcome:?}");
     assert_eq!(
         std::fs::read(repo.join("a.txt")).expect("a"),
         b"a\n".to_vec()
@@ -893,9 +916,10 @@ fn a_journal_never_lands_beside_an_alternate_index() {
         Vec::<String>::new(),
         "the worktree holds no journal"
     );
-    assert!(
-        journals(repo.join(".git").as_path()).is_empty(),
-        "a successful fix removes what it kept"
+    assert_eq!(
+        journals(repo.join(".git").as_path()).len(),
+        1,
+        "the journal this fix must keep is in the Git directory"
     );
     remove(root.as_path());
 }
