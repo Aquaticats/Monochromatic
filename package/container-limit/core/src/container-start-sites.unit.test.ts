@@ -4,14 +4,20 @@
 
  A new file that starts a container fails the first test until it is listed here, and a listed file fails the second
  until it carries the limits (the shared helpers or, in a shell string or a workflow, the literal options).
+ The third check reads each start the file writes, because a file that imports a helper and never calls it in a start's
+ own argument list used to pass on the helper's name alone (`package/terminal/app/mise.toml` before `bbadfac560`).
  `doc/handover/container-limits-everywhere.md` is the inventory this ledger enforces.
 
  @module
  */
 
 import { execFileSync, } from 'node:child_process';
-import { readFileSync, } from 'node:fs';
-import { join, } from 'node:path';
+import { existsSync, readFileSync, } from 'node:fs';
+import {
+  dirname,
+  join,
+  normalize,
+} from 'node:path';
 
 import {
   describe,
@@ -19,6 +25,17 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
+import { argumentTextWithBoundInitializers, } from './argument-text-with-definitions.ts';
+import type { ContainerStartInvocation, } from './container-start-vocabulary.ts';
+import {
+  containerStartInvocations,
+} from './container-starts-in-source-text.ts';
+import { definedTextByName, } from './defined-text-in-source-text.ts';
+import { importedModuleByName, } from './imported-module-by-name.ts';
+import {
+  stripSourceComments,
+  type SourceLanguage,
+} from './source-text-without-comments.ts';
 import {
   DISK_WEIGHT_OFF,
   DISK_WEIGHT_SWITCH,
@@ -73,6 +90,37 @@ const PASSES_MARKERS: readonly string[] = [
   'limits',
   'Limits',
   'container-arguments',
+];
+
+/**
+ The comment syntax each scanned extension holds.
+ */
+const LANGUAGES_BY_EXTENSION: ReadonlyMap<string, SourceLanguage> = new Map([
+  ['.ts', 'typescript',],
+  ['.mjs', 'typescript',],
+  ['.toml', 'toml',],
+  ['.yml', 'yaml',],
+  ['.yaml', 'yaml',],
+],);
+
+/**
+ Paths whose start still has no bound, each waiting on a size decision the owner has not made.
+
+ Reading each start finds these, and neither may take a number invented here (repository rule LQM).
+ `doc/handover/container-limits-everywhere.md` carries the decision each waits on, under `### Open`.
+ The paired test below fails when a listed path no longer has an unbounded start, so an entry leaves this list with its
+ fix.
+ */
+const UNBOUNDED_SITE_DECISIONS: readonly { readonly path: string; readonly reason: string; }[] = [
+  {
+    path: 'package/monorepo-task/core-exec/src/playwright-image-logic.ts',
+    reason: 'the local build of playwright.Dockerfile has no memory or CPU bound, and its size is unmeasured',
+  },
+  {
+    path: 'package/test-harness/core-matrix/src/container-image-rebuild-on-changed-inputs.ts',
+    reason: 'the build every containerImageBuild caller reaches applies only the bounds a caller passes, so a default'
+      + ' needs a size the inventory lists as unmeasured',
+  },
 ];
 
 /**
@@ -310,11 +358,63 @@ function namesProgram(text: string,): boolean {
 }
 
 /**
+ Texts already read, so the checks that read the same file do not read it again.
+
+ The scan reads a file once per test and once more for each name it follows into a module, and the repository holds
+ files of a megabyte.
+ */
+const textsRead = new Map<string, string>();
+
+/**
+ The text each name of a file declares, keyed by path, so the starts of one file share one pass over it.
+ */
+const definitionsRead = new Map<string, ReadonlyMap<string, string>>();
+
+/**
+ The text each name a file declares stands for, computed once per file.
+
+ @param parameters - the repository-relative path of the file
+
+ @returns one entry per declared name, mapped to the text of its initializer or body
+
+ @example
+ ```ts
+ const definitions = definitionsOf({ path: 'mise.toml' });
+ ```
+ */
+function definitionsOf({ path, }: {
+  readonly path: string;
+},): ReadonlyMap<string, string> {
+  /**
+   The index computed for this file earlier in the run, when it was computed already.
+   */
+  const earlier = definitionsRead.get(path,);
+  if (earlier !== undefined)
+    return earlier;
+  /**
+   The language whose comment syntax the file holds, when its extension holds one.
+   */
+  const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+  /**
+   The index itself, which stays empty for a path no start can be written in.
+   */
+  const definitions = language === undefined
+    ? new Map<string, string>()
+    : definedTextByName({
+      blankedSourceText: stripSourceComments({ text: textOf(path,), language, },),
+    },);
+  definitionsRead.set(path, definitions,);
+  return definitions;
+}
+
+/**
  Text of a tracked file.
 
  @param path - repository-relative path
 
  @returns the file's text
+
+ @throws When the path names no file
 
  @example
  ```ts
@@ -322,13 +422,24 @@ function namesProgram(text: string,): boolean {
  ```
  */
 function textOf(path: string,): string {
-  return readFileSync(
+  /**
+   Text read earlier in this run, when the file has been read already.
+   */
+  const earlier = textsRead.get(path,);
+  if (earlier !== undefined)
+    return earlier;
+  /**
+   The file's text, kept for the reads that follow.
+   */
+  const text = readFileSync(
     join(
       repositoryRoot,
       path,
     ),
     'utf8',
   );
+  textsRead.set(path, text,);
+  return text;
 }
 
 /**
@@ -384,6 +495,185 @@ function markersOf(role: Role,): readonly string[] {
   return markersByRole[role];
 }
 
+/**
+ One start whose own argument list holds no word that shows where its limits come from.
+ */
+type UncoveredStart = {
+  /**
+   Repository-relative path of the file that starts the container.
+   */
+  readonly path: string;
+  /**
+   Line of the program name in that file.
+   */
+  readonly line: number;
+  /**
+   Argument text that reaches the program.
+   */
+  readonly argvText: string;
+};
+
+/**
+ The extension a path ends with, which is the last dot and whatever follows it.
+
+ @param path - repository-relative path
+
+ @returns the extension, dot included, or the empty string when the path holds no dot
+
+ @example
+ ```ts
+ const extension = extensionOf('mise.toml');
+ ```
+ */
+function extensionOf(path: string,): string {
+  for (let index = path.length - 1; index >= 0; index -= 1) {
+    if (path[index] === '.')
+      return path.slice(index,);
+  }
+  return '';
+}
+
+/**
+ Words that show a start's own argument list takes the limits.
+
+ A start whose arguments a builder returns has no verb here, so either bound answers for it.
+
+ @param start - the start to find the words for
+
+ @returns the words, any one of which shows where the start's limits come from
+
+ @example
+ ```ts
+ const markers = markersReaching(start);
+ ```
+ */
+function markersReaching(start: ContainerStartInvocation,): readonly string[] {
+  if (start.verb === 'build')
+    return [...BUILDS_MARKERS, ...PASSES_MARKERS,];
+  if ((start.verb === 'run') || (start.verb === 'create'))
+    return [...STARTS_MARKERS, ...PASSES_MARKERS,];
+  return [...STARTS_MARKERS, ...BUILDS_MARKERS, ...PASSES_MARKERS,];
+}
+
+/**
+ The definitions a file's imports give its names, read one module deep into the file each import names.
+
+ A start can spread a builder an adjacent module exports (`...buildBounds`), so a name the file does not declare
+ itself is read from the module its import names. A package specifier is not followed: this ledger reads the
+ repository's own files.
+
+ @param path - the repository-relative path of the importing file
+
+ @returns the text each imported name stands for in the module its import names, for the names this repository's files
+   answer
+
+ @example
+ ```ts
+ const imported = importedDefinitionsOf({ path: 'package/x/bin/build.ts' });
+ ```
+ */
+function importedDefinitionsOf({ path, }: {
+  readonly path: string;
+},): ReadonlyMap<string, string> {
+  const imported = new Map<string, string>();
+  /**
+   The importing file's own language, when its extension holds one.
+   */
+  const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+  if (language === undefined)
+    return imported;
+  /**
+   Each imported name of the file, with the module its import names.
+   */
+  const modules = importedModuleByName({ text: textOf(path,), language, },);
+  for (const [name, specifier,] of modules) {
+    if (!specifier.startsWith('.',))
+      continue;
+    /**
+     Repository-relative path of the module the import names.
+     */
+    const modulePath = normalize(join(dirname(path,), specifier,),);
+    /**
+     Whether the module is a file of this repository that a start can be written in.
+     */
+    const readable = LANGUAGES_BY_EXTENSION.has(extensionOf(modulePath,),)
+      && existsSync(join(repositoryRoot, modulePath,),);
+    if (!readable)
+      continue;
+    /**
+     The text the module gives that name.
+     */
+    const text = definitionsOf({ path: modulePath, },).get(name,);
+    if (text !== undefined)
+      imported.set(name, text,);
+  }
+  return imported;
+}
+
+/**
+ Each start in the repository whose own argument list holds no word that shows where its limits come from.
+
+ @returns one entry per such start, in ledger order then line order
+
+ @example
+ ```ts
+ const uncovered = uncoveredStarts();
+ ```
+ */
+function uncoveredStarts(): readonly UncoveredStart[] {
+  const uncovered: UncoveredStart[] = [];
+  for (const { path, } of ledger) {
+    /**
+     The language whose comment syntax the file holds, when its extension holds one.
+     */
+    const language = LANGUAGES_BY_EXTENSION.get(extensionOf(path,),);
+    if (language === undefined)
+      continue;
+    /**
+     The file's text.
+     */
+    const text = textOf(path,);
+    /**
+     The definitions the file's imports give its names, from the modules beside it.
+     */
+    const importedDefinitions = importedDefinitionsOf({ path, },);
+    /**
+     The text each name the file declares stands for.
+     */
+    const definitions = definitionsOf({ path, },);
+    for (const start of containerStartInvocations({ text, language, importedDefinitions, },)) {
+      /**
+       The start's own argument text, with the text of every binding and builder it names.
+       */
+      const reaching = argumentTextWithBoundInitializers({ argumentText: start.argvText, definitions, importedDefinitions, },);
+      if (markersReaching(start,).some((marker,) => reaching.includes(marker,),))
+        continue;
+      uncovered.push({
+        path,
+        line: start.line,
+        argvText: start.argvText,
+      },);
+    }
+  }
+  return uncovered;
+}
+
+/**
+ One uncovered start, written for a failure message.
+
+ @param start - the start to describe
+
+ @returns the file, the line and the argument text that reaches the program
+
+ @example
+ ```ts
+ const line = describeUncoveredStart(start);
+ ```
+ */
+function describeUncoveredStart({ path, line, argvText, }: UncoveredStart,): string {
+  return `${path}:${String(line,)} ${argvText.trim().replaceAll('\n', ' ',).slice(0, 160,)}`;
+}
+
 await describe({
   name: 'the container start sites ledger',
   children: [
@@ -430,6 +720,31 @@ await describe({
           return !markers.some((marker,) => text.includes(marker,),);
         },).map((entry,) => entry.path,);
         expect(missing,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'shows the limits in each start the file writes, not only somewhere in the file',
+      fn: async () => {
+        /**
+         Paths whose unbounded start waits on a size decision of the owner.
+         */
+        const waitingOnADecision = new Set(UNBOUNDED_SITE_DECISIONS.map((entry,) => entry.path,),);
+        expect(
+          uncoveredStarts()
+            .filter((start,) => !waitingOnADecision.has(start.path,),)
+            .map(describeUncoveredStart,),
+        ).toEqual([],);
+      },
+    },),
+    it({
+      name: 'keeps a listed size decision only while a start there still has no bound',
+      fn: async () => {
+        /**
+         Starts whose own argument list holds no word that shows where their limits come from.
+         */
+        const uncovered = uncoveredStarts();
+        for (const { path, } of UNBOUNDED_SITE_DECISIONS)
+          expect(uncovered.some((start,) => start.path === path,),).toBe(true,);
       },
     },),
     it({
