@@ -36,7 +36,7 @@ use crate::transaction_journal::TransactionMode;
 /// The index copy steps,
 /// kept in a file of their own.
 pub use crate::commit_index_copying::copy_index_with_timestamps;
-use crate::commit_index_copying::{copy_index_failure, seeds_private_index};
+use crate::commit_index_copying::{PrivateIndexSeed, copy_index_failure, drop_intent_to_add, private_index_seed};
 /// The note of how each build was made,
 /// which the commit's timing record takes.
 use crate::commit_index_builds::{IndexBuildKind, note_index_build};
@@ -242,24 +242,36 @@ fn stage_into_the_private_index(
         // `doc/planning/cli-git-commit-timeouts.md`).
         // The copy also keeps assume-unchanged and skip-worktree marks, and `git add --all` then skips or refuses a
         // marked file the commit named, so an index with such a mark (or one this crate cannot read) is built the
-        // slower way, from the base alone.
-        let seeded: bool = seeds_private_index(indexes.captured_index.as_path());
+        // slower way, from the base alone. Intent-to-add entries are left out of the copy instead: they carry no stat
+        // data to keep, and a tree Git builds from an index that holds one leaves that path out
+        // (`commit_index_copying.rs`).
+        let seed: PrivateIndexSeed = private_index_seed(indexes.captured_index.as_path());
         // A private index built without the real index's stat data makes the scratch commit hash every file (233 MB of LFS content
         //  here), so which way it was built goes into the commit's timing record, which is written on every commit.
-        note_index_build(IndexBuildKind::First, seeded);
-        if seeded {
+        note_index_build(IndexBuildKind::First, seed.keeps_stat_data());
+        if seed != PrivateIndexSeed::Base {
             copy_index_with_timestamps(indexes.captured_index.as_path(), indexes.commit_index.as_path())
                 .map_err(copy_index_failure)?;
+            if let PrivateIndexSeed::CopyWithoutIntentToAdd(paths) = &seed {
+                // Before the reset below, so a path the base holds comes back from the base as a plain entry.
+                drop_intent_to_add(
+                    context,
+                    cwd,
+                    indexes.commit_index.as_path(),
+                    indexes.object_directory.as_path(),
+                    paths.as_slice(),
+                )?;
+            }
         }
         // An index that already holds exactly the base has nothing for `read-tree --reset` to remove and no staged addition
         // to carry, and the copy keeps everything the reset would have kept (the stat data and the extensions), so the Git
         // start and the rewrite of the whole index are saved. Only the in-process readers can say so; a question they leave
         // to Git is answered by the slow way below, never by one more Git start here.
-        if seeded && index_equals_base(context, cwd, indexes, selection.base_revision) {
+        if index_equals_base(context, cwd, indexes, selection.base_revision) {
             return add_selected_paths(context, cwd, indexes, selection);
         }
         let mut read_tree: Vec<String> = vec![String::from("read-tree")];
-        if seeded {
+        if seed != PrivateIndexSeed::Base {
             read_tree.push(String::from("--reset"));
         }
         read_tree.push(selection.base_revision.to_string());
@@ -291,8 +303,11 @@ fn stage_into_the_private_index(
 /// An index that holds an assume-unchanged or skip-worktree mark,
 /// or that cannot be read,
 /// is not copied,
-/// as for the first preparation (`seeds_private_index`),
-/// and the tree is read into a fresh index.
+/// as for the first preparation (`private_index_seed`),
+/// and the tree is read into a fresh index;
+/// an index whose only marks are intent-to-add entries is copied,
+/// with those entries left out then,
+/// so the commit keeps the real index's stat data.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -300,8 +315,8 @@ fn stage_into_the_private_index(
 /// ```
 pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Path, indexes: &CaptureIndexes, tree: &str) -> Result<(), GitFailure> {
     let mut arguments: Vec<String> = vec![String::from("read-tree")];
-    let seeded: bool = real_index.exists() && seeds_private_index(real_index);
-    note_index_build(IndexBuildKind::Retry, seeded);
+    let seed: PrivateIndexSeed = if real_index.exists() { private_index_seed(real_index) } else { PrivateIndexSeed::Base };
+    note_index_build(IndexBuildKind::Retry, seed.keeps_stat_data());
     // The real index's stat data is refreshed before the copy below, for the reason the first preparation gives
     // (`initialize_commit_index`): a rebuild runs when other commits land, so it is the one that can least afford to read
     // the whole work tree again. A rebuild stages nothing from the worktree, so every entry the copied index holds is
@@ -317,8 +332,18 @@ pub fn initialize_retry_index(context: &GitContext, cwd: &Path, real_index: &Pat
     // const refresh = statRefreshIfStale({ context, cwd, index: realIndex, staging: { none: true } });
     // ```
     let refresh: StatRefresh = refresh_stat_data_when_stale(context, cwd, real_index, WorktreeStaging::None);
-    if seeded {
+    if seed != PrivateIndexSeed::Base {
         copy_index_with_timestamps(real_index, indexes.commit_index.as_path()).map_err(copy_index_failure)?;
+        if let PrivateIndexSeed::CopyWithoutIntentToAdd(paths) = &seed {
+            // Before the reset, so the tree puts back what a path it holds held there.
+            drop_intent_to_add(
+                context,
+                cwd,
+                indexes.commit_index.as_path(),
+                indexes.object_directory.as_path(),
+                paths.as_slice(),
+            )?;
+        }
         arguments.push(String::from("--reset"));
     }
     arguments.push(tree.to_string());
@@ -365,7 +390,7 @@ fn add_selected_paths(
 }
 
 /// What:
-///  Whether the captured index holds exactly the tree of the base revision,
+///  Whether the private index holds exactly the tree of the base revision,
 /// answered without starting Git.
 /// Why:
 ///   The in-process reader of `diff-index --cached` lists the paths whose entry differs from the tree;
@@ -377,16 +402,19 @@ fn add_selected_paths(
 /// and a declined question
 ///  is "not known to be equal",
 /// which takes the slow way.
+///  The private index is the one asked and not the captured one it was copied from:
+///  a copy the intent-to-add entries were left out of is missing files the base holds,
+///  and the reset below is what puts them back into it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// readerAnswer(['diff-index', '--cached', '--name-only', '-z', '--no-renames', base])?.stdout.length === 0
+/// readerAnswer(['diff-index', '--cached', '--name-only', '-z', '--no-renames', base], privateIndex)?.stdout.length === 0
 /// ```
 fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
     let request = indexed_request(
         cwd,
         &["diff-index", "--cached", "--name-only", "-z", "--no-renames", base_revision],
-        Some(indexes.captured_index.as_path()),
+        Some(indexes.commit_index.as_path()),
         Some(indexes.object_directory.as_path()),
     );
     return match crate::repo_read_hook::try_request(context, &request) {

@@ -133,7 +133,7 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
 fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
     let root: PathBuf = fixture("index-builds-tree-alone");
     let (repo, indexes, base) = committed_repository(root.as_path());
-    // A mark the copy cannot carry makes the retry build the index from the tree alone (`seeds_private_index`).
+    // A mark the copy cannot carry makes the retry build the index from the tree alone (`private_index_seed`).
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
     let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
     initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
@@ -206,5 +206,50 @@ fn an_index_commit_in_a_repository_with_no_index_is_noted_as_keeping_none() {
     initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &whole_index("HEAD"))
         .expect("initialize");
     assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: false }]);
+    remove(root.as_path());
+}
+
+/// An index whose only marks are intent-to-add entries seeds a copy too,
+/// with those entries left out,
+/// so the record says the stat data was kept and the built index holds neither the entry nor a missing stat field.
+#[test]
+fn an_intent_to_add_entry_is_noted_as_a_build_that_kept_the_stat_data() {
+    let root: PathBuf = fixture("index-builds-intent");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    std::fs::write(repo.join("b.txt"), "changed\n").expect("change b");
+    let named: [OsString; 1] = [OsString::from("b.txt")];
+    let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
+    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::First, stat_data_kept: true }]);
+    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+    assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the copy holds the real index's stat data: {listing}");
+    assert_eq!(
+        debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
+        String::new(),
+        "the copy carries no intent-to-add entry"
+    );
+    remove(root.as_path());
+}
+
+/// A rebuild from an index that holds an intent-to-add entry is noted as keeping the stat data as well,
+/// which is the build a moved branch pays several times.
+#[test]
+fn a_retry_from_an_index_that_holds_an_intent_to_add_entry_is_noted_as_keeping_the_stat_data() {
+    let root: PathBuf = fixture("index-builds-intent-retry");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
+    assert_eq!(noted(), vec![IndexBuild { kind: IndexBuildKind::Retry, stat_data_kept: true }]);
+    let listing: String = debug_listing(repo.as_path(), indexes.commit_index.as_path(), "a.txt");
+    assert!(!listing.contains(UNSET_MODIFICATION_TIME), "the copy holds the real index's stat data: {listing}");
+    assert_eq!(
+        debug_listing(repo.as_path(), indexes.commit_index.as_path(), "added.txt"),
+        String::new(),
+        "the copy carries no intent-to-add entry"
+    );
     remove(root.as_path());
 }

@@ -227,19 +227,27 @@ fn an_intent_to_add_tracked_empty_file_is_not_dropped_from_the_commit() {
     remove(root.as_path());
 }
 
-/// An index no mark touches still seeds the private index,
-/// so the safeguard costs nothing for it:
-///  the copy is used exactly when the reader found the index plain,
+/// An index no mark touches seeds the private index as a plain copy,
+/// so the safeguard costs nothing for it;
+/// an index whose only marks are intent-to-add entries seeds it too and names the entries the copy leaves out;
+/// an assume-unchanged entry sends the build to the base,
 /// and an absent file seeds nothing.
 #[test]
-fn only_a_plain_index_seeds_the_private_index() {
+fn only_an_index_without_a_hidden_entry_seeds_the_private_index() {
     let root: PathBuf = fixture("commit-index-seeds");
     let (repo, indexes, _base) = committed_repository(root.as_path());
     let real: PathBuf = repo.join(".git").join("index");
-    assert!(seeds_private_index(real.as_path()));
+    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Copy);
+    std::fs::write(repo.join("added.txt"), "new\n").expect("the file the person added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "added.txt"]);
+    assert_eq!(
+        private_index_seed(real.as_path()),
+        PrivateIndexSeed::CopyWithoutIntentToAdd(vec![b"added.txt".to_vec()]),
+        "an intent-to-add entry keeps the copy and names itself"
+    );
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
-    assert!(!seeds_private_index(real.as_path()));
-    assert!(!seeds_private_index(indexes.commit_index.as_path()));
+    assert_eq!(private_index_seed(real.as_path()), PrivateIndexSeed::Base);
+    assert_eq!(private_index_seed(indexes.commit_index.as_path()), PrivateIndexSeed::Base);
     remove(root.as_path());
 }
 
@@ -434,7 +442,8 @@ struct Filtered {
     indexes: CaptureIndexes,
     /// Recorded base.
     base: String,
-    /// The clean filter script, whose `.log` beside it holds the paths it cleaned.
+    /// The clean filter script,
+    /// whose `.log` beside it holds the paths it cleaned.
     filter: PathBuf,
 }
 
