@@ -159,7 +159,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `git log main --first-parent -m -S'branch_digest'` is empty.
   `c3c6a50098` added the branch key,
   and `24bb297e9a` on another branch deleted it on the belief that main had gone back to the plain id.
-  Push run 7 restores it and rechecks that agent's other fixes against main.
+  Run 7 restored it in `83cd9bdaa9` on `fix/git-policy-cli-push-route-records-and-ceilings`,
+  with `two_branches_at_one_commit_are_both_queued` and `a_pending_record_of_an_earlier_release_is_claimed`,
+  after reproducing the collision on the plain id:
+  the second branch is answered `Known`,
+  and no record is left to claim.
+  The other eleven findings of that page are fixed on main:
+  every control the fix commits added is still there,
+  and all 23 of them pass on the merged tree.
 - `~/temp/agent/pi-runs/find-functions-lost-in-merges.ts` over commits since 2026-11-05:
   of the functions and tests added,
   134 are gone from main,
@@ -676,6 +683,21 @@ The old tree kept for the rollback stays until the owner deletes it.
   with `push-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   The session picked the fixture root on the disk over a per-run tmpfs,
   because the package documents that a shared tmpfs fills up (issue 1809).
+  Run 7 resumed after the provider ended it,
+  merged main,
+  restored finding 1 of the push-route audit,
+  and fixed the sixth review's one P2 (`${HOME}/temp/agent/reviews/push-route-round-6-sol.txt`):
+  the writer's successful write and the count it publishes are two steps,
+  so a child that read the whole request,
+  closed its input and exited zero,
+  could be reported as a request that could not be written whole.
+  The answer now waits for the writer's own finished result,
+  for at most `WRITER_SETTLE_CEILING`,
+  which is 500 ms,
+  fifty of the writer's own 10 ms pauses and far under the 30 s query window;
+  the session chose it and it is open to the owner's veto.
+  `6ba20daf37` adds the control for a writer still held at that ceiling,
+  so removing the bound fails a test of its own.
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
   with 22 of 22 selected tests passing on top of main.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
