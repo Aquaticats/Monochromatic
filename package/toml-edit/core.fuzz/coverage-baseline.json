@@ -43,7 +43,7 @@
   "src/toml-set.ts": 167,
   "src/toml-stringify.ts": 22,
   "src/types.ts": 151,
-  "src/value-encoders.ts": 290,
+  "src/value-encoders.ts": 310,
   "src/value-materialize.ts": 301,
   "src/values.ts": 305,
   "src/wrapped-scalar-grammar.ts": 451,

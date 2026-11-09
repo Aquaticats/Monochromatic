@@ -268,40 +268,29 @@ function pendingProjectionOps(): void {
 }
 
 /**
- Wrapper-shaped payloads the encoder must reject, so the validation arms are
- reachable: a payload that would inject a key or comment, one of the wrong type
- for its kind, and one claiming a kind no wrapper defines.
+ Payload that is a number but not an integer, so the integer kind rejects it.
  */
-const REJECTED_WRAPPER_PAYLOADS: readonly unknown[] = [
-  {
-    tomlKind: 'integer',
-    value: '1\nbad = "x"',
-  },
-  {
-    tomlKind: 'integer',
-    value: 1.5,
-  },
-  {
-    tomlKind: 'float',
-    value: 'Infinity',
-  },
-  {
-    tomlKind: 'local-date',
-    value: '2026-01-01 # x',
-  },
-  {
-    tomlKind: 'local-date-time',
-    value: '2026-05-14T10:00:00Z',
-  },
-  {
-    tomlKind: 'local-time',
-    value: '10:00:00\n',
-  },
-  {
-    tomlKind: 'no-such-kind',
-    value: 'x',
-  },
-];
+const NON_INTEGRAL_PROBE = 1.5;
+
+/**
+ Shift that pushes the bigint rejection probe past TOML's signed 64-bit integer
+ range.
+ */
+const INTEGER_RANGE_PROBE_SHIFT = 64n;
+
+/**
+ One payload per wrapper kind that the encoder must reject: an out-of-range
+ integer, a wrong type, a comment, an offset form, a trailing newline, and a
+ kind no wrapper defines.
+ */
+const REJECTED_WRAPPER_PAYLOADS: Readonly<Record<string, unknown>> = {
+  integer: NON_INTEGRAL_PROBE,
+  float: 'Infinity',
+  'local-date': '2026-01-01 # x',
+  'local-date-time': '2026-05-14T10:00:00Z',
+  'local-time': '10:00:00\n',
+  'no-such-kind': 'x',
+};
 
 /**
  Reach the public tagged-value factories and the wrapper payload validation
@@ -313,13 +302,26 @@ function wrapperOps(): void {
   tomlLocalDate('2026-05-14',);
   tomlLocalDateTime('2026-05-14T10:00:00',);
   tomlLocalTime('10:00:00',);
-  for (const value of REJECTED_WRAPPER_PAYLOADS) {
+  /**
+   Accepted bigint, so the integer kind's in-range arm runs through the encoder.
+   */
+  tomlStringify({
+    edit: tomlSet({
+      edit: emptyTomlEdit(),
+      path: ['wrapped',],
+      value: tomlInteger(1n,),
+    },),
+  },);
+  for (const [tomlKind, value,] of Object.entries(REJECTED_WRAPPER_PAYLOADS,)) {
     attempt({
       thunk: function rejectWrapped() {
         tomlSet({
           edit: emptyTomlEdit(),
           path: ['wrapped',],
-          value,
+          value: {
+            tomlKind,
+            value,
+          },
         },);
       },
     },);
