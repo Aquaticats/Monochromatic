@@ -1231,3 +1231,44 @@ fn a_forced_switch_to_the_previous_branch_keeps_an_ignored_file() {
     assert_eq!(branch_of(&fixture, linked.as_path()), "free");
     remove(&fixture);
 }
+
+/// A deletion that names the previous branch resolves the name Git resolves,
+/// so the line names the branch and
+///  the commit it took.
+#[test]
+fn a_deletion_of_the_previous_branch_records_the_branch_it_named() {
+    let fixture: Fixture = fixture("audit-previous-branch");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "lost"]);
+    std::fs::write(repo.join("tracked.txt"), b"the lost commit\n").expect("edit");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=lost", "--", "tracked.txt"]);
+    let commit: String =
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["rev-parse", "lost"]).stdout.as_slice())
+            .trim()
+            .to_owned();
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    // Git reads `@{-1}` as the branch the worktree visited before `main`, which is `lost`.
+    let resolved: String = String::from_utf8_lossy(
+        git(&fixture, repo.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]).stdout.as_slice(),
+    )
+    .trim()
+    .to_owned();
+    assert_eq!(resolved, "refs/heads/lost", "the control needs the previous-branch expression to name lost");
+    let deletion: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "@{-1}"]);
+    assert_eq!(deletion.code, Some(0), "{}", stderr_of(&deletion));
+    assert_eq!(
+        String::from_utf8_lossy(git(&fixture, repo.as_path(), &["branch", "--list", "lost"]).stdout.as_slice()),
+        "",
+        "Git deleted the branch"
+    );
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line for the deletion");
+    for field in [
+        "\"form\":\"BranchDelete\"",
+        "\"branch\":\"lost\"",
+        "\"reference\":\"refs/heads/lost\"",
+        format!("\"commit\":\"{commit}\"").as_str(),
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    remove(&fixture);
+}

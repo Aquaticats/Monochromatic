@@ -91,14 +91,47 @@ pub fn reference_of(name: &OsStr, remotes: bool) -> OsString {
 /// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
 /// ```
 pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<String> {
-    let reference: OsString = reference_of(name, remotes);
-    let mut arguments: Vec<OsString> = prefix_for(context, root);
-    for token in ["rev-parse", "--verify", "--quiet"] {
-        arguments.push(OsString::from(token));
+    let (reference, _short): (OsString, String) = deleted_reference(context, root, name, remotes)?;
+    return commit_of(context, root, reference.as_os_str());
+}
+
+/// What:
+///  One `rev-parse` query of the repository,
+///  or nothing when Git cannot be asked at all.
+/// Why:
+///   Every question here is one `rev-parse`,
+/// and a query that cannot start answers nothing rather than
+///  failing the removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function rev_parse({ context, root, arguments }): MetadataOutput | undefined;
+/// ```
+fn rev_parse(context: &GitContext, root: Option<&Path>, arguments: &[&str]) -> Option<MetadataOutput> {
+    let mut spelled: Vec<OsString> = prefix_for(context, root);
+    for token in arguments {
+        spelled.push(OsString::from(token));
     }
-    arguments.push(reference);
-    let output: MetadataOutput =
-        run_metadata_git(context.real_git.as_path(), arguments.as_slice(), context.overlay.as_slice()).ok()?;
+    return run_metadata_git(context.real_git.as_path(), spelled.as_slice(), context.overlay.as_slice()).ok();
+}
+
+/// What:
+///  The commit a reference points at,
+/// or nothing when there is no such reference.
+/// Why:
+///   A deletion of a reference that does not exist deletes nothing,
+/// and Git answers that itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runGit([...global, 'rev-parse', '--verify', '--quiet', reference]);
+/// ```
+fn commit_of(context: &GitContext, root: Option<&Path>, reference: &OsStr) -> Option<String> {
+    let output: MetadataOutput = rev_parse(
+        context,
+        root,
+        &["rev-parse", "--verify", "--quiet", reference.to_str().unwrap_or_default()],
+    )?;
     if !output.success {
         return None;
     }
@@ -107,6 +140,69 @@ pub fn branch_commit(context: &GitContext, root: Option<&Path>, name: &OsStr, re
         return None;
     }
     return Some(commit);
+}
+
+/// What:
+///  The reference a deletion name means and the short name a reader restores from.
+///  `Option<(OsString, String)>` is "the reference and its name,
+/// or nothing".
+/// Why:
+///   A name is not always the branch it names:
+///  Git expands `@{-1}` to the branch the worktree visited before the
+///       current one,
+///  so a record built from the typed name would look for `refs/heads/@{-1}`,
+///  find
+///       nothing and write no line at all,
+///  which is the line the owner asked for.
+///  The typed reference is asked about
+///  first,
+///  so a plain name costs the one query it always did.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deletedReference({ context, root, name, remotes }): [string, string] | undefined;
+/// ```
+fn deleted_reference(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<(OsString, String)> {
+    let intended: OsString = reference_of(name, remotes);
+    // The typed name is the branch itself for every spelling but an expression of Git's own.
+    if commit_of(context, root, intended.as_os_str()).is_some() {
+        return Some((intended, name.to_string_lossy().into_owned()));
+    }
+    let symbolic: String = symbolic_reference(context, root, name)?;
+    let prefix: &str = if remotes { REMOTES } else { HEADS };
+    let short: String = symbolic.strip_prefix(prefix)?.to_owned();
+    return Some((OsString::from(symbolic), short));
+}
+
+/// What:
+///  The full reference a name resolves to,
+///  or nothing when Git resolves it to no reference at all.
+///  `Option<String>` is "the reference or nothing".
+/// Why:
+///   `git rev-parse --symbolic-full-name` answers what a deletion name means to Git
+///  (`@{-1}` is
+///       `refs/heads/lost`),
+///  and a commit with no symbolic name (a detached `@{-1}`) is no branch to restore.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = await runGit([...global, 'rev-parse', '--symbolic-full-name', '--verify', '--quiet', name]);
+/// ```
+fn symbolic_reference(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<String> {
+    let spelled: &str = name.to_str()?;
+    let output: MetadataOutput = rev_parse(
+        context,
+        root,
+        &["rev-parse", "--symbolic-full-name", "--verify", "--quiet", spelled],
+    )?;
+    if !output.success {
+        return None;
+    }
+    let reference: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+    if reference.is_empty() {
+        return None;
+    }
+    return Some(reference);
 }
 
 /// What:
@@ -156,10 +252,11 @@ pub fn merged_into_head(context: &GitContext, root: Option<&Path>, commit: &str)
 /// function deletionFacts({ context, name }): [string, AuditFact[]] | undefined;
 /// ```
 pub fn deletion_facts(context: &GitContext, root: Option<&Path>, name: &OsStr, remotes: bool) -> Option<Vec<AuditFact>> {
-    let commit: String = branch_commit(context, root, name, remotes)?;
+    let (reference, branch): (OsString, String) = deleted_reference(context, root, name, remotes)?;
+    let commit: String = commit_of(context, root, reference.as_os_str())?;
     let mut facts: Vec<AuditFact> = vec![
-        AuditFact::Text("branch", name.to_string_lossy().into_owned()),
-        AuditFact::Text("reference", reference_of(name, remotes).to_string_lossy().into_owned()),
+        AuditFact::Text("branch", branch),
+        AuditFact::Text("reference", reference.to_string_lossy().into_owned()),
         AuditFact::Text("commit", commit.clone()),
     ];
     if let Some(merged) = merged_into_head(context, root, commit.as_str()) {

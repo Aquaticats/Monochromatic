@@ -9288,6 +9288,13 @@ and leave one audit line each
   The namespace is read from the command,
   because the same name can exist as a local branch and as a remote-tracking reference at two different commits,
   and a record that read the local branch would name the wrong commit to restore.
+  A name Git expands before deleting (`@{-1}`,
+  the branch the worktree visited before the current one) is read through
+  `git rev-parse --symbolic-full-name --verify`,
+  and the line names the branch that expression resolved to and its commit,
+  so the owner's line is written for every deletion Git runs;
+  the typed reference is asked about first,
+  so a plain name costs the one query it always did.
   A short cluster is read letter by letter,
   except after `-u`,
   whose value takes the rest of the token (`-ur` sets the upstream of `r` and selects nothing).
