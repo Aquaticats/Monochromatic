@@ -289,3 +289,27 @@ fn refuses_indentation_deeper_than_the_generated_configuration() {
         )
     );
 }
+
+/// A '#' on a list item is refused by line,
+/// never read as a compact mapping:
+/// the
+///       generator writes no '#' on an item,
+/// and a colon inside a trailing comment used
+///       to turn the item into a mapping whose key held the comment.
+#[test]
+fn refuses_a_hash_on_a_list_item() {
+    let text: &str = "\
+auth:
+  oidc:
+    - workloads:
+        - packages:
+            - app # publication: enabled
+";
+    assert_eq!(
+        problem(text),
+        YamlProblem::new(
+            5,
+            "holds a '#' on a list item, where the generated configuration writes none"
+        )
+    );
+}
