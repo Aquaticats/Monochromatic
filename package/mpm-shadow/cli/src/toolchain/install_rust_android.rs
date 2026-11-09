@@ -72,7 +72,7 @@ pub fn install_rust_components(ctx: &Context, tool: &LockedTool) -> Result<(), T
 }
 
 /// What:
-/// The names `rustup <listing subcommand> list --installed --toolchain <version>` prints,
+/// The names `rustup <listing subcommand> list --installed --toolchain <channel>` prints,
 /// one per line with the empty lines dropped,
 /// for the `component` row or the `target` row of a toolchain.
 /// Why:
