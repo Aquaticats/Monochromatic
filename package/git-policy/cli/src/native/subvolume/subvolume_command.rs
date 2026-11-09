@@ -86,7 +86,9 @@ pub fn main_checkout_root(start: &Path) -> Result<PathBuf, String> {
 
 /// Read a linked worktree's gitfile and return the main checkout it belongs to.
 fn common_root_of_gitfile(gitfile: &Path) -> Result<PathBuf, String> {
-    let text: String = match std::fs::read_to_string(gitfile) {
+    // Both reads go through the plain-file reader, which opens without waiting and never follows a link: a named pipe at
+    // either name must end discovery with a reason instead of waiting for a writer that never comes.
+    let text: String = match crate::plain_file::read_plain_text(gitfile) {
         Ok(read) => read,
         Err(error) => return Err(format!("cannot read {}: {error}", gitfile.display())),
     };
@@ -95,9 +97,15 @@ fn common_root_of_gitfile(gitfile: &Path) -> Result<PathBuf, String> {
     };
     let base: &Path = gitfile.parent().unwrap_or(Path::new("/"));
     let admin: PathBuf = base.join(named.trim());
-    let common_text: String = match std::fs::read_to_string(admin.join("commondir")) {
+    let common_text: String = match crate::plain_file::read_plain_text(admin.join("commondir").as_path()) {
         Ok(read) => read,
-        Err(_) => return Err(format!("{} is not a linked worktree's gitfile ({} has no commondir), so this is not a main checkout or a linked worktree of one", gitfile.display(), admin.display())),
+        Err(error) => {
+            return Err(format!(
+                "{} is not a linked worktree's gitfile ({} has no commondir: {error}), so this is not a main checkout or a linked worktree of one",
+                gitfile.display(),
+                admin.display()
+            ));
+        }
     };
     let common: PathBuf = match std::fs::canonicalize(admin.join(common_text.trim())) {
         Ok(resolved) => resolved,

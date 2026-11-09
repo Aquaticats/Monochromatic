@@ -1570,6 +1570,9 @@ which opens without waiting and without following a link and takes the type from
 handle,
 so a named pipe at any of them ends that run with the file named instead of waiting for a writer
 that never comes while the claim of the checkout is held.
+The same reader is what finds the main checkout before the claim is taken:
+a `.git` file and an administrative directory's `commondir` are read through it,
+so a named pipe at either ends discovery with a reason instead of waiting.
 An index is read up to a gigabyte,
 the largest index this repository held at 3,097,973 bytes (measured 2026-11-09) and the bound the
 merge pass uses;
