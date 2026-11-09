@@ -7893,19 +7893,26 @@ and the executable does not read the name it was started under.
   `hook.<event>.enabled=false`,
   which is Git's own switch for the whole event
   (`git hook list` reports such a hook as `event-disabled`).
-  Both switches are read from the configuration files,
-  the `command` scope left out:
-  the wrapper itself supplies `hook.<event>.enabled=false` for every event on every Git it starts,
-  a Git
-  child passes those values on through `GIT_CONFIG_PARAMETERS`,
-  and reading them here let the wrapper's own
-  suppression hide a hook the person configured,
-  from doctor and from the commit warning alike.
-  That goes one way by
-  design:
-  a person who switches a hook off with `-c` on one command is told about it again rather than
-  silently spared,
-  because this process cannot tell their `-c` from the wrapper's.
+  The two switches are read from different places,
+  because the wrapper supplies only one of them:
+  - `hook.<event>.enabled` is read from the configuration files,
+    the `command` scope left out,
+    because the
+    wrapper itself supplies `false` for every event on every Git it starts,
+    a Git child passes those values on through
+    `GIT_CONFIG_PARAMETERS`,
+    and reading them here let the wrapper's own suppression hide a hook the person
+    configured,
+    from doctor and from the commit warning alike.
+  - `hook.<name>.enabled` is read the way Git reads it,
+    every scope,
+    the `command` one last and
+    winning,
+    because the wrapper writes no such switch at all:
+    a `-c hook.<name>.enabled=true` is the caller's own
+    choice,
+    and a `-c ...=false` is too,
+    so neither is discarded.
   A hook that asks for no event,
   or has an event and no command,
   is named:

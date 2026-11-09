@@ -197,10 +197,34 @@ fn a_switch_the_wrapper_supplied_does_not_hide_the_persons_hook() {
         ("local", "hook.pre-commit.enabled\nfalse"),
     ]);
     assert!(configured_hooks(&chosen).is_empty(), "a switch in the person's configuration is theirs");
-    // A hook switched off by its own name in the wrapper's scope is reported as well.
-    let by_name: ConfigSnapshot = listing_snapshot(&[
-        ("local", "hook.control.event\npre-push"),
+}
+
+/// What:
+///  A hook's own switch is read the way Git reads it:
+/// the command scope comes last and wins.
+/// Why:
+///   The wrapper supplies no `hook.<name>.enabled` of its own,
+/// so a value in the command scope is the caller's own choice,
+///  written with `-c` or inherited from a command line:
+/// reading only the files dropped a hook the caller had just enabled,
+///  and kept one the caller had just switched off,
+///  in doctor and in the commit warning alike.
+#[test]
+fn a_switch_the_caller_wrote_wins_over_a_file_as_it_does_in_git() {
+    let enabled_by_the_caller: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.control.event\npre-commit"),
+        ("local", "hook.control.command\nrun the linter"),
+        ("local", "hook.control.enabled\nfalse"),
+        ("command", "hook.control.enabled\ntrue"),
+    ]);
+    let names: Vec<String> = configured_hooks(&enabled_by_the_caller).into_iter().map(|hook| { return hook.name; }).collect();
+    assert_eq!(names, vec![String::from("control")], "the caller's own switch enabled the hook");
+    assert!(external_hooks_warning(Some(&enabled_by_the_caller)).is_some(), "and the commit warns about it again");
+    // The other direction: a caller who switches the hook off is not told about it.
+    let disabled_by_the_caller: ConfigSnapshot = listing_snapshot(&[
+        ("local", "hook.control.event\npre-commit"),
+        ("local", "hook.control.command\nrun the linter"),
         ("command", "hook.control.enabled\nfalse"),
     ]);
-    assert_eq!(configured_hooks(&by_name).len(), 1, "the wrapper never writes a hook's own switch");
+    assert!(configured_hooks(&disabled_by_the_caller).is_empty(), "the caller switched the hook off for this command");
 }

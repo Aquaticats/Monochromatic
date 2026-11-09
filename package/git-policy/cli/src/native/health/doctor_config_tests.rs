@@ -124,3 +124,27 @@ fn a_switch_the_wrapper_supplied_does_not_hide_a_configured_hook_from_doctor() {
     assert_eq!(render_hook_lines(&findings), "hook.control (events: pre-commit)\n");
     remove(root.as_path());
 }
+
+/// What:
+///  Doctor lists a hook the caller enabled with `-c`,
+/// even though the repository's own file switched it off.
+/// Why:
+///   Command-scope values are Git's last word,
+/// so a `-c hook.<name>.enabled=true` is the caller's own choice and not the wrapper's:
+///  reading only the files dropped the hook from doctor and from the commit warning alike.
+#[test]
+fn doctor_lists_a_hook_the_caller_enabled_with_a_command_switch() {
+    let root: PathBuf = fixture("doctor-config-caller-enabled");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["config", "hook.control.event", "pre-commit"]);
+    git(repo.as_path(), &["config", "hook.control.command", "run the linter"]);
+    git(repo.as_path(), &["config", "hook.control.enabled", "false"]);
+    let mut context: GitContext = git_context();
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_CONFIG_PARAMETERS"),
+        std::ffi::OsString::from("'hook.control.enabled'='true'"),
+    ));
+    let findings: ConfigFindings = findings_of(&context, repo.as_path());
+    assert_eq!(render_hook_lines(&findings), "hook.control (events: pre-commit)\n", "the caller's own switch enabled it");
+    remove(root.as_path());
+}

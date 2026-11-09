@@ -186,11 +186,13 @@ pub fn configured_hooks(snapshot: &ConfigSnapshot) -> Vec<ConfiguredHook> {
         }
     }
     // A hook the author switched off by its own `hook.<name>.enabled`, and one whose every event is switched off, are
-    //  dropped; the others keep their order. Both switches are read from the configuration files, because the wrapper
-    //  supplies event switches of its own in the command scope.
+    //  dropped; the others keep their order. The two switches are read differently on purpose: the wrapper supplies
+    //  `hook.<event>.enabled=false` for every event on every Git it starts, so the event switch is read from the
+    //  files, while it writes no `hook.<name>.enabled` at all: that switch is read the way Git reads it, where the
+    //  command scope comes last and wins and a caller's `-c` is their own choice.
     let mut enabled: Vec<ConfiguredHook> = Vec::new();
     for hook in hooks {
-        if matches!(snapshot.bool_value_from_files(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
+        if matches!(snapshot.bool_value(format!("hook.{}.enabled", hook.name).as_str()), Lookup::Found(false)) {
             continue;
         }
         if every_event_is_off(snapshot, &hook) {
