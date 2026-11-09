@@ -20,6 +20,23 @@ import {
   type TaskDetailData,
   type TaskDetailMode,
 } from './task-detail-types.ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import {
+  logger,
+  tagged,
+} from '@monochromatic-dev/logger-core/ts';
+
+//region Logging
+
+/**
+ Logger for this module: the custom element reports its own lifecycle.
+ */
+const l = tagged({
+  tag: 'done-variant-task-detail',
+  l: logger,
+},);
+
+//endregion Logging
 
 /**
  `\<task-detail\>` web component for viewing and editing a single task.
@@ -133,11 +150,8 @@ class TaskDetail extends HTMLElement {
    @param data - Task data and configuration
    */
   configure(data: TaskDetailData,): void {
-    console.log(
-      '[task-detail] configure() called, mode:',
-      data.mode
-        ?? 'edit',
-    );
+    l.debug(`configure called in ${data.mode
+      ?? 'edit'} mode`,);
     this.#data = data;
     this.#mode = data.mode
       ?? 'edit';
@@ -252,6 +266,6 @@ customElements.define(
   'task-detail',
   TaskDetail,
 );
-console.log('[task-detail] custom element registered',);
+l.debug('custom element registered',);
 
 export { TaskDetail, };
