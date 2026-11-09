@@ -324,6 +324,7 @@ fn recover_dead_merges(input: &IsolatedMergeInput<'_>, git_dir: &Path, root: &Pa
         },
         cwd: root.to_path_buf(),
         common_dir,
+        git_dir: git_dir.to_path_buf(),
     };
     // The notices of what recovery did reach the command's standard error: the branch may have moved onto a merge commit
     //  this command finished rather than the one it is about to compute (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 1).

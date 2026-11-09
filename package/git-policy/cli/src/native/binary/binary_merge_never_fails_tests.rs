@@ -143,8 +143,6 @@ fn a_merge_whose_branch_moved_underneath_it_lands_on_the_new_head() {
 /// ```
 #[test]
 fn a_read_only_command_that_finishes_a_killed_merge_says_so() {
-    use git_policy_cli::merge_isolation_journal::{MergeIntent, write_merge_intent};
-    use git_policy_cli::transaction_owner::{TransactionOwner, current_transaction_owner};
     let fixture: Fixture = fixture("merge-recovery-reported");
     let repo: PathBuf = diverged(&fixture, "repo");
     let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
@@ -157,20 +155,7 @@ fn a_read_only_command_that_finishes_a_killed_merge_says_so() {
     )
     .trim()
     .to_owned();
-    // The record a merge leaves when it is killed after Git moved the checkout and before it moved the branch, with an
-    //  owner whose process-birth identity no process has.
-    let mut owner: TransactionOwner = current_transaction_owner("dddddddd-0000-4000-8000-00000000000d", "2026-10-29T00:00:00.000Z").expect("owner");
-    owner.owner_identity = String::from("linux:1");
-    let intent: MergeIntent = MergeIntent {
-        owner,
-        repository_root: repo.to_string_lossy().into_owned(),
-        target_ref: Some(String::from("refs/heads/main")),
-        old_oid: old_oid.clone(),
-        new_oid: merged.clone(),
-    };
-    let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
-    git(&fixture, repo.as_path(), &["read-tree", "-m", "-u", old_oid.as_str(), merged.as_str()]);
-    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), old_oid, "the checkout holds the merge and the branch does not");
+    let record: PathBuf = killed_after_the_checkout(&fixture, repo.as_path(), old_oid.as_str(), merged.as_str());
     let looked = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(looked.code, Some(0), "{}", String::from_utf8_lossy(&looked.stderr));
     assert_eq!(String::from_utf8_lossy(&looked.stdout), "", "the command's standard output is what it always was");
@@ -179,6 +164,86 @@ fn a_read_only_command_that_finishes_a_killed_merge_says_so() {
     assert!(said.contains("refs/heads/main"), "the ref it landed on is named: {said}");
     assert!(said.contains(merged.as_str()), "the merge commit is named: {said}");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch is on the merge");
+    assert!(!record.exists(), "the record is gone");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Put `repo` in the state a merge killed after Git moved the checkout and before it moved the branch leaves,
+///  with the record such a merge leaves.
+/// Why:
+///  Two controls start from that state,
+/// one where only a read-only command meets it and one where another program holds
+///  `index.lock` while that command runs,
+/// so the state is made in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = writeMergeRecord({ repo, oldOid, merged, deadOwner }); await readTree(repo, oldOid, merged); return record;
+/// ```
+fn killed_after_the_checkout(fixture: &Fixture, repo: &Path, old_oid: &str, merged: &str) -> PathBuf {
+    use git_policy_cli::merge_isolation_journal::{MergeIntent, write_merge_intent};
+    use git_policy_cli::transaction_owner::{TransactionOwner, current_transaction_owner};
+    // The owner is one whose process-birth identity no process has, so recovery judges it dead.
+    let mut owner: TransactionOwner = current_transaction_owner("dddddddd-0000-4000-8000-00000000000d", "2026-10-29T00:00:00.000Z").expect("owner");
+    owner.owner_identity = String::from("linux:1");
+    let intent: MergeIntent = MergeIntent {
+        owner,
+        repository_root: repo.to_string_lossy().into_owned(),
+        target_ref: Some(String::from("refs/heads/main")),
+        old_oid: String::from(old_oid),
+        new_oid: String::from(merged),
+    };
+    let record: PathBuf = write_merge_intent(repo.join(".git").as_path(), &intent).expect("the record");
+    git(fixture, repo, &["read-tree", "-m", "-u", old_oid, merged]);
+    assert_eq!(git_text(fixture, repo, &["rev-parse", "HEAD"]).trim(), old_oid, "the checkout holds the merge and the branch does not");
+    return record;
+}
+
+/// What:
+///  A killed merge is finished even though another program holds `index.lock` while the finishing command runs,
+///  and the command says what it waits for.
+/// Why:
+///  Recovery writes the index to finish the merge,
+/// and `git update-index` dies on a held lock;
+/// before this control every
+///  command in that worktree exited 2 for as long as any other program held the index,
+/// with Git's own sentence in place of
+///  what is unfinished (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 2).
+/// The lock goes when the wait is proven to be waiting,
+/// so the recovery finishes and the command exits 0.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = write('.git/index.lock'); const ended = await runActingOnLine(['status'], 'waits for the index lock', () => rm(lock)); expect(ended.code).toBe(0);
+/// ```
+#[test]
+fn a_held_index_lock_does_not_end_every_command_in_the_worktree() {
+    let fixture: Fixture = fixture("merge-recovery-held-index");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    let old_oid: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    let feature: String = git_text(&fixture, repo.as_path(), &["rev-parse", "feature"]).trim().to_owned();
+    let tree: String = git_text(&fixture, repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]).trim().to_owned();
+    let merged: String = git_text(
+        &fixture,
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    )
+    .trim()
+    .to_owned();
+    let record: PathBuf = killed_after_the_checkout(&fixture, repo.as_path(), old_oid.as_str(), merged.as_str());
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(&lock, b"").expect("another program holds the index");
+    let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    command.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+    let ended: Ended = run_acting_on_line(&mut command, "waits for the index lock", &mut || {
+        assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), old_oid, "nothing was finished while the lock was held");
+        std::fs::remove_file(&lock).expect("the other program lets go");
+    });
+    assert_eq!(ended.code, Some(0), "{}", ended.stderr);
+    assert!(ended.stderr.contains("index.lock"), "the lock is named: {}", ended.stderr);
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the merge is finished");
     assert!(!record.exists(), "the record is gone");
     remove_settled(&fixture);
 }

@@ -3,7 +3,9 @@
 //! leaves.
 
 use super::*;
+use crate::index_holder_wait::IndexWait;
 use crate::merge_isolation_journal::{intent_path, write_merge_intent};
+use crate::merge_isolation_recovery_steps::may_install;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 
@@ -56,7 +58,7 @@ fn world(name: &str) -> World {
 
 /// The recovery place for a world.
 fn place(world: &World) -> RecoveryPlace {
-    return RecoveryPlace { git: git_context(), cwd: world.repo.clone(), common_dir: world.git_dir.clone() };
+    return RecoveryPlace { git: git_context(), cwd: world.repo.clone(), common_dir: world.git_dir.clone(), git_dir: world.git_dir.clone() };
 }
 
 /// An owner that is certainly gone:
@@ -323,7 +325,7 @@ fn a_failed_merge_settles_without_a_liveness_check() {
     let record: PathBuf = record_of(&world, live.clone(), Some("refs/heads/main"));
     let intent: MergeIntent = parse_merge_intent(std::fs::read(record.as_path()).expect("read").as_slice()).expect("intent");
     assert_eq!(intent_path(world.git_dir.as_path(), live.transaction_id.as_str()), record);
-    let action = settle_failed_merge(&place(&world), record.as_path(), &intent).expect("settled");
+    let action = settle_failed_merge(&place(&world), record.as_path(), &intent, &mut Vec::new()).expect("settled");
     assert_eq!(action, MergeRecoveryAction::Discarded);
     assert!(!record.exists());
     remove(world.parent.as_path());
@@ -352,7 +354,8 @@ fn the_recovery_checks_files_out_without_quiet() {
     let (mut recording, log) = crate::recording_git::recording_context(world.parent.as_path());
     // The checkout and the index update hand their paths on standard input, which a request makes in the common directory.
     recording.common_dir = Some(world.git_dir.clone());
-    let recording_place: RecoveryPlace = RecoveryPlace { git: recording, cwd: world.repo.clone(), common_dir: world.git_dir.clone() };
+    let recording_place: RecoveryPlace =
+        RecoveryPlace { git: recording, cwd: world.repo.clone(), common_dir: world.git_dir.clone(), git_dir: world.git_dir.clone() };
     let outcomes = recover_interrupted_merges(&recording_place, world.git_dir.as_path(), &mut Vec::new()).expect("recovery");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed);
     let checkouts: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.contains("checkout-index"); }).collect();
@@ -472,4 +475,129 @@ fn a_merge_that_changed_nothing_is_not_reported() {
     assert_eq!(landed_outcomes[0].action, MergeRecoveryAction::AlreadyLanded);
     assert_eq!(String::from_utf8_lossy(&landed_notices), "", "a branch that already names the merge did not move");
     remove(landed.parent.as_path());
+}
+
+/// What:
+///  A writer that lets another program's `index.lock` go the first time the wait says what it waits for,
+///  and keeps everything the wait wrote.
+/// Why:
+///  The control must not sleep until a lock is released:
+/// the notice of the wait is the instant the holder is known to be
+///  waited for (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class ReleasingSink { write(bytes) { this.said += bytes; if (exists(lock)) rm(lock); return bytes.length; } }
+/// ```
+struct ReleasingSink<'a> {
+    /// The lock the other program holds.
+    lock: &'a Path,
+    /// Everything the wait wrote.
+    said: Vec<u8>,
+}
+
+impl std::io::Write for ReleasingSink<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.said.extend_from_slice(bytes);
+        // A wait that has said what it waits for is waiting; the other program lets go at that instant.
+        if self.lock.exists() {
+            std::fs::remove_file(self.lock)?;
+        }
+        return Ok(bytes.len());
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A recovery waits for another program's `index.lock`,
+///  says what it waits for,
+///  and finishes the merge when the lock is free.
+/// Why:
+///  `git update-index` dies on a held lock,
+/// so one held lock used to end every command in the worktree with
+///  status 2 until it was gone (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sink = new ReleasingSink(lock); await recoverInterruptedMerges(place, dir, sink); expect(outcome.action).toBe('completed');
+/// ```
+#[test]
+fn recovery_waits_for_another_programs_index_lock() {
+    let world: World = world("merge-recovery-waits-for-lock");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let _record: PathBuf = record_of(&world, dead_owner("12121212-0000-4000-8000-000000000012"), Some("refs/heads/main"));
+    let lock: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("another program holds the index");
+    let mut sink: ReleasingSink<'_> = ReleasingSink { lock: lock.as_path(), said: Vec::new() };
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut sink).expect("recovery");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge is finished once the lock is free");
+    let said: String = String::from_utf8(sink.said).expect("the notices are UTF-8");
+    assert!(said.contains(lock.to_string_lossy().as_ref()), "the lock is named: {said}");
+    assert!(said.contains("waits for the index lock"), "it says what it waits for: {said}");
+    assert!(!lock.exists(), "the lock was the other program's and nothing removed it on the wrapper's side");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid);
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A wait that ends with the index still held writes nothing,
+///  and only a wait that ends with the lock free lets the merge go on.
+/// Why:
+///  The decision is the whole of recovery's behaviour on a held lock,
+/// and both halves of it are checked:
+///  a recovery that wrote the index after giving up would put Git's own sentence in place of the record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(mayInstall({ kind: 'not-held' })).toBe(true); expect(mayInstall({ kind: 'owner-gone' })).toBe(false);
+/// ```
+#[test]
+fn only_a_lock_that_is_free_lets_the_merge_be_written() {
+    let second: std::time::Duration = std::time::Duration::from_secs(1);
+    assert!(may_install(IndexWait::NotHeld));
+    assert!(may_install(IndexWait::Released(second)));
+    assert!(!may_install(IndexWait::GaveUp(second)));
+    assert!(!may_install(IndexWait::OwnerGone(second)));
+}
+
+/// What:
+///  A lock whose PID file names a process that is gone is not waited for,
+///  and the merge is left for the next command with its record kept and nothing written.
+/// Why:
+///  This ends at once,
+/// without a ceiling,
+/// so the control proves the deferred outcome:
+/// a command in the worktree goes on,
+/// and the next one finishes
+///  the same merge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePidFile(index, gonePid); const action = await settleFailedMerge(place, record, intent); expect(action).toBe('index-held'); expect(record.exists()).toBe(true);
+/// ```
+#[test]
+fn a_dead_holders_lock_leaves_the_merge_for_the_next_command() {
+    let world: World = world("merge-recovery-dead-holder-lock");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let before = snapshot(&world);
+    let record: PathBuf = record_of(&world, dead_owner("13131313-0000-4000-8000-000000000013"), Some("refs/heads/main"));
+    let intent: MergeIntent = parse_merge_intent(std::fs::read(record.as_path()).expect("read").as_slice()).expect("intent");
+    let lock: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("a Git left the index lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    let mut said: Vec<u8> = Vec::new();
+    let action = settle_failed_merge(&place(&world), record.as_path(), &intent, &mut said).expect("settled");
+    assert_eq!(action, MergeRecoveryAction::IndexHeld, "nothing was written");
+    assert!(record.exists(), "the record stays for the next command");
+    assert!(lock.exists(), "the lock is not the recovery's to remove");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
+    assert_eq!(snapshot(&world), before, "the index and the worktree are exactly as they were");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("no longer runs") && text.contains("stays unfinished"), "it says what is unfinished: {text}");
+    remove(world.parent.as_path());
 }

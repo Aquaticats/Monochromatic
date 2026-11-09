@@ -215,6 +215,7 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
         git: context.clone(),
         cwd: PathBuf::from("."),
         common_dir: common_dir.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
     };
     // The notices of what recovery did go to the command's standard error, so a person who ran a read-only command
     //  learns that it finished a merge (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 1).

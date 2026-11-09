@@ -32,7 +32,7 @@ use crate::merge_isolation_journal::{
 use crate::merge_isolation_moved::settle_moved_branch;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
-pub use crate::merge_isolation_recovery_steps::{MergeRecoveryAction, RecoveryPlace, Standing};
+pub use crate::merge_isolation_recovery_steps::{Installed, MergeRecoveryAction, RecoveryPlace, Standing};
 use crate::merge_isolation_recovery_steps::{index_holds_the_merge, install_entries, merge_changes, remove_record, standing};
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::{
@@ -104,7 +104,10 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
             "monochromatic-git-policy-cli: {reference} moved while a merge was being prepared here, so that merge did not land; its \
              files were put back and the checkout matches the branch.\n"
         )),
-        MergeRecoveryAction::OwnerActive | MergeRecoveryAction::Discarded | MergeRecoveryAction::AlreadyLanded => None,
+        MergeRecoveryAction::OwnerActive
+        | MergeRecoveryAction::Discarded
+        | MergeRecoveryAction::AlreadyLanded
+        | MergeRecoveryAction::IndexHeld => None,
     };
 }
 
@@ -199,7 +202,7 @@ pub fn recover_interrupted_merges(
             debug("recoverInterruptedMerges", format!("the owner of {} still runs", record.display()).as_str());
             MergeRecoveryAction::OwnerActive
         } else {
-            settle_failed_merge(place, record.as_path(), &intent)?
+            settle_failed_merge(place, record.as_path(), &intent, out)?
         };
         let outcome: MergeRecoveryOutcome = MergeRecoveryOutcome {
             record,
@@ -292,6 +295,7 @@ pub fn settle_failed_merge(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
+    out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, RecoveryError> {
     let root: &Path = Path::new(intent.repository_root.as_str());
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
@@ -302,7 +306,7 @@ pub fn settle_failed_merge(
     }
     match current.as_deref() {
         Some(head) if head == intent.old_oid => {}
-        Some(head) => return settle_moved_branch(place, record, intent, head),
+        Some(head) => return settle_moved_branch(place, record, intent, head, out),
         None => {
             return Err(RecoveryError(format!(
                 "{target} names no commit although the interrupted merge in {} expected {}. Nothing was changed and the \
@@ -344,7 +348,11 @@ pub fn settle_failed_merge(
             record.display()
         )));
     }
-    complete(place, root, intent, &changes, &standings)?;
+    // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
+    //  same merge (the recovery is idempotent).
+    if complete(place, root, intent, &changes, &standings, out)? == Installed::IndexHeld {
+        return Ok(MergeRecoveryAction::IndexHeld);
+    }
     remove_record(record)?;
     return Ok(MergeRecoveryAction::Completed);
 }
@@ -369,8 +377,11 @@ fn complete(
     intent: &MergeIntent,
     changes: &[Change],
     standings: &[Standing],
-) -> Result<(), RecoveryError> {
-    install_entries(place, root, changes, standings)?;
+    out: &mut dyn Write,
+) -> Result<Installed, RecoveryError> {
+    if install_entries(place, root, changes, standings, out)? == Installed::IndexHeld {
+        return Ok(Installed::IndexHeld);
+    }
     let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by monochromatic-git-policy-cli recovery)");
     let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
     if intent.target_ref.is_none() {
@@ -382,7 +393,7 @@ fn complete(
     if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
         return Err(RecoveryError(error.to_string()));
     }
-    return Ok(());
+    return Ok(Installed::Written);
 }
 
 /// Recovery of records whose owner is dead,

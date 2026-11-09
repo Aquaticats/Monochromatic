@@ -35,13 +35,15 @@ use crate::merge_isolation_changes::{Change, WorktreeState, parse_raw_changes, w
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_steps::{
-    MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes, remove_record,
-    standing,
+    Installed, MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes,
+    remove_record, standing,
 };
 /// The fail-closed recovery failure.
 use crate::recovery_error::RecoveryError;
 /// Running real Git.
 use crate::transaction_git::{GitRequest, run_git_checked};
+/// Writing the notices of the wait for the index lock.
+use std::io::Write;
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
 
@@ -58,13 +60,14 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function settleMovedBranch({ place, record, intent, movedTo }): Promise<'branch-moved'>;
+/// async function settleMovedBranch({ place, record, intent, movedTo, stderr }): Promise<'branch-moved' | 'index-held'>;
 /// ```
 pub(crate) fn settle_moved_branch(
     place: &RecoveryPlace,
     record: &Path,
     intent: &MergeIntent,
     moved_to: &str,
+    out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, RecoveryError> {
     let root: &Path = Path::new(intent.repository_root.as_str());
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
@@ -140,7 +143,9 @@ pub(crate) fn settle_moved_branch(
             record.display()
         )));
     }
-    install_entries(place, root, ends.as_slice(), held.as_slice())?;
+    if install_entries(place, root, ends.as_slice(), held.as_slice(), out)? == Installed::IndexHeld {
+        return Ok(MergeRecoveryAction::IndexHeld);
+    }
     remove_record(record)?;
     return Ok(MergeRecoveryAction::BranchMoved);
 }

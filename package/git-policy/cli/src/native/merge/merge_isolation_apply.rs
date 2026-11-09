@@ -255,11 +255,12 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         git: GitContext { global_prefix: Vec::new(), ..session.context.clone() },
         cwd: root.to_path_buf(),
         common_dir: git_dir.to_path_buf(),
+        git_dir: git_dir.to_path_buf(),
     };
     if !moved.succeeded() {
         let detail: String = moved.error_text();
         let lock_taken: bool = detail.contains("index.lock");
-        return Err(match settle_failed_merge(&place, record.as_path(), &intent) {
+        return Err(match settle_failed_merge(&place, record.as_path(), &intent, &mut std::io::stderr()) {
             Ok(MergeRecoveryAction::BranchMoved) => Bail::Again(format!("{reference} was merged on a branch that moved meanwhile")),
             Ok(MergeRecoveryAction::Discarded) if lock_taken => Bail::Again(String::from("another program took the index lock first")),
             Ok(MergeRecoveryAction::Completed) => Bail::Done(IsolatedMerge::Finished {

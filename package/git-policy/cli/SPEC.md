@@ -7574,6 +7574,13 @@ A merge that settling finishes says so on standard error,
 naming the ref it landed on and the merge commit,
 because the command may have been run only to look at the worktree;
 the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
+Settling writes the index only after waiting,
+bounded and naming the holder,
+for any program's `index.lock`,
+so a program that holds the index does not end every command in that worktree;
+a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
+leaves the record and the checkout as they were,
+and the next command finishes the same merge.
 A record that is discarded,
 a record whose owner still runs and a branch that already names the merge
 change nothing of the branch and say nothing.

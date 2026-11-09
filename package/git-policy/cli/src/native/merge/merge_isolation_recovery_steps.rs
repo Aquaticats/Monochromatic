@@ -18,11 +18,13 @@
 //! const standing = standing(change, state); // 'merged' | 'untouched' | ...
 //! ```
 
+use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
 use crate::inner_git_words::record_words;
 use crate::merge_isolation_changes::{Change, WorktreeState, parse_raw_changes, worktree_path};
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -48,6 +50,8 @@ pub struct RecoveryPlace {
     pub cwd: PathBuf,
     /// The repository's common Git directory.
     pub common_dir: PathBuf,
+    /// The Git directory of the worktree whose index recovery writes.
+    pub git_dir: PathBuf,
 }
 
 /// What recovery did for one record.
@@ -78,6 +82,11 @@ pub enum MergeRecoveryAction {
     /// and the record was removed;
     /// the merge can be computed again on the moved head.
     BranchMoved,
+    /// Another program held `index.lock` until the wait's ceiling,
+    /// so no index entry and no file was written,
+    /// the record was kept,
+    /// and the next command in the worktree finishes the merge.
+    IndexHeld,
 }
 
 /// What:
@@ -217,9 +226,51 @@ pub fn remove_record(record: &Path) -> Result<(), RecoveryError> {
     };
 }
 
+/// What came of writing the index and the files of the merge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Installed = 'written' | 'index-held';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Installed {
+    /// Every entry and every file of the merge is in place.
+    Written,
+    /// Another program held `index.lock` until the wait's ceiling,
+    /// so nothing was written;
+    /// the merge is finished by the next command.
+    IndexHeld,
+}
+
+/// What:
+///  Whether the merge may be written after this wait for the index lock.
+/// Why:
+///  A wait that ended with the lock still held means the index cannot be written,
+/// and trying would fail with Git's
+///  own sentence in place of the record;
+/// leaving the record and writing nothing is safe,
+/// because the recovery is idempotent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mayInstall = (waited: IndexWait) => waited !== 'gave-up' && waited !== 'owner-gone';
+/// ```
+pub fn may_install(waited: IndexWait) -> bool {
+    return match waited {
+        IndexWait::NotHeld | IndexWait::Released(_) => true,
+        IndexWait::GaveUp(_) | IndexWait::OwnerGone(_) => false,
+    };
+}
+
 /// What:
 ///  Put the index entries and the worktree files of the changed paths to the state each change ends in.
 /// Why:
+///   Git takes `index.lock` for the index write and dies when another program holds it,
+/// so the write waits for
+///  a holder first,
+/// bounded and naming it (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 2);
+///  a lock that outlasts the bound leaves everything as it was and the record for the next command.
 ///   The index entries are set first so a file written by `checkout-index` is recorded with the object it holds;
 ///  deletions go before writes so a file replaced by a directory of the same name can be created;
 /// a path whose
@@ -230,14 +281,19 @@ pub fn remove_record(record: &Path) -> Result<(), RecoveryError> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function installEntries({ place, root, changes, standings }): Promise<void>;
+/// async function installEntries({ place, root, changes, standings, stderr }): Promise<Installed>;
 /// ```
 pub fn install_entries(
     place: &RecoveryPlace,
     root: &Path,
     changes: &[Change],
     standings: &[Standing],
-) -> Result<(), RecoveryError> {
+    out: &mut dyn Write,
+) -> Result<Installed, RecoveryError> {
+    let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
+    if !may_install(waited) {
+        return Ok(Installed::IndexHeld);
+    }
     let mut index_input: Vec<u8> = Vec::new();
     for change in changes {
         if change.exists_after() {
@@ -273,7 +329,7 @@ pub fn install_entries(
         // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
         record_words(&["checkout-index", "--force", "-z", "--stdin"], &checked_out);
     }
-    return Ok(());
+    return Ok(Installed::Written);
 }
 
 /// What:
