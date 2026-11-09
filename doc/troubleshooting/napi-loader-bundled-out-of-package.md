@@ -15,6 +15,19 @@ Any napi package that the shared Node rolldown config inlines reproduces it,
 because the config inlines every `@monochromatic-dev/**` workspace package
 and every undeclared transitive those packages reach.
 
+Status 2026-11-09:
+the package this record reproduces in is gone.
+`package/cli/markdown-lint` and the four other linter packages were deleted on 2026-10-06
+in `5bc05682ec` (chore(*): delete the five linter packages monochromatic-lint replaces),
+`package/cli/` does not exist,
+and the repository-owned Rust linter `package/linter/monochromatic-lint` replaces them with no
+Node package and no napi loader.
+So the Root cause below, its verification harness and all three workarounds describe the deleted
+package and cannot be run against this tree;
+they are kept for a reader who still builds the old linter.
+The engine's crates do appear in `rust-catalog.toml` (`satteri-arena`, `satteri-ast`,
+`satteri-pulldown-cmark`), and `package/linter/monochromatic-lint` depends on them.
+
 ## Symptom
 
 Importing a workspace package that imports `@monochromatic-dev/cli-markdown-lint`
