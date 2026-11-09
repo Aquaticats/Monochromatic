@@ -587,7 +587,8 @@ fn list_files_scans_a_directory_without_a_repository_of_its_own() {
     let _ = fs::remove_dir_all(&directory);
 }
 
-/// The union's absence is a value, not a silent loss:
+/// The union's absence is a value,
+/// not a silent loss:
 /// a repository whose index was removed still scans its whole working tree,
 /// and the listing carries the reason the tracked files are missing.
 #[test]
@@ -653,7 +654,8 @@ fn list_files_reports_an_unparseable_index_and_keeps_scanning() {
 ///  which an unreadable file reports,
 ///  keeps the working-tree scan and reports the operating system's reason.
 ///
-/// Unix-only: the fixture needs a permission bit the process is not allowed
+/// Unix-only:
+/// the fixture needs a permission bit the process is not allowed
 /// to read through.
 #[cfg(unix)]
 #[test]

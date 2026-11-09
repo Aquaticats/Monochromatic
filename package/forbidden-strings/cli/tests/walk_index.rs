@@ -13,7 +13,8 @@
 //!  files,
 //!  so a tracked secret in an ignored file passed the gate with no
 //!  diagnostic.
-//!  These tests ask the real binary, from the real working directory shapes,
+//!  These tests ask the real binary,
+//! from the real working directory shapes,
 //!  because the defect is in which file the process reads.
 
 /// Imports ordinary filesystem operations for isolated fixtures.
@@ -29,12 +30,14 @@ const BIN: &str = env!("CARGO_BIN_EXE_forbidden-strings");
 /// The literal the fixture rules file forbids.
 ///
 /// It is long and unusual so the embedded baseline never matches it on its
-///  own, which keeps a finding unambiguously the fixture rule's.
+///  own,
+/// which keeps a finding unambiguously the fixture rule's.
 const SENTINEL: &str = "VAULTTOKEN_ISSUE_1232";
 
 /// The system Git binary.
 ///
-/// The developer's `git` on `PATH` is this repository's policy wrapper, which
+/// The developer's `git` on `PATH` is this repository's policy wrapper,
+/// which
 ///  adds hooks and copies that a fixture must not run.
 const GIT: &str = "/usr/bin/git";
 
@@ -47,7 +50,8 @@ fn fixture(label: &str) -> PathBuf {
     return root
 }
 
-/// Runs the real Git binary in `directory`, failing the test on a non-zero
+/// Runs the real Git binary in `directory`,
+/// failing the test on a non-zero
 /// exit.
 fn run_git(directory: &Path, args: &[&str]) {
     let status = Command::new(GIT)

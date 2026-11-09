@@ -140,7 +140,9 @@ pub(crate) struct WorkingTreeListing {
 
 /// One listed path reduced to the form both conventions agree on:
 ///  `.` components dropped and separators normalized,
-///  so the walker's `./x`, this module's `./x`, and an absolute
+///  so the walker's `./x`,
+/// this module's `./x`,
+/// and an absolute
 ///  `<root>/x` compare equal.
 fn listing_key(path: &str) -> Vec<u8> {
     return crate::path_name_bytes::normalized_path(&crate::git_working_tree::lexically_normalized(
@@ -372,8 +374,10 @@ pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
                 // ```ts
                 // const seen = new Set(files.map((p) => lexicalKey(p)));
                 // ```
-                let mut seen: std::collections::HashSet<Vec<u8>> =
-                    files.iter().map(|path| return listing_key(path)).collect();
+                let mut seen: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+                for listed_above in &files {
+                    seen.insert(listing_key(listed_above));
+                }
                 for entry in index.entries() {
                     // What:     Filter index entries by `Mode`. Only regular
                     //           files (`Mode::FILE`, `Mode::FILE_EXECUTABLE`)

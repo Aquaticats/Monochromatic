@@ -9,7 +9,8 @@
 //!  a submodule holds one naming `<host>/.git/modules/<name>`,
 //!  and a scan started in a subfolder has no `.git` of its own at all,
 //!  so every case finds its index by asking Git's own discovery rules from
-//!  the walked directory, never by joining `.git/index` onto it.
+//!  the walked directory,
+//! never by joining `.git/index` onto it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -25,14 +26,17 @@ use std::path::{Component, Path, PathBuf};
 ///  so one scope prefix compares against Git's always-`/`-separated index paths.
 use crate::path_name_bytes::normalized_path;
 
-/// The most a `.git` file may hold, from Git's own `read_gitfile_gently`
+/// The most a `.git` file may hold,
+/// from Git's own `read_gitfile_gently`
 ///  (`max_file_size = 1 << 20` in `setup.c`):
 ///  Git refuses a bigger one,
 ///  so a bigger one is not a Git file and no repository is named by it.
 const GIT_FILE_MAX_BYTES: u64 = 1 << 20;
 
-/// The exact first bytes of a `.git` file, from Git's `read_gitfile_gently`
-///  (`memcmp(url, "gitdir: ", 8)`), space included.
+/// The exact first bytes of a `.git` file,
+/// from Git's `read_gitfile_gently`
+///  (`memcmp(url, "gitdir: ", 8)`),
+/// space included.
 const GITDIR_PREFIX: &[u8] = b"gitdir: ";
 
 /// The administrative directories of one working tree,
@@ -165,7 +169,8 @@ fn git_directories(root: &Path) -> Option<(PathBuf, PathBuf)> {
     return Some((git_dir, common_dir))
 }
 
-/// The bytes of a `.git` file, bounded by Git's own ceiling.
+/// The bytes of a `.git` file,
+/// bounded by Git's own ceiling.
 fn read_git_file(path: &Path) -> Option<Vec<u8>> {
     let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
     if metadata.len() >= GIT_FILE_MAX_BYTES {

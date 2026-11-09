@@ -6,7 +6,9 @@
 //!  The real shapes are only reachable through real Git repositories,
 //!  so the tests that can use real Git do,
 //!  while the ones Git itself refuses to create (a `gitdir:` line naming a
-//!  path with a newline, a file without the prefix, an oversized file) are
+//!  path with a newline,
+//! a file without the prefix,
+//! an oversized file) are
 //!  written directly and compared against Git's own reading rules.
 
 /// Imports the discovery entry points under test.
@@ -17,9 +19,12 @@ use std::path::{Path, PathBuf};
 /// Imports the real Git binary for the fixtures that need a repository.
 use std::process::Command;
 
-/// What:     `fn unique_tmp(label)` returns a fresh empty directory under
+/// What:
+///     `fn unique_tmp(label)` returns a fresh empty directory under
 ///           the test scratch root.
-/// Why:      Cargo test runs tests in parallel, so two fixtures cannot share
+/// Why:
+///      Cargo test runs tests in parallel,
+/// so two fixtures cannot share
 ///           a path.
 ///
 /// In TS you'd write (pseudocode):
@@ -34,8 +39,11 @@ fn unique_tmp(label: &str) -> PathBuf {
     return dir
 }
 
-/// What:     `fn run_git(dir, args)` runs the real Git binary in `dir`.
-/// Why:      The developer's `git` on PATH is the policy wrapper, which adds
+/// What:
+///     `fn run_git(dir, args)` runs the real Git binary in `dir`.
+/// Why:
+///      The developer's `git` on PATH is the policy wrapper,
+/// which adds
 ///           hooks the fixtures must not run.
 ///
 /// In TS you'd write (pseudocode):
@@ -52,9 +60,12 @@ fn run_git(dir: &Path, args: &[&str]) {
     assert!(status.success(), "git {:?} failed in {:?}", args, dir);
 }
 
-/// What:     `fn seed_repository(repository)` creates a repository with one
+/// What:
+///     `fn seed_repository(repository)` creates a repository with one
 ///           committed file and a `.gitignore` that hides `*.ignored`.
-/// Why:      A linked worktree can only be added on top of a commit, and the
+/// Why:
+///      A linked worktree can only be added on top of a commit,
+/// and the
 ///           fixture needs a file for the index to record.
 ///
 /// In TS you'd write (pseudocode):
@@ -72,10 +83,14 @@ fn seed_repository(repository: &Path) {
     run_git(repository, &["commit", "-q", "-m", "initial", ".gitignore", "plain.txt"]);
 }
 
-/// What:     `fn write_git_file(root, contents)` writes `root/.git` as a file
+/// What:
+///     `fn write_git_file(root, contents)` writes `root/.git` as a file
 ///           holding the given bytes.
-/// Why:      A `.git` file's parsing rules are Git's, not a shape real Git has
-///           to be asked to produce; every case here is one Git itself reads
+/// Why:
+///      A `.git` file's parsing rules are Git's,
+/// not a shape real Git has
+///           to be asked to produce;
+/// every case here is one Git itself reads
 ///           (or refuses).
 ///
 /// In TS you'd write (pseudocode):
@@ -287,9 +302,12 @@ fn lexically_normalized_drops_navigation_components() {
     assert_eq!(lexically_normalized(Path::new("/srv/a/../../..")), PathBuf::from("/"));
 }
 
-/// What:     `fn write_config(dir, contents)` materialises a Git
+/// What:
+///     `fn write_config(dir, contents)` materialises a Git
 ///           configuration at `dir/config`.
-/// Why:      Each hash-kind case is one section shape; a helper keeps the
+/// Why:
+///      Each hash-kind case is one section shape;
+/// a helper keeps the
 ///           test bodies on the shape they test.
 ///
 /// In TS you'd write (pseudocode):
