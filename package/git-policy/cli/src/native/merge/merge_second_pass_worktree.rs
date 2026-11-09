@@ -35,7 +35,7 @@ use crate::child_environment::environment_value;
 use crate::conflict_side_state::conflicted_paths;
 use crate::diagnostic_log::{debug, warn};
 use crate::index_writer_forward::CoordinatedForward;
-use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitReply, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, is_attributes_path, resolved_record, second_pass, write_blob};
+use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitRunner, Left, Merged, REPORT_MARK, Stage, Verdict, config_options, is_attributes_path, second_pass, write_blob};
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
@@ -43,6 +43,11 @@ use crate::path_bytes::path_message_text;
 use crate::private_storage::read_regular_file;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
+use crate::merge_second_pass_worktree_install::install;
+/// The records that put a conflict back,
+/// which only the controls of this file still ask for.
+#[cfg(test)]
+use crate::merge_second_pass_worktree_install::restore_records;
 use crate::merge_second_pass_worktree_unchanged::{Before, Held, Kept, held_paths, still_the_same};
 use crate::merge_second_pass_worktree_words::{closing_words, ending_command, moved_words, unfinished_words, unreadable_words};
 use crate::repo_read_object::to_hex;
@@ -61,9 +66,6 @@ pub(super) use crate::merge_second_pass_worktree_words::LINE_PREFIX;
 /// The commands whose conflicts get the pass;
 /// a pull's own merge or rebase stops in the same state the command would.
 const OPERATIONS: [&[u8]; 5] = [b"merge", b"rebase", b"cherry-pick", b"revert", b"pull"];
-
-/// The stages in the order `update-index --index-info` takes them back.
-const STAGE_NUMBERS: [u8; 3] = [1, 2, 3];
 
 /// What an operation had left unmerged before it ran.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -146,74 +148,6 @@ pub fn watch_before(forward: &CoordinatedForward) -> Option<Watch> {
     return Some(Watch { unmerged_before: conflicted_paths(entries.as_slice()) });
 }
 
-/// The records that put a conflict's stages back into the index:
-/// remove the path,
-/// then each stage it had.
-fn restore_records(conflict: &Conflict) -> Vec<u8> {
-    let mut width: usize = 0;
-    if let Some(stage) = [&conflict.base, &conflict.ours, &conflict.theirs].into_iter().flatten().next() {
-        width = stage.oid.len();
-    }
-    let mut records: Vec<u8> = format!("0 {}\t", "0".repeat(width)).into_bytes();
-    records.extend_from_slice(conflict.path.as_slice());
-    records.push(0);
-    for (number, side) in STAGE_NUMBERS.iter().zip([&conflict.base, &conflict.ours, &conflict.theirs]) {
-        if let Some(stage) = side {
-            records.extend_from_slice(format!("{:06o} {} {number}\t", stage.mode, stage.oid).as_bytes());
-            records.extend_from_slice(conflict.path.as_slice());
-            records.push(0);
-        }
-    }
-    return records;
-}
-
-/// The reply of a start that must have exited with status 0.
-fn succeeded(started: Result<GitReply, String>, what: &str) -> Result<(), String> {
-    let reply: GitReply = started?;
-    if reply.code == Some(0) {
-        return Ok(());
-    }
-    return Err(format!("{what} failed: {}", String::from_utf8_lossy(&reply.stderr).trim()));
-}
-
-/// What:
-///  Stage the merged files as resolved and write them to the worktree;
-/// put the conflicts back if the second step fails.
-/// Why:
-///   Staging first means a failed write leaves an index that says resolved over a file with markers,
-/// so the stages are
-///  restored then and the person finds the conflict exactly as Git left it.
-/// The checkout applies the repository's own
-///  filters (line endings),
-/// which a plain file write would skip.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function install(runner, merged: Merged[], oids: string[]): Promise<void>;
-/// ```
-fn install(runner: &dyn GitRunner, merged: &[Merged], oids: &[String]) -> Result<(), String> {
-    let mut staging: Vec<u8> = Vec::new();
-    let mut paths: Vec<u8> = Vec::new();
-    for (file, oid) in merged.iter().zip(oids.iter()) {
-        staging.extend_from_slice(resolved_record(file.mode, oid.as_str(), file.path.as_slice()).as_slice());
-        paths.extend_from_slice(file.path.as_slice());
-        paths.push(0);
-    }
-    succeeded(runner.run(&["update-index", "-z", "--index-info"], Some(staging.as_slice()), None), "git update-index")?;
-    let written: Result<(), String> = succeeded(runner.run(&["checkout-index", "--force", "-z", "--stdin"], Some(paths.as_slice()), None), "git checkout-index");
-    if let Err(reason) = written {
-        let mut restore: Vec<u8> = Vec::new();
-        for file in merged {
-            restore.extend_from_slice(restore_records(&file.stages).as_slice());
-        }
-        if let Err(again) = succeeded(runner.run(&["update-index", "-z", "--index-info"], Some(restore.as_slice()), None), "git update-index") {
-            return Err(format!("{reason}; putting the conflicts back also failed: {again}"));
-        }
-        return Err(reason);
-    }
-    return Ok(());
-}
-
 /// What:
 ///  After a forwarded operation that exited with a non-zero status,
 /// re-merge the conflicts it created.
@@ -263,70 +197,18 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         }
     }
     let source: AttributeSource<'_> = if attributes_conflict { AttributeSource::Unknown } else { AttributeSource::Invocation };
-    let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice(), source) {
-        Ok(found) => found,
-        Err(reason) => {
-            warn(TAG, format!("the second merge pass could not run, so the conflicts stay as Git left them: {reason}").as_str());
+    // The pass and the write of its files await every Git start they make, so the person's command reaches them through one entry of the runtime.
+    let parts: SecondPassParts = match crate::lazy_runtime::run_on_runtime(second_pass_parts(&runner, conflicts.as_slice(), source, &layout, &held, stderr)) {
+        Ok(Some(found)) => found,
+        Ok(None) => return None,
+        Err(refusal) => {
+            warn(TAG, format!("the second merge pass could not be run, so the conflicts stay as Git left them: {refusal}").as_str());
             return None;
         }
     };
-    let mut merged: Vec<Merged> = Vec::new();
-    for verdict in verdicts {
-        match verdict {
-            Verdict::Merged(file) => merged.push(*file),
-            Verdict::Left { path, why } => debug(TAG, format!("{} stays conflicted: {}", path_message_text(path.as_slice()), left_words(&why)).as_str()),
-        }
-    }
-    if merged.is_empty() {
-        return None;
-    }
-    let mut oids: Vec<String> = Vec::new();
-    for file in &merged {
-        match write_blob(&runner, file.bytes.as_slice()) {
-            Ok(oid) => oids.push(oid),
-            Err(reason) => {
-                warn(TAG, format!("the merged blob of {} could not be written, so the conflicts stay: {reason}", path_message_text(file.path.as_slice())).as_str());
-                return None;
-            }
-        }
-    }
-    // The index is read again after the merge was computed: a path another command resolved and staged holds no stages of the merge's.
-    let Some(entries_now) = index_entries(&layout) else {
-        warn(TAG, "the index cannot be read again before the merged files are installed, so the conflicts stay as they are");
-        return None;
-    };
-    let before: Before<'_> = Before { worktree_root: layout.worktree_root.as_path(), entries: entries_now.as_slice(), held: &held };
-    let kept: Kept = still_the_same(&before, merged, oids);
-    let mut moved_names: Vec<String> = Vec::new();
-    for path in &kept.moved {
-        moved_names.push(path_message_text(path.as_slice()));
-    }
-    let mut unreadable_names: Vec<String> = Vec::new();
-    for path in &kept.unreadable {
-        unreadable_names.push(path_message_text(path.as_slice()));
-    }
-    if kept.files.is_empty() {
-        warn(TAG, format!("every merged file moved or could not be compared while the pass computed its merge, so they stay as they are now: {}{}", moved_names.join(", "), unreadable_names.join(", ")).as_str());
-        // The person must still be told which file the pass did not touch, and which of the two reasons it was.
-        let mut alone: String = String::new();
-        if !moved_names.is_empty() {
-            alone.push_str(moved_words(moved_names.as_slice()).as_str());
-        }
-        if !unreadable_names.is_empty() {
-            alone.push_str(unreadable_words(unreadable_names.as_slice()).as_str());
-        }
-        let told: String = format!("{}\n", alone.trim_end());
-        if let Err(error) = stderr.write_all(told.as_bytes()) {
-            debug(TAG, format!("standard error did not take the line about the files the pass left alone: {error}").as_str());
-        }
-        return None;
-    }
-    let installed: Vec<Merged> = kept.files;
-    let installed_oids: Vec<String> = kept.oids;
-    if let Err(reason) = install(&runner, installed.as_slice(), installed_oids.as_slice()) {
-        warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
-        return None;
-    }
+    let installed: Vec<Merged> = parts.files;
+    let moved_names: Vec<String> = parts.moved;
+    let unreadable_names: Vec<String> = parts.unreadable;
     let operation: String = String::from_utf8_lossy(forward.command.word()).into_owned();
     let mut text: String = String::new();
     for line in announce(LINE_PREFIX, (CLIENT_IDENTIFIER, operation.as_str()), installed.as_slice()) {
@@ -336,9 +218,10 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let remaining: usize = conflicted_paths(entries.as_slice()).len().saturating_sub(installed.len());
     // Every conflicted file resolved: end the operation the way a clean run does, if the options say how.
     let planned = if remaining == 0 {
-        match branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command) {
-            Some(configured) => plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()),
-            None => None,
+        match crate::lazy_runtime::run_on_runtime(branch_merge_options(&runner, layout.git_dir.as_path(), &forward.command)) {
+            Ok(Some(configured)) => plan_finish(&forward.command, forward.environment.as_slice(), layout.git_dir.as_path(), configured.as_slice()),
+            // A setting that cannot be read is no set of options, and the finish is then not made.
+            Ok(None) | Err(_) => None,
         }
     } else {
         None
@@ -388,6 +271,116 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     return Some(ended);
 }
 
+/// What the awaited part of a forwarded pass came to.
+/// Why:
+///   The files it installed and the paths it left are what the report names,
+/// and `None` says the conflicts stay as Git left them,
+/// with the reason already given.
+struct SecondPassParts {
+    /// The files staged as resolved and written to the worktree.
+    files: Vec<Merged>,
+    /// The paths another command moved while the pass computed its merge,
+    /// in words.
+    moved: Vec<String>,
+    /// The paths nobody could compare,
+    /// in words.
+    unreadable: Vec<String>,
+}
+
+
+/// What:
+///  Re-merge the conflicts this command created and write the files whose every part resolves,
+/// awaiting every Git start the pass makes.
+/// Why:
+///   The pass awaits its starts (`merge_second_pass_git_runner.rs`),
+/// so a person's command reaches it through one entry of the runtime,
+/// and the reconcile's pass,
+/// which runs as a task,
+/// needs no entry at all.
+/// The order of the steps and every reason a path is left are the synchronous face's:
+/// the merge is computed first,
+/// the index is read again after it,
+/// and a path another command moved is named and never replaced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parts = await secondPassParts({ runner, conflicts, source, layout, held, stderr }); // { files, moved, unreadable } | undefined
+/// ```
+async fn second_pass_parts(
+    runner: &ContextRunner<'_>,
+    conflicts: &[Conflict],
+    source: AttributeSource<'_>,
+    layout: &RepoLayout,
+    held: &BTreeMap<Vec<u8>, Held>,
+    stderr: &mut dyn Write,
+) -> Option<SecondPassParts> {
+    let verdicts: Vec<Verdict> = match second_pass(runner, conflicts, source).await {
+        Ok(found) => found,
+        Err(reason) => {
+            warn(TAG, format!("the second merge pass could not run, so the conflicts stay as Git left them: {reason}").as_str());
+            return None;
+        }
+    };
+    let mut merged: Vec<Merged> = Vec::new();
+    for verdict in verdicts {
+        match verdict {
+            Verdict::Merged(file) => merged.push(*file),
+            Verdict::Left { path, why } => debug(TAG, format!("{} stays conflicted: {}", path_message_text(path.as_slice()), left_words(&why)).as_str()),
+        }
+    }
+    if merged.is_empty() {
+        return None;
+    }
+    let mut oids: Vec<String> = Vec::new();
+    for file in &merged {
+        match write_blob(runner, file.bytes.as_slice()).await {
+            Ok(oid) => oids.push(oid),
+            Err(reason) => {
+                warn(TAG, format!("the merged blob of {} could not be written, so the conflicts stay: {reason}", path_message_text(file.path.as_slice())).as_str());
+                return None;
+            }
+        }
+    }
+    // The index is read again after the merge was computed: a path another command resolved and staged holds no stages of the merge's.
+    let Some(entries_now) = index_entries(layout) else {
+        warn(TAG, "the index cannot be read again before the merged files are installed, so the conflicts stay as they are");
+        return None;
+    };
+    let before: Before<'_> = Before { worktree_root: layout.worktree_root.as_path(), entries: entries_now.as_slice(), held };
+    let kept: Kept = still_the_same(&before, merged, oids);
+    let mut moved_names: Vec<String> = Vec::new();
+    for path in &kept.moved {
+        moved_names.push(path_message_text(path.as_slice()));
+    }
+    let mut unreadable_names: Vec<String> = Vec::new();
+    for path in &kept.unreadable {
+        unreadable_names.push(path_message_text(path.as_slice()));
+    }
+    if kept.files.is_empty() {
+        warn(TAG, format!("every merged file moved or could not be compared while the pass computed its merge, so they stay as they are now: {}{}", moved_names.join(", "), unreadable_names.join(", ")).as_str());
+        // The person must still be told which file the pass did not touch, and which of the two reasons it was.
+        let mut alone: String = String::new();
+        if !moved_names.is_empty() {
+            alone.push_str(moved_words(moved_names.as_slice()).as_str());
+        }
+        if !unreadable_names.is_empty() {
+            alone.push_str(unreadable_words(unreadable_names.as_slice()).as_str());
+        }
+        let told: String = format!("{}\n", alone.trim_end());
+        if let Err(error) = stderr.write_all(told.as_bytes()) {
+            debug(TAG, format!("standard error did not take the line about the files the pass left alone: {error}").as_str());
+        }
+        return None;
+    }
+    let files: Vec<Merged> = kept.files;
+    let file_oids: Vec<String> = kept.oids;
+    if let Err(reason) = install(runner, files.as_slice(), file_oids.as_slice()).await {
+        warn(TAG, format!("the merged files could not be installed, so the conflicts stay as Git left them: {reason}").as_str());
+        return None;
+    }
+    return Some(SecondPassParts { files, moved: moved_names, unreadable: unreadable_names });
+}
+
 /// What:
 ///  The words of `branch.<name>.mergeoptions` for the branch that is checked out,
 /// which Git parses before the command line of a
@@ -404,14 +397,14 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
 /// ```ts
 /// async function branchMergeOptions(runner, gitDir, command): Promise<string[] | undefined>;
 /// ```
-fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, command: &crate::forwarded_command::ResolvedCommand) -> Option<Vec<std::ffi::OsString>> {
+async fn branch_merge_options(runner: &ContextRunner<'_>, git_dir: &std::path::Path, command: &crate::forwarded_command::ResolvedCommand) -> Option<Vec<std::ffi::OsString>> {
     if !matches!(command.word(), b"merge" | b"pull") {
         return Some(Vec::new());
     }
     let head: String = std::fs::read_to_string(git_dir.join("HEAD")).ok()?;
     let Some(branch) = head.trim().strip_prefix("ref: refs/heads/") else { return Some(Vec::new()) };
     let key: String = format!("branch.{branch}.mergeoptions");
-    return match runner.run(&["config", "--get", key.as_str()], None, None) {
+    return match runner.run(&["config", "--get", key.as_str()], None, None).await {
         Ok(reply) if reply.code == Some(1) => Some(Vec::new()),
         Ok(reply) if reply.code == Some(0) => split_cmdline(String::from_utf8_lossy(&reply.stdout).trim_end_matches('\n')),
         Ok(_) => None,
