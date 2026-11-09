@@ -206,6 +206,32 @@ pub struct AskingGit {
 /// const answer = await ask(git, ['ls-remote', '--refs', remote, destination]);
 /// ```
 async fn ask(git: &AskingGit, arguments: &[OsString], label: &str, window: Duration, grace: Duration) -> Option<String> {
+    let (code, text): (Option<i32>, String) = ask_answering(git, arguments, label, window, grace).await?;
+    if code != Some(0) {
+        return None;
+    }
+    return Some(text);
+}
+
+/// What:
+///  One question of the proof and the exit status Git answered it with,
+/// or nothing when the question could not be asked.
+/// Why:
+///   Some questions tell "not set" (status 1) from "set" (status 0),
+/// and a question that could not be answered must not
+///  read as an answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await askAnswering(git, ['config', '--bool', '--get', key]);
+/// ```
+async fn ask_answering(
+    git: &AskingGit,
+    arguments: &[OsString],
+    label: &str,
+    window: Duration,
+    grace: Duration,
+) -> Option<(Option<i32>, String)> {
     let mut command: Command = Command::new(git.program.as_path());
     if let Some(cwd) = git.cwd.as_deref() {
         command.current_dir(cwd);
@@ -221,10 +247,7 @@ async fn ask(git: &AskingGit, arguments: &[OsString], label: &str, window: Durat
         Ok(done) => done,
         Err(_) => return None,
     };
-    if output.code != Some(0) {
-        return None;
-    }
-    return Some(String::from_utf8_lossy(output.stdout.as_slice()).into_owned());
+    return Some((output.code, String::from_utf8_lossy(output.stdout.as_slice()).into_owned()));
 }
 
 /// What:
@@ -294,6 +317,40 @@ async fn remote_object(
 }
 
 /// What:
+///  The location the push delivered to:
+/// the URL of the remote it named,
+/// or the location it named itself.
+/// Why:
+///   A push reads a remote's `pushurl` and only falls back to its fetch URL,
+/// so asking the remote name asks
+///  the repository the push fetched from;
+/// with the two naming different repositories the stop could be called delivered while the
+///  destination held nothing.
+///  A destination that is not a remote name (a path or a URL, as in `git push ../remote.git`) is a location already,
+/// and one that is a remote name with no readable push URL is no place this release can ask.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const url = await ask(git, ['remote', 'get-url', '--push', remote]) ?? (await ask(git, ['remote','get-url', remote]) ? undefined : remote);
+/// ```
+async fn destination(git: &AskingGit, remote: &OsStr, window: Duration, grace: Duration) -> Option<OsString> {
+    let asked: Vec<OsString> = [OsString::from("remote"), OsString::from("get-url"), OsString::from("--push"), remote.to_os_string()].to_vec();
+    if let Some(url) = ask(git, asked.as_slice(), "remote get-url", window, grace).await {
+        // Git prints the URL and one line break; only that line break is removed, so a location that ends in one keeps it.
+        let value: &str = url.strip_suffix('\n').unwrap_or(url.as_str());
+        if value.is_empty() {
+            return None;
+        }
+        return Some(OsString::from(value));
+    }
+    let fetched: Vec<OsString> = [OsString::from("remote"), OsString::from("get-url"), remote.to_os_string()].to_vec();
+    if ask(git, fetched.as_slice(), "remote get-url", window, grace).await.is_some() {
+        return None;
+    }
+    return Some(remote.to_os_string());
+}
+
+/// What:
 ///  The objects the push was going to send,
 /// one per reference it names,
 /// or nothing when the local repository names none of them.
@@ -345,9 +402,10 @@ pub async fn refs_already_delivered(
     if sending.len() != question.refs.len() {
         return None;
     }
+    let where_it_went: OsString = destination(git, question.remote.as_os_str(), window, grace).await?;
     let mut delivered: Vec<String> = Vec::new();
     for ((_source, destination), sent) in question.refs.iter().zip(sending) {
-        let remote: String = remote_object(git, question.remote.as_os_str(), destination.as_os_str(), window, grace).await?;
+        let remote: String = remote_object(git, where_it_went.as_os_str(), destination.as_os_str(), window, grace).await?;
         if &remote != sent {
             return None;
         }

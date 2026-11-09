@@ -167,3 +167,65 @@ fn a_reference_is_delivered_when_the_remote_holds_the_object_the_local_reference
     assert_ne!(git_text(repo.as_path(), &["rev-parse", "refs/heads/main"]), String::new());
     remove(root.as_path());
 }
+
+/// What:
+///  The repository the proof asks is the destination the push went to.
+/// Why:
+///   A push reads a remote's `pushurl` and only falls back to its fetch URL,
+/// so a proof that asks the remote name
+///  asks the repository the push fetched from:
+/// with the two URLs naming different repositories,
+/// the fetched one holding the push's object made a stop look delivered whose destination held nothing.
+#[test]
+fn the_proof_asks_the_destination_the_push_went_to_and_not_the_fetched_repository() {
+    let root: PathBuf = fixture("push-delivery-pushurl");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let fetched: PathBuf = root.join("fetch.git");
+    let published: PathBuf = root.join("publish.git");
+    git(root.as_path(), &["init", "--quiet", "--bare", fetched.to_str().expect("UTF-8")]);
+    git(root.as_path(), &["init", "--quiet", "--bare", published.to_str().expect("UTF-8")]);
+    git(repo.as_path(), &["remote", "add", "origin", fetched.to_str().expect("UTF-8")]);
+    git(repo.as_path(), &["config", "remote.origin.pushurl", published.to_str().expect("UTF-8")]);
+    let question: DeliveryQuestion =
+        DeliveryQuestion::of(arguments(&["push", "origin", "refs/heads/main:refs/heads/main"]).as_slice()).expect("a question");
+    let asking: AskingGit = AskingGit {
+        program: PathBuf::from(REAL_GIT),
+        cwd: Some(repo.clone()),
+        environment: crate::test_support::scratch_environment(),
+    };
+    let sending: Vec<String> = crate::lazy_runtime::run_on_runtime(objects_the_push_will_send(
+        &asking,
+        &question,
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+    ))
+    .expect("the runtime")
+    .expect("the object the push is going to send");
+    // The push goes to the push URL, so the fetched repository is left as it was.
+    git(repo.as_path(), &["push", "--quiet", "origin", "refs/heads/main:refs/heads/main"]);
+    let delivered: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
+        &asking,
+        &question,
+        sending.as_slice(),
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+    ))
+    .expect("the runtime");
+    assert_eq!(delivered, Some(vec![String::from("refs/heads/main")]), "the destination holds what the push sent");
+    // The object in the fetched repository and nothing in the destination is not a delivery.
+    git(repo.as_path(), &["push", "--quiet", fetched.to_str().expect("UTF-8"), "refs/heads/main:refs/heads/main"]);
+    git(published.as_path(), &["update-ref", "--no-deref", "-d", "refs/heads/main"]);
+    let not_delivered: Option<Vec<String>> = crate::lazy_runtime::run_on_runtime(refs_already_delivered(
+        &asking,
+        &question,
+        sending.as_slice(),
+        Duration::from_secs(30),
+        Duration::from_secs(2),
+    ))
+    .expect("the runtime");
+    assert_eq!(
+        not_delivered, None,
+        "the repository the push fetches from is not the destination it went to"
+    );
+    remove(root.as_path());
+}
