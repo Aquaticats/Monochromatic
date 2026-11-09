@@ -135,6 +135,36 @@ fn a_writer_of_another_index_file_is_not_coordinated() {
     remove(root.as_path());
 }
 
+/// A Git that appends its arguments to `log` and then runs the real Git,
+/// so a control can tell whether the forwarded command was started at all.
+fn recording_git(root: &Path, log: &Path) -> PathBuf {
+    let directory: PathBuf = root.join("recording-git");
+    std::fs::create_dir(&directory).expect("recording directory");
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{log}'\nexec {REAL_GIT} \"$@\"\n",
+        log = log.display()
+    );
+    let program: PathBuf = directory.join("git");
+    std::fs::write(program.as_path(), script.as_bytes()).expect("recording Git");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("an executable Git");
+    return program;
+}
+
+/// Whether `log` holds a start of the merge `forward` would hand to native Git,
+/// as its last words after any options the runner adds of its own.
+fn forwarded_a_merge(log: &Path, forward: &CoordinatedForward) -> bool {
+    let written: String = std::fs::read_to_string(log).unwrap_or_default();
+    let invocation: String = forward
+        .arguments
+        .iter()
+        .map(|argument| { return argument.to_string_lossy().into_owned(); })
+        .collect::<Vec<String>>()
+        .join(" ");
+    let tail: String = format!(" {invocation}");
+    return written.lines().any(|line| { return line == invocation || line.ends_with(tail.as_str()); });
+}
+
 /// A repository where `feature` and `main` have diverged and another session left `u.txt` staged,
 /// which native Git refuses to merge over.
 fn diverged_with_staged_work(name: &str) -> (PathBuf, PathBuf) {
@@ -157,8 +187,9 @@ fn diverged_with_staged_work(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// The forward for `git merge` with `after` written behind the subcommand,
-/// in the repository at `repo`.
-fn merge_forward(repo: &Path, after: &[&str]) -> CoordinatedForward {
+/// in the repository at `repo`,
+/// started with `real_git`.
+fn merge_forward(repo: &Path, after: &[&str], real_git: &Path) -> CoordinatedForward {
     let prefix: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_owned()];
     let identity: WorktreeIdentity = resolve_worktree_identity(
         Path::new(REAL_GIT),
@@ -176,7 +207,7 @@ fn merge_forward(repo: &Path, after: &[&str]) -> CoordinatedForward {
         route: Route::Direct,
     };
     return CoordinatedForward {
-        real_git: PathBuf::from(REAL_GIT),
+        real_git: real_git.to_path_buf(),
         arguments,
         overlay: isolated_overlay(),
         identity,
@@ -196,9 +227,11 @@ fn a_merge_refused_in_isolation_reports_its_own_status() {
     std::fs::write(repo.join("f.txt"), b"f.txt staged by another session\n").expect("file");
     git(repo.as_path(), &["add", "--", "f.txt"]);
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let forward: CoordinatedForward = merge_forward(repo.as_path(), &["--no-edit", "feature"]);
+    let log: PathBuf = root.join("git-starts.log");
+    let forward: CoordinatedForward = merge_forward(repo.as_path(), &["--no-edit", "feature"], recording_git(&root, log.as_path()).as_path());
     let ended: CoordinatedRun = run_coordinated_forward(&forward);
-    assert_eq!(ended, CoordinatedRun::Ran(2), "the finding's status, not the one native Git gives the same refusal");
+    assert_eq!(ended, CoordinatedRun::Ran(2), "the finding's status");
+    assert!(!forwarded_a_merge(log.as_path(), &forward), "the refused merge is not started again as native Git");
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
     assert_eq!(git_text(repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "0");
     for staged in ["f.txt", "u.txt"] {
@@ -222,11 +255,13 @@ fn a_merge_the_wrapper_defers_runs_as_native_git_and_reports_its_status() {
     let (root, repo): (PathBuf, PathBuf) = diverged_with_staged_work("forward-merge-deferred");
     git(repo.as_path(), &["config", "merge.verifysignatures", "yes"]);
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
-    let forward: CoordinatedForward = merge_forward(repo.as_path(), &["--no-edit", "feature"]);
+    let log: PathBuf = root.join("git-starts.log");
+    let forward: CoordinatedForward = merge_forward(repo.as_path(), &["--no-edit", "feature"], recording_git(&root, log.as_path()).as_path());
     let ended: CoordinatedRun = run_coordinated_forward(&forward);
     let CoordinatedRun::Ran(code) = ended else {
         panic!("the deferred merge runs as native Git: {ended:?}");
     };
+    assert!(forwarded_a_merge(log.as_path(), &forward), "the deferred merge is handed to native Git");
     assert_ne!(code, 0, "native Git's refusal of a merge of unsigned commits");
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing was merged");
     assert_eq!(git_text(repo.as_path(), &["diff", "--cached", "--name-only"]), "u.txt", "the staged work stays staged");
