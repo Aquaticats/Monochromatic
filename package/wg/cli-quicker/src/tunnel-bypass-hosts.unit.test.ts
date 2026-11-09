@@ -33,6 +33,8 @@ import {
   removeUpdateHostRules,
   syncUpdateHostRules,
 } from '../dist/final/node/tunnel-bypass-hosts-sync.mjs';
+import { PROVIDER_HOSTS, } from '../dist/final/node/provider-hosts.data.mjs';
+import { UPDATE_HOSTS, } from '../dist/final/node/update-hosts.data.mjs';
 
 
 /**
@@ -628,7 +630,12 @@ await describe({
           tools,
           readDependencies: () => Promise.resolve({ dnsServers: ['9.9.9.9',], endpoints: [], },),
         },);
-        expect(asked.toSorted(),).toEqual(CLEARNET_HOSTS.toSorted(),);
+        // Both lists go through one refresh, so neither can be dropped from the rule set unnoticed.
+        expect(asked.toSorted(),).toEqual([...UPDATE_HOSTS, ...PROVIDER_HOSTS,].toSorted(),);
+        expect(new Set(CLEARNET_HOSTS,).size,).toBe(CLEARNET_HOSTS.length,);
+        for (const host of ['api.deepseek.com', 'api.neuralwatt.com', 'api.synthetic.new', 'opencode.ai',]) {
+          expect(asked,).toContain(host,);
+        }
         expect(operations.filter((operation,) => operation.startsWith('add',),),).toEqual(['add -4 185.199.108.133',],);
         expect(seconds,).toBe(90,);
       },
