@@ -1175,3 +1175,33 @@ fn an_unborn_branch_with_an_orphaned_record_still_commits() {
     assert!(left.is_empty(), "nothing is left out on an unborn branch: {left:?}");
     remove(root.as_path());
 }
+
+/// A record that exists and cannot be read is still an obligation:
+/// the commit says it could not tell,
+/// instead of leaving the entries it owes unprotected.
+#[test]
+fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
+    let world: World = world("service-land-owed-unreadable-record");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let record: PathBuf = owed_of(&world, 1);
+    std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o000)).expect("no read");
+    let (found, unreadable): (Vec<crate::owed_index_update::Owed>, usize) = crate::owed_index_update::records_and_unreadable(world.repo.join(".git").as_path());
+    assert!(found.is_empty(), "nothing can be read of it");
+    assert_eq!(unreadable, 1, "and it counts as owed all the same");
+    let commit_index: PathBuf = commit_index_of(&world);
+    let answered: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &world.context.git,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &crate::service_land_start::IndexWitness::Absent,
+    );
+    std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
+    let reason: String = answered.expect_err("a commit that cannot tell what the index owes stops and says so");
+    assert!(reason.contains("cannot be read"), "{reason}");
+    assert!(record.exists(), "the record is kept for the person");
+    remove(world.root.as_path());
+}

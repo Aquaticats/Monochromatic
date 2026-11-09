@@ -55,7 +55,7 @@
 //! ```
 
 use crate::owed_index_entries::{Entry, head_entries, index_entries, is_unmerged, moved_since_listing, names_in, specs_of, tree_entries};
-use crate::owed_index_update::{Owed, records_of};
+use crate::owed_index_update::Owed;
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
@@ -213,7 +213,14 @@ pub fn exclude_what_a_landed_commit_left(
     captured: &crate::service_land_start::IndexWitness,
 ) -> Result<Vec<String>, String> {
     let mut left: Vec<String> = Vec::new();
-    let owed_records: Vec<Owed> = records_of(git_dir);
+    let (owed_records, unreadable): (Vec<Owed>, usize) = crate::owed_index_update::records_and_unreadable(git_dir);
+    // A record that exists and cannot be read is still an obligation, and nothing here can tell what it names: the commit says so
+    //  instead of leaving the entries it owes unprotected.
+    if unreadable > 0 {
+        return Err(format!(
+            "{unreadable} record(s) of an owed index update in this worktree cannot be read, so this commit cannot tell which index entries they owe"
+        ));
+    }
     // Nothing at all is done unless this worktree has an owed record: a commit that owes nothing is never compared, so no staging of
     //  its own can be mistaken for a move.
     if owed_records.is_empty() {

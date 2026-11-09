@@ -292,9 +292,28 @@ pub fn remove(git_dir: &Path, seq: u64) {
 /// recordsOf(gitDir)
 /// ```
 pub fn records_of(git_dir: &Path) -> Vec<Owed> {
+    return records_and_unreadable(git_dir).0;
+}
+
+/// What:
+///  The owed records of one worktree,
+/// and how many records are there that cannot be read.
+/// Why:
+///   A record that exists and cannot be read is still an obligation:
+/// a caller that took its absence from the
+///  list for "nothing is owed" would leave the entries it names unprotected.
+/// The count is how the caller says it could
+///  not tell instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordsAndUnreadable(gitDir) // [records, unreadable]
+/// ```
+pub fn records_and_unreadable(git_dir: &Path) -> (Vec<Owed>, usize) {
     let Ok(listing) = std::fs::read_dir(directory_of(git_dir)) else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
+    let mut unreadable: usize = 0;
     let mut found: Vec<Owed> = Vec::new();
     for entry in listing.flatten() {
         let path: PathBuf = entry.path();
@@ -309,12 +328,18 @@ pub fn records_of(git_dir: &Path) -> Vec<Owed> {
         }
         match std::fs::read_to_string(path.as_path()).map(decode_text) {
             Ok(Ok(owed)) => found.push(owed),
-            Ok(Err(reason)) => crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display()),
-            Err(error) => crate::service_error!("the record of an owed index update at {} cannot be read ({error}) and is kept", path.display()),
+            Ok(Err(reason)) => {
+                crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display());
+                unreadable += 1;
+            }
+            Err(error) => {
+                crate::service_error!("the record of an owed index update at {} cannot be read ({error}) and is kept", path.display());
+                unreadable += 1;
+            }
         }
     }
     found.sort_by_key(batch_number_of);
-    return found;
+    return (found, unreadable);
 }
 
 /// What:

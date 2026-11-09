@@ -6187,13 +6187,13 @@ and the notice names it,
 so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
-where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
-path,
-and a concurrent staging of the same content a `git commit --all` selected while an unrelated record
-exists,
-where that content is left out of that commit.
-In both the person sees one line naming the path among those left out,
-and the next commit records what the index holds.
+where the copy still holds a stale entry that no record names any more,
+so nothing is compared,
+nothing is named,
+and the commit records the landed path as a deletion,
+and a concurrent staging of the same content a `git commit --all` selected for a path a record names,
+where that content is left out of that commit and named among the paths left out.
+In both the next commit records what the index holds.
 The comparison is made against the commit's own index,
 because that snapshot is what the commit records:
 a program that catches the live index up between the copy and the comparison leaves the snapshot's stale
