@@ -22,14 +22,16 @@ hand-maintained.
     and the largest
    cluster of seven byte-identical files exists despite never being deduped.
 
-Prior audit (`AUDIT.dry.md`) called this duplication "structural and unavoidable"
+Prior audit ([`doc/audit/dry.md`](../audit/dry.md),
+written as `AUDIT.dry.md`) called this duplication
+"structural and unavoidable"
 because each package opts into a different subset of root `task_templates`.
  That
 verdict held for the duplication question alone,
  but it did not weigh the
 missing-task failure mode now surfaced.
 
-`AUDIT.dry.md` is internal;
+The audit is internal;
  churn on that doc is acceptable.
 
 ## Mise constraints surfaced
@@ -340,13 +342,14 @@ Generator must explicitly never touch `*/mise.local.toml`.
 
 ## Cross-references
 
-- `AUDIT.dry.md`:
+- [`doc/audit/dry.md`](../audit/dry.md),
+  written as `AUDIT.dry.md` before the move:
   per-package `mise.toml` files (81 total) section;
    this plan
   partially supersedes that finding by addressing the missing-task failure mode
-  AUDIT.
-  dry did not weigh.
-- `AUDIT.consistency.md`:
+  the audit did not weigh.
+- [`doc/audit/consistency.md`](../audit/consistency.md),
+  written as `AUDIT.consistency.md` before the move:
   "`mise.toml` task naming" section listing the quoting
   drift and four empty `mise.toml` files.
 - `package/file-enforcer/core/README.md`:
