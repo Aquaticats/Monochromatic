@@ -484,7 +484,8 @@ mod service_replay;
 
 /// A commit whose branch write meets a reference lock:
 /// the wait for a live holder,
-/// and the lock that nothing proves gone, named with the command that clears it.
+/// and the lock that nothing proves gone,
+/// named with the command that clears it.
 #[path = "binary_service_reference_lock_tests.rs"]
 mod service_reference_lock;
 

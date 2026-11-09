@@ -272,7 +272,14 @@ pub(crate) fn land_batch_body(
             if standing == old {
                 // The index lock is given up while the wait runs, so another program's commit is not held behind this one.
                 drop(held);
-                let deadline: Instant = *lock_deadline.get_or_insert_with(|| { return Instant::now() + crate::wait_ceilings::REFERENCE_LOCK_WAIT; });
+                let deadline: Instant = match lock_deadline {
+                    Some(known) => known,
+                    None => {
+                        let first_refusal: Instant = Instant::now() + crate::wait_ceilings::REFERENCE_LOCK_WAIT;
+                        lock_deadline = Some(first_refusal);
+                        first_refusal
+                    }
+                };
                 let within_bound: bool = Instant::now() < deadline;
                 if within_bound {
                     // The journal keeps what the landing waits for and how long, so a person reading it sees the lock a commit met.

@@ -336,9 +336,10 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Heard::Message(ServiceMessage::Failed { code: FailureCode::ReferenceLocked, .. }) => {
                     // The service named the locks it left and the command that clears each; without that answer the
                     //  message names the lock by the branch's own name.
-                    let words: String = holder.take().unwrap_or_else(|| {
-                        return format!("The reference lock of {} stands in the way, and nothing proves that a Git process still holds it.", request.reference);
-                    });
+                    let words: String = match holder.take() {
+                        Some(who) => who,
+                        None => format!("The reference lock of {} stands in the way, and nothing proves that a Git process still holds it.", request.reference),
+                    };
                     break Some(Err(ClientFailure::ReferenceLocked { branch: request.reference.trim_start_matches("refs/heads/").to_string(), words }));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),

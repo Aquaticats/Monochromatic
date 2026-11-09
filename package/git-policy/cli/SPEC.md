@@ -6610,7 +6610,8 @@ A live holder lets go on its own within its step,
 so the landing waits for the standing locks,
 bounded by `REFERENCE_LOCK_WAIT`
 (`src/native/service/wait_ceilings.rs`),
-which is the margin a lock is judged at: twice the 3,438 ms longest live reference step of the service journal.
+which is the margin a lock is judged at:
+twice the 3,438 ms longest live reference step of the service journal.
 The index lock is given up before the wait,
 so another program's commit is not held behind a lock this landing only waits for.
 The locks are judged and cleared by the judgement above,

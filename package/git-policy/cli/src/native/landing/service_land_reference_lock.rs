@@ -1,8 +1,9 @@
 //! What:
 //!  What a landing does when its branch write is refused while the branch is still where the batch found it.
 //! Why:
-//!  Git refuses a reference update with "cannot lock ref ...: Unable to create ... File exists" when a lock file
-//!  stands in the way,
+//!  Git refuses a reference update with "cannot lock ref"
+//!  and "Unable to create ... File exists"
+//!  when a lock file stands in the way,
 //!  and the same command answers the same failure when the branch moved.
 //!  The wrapper told both apart by asking the branch again:
 //!  a branch that still names the commit the batch was built on did not move,
@@ -17,9 +18,11 @@
 //!  so the wait is bounded by the age a lock is judged at (`stale_ref_lock_judge::MARGIN`),
 //!  and the locks nothing proves gone are named,
 //!  with the command that clears them,
-//!  by the judgement every fetch and push already uses (`stale_ref_locks.rs`).
+//!  by the judgement every fetch and push already uses
+//!  (`stale_ref_locks.rs`).
 //!  Nothing is removed on a claim:
-//!  the proof, the notice and the set-aside removal are that module's,
+//!  the proof,
+//!  the notice and the set-aside removal are that module's,
 //!  and a lock a live process may hold is never removed
 //!  (`SPEC.md`,
 //!  "Reference locks left by a Git that was killed").
@@ -29,10 +32,14 @@
 //! const standing = await waitOutTheReferenceLocks(roots, deadline); // { gone: true } | { blocked: words }
 //! ```
 
-/// The reference locks of the repository, judged and cleared by the one module that owns the proofs.
-use crate::stale_ref_locks::{Judge, clear_stale_ref_locks};/// The files that are candidates at all, so a wait knows whether anything stands.
+/// The reference locks of the repository,
+/// judged and cleared by the one module that owns the proofs.
+use crate::stale_ref_locks::{Judge, clear_stale_ref_locks};
+/// The files that are candidates at all,
+/// so a wait knows whether anything stands.
 use crate::stale_ref_lock_walk::ref_lock_candidates;
-/// What a pass over the locks found, and how one of them was judged.
+/// What a pass over the locks found,
+/// and how one of them was judged.
 use crate::stale_ref_lock_found::Outcome;
 use crate::stale_ref_lock_judge::Verdict;
 /// The shell quoting the notice gives the command that clears a lock.
@@ -47,7 +54,8 @@ use std::time::Instant;
 ///   A live holder lets go within its step (a reference step of the service's journal took 3,438 ms at most),
 /// so a wait that looks this often finds a released lock at once,
 /// and the price is one walk of the Git directory and one judgement per look:
-/// 50 looks a second, each reading a few directory entries and the process table.
+/// 50 looks a second,
+/// each reading a few directory entries and the process table.
 pub(crate) const REFERENCE_LOCK_POLL: Duration = Duration::from_millis(20);
 
 /// What waiting out the reference locks came to.
@@ -87,7 +95,7 @@ pub(crate) enum Waiting {
 /// ```
 pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, deadline: Instant) -> Waiting {
     loop {
-        let standing: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(|candidate| { return candidate.lock; }).collect();
+        let standing: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(the_lock_of).collect();
         if standing.is_empty() {
             return Waiting::Gone;
         }
@@ -104,7 +112,7 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
             if !last.cleared.is_empty() {
                 return Waiting::Gone;
             }
-            let left: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(|candidate| { return candidate.lock; }).collect();
+            let left: Vec<PathBuf> = ref_lock_candidates(roots).into_iter().map(the_lock_of).collect();
             return Waiting::Blocked(words_of(&last, left.as_slice()));
         }
         std::thread::sleep(REFERENCE_LOCK_POLL);
@@ -151,6 +159,12 @@ fn words_of(outcome: &Outcome, standing: &[PathBuf]) -> String {
         sentences.push(format!("If no Git process is running in this repository, remove {} with `rm -- {}`.", if unproven.len() == 1 { "it" } else { "them" }, quoted_list(unproven.as_slice())));
     }
     return sentences.join(" ");
+}
+
+/// The lock a candidate names,
+/// for the walks that collect them.
+fn the_lock_of(candidate: crate::stale_ref_lock_walk::Candidate) -> PathBuf {
+    return candidate.lock;
 }
 
 /// The locks as the person reads them:

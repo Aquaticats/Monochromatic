@@ -201,7 +201,11 @@ pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<Lan
 /// await capturedTree(context, cwd, commitIndex, objectDirectory)
 /// ```
 pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, object_directory: &Path) -> Result<String, TransactionStop> {
-    if !std::fs::symlink_metadata(commit_index).is_ok_and(|metadata| { return metadata.is_file(); }) {
+    let present: bool = match std::fs::symlink_metadata(commit_index) {
+        Ok(metadata) => metadata.is_file(),
+        Err(_) => false,
+    };
+    if !present {
         return Err(failed(format!(
             "The change this commit captured cannot be read back: the private index of the attempt that captured it, {}, is not there, \
              so this commit was not made. Run the commit again. {NOTHING_CHANGED}",
