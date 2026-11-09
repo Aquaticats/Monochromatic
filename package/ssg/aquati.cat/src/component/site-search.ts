@@ -5,6 +5,9 @@
  icon centered over it. On `:focus` the input expands, reveals
  placeholder text, and shifts the icon to the inline-start edge.
  The results dropdown positions absolutely below the search wrapper.
+ The input draws no focus ring of its own; the site-wide `:focus-visible`
+ rule in `src/style/global.ts` owns that, so the ring appears for keyboard
+ focus only, like every other control.
  
  Internal class names (`.search-icon`, `.search-input`, `.search-results`,
  `.search-title`, `.search-excerpt`) are scoped to this file's CSS.
@@ -120,7 +123,7 @@ export function css(): string {
         'transition-timing-function': 'ease-out',
       },
       children: [
-        $({
+        $({ 
           rule: '&:focus',
           decls: {
             color: 'inherit',
@@ -130,10 +133,6 @@ export function css(): string {
             'border-color': cssVar('color-border',),
             'background-color': cssVar('color-bg',),
             cursor: 'text',
-            'outline-color': cssVar('color-focus-ring',),
-            'outline-style': 'solid',
-            'outline-width': cssCalc(BORDER_WIDTH_REM,),
-            'outline-offset': cssCalc(BORDER_WIDTH_REM,),
           },
         },),
         $({
