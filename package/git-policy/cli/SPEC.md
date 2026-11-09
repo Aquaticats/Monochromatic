@@ -2730,51 +2730,6 @@ finding 4).
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
 
-A batch query of the manual push writes its request list while it reads the answers.
-`cat-file --batch-check` and `rev-list --stdin` read one request and write one reply in a loop
-(`src/native/push/manual_push_range.rs`),
-and the wrapper wrote the whole list before it read anything,
-so a reply pipe that filled stopped Git reading the list and the write waited for the reply for good
-(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-finding 9).
-The list goes in from a thread of its own,
-the answers are read on another,
-and the wait carries `PLUMBING_STEP_CEILING`,
-so a query that never answers is ended and reported with the command line and the ceiling.
-
-A read-only query the wrapper asks of Git ends at a ceiling of its own.
-The metadata questions (`src/native/repo_read/git_metadata.rs`) and the two one-shot questions of the
-invocation (`src/native/repo_read/git_system_config.rs`,
-`src/native/invocation/management_service_repository_selection.rs`) run with their output in anonymous files,
-so no pipe can fill and no reader is needed,
-and their end is awaited on a thread with a deadline of `PLUMBING_STEP_CEILING`.
-A query past the deadline is ended with `SIGKILL` and reported with a sentence that names the program,
-the ceiling and what to look at;
-a query that answers is unchanged,
-and such a query changes nothing of the repository,
-so ending it costs nothing
-(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-finding 5).
-A forwarded command (`src/native/invocation/forwarding.rs`,
-`status_retrying`) keeps no ceiling on purpose:
-there the person's Git owns the terminal,
-the wrapper only carries its exit code,
-and ending it would take the terminal away from the person mid-command.
-
-LFS is paused by the owner,
-so the two LFS waits are recorded and not changed:
-the interactive `git-lfs push` (`src/native/lfs/lfs_upload.rs`,
-under `SignalGuard` alone)
-and the upload plan's Git questions (`src/native/lfs/lfs_interactive.rs`,
-`Command::output`).
-Each needs the end its own twin already has:
-the upload through the bounded push (`src/native/push/bounded_push.rs`,
-whose bounded twin of the same program `lfs_upload.rs` already calls),
-and the plan's questions through the bounded query (`src/native/push/bounded_query.rs`),
-which is the meter with no wall clock that the push's own queries use.
-Until then a server that accepts the connection and never answers holds an interactive push,
-and nothing says which program the command waits for.
-
 A signal is sent through a descriptor that names the process,
 never to a number read a moment earlier.
 Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the two in which the
@@ -2797,6 +2752,48 @@ the root of a step whose record could not be read (finding 4),
 and the whole process group of the repair tool,
 whose leader is unreaped at that moment,
 so the kernel cannot have given its number to anything else.
+
+A signal the wrapper catches is relayed to the child or it ends the wrapper;
+it is never swallowed.
+`SignalGuard` (`src/native/process/signal_relay.rs`) installs the handlers of `SIGINT`,
+`SIGTERM`,
+`SIGHUP` and `SIGQUIT` and points one never-closed descriptor number at a pidfd for its child,
+so a signal reaches that child and never a reused number.
+When the child cannot be published to that descriptor (a `pidfd_open` a descriptor limit refuses,
+a `/dev/null` that cannot be opened,
+a `dup3` that failed),
+no handler is left installed:
+the dispositions the guard replaced go back for the rest of its life,
+so the next of those signals ends the command as it would without a guard,
+and the warning says so and names the limit to check.
+Keeping the handlers with nothing published meant the signal reached neither the child nor the wrapper,
+and only `SIGKILL` ended the command
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 6).
+
+A step whose watcher cannot exist says so,
+and still ends at its ceiling.
+The watcher is a task of the runtime,
+and a task needs a worker thread of its own
+(`src/native/foundation/lazy_runtime.rs`).
+When the runtime has none (the current-thread stand-in,
+or a build the system refused),
+nothing announces the wait,
+nothing ends the step for being quiet,
+and nothing ends it at its ceiling.
+The refusal is now said once in the command's diagnostics,
+the watch records it,
+and the wait carries the step's own ceiling:
+a step that has one is ended at it and fails with a sentence naming the refused thread and the
+limit to check.
+A step with no ceiling is still waited for as long as it lives,
+which the owner decided for a write that cannot be run twice,
+and the sentence that says nothing watches it is what tells the person
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 8).
+The line goes straight to the diagnostics rather than through the blocking pool,
+because the refusal means no task may be reachable;
+it is one line per step.
 
 The read of a step that is ended at its ceiling ends with the step,
 not with the last program that holds its pipes open.
@@ -2822,46 +2819,50 @@ What the read got before that moment is not returned as the step's answer:
 a step whose output may be incomplete is reported,
 never guessed at.
 
-A step whose watcher cannot exist is said so and still ends at its ceiling.
-The watcher is a task of the runtime,
-and a task needs a worker thread of its own
-(`src/native/foundation/lazy_runtime.rs`).
-When the runtime has none (the current-thread stand-in,
-or a build the system refused),
-nothing announces the wait,
-nothing ends the step for being quiet,
-and nothing ends it at its ceiling.
-The refusal is now said once in the command's diagnostics,
-the watch records it,
-and the wait carries the step's own ceiling:
-a step that has one is ended at it and fails with a sentence naming the refused thread and the
-limit to check.
-A step with no ceiling is still waited for as long as it lives,
-which the owner decided for a write that cannot be run twice,
-and the sentence that says nothing watches it is what tells the person
+A read-only query the wrapper asks of Git ends at a ceiling of its own.
+The metadata questions (`src/native/repo_read/git_metadata.rs`) and the two one-shot questions of the
+invocation (`src/native/repo_read/git_system_config.rs`,
+`src/native/invocation/management_service_repository_selection.rs`) run with their output in anonymous files,
+so no pipe can fill and no reader is needed,
+and their end is awaited on a thread with a deadline of `PLUMBING_STEP_CEILING`.
+A query past the deadline is ended with `SIGKILL` and reported with a sentence that names the program,
+the ceiling and what to look at;
+a query that answers is unchanged,
+and such a query changes nothing of the repository,
+so ending it costs nothing
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-finding 8).
-The line goes straight to the diagnostics rather than through the blocking pool,
-because the refusal means no task may be reachable;
-it is one line per step.
+finding 5).
+A forwarded command (`src/native/invocation/forwarding.rs`,
+`status_retrying`) keeps no ceiling on purpose:
+there the person's Git owns the terminal,
+the wrapper only carries its exit code,
+and ending it would take the terminal away from the person mid-command.
 
-A signal the wrapper catches is relayed to the child or it ends the wrapper;
-it is never swallowed.
-`SignalGuard` (`src/native/process/signal_relay.rs`) installs the handlers of `SIGINT`,
-`SIGTERM`,
-`SIGHUP` and `SIGQUIT` and points one never-closed descriptor number at a pidfd for its child,
-so a signal reaches that child and never a reused number.
-When the child cannot be published to that descriptor (a `pidfd_open` a descriptor limit refuses,
-a `/dev/null` that cannot be opened,
-a `dup3` that failed),
-no handler is left installed:
-the dispositions the guard replaced go back for the rest of its life,
-so the next of those signals ends the command as it would without a guard,
-and the warning says so and names the limit to check.
-Keeping the handlers with nothing published meant the signal reached neither the child nor the wrapper,
-and only `SIGKILL` ended the command
+A batch query of the manual push writes its request list while it reads the answers.
+`cat-file --batch-check` and `rev-list --stdin` read one request and write one reply in a loop
+(`src/native/push/manual_push_range.rs`),
+and the wrapper wrote the whole list before it read anything,
+so a reply pipe that filled stopped Git reading the list and the write waited for the reply for good
 (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
-finding 6).
+finding 9).
+The list goes in from a thread of its own,
+the answers are read on another,
+and the wait carries `PLUMBING_STEP_CEILING`,
+so a query that never answers is ended and reported with the command line and the ceiling.
+
+LFS is paused by the owner,
+so the two LFS waits are recorded and not changed:
+the interactive `git-lfs push` (`src/native/lfs/lfs_upload.rs`,
+under `SignalGuard` alone)
+and the upload plan's Git questions (`src/native/lfs/lfs_interactive.rs`,
+`Command::output`).
+Each needs the end its own twin already has:
+the upload through the bounded push (`src/native/push/bounded_push.rs`,
+whose bounded twin of the same program `lfs_upload.rs` already calls),
+and the plan's questions through the bounded query (`src/native/push/bounded_query.rs`),
+which is the meter with no wall clock that the push's own queries use.
+Until then a server that accepts the connection and never answers holds an interactive push,
+and nothing says which program the command waits for.
 
 ##### The quiet windows are labelled unmeasured
 
