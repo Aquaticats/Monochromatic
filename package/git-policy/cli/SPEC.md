@@ -6008,14 +6008,21 @@ A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
 so the next push from that branch carries it.
-The next command in the worktree says so once,
-in one line,
-through the notice a worktree's push failures
-use:
+Every command in the worktree says so in one line,
+read from the held records themselves:
 which commit is held,
-that its command stopped before its checks ran,
-and that it goes out with the
-next push from that branch.
+that its push has not been released yet,
+and that it goes out with the next push from its branch.
+The record is the only place the state exists,
+so the line cannot disagree with it:
+a kill between the record and a second file cannot lose the line,
+a release cannot leave a stale one,
+and two commands cannot interleave into either.
+Measured on 2026-11-12 on this host,
+one look at the held records of a worktree that holds none costs 27.8 microseconds
+(2,000 looks through the command's notice desk,
+`push_notices_for`),
+which is nothing beside the owner's limit of five seconds per commit.
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,

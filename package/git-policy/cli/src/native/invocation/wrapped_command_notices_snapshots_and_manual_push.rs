@@ -138,12 +138,11 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 /// the ones that are held,
 /// and the failures the service recorded since one was last shown.
 /// Why:
-///   A held push is said whether or not a notice directory exists yet,
-/// because the recording is what creates
-///  the directory the check below reads;
-/// asking the directories first would hide exactly the case the line exists
-///  for,
-/// a push held by a command that never released it.
+///   A held push is said whether or not a notice directory exists,
+/// because the held records are asked directly:
+///   asking the directories first would hide exactly the case the line exists for,
+/// a push held by a command that never
+///  released it.
 /// When nothing failed and nothing is held the check is two
 ///  directory reads.
 ///
@@ -152,14 +151,15 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 /// pushNoticesFor(gitDir, commonDir) // record held pushes, then take the notices
 /// ```
 pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    // A held push writes its notice where it is held, so the notice directory exists from that moment and the check below finds it;
-    //  the notice is taken here, once.
+    // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
+    //  anything is said here, because the record is the only place its state exists.
+    let mut texts: Vec<String> = crate::service_handoff::held_push_notices(git_dir);
     let own: bool = notice_directory(git_dir).is_dir();
     let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
     if !own && !orphaned {
-        return Vec::new();
+        return texts;
     }
-    let mut texts: Vec<String> = take_push_failures_for(git_dir, None, abbreviate);
+    texts.extend(take_push_failures_for(git_dir, None, abbreviate));
     texts.extend(take_orphaned_failures(common_dir, abbreviate));
     return texts;
 }

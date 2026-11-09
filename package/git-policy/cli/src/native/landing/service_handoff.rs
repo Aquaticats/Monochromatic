@@ -26,7 +26,7 @@ use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
 use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What the wrapper knows about a commit the service landed.
 #[derive(Clone, Debug)]
@@ -139,8 +139,6 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = push_item(handoff, landed);
-    // The push is released, so the line that says it is held must not be shown.
-    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
     if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
         return Ok(());
     }
@@ -165,7 +163,6 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 /// forgetThePush(handoff, landed) // unlink the pending record
 /// ```
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
-    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let id: String = push_item(handoff, landed).id();
     // The verdict is durable: a later recovery of the same batch must not hold the push again.
@@ -236,5 +233,56 @@ mod tests;
 /// heldPushLine(branchRef, commit)
 /// ```
 pub fn held_push_line(reference: &str, commit: &str) -> String {
+    if reference.is_empty() {
+        return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push of its branch");
+    }
     return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {reference}");
+}
+
+/// What:
+///  The lines a command says about the pushes this worktree holds,
+/// read from the held records themselves.
+/// Why:
+///   The record is the only place the state exists,
+/// so the line cannot disagree with it:
+/// a kill between
+///  writing the record and writing a second file cannot lose the line,
+/// a release cannot leave a stale
+///  one,
+/// and two commands cannot interleave into either.
+/// A release,
+/// a block or a claim removes or moves the record,
+///  and the line goes with it.
+/// The wording claims only what is known,
+/// which is that the push has not been
+///  released yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldPushNotices(gitDir) // one line per held record
+/// ```
+pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
+    let work_dir: PathBuf = work_directory(git_dir);
+    let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
+        return Vec::new();
+    };
+    let mut lines: Vec<String> = Vec::new();
+    for entry in listing.flatten() {
+        let name: String = entry.file_name().to_string_lossy().into_owned();
+        let Some(commit) = name.strip_prefix(format!("{}-", WorkKind::Push.name()).as_str()) else { continue };
+        // A record that cannot be read still names its commit through its own file name, and its branch is unknown: the line is
+        //  said with the branch the record would have carried when it can be read, and without a branch otherwise.
+        let branch: String = match std::fs::read_to_string(entry.path()).ok().and_then(work_item_of) {
+            Some(item) => item.branch_ref,
+            None => String::new(),
+        };
+        lines.push(held_push_line(branch.as_str(), commit));
+    }
+    return lines;
+}
+
+/// The item one held record's text holds,
+/// or nothing when it cannot be read.
+fn work_item_of(text: String) -> Option<WorkItem> {
+    return WorkItem::decode(text.as_str()).ok();
 }
