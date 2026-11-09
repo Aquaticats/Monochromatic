@@ -136,7 +136,8 @@ fn the_wrappers_own_overrides_do_not_warn() {
     }
     let lookalike: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\n/repo/.git/hooks")]);
     assert!(traditional_hooks_warning(Some(&lookalike)).is_some());
-    // Even the wrapper's own spelling is the person's choice in a configuration file: the wrapper writes none.
+    // Even the wrapper's own spellings are the person's choice in a configuration file: the wrapper writes none.
+    assert!(!is_wrapper_hooks_path("local", NO_HOOKS_DIRECTORY), "{NO_HOOKS_DIRECTORY}");
     let written: String = format!("/repo/.git/monochromatic-git-policy-cli/{SHADOW_ROOT_NAME}/{TRANSACTION}/{SHADOW_NO_HOOKS_NAME}");
     assert!(!is_wrapper_hooks_path("local", written.as_str()), "{written}");
     let file_scope: ConfigSnapshot = listing_snapshot(&[("local", format!("core.hookspath\n{written}").as_str())]);

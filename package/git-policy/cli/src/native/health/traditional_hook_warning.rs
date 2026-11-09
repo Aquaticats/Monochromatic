@@ -76,12 +76,13 @@ const TAG: &str = "traditionalHookWarning";
 /// value === NO_HOOKS_DIRECTORY || /\/monochromatic-git-policy-cli\/shadow\/[0-9a-f-]{36}\/no-hooks$/.test(value)
 /// ```
 pub fn is_wrapper_hooks_path(scope: &str, value: &str) -> bool {
-    if value == NO_HOOKS_DIRECTORY {
-        return true;
-    }
-    // A value a configuration file holds is somebody's choice, whatever it spells; the wrapper writes no configuration.
+    // A value a configuration file holds is somebody's choice, whatever it spells; the wrapper writes no configuration,
+    // so only a value that reached Git as a `-c` option or through the environment is its own.
     if scope != COMMAND_SCOPE {
         return false;
+    }
+    if value == NO_HOOKS_DIRECTORY {
+        return true;
     }
     let path: &Path = Path::new(value);
     let Some(name) = path.file_name().and_then(OsStr::to_str) else {
