@@ -1976,6 +1976,15 @@ Options:
   the bound is a new number that needs a measurement (the longest landing is 751 seconds,
   measured) or an owner
   decision.
+  Note 2026-11-08T19:19:04-05:00:
+  the live lock waits are no longer `LOCK_CEILING`:
+  a commit's wait for a foreign `index.lock`,
+  a merge's wait and the reconciliation's are one minute each (`LANDING_LOCK_CEILING`,
+  `MERGE_LOCK_CEILING`,
+  `RECONCILE_LOCK_CEILING`),
+  so ten minutes is not the longest the wrapper waits for a lock holder;
+  `SERVICE_HOLD_CEILING` is ten minutes,
+  and all four are in `package/git-policy/cli/src/native/service/wait_ceilings.rs`.
 - D.
   Stop the old service anyway after the wait.
   Schedule:

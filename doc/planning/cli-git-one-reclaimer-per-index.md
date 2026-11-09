@@ -248,6 +248,12 @@ and extended to the live landing it makes a stale lock on an alternate
 index fail the commit at `LOCK_CEILING`,
 against "Commits should never fail."
 
+Note 2026-11-08T19:19:04-05:00:
+the wait the live landing takes is `LANDING_LOCK_CEILING`, one minute
+(`package/git-policy/cli/src/native/service/wait_ceilings.rs`),
+so a commit that meets such a lock is withdrawn after one minute and not after ten,
+and `LOCK_CEILING` keeps its ten minutes without any lock wait taking it.
+
 ## What stays open under every option
 
 A lock removed by hand (a person running `rm`),
