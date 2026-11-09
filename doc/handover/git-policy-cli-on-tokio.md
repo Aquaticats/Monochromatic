@@ -887,7 +887,7 @@
   the version in `Cargo.lock`:
   `runtime/blocking/pool.rs:624` pushes,
   `:628` asks,
-  `:498` returns `NoThreads`,
+  `:499` returns `NoThreads`,
   `:386` panics,
   `run_worker` at `:657` drains),
   so "no thread" never proved a job would not run,

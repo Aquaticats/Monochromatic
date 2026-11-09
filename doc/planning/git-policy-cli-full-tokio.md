@@ -5620,7 +5620,7 @@ and it holds as well:
   in the locked version (`Cargo.lock`,
   `tokio-1.54.1`),
   `runtime/blocking/pool.rs` pushes the task at line 624 and asks for a thread only at line 628,
-  returns `SpawnError::NoThreads` at line 498,
+  returns `SpawnError::NoThreads` at line 499,
   and panics with "OS can't spawn worker thread" at line 386,
   so the job stays queued and the pool's next thread runs it (`run_worker`,
   line 657).
