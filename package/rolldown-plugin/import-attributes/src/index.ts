@@ -278,3 +278,69 @@ function importAttributesPlugin(): Plugin {
 }
 
 //endregion Plugin factory
+
+//region Built-artifact test surface
+
+/**
+ Query-parameter codec for the attribute marker, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  ATTR_QUERY_KEY,
+  extractAttrType,
+  NO_QUERY_ATTR,
+  stripAttrQuery,
+} from './patterns.ts';
+
+/**
+ AST attribute-type extraction, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  extractTypeFromAttributes,
+  extractTypeFromOptions,
+  getStringLiteralValue,
+  NO_ATTR_TYPE,
+  NON_STRING_NODE,
+} from './ast-extract.ts';
+
+/**
+ Attribute handlers, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  HANDLERS,
+  textHandler,
+} from './handlers.ts';
+
+/**
+ Source-span replacement helpers, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  collectStaticReplacements,
+  skipWithClauseWhitespace,
+} from './transform-helpers.ts';
+
+/**
+ The transform-hook implementation, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  NO_TRANSFORM,
+  transformImportAttributes,
+} from './transform.ts';
+
+/**
+ The importer-source scanner, exported for built-artifact verification.
+
+ @internal
+ */
+export { scanImporterForAttribute, } from './scan-importer.ts';
+
+//endregion Built-artifact test surface
