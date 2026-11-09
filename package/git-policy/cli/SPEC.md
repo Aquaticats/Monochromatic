@@ -566,6 +566,15 @@ Each job the settlement lock used to do is done without one:
   and its registration is found by following the pointer in its `.git` file to the administrative directory that names
   the destination back,
   so a worktree another add registers at the same time is never taken for this one's.
+- A command that may copy records the destination and the stage name before real Git runs,
+  in the claim the cheap-worktree rungs reuse,
+  so a process killed after Git registered the worktree leaves a record the next command reports by name,
+  with the commands that finish or remove it.
+- The registration real Git made is bound when Git returns,
+  carried beside the staged payload before the journal names the stage,
+  and checked before staging and again before the first entry is written,
+  by the creating command and by a recovery alike,
+  so a worktree removed and replaced at the same path receives nothing.
   The administrative directory of no other worktree is read for this.
 - Every item of a copy transaction (journal,
   stage claim,
