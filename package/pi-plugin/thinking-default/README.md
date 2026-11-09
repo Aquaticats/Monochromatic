@@ -81,14 +81,16 @@ Examples that resolve to `high`:
 
 ```text
 src/
-  index.ts                         # Extension entry point and pi event registration
-  model-policy.ts                  # Model id leaf extraction, xhigh availability, and thinking target selection
-  apply-thinking-default.ts        # Side-effect boundary around getThinkingLevel and setThinkingLevel
-  global-settings.ts               # Restores persisted defaultThinkingLevel to high
-  model-policy.unit.test.ts        # Pure policy tests
-  apply-thinking-default.unit.test.ts
-  index.unit.test.ts               # Extension registration and handler tests
-  mise.verify-extension.ts         # Built extension smoke verification
+  index.ts                                    # Extension entry point and pi event registration
+  model-policy.ts                             # Model id leaf extraction, xhigh availability, and thinking target selection
+  apply-thinking-default.ts                   # Side-effect boundary around getThinkingLevel and setThinkingLevel
+  global-settings.ts                          # Restores persisted defaultThinkingLevel to high
+  model-policy.unit.test.ts                   # Pure policy tests
+  model-policy.characterization.unit.test.ts  # Pins xhigh resolution for bare and slash-prefixed GPT ids
+  apply-thinking-default.unit.test.ts         # Sets and holds each level for GPT and non-GPT models
+  global-settings.unit.test.ts                # Rewrites a persisted xhigh scalar back to high
+  index.unit.test.ts                          # Extension registration and handler tests
+  mise.verify-extension.ts                    # Built extension smoke verification
 ```
 
 ## Validation
