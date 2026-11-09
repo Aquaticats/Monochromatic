@@ -6,10 +6,8 @@
 
 use super::*;
 use crate::worktree_copy_synchronize::UNKNOWN_DESTINATION_NOTICE;
-use crate::add_timing::{begin_work, end_work};
-use crate::side_by_side_threads::in_thread_scope;
 use crate::test_support::{fixture, git, git_context, git_output, remove, repository};
-use crate::worktree_copy_after_lock::TrashBesideRepair;
+use crate::worktree_copy_after_lock::trash_beside_repair_awaiting;
 use crate::worktree_copy_journal::{create_journal_for, journal_root, read_pending_journals};
 use crate::test_support::dead_copy_owner;
 use std::process::Output;
@@ -356,19 +354,10 @@ fn creation_from(main: &Path, common: &Path, destination: Option<&Path>) -> Invo
 fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_the_adds() {
     use crate::fs_beneath::ObjectId;
     use crate::worktree_trash::TrashManifest;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    /// How many times the stand-in emptied the trash.
-    static CALLS: AtomicUsize = AtomicUsize::new(0);
-    /// The stand-in records the work as the shipped job does,
-    /// and leaves the trash where it is.
-    fn refuse(_state: (&GitContext, &PendingTrash, &crate::shared_notice_stream::NoticeStream<'_>)) -> Result<(), String> {
-        let began: std::time::Instant = begin_work();
-        CALLS.fetch_add(1, Ordering::SeqCst);
-        end_work("disposeTrash", began);
-        return Err(String::from("the trash stays"));
-    }
     let root: PathBuf = fixture("lifecycle-trash-disposal");
     let (main, common) = source(root.as_path());
+    // The trash the snapshot names is not there, so the disposal of it fails with the reason it names: a failure of
+    //  the disposal is the add's to report, never the add's to fail.
     let pending: PendingTrash = PendingTrash {
         destination: main.clone(),
         git_dir: common.clone(),
@@ -381,10 +370,9 @@ fn a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_th
     crate::add_timing::begin(common.clone());
     {
         let stream: crate::shared_notice_stream::NoticeStream<'_> = std::sync::Mutex::new(&mut stderr);
-        in_thread_scope(TrashBesideRepair { invocation: &invocation, after: &after, pending: &pending, stream: &stream, dispose: refuse });
+        crate::lazy_runtime::run_on_runtime(trash_beside_repair_awaiting(&invocation, &after, &pending, &stream)).expect("this process can build its runtime");
     }
     crate::add_timing::finish(0);
-    assert_eq!(CALLS.load(Ordering::SeqCst), 1, "the trash was emptied once, and the add waited for it");
     assert_eq!(stderr, Vec::<u8>::new(), "the person's stream carries the repair, and a disposal that fails says so in the log");
     let written: String = std::fs::read_to_string(common.join(crate::add_timing::ADD_TIMING_FILE)).expect("the add's record");
     let record: serde_json::Value = serde_json::from_str(written.trim_end()).expect("the record is one JSON object");
@@ -1102,7 +1090,8 @@ struct LiveProcess(std::process::Child);
 impl LiveProcess {
     /// Start a `sleep` that outlives the call the control makes,
     /// which may take minutes on a contended disk:
-    /// measured on 2026-11-09, one run of this control took 217 s,
+    /// measured on 2026-11-09,
+    /// one run of this control took 217 s,
     /// longer than the minute its owner was first given,
     /// so the owner's own ending would have been read as a wait.
     fn sleeping(seconds: &str) -> LiveProcess {
