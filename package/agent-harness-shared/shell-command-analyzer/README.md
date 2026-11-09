@@ -151,7 +151,7 @@ so those words are read as their own command line:
 `-execdir`,
 `-ok`,
 and `-okdir`,
-each ended by `;` or, in the batched form, `+`.
+each ended by `;` or by `+` in the batched form.
 `find . -exec /usr/bin/git commit {} \;` is refused,
 and `find . -exec git commit {} \;` reaches the wrapper.
 
@@ -161,7 +161,8 @@ and `find . -exec git commit {} \;` reaches the wrapper.
 so a path word is the only spelling that proves the wrapper is skipped:
 `ssh build-host /usr/bin/git commit` is refused,
 while `ssh build-host git commit` stays allowed,
-because the remote search path, and whether that host installs the wrapper,
+because the remote search path,
+and whether that host installs the wrapper,
 is not in the command text.
 A `PATH` assignment before `ssh` is not read as applying to the remote program.
 
@@ -212,8 +213,8 @@ Programs that run another program but carry no entry here are not followed eithe
 `tmux new-session '/usr/bin/git commit'`,
 `docker exec container /usr/bin/git commit`,
 `podman run image /usr/bin/git commit`,
-and an interpreter that runs a command the guard would have to execute
-(`python -c 'import os'`, `node -e '...'`).
+and an interpreter that runs a command the guard would have to execute,
+such as `python -c` or `node -e`.
 
 A `git` word handed to another host with `ssh` stays allowed,
 as the section on that form says.
