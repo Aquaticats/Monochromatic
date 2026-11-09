@@ -109,6 +109,13 @@ impl Rendezvous {
         return self.wait_while_short(count);
     }
 
+    /// How many threads have arrived at the point;
+    /// a control waits for a sign of them with `test_support::wait_until` over this.
+    pub(crate) fn arrived(&self) -> usize {
+        let count = self.arrived.lock().expect("lock");
+        return *count;
+    }
+
     /// Count an arrival without waiting for the others.
     pub(crate) fn arrive_without_waiting(&self) {
         let mut count = self.arrived.lock().expect("lock");
