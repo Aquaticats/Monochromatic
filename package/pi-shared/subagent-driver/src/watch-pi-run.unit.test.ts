@@ -161,7 +161,9 @@ function stallingConnection({ boundsAsked, }: { readonly boundsAsked: number[]; 
         throw new Error('the watch asked for an answer with no bound',);
       }
       boundsAsked.push(answerMilliseconds,);
-      await wait(answerMilliseconds, undefined, { ref: false, },);
+      // The timer holds this process up while it stalls, so a watch that asks for a long bound is waited out and judged, never
+      // left to a process that ran out of work and exited.
+      await wait(answerMilliseconds,);
       return {
         success: false,
         error: `no answer in ${String(answerMilliseconds,)} ms`,
