@@ -16,9 +16,269 @@ rebuilding,
 running,
 and restoring.
 
-Nothing was changed.
-No production code and no existing test is different after this audit:
+Nothing was changed by the audit itself.
+No production code and no existing test was different after it:
 every plant was removed again and `git status --short` was empty after each one.
+The findings were acted on afterwards, in
+"What became of each finding (2026-11-09T03:13:07-05:00)" below,
+which quotes the failing output of every control that changed.
+
+## What became of each finding (2026-11-09T03:13:07-05:00)
+
+Branch `fix/git-policy-cli-controls-witness-their-race-by-ordering`,
+one commit per finding,
+each pushed as it landed.
+No production behaviour changed:
+every control below waits on a fact instead of on a guess at how fast this host is,
+and where wall time is still the only witness,
+the figure beside it says what was measured here at a load average of 47.
+Every plant was removed again before the next one,
+and no production file is different after any of them.
+One rename stands outside the findings:
+`Concurrency`'s lock guard is `locked` and what `wait_timeout_while` hands back is `released`,
+because Clippy's `shadow_reuse` refuses the branch while both were `held` (commit `44f610591e`).
+
+### Finding 1: the probe says when it is inside its hold
+
+`package/git-policy/cli/src/native/push/push_progress_tests.rs`,
+`a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends`.
+Commit `1d7b694f70`.
+
+The probe's `vfork` child now sleeps `ANNOUNCE_AFTER`,
+creates the file that `PROBE_ANNOUNCE_VARIABLE` names,
+and then sleeps out the hold,
+so that file exists only once the calling thread is suspended in the wait.
+The control waits for it,
+takes one look whose only job is to record the tree's counters,
+and then looks four times.
+The 700 ms start-up sleep is gone.
+
+The plant is the one this audit used,
+`is_working` without the `D` state.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends
+    thread '...a_tree_in_disk_wait_is_progress_at_every_look_until_it_ends' panicked at
+      src/native/push/push_progress_tests.rs:529:9:
+    look 0: a thread in uninterruptible sleep is alive
+     Summary [   0.525s] 1 test run: 0 passed, 1 failed, 4894 skipped
+```
+
+Four planted runs of four failed at look 0.
+The audit's own plant showed only at look 1,
+and its first look passed because it landed in the probe's start-up.
+
+### Finding 2: the burst holds its places until the control has counted it
+
+`package/git-policy/cli/src/native/foundation/blocking_jobs_within_the_budget_tests.rs`,
+`no_more_jobs_run_at_once_than_the_budget_allows`.
+Commit `dc0f7bc750`.
+
+Each job of the burst now holds its place until the control has read the peak,
+and the burst runs on a thread of its own so the control can count it while it runs.
+The control waits for the budget to be reached,
+which the burst cannot fail to do,
+then for a place beyond it,
+reads the peak,
+and only then lets the jobs go.
+A job's place is given back because the control counted it,
+never because time passed,
+so the fixed 40 ms hold is gone.
+
+The plant is this audit's,
+the semaphore's size decoupled from the reported bound.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- no_more_jobs_run_at_once_than_the_budget_allows
+    thread '...no_more_jobs_run_at_once_than_the_budget_allows' panicked at
+      src/native/foundation/blocking_jobs_within_the_budget_tests.rs:182:5:
+    the burst of 6 jobs held more than the budget of 2 places at once
+     Summary [   0.009s] 1 test run: 0 passed, 1 failed, 4894 skipped
+```
+
+Four planted runs of four failed the same way,
+the slowest in 1.4 s.
+Here the audit's plant showed 3 of 6 jobs overlapping inside 40 ms;
+with the hold in place the peak is the whole burst's.
+
+### Finding 3: a bound control keeps the rendezvous answer
+
+`src/native/testing/parallel_test_support.rs`,
+`worktree/worktree_trash_entries_tests.rs`,
+`subvolume/subvolume_index_parallel_tests.rs`,
+`worktree/worktree_convert_parallel_tests.rs`
+and `landing/service_round_tests.rs`.
+Commit `ec2ae30f16`.
+
+Four controls called `point.arrive()` and discarded the answer.
+`Rendezvous::arrive_at_the_bound` keeps it,
+so work that never brings that many of its jobs together inside the same work fails the control
+instead of passing it,
+and its patience is `PATIENCE`,
+whose own doc states its role:
+how long an arrival waits for the others when the control expects them to come.
+It bounds how long a failing run waits,
+never whether the claim is witnessed.
+
+The plant:
+one worker thread for every ordered run,
+so no two items can overlap.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- the_budget_of_the_host_bounds_the_overlap
+    thread '<unnamed>' panicked at src/native/testing/parallel_test_support.rs:74:9:
+    the work under test never brought 2 of its jobs together inside the same work,
+    so the overlap this control measures against a bound of 2 was not reached
+     Summary [  17.944s] 4 tests run: 0 passed, 4 failed, 4891 skipped
+```
+
+All four failed, each on its own message.
+
+### Finding 4: a second drain is an event the first one reports
+
+`src/native/landing/service_round_tests.rs`,
+`the_directories_of_one_repository_are_drained_one_after_another`,
+and `Rendezvous::arrive_and_give_back`.
+Commit `60de4af92c`.
+
+The 150 ms sleep in the fixture is gone.
+Each drain arrives at a two-place point and gives its arrival back when no second drain comes,
+so the count is of the drains inside the work now:
+a drain that leaves only after a second one arrived proves the two were inside together,
+and a drain that waits alone is the rule holding,
+which it proves before the next drain can begin.
+
+The plant is this audit's,
+every directory in a lane of its own.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- the_directories_of_one_repository_are_drained_one_after_another
+    thread '...the_directories_of_one_repository_are_drained_one_after_another' panicked at
+      src/native/landing/service_round_tests.rs:232:5:
+    a drain of one repository began while another was inside its push
+      left: 2
+     right: 0
+     Summary [   0.024s] 1 test run: 0 passed, 1 failed, 4894 skipped
+```
+
+Three planted runs of three failed the same way,
+the slowest in 0.34 s.
+
+### Finding 5: the two controls that could not fail, and the elapsed ceilings
+
+Commit `710d99ae4a`.
+
+`a_wait_that_has_ended_is_announced_no_more`
+offered the watcher nothing but time after the wait ended,
+so a host slow enough to starve the watcher passed the control and would have passed it with the
+watcher still counting.
+It now offers the watcher turns after the end:
+each is an end mark it reads in order and that resets nothing,
+and the next wait's notice is the proof that every one of them was read before it.
+A watcher that went on counting is due a notice on one of those turns however slowly the host runs it.
+The plant is `Mark::End` no longer ending the wait.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- a_wait_that_has_ended_is_announced_no_more
+    thread '...a_wait_that_has_ended_is_announced_no_more' panicked at src/native/push/child_watch_tests.rs:205:9:
+    assertion `left == right` failed: turn 2 after the wait ended: a finished wait went on being announced: ...
+      left: 3
+     right: 1
+     Summary [   0.197s] 1 test run: 0 passed, 1 failed, 4894 skipped
+```
+
+Four planted runs of four failed, at turn 1 or turn 2.
+
+`the_reporter_prints_nothing_inside_the_grace`
+had an hour of grace,
+so nothing it could do would make a notice due in its life.
+It now watches a grace of 500 ms pass:
+the polls timed from after the reporter started are inside half of it on any host,
+and the first line must then come,
+so neither half rests on a duration the control cannot outlive.
+The plant is `Ticker::due_count` ignoring the grace.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- the_reporter_prints_nothing_inside_the_grace
+    thread '...the_reporter_prints_nothing_inside_the_grace' panicked at
+      src/native/push/wait_progress_tests.rs:157:13:
+    a notice was due 6.92µs into a grace of 500ms
+     Summary [   0.006s] 1 test run: 0 passed, 1 failed, 4894 skipped
+```
+
+#### The elapsed ceilings of finding 5, one by one
+
+Each is judged by progress where a progress witness exists,
+and where none does,
+the reason and the measured figure are written beside the value.
+Every figure is a single run on this host at a load average of 47,
+so none of them is called a spread.
+
+- `push_progress_tests.rs`, `a_tree_that_moves_nothing_stalls_at_its_window`:
+  the report now has to carry the bytes the meter counted, which is progress and not a clock.
+  The ceiling stays because the detector itself reads the wall clock,
+  and nothing about the tree's progress bounds how late a loaded host wakes the poll loop.
+  Measured: reported at 1.7 s for a 1.2 s window, against a ceiling of 4.2 s.
+- `bounded_push_tests.rs`, `a_push_that_ignores_the_stop_request_is_killed_after_the_grace`:
+  kept as a liveness guard.
+  What the child does after it stops answering the request is not a sign of progress the control can read.
+  Measured: 0.66 s for a deadline and grace of 0.6 s, against a ceiling of 20 s.
+- `lfs_output_mask_tests.rs`, `a_long_line_is_masked_in_linear_time`:
+  kept. The claim is a work rate,
+  and a count of what the scan looked at would need a seam in the mask.
+  Measured: 0.08 s, against a ceiling of 30 s that a quadratic scan is still minutes away from.
+- `service/journald_native_tests.rs`, `a_full_journal_stream_drops_the_line_instead_of_waiting`:
+  removed.
+  The witness is the refusal and the count of lines the stream took before it, which is progress;
+  the 5 s ceiling could not fire for the writer it named,
+  a writer that waited for room,
+  because such a writer never returns to the loop that reads the clock.
+  A writer that blocked instead of refusing hangs the control,
+  which the unit-test watchdog reports and which is owned elsewhere.
+- `repository_link_check_walk_tests.rs`, `a_stalled_drive_is_answered_within_the_deadline`:
+  kept. The deadline passing is what ends the wait,
+  so a slow host only makes the ceiling easier to hold.
+  Measured: 0.31 s for a 0.3 s deadline, against a ceiling of 3 s.
+- `binary/binary_commit_timing_tests.rs`, `exit_of`,
+  and `landing/service_index_wait_tests.rs`, the release that wakes a wait:
+  unchanged, for the reasons above them:
+  a poll that fails loudly at its patience,
+  and an interval wide enough to separate an event from a poll.
+
+### A sixth control from a cross-vendor review: a name read across a drop
+
+`package/git-policy/cli/src/native/landing/service_claim_renewal_tests.rs`,
+`a_running_renewal_renews_the_held_claims_until_it_is_dropped`.
+Commit `7c9cf78126`.
+
+The control saved the renewing claim's names while the renewal task was still running every 5 ms,
+dropped the renewal,
+and compared the names after the drop with that earlier save.
+A pass the task made between the save and the drop is its own correct work,
+and the drop then waits for it,
+so the comparison failed although the renewal and its shutdown both behaved.
+The ordering that forces the extra pass is 50 ms between the save and the drop,
+ten passes of a 5 ms renewal.
+
+```console
+$ mise run //package/git-policy/cli:native:test:host -- a_running_renewal_renews_the_held_claims_until_it_is_dropped
+    thread '...a_running_renewal_renews_the_held_claims_until_it_is_dropped' panicked at
+      src/native/landing/service_claim_renewal_tests.rs:201:5:
+    assertion `left == right` failed: a dropped renewal renames nothing
+      left: ["push-0123...~324749247~1794213874~92bf..."]
+     right: ["push-0123...~324749198~1794213874~92bf..."]
+     Summary [   0.082s] 1 test run: 0 passed, 1 failed, 4894 skipped
+```
+
+The two names differ only in the pass counter,
+which is the correct pass the control compared against.
+The names are now read after the drop,
+and what is asserted of them is what a returned task leaves:
+one claim, under a renewal's name.
+That the task returned is the assertion that was already there,
+and the task's own ending is what says nothing can rename after the line.
+Six runs of six passed with the reproduction's pause counted as allowed work,
+and the pause is gone with it.
 
 ## What was searched for
 
