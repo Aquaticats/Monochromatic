@@ -131,6 +131,8 @@ pub fn download_verified(ctx: &Context, url: &str, target: &Path, sha256: &str) 
         )));
     }
     if let Err(error) = fs::rename(&temporary, target) {
+        // Best effort: the verified temporary is useless at its name, and the error below is what matters.
+        let _ = fs::remove_file(&temporary);
         return Err(ToolchainError::failure(format!("cannot move the verified download to {}: {error}", target.display())));
     }
     return Ok(target.to_path_buf());

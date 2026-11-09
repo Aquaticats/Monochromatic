@@ -15,7 +15,7 @@ use super::hash::sha256_hex;
 use super::install::install_tool;
 use super::install_archive::safe_file_name;
 use super::install_bin::{percent_decode, release_tag_url, seed_bin_config};
-use super::install_support::{atomic_symlink, restore_exec_bits};
+use super::install_support::{atomic_symlink, download_verified, restore_exec_bits};
 use super::cargo_installs::version_directory;
 use super::archive_staging::{has_complete_marker, staging_dir_of};
 use super::layout::tool_install_dir;
@@ -651,4 +651,20 @@ fn a_conda_package_without_a_payload_member_is_refused() {
     set_artifact(&mut rig, "uv", url, &sha256_hex(body));
     let error = install_tool(&rig.context(), &rig.tool("uv")).expect_err("no payload");
     assert!(error.message.contains("holds no pkg-*.tar.zst payload"), "{error}");
+}
+
+/// A failed rename must not leave the verified `.download` temporary beside the target:
+/// the download failure and the SHA-256 mismatch before it both remove theirs,
+/// so the third reported failure does too.
+#[test]
+fn a_download_whose_rename_fails_removes_its_temporary_file() {
+    let rig = Rig::new();
+    let target: std::path::PathBuf = rig.scope.root.join("tool.tar.gz");
+    fs::create_dir_all(&target).expect("a directory stands where the file would go");
+    let temporary: std::path::PathBuf = target.with_file_name("tool.tar.gz.download");
+    rig.http.serve("https://files.example/tool.tar.gz", b"payload");
+    let error = download_verified(&rig.context(), "https://files.example/tool.tar.gz", &target, &sha256_hex(b"payload"))
+        .expect_err("a rename onto a directory fails");
+    assert!(error.to_string().contains("cannot move the verified download"), "{error}");
+    assert!(!temporary.exists(), "the failed download left {} behind", temporary.display());
 }
