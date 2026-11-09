@@ -129,7 +129,9 @@ fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number
 /// so the commit waited with no bound over a step nothing would ever end.
 ///  A number cannot be reused while the child that holds it has not been reaped,
 /// so while the record says the number names this process's own living child,
-/// a descriptor made now, or a signal to that number, cannot reach another process.
+/// a descriptor made now,
+/// or a signal to that number,
+/// cannot reach another process.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_without_a_descriptor_is_ended_while_its_number_is_this_process_s_child() {
@@ -149,7 +151,8 @@ fn a_step_without_a_descriptor_is_ended_while_its_number_is_this_process_s_child
 /// What:
 ///  A number that names a process this one did not start is never signalled.
 /// Why:
-///   The safety of the no-descriptor path is the child relationship, not the number:
+///   The safety of the no-descriptor path is the child relationship,
+/// not the number:
 /// a number whose record names another parent is a process this command has no claim on,
 /// and the step that used to hold that number has been reaped and ended.
 #[cfg(target_os = "linux")]
@@ -183,7 +186,8 @@ fn a_step_without_a_descriptor_that_was_reaped_has_ended() {
 /// a number cannot be reused while its process is alive,
 /// so the walk is safe only for the instant it is taken,
 /// and stopping at that instant and then signalling the numbers it read reaches whatever took them.
-/// The step here is published while it is alive, ends before the ceiling looks,
+/// The step here is published while it is alive,
+/// ends before the ceiling looks,
 /// and the walk is made to answer a live process that the step never started.
 #[cfg(target_os = "linux")]
 #[test]

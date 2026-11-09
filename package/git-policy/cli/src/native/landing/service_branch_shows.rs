@@ -16,7 +16,8 @@
 
 /// The context a Git read runs in.
 use crate::transaction_git::GitContext;
-/// Git, started once and answered without failing the command when Git says no.
+/// Git,
+/// started once and answered without failing the command when Git says no.
 use crate::transaction_git::run_git;
 /// A request with the private index and object directory of a capture.
 use crate::private_index_request::indexed_request;

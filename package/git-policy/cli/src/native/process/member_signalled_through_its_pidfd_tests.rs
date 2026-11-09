@@ -83,12 +83,16 @@ fn a_member_with_a_descriptor_is_signalled() {
 }
 
 /// What:
-///  Only "no such process" proves the process is gone; any other refusal proves nothing.
+///  Only "no such process" proves the process is gone;
+/// any other refusal proves nothing.
 /// Why:
 ///   Finding 3 of the third review:
-/// a sandbox can permit `pidfd_open` and deny `pidfd_send_signal`, and a refusal there says nothing about whether the step
-/// is still running. Reading it as gone takes the ceiling away from a step that is still there.
-///  The refusal cannot be produced on demand, so the kernel's answer is injected.
+/// a sandbox can permit `pidfd_open` and deny `pidfd_send_signal`,
+/// and a refusal there says nothing about whether the step
+/// is still running.
+/// Reading it as gone takes the ceiling away from a step that is still there.
+///  The refusal cannot be produced on demand,
+/// so the kernel's answer is injected.
 #[cfg(target_os = "linux")]
 #[test]
 fn only_no_such_process_means_the_member_is_gone() {

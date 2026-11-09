@@ -155,7 +155,8 @@ pub(crate) fn refuse_the_next_signal_with(errno: i32) {
     SIGNAL_REFUSALS.with(|armed| { armed.set(Some(errno)); });
 }
 
-/// Take the control's refusal, when one is armed.
+/// Take the control's refusal,
+/// when one is armed.
 #[cfg(all(test, target_os = "linux"))]
 fn a_signal_is_refused() -> Option<i32> {
     return SIGNAL_REFUSALS.with(std::cell::Cell::take);
@@ -301,7 +302,8 @@ fn a_refusal_means(errno: Option<i32>) -> Delivered {
 ///   The kernel keeps an unreaped child's number,
 /// so no other process can hold it while the child has not been reaped;
 /// the one interval left is the instant between that proof and this call,
-/// in which the child can only become a zombie, which still holds the number and discards the signal.
+/// in which the child can only become a zombie,
+/// which still holds the number and discards the signal.
 ///  This is the fallback for a start whose `pidfd_open` the kernel refused
 /// (finding 1 of the fourth review).
 ///

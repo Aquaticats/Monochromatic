@@ -41,7 +41,7 @@ use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
 use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
-use crate::service_commit_requests_and_landing_report::{report_landing, request_for_embedded, request_for_git_built};
+use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
 use crate::commit_timing::CommitTiming;
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
@@ -54,14 +54,18 @@ use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 use crate::service_client::{ClientConfig, FreshScratch, ScratchWatch, Submitted, submit_traced, watch_scratch};
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
-use crate::service_commit_rebuild_ceiling::may_rebuild;
-use crate::service_branch_shows::{branch_moved, display_text, the_silent_service_after_a_prepare};
+use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
+/// Provisioning the service before the first submission.
+use crate::service_provision::provision_when_needed;
+use crate::service_branch_shows::{branch_moved, display_text};
+/// The result of a commit that landed,
+/// and the work after it.
+use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service, the_landed_commit};
 use crate::service_messages::{ClientFailure, render};
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
 use crate::service_protocol::CommitRequest;
-use crate::service_provision::provision;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
 use crate::transaction_git::run_git_checked;
@@ -78,93 +82,6 @@ pub struct ServiceCommit {
     /// How to leave the after-commit work for the service;
     /// absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
-}
-
-/// What:
-///  Everything a commit that landed still needs, gathered so the answer that landed and the silence that ended in one
-///  take the same path.
-struct LandedAftermath<'landed> {
-    /// The command being run.
-    invocation: &'landed CommitInvocation<'landed>,
-    /// What the preparation came to.
-    ready: &'landed Ready,
-    /// The events the preparation captured, which the result carries.
-    events: Vec<crate::policy_events::PolicyEvent>,
-    /// The native inputs of the command.
-    native_inputs: &'landed NativeInputs,
-    /// The commit that landed.
-    commit: &'landed str,
-    /// The branch value it was made on.
-    first_parent: String,
-    /// A typed message that was saved and used.
-    fixed_message: Option<&'landed PathBuf>,
-    /// The commit the service built from the request, when it did.
-    embedded_in_use: Option<&'landed Embedded>,
-    /// Whether Git built the commit.
-    native: bool,
-    /// Commits earlier attempts prepared and left behind.
-    unlanded: &'landed [String],
-    /// How to reach the service afterwards.
-    config: ClientConfig,
-}
-
-/// What:
-///  The command's result for a commit that landed, with the work after it reported as far as it goes.
-/// Why:
-///   A commit the branch shows as made is a landed commit even when its answer never arrived,
-/// and the work after a landing is reported by one function for either path,
-/// so neither can fail a commit that landed
-/// (findings 6 of the third review and 3 of the fourth).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [outcome, refused] = theLandedCommit(input);
-/// ```
-fn the_landed_commit(input: LandedAftermath<'_>) -> ServiceCommit {
-    report_after_a_landing(
-        report_landing(
-            input.invocation,
-            input.ready,
-            input.native_inputs,
-            input.commit,
-            input.first_parent.as_str(),
-            input.fixed_message,
-            input.embedded_in_use,
-            input.native,
-            input.unlanded,
-        ),
-    );
-    let handoff: ServiceHandoff = ServiceHandoff {
-        config: input.config,
-        repository: input.ready.repository.clone(),
-        git_dir: input.native_inputs.capture.layout.git_dir.clone(),
-        reference: input.ready.reference.clone(),
-        parent: input.first_parent,
-    };
-    let result: TransactionResult = TransactionResult { events: input.events, exit_code: 0, landed_oid: Some(input.commit.to_string()), uses_lfs: input.ready.uses_lfs };
-    return ServiceCommit { result, handoff: Some(handoff) };
-}
-
-/// What:
-///  Take the work a landed commit leaves behind as far as it goes, and report a refusal as a warning.
-/// Why:
-///   The commit landed, and the owner's rule is that commits never fail:
-/// so one function reports the work after a landing for both the acknowledged landing and the silence that ended in one,
-/// and neither can turn a refusal into the command's failure (finding 3 of the fourth review).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// reportAfterALanding(reportLanding(...));
-/// ```
-fn report_after_a_landing(reported: Result<(), TransactionStop>) {
-    let Err(stop) = reported else {
-        return;
-    };
-    return match stop {
-        TransactionStop::NativeExit(code) => warn("serviceCommit", format!("the commit landed and the work after it exited {code}").as_str()),
-        TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
-        TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
-    };
 }
 
 /// What:
@@ -382,17 +299,7 @@ pub fn service_commit<F: RepositoryFacts>(
         reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
-        if !provisioned
-            && let Some(host) = provisioning.as_ref()
-        {
-            let provisioning_began: Instant = Instant::now();
-            let provided = provision(host);
-            timing.provision += provisioning_began.elapsed();
-            if let Err(failure) = provided {
-                return Err(TransactionStop::Message(render(&failure)));
-            }
-            provisioned = true;
-        }
+        provisioned = provision_when_needed(provisioning.as_ref(), provisioned, &mut timing.provision)?;
         // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command would
         //  otherwise remove it from under a wait that outlasts its age.
         let waiting_config: ClientConfig = ClientConfig {
@@ -407,7 +314,7 @@ pub fn service_commit<F: RepositoryFacts>(
                     ready: &ready,
                     events: ready.events.clone(),
                     native_inputs,
-                    commit: commit.as_str(),
+                    commit: Some(commit.as_str()),
                     first_parent,
                     fixed_message: fixed_message.as_ref(),
                     embedded_in_use,
@@ -418,18 +325,10 @@ pub fn service_commit<F: RepositoryFacts>(
                 timing.after_landing += after_landing.elapsed();
                 return Ok(outcome);
             }
-            Ok(Submitted::PrepareAgain { landed, .. }) => {
-                if native || sent.amend {
-                    // An amend, and a commit Git built, are never sent for another tip; the service answers a moved branch as a failure.
-                    return Err(branch_moved(&ready));
-                }
-                let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-                    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
-                }
-                // What this preparation captured is merged onto the branch by the next one.
-                retry = Some(retry_of(invocation.context, invocation.cwd, &ready, landed)?);
-            }
+            Ok(Submitted::PrepareAgain { landed, .. }) => match after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began) {
+                AfterAPrepareAgain::Stopped(stop) => return Err(stop),
+                AfterAPrepareAgain::Retry(next) => retry = Some(next),
+            },
             Ok(Submitted::Moved) => {
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
@@ -482,33 +381,22 @@ pub fn service_commit<F: RepositoryFacts>(
                 return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
             }
             Err(failure) => {
-                // The one silence that could not state a fact now reads the branch once and states what it shows.
-                let worded: Option<ClientFailure> = match failure {
-                    ClientFailure::ServiceSilent => {
-                        the_silent_service_after_a_prepare(invocation.context, invocation.cwd, ready.reference.as_str(), sent.commit.as_deref())
-                    }
-                    other => Some(other),
-                };
-                let Some(worded) = worded else {
-                    // The branch holds the commit this command prepared, so the commit was made: the command succeeds, and only
-                    // the work after it can still be refused.
-                    let prepared: String = sent.commit.clone().unwrap_or_else(|| { return ready.base.clone(); });
-                    let outcome: ServiceCommit = the_landed_commit(LandedAftermath {
+                return after_a_silent_or_failed_service(
+                    failure,
+                    LandedAftermath {
                         invocation,
                         ready: &ready,
                         events: ready.events.clone(),
                         native_inputs,
-                        commit: prepared.as_str(),
+                        commit: sent.commit.as_deref(),
                         first_parent,
                         fixed_message: fixed_message.as_ref(),
                         embedded_in_use,
                         native,
                         unlanded: unlanded.as_slice(),
                         config: config.clone(),
-                    });
-                    return Ok(outcome);
-                };
-                return Err(TransactionStop::Message(render(&worded)));
+                    },
+                );
             }
         }
     }

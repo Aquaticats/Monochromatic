@@ -109,10 +109,12 @@ fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
 }
 
 /// What:
-///  What the ceiling came to, and whether the programs below the step could be listed.
+///  What the ceiling came to,
+/// and whether the programs below the step could be listed.
 /// Why:
 ///   A step that is signalled while the walk below it failed leaves whatever it started to be named in the record and in the
-/// stop's words, so the person is told that something below may still run (finding 2 of the fourth review).
+/// stop's words,
+/// so the person is told that something below may still run (finding 2 of the fourth review).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

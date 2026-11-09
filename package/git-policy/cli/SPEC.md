@@ -2776,18 +2776,27 @@ owner,
 "About 16 seconds"),
 that `git commit` and the processes it started ended with `SIGKILL` and no other child of the command touched
 (the notice holds the pidfd the step was given the moment it started and signals through it and nothing else,
-and reads the programs below the step first and asks that descriptor afterwards whether the step is still there,
-so a walk taken while the step was alive is discarded when it ended in the meantime),
+reads the programs below the step first and asks that descriptor afterwards whether the step is still there,
+so a walk taken while the step was alive is discarded when it ended in the meantime,
+and signals the step whatever that walk came to,
+recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
+so one of them may still be running),
 a stop recorded only when a signal was really taken for the step,
 only `ESRCH` from the descriptor's signal read as the step being gone,
 with every other refusal,
 and a look that could not be made,
 leaving the ceiling armed rather than standing down,
 and the command failing with a message that says nothing was committed and to run the same command again;
-a step whose start the kernel refused a descriptor for is never signalled by its number:
-the ceiling stays armed,
-the record says `pinnable` false,
-and the notice line says from that moment that the step cannot be stopped and that the commit waits until it ends;
+a step whose start the kernel refused a descriptor for is taken again at the ceiling,
+and only one proof is accepted before anything is sent:
+the step's record must say the number is a living child of this process that has not been reaped,
+which is the one moment the kernel cannot have given that number to another process
+(a child that exits in the instant before the signal becomes a zombie that still holds the number and discards it);
+with that proof a descriptor is made then,
+or the signal goes to the proved number,
+a record that names another parent means the child was reaped and the step ended,
+so nothing is sent,
+and a record that cannot be read leaves the ceiling armed;
 its lines are written by a thread of their own,
 handed over a queue of one line,
 so a reader that stopped reading holds that thread and never the ceiling,
@@ -2801,6 +2810,28 @@ and the writer ends there rather than living on beside a reader that stopped rea
 a member the kernel refuses a pidfd for is never signalled by its number,
 and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
+
+##### The one wait the ceiling cannot end
+
+A step whose start the kernel refused a descriptor for is ended at the ceiling by the proof above.
+The one state in which no ceiling can end it is both failures at once:
+the start made no descriptor,
+and `/proc` cannot be read at the ceiling,
+so the step's number cannot be proven to be this process's own unreaped child.
+Then nothing is sent,
+the ceiling stays armed,
+and the notice keeps printing what it knows at its cadence until `/proc` reads again,
+at which point the ceiling fires,
+or until the step ends by itself.
+The person sees the usual waiting lines,
+the last of which promises the stop at the ceiling,
+and a commit that lasts longer than the ceiling says so every cadence;
+`run_native_commit_within` reaches its stop only when the ceiling does.
+This is named here rather than bounded because no honest bound exists:
+the wrapper may not signal a number it cannot prove,
+and the owner's rule against killing another command's process stands.
+The uninterruptible wait after a delivered signal is the separate owner question in
+`doc/handover/questions-for-the-owner.md`.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -3360,7 +3391,10 @@ now inside these bounds:
   that the branch holds the commit this command prepared,
   at its tip or under a later commit,
   so the commit was made and the command returns the landed commit with exit 0,
-  reporting the landing and handing the after-commit work over as the answer that landed does;
+  reporting the landing and handing the after-commit work over as the answer that landed does,
+  through the one function both paths share,
+  so that a refusal from the work after a landed commit is a warning in either
+  path and never the command's failure;
   that it does not hold it,
   so the commit was not made by this command,
   though the service may still land it;
@@ -8561,8 +8595,8 @@ recorded only when a signal was really taken for the step,
 start time and name were seen at the look interval,
 kept with a zero bound when a look saw it only once,
 `belowCpuMs` the processor time everything below the step had used at the last look,
-`pinnable` whether the ceiling could end the step at all,
-which is false for a step whose start the kernel refused a descriptor for,
+`belowUnlisted` whether the programs below the step could not be listed when it was ended,
+so one of them may still be running,
 `blindLooks` how many looks could not be made at all because `/proc` refused the read,
 and `blockedLooks` how many looks found one of them in uninterruptible sleep;
 an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;

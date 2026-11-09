@@ -197,6 +197,10 @@ pub mod service_commit;
 /// What the branch shows once the commit service went silent after a commit was prepared.
 pub mod service_branch_shows;
 
+/// What a landed commit leaves the command to do:
+/// its result and the work after it.
+pub mod service_landed_aftermath;
+
 /// The small steps of a service commit and the commit the service builds itself.
 pub mod service_commit_input_notes_and_embedded_commit;
 
