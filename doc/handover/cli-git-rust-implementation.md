@@ -152,10 +152,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   `shadow-and-replay-round-2-prompt.md`,
   `push-route-round-5-prompt.md`,
   and `literal-pathspec-round-3-prompt.md`.
-- The shadow branch has passed its tests on top of main and waits for its round 2:
-  `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
-  a subsection holding `=` that loses its value,
-  and a long value that stops the scratch commit from starting.
+- The shadow branch's round 1 findings are fixed on the branch,
+  which is not merged into main,
+  and its round 2 waits for a slot:
+  `shadow-and-replay-round-1-sol.txt` named a dropped `gpg.openpgp.program`,
+  a subsection holding `=` that lost its value,
+  and a long value that stopped the scratch commit from starting.
+  The branch now carries every native-commit entry of the invocation in one included
+  `native-commit.config` in the commit's scratch directory.
 - The merge branch passed 320 of 320 on top of main.
   Under the coordinator's decision to converge,
   its round 8 fixes what `merge-route-round-7-sol.txt` names that a kill alone can cause,

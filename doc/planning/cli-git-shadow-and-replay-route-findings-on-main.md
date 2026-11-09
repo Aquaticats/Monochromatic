@@ -449,14 +449,17 @@ No general safety claim follows for those surfaces.
 ## Fixes landed, 2026-11-09T07:47:32-05:00
 
 Each finding was reproduced first with real Git `2.56.0` beside the wrapper and against `main` at
-`566be9a823`, then fixed on the branch
+`566be9a823`,
+then fixed on the branch
 `fix/git-policy-cli-shadow-replay-keeps-distinct-files-and-signing`.
-Every control was also checked by removal: with the fix taken out again,
+Every control was also checked by removal:
+with the fix taken out again,
 the control fails with the wrong result this document quotes for that finding.
 
 ### The non-ASCII conflict that reverted another name
 
-Commit `2bb6958077` follows its control, `ae249405ed`.
+Commit `2bb6958077` follows its control,
+`ae249405ed`.
 A repository path now stays the bytes Git listed from the raw shared-path listing
 through the `update-index --index-info` record,
 so no boundary re-encodes a name.
@@ -470,13 +473,17 @@ keeps a name that is not UTF-8 through the parser.
 
 ### The signing request that an exact `gitdir` include lost
 
-Commits `c268e5d579`, `ebfc4c6d99`, `b7a51bd742` and `361473a3ee`.
+Commits `c268e5d579`,
+`ebfc4c6d99`,
+`b7a51bd742` and `361473a3ee`.
 The capture's configuration snapshot already holds what Git resolved for the invocation,
 so every entry of every key native `git commit` reads now travels to the shadow as a `-c` setting,
 in the order Git resolved them:
 a key read once keeps its last entry,
 and a key that may repeat keeps all of them.
-One list, in `src/native/commit/native_commit_configuration.rs`, now says which keys those are,
+One list,
+in `src/native/commit/native_commit_configuration.rs`,
+now says which keys those are,
 and the route to native preparation reads the same list.
 Control:
 `commit::commit_preparation::tests::signing_from_an_exact_gitdir_include_reaches_the_shadow`,
@@ -484,10 +491,13 @@ which requires real Git to sign through the include before it requires the produ
 
 ### The non-UTF-8 tag that blocked native preparation
 
-Commit `cba158fe73` follows its control, `b45b936337`.
-A ref name and a symbolic target stay bytes through the listing, the `packed-refs` snapshot,
+Commit `cba158fe73` follows its control,
+`b45b936337`.
+A ref name and a symbolic target stay bytes through the listing,
+the `packed-refs` snapshot,
 the reftable `update-ref --stdin` transaction and the `symbolic-ref` call.
-An object name must still be hexadecimal text, and any other listing shape is still refused whole.
+An object name must still be hexadecimal text,
+and any other listing shape is still refused whole.
 Controls:
 `shadow::shadow_create::tests::a_ref_name_that_is_not_text_does_not_stop_the_shadow`,
 `shadow::shadow_refs::tests::the_files_snapshot_keeps_a_name_that_is_not_text`
@@ -495,6 +505,150 @@ and
 `shadow::shadow_refs::tests::the_reftable_snapshot_keeps_a_name_that_is_not_text`.
 
 The "Not determined" limits of the audit stand unchanged:
-submodules, SHA-256 and reftable commits, custom drivers, attribute combinations,
-interruption before the scratch watch is registered, simultaneous client and service death,
+submodules,
+SHA-256 and reftable commits,
+custom drivers,
+attribute combinations,
+interruption before the scratch watch is registered,
+simultaneous client and service death,
 crash recovery and unresponsive filesystem bounds were not exercised here.
+
+## Round 1 review fixes, 2026-11-09T09:37:04-05:00
+
+The review `shadow-and-replay-round-1-sol.txt` reported three findings in
+`package/git-policy/cli/src/native/commit/native_commit_configuration.rs`,
+which the signing fix above added.
+All three held.
+Each was reproduced first against this branch on top of `main` at `467edffe61`
+with real Git `2.56.0`,
+through the production capture and preparation functions.
+Each control was also checked by removal:
+with the fix taken out,
+the control fails with the wrong result quoted for it.
+
+### The legacy signing-program name overrode the effective signer
+
+Commit `28ea8a8caa` follows its control.
+`gpg.program` and `gpg.openpgp.program` set the same OpenPGP program,
+and Git uses the later entry of the two:
+`man git-config` says `gpg.program` "can still be used as a legacy synonym for `gpg.openpgp.program`".
+The filter kept the legacy name and dropped the modern one,
+so the carried configuration could contradict the repository,
+and the shadow started the program the person had overridden.
+
+Reproduced with a global `gpg.program` naming a program that does not exist
+and a repository `gpg.openpgp.program` naming a stand-in signer that counts its calls,
+under
+`commit::commit_preparation::tests::the_repository_openpgp_program_beats_the_legacy_global_program`.
+Real Git signs the control commit with the repository's program and calls it once.
+Before the fix,
+the shadow's native commit exited `128`:
+
+```text
+error: gpg failed to sign the data:
+(no gpg output)
+fatal: failed to write commit object
+prepared: Git(GitFailure("git commit exited 128"))
+```
+
+The same control passes on the unfixed code with the global entry removed,
+which places the cause on the carried entry and not on the fixture.
+Both names now travel in the order Git resolved them.
+
+### An equals sign in a trailer subsection lost its configuration
+
+Commit `af9f9c468a` follows its control.
+`-c key=value` splits at the first equals sign,
+so `trailer.review=bot.key` became a setting of `trailer.review`,
+which names nothing Git reads.
+A configuration file states the subsection in quotes instead,
+and keeps the key whole.
+
+Reproduced with `[trailer "review=bot"]` (`key = Reviewed-by`,
+`cmd = printf reviewer`)
+in a file selected only by an exact `gitdir` include,
+under
+`commit::commit_preparation::tests::a_trailer_subsection_holding_an_equals_sign_keeps_its_configuration`.
+Real Git adds the configured `Reviewed-by: reviewer`.
+Before the fix,
+the shadow's prepared message was:
+
+```text
+the shadow must add the configured trailer too: shadow control
+```
+
+The review's own command line named `--trailer='Acked-by: tester'`,
+which does not reach that subsection in real Git either:
+the subsection names the token `review=bot`,
+and real Git leaves `Acked-by: tester` as it was.
+The trailer that shows the loss is the token the configuration names.
+
+### A value longer than one argument stopped the native commit from starting
+
+Commit `af9f9c468a` follows its control.
+A configured value travelled as one `-c` argument,
+and an argument stops at the platform's `MAX_ARG_STRLEN`:
+32 pages,
+so 131072 bytes where a page is 4 KiB.
+Git reads the same value from a configuration file without trouble.
+An environment string has the same limit,
+so `GIT_CONFIG_COUNT` and `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` cannot carry it either.
+
+Measured on this host with the value derived from the page size the control reads
+(32 pages doubled),
+a `trailer.unused.key` holding it,
+and
+`commit::commit_preparation::tests::a_configuration_value_longer_than_one_argument_does_not_stop_the_native_commit`.
+Real Git reads the value from its file,
+never uses it,
+and commits.
+The shadow's preparation failed before the fix:
+
+```text
+prepared: Git(GitFailure("git commit could not start: Argument list too long (os error 7)"))
+```
+
+A `-c` argument carrying 262144 bytes failed the same way in a separate probe
+(`OSError 7 Argument list too long`),
+and the same bytes read back from a configuration file unchanged.
+
+### One carrier for both
+
+The second and third findings have one cause,
+the command line as the carrier,
+so one carrier ends both.
+`native_commit_configuration` now writes the entries into `native-commit.config`
+in the commit's scratch directory,
+which is removed with the commit,
+and passes `-c include.path=<that file>`.
+One included file keeps the order Git resolved the entries in,
+states a subsection in quotes,
+and carries any length.
+`-c include.path` is read after every configuration file,
+and in the place it is given,
+so the entries keep their precedence.
+
+The carrier was tested against real Git before it was relied on:
+`commit::native_commit_configuration::tests::real_git_reads_every_carried_value_from_the_file`
+runs Git with the exact arguments the production function builds and reads back
+a subsection holding an equals sign,
+the long value,
+and a value that is not text.
+`commit::native_commit_configuration::tests::every_entry_of_a_native_key_reaches_the_carried_file_in_order`
+pins the file's statements and their order.
+`no_native_entry_adds_no_setting` and `a_directory_that_cannot_take_the_file_is_an_error`
+cover the empty and the unwritable cases.
+
+### Verification runs
+
+Reproductions and controls used the host suite,
+with
+`mise run //package/git-policy/cli:native:test:host -- <filter> --success-output=final --no-fail-fast`,
+under a `systemd-run --user --scope` unit with `CPUQuota=700%`,
+`MemoryMax=6G`,
+`TasksMax=512` and `IOWeight=10`.
+Every run of the production functions happened on a loaded host beside other sessions,
+and no synthetic load was generated.
+The carrier's arguments were also checked against real Git directly,
+and the platform limits above were measured with `subprocess` and `sysconf`
+in a throwaway directory under the agent scratch root.
