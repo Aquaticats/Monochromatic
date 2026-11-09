@@ -119,3 +119,58 @@ fn an_index_with_the_monitor_and_untracked_cache_extensions_is_read() {
     assert_eq!(mine, listing.lines().map(str::to_string).collect::<Vec<String>>());
     remove(root.as_path());
 }
+
+/// Where the body of extension `signature` starts and how long it is.
+fn extension_body(bytes: &[u8], signature: &[u8; 4]) -> Option<(usize, usize)> {
+    let at: usize = bytes.windows(4).position(|window| { return window == signature; })?;
+    return Some((at + 8, usize::try_from(be32(bytes, at + 4)?).ok()?));
+}
+
+/// The index Git writes with `index.threads` set, with `change` applied to the `IEOT` body and the
+/// trailing SHA-1 resealed.
+fn with_ieot_body(written: &[u8], change: impl Fn(&mut [u8], usize)) -> Vec<u8> {
+    let (body, _size) = extension_body(written, b"IEOT").expect("the offset table is in the index");
+    let mut changed: Vec<u8> = written[..written.len() - 20].to_vec();
+    change(changed.as_mut_slice(), body);
+    let digest: [u8; 20] = crate::subvolume_sha::sha1(changed.as_slice());
+    changed.extend_from_slice(digest.as_slice());
+    return changed;
+}
+
+/// An offset table (`IEOT`) is answered only when it names the entries this reader parsed,
+/// because Git reads the entries through the table when threaded loading is on.
+/// Measured on Git 2.56.0 with the index below and `index.threads=4`:
+/// a version other than 1 prints `error: invalid IEOT version 2` and answers,
+/// a first block one byte off ends Git without a word,
+/// and a first block pointing into the header prints `fatal: unknown index entry format 0xc0110000`.
+#[test]
+fn an_offset_table_git_reads_another_way_is_declined() {
+    let root = fixture("repo-read-index-offset-table");
+    let repo = root.join("repo");
+    std::fs::create_dir(&repo).expect("dir");
+    git(repo.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    for name in ["a", "b", "c", "d"] {
+        std::fs::write(repo.join(name), format!("{name}\n")).expect("write");
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    // A threaded index write records the offset table and the end of the entries it is found through.
+    git(repo.as_path(), &["-c", "index.threads=4", "-c", "index.recordOffsetTable=true", "update-index", "--index-version", "4"]);
+    let written = std::fs::read(repo.join(".git/index")).expect("index");
+    let (body, size) = extension_body(written.as_slice(), b"IEOT").expect("the offset table is in the index");
+    assert_eq!(be32(written.as_slice(), body), Some(1), "Git writes version 1");
+    assert!(size >= 12, "Git writes at least one block");
+    assert!(parse_index(written.as_slice(), ObjectFormat::Sha1).is_some(), "Git's own offset table is answered");
+    let version_two = with_ieot_body(written.as_slice(), |changed, body| { changed[body + 3] = 2; });
+    assert!(parse_index(version_two.as_slice(), ObjectFormat::Sha1).is_none(), "a version Git words is declined");
+    let shifted = with_ieot_body(written.as_slice(), |changed, body| {
+        let first = be32(changed, body + 4).expect("the first block's offset");
+        changed[body + 4..body + 8].copy_from_slice(&(first + 1).to_be_bytes());
+    });
+    assert!(parse_index(shifted.as_slice(), ObjectFormat::Sha1).is_none(), "a table naming another byte is declined");
+    let short = with_ieot_body(written.as_slice(), |changed, body| {
+        let count = be32(changed, body + 12).expect("the first block's count");
+        changed[body + 12..body + 16].copy_from_slice(&(count + 1).to_be_bytes());
+    });
+    assert!(parse_index(short.as_slice(), ObjectFormat::Sha1).is_none(), "blocks that overrun the entries are declined");
+    remove(root.as_path());
+}

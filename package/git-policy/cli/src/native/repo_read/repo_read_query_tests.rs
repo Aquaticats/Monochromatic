@@ -464,3 +464,48 @@ fn the_index_extensions_git_reads_silently_are_answered() {
     answered(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
     remove(root.as_path());
 }
+
+/// Where the body of extension `signature` starts in an index.
+fn extension_body(bytes: &[u8], signature: &[u8; 4]) -> usize {
+    return bytes.windows(4).position(|window| { return window == signature; }).expect("the extension is in the index") + 8;
+}
+
+/// An offset table (`IEOT`) whose version Git words is left to Git.
+/// Why:
+///   Git reads the table only when `index.threads` turns threaded loading on,
+///   and prints `error: invalid IEOT version 2` for a version it cannot read,
+///   so an in-process answer with empty standard error is not Git's
+///   (measured on Git 2.56.0: the same command line without `index.threads` stays silent,
+///   which is why the reader could answer it unnoticed).
+#[test]
+fn an_offset_table_version_git_words_is_left_to_git() {
+    let root = fixture("repo-read-query-offset-table");
+    let repo = staged_repository(root.as_path(), "offset-table", "sha1");
+    git(repo.as_path(), &["-c", "index.threads=4", "-c", "index.recordOffsetTable=true", "update-index", "--index-version", "4"]);
+    let index = repo.join(".git/index");
+    let written = std::fs::read(index.as_path()).expect("index");
+    let body = extension_body(written.as_slice(), b"IEOT");
+    let mut version_two = written[..written.len() - 20].to_vec();
+    version_two[body + 3] = 2;
+    let digest: [u8; 20] = crate::subvolume_sha::sha1(version_two.as_slice());
+    version_two.extend_from_slice(digest.as_slice());
+    std::fs::write(index.as_path(), version_two).expect("write the index");
+    let threaded = git_output(repo.as_path(), &["-c", "index.threads=4", "ls-files", "--stage", "-z"]);
+    assert_eq!(
+        String::from_utf8(threaded.stderr).expect("UTF-8"),
+        "error: invalid IEOT version 2\n",
+        "Git words the version it cannot read and answers anyway"
+    );
+    assert_eq!(threaded.status.code(), Some(0), "Git still answers");
+    assert!(
+        mine(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]).is_none(),
+        "the readers must leave an index whose offset table Git words to Git"
+    );
+    // The same file as Git wrote it, with threaded loading named, is answered and equal to Git's.
+    std::fs::write(index.as_path(), written.as_slice()).expect("restore the index");
+    let expected = git_output(repo.as_path(), &["-c", "index.threads=4", "ls-files", "--stage", "-z", "--full-name"]);
+    let found = mine(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]).expect("Git's own offset table is answered");
+    assert_eq!(found.stdout, expected.stdout);
+    assert_eq!(found.stderr, expected.stderr);
+    remove(root.as_path());
+}
