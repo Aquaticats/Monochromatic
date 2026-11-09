@@ -31,6 +31,8 @@
 //! const finding = await repairToolchain(destination, environment); // undefined when the launchers already name this worktree
 //! ```
 
+use crate::blocking_job::BlockingJobError;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
 use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
@@ -121,12 +123,24 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
 ///   A record that cannot be read,
 /// is not JSON or names no lock is left alone,
 /// and each step of reading it may fail the same way.
+/// Only a regular file is opened:
+/// a named pipe with no writer would block the read until a writer came,
+/// which is never.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function lockNamedByRecord(path: string): string | undefined;
 /// ```
 fn lock_named_by_record(path: &Path) -> Option<PathBuf> {
+    // Only a regular file is read: opening a named pipe that has no writer blocks until a writer comes, and the add
+    // would then wait for ever on a record it could not learn anything from.
+    let regular: bool = match std::fs::metadata(path) {
+        Ok(found) => found.is_file(),
+        Err(_) => false,
+    };
+    if !regular {
+        return None;
+    }
     let text: String = std::fs::read_to_string(path).ok()?;
     let record: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
     let lock: &str = record.get(LOCK_KEY).and_then(serde_json::Value::as_str)?;
@@ -224,17 +238,79 @@ enum ToolchainRepair {
 }
 
 /// What:
+///  `prepare_install` for the state a job of the blocking pool owns.
+/// Why:
+///  A job reads only what it was handed,
+/// so the worktree and the environment travel together as owned values.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function prepareInstallInAJob([destination, environment]: [string, RepairEnvironment]): ToolchainRepair;
+/// ```
+fn prepare_install_in_a_job((destination, environment): (PathBuf, RepairEnvironment)) -> ToolchainRepair {
+    return prepare_install_on_a_caller_thread(destination.as_path(), &environment);
+}
+
+/// What:
+///  `prepare_install` as a job of the process's blocking pool.
+/// Why:
+///  The launcher records are storage work,
+/// and the task that polls the three repairs must never do any of it:
+/// the toolchain wait shares that task with the pnpm ceiling and the Cargo waits,
+///  so a read that waited there would stop
+/// their deadlines with it.
+/// A refusal from the system runs the same read in turn,
+/// under a place of the process's bound on blocking jobs.
+///
+async fn prepare_install_within_the_budget(destination: &Path, environment: &RepairEnvironment) -> Result<ToolchainRepair, BlockingJobError> {
+    let state: (PathBuf, RepairEnvironment) = (destination.to_path_buf(), environment.clone());
+    return run_a_job_or_in_turn(state, prepare_install_in_a_job).await;
+}
+
+/// What:
+///  How many launcher records still name another lock file,
+/// as a job of the process's blocking pool.
+/// Why:
+///  The records are read again after the install,
+/// on the same task the install was awaited from,
+/// so the same rule holds:
+/// no storage read of the launcher directory runs on the task that polls the repairs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = await countStaleWithinTheBudget(destination);
+/// ```
+fn count_stale_in_a_job(destination: PathBuf) -> usize {
+    return stale_launch_records(destination.as_path()).len();
+}
+
+/// What:
+///  `count_stale_in_a_job` awaited on the runtime.
+/// Why:
+///  The awaiting face has no read of the launcher directory of its own,
+/// so a worktree whose records changed under the install is counted without stopping the task's other waits.
+///
+async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, BlockingJobError> {
+    return run_a_job_or_in_turn(destination.to_path_buf(), count_stale_in_a_job).await;
+}
+
+/// What:
 ///  What the toolchain repair of `destination` is,
-/// decided from the launcher records and the search path alone.
+/// decided from the launcher records and the search path alone,
+/// for a caller that is not a task of the runtime.
 /// Why:
 ///  Both faces decide it the same way before they wait,
 /// so neither can start a tool the other would not.
+/// This face runs on the caller's own thread,
+/// which polls no wait of the repair,
+/// so its reads need no place of the pool;
+/// the awaiting face reads them as a job (`prepare_install_within_the_budget`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function prepareInstall(destination: string, environment: RepairEnvironment): ToolchainRepair;
 /// ```
-fn prepare_install(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
+fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
     let stale: Vec<PathBuf> = stale_launch_records(destination);
     if stale.is_empty() {
         debug(TAG, format!("{}: every launcher record names this worktree", destination.display()).as_str());
@@ -265,24 +341,36 @@ async fn install_awaiting(work: &Install) -> ToolRun {
 /// and the records that still name another lock file.
 /// Why:
 ///  Both faces report the same run the same way,
-/// whatever waited for it.
+/// whatever waited for it,
+/// and the read of the records is the caller's:
+/// the synchronous face reads them on its caller's thread,
+/// and the awaiting face hands over a job of the pool.
+/// A success whose records could not be read again is a failure that says so,
+/// never a success the wrapper did not check.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const installFinding = (work: Install, run: ToolRun) => { ... };
+/// const installFinding = (work: Install, run: ToolRun, remaining: number | Refusal) => Finding | undefined;
 /// ```
-fn install_finding(work: &Install, run: &ToolRun) -> Option<Finding> {
+fn install_finding(work: &Install, run: &ToolRun, remaining: Result<usize, BlockingJobError>) -> Option<Finding> {
     debug(TAG, format!("{}: install ended {:?} after {} ms", work.destination.display(), run.end, run.millis).as_str());
     let detail: String = match install_summary(run.stdout.as_slice()) {
         Some(summary) => format!("mpm-shadow rebuilt the toolchain links ({summary})"),
         None => String::from("mpm-shadow rebuilt the toolchain links"),
     };
     let finding: Finding = finding_from(Tool::Toolchain, run, detail.as_str(), MANUAL_COMMAND);
-    let remaining: usize = stale_launch_records(work.destination.as_path()).len();
-    if matches!(finding.outcome, Outcome::Repaired { .. }) && remaining > 0 {
-        return Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason: format!("{remaining} launcher records still name another lock file"), run_instead: String::from(MANUAL_COMMAND) } });
+    if !matches!(finding.outcome, Outcome::Repaired { .. }) {
+        return Some(finding);
     }
-    return Some(finding);
+    let reason: Option<String> = match remaining {
+        Ok(0) => None,
+        Ok(left) => Some(format!("{left} launcher records still name another lock file")),
+        Err(refusal) => Some(format!("the launcher records could not be read again ({refusal})")),
+    };
+    return match reason {
+        None => Some(finding),
+        Some(reason) => Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason, run_instead: String::from(MANUAL_COMMAND) } }),
+    };
 }
 
 /// What:
@@ -303,7 +391,7 @@ fn install_finding(work: &Install, run: &ToolRun) -> Option<Finding> {
 /// function repairToolchain(destination: string, environment: RepairEnvironment): Finding | undefined;
 /// ```
 pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
-    return match prepare_install(destination, environment) {
+    return match prepare_install_on_a_caller_thread(destination, environment) {
         ToolchainRepair::NothingToDo => None,
         ToolchainRepair::NoProgram(finding) => Some(finding),
         ToolchainRepair::Install(work) => {
@@ -313,7 +401,7 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
                 // No install was made, and the runtime's own reason is what the person is told.
                 Err(refusal) => run_refused(work.program.as_path(), started, &refusal),
             };
-            install_finding(&work, &run)
+            install_finding(&work, &run, Ok(stale_launch_records(work.destination.as_path()).len()))
         }
     };
 }
@@ -321,25 +409,34 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
 /// What:
 ///  `repair_toolchain` on the runtime:
 /// the install is awaited,
-/// never blocked on.
+/// never blocked on,
+/// and every read of the launcher records is a job of the pool.
 /// Why:
 ///  A caller that is itself a task of the runtime cannot enter it
 /// (`RuntimeError::Nested`),
 /// so it awaits this face;
 /// the finding is the synchronous face's.
+/// Nothing of this face's work runs on the task that polls it,
+/// so the pnpm and Cargo repairs beside it keep their deadlines
+/// whatever the worktree holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function repairToolchainAwaiting(destination: string, environment: RepairEnvironment): Promise<Finding | undefined>;
 /// ```
 pub async fn repair_toolchain_awaiting(destination: &Path, environment: &RepairEnvironment) -> Option<Finding> {
-    return match prepare_install(destination, environment) {
-        ToolchainRepair::NothingToDo => None,
-        ToolchainRepair::NoProgram(finding) => Some(finding),
-        ToolchainRepair::Install(work) => {
+    return match prepare_install_within_the_budget(destination, environment).await {
+        Ok(ToolchainRepair::NothingToDo) => None,
+        Ok(ToolchainRepair::NoProgram(finding)) => Some(finding),
+        Ok(ToolchainRepair::Install(work)) => {
             let run: ToolRun = install_awaiting(&work).await;
-            install_finding(&work, &run)
+            install_finding(&work, &run, count_stale_within_the_budget(work.destination.as_path()).await)
         }
+        // The records were not read, so nothing about the launchers is known; the person is told the reason.
+        Err(refusal) => Some(Finding {
+            tool: Tool::Toolchain,
+            outcome: Outcome::Failed { reason: format!("the launcher records of the worktree could not be read ({refusal})"), run_instead: String::from(MANUAL_COMMAND) },
+        }),
     };
 }
 
