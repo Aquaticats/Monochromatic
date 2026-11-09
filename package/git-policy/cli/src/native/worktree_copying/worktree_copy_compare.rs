@@ -19,7 +19,7 @@ use crate::worktree_copy_manifest::{
     EntryKind, FileStamp, WorktreeCopyEntry, collect_entry_manifest, collect_pruned_manifest, retained_mode, stamp_of,
 };
 use crate::worktree_copy_prune::Prune;
-use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use crate::json_record::quote;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
@@ -179,8 +179,8 @@ pub fn entry_matches_stamped(
     entry: &WorktreeCopyEntry,
     stamp: Option<&FileStamp>,
 ) -> Result<bool, WorktreeCopyError> {
-    let expected_path: PathBuf = filesystem_path(expected_root, entry.relative_path.as_str())?;
-    let actual_path: PathBuf = filesystem_path(actual_root, entry.relative_path.as_str())?;
+    let expected_path: PathBuf = filesystem_path(expected_root, entry.relative_path.as_slice())?;
+    let actual_path: PathBuf = filesystem_path(actual_root, entry.relative_path.as_slice())?;
     let Some(actual) = lstat_or_absent(actual_path.as_path())? else {
         return Ok(false);
     };
@@ -224,10 +224,16 @@ pub fn entry_matches_stamped(
 /// walkSourcePruned([sourceRoot, selectedRoots, excludedSourceRoots, prune]) // collectPrunedManifest with a discarded unreadable list
 /// ```
 fn walk_source_pruned(
-    (source_root, selected_roots, excluded_source_roots, prune): (PathBuf, Vec<String>, Vec<PathBuf>, Prune),
+    (source_root, selected_roots, excluded_source_roots, prune): (PathBuf, Vec<Vec<u8>>, Vec<PathBuf>, Prune),
 ) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
-    let mut unreadable: Vec<String> = Vec::new();
-    return collect_pruned_manifest(source_root.as_path(), selected_roots.as_slice(), excluded_source_roots.as_slice(), prune, &mut unreadable);
+    let mut unreadable: Vec<Vec<u8>> = Vec::new();
+    return collect_pruned_manifest(
+        source_root.as_path(),
+        selected_roots.as_slice(),
+        excluded_source_roots.as_slice(),
+        prune,
+        &mut unreadable,
+    );
 }
 
 /// What:
@@ -244,7 +250,9 @@ fn walk_source_pruned(
 /// ```ts
 /// walkStage([stageRoot, selectedRoots]) // collectEntryManifest(stageRoot, selectedRoots, [])
 /// ```
-fn walk_stage((stage_root, selected_roots): (PathBuf, Vec<String>)) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
+fn walk_stage(
+    (stage_root, selected_roots): (PathBuf, Vec<Vec<u8>>),
+) -> Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> {
     return collect_entry_manifest(stage_root.as_path(), selected_roots.as_slice(), &[]);
 }
 
@@ -262,7 +270,7 @@ fn walk_stage((stage_root, selected_roots): (PathBuf, Vec<String>)) -> Result<Ve
 pub fn assert_final_source_equivalence(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
 ) -> Result<(), WorktreeCopyError> {
@@ -309,7 +317,7 @@ pub struct FinalCheck<'a> {
 pub fn assert_final_source_equivalence_pruned(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
@@ -352,7 +360,7 @@ pub fn assert_final_source_equivalence_pruned(
 async fn assert_final_source_equivalence_pruned_awaiting(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
@@ -367,7 +375,7 @@ async fn assert_final_source_equivalence_pruned_awaiting(
     if let Some(first) = differences.changed.first() {
         let message: String = format!(
             "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
-            quote(first.as_str())
+            quote(shown_repository_path(first.as_slice()).as_str())
         );
         return Err(failure_with_cause(message.as_str(), None));
     }
@@ -391,17 +399,20 @@ async fn assert_final_source_equivalence_pruned_awaiting(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Differences = { gone: string[]; changed: string[]; appeared: string[] };
+/// type Differences = { gone: Uint8Array[]; changed: Uint8Array[]; appeared: Uint8Array[] };
 /// ```
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct Differences {
-    /// Manifest entries the source no longer holds.
-    pub gone: Vec<String>,
-    /// Manifest entries whose shape or bytes the source and the stage disagree about.
-    pub changed: Vec<String>,
+    /// Manifest entries the source no longer holds,
+    /// as the bytes of each name.
+    pub gone: Vec<Vec<u8>>,
+    /// Manifest entries whose shape or bytes the source and the stage disagree about,
+    /// as the bytes of each name.
+    pub changed: Vec<Vec<u8>>,
     /// Source paths the listing did not name,
-    /// which appeared while the copy ran.
-    pub appeared: Vec<String>,
+    /// which appeared while the copy ran,
+    /// as the bytes of each name.
+    pub appeared: Vec<Vec<u8>>,
 }
 
 /// What:
@@ -420,7 +431,7 @@ pub struct Differences {
 pub async fn differences_from_the_source(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
@@ -439,19 +450,19 @@ pub async fn differences_from_the_source(
     };
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
-    let mut by_source: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    let mut by_source: BTreeMap<&[u8], &WorktreeCopyEntry> = BTreeMap::new();
     for entry in &final_source {
-        by_source.insert(entry.relative_path.as_str(), entry);
+        by_source.insert(entry.relative_path.as_slice(), entry);
     }
-    let mut by_stage: BTreeMap<&str, &WorktreeCopyEntry> = BTreeMap::new();
+    let mut by_stage: BTreeMap<&[u8], &WorktreeCopyEntry> = BTreeMap::new();
     for entry in &final_stage {
-        by_stage.insert(entry.relative_path.as_str(), entry);
+        by_stage.insert(entry.relative_path.as_slice(), entry);
     }
     let mut differences: Differences = Differences::default();
     for (index, staged) in staged_entries.iter().enumerate() {
-        let path: &str = staged.relative_path.as_str();
+        let path: &[u8] = staged.relative_path.as_slice();
         let Some(source_entry) = by_source.get(path) else {
-            differences.gone.push(String::from(path));
+            differences.gone.push(path.to_vec());
             continue;
         };
         let same_shape: bool = match by_stage.get(path) {
@@ -467,16 +478,16 @@ pub async fn differences_from_the_source(
         let stamp: Option<&FileStamp> = check.stamps.get(index).and_then(Option::as_ref);
         // The content check runs last so the cheap shape checks fail fast without reading large files.
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
-            differences.changed.push(String::from(path));
+            differences.changed.push(path.to_vec());
         }
     }
-    let mut staged_paths: BTreeSet<&str> = BTreeSet::new();
+    let mut staged_paths: BTreeSet<&[u8]> = BTreeSet::new();
     for entry in staged_entries {
-        staged_paths.insert(entry.relative_path.as_str());
+        staged_paths.insert(entry.relative_path.as_slice());
     }
     for path in by_source.keys() {
         if !staged_paths.contains(path) {
-            differences.appeared.push(String::from(*path));
+            differences.appeared.push((*path).to_vec());
         }
     }
     return Ok(differences);
@@ -501,7 +512,7 @@ pub async fn differences_from_the_source(
 pub fn differences_from_the_source_sync(
     source_root: &Path,
     stage_root: &Path,
-    selected_roots: &[String],
+    selected_roots: &[Vec<u8>],
     excluded_source_roots: &[PathBuf],
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,

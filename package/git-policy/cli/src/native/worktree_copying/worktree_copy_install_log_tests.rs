@@ -8,11 +8,11 @@ use crate::private_storage::write_private_file;
 use crate::test_support::{fixture, remove};
 
 /// One created-entry record.
-fn created(relative_path: &str, device: u64, inode: u64) -> InstalledPath {
+fn created(relative_path: &[u8], device: u64, inode: u64) -> InstalledPath {
     return InstalledPath {
         device,
         inode,
-        relative_path: String::from(relative_path),
+        relative_path: relative_path.to_vec(),
         selected: true,
     };
 }
@@ -31,11 +31,11 @@ fn appended_records_are_read_back_on_reopen() {
         assert!(opened.recorded.created.is_empty());
         opened
             .log
-            .append_intents(&[String::from("a"), String::from("b")])
+            .append_intents(&[b"a".to_vec(), b"b".to_vec()])
             .expect("intents");
         opened
             .log
-            .append_creations(&[created("a", 1, 2)])
+            .append_creations(&[created(b"a", 1, 2)])
             .expect("creations");
         opened
             .log
@@ -50,9 +50,9 @@ fn appended_records_are_read_back_on_reopen() {
     let reopened: OpenedLog = open_install_log(stage.as_path()).expect("reopen");
     assert_eq!(
         reopened.recorded.intended,
-        vec![String::from("a"), String::from("b")]
+        vec![b"a".to_vec(), b"b".to_vec()]
     );
-    assert_eq!(reopened.recorded.created, vec![created("a", 1, 2)]);
+    assert_eq!(reopened.recorded.created, vec![created(b"a", 1, 2)]);
     remove(root.as_path());
 }
 
@@ -90,10 +90,10 @@ fn unfinished_trailing_append_is_truncated() {
     )
     .expect("log");
     let mut opened: OpenedLog = open_install_log(stage.as_path()).expect("reopen");
-    assert_eq!(opened.recorded.intended, vec![String::from("kept")]);
+    assert_eq!(opened.recorded.intended, vec![b"kept".to_vec()]);
     opened
         .log
-        .append_intents(&[String::from("next")])
+        .append_intents(&[b"next".to_vec()])
         .expect("append");
     drop(opened);
     assert_eq!(
@@ -163,5 +163,43 @@ fn a_line_that_is_not_text_fails_closed() {
         )
     );
     assert!(path.exists(), "a log that cannot be read is kept");
+    remove(root.as_path());
+}
+
+/// A batch that holds a name which is not text is written with the bytes of every name,
+/// and read back with those bytes;
+/// a batch of names that are text keeps the line an earlier release wrote and reads.
+#[test]
+fn a_batch_holding_a_name_that_is_not_text_round_trips_through_its_bytes() {
+    let root: PathBuf = fixture("install-log-bytes");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir(stage.as_path()).expect("stage");
+    let awkward: Vec<u8> = b"cache/bad\xff.bin".to_vec();
+    {
+        let mut opened: OpenedLog = open_install_log(stage.as_path()).expect("open");
+        opened
+            .log
+            .append_intents(&[b"cache".to_vec(), awkward.clone()])
+            .expect("intents");
+    }
+    let text: String = std::fs::read_to_string(stage.join(INSTALL_LOG_NAME)).expect("log");
+    assert_eq!(
+        text,
+        "{\"intendedHex\":[\"6361636865\",\"63616368652f626164ff2e62696e\"]}\n",
+        "one name that is not text moves the whole batch to its bytes"
+    );
+    let reopened: OpenedLog = open_install_log(stage.as_path()).expect("reopen");
+    assert_eq!(reopened.recorded.intended, vec![b"cache".to_vec(), awkward]);
+    // A log the release before the bytes form wrote holds text only and is read as it is.
+    let earlier: PathBuf = root.join("earlier");
+    std::fs::create_dir(earlier.as_path()).expect("earlier stage");
+    write_private_file(
+        earlier.join(INSTALL_LOG_NAME).as_path(),
+        b"{\"intended\":[\"cache\"]}\n{\"created\":[{\"device\":\"1\",\"inode\":\"2\",\"relativePath\":\"cache\",\"selected\":true}]}\n",
+    )
+    .expect("earlier log");
+    let read_back: OpenedLog = open_install_log(earlier.as_path()).expect("earlier log is read");
+    assert_eq!(read_back.recorded.intended, vec![b"cache".to_vec()]);
+    assert_eq!(read_back.recorded.created, vec![created(b"cache", 1, 2)]);
     remove(root.as_path());
 }

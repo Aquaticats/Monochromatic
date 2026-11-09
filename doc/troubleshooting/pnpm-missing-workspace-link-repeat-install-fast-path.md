@@ -11,6 +11,9 @@ A sibling investigation of the same family,
 where a repair install did create a missing link while still printing `Already up to date`,
 is [pnpm-stale-node-modules-detection.md](pnpm-stale-node-modules-detection.md) (pnpm 12.5.1).
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/package.json` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 In this repository on 2026-10-29,

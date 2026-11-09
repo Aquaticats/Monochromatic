@@ -11,6 +11,10 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/trust/` is not in the tree;
+its files were deleted on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 On 2026-09-13,

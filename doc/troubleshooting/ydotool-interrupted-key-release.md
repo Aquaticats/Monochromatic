@@ -1,5 +1,12 @@
 # Interrupted ydotool can leave a virtual key pressed desktop-wide
 
+Note 2026-11-09T16:49:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/src/virtual-input-guard.ts` left the tree on 2026-10-19 in `7ac15b19b4`.
+`package/pi-plugin/auto-mode/src/index-bypass.unit.test.ts` left the tree on 2026-10-17 in `a3955898f1`.
+`package/pi-plugin/auto-mode/src/virtual-input-guard.unit.test.ts` left the tree on 2026-10-19 in
+`7ac15b19b4`.
+
 ## Symptom
 
 Escape stopped working in unrelated applications on a KDE Wayland session.

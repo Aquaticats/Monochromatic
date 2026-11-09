@@ -15,6 +15,10 @@ This record keeps the names of its time.
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/trust/` is not in the tree;
+its files were deleted on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 `git cli-git trust --yes` fails while bundling a repository-root
