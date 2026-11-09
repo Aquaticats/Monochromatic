@@ -5727,6 +5727,15 @@ The record goes when the index update is installed,
 and with a batch that recovery drops,
 because a batch that never landed owes nothing.
 
+An intent is written as a temporary file that is flushed,
+renamed into place,
+and followed by a flush of the journal's directory,
+so a process killed between any two of those steps leaves either no intent or a whole one.
+What makes an intent unreadable is therefore not a kill:
+it is a release whose format this build does not read,
+a write whose tail a file system lost after the flush that promised it,
+or a person's edit.
+
 Recovery never removes an open intent it cannot read.
 It names it once per pass,
 with its batch number and its path,

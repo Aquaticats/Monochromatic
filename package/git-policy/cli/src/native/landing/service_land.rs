@@ -27,7 +27,7 @@
 use std::path::PathBuf;
 pub use crate::service_land_context::LandContext;
 use crate::service_land_take_index_lock::take_index_lock;
-use crate::service_land_git_steps_and_import_stream::{checked, ids_of, keep_unlanded, requests_that_land, run, take_ceiling_step};
+use crate::service_land_git_steps_and_import_stream::{checked, ids_of, requests_that_land, run};
 use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, history_is_plain, read_commit};
@@ -157,17 +157,8 @@ pub fn land_batch_timed(
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
     //  built one, is kept on a side ref. No open intent finishes a batch whose branch has not moved, so nothing lands later.
-    if result == Err(FailureCode::StepTooSlow)
-        && let Some(step) = take_ceiling_step()
-        && let Some(first) = requests.first()
-    {
-        announce.announce(Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
-        let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
-        let scratch: String = scratch_ref(seq);
-        if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
-            announce.announce(Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
-            let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
-        }
+    if result == Err(FailureCode::StepTooSlow) {
+        crate::service_land_git_steps_and_import_stream::keep_what_an_ended_step_built(context, announce, requests, seq);
     }
     // A landing that ends before its intent is in the journal leaves its batch's objects on the scratch branch, and no restart
     //  can land them: only an intent lets a restart decide the batch from the branch, so a failed landing keeps the commit and

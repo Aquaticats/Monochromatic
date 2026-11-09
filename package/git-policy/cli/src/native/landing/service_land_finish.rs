@@ -584,7 +584,7 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, owner: Journa
             //  the commit's own paths against the index (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
             //  finding 1). It is kept and named instead, and what it owed is settled from its own record in the worktree
             //  (`owed_index_update.rs`) or by the person.
-            let named: String = path.file_stem().map(|stem| { return stem.to_string_lossy().into_owned(); }).unwrap_or_default();
+            let named: String = crate::owed_index_update::batch_number_of_path(path.as_path());
             crate::service_error!(
                 "batch {named}: its open record {} cannot be read, so it is kept and nothing of it is settled; its owed index update is \
 settled from the worktree's own record of it, and the file may be removed once that record is gone",

@@ -307,3 +307,31 @@ pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, reques
     }
     return Ok(landing);
 }
+
+/// What:
+///  Tells the clients of a batch which step was ended at its ceiling,
+/// and keeps the commit the batch built on a side ref
+///  before the landing gives its scratch branch up.
+/// Why:
+///   A landing that ends at a ceiling lands nothing,
+/// so the commit its import built is on the scratch branch
+///  and no intent will finish it;
+/// the marker names why the commit was not made,
+/// and the message names the ref the commit is kept
+///  at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepWhatAnEndedStepBuilt(context, announce, requests, seq)
+/// ```
+pub fn keep_what_an_ended_step_built(context: &crate::service_land_context::LandContext, announce: &dyn crate::service_index_lock::Announcer, requests: &[CommitRequest], seq: u64) {
+    let Some(step) = take_ceiling_step() else { return };
+    let Some(first) = requests.first() else { return };
+    announce.announce(crate::service_index_lock::Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
+    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(seq);
+    if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
+        announce.announce(crate::service_index_lock::Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
+        let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
+    }
+}

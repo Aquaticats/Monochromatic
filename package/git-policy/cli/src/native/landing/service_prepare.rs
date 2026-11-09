@@ -147,15 +147,8 @@ pub fn prepare<F: RepositoryFacts>(
         //  it added, as a staged deletion. The entries the landing left are set to the landed commit here, before anything is copied
         //  from the index, and only those: an entry a program staged since holds something else and is left alone
         //  (`owed_index_update.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`, findings 1 and 2).
-        let restated: Vec<String> = restate_what_a_landed_commit_left(context, &capture);
-        if !restated.is_empty() {
-            let mut notices = std::io::stderr();
-            let _written = writeln!(
-                notices,
-                "monochromatic-git-policy-cli: a commit that landed did not finish updating this worktree's index, so the entries of {} \
-were set to that commit for this one: the commit this makes does not record them against it",
-                restated.join(", ")
-            );
+        if let Some(notice) = crate::owed_index_update::restated_notice(restate_what_a_landed_commit_left(context, &capture).as_slice()) {
+            let _written = std::io::stderr().write_all(notice.as_bytes());
         }
     }
     if named && retry.is_none() {
@@ -361,54 +354,8 @@ were set to that commit for this one: the commit this makes does not record them
     return Ok(Prepared::Ready(ready));
 }
 
-/// What:
-///  Sets the index entries a landed commit left in this worktree to that commit,
-/// and gives the paths it set.
-/// Why:
-///   A commit that landed but did not finish its index update leaves the index describing the branch before it,
-/// so a plain
-///  commit of that index records the landed commit's own paths as their old content,
-/// and a path it added as a staged
-///  deletion.
-/// Only the entries that still hold what the landed batch started from are set: an entry a program staged
-///  since holds something else and is left,
-/// with the pieces of its obligation forgotten.
-/// Nothing here can fail a commit:
-/// a repair
-///  that cannot be made is said,
-/// the record stays,
-/// and the next commit tries it again.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const restated = restateWhatALandedCommitLeft(capture); // the paths set
-/// ```
+/// The entries a landed commit left in this worktree's index,
+/// set to that commit (`crate::owed_index_update`).
 fn restate_what_a_landed_commit_left(context: &GitContext, capture: &InvocationCapture) -> Vec<String> {
-    let git_dir: &Path = capture.layout.git_dir.as_path();
-    let real_index: &Path = capture.layout.real_index_path.as_path();
-    let mut restated: Vec<String> = Vec::new();
-    for owed in crate::owed_index_update::records_of(git_dir) {
-        // A batch of another index file (`GIT_INDEX_FILE`) is not this commit's to settle.
-        if owed.index != real_index {
-            continue;
-        }
-        match crate::owed_index_update::settle_leftovers(context, &owed, real_index) {
-            Ok(set) => {
-                for path in set {
-                    restated.push(crate::path_bytes::path_message_text(path.as_slice()));
-                }
-                crate::owed_index_update::remove(git_dir, owed.seq);
-            }
-            Err(code) => crate::diagnostic_log::warn(
-                "servicePrepare",
-                format!(
-                    "the index update batch {} still owes in {} could not be made ({code:?}), so this commit records none of it and the record stays",
-                    owed.seq,
-                    real_index.display()
-                )
-                .as_str(),
-            ),
-        }
-    }
-    return restated;
+    return crate::owed_index_update::restate_leftovers(context, capture.layout.git_dir.as_path(), capture.layout.real_index_path.as_path());
 }

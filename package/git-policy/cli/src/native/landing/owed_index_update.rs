@@ -32,12 +32,10 @@
 //! ```
 
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+pub use crate::owed_index_repair::{leftovers, restate_leftovers, restated_notice, settle_leftovers};
 use crate::service_journal::Intent;
-use crate::service_protocol::FailureCode;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::work_item::WORK_DIRECTORY;
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The record format version.
@@ -147,14 +145,13 @@ fn decode(text: &str) -> Result<Owed, String> {
     if value.get("v").and_then(Value::as_u64) != Some(OWED_VERSION) {
         return Err(String::from("the record has an unsupported version"));
     }
-    let text_of = |key: &str| -> Option<String> { return value.get(key).and_then(Value::as_str).map(str::to_string); };
     let Some(seq) = value.get("seq").and_then(Value::as_u64) else {
         return Err(String::from("the record names no batch"));
     };
-    let Some(new) = text_of("new") else {
+    let Some(new) = field_text(&value, "new") else {
         return Err(String::from("the record names no landed commit"));
     };
-    let Some(index) = text_of("index") else {
+    let Some(index) = field_text(&value, "index") else {
         return Err(String::from("the record names no index file"));
     };
     let mut paths: Vec<String> = Vec::new();
@@ -166,11 +163,11 @@ fn decode(text: &str) -> Result<Owed, String> {
     }
     return Ok(Owed {
         seq,
-        repository: PathBuf::from(text_of("repository").unwrap_or_default()),
-        git_dir: PathBuf::from(text_of("gitDir").unwrap_or_default()),
+        repository: PathBuf::from(field_text(&value, "repository").unwrap_or_default()),
+        git_dir: PathBuf::from(field_text(&value, "gitDir").unwrap_or_default()),
         index: PathBuf::from(index),
-        reference: text_of("ref").unwrap_or_default(),
-        old: text_of("old").unwrap_or_default(),
+        reference: field_text(&value, "ref").unwrap_or_default(),
+        old: field_text(&value, "old").unwrap_or_default(),
         new,
         paths,
         derived: value.get("derived").and_then(Value::as_bool).unwrap_or(false),
@@ -205,7 +202,11 @@ pub fn write(owed: &Owed) -> Option<PathBuf> {
     // A replay writes what the first landing wrote, and a batch built again under its own number replaces the commit it names: an
     //  identical record is left as it is and anything else goes before the new one is published.
     let text: String = encode(owed);
-    if std::fs::read_to_string(path.as_path()).is_ok_and(|existing| { return existing == text; }) {
+    let unchanged: bool = match std::fs::read_to_string(path.as_path()) {
+        Ok(existing) => existing == text,
+        Err(_) => false,
+    };
+    if unchanged {
         return Some(path);
     }
     let _gone: std::io::Result<()> = std::fs::remove_file(path.as_path());
@@ -247,181 +248,47 @@ pub fn records_of(git_dir: &Path) -> Vec<Owed> {
         if path.extension().and_then(std::ffi::OsStr::to_str) != Some(OWED_EXTENSION) {
             continue;
         }
-        match std::fs::read_to_string(path.as_path()).map(|text| { return decode(text.as_str()); }) {
+        match std::fs::read_to_string(path.as_path()).map(decode_text) {
             Ok(Ok(owed)) => found.push(owed),
             Ok(Err(reason)) => crate::service_error!("the record of an owed index update at {} holds none and is kept: {reason}", path.display()),
             Err(error) => crate::service_error!("the record of an owed index update at {} cannot be read ({error}) and is kept", path.display()),
         }
     }
-    found.sort_by_key(|owed| { return owed.seq; });
+    found.sort_by_key(batch_number_of);
     return found;
 }
 
-/// One entry of a tree or an index:
-/// its mode and its object.
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct Entry {
-    mode: String,
-    object: String,
-}
-
 /// What:
-///  The entries a tree holds at `names`,
-/// each as the mode and object a comparison with an index needs.
+///  The text of one field of a record,
+/// nothing when it holds no text there.
 /// Why:
-///   A repair resets a path only while the index still holds what the batch started from,
-/// and that is this value.
+///  `decode` reads most of its fields by name through this.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// treeEntries(tree, names) // `ls-tree -z --full-tree <tree> -- :(top,literal)<name>...`
+/// const fieldText = (record, key) => typeof record[key] === 'string' ? record[key] : undefined;
 /// ```
-fn tree_entries(git: &GitContext, repository: &Path, tree: &str, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let specs: Vec<std::ffi::OsString> = names.iter().map(|name| { return literal_spec(name); }).collect();
-    let mut arguments: Vec<&std::ffi::OsStr> = vec![std::ffi::OsStr::new("ls-tree"), std::ffi::OsStr::new("-z"), std::ffi::OsStr::new("--full-tree"), std::ffi::OsStr::new(tree), std::ffi::OsStr::new("--")];
-    arguments.extend(specs.iter().map(std::ffi::OsString::as_os_str));
-    let output = run(git, repository, arguments.as_slice(), None)?;
-    return Ok(entries_of(output.stdout.as_slice(), TabShape::Tree));
+fn field_text(value: &Value, key: &str) -> Option<String> {
+    return value.get(key).and_then(Value::as_str).map(str::to_string);
 }
 
-/// The path the record's paths become,
-/// which is where the repair is told which entries to look at.
-fn literal_spec(name: &[u8]) -> std::ffi::OsString {
-    let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-    spec.extend_from_slice(name);
-    return <std::ffi::OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec);
+/// What a record's file holds,
+/// decoded.
+fn decode_text(text: String) -> Result<Owed, String> {
+    return decode(text.as_str());
 }
 
-/// Which of the two listings a line belongs to.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum TabShape {
-    /// `<mode> SP <type> SP <object> TAB <path>`,
-    /// as `ls-tree -z` writes it.
-    Tree,
-    /// `<mode> SP <object> SP <stage> TAB <path>`,
-    /// as `ls-files -s -z` writes it;
-    /// a stage other than zero is an unmerged entry,
-    /// which is the person's own.
-    Index,
+/// The batch number a record is kept under,
+/// which orders the records of one worktree.
+fn batch_number_of(owed: &Owed) -> u64 {
+    return owed.seq;
 }
 
-/// The entries a NUL-terminated listing holds,
-/// split at its words and its tab.
-fn entries_of(listing: &[u8], shape: TabShape) -> BTreeMap<Vec<u8>, Entry> {
-    let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
-    for record in listing.split(|byte| { return *byte == 0; }) {
-        if record.is_empty() {
-            continue;
-        }
-        let Some(tab) = record.iter().position(|byte| { return *byte == b'\t'; }) else {
-            continue;
-        };
-        let words: Vec<&[u8]> = record[..tab].split(|byte| { return *byte == b' '; }).collect();
-        let name: Vec<u8> = record[tab + 1..].to_vec();
-        // An unmerged path is not the landing's leftover, whatever else the index holds for it.
-        if shape == TabShape::Index && words.last().is_some_and(|stage| { return *stage != b"0"; }) {
-            let _dropped = found.remove(name.as_slice());
-            continue;
-        }
-        // A tree line is `<mode> <type> <object>` and an index line is `<mode> <object> <stage>`.
-        let object: usize = if shape == TabShape::Tree { 2 } else { 1 };
-        found.insert(name, Entry { mode: String::from_utf8_lossy(words.first().copied().unwrap_or_default()).into_owned(), object: String::from_utf8_lossy(words.get(object).copied().unwrap_or_default()).into_owned() });
-    }
-    return found;
-}
-
-/// The entries one index file holds at `names`.
-fn index_entries(git: &GitContext, repository: &Path, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let specs: Vec<std::ffi::OsString> = names.iter().map(|name| { return literal_spec(name); }).collect();
-    let mut arguments: Vec<&std::ffi::OsStr> = vec![std::ffi::OsStr::new("ls-files"), std::ffi::OsStr::new("-s"), std::ffi::OsStr::new("-z"), std::ffi::OsStr::new("--")];
-    arguments.extend(specs.iter().map(std::ffi::OsString::as_os_str));
-    let mut request: GitRequest = GitRequest::new(repository, &arguments);
-    request.index = Some(index.to_path_buf());
-    let output = match run_git(git, &request) {
-        Ok(answer) if answer.succeeded() => answer,
-        _ => return Err(FailureCode::Unavailable),
-    };
-    return Ok(entries_of(output.stdout.as_slice(), TabShape::Index));
-}
-
-/// The paths a record's update covers,
-/// derived from the two branch values when the batch names none.
-fn names_of(git: &GitContext, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> {
-    if !owed.derived {
-        return Ok(owed.paths.iter().map(|path| { return path.clone().into_bytes(); }).collect());
-    }
-    let names: Vec<Vec<u8>> = crate::service_land_follow::derived_names(git, owed.repository.as_path(), owed.old.as_str(), owed.new.as_str())?
-        .split(|byte| { return *byte == 0; })
-        .filter(|name| { return !name.is_empty(); })
-        .map(<[u8]>::to_vec)
-        .collect();
-    return Ok(names);
-}
-
-/// What:
-///  The paths of a record whose entries in `index` still hold what the batch started from,
-/// which are the entries the landing left.
-/// Why:
-///   Only those may be reset:
-/// a path the person staged since the landing holds something else,
-/// and resetting it
-///  would discard their staging.
-/// A path whose old entry does not exist is the batch's own addition,
-/// and an index with no entry
-///  there matches it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// leftovers(owed, index)
-/// ```
-pub fn leftovers(git: &GitContext, owed: &Owed, index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let names: Vec<Vec<u8>> = names_of(git, owed)?;
-    if names.is_empty() {
-        return Ok(names);
-    }
-    let started: BTreeMap<Vec<u8>, Entry> = tree_entries(git, owed.repository.as_path(), owed.old.as_str(), names.as_slice())?;
-    let current: BTreeMap<Vec<u8>, Entry> = index_entries(git, owed.repository.as_path(), index, names.as_slice())?;
-    let mut left: Vec<Vec<u8>> = Vec::new();
-    for name in names {
-        if current.get(name.as_slice()) == started.get(name.as_slice()) {
-            left.push(name);
-        }
-    }
-    return Ok(left);
-}
-
-/// What:
-///  Settles one owed record for one index:
-/// the entries the landing left are reset to the commit the batch landed,
-/// and the ones a program staged since are left,
-/// with the ones reset given back.
-/// Why:
-///   The reset is the landing's own idempotent step (`service_land_follow.rs`),
-/// made here through Git's own lock,
-/// so a concurrent
-///  staging of a path whose entry is not the landing's is never a candidate,
-/// and a concurrent staging of one that is ends
-///  in the one thing Git's own `reset` does with a lock.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const reset = await settleLeftovers(owed, realIndex); // the paths this settled
-/// ```
-pub fn settle_leftovers(git: &GitContext, owed: &Owed, index: &Path) -> Result<Vec<Vec<u8>>, FailureCode> {
-    let left: Vec<Vec<u8>> = leftovers(git, owed, index)?;
-    if !left.is_empty() {
-        crate::service_land_follow::reset_entries(git, owed.repository.as_path(), Some(index), owed.new.as_str(), left.as_slice())?;
-    }
-    return Ok(left);
-}
-
-/// Runs one Git step,
-/// naming no answer as a failure the caller can classify.
-fn run(git: &GitContext, repository: &Path, arguments: &[&std::ffi::OsStr], input: Option<Vec<u8>>) -> Result<crate::transaction_git::GitOutput, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, arguments);
-    request.input = input;
-    return match run_git(git, &request) {
-        Ok(output) if output.succeeded() => Ok(output),
-        _ => Err(FailureCode::Unavailable),
+/// The batch number a journal file names,
+/// read from its own name.
+pub fn batch_number_of_path(path: &Path) -> String {
+    return match path.file_stem() {
+        Some(stem) => stem.to_string_lossy().into_owned(),
+        None => String::new(),
     };
 }

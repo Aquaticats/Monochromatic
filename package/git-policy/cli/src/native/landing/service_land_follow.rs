@@ -371,17 +371,24 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
 pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cleanup, surviving: Option<&Path>) -> bool {
     // The scratch directory is the client's, and the service removes it when that client is gone; the copy the landing kept in its
     //  journal is what the comparison reads then, and without either nothing can be compared, so nothing is removed.
-    let Some(compared) = surviving.filter(|kept| { return !cleanup.scratch.exists() && kept.exists(); }).or_else(|| { return cleanup.scratch.exists().then_some(cleanup.scratch.as_path()); }) else {
-        warn(
-            "serviceLandFollow",
-            format!(
-                "the conclusion state of {} was left as it is: the directory it was compared against, {}, is gone and no copy of it was kept",
-                cleanup.git_dir.display(),
-                cleanup.scratch.display()
-            )
-            .as_str(),
-        );
-        return false;
+    let compared: &Path = if cleanup.scratch.exists() {
+        cleanup.scratch.as_path()
+    } else {
+        match surviving {
+            Some(kept) if kept.exists() => kept,
+            _ => {
+                warn(
+                    "serviceLandFollow",
+                    format!(
+                        "the conclusion state of {} was left as it is: the directory it was compared against, {}, is gone and no copy of it was kept",
+                        cleanup.git_dir.display(),
+                        cleanup.scratch.display()
+                    )
+                    .as_str(),
+                );
+                return false;
+            }
+        }
     };
     let format: RefFormat = if cleanup.reftable { RefFormat::Reftable } else { RefFormat::Files };
     let shadow: std::path::PathBuf = compared.join("shadow");
