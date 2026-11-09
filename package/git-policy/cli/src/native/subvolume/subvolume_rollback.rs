@@ -184,6 +184,29 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
     });
 }
 
+/// What:
+///  The directory that the rollback deletes as the stage.
+/// Why:
+///   An exchange that began and did not finish leaves the checkout holding the subvolume this migration made and the
+///  stage's name holding the original directory;
+/// the rollback renames the original aside,
+/// swaps the trees back and deletes
+///  the subvolume from the checkout's place,
+/// so the object it will delete is the one the checkout holds now.
+/// Every other state deletes what stands at the stage's name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deleted = stageThatTheRollbackDeletes(run);
+/// ```
+fn stage_that_the_rollback_deletes(run: &Run<'_>) -> PathBuf {
+    let root: PathBuf = run.layout.root.clone();
+    if run.journal.has_begun("exchange") && !run.journal.is_done("exchange") && run.platform.is_subvolume_root(root.as_path()).unwrap_or(false) {
+        return root;
+    }
+    return run.layout.new_path.clone();
+}
+
 /// The refusal of a stage that is not a subvolume:
 /// the rollback deletes only the subvolume the migration created.
 /// Why:
@@ -198,15 +221,15 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
 /// const refusal = stageIsNotASubvolume(run);
 /// ```
 fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
-    let new_path: &Path = run.layout.new_path.as_path();
-    if !new_path.exists() {
+    let stage: PathBuf = stage_that_the_rollback_deletes(run);
+    if !stage.exists() {
         return None;
     }
-    if !run.platform.is_subvolume_root(new_path).unwrap_or(false) {
+    if !run.platform.is_subvolume_root(stage.as_path()).unwrap_or(false) {
         return Some(Refusal {
             cause: format!(
                 "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
-                new_path.display()
+                stage.display()
             ),
             remedy: String::from(
                 "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
@@ -220,14 +243,14 @@ fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
         return Some(Refusal {
             cause: format!(
                 "the journal records no identity for the subvolume this migration made, so {} cannot be shown to be the one this rollback deletes; nothing was deleted",
-                new_path.display()
+                stage.display()
             ),
             remedy: String::from(
                 "If the subvolume is the migration's own stage, delete it yourself and run the command again; if it is yours, move it away and delete the journal, or run `--remove-old` after a finished migration.",
             ),
         });
     };
-    let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(new_path);
+    let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(stage.as_path());
     if let Some(identity) = found
         && crate::worktree_convert_journal::is_recorded_object(&recorded, &identity)
     {
@@ -236,7 +259,7 @@ fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
     return Some(Refusal {
         cause: format!(
             "{} is not the subvolume the migration created (the journal records another identity), and this rollback deletes only that one; nothing was deleted",
-            new_path.display()
+            stage.display()
         ),
         remedy: String::from(
             "If the subvolume is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
