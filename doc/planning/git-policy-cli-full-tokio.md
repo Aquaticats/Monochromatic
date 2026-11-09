@@ -6891,7 +6891,9 @@ The wording of a refusal:
 - Two rules the repair keeps:
   `run_a_job_or_in_turn` runs a refused job's work on the awaiting task,
   because `BlockingJobError::NoThreadToStart` promises the job will not run and changed nothing
-  (`foundation/blocking_jobs_within_the_budget.rs`);
+  (`foundation/blocking_jobs_within_the_budget.rs`),
+  and holds a place of the process's bound across that work
+  (the first review round, below);
   `call_catching_panics_awaiting` turns a panic of one item's awaited work into that item's error,
   because a task that panics ends the run
   (`foundation/call_catching_panics_awaiting.rs`).
