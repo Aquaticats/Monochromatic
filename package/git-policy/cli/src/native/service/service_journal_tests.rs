@@ -162,6 +162,41 @@ fn damaged_text_is_no_intent() {
     assert_eq!(parse_intent(&text[..text.len() / 3]), None);
 }
 
+/// What:
+///  An intent whose field of bytes is damaged is no intent,
+///  and never one that names another index.
+/// Why:
+///   The plain line beside it is an earlier release's spelling of the same path,
+/// so reading a damaged field of bytes as an absent one moves recovery to the ordinary index,
+/// which is not where the batch was prepared;
+/// a record that cannot be read is refused instead.
+#[test]
+fn a_damaged_field_of_bytes_is_no_intent_and_never_another_index() {
+    let sent: Intent = intent(11);
+    let text: String = intent_text(&sent);
+    let hexadecimal: String = crate::path_bytes_in_records::hex_of_path(sent.index.as_path());
+    let damaged: String = text.replace(format!("indexHex={hexadecimal}").as_str(), format!("indexHex={}", &hexadecimal[1..]).as_str());
+    assert!(damaged.contains("index=/work/repo/.git/index"), "the plain line is intact: {damaged}");
+    assert_eq!(parse_intent(damaged.as_str()), None, "one digit missing makes the bytes field damaged, and the intent is no intent");
+}
+
+/// What:
+///  A damaged cleanup is no intent either.
+/// Why:
+///   A cleanup that reads as absent is work the landing never does,
+/// so the scratch reference and the conclusion state of a commit Git built would stay behind;
+/// damage is refused rather than read as the older form.
+#[test]
+fn a_damaged_cleanup_is_no_intent() {
+    let mut sent: Intent = intent(12);
+    sent.cleanup = Some(Cleanup { git_dir: PathBuf::from("/work/repo/.git"), scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-service-x"), reftable: false });
+    let text: String = intent_text(&sent);
+    let hexadecimal: String = crate::path_bytes_in_records::hex_of_path(sent.cleanup.as_ref().expect("a cleanup").git_dir.as_path());
+    let damaged: String = text.replace(format!("cleanupHex={hexadecimal}").as_str(), format!("cleanupHex={}", &hexadecimal[1..]).as_str());
+    assert!(damaged.contains("cleanup=/work/repo/.git\t"), "the plain line is intact: {damaged}");
+    assert_eq!(parse_intent(damaged.as_str()), None);
+}
+
 /// The restart decision follows the branch:
 /// unmoved drops,
 /// at the new value or past it finishes,

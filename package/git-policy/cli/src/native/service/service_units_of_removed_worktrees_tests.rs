@@ -152,6 +152,27 @@ fn the_note_of_a_directory_that_is_not_text_maps_its_instance() {
 }
 
 /// What:
+///  A note an earlier release wrote for a worktree whose Git directory ends with a line break names that worktree.
+/// Why:
+///   That release wrote the text and nothing after it,
+/// so trimming one line break from the note names the sibling directory,
+/// whose text hashes to another instance,
+/// and the units of the removed worktree are never found again.
+#[test]
+fn a_note_of_an_earlier_release_whose_path_ends_with_a_line_break_names_that_worktree() {
+    let machine: Machine = machine("units-note-line-break");
+    let removed: PathBuf = machine.linked("topic\n", false);
+    let sibling: PathBuf = machine.linked("topic", false);
+    std::fs::create_dir_all(sibling.as_path()).expect("the sibling's Git directory");
+    let instance: String = instance_of(removed.as_path());
+    let note: PathBuf = note_path(machine.runtime.as_path(), instance.as_str());
+    std::fs::create_dir_all(note.parent().expect("parent")).expect("the note folder");
+    std::fs::write(note.as_path(), removed.to_string_lossy().as_bytes()).expect("an earlier note");
+    assert_eq!(worktree_of(&machine.folders(), instance.as_str()), UnitWorktree::Known(removed), "the note names the worktree it was written for");
+    remove(machine.root.as_path());
+}
+
+/// What:
 ///  A note written by a release that spelled the directory as plain text is still read.
 /// Why:
 ///   An upgrade must not lose the units it can already name,

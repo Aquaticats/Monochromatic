@@ -64,3 +64,24 @@ fn a_hexadecimal_field_that_is_not_bytes_is_refused() {
     let empty: Map<String, Value> = Map::new();
     assert_eq!(read_field(&Value::Object(empty), "gitDir"), Err(String::from("the record has no gitDir field")));
 }
+
+/// What:
+///  The rule the two fields of a record of lines keep:
+/// absent bytes are the text of an earlier release,
+/// present bytes are the path,
+/// damaged bytes are an error,
+/// and neither is nothing.
+/// Why:
+///   Every line-oriented reader of these records shares it,
+/// so a reader that took damage for absence would act on the path the older form spells instead.
+#[test]
+fn the_two_fields_of_a_record_of_lines_are_read_by_one_rule() {
+    let path: PathBuf = path_that_is_not_text();
+    let bytes: String = hex_of_path(path.as_path());
+    assert_eq!(path_of_the_two_fields(Some(bytes.as_str()), Some("/srv/plain/.git")), Ok(Some(path.clone())), "the bytes win over the plain text");
+    assert_eq!(path_of_the_two_fields(None, Some("/srv/old/.git")), Ok(Some(PathBuf::from("/srv/old/.git"))), "an earlier release holds the text");
+    for damaged in ["2f6", "2f6g", "2f 6"] {
+        assert!(path_of_the_two_fields(Some(damaged), Some("/srv/plain/.git")).is_err(), "{damaged:?} is not a path");
+    }
+    assert_eq!(path_of_the_two_fields(None, None), Ok(None), "a record with neither field names no path");
+}

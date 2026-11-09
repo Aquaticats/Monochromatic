@@ -21,7 +21,7 @@
 //! const text = intentText(intent); const intent2 = parseIntent(text); // undefined when damaged
 //! ```
 
-use crate::path_bytes_in_records::{HEX_SUFFIX, path_of_hex};
+use crate::path_bytes_in_records::HEX_SUFFIX;
 use crate::path_bytes_in_records as path_bytes;
 use crate::repo_read_layout::dot_git_target;
 use crate::service_protocol::Cleanup;
@@ -199,20 +199,20 @@ pub(crate) fn intent_value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
 /// What:
 ///  The path an intent holds under `key`:
 /// the bytes of the line that follows it with `HEX_SUFFIX` when the intent has one,
-/// the plain text otherwise.
+/// the plain text otherwise,
+/// and nothing when it holds neither.
 /// Why:
 ///   A path that is not text survives only in the bytes,
 /// and an intent an earlier release wrote holds only the plain line.
+/// An error is damage: a line of bytes that is there and does not decode is no path,
+/// and a reader that took it for an absent line would name the place the older form names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const intentPath = (text, key) => { const hex = value(text, key + 'Hex'); return hex === undefined ? value(text, key) : pathOfHex(hex); };
+/// const intentPath = (text, key) => pathOfTwoFields(value(text, key + 'Hex'), value(text, key));
 /// ```
-pub(crate) fn intent_path(text: &str, key: &str) -> Option<PathBuf> {
-    if let Some(hexadecimal) = intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()) {
-        return path_of_hex(hexadecimal);
-    }
-    return intent_value(text, key).map(PathBuf::from);
+pub(crate) fn intent_path(text: &str, key: &str) -> Result<Option<PathBuf>, String> {
+    return path_bytes::path_of_the_two_fields(intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()), intent_value(text, key));
 }
 
 /// What:
@@ -243,7 +243,8 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
 /// the scratch directory and the reftable flag,
 /// tab-separated.
 /// Why:
-///  `parse_intent` hands it to `Option::and_then`;
+///  `parse_intent` reads it with `?`,
+/// so a cleanup whose bytes do not decode is no intent;
 /// a field with fewer than three parts is no cleanup.
 ///
 /// In TS you'd write (pseudocode):
@@ -270,21 +271,24 @@ pub(crate) fn parse_cleanup(entry: &str, hexadecimal: bool) -> Option<Cleanup> {
 /// parseIntent(text) // undefined when damaged
 /// ```
 pub fn parse_intent(text: &str) -> Option<Intent> {
-    let repository: PathBuf = intent_path(text, "repository")?;
-    // An intent written before the index was recorded names it as the repository's own.
+    let Some(repository) = intent_path(text, "repository").ok().flatten() else { return None };
+    // An intent written before the index was recorded names it as the repository's own; one whose line of bytes is damaged
+    //  is no intent, because the ordinary index is not where that batch was prepared.
     let index: PathBuf = match intent_path(text, "index") {
-        Some(named) => named,
-        None => repository.join(".git").join("index"),
+        Ok(Some(named)) => named,
+        Ok(None) => repository.join(".git").join("index"),
+        Err(_damaged) => return None,
     };
     // An intent written before the Git directory was recorded names its worktree by the repository it was made for, never
     //  by the directory its index sits in, which `GIT_INDEX_FILE` can put anywhere.
     let worktree_git_dir: PathBuf = match intent_path(text, "gitdir") {
-        Some(named) => named,
-        None => git_dir_of_worktree(repository.as_path()),
+        Ok(Some(named)) => named,
+        Ok(None) => git_dir_of_worktree(repository.as_path()),
+        Err(_damaged) => return None,
     };
     // The line that holds the paths' bytes is the one a reader takes; the plain line is an earlier release's.
     let cleanup: Option<Cleanup> = match intent_value(text, format!("cleanup{HEX_SUFFIX}").as_str()) {
-        Some(hexadecimal) => parse_cleanup(hexadecimal, true),
+        Some(hexadecimal) => Some(parse_cleanup(hexadecimal, true)?),
         None => match intent_value(text, "cleanup") {
             Some(plain) => parse_cleanup(plain, false),
             None => None,
@@ -293,7 +297,7 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
     return Some(Intent {
         seq: intent_value(text, "seq")?.parse().ok()?,
         repository,
-        common_dir: intent_path(text, "common")?,
+        common_dir: intent_path(text, "common").ok().flatten()?,
         reference: intent_value(text, "ref")?.to_string(),
         old: intent_value(text, "old")?.to_string(),
         new: intent_value(text, "new")?.to_string(),

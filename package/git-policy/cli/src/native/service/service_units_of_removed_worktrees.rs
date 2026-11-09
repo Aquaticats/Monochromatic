@@ -204,15 +204,22 @@ pub fn worktree_is_gone(git_dir: &Path) -> bool {
     };
 }
 
-/// The Git directory a note or a record line names for an instance,
+/// What:
+///  The Git directory a note or a record line names for an instance,
 /// when the path it names hashes to that instance.
+/// Why:
+///   A note of this release holds the bytes of the directory and one line break after them;
+/// a note of an earlier release holds its text and nothing after it,
+/// so the last byte of that text is the path's even when it is a line break.
+/// A note whose bytes do not decode names nothing,
+/// and its units stay where they are rather than being stopped on a guess.
 fn named_for(instance: &str, text: &str) -> Option<PathBuf> {
-    let trimmed: &str = text.trim_end_matches('\n');
-    let path: PathBuf = match trimmed.strip_prefix(GITDIR_HEX_PREFIX) {
-        Some(hexadecimal) => path_of_hex(hexadecimal)?,
-        None if trimmed.is_empty() => return None,
-        None => PathBuf::from(trimmed),
+    let (bytes, plain): (Option<&str>, Option<&str>) = match text.strip_prefix(GITDIR_HEX_PREFIX) {
+        Some(hexadecimal) => (Some(hexadecimal.strip_suffix('\n').unwrap_or(hexadecimal)), None),
+        None if text.is_empty() => (None, None),
+        None => (None, Some(text)),
     };
+    let path: PathBuf = path_bytes::path_of_the_two_fields(bytes, plain).ok().flatten()?;
     return (instance_of(path.as_path()) == instance).then_some(path);
 }
 
