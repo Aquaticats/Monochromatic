@@ -111,3 +111,30 @@ fn the_ceiling_takes_the_step_from_its_start_and_never_from_a_read_of_its_number
     assert_eq!(came, CeilingCame::Stopped, "the step was not signalled, so the ceiling read its number instead of taking it from the start");
     assert!(ended.is_some(), "the step the ceiling took from its start ended");
 }
+
+/// What:
+///  A step whose start gave no descriptor is not signalled at all.
+/// Why:
+///   Without a descriptor the step can only be named by its number,
+/// and a number read at the ceiling may belong to a process that took it after the step ended,
+/// so the one honest answer is that nothing is known and nothing is sent
+/// (findings 1 and 4 of the third review).
+/// The step here is alive and its record reads perfectly:
+/// only the missing descriptor stands between it and a signal.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_that_started_without_a_descriptor_is_not_signalled() {
+    let mut step: Child = a_step();
+    let pid: i32 = i32::try_from(step.id()).expect("a process number");
+    // A start the kernel refused a descriptor for: the number is all the notice has.
+    let watched: ChildNumber = ChildNumber::not_started();
+    watched.publish(pid);
+    let came: CeilingCame = ceiling_came(&watched);
+    let ended: Option<i32> = ended_within(&mut step, STILL_RUNNING_BOUND);
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert_eq!(came, CeilingCame::Unknown, "a step that cannot be named is not one whose end can be concluded");
+    assert!(ended.is_none(), "the step was signalled by its number although its start gave no descriptor to name it: {ended:?}");
+}
