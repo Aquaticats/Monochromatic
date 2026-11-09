@@ -1473,6 +1473,54 @@ and the direction of finding 2 in which a measured age past the patience refuses
 answer of 2026-11-04,
 now worded as this host's reading of the record.
 
+### A sent-back commit keeps its private index, and a reference lock is named (2026-11-09T19:30:00-05:00)
+
+Branch `fix/git-policy-cli-commit-survives-dead-ref-lock-and-a-moved-branch`,
+from the Sonnet audit `~/temp/agent/sonnet-audits/commit-kills-and-concurrency/` (`final.md`, `findings.md`).
+Two findings,
+each with its control and its fix:
+a commit the service sent back to be prepared again read the private index of the attempt that captured it
+while the service removed that tree beside its landing loop,
+so the read failed with "No such file or directory",
+or,
+when only the index file was gone,
+wrote the empty tree and reported `concurrent-commit/replay-conflict` against paths the commit never changed
+(`dee00ebb43`,
+`725a0c4996`);
+and a branch write refused by a reference lock was read as a branch that moved,
+so three refusals later the commit ended with "the branch changed 3 times" while the branch had not changed,
+and the lock that refused it was never named
+(`b2dbcffc90`,
+`eb28cf7988`).
+Both are recorded in `SPEC.md`
+("Retry after a moved branch",
+"A landing whose branch write a lock refuses").
+Measured on this branch before the fixes and after them,
+with the release build and the audit's own harness:
+`commit -a` failed 1 of 6 and 2 of 6 rounds before and 0 of 6 after,
+`commit --no-only` 5 of 6 before and 0 of 6 after,
+and the killed `update-ref` case ended the next commit after 6.8 s with the false sentence before,
+and after 7.4 s with the locks and one `rm --` named after.
+
+Open for the owner:
+the second fix ends such a commit,
+naming the locks,
+what is known about their holders,
+and the `rm --` that clears them,
+because the proof set of `SPEC.md`
+("Reference locks left by a Git that was killed") holds no proof
+that ties a reference lock to a holder that has ended,
+and the owner's rule is that commits never fail.
+Making such a commit land needs either an owner decision that reverses cross-vendor findings 1 to 3 of 2026-11-09,
+or a proof about the holder that this repository does not have.
+Native Git fails the same commit at once and names the file,
+so the wrapper is not worse than Git here,
+and the audit holds one such incident.
+The owner decision in force ("Reference-lock removal (the ninth design review's R9-S)",
+"Keep narrowed removal (Recommended)") is unchanged by this branch:
+nothing here removes a reference lock,
+and the one removal the judgement still performs is the orphan staging file of the packed references.
+
 ### Work waiting for a free Pi slot (2026-11-08T16:24:14-05:00)
 
 The owner:
