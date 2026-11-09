@@ -36,3 +36,21 @@ fn a_suffix_is_what_the_kind_names() {
     assert!(!is_id_suffix(&WorkKind::Push, "a".repeat(MAX_OBJECT_NAME_LENGTH + 1).as_str()), "one character more names nothing");
     assert_eq!(MAX_ID_SUFFIX_LENGTH, MAX_OBJECT_NAME_LENGTH + 1 + 16);
 }
+
+/// What:
+///  The commit a push record's name is for,
+/// under the name an earlier release wrote and under this one's.
+/// Why:
+///   A command that reads a held record says which commit is held,
+/// and this release's name carries the branch digest after the object,
+///  which is not part of any commit's name.
+#[test]
+fn a_push_records_name_gives_the_commit_it_is_for() {
+    let oid: &str = "0123456789abcdef0123456789abcdef01234567";
+    let named: String = format!("push-{oid}-{}", branch_digest("refs/heads/main"));
+    assert_eq!(object_of_a_record_name(named.as_str()), Some(oid), "this release's name");
+    assert_eq!(object_of_a_record_name(format!("push-{oid}").as_str()), Some(oid), "an earlier release's name");
+    assert_eq!(object_of_a_record_name("maintenance-abc"), None, "only a push carries a branch digest");
+    assert_eq!(object_of_a_record_name("push"), None, "a name with no object names no commit");
+    assert_eq!(object_of_a_record_name("push-"), None, "and neither does an empty one");
+}

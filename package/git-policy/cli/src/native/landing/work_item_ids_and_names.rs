@@ -124,6 +124,30 @@ pub(crate) fn is_id_suffix(kind: &WorkKind, suffix: &str) -> bool {
     return is_object_name(suffix);
 }
 
+/// What:
+///  The commit a push record's name is for:
+/// the object after the kind,
+/// without the digest this release carries for the branch.
+/// Why:
+///   A command that reads a held record says which commit is held,
+/// and this release's name carries the branch digest after the object,
+///  which is no part of a commit's name.
+/// A record an earlier release named by the kind and the object alone answers the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const objectOfRecordName = (name) => name.startsWith('push-') ? name.slice(5).replace(/-[0-9a-f]{16}$/, '') : undefined
+/// ```
+pub(crate) fn object_of_a_record_name(name: &str) -> Option<&str> {
+    let kind: String = format!("{}-", WorkKind::Push.name());
+    let rest: &str = name.strip_prefix(kind.as_str())?;
+    let object_name: &str = match rest.split_once('-') {
+        Some((object_name, digest)) if is_branch_digest(digest) => object_name,
+        _ => rest,
+    };
+    return is_object_name(object_name).then_some(object_name);
+}
+
 /// The id-name rules are controlled in the test module.
 #[cfg(test)]
 #[path = "work_item_ids_and_names_tests.rs"]

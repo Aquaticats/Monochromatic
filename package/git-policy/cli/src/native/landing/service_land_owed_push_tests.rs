@@ -113,7 +113,7 @@ fn every_command_says_which_commit_is_held() {
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let shown: Vec<String> = crate::service_handoff::held_push_notices(world.repo.join(".git").as_path());
     assert_eq!(shown.len(), 1, "one line: {shown:?}");
-    assert!(shown[0].contains(commit.as_str()), "{}", shown[0]);
+    assert!(shown[0].starts_with(format!("the commit {commit} is held").as_str()), "the line names the commit, not the record's file name: {}", shown[0]);
     assert!(shown[0].contains("held") && shown[0].contains("has not been released yet") && shown[0].contains("next push"), "{}", shown[0]);
     // What is known is said; whether the command is still running cannot be told, so the line does not claim it stopped.
     assert!(!shown[0].contains("stopped"), "{}", shown[0]);
