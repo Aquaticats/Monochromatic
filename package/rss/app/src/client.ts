@@ -5,6 +5,7 @@ import {
   THREE_QUARTERS,
 } from '@monochromatic-dev/const-core/ts';
 import { nonNullishOrThrow, } from '@monochromatic-dev/or-throw-core/ts';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 import * as v from 'valibot';
 
@@ -251,7 +252,7 @@ function bindScrollIgnore(element: HTMLElement,): void {
             tag: bindScrollIgnore.name,
             l: clientLogger,
           },)
-            .error(`scrolledOut handler failed: ${String(error,)}`,);
+            .error(`scrolledOut handler failed: ${caughtValueText(error,)}`,);
         }
       })();
     },

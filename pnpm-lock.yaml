@@ -4392,6 +4392,9 @@ importers:
       '@monochromatic-dev/async-iter-core':
         specifier: workspace:*
         version: link:../../async-iter/core
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/const-core':
         specifier: workspace:*
         version: link:../../const/core
