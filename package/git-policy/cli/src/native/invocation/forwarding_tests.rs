@@ -448,3 +448,45 @@ fn block(signal: i32) {
         let _masked = libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, std::ptr::null_mut());
     }
 }
+
+/// What:
+///  The line a ceiling writes says what a caller that reads standard error to its end sees.
+/// Why:
+///   A helper Git started inherits this command's standard error,
+/// and the wrapper cannot close another process's descriptor:
+/// while that helper lives,
+/// a caller that captures the stream and waits for end of file
+///  (`Command::output`,
+/// the wrapper's own forwarded child)
+/// keeps waiting,
+/// the ceiling ends Git and not the caller's
+///  wait,
+/// and the person needs to know that from the line rather than from a hang.
+/// The line names the helper it
+///  cannot name,
+/// because nothing reports which process a filter started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(error.message).toContain('a caller reading this command\'s standard error to its end waits until that helper closes it')
+/// ```
+#[test]
+fn a_ceiling_says_what_a_caller_reading_the_stream_to_its_end_sees() {
+    let root: PathBuf = fixture("forward-ceiling-eof");
+    let helper_number: PathBuf = root.join("helper.pid");
+    let program: PathBuf = root.join("filter-git");
+    let script: String = format!("#!/bin/sh\nsleep 600 &\necho $! > {}\nexec sleep 600\n", helper_number.display());
+    executable(program.as_path(), script.as_bytes());
+    STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(Some(StopOutcome::Collected)));
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], ENDED_CHILD_CEILING).expect_err("the ceiling ends the step");
+    STOP_OUTCOME_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<StopOutcome>>| slot.set(None));
+    let said: String = error.to_string();
+    // The helper holds the stream open exactly as the line says, so this control ends it here.
+    let helper: i32 = number_in(helper_number.as_path());
+    // SAFETY: `kill` with SIGKILL takes a process number this control started through the runner and touches no memory.
+    unsafe { libc::kill(helper, libc::SIGKILL) };
+    assert!(!still_alive(helper), "the control ends the helper it let run");
+    assert!(said.contains("a caller reading this command's standard error to its end waits until that helper closes it"), "the line says what the caller's end of file means: {said}");
+    assert!(said.contains("and Git ended"), "and what is known about Git: {said}");
+    remove(root.as_path());
+}

@@ -1733,6 +1733,14 @@ The price is the one native Git pays when it is killed:
 the filters and helpers Git started are not signalled,
 so one of them may still run after the add returned,
 and the report says so instead of claiming they ended.
+A helper inherits the streams Git had,
+and this wrapper cannot close another process's descriptor,
+so a caller that captures this command's standard error and waits for its end of
+ file keeps waiting while that helper lives,
+however bounded the step was;
+`Command::output` and the wrapper's own forwarded child are such callers,
+and the line a ceiling writes says so and says which of the two things it knows about Git,
+naming the helper nowhere because nothing reports which process a filter started.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,

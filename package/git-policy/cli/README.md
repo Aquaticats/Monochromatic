@@ -576,7 +576,10 @@ Read-only commands,
      the filters and helpers Git started are not signalled and may still run,
      the add returns,
      and the line says that Git ended (or that it has not exited,
-     when it cannot be collected inside `STOP_GRACE`) and that a helper may still be running.
+     when it cannot be collected inside `STOP_GRACE`),
+     that a helper may still be running,
+     and that a caller reading the command's standard error to its end waits for that helper,
+     because a parent cannot close a child's inherited stream.
   A source is clean when no operation is in progress,
      its index equals the tree of its `HEAD`,
      every tracked file has

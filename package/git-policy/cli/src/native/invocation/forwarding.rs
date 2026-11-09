@@ -354,7 +354,8 @@ pub fn run_real_git_until(
     }
     let outcome: StopOutcome = stop_git(&mut child);
     // The report says only what is known: Git ended, or it has not exited, and a helper Git started may still run, which is
-    //  the one thing native Git also leaves behind when it is killed.
+    //  the one thing native Git also leaves behind when it is killed. The helper holds the streams it inherited, so a caller
+    //  that waits for this command's standard error to close waits for that helper and not for this command.
     let ending: String = match outcome {
         StopOutcome::Collected => String::from("and Git ended"),
         StopOutcome::Left => format!("and Git was told to stop {STOP_GRACE:?} ago but has not exited, so it is inside a call the kernel cannot interrupt and this command did not wait for it"),
@@ -362,7 +363,7 @@ pub fn run_real_git_until(
     return Err(std::io::Error::new(
         std::io::ErrorKind::TimedOut,
         format!(
-            "it ran longer than {ceiling:?} {ending}; a filter or helper Git started may still be running, something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)"
+            "it ran longer than {ceiling:?} {ending}; a filter or helper Git started may still be running and holds the streams it inherited, so a caller reading this command's standard error to its end waits until that helper closes it, something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)"
         ),
     ));
 }
