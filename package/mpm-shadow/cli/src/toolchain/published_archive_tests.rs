@@ -12,7 +12,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::archive_staging::write_complete_marker;
-use super::cargo_installs::{is_repository_published, older_lock_message, older_lock_warnings};
+use super::cargo_installs::{is_repository_published, older_lock_message, older_lock_warnings, version_directory};
+use super::fakes_cargo::finish_install;
 use super::commands::older_lock_warning_lines;
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
@@ -524,6 +525,53 @@ fn the_archive_prune_rule_keeps_the_newest_finished_version_and_never_judges_by_
     assert_eq!(installing, Vec::<(String, String)>::new(), "0.2.0 is the newest finished, 0.3.0 may be installing");
     let none_finished = plan_archive_prune(&versions_present(&[("0.2.0", false), ("0.2.1", false)]));
     assert!(none_finished.is_empty(), "with no finished version nothing is deleted");
+}
+
+/// A prune that cannot repoint an archive's `current` deletes nothing:
+/// the link moves to the newest finished version before the older one goes,
+/// so a run that stops at the link has never deleted the version the link named.
+/// A failure after a removal says what the run has already removed:
+/// the report is the only place a person learns what is gone from the tree.
+#[test]
+fn a_failure_after_the_crate_deletions_names_what_was_removed() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    // A crate version goes before the archive step runs.
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    for version in ["0.2.0", "0.2.1"] {
+        finish_archive(&root, version);
+    }
+    fs::create_dir(current_link_of(&root, ID).expect("a plain name")).expect("squat the archive link");
+    let cargo_entry = "{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"},";
+    let prefix = format!("{{\"tools\":{cargo_entry}");
+    let lock = named_lock("0.2.0").replace("{\"tools\":{", &prefix);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), lock).expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let error = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect_err("the archive link cannot be written");
+    let gone = version_directory(&root, "fd-find", "1.1.0");
+    assert!(!gone.exists(), "the crate version was removed before the archive step: {error}");
+    assert!(error.message.contains(&gone.display().to_string()), "the report names what was removed: {error}");
+}
+
+#[test]
+fn an_archive_prune_that_cannot_repoint_current_deletes_no_version() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for version in ["0.2.0", "0.2.1"] {
+        finish_archive(&root, version);
+    }
+    // `current` is a directory here, so the atomic link write cannot land: the prune stops at the repoint.
+    fs::create_dir(current_link_of(&root, ID).expect("a plain name")).expect("squat the link");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), named_lock("0.2.0")).expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    let error = pruned.expect_err("the link cannot be written over a directory");
+    assert!(error.message.contains("current"), "the message names the link: {error}");
+    assert!(
+        tool_directory(&root, ID).expect("a plain name").join("0.2.0").is_dir(),
+        "the version `current` named was deleted"
+    );
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.1").is_dir(), "the newest finished version was deleted");
 }
 
 #[test]

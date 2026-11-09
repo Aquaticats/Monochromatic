@@ -125,31 +125,109 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:30:59-05:00)
+#### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
-  the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
-  names a final wake that can be missed so a run waits for ever,
-  index preparation that can block the runtime before its first await,
-  and refused jobs that later run outside the blocking-job budget.
-  Its agent reports all three fixed,
-  but on top of main two order controls fail out of the 107 selected tests,
-  one at the 120 s watchdog.
-  The next review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-4-sol.txt`) names a queued job that still runs after its caller timed out,
-  and a path lookup that blocks the runtime before its first await.
-  Not ready to merge.
-  Some overlap controls pass without running on a host with too few CPUs for them,
-  and the next brief asks for a seam so they run at any quota.
-  Run 5 of its agent is on them.
+- Landed on main since the previous entry:
+  `931a4a18e2` (a `#` on a publish-list item is refused by name,
+  322 of 322 selected tests on top of main),
+  `e590c0554d` (service work items and other records keep path bytes),
+  `a69067bf10` (mpm-shadow prune,
+  718 of 718),
+  and `367c52c390` (landing recovery).
+  Issue 6005 is closed with its evidence.
+  The path-bytes run on top of main had 2049 of 2057 passing and the landing run 1683 of 1687.
+  Their failures passed when rerun without the suite (25 of 26 and 29 of 29),
+  and the one that failed again passed alone twice,
+  both on main and on its branch.
+  Those branches landed with that open,
+  because the same names fail in the runs of branches that do not touch them:
+  the `service_index_lock` group has failed in four branches' suite runs.
+  `wrapper-tests-that-fail-only-in-a-suite` has every name and must report a measured cause for each (rule `SUF`).
+- The `gpt-6.1-sol` audit of the invocation route ended with the provider's cybersecurity flag.
+  It was not restarted or reworded.
+  What it wrote is `dbb8087dfe` on `docs/planning-cli-git-invocation-and-argument-audit`,
+  and its worktree keeps one uncommitted test file of the audit's.
+  `doc/handover/questions-for-the-owner.md` asks how it should continue.
+  Fixing the findings it already wrote is ordinary work and waits for a slot.
+- `fix/git-policy-cli-child-processes-end-and-signals-reach-them` cannot land yet.
+  Merging main into it stopped with conflicts in `repo_read/git_metadata.rs` and its tests,
+  and that merge is open in the worktree `pi-process-and-child-lifetime-findings-fixed`.
+  Main already bounds that read through `output_watched_within` with `READ_CEILING` and `read_stopped_text`,
+  and the branch bounds it through `output_of_whole_within_bound`,
+  which also refuses an answer cut short.
+  Its next run resolves this together with the review `process-and-child-lifetime-round-2-sol.txt`,
+  and must measure whether `StepBound::EndAt`'s pipes can cut an answer.
+- The mpm-shadow review `mpm-shadow-open-issues-round-5-sol.txt` names two findings no second process is needed for,
+  and one that needs a concurrent install.
+  `mpm-shadow-round-6-prompt.md` holds them,
+  and the next mpm-shadow release follows that round.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` landed as `0ac02768cd`,
+  with 334 of 334 selected tests passing on top of main before the landing.
+  Landing it conflicted with the timing-controls branch in the imports and the budget controls of three test files.
+  The session kept the tokio side's room for the blocking pool and the timing side's rendezvous at the bound,
+  and 53 of 53 selected tests passed on the merged tree.
+  That selection used file names and did not cover every resolved test:
+  the `subvolume_index_files` and `worktree_convert_command` parallel tests were run on their own only later,
+  and passed there.
+  The fifth review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`) names two things.
+  The raw runner's refusal says the step changed nothing,
+  though a queued job can still run later:
+  that is a wording fix for the next tokio step.
+  A permit wait with no deadline needs a cancelled job in the same process,
+  and a conversion is one call per process,
+  so the session leaves it.
+  The next tokio step is `landing/service_round.rs`,
+  and it starts after the landing branch lands because both change that code.
+- The owner at about 2026-11-09T05:40-05:00:
+  "Please use gpt-6.1-sol with the openai provider for audits and reviews.
+  Those don't count within the 20 limit."
+  Reviews already ran on it.
+  The launcher `start-pi-run-in-worktree.ts` now takes `--provider` and `--model`,
+  and audits start with `--provider=openai --model=gpt-6.1-sol` under a name beginning `sol-`.
+  The count against the limit of 20 leaves those units out:
+  `systemctl --user list-units --state=active --no-legend --plain 'pi-*.service' | rg --invert-match '^pi-sol-' | wc --lines`.
+  The two audits started on the other model were stopped within minutes,
+  and they restarted on this one as `sol-shadow-and-replay-route-findings-on-main` and `sol-invocation-and-argument-route-findings-on-main`.
+  They write `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md` and `doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md`.
+  Neither folder had an audit before.
+- `worktree-copy-records-keep-path-bytes` reproduces and fixes paths the worktree copy stores as lossy text,
+  which `worktree_copy_stage_claim.rs` does for a stage claim.
+  `wrapper-module-docs-cite-what-exists` corrects the wrapper comments that open issues say cite removed TypeScript files.
+  `wrapper-issue-defects-and-linear-scans` works through open wrapper issues that report defects and slow scans.
+- Running again on their reviews:
+  `merge-route-findings-fixed` run 6,
+  `scratch-commit-ceiling-and-three-slow-commits` run 5,
+  and `landing-route-findings-fixed` run 10 with `landing-route-round-10-prompt.md`.
+  Waiting for a free agent slot,
+  in this order:
+  `process-and-child-lifetime-findings-fixed` run 3 (prompt to write once its review returns);
+  `wrapper-issue-test-coverage` with `wrapper-issue-test-coverage-prompt.md`,
+  on its branch `test/git-policy-cli-issue-coverage-gaps` and `--run=2`;
+  a fix agent for the invocation audit's written findings;
+  `mpm-shadow-open-issues` run 6 with `mpm-shadow-round-6-prompt.md`.
+  A unit still starting does not appear in the count,
+  so count the launchers started in the last few minutes as well.
+- The hook-route review (`${HOME}/temp/agent/reviews/hook-route-round-1-sol.txt`) names five ways the new "delivered" claim can be false,
+  including a remote hook that forges it.
+  Run 2 of its agent is on them,
+  told to narrow the claim rather than build more proof.
+- The landing round 9 review (`${HOME}/temp/agent/reviews/landing-route-round-9-sol.txt`) names two P1s the repair cannot decide:
+  the index state of a person's staged restoration and of an unstaged one is the same,
+  and nothing is lost either way.
+  The branch landed as `367c52c390`.
+  Run 10 fixes the held-push notice that needs a notice directory to appear and that says a running command stopped,
+  and adds the `SPEC.md` note on that ambiguity.
 - `fix/git-policy-cli-push-route-records-and-ceilings`:
-  its agent reports the nine findings of the first review fixed,
-  760 of 760 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/push-route-round-2-sol.txt`) names eight more,
-  among them a retry plan lost to a kill after its notice promised it,
-  a rollback that rewrites the branch the person switched to,
-  and a deleted branch retried without end.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  run 3 of its agent reports the eight findings of the second review fixed,
+  and 783 of 783 selected tests pass on top of main.
+  The third review (`${HOME}/temp/agent/reviews/push-route-round-3-sol.txt`) names a rollback that can discard a person's staged edit,
+  a takeover or give-back of a notice that overwrites a newer one,
+  a query answering success from a request it could not write whole,
+  and a hook's nested push read as the branch having been deleted.
+  Round 4 is meant to be the last before this branch lands,
+  and it waits for a free agent slot:
+  resume the run `push-route-findings-fixed` as run 4,
+  with `push-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   The session picked the fixture root on the disk over a per-run tmpfs,
   because the package documents that a shared tmpfs fills up (issue 1809).
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
@@ -161,35 +239,47 @@ The old tree kept for the rollback stays until the owner deletes it.
   The sixth review (`${HOME}/temp/agent/reviews/landing-route-round-6-sol.txt`) names more,
   most of them in what earlier rounds added,
   so the branch is not converging by adding fixes.
-  Run 8 removes instead:
+  Run 8 removed instead,
+  a net 56 lines:
   nothing releases a held push by judging whether a process is alive,
   the repair does nothing unless the worktree has an owed record,
   and an unreadable file is no longer taken for an absent one.
   That reverses the session's earlier pick,
   recorded in `questions-for-the-owner.md` as open to veto.
-  Run 8 also reproduces,
-  without fixing,
-  whether a later commit's push carries a commit its checks blocked:
-  a queued push sends the whole branch (`push/auto_push.rs:230-245`) and `SPEC.md:4637` says no push runs a `pre-push` hook.
-  If it does,
-  that goes to the owner.
-  On top of main 1254 of 1255 selected tests pass.
-  The one failure is in `landing::service_work::push_retry_tests`,
-  a module whose failures the push branch traces to a patience shorter than a contended push,
-  which is a fit and not yet a proof.
+  Run 8 also reproduced that a later commit's push carries a held commit,
+  because a queued push sends the whole branch (`push/auto_push.rs:230-245`),
+  and its report says a commit a policy blocked goes the same way.
+  `What should the next push do with a commit its checks blocked?` is now in `questions-for-the-owner.md`,
+  because `README.md:2194` promises such a commit stays local.
+  On top of main 1264 of 1269 selected tests pass,
+  and the five failures all pass when run alone,
+  so they went to the agent measuring failures that appear only in a suite.
+  The eighth review (`${HOME}/temp/agent/reviews/landing-route-round-8-sol.txt`) names a symlink hashed through its target,
+  an unstaged deletion read as a staged one,
+  a moved worktree that fails a commit,
+  and a held push no later command mentions.
+  Run 9 of its agent fixes those and is meant to be the last before this branch lands.
+  Two findings that need a second process inside a small window stay,
+  written down in `SPEC.md`.
+  With no owed record a snapshot older than the live index is unprotected.
   `fix/git-policy-cli-tests-that-fail-only-in-a-suite`,
   a new agent,
   measures those and the other tests that fail only in a suite or against a wall-clock bound.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
   its agent reports the first review's findings fixed,
   317 of 317 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-2-sol.txt`) names a reused step number that can get an unrelated process killed,
-  and a failed read taken for the step having ended.
-  Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 3,
-  with `scratch-commit-ceiling-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  and run 3 fixed the second review's findings,
+  with 649 of 649 selected tests passing on top of main.
+  It also reads the branch before the silence message.
+  The third review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-3-sol.txt`) names a path that can still signal a reused process number when a step started with no pidfd,
+  a signal error read as the step having ended,
+  and a commit the branch shows as made still returned as a failure.
+  Round 4 removes that path and fixes the rest,
+  and it is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  behind the merge round:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 4,
+  with `scratch-commit-ceiling-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   One wait stays open for the owner in `questions-for-the-owner.md`:
   a step the kernel holds in uninterruptible sleep.
   Two improvements are proposed and not built:
@@ -205,13 +295,34 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
 - `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
-  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
-  among them a FIFO that makes a commit wait forever,
-  and two races that need another program to rename a directory inside a small window.
-  Two subvolume tests abort near 120 seconds on the branch merged with main,
-  even run alone.
-  Run 3 of its agent is on the three defects and judges the races.
-  After that round it lands.
+  run 3 of its agent reports the FIFO wait and the other plain defects fixed,
+  and writes down the two races that need another program inside a small window.
+  The session merged main into it by hand,
+  keeping both sides of `subvolume_file_write_steps.rs`,
+  and its tests on top of main are running.
+  The third review (`${HOME}/temp/agent/reviews/worktree-removal-round-3-sol.txt`) names a resumed rollback that deletes a directory the migration never made,
+  and a stale record that refuses a removal nothing can clear.
+  Round 4 is meant to be the last before this branch lands,
+  and it waits for a free agent slot:
+  resume the run `worktree-removal-findings-fixed` as run 4,
+  with `worktree-removal-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+- `fix/git-policy-cli-child-processes-end-and-signals-reach-them`:
+  its agent reports the findings of `doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md` fixed,
+  and 517 of 517 selected tests pass on top of main.
+  The first review (`${HOME}/temp/agent/reviews/process-and-child-lifetime-round-1-sol.txt`) names a query ceiling that can kill an unrelated process,
+  a thread joined with no deadline,
+  and a finished step's answer thrown away because a helper still holds stderr.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+- `fix/git-policy-cli-intent-to-add-keeps-stat-data`,
+  a new agent:
+  one `git add -N` entry makes every commit in that worktree hash the whole tree,
+  which the driver agent measured stopping its commits at the ceiling.
+- `fix/git-policy-cli-commit-scratch-removal-off-the-path`,
+  a new agent:
+  it takes the removal of the scratch tree off the path the person waits on,
+  and adds timings for what `prepareMs` spends,
+  from the proposals in `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`:
   its agent fixes what the audit `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md` found.
   Its first run reached the three-hour limit,
@@ -226,10 +337,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and five smaller defects,
   among them a removal whose audit can block for ever on a FIFO.
   Not ready to merge.
-  It waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `discarding-commands-findings-fixed` as run 2,
-  with `discarding-commands-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
   One visible change:
   `git clean -fdx` is refused in a linked worktree that has ignored files,
   such as one with `node_modules`.
@@ -251,8 +359,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a ceiling that also kills the person's own command.
   By its own report,
   the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
+  Run 2 of its agent reports six findings handled,
+  674 of 674 selected tests pass on top of main,
+  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) names another command's stage carried into the new worktree as unignored trash,
+  a lock-removal instruction quoted for JSON and not for a shell,
+  a helper reported as ended when only Git was reaped,
+  and a checkout filter that reads the terminal stopped by the new process group.
   Not ready to merge.
-  Run 2 of its agent is on them.
+  Run 3 of its agent is on them.
+  The container gate has not run.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
@@ -265,14 +380,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   ("cli-git never deletes a lock") waits for the owner.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
-  run 2 of its agent reports the broken control and the five findings of the first review fixed.
-  On top of main 1311 of 1313 selected tests pass,
-  and the two failures are in `landing::service_work::push_retry_tests`.
-  The review (`${HOME}/temp/agent/reviews/path-bytes-round-2-sol.txt`) names a service from before the change committing a file under a replacement name,
-  a request too long for the protocol where the old route would have worked,
-  and a retry plan of another directory deleted.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  run 3 of its agent reports the second review's three findings fixed,
+  and the third review (`${HOME}/temp/agent/reviews/path-bytes-round-3-sol.txt`) names one:
+  a record that cannot be read lets cleanup delete another directory's retry plan.
+  Run 4 of its agent reports that held and fixed:
+  the cleanup now removes a file only when it read the file and the record names that directory and branch.
+  Its tests on top of main are running.
   Issue 6005 is commented on or closed after it lands.
 - `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
   its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
@@ -292,23 +405,19 @@ The old tree kept for the rollback stays until the owner deletes it.
   A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
   because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
-  The agent `controls-witness-their-race-by-ordering` ended on a provider error,
-  "Stream ended without finish_reason",
-  which is the failure the driver branch now retries.
-  Run 2 of its agent is resuming it.
-- `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
-  run 2 of its agent reports that a missing publish configuration does not fail a commit,
-  proved by a real wrapped commit through the service,
-  and that the same change had broken five of the policy's controls,
-  now fixed along with tagged keys and tab-separated comments.
-  116 of 116 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-2-sol.txt`) names YAML the hand-written reader misreads without saying so,
-  so a dependent goes unbumped,
-  and nesting that exhausts the stack.
-  Not ready to merge.
-  Run 3 of its agent is on them.
-  That round picks a rule that ends this class of misread:
-  a maintained parser or a reader limited to what the generator writes.
+  Run 3 of the agent `controls-witness-their-race-by-ordering` fixed its six findings with no production file changed,
+  629 of 629 selected tests passed on top of main,
+  and the branch landed as `deaa805133`.
+- `fix/git-policy-cli-dependent-version-reads-the-real-publish-list` landed as `2daa6fe593`,
+  with 119 of 119 selected tests passing on top of main.
+  Its reader accepts only the line forms the generator writes,
+  a pick recorded in `questions-for-the-owner.md` as open to veto.
+  The third review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-3-sol.txt`) names one case,
+  a colon inside a hand-written trailing comment on a list item,
+  and `package/config/pnpr/config.yaml` holds no such comment.
+  A small follow-up waits for a free agent slot:
+  resume the run `dependent-version-publish-list-fixed` as run 4,
+  with `dependent-version-publish-list-round-4-prompt.md` and the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`:
   its agent reports the three findings of its audit fixed,
   262 of 262 selected tests pass on top of main,
@@ -330,21 +439,151 @@ The old tree kept for the rollback stays until the owner deletes it.
   but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
   and the installed copy answers `android sdk install --help`,
   so issue 2622 was closed as not holding.
+  Run 2 merged main (`904f005a34`) and fixed the two findings of
+  `${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`:
+  `5594cf9b6e` makes the prune refuse a caller-named `--lock` from the read that finds it missing,
+  since a check before the read can be outrun by a concurrent rename;
+  `6319dce3c2` makes observation,
+  the component and target listings and the lock comparison name the rustup channel a row does
+  (`packageId`,
+  else the version),
+  not the locked version;
+  `8a6659eef8` passes `RUSTUP_AUTO_INSTALL=0` to the two parts listings,
+  because the installed rustup 1.29.2 answers a listing for an absent channel by installing it.
+  The third finding,
+  a `packageId` requirement on `cargo-git` rows,
+  stays as it is:
+  no entry uses that route and it goes to the owner as a choice.
+  `7477b4eef0` then makes the rustup observation ask `rustup which --toolchain <channel> rustc`,
+  because a listed name cannot tell a host triple from a channel date
+  and a row naming `nightly` was read as the dated install;
+  `30ca607fe5` makes the prune refuse a `cargo-binstall` row with no `version` text,
+  which it had read as protecting nothing while deleting the crate that row names.
+  Items 3511,
+  3512 and 2623 were checked against the real service and tool:
+  across 17 406 release assets of `cli/cli`,
+  `jj-vcs/jj` and `astral-sh/uv`,
+  7 301 carry a `sha256:` digest of 64 lowercase hex characters,
+  10 105 carry none,
+  and none carry another algorithm
+  (`rust-lang/rustup` publishes no GitHub release:
+  its releases endpoint answered `[]`);
+  the service decodes a percent-encoded tag path segment (`v2%2E103%2E3` answered 200),
+  answers 400 to a raw `%`,
+  and ends the address at a raw `#` (the fragment is never sent,
+  so `v2.103#3` asked for `v2.103` and got 404);
+  `rustup component list --installed --toolchain stable` prints `clippy-x86_64-unknown-linux-gnu`,
+  `rustup which --toolchain nightly-2026-10-30 rustc` prints that toolchain's path,
+  and `RUSTUP_AUTO_INSTALL=0 rustup which --toolchain stable-aarch64-apple-darwin rustc` exits 1.
+  Run 3 merged main again (`0512b66f1b`) and fixed the four findings of
+  `${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`,
+  all in the prune except the last:
+  `96c97c19e3` makes a crate directory the version scan cannot read refuse the prune
+  instead of reading as an empty crate,
+  which removed the whole directory including a locked version;
+  `6db38989cb` lists the installed versions before any lock is read,
+  so an installation that lands while the locks are read is never in the list the run deletes from;
+  `0952976ad5` repoints `current` to the newest finished version before deleting,
+  so a run killed in between leaves a link that resolves;
+  `0059d5e8fc` makes a moving channel (`stable`) prove it still holds the release the lock records
+  by running the `rustc` that `rustup which` resolved,
+  which only a hand-written `packageId` can need,
+  since this plan writes `packageId: "{version}"`.
+  710 of 710 tests and Clippy pass on top of main,
+  the cargo runs inside `systemd-run --user --scope`.
+  Open:
+  the second scan of the prune reaches the same refusal through the same `?`,
+  but an interleaving that makes only that scan fail needs a hook between the deletion loop and the rescan,
+  which the module does not have;
+  a row naming a bare `nightly` with a dated version text still reads `ok`,
+  because the compiler of a bare channel reports no channel date;
+  no real release tag holding `+`,
+  `#` or `/` was found to test the encoder against,
+  so a tag with `/` may still not resolve (it did not before either);
+  the `packageId` requirement on `cargo-git` rows waits for the owner;
+  issue comments for 2623,
+  3511 and 3512 wait for the merge.
+  One probe side effect from run 2:
+  `rustup component list --installed --toolchain 1.79.0` installed that toolchain in the real rustup home
+  before the `RUSTUP_AUTO_INSTALL=0` guard existed,
+  and it was uninstalled again from there;
+  `1.99.0-x86_64-unknown-linux-gnu`,
+  which no step of these rounds installed,
+  appeared in the same home during run 2.
+  Run 3 probed only an installed channel on the real home and an absent one in a throwaway `RUSTUP_HOME`.
   The review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`) names a race on an explicit `--lock`,
   which main has worse because it always deletes,
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
   Run 2 of its agent reports them fixed,
-  703 of 703 tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`) names a prune that can delete a version a lock still names,
-  and a `current` link left pointing at a deleted version.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  Run 3 fixed the second review's findings,
+  710 of 710 tests pass on top of main,
+  and the third review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`) names four smaller defects in the same prune,
+  among them a recursive removal that can take a version just installed.
+  Run 4 of its agent reports all four reproduced and fixed,
+  715 of 715 tests pass on top of main,
+  and that round landed as `f1ca6bb870`.
+  Issues 2623,
+  3743,
+  3511 and 3512 are closed with evidence comments.
+  The review of that round (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-4-sol.txt`) names a `current` link moved to a version the same run deletes,
+  a partly removed directory reported as nothing deleted,
+  and a concurrent install's link removed.
+  None is worse than what main had,
+  so they did not hold the landing.
+  A small round 5 waits for a free agent slot:
+  resume the run `mpm-shadow-open-issues` as run 5,
+  with `mpm-shadow-round-5-prompt.md` and the session file named in run 4's `summary.json`.
+  The next mpm-shadow release follows that round.
   Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
   By its own report the agent ran its cargo commands outside the required resource limits,
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
   which it uninstalled.
   `1.99.0` also appeared there during the round and no step it reports installed it.
+  Run 2 of its agent reports the first review's findings fixed,
+  run 3 fixed the second review's,
+  and run 4 fixed the four of the third
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`),
+  all in the prune:
+  `78a3967387` removes a crate directory with `remove_dir`,
+  so a version another run installed after the scan is not carried away with it;
+  `19d9fb19ff` repoints an archive's `current` before its old versions go,
+  as the cargo route already did;
+  `afa323c042` removes a crate's `current` link before its versions when no lock names the crate,
+  and still leaves a link that only forwards to the other root alone;
+  `554079b3d9` restates any failure that follows a deletion with what was already removed,
+  instead of the scan's fixed `nothing was deleted`.
+  The fifth finding,
+  a lock another command replaces between this run's read and its deletions,
+  stays as it is under the owner's instruction,
+  and `8beb0b8529` says so beside the prune's rules in the package README,
+  with the fact that a version arriving after the scan is never in the plan.
+  715 of 715 tests and Clippy passed on top of main (`0d77dbaa99`),
+  and every cargo command ran inside `systemd-run --user --scope`.
+  One suite run under load average 86 failed two `never_start_another_shadow` tests on their five-second
+  bound;
+  both pass alone in under a quarter of a second.
+  Run 5 fixed the three findings of the fourth review
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-4-sol.txt`):
+  `fa494ec0e3` makes `current` name the newest version the prune keeps,
+  not the newest installed one,
+  which could be a version the same run deleted because the other root
+  forwards to an older one;
+  `aab379b2b7` reports a failed recursive removal as `part of it may be gone`,
+  naming the directory,
+  since `remove_dir_all` can unlink part of a tree before it fails;
+  `c08960322b` reads what `current` names before unlinking it and leaves a link that names a version
+  which still exists and is not being deleted,
+  which closes the concurrent install's link with one
+  `read_link` and one `metadata` and leaves only the instant between them.
+  718 of 718 tests and Clippy pass on top of main (`b38de34bb2`).
+  Open:
+  a row naming a bare `nightly` with a dated version text still reads `ok`,
+  the tag characters `+`,
+  `#` and `/` were never tested against a real release tag,
+  the `packageId` requirement on `cargo-git` rows waits for the owner,
+  and the issue comments for 2623,
+  3511 and 3512 wait for this branch to land.
   `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
   before that,
   a branch outside the wrapper got an empty review.
@@ -368,20 +607,25 @@ The old tree kept for the rollback stays until the owner deletes it.
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
   its agent reports the five findings of the last review fixed and a saved merge no longer blocking unrelated commands.
-  249 of 249 selected tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/merge-route-round-3-sol.txt`) names further losses of staged or saved work,
-  among them a read-only command installing a saved merge into a different checked-out branch.
-  Not ready to merge.
-  Run 4 of its agent is on them.
-- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
-  Run 3 took the suggestion to remove the step that loses data:
-  recovery no longer exchanges anything,
+  Run 4 reports the third review's findings fixed,
+  and 250 of 250 selected tests pass on top of main.
+  The review (`${HOME}/temp/agent/reviews/merge-route-round-4-sol.txt`) names three states a kill can leave wrong,
+  among them a partly installed merge losing its only record,
+  a saved write a clean filter can hide,
+  and two windows that need a second process to act between two steps.
+  Round 5 fixes the first four and documents the two windows,
+  and it is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `merge-route-findings-fixed` as run 5,
+  with `merge-route-round-5-prompt.md` and the session file named in run 4's `summary.json`.
+- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes` landed as `1911e95d94`,
+  with 177 of 177 selected tests passing on top of main.
+  Recovery no longer exchanges anything,
   and a journal that may hold a person's bytes stays and is named on every later `fix`.
-  174 of 174 selected tests pass on top of main,
-  and the review of that round alone (`commit-checks-round-3`) is running.
-  Before it lands,
-  `questions-for-the-owner.md` gets the choice that `fix` refuses a worktree whose Git directory is on another file system,
-  if that refusal is still there.
+  The fourth review (`${HOME}/temp/agent/reviews/commit-checks-round-4-sol.txt`) names only windows that need another program inside a few instructions,
+  which stay documented.
+  The refusal of a Git directory on another file system is recorded in `questions-for-the-owner.md` as open to veto.
 - That too-wide review named two defects in code already on main,
   and reading the code bears both out.
   A read in `read_by_chunks` retries `EINTR` without a ceiling,
@@ -400,11 +644,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   and 0.34 ms against 3.9 ms on a small one.
   A follow-up makes the listing cheaper or leaves large repositories to Git,
   and closes the `IEOT` difference.
-  It waits for a free agent slot,
-  since all twenty are taken:
-  start the run `reader-ref-listing-cost` from main,
-  on `fix/git-policy-cli-reader-ref-listing-cost`,
-  with `reader-ref-listing-cost-prompt.md`.
+  The agent `reader-ref-listing-cost` is on it,
+  on `fix/git-policy-cli-reader-ref-listing-cost`.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
   Its fix landed on main as `3d53f1f46a`,
@@ -419,11 +660,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
   The agent `driver-resumes-after-provider-errors` built retries on the branch `fix/pi-shared-subagent-driver-resumes-after-provider-errors`.
-  It builds and passes on top of main,
-  and the review (`${HOME}/temp/agent/reviews/driver-retries-round-1-sol.txt`) names a retry sent into a run an inbox message started,
-  and a failure that a handled prompt turns into a clean finish.
-  Not ready to merge.
-  Run 2 of its agent is on them.
+  It landed as `245c54a008`,
+  and the two fixes the second review named landed as `9462675cd8`:
+  `408` and `522` count as transient,
+  and a leading `401` or `403` decides before any word of its body.
+  All 31 test groups pass on top of main.
+  That last round had no cross-vendor review of its own.
+  The review's point about an identical new failure inheriting the wait is written down in the package.
+  One visible change:
+  a run whose failure nothing recovered now reports `model-error` and exits non-zero even when the stop file ends it.
 - Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
   Rerun those tests after merging main before judging a branch by them.
 
