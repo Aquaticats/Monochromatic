@@ -472,8 +472,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
             //  A request told to prepare again is the exception: its client still reads the tree it named, so that tree goes when
             //  the client's own value goes, and by the sweep if that client is killed.
-            let released: Vec<(String, std::path::PathBuf)> =
-                trees.into_iter().filter(|(id, _)| { return !preparing_again.contains(id); }).collect();
+            let released: Vec<(String, std::path::PathBuf)> = released_trees(trees, preparing_again.as_slice());
             remove_the_trees(&released);
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
@@ -509,6 +508,25 @@ fn remove_the_trees(trees: &[(String, std::path::PathBuf)]) {
     for (_, tree) in trees {
         crate::service_scratch_release_removal::start(tree.clone());
     }
+}
+
+/// What:
+///  The trees of a group's requests whose answer does not ask the client to prepare again.
+/// Why:
+///   A client told to prepare again still reads the tree it named,
+///  so that one is the client's to remove;
+///  every other answer ends the landing that read the tree,
+///  and the service removes it beside the loop.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// releasedTrees(trees, preparingAgain) // the trees no client still reads
+/// ```
+fn released_trees(
+    trees: Vec<(String, std::path::PathBuf)>,
+    preparing_again: &[String],
+) -> Vec<(String, std::path::PathBuf)> {
+    return trees.into_iter().filter(|(id, _)| { return !preparing_again.contains(id); }).collect();
 }
 
 /// Socket controls stay out of the release executable.

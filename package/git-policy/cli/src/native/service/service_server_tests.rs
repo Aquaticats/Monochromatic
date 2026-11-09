@@ -241,10 +241,11 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
     std::fs::write(tree.join("conclusion"), b"copies the cleanup reads").expect("a conclusion copy");
     let index: std::path::PathBuf = tree.join("commit.index");
     std::fs::write(&index, b"the private index").expect("a private index");
-    let trees: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
-    assert_eq!(trees, vec![tree.clone()], "a request names its tree in the field it carries for it");
+    let named: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
+    assert_eq!(named, vec![tree.clone()], "a request names its tree in the field it carries for it");
     // The landing reads the tree; only after it is over does the service start the removal.
     assert!(index.exists() && tree.exists(), "the landing has the tree it reads");
+    let trees: Vec<(String, std::path::PathBuf)> = named.into_iter().map(|found| { return (String::from("0a1b2c3d"), found); }).collect();
     crate::service_server::remove_the_trees(trees.as_slice());
     let began: std::time::Instant = std::time::Instant::now();
     while tree.exists() {
@@ -265,4 +266,36 @@ fn a_request_that_names_a_foreign_directory_names_no_tree() {
     std::fs::write(&precious, b"not the wrapper's").expect("a file the wrapper did not make");
     assert_eq!(crate::service_scratch_release_removal::the_tree_of(precious.as_path(), git_dir.as_path()), None);
     remove_short(root.as_path());
+}
+
+/// What:
+///  A request answered with one of the two answers that ask the client to prepare again keeps its tree,
+///  and every other request of the group releases its own.
+/// Why:
+///  The client writes the tree of the private index it just used for the retry,
+///  and the service removed that
+///  tree as soon as the landing was over,
+///  so the write-tree lost a race under load and the commit failed with
+///  "Unable to create .../commit.index.lock: No such file or directory".
+#[test]
+fn only_a_request_told_to_prepare_again_keeps_its_tree() {
+    let trees: Vec<(String, std::path::PathBuf)> = vec![
+        (String::from("landed"), std::path::PathBuf::from("/trees/landed")),
+        (String::from("moved"), std::path::PathBuf::from("/trees/moved")),
+        (String::from("again"), std::path::PathBuf::from("/trees/again")),
+    ];
+    let preparing_again: Vec<String> = vec![String::from("moved"), String::from("again")];
+    let released: Vec<(String, std::path::PathBuf)> = crate::service_server::released_trees(trees, preparing_again.as_slice());
+    assert_eq!(
+        released,
+        vec![(String::from("landed"), std::path::PathBuf::from("/trees/landed"))],
+        "only the landed request's tree is the service's to remove"
+    );
+    let nothing_kept: Vec<String> = Vec::new();
+    let all: Vec<(String, std::path::PathBuf)> = vec![(String::from("landed"), std::path::PathBuf::from("/trees/landed"))];
+    assert_eq!(
+        crate::service_server::released_trees(all, nothing_kept.as_slice()).len(),
+        1,
+        "a group none of whose requests prepares again releases every tree"
+    );
 }

@@ -316,7 +316,8 @@ pub(crate) fn land_group(
                 stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
                 log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
             }
-            return;
+            // No landing read any tree, so none of them is kept for a client that prepares again.
+            return Vec::new();
         }
     };
     *seq = claim.seq();
