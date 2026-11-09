@@ -24,6 +24,9 @@
 /// The member's number and start time,
 /// and the tree it was read from.
 use crate::process_tree::TreeMember;
+/// The member's record,
+/// read so that a record that could not be read is not mistaken for a gone process.
+use crate::process_tree::{MemberRead, member_read};
 
 /// What:
 ///  What a signal came to.
@@ -146,6 +149,32 @@ fn pidfd_of(pid: i32) -> Option<std::os::fd::OwnedFd> {
 #[path = "member_signalled_through_its_pidfd_tests.rs"]
 mod tests;
 
+/// What a proof of one member came to.
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Proven {
+    /// The number still names the member.
+    Still,
+    /// The number names no process,
+    /// or another one.
+    Gone,
+    /// The record could not be read,
+    /// so nothing about the member is known.
+    Unreadable,
+}
+
+/// Whether the number still names `member`,
+/// with a record that could not be read kept apart from a gone process.
+#[cfg(target_os = "linux")]
+fn prove(member: &TreeMember) -> Proven {
+    return match member_read(member.pid) {
+        MemberRead::Found(found) if found.started == member.started => Proven::Still,
+        MemberRead::Found(_another) => Proven::Gone,
+        MemberRead::Gone => Proven::Gone,
+        MemberRead::Unreadable => Proven::Unreadable,
+    };
+}
+
 #[cfg(target_os = "linux")]
 impl PinnedMember {
     /// What:
@@ -167,17 +196,21 @@ impl PinnedMember {
     /// const pinned = PinnedMember.open(found);
     /// ```
     pub fn open(member: &TreeMember) -> Pinned {
-        if crate::process_tree::identity_of(member.pid) != Some((member.started, false)) {
-            return Pinned::Gone;
+        match prove(member) {
+            Proven::Still => {}
+            Proven::Gone => return Pinned::Gone,
+            // A record that could not be read says nothing about the member, so nothing is sent and nothing is concluded.
+            Proven::Unreadable => return Pinned::Unproven,
         }
         let Some(descriptor) = pidfd_of(member.pid) else {
             return Pinned::Unproven;
         };
         // The number named the member before and after the descriptor was made, so the descriptor is that process's.
-        if crate::process_tree::identity_of(member.pid) != Some((member.started, false)) {
-            return Pinned::Gone;
+        match prove(member) {
+            Proven::Still => return Pinned::Held(Self { descriptor }),
+            Proven::Gone => return Pinned::Gone,
+            Proven::Unreadable => return Pinned::Unproven,
         }
-        return Pinned::Held(Self { descriptor });
     }
 
     /// Send `signal` to the pinned process,
