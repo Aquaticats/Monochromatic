@@ -541,3 +541,21 @@ fn a_brand_new_downloaded_tool_resolves_with_no_lock_at_all() {
 }
 
 //endregion github
+
+/// An incomplete row with a higher build number is skipped, not treated as the answer:
+/// a complete lower-build row already found for the subdir still resolves the platform,
+/// where the old `?` inside the accumulator threw it away and failed the whole platform.
+#[test]
+fn conda_keeps_a_complete_lower_build_row_when_a_higher_build_row_is_incomplete() {
+    let rig = Rig::new();
+    rig.http.serve(
+        "https://api.anaconda.org/package/conda-forge/bubblewrap",
+        b"{\"latest_version\": \"0.13.1\", \"files\": [\
+          {\"version\": \"0.13.1\", \"basename\": \"linux-64/bubblewrap-0.13.1-h0_0.conda\", \"sha256\": \"a1\", \"attrs\": {\"subdir\": \"linux-64\", \"build_number\": 0}}, \
+          {\"version\": \"0.13.1\", \"attrs\": {\"subdir\": \"linux-64\", \"build_number\": 2}}, \
+          {\"version\": \"0.13.1\", \"basename\": \"linux-aarch64/bubblewrap-0.13.1-h0_0.conda\", \"sha256\": \"b1\", \"attrs\": {\"subdir\": \"linux-aarch64\", \"build_number\": 0}}]}",
+    );
+    let resolution = resolve_conda(&rig.context(), "bubblewrap", None).expect("the complete row resolves the platform");
+    assert_eq!(row(&resolution.artifacts, "linux-x64").sha256, "a1");
+    assert_eq!(row(&resolution.artifacts, "linux-arm64").sha256, "b1");
+}
