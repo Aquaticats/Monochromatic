@@ -7,8 +7,9 @@
 //! one that changed while it was read,
 //! and one of another kind record nothing.
 
-use super::{WorktreeStatRequest, recorded_stat};
+use super::{ProofSeams, WorktreeStatRequest, recorded_stat, recorded_stat_seamed};
 use crate::index_stat::{IndexStamp, StatData};
+use std::os::unix::ffi::OsStrExt as _;
 use crate::repo_read_layout::ObjectFormat;
 use crate::test_support::{age, fixture, git, remove};
 use std::cell::Cell as StdCell;
@@ -125,17 +126,17 @@ fn a_file_as_new_as_the_index_records_nothing() {
     remove(root.as_path());
 }
 
-/// A symbolic link records the stat data of the link itself,
-/// and its content is the bytes of its target.
+/// A symbolic link records nothing:
+/// the link itself is rare,
+/// its stat data is not needed for a commit to be fast,
+/// and a link read across a directory swap cannot be proven to be the one that was examined.
 #[test]
-fn a_symbolic_link_records_the_stat_data_of_the_link() {
+fn a_symbolic_link_records_nothing() {
     let root: PathBuf = fixture_root("index-worktree-stat-link");
     std::os::unix::fs::symlink("target", root.join("l")).expect("symlink");
     age(root.join("l").as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"target");
-    assert_eq!(recorded(root.as_path(), b"l", blob.as_slice(), 0o120_000), Some(stat_of_file(root.join("l").as_path())));
-    let elsewhere: Vec<u8> = blob_in(root.as_path(), b"other");
-    assert_eq!(recorded(root.as_path(), b"l", elsewhere.as_slice(), 0o120_000), None, "a link to another target is another content");
+    assert_eq!(recorded(root.as_path(), b"l", blob.as_slice(), 0o120_000), None, "a link keeps the zero stat data, so the next commit refreshes it");
     remove(root.as_path());
 }
 
@@ -157,7 +158,8 @@ fn a_file_that_changed_while_it_was_read_records_nothing() {
         std::fs::write(&written, b"a TWO\n").expect("rewrite");
     };
     let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
-    assert_eq!(super::recorded_stat_seamed(&request, &mut seam), None);
+    let mut before_open = || {};
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut seam }), None);
     assert_eq!(writes, 1, "the control wrote during the read");
     remove(root.as_path());
 }
@@ -208,5 +210,142 @@ fn a_file_of_another_kind_than_the_entrys_records_nothing() {
     assert_eq!(recorded(root.as_path(), b"l", target.as_slice(), 0o100_644), None, "the path is a link, not a file");
     assert_eq!(recorded(root.as_path(), b"l", target.as_slice(), 0o160_000), None, "a gitlink holds no file");
     assert_eq!(recorded(root.as_path(), b"absent", content.as_slice(), 0o100_644), None, "no file, no stat data");
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository fixture whose `.gitattributes` names `attribute` for `f.txt`,
+/// with the clean filter `filter.weird` a script that prepends a `P`.
+/// Why:
+///   A conversion that is not the identity makes raw bytes and Git's view of the file differ,
+/// so a path the attribute names must
+///  keep the zero stat data.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attributes = (root: string, attribute: string) => { writeFile(`${root}/.gitattributes`, `f.txt ${attribute}\n`); writeFile(`${root}/weird.sh`, '#!/bin/sh\nprintf P\ncat\n', { mode: 0o755 }); git(['config', 'filter.weird.clean', `${root}/weird.sh`]); };
+/// ```
+fn attributes_naming(root: &Path, attribute: &str) {
+    std::fs::write(root.join(".gitattributes"), format!("f.txt {attribute}\n")).expect("attributes");
+    let filter: PathBuf = root.join("weird.sh");
+    std::fs::write(&filter, b"#!/bin/sh\nprintf P\ncat\n").expect("filter");
+    std::fs::set_permissions(&filter, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("the filter runs");
+    git(root, &["config", "filter.weird.clean", filter.to_str().expect("a path")]);
+}
+
+/// A path a converting attribute names records nothing,
+/// where the same bytes on a path no attribute names record:
+/// the filter,
+/// a `working-tree-encoding` and an `ident` each make Git's view of the file differ from its raw bytes.
+#[test]
+fn a_path_a_converting_attribute_names_records_nothing() {
+    for attribute in ["filter=weird", "working-tree-encoding=UTF-16LE", "ident"] {
+        let root: PathBuf = fixture_root(format!("index-worktree-stat-{}", attribute.split('=').next().expect("a name")).as_str());
+        attributes_naming(root.as_path(), attribute);
+        for name in ["f.txt", "g.txt"] {
+            let file: PathBuf = root.join(name);
+            std::fs::write(&file, b"a\n").expect("write");
+            age(file.as_path());
+        }
+        let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
+        assert_eq!(recorded(root.as_path(), b"f.txt", blob.as_slice(), 0o100_644), None, "{attribute}: the attribute may change these bytes");
+        assert!(recorded(root.as_path(), b"g.txt", blob.as_slice(), 0o100_644).is_some(), "{attribute}: the bytes of a path the attribute does not name record");
+        remove(root.as_path());
+    }
+}
+
+/// A file whose bytes hold a carriage return records nothing,
+/// because a line-ending rule Git applies whatever the attributes say may change them;
+/// the same bytes without one record.
+#[test]
+fn a_file_with_a_carriage_return_records_nothing() {
+    let root: PathBuf = fixture_root("index-worktree-stat-carriage");
+    std::fs::write(root.join("a"), b"a\r\nb\n").expect("write");
+    age(root.join("a").as_path());
+    std::fs::write(root.join("b"), b"a\nb\n").expect("write");
+    age(root.join("b").as_path());
+    let carried: Vec<u8> = blob_in(root.as_path(), b"a\r\nb\n");
+    let plain: Vec<u8> = blob_in(root.as_path(), b"a\nb\n");
+    assert_eq!(recorded(root.as_path(), b"a", carried.as_slice(), 0o100_644), None, "a carriage return may be converted away on the way into the index");
+    assert!(recorded(root.as_path(), b"b", plain.as_slice(), 0o100_644).is_some(), "the same bytes without one record");
+    remove(root.as_path());
+}
+
+/// A read the proof rejects is charged to the landing all the same:
+/// the bytes reached the disk and the bound is on the reading, not on the accepting.
+#[test]
+fn a_read_that_is_rejected_is_still_charged() {
+    let root: PathBuf = fixture_root("index-worktree-stat-charged");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a one\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
+    let hashed: StdCell<u64> = StdCell::new(0);
+    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+    let written: PathBuf = file.clone();
+    let mut before_open = || {};
+    let mut after_read = move || {
+        std::fs::write(&written, b"a TWO\n").expect("rewrite");
+    };
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read }), None, "the file changed under the read");
+    assert!(hashed.get() >= 6, "the six bytes that were read are charged, and the landing has {}", hashed.get());
+    remove(root.as_path());
+}
+
+/// One read takes at most what is left of the bound:
+/// a file grown after its first examination is not read past the room the landing has,
+/// and what was read is charged.
+#[test]
+fn one_read_takes_at_most_what_is_left_of_the_bound() {
+    let root: PathBuf = fixture_root("index-worktree-stat-room");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"abcd").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"abcd");
+    let spent: u64 = crate::worktree_clean_content::CONTENT_LIMIT - 4;
+    let hashed: StdCell<u64> = StdCell::new(spent);
+    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+    let grown: PathBuf = file.clone();
+    let mut before_open = move || {
+        std::fs::write(&grown, b"abcdefghijklmnop").expect("grow");
+    };
+    let mut after_read = || {};
+    assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read }), None, "a file grown past the room is not recorded");
+    assert!(hashed.get() <= crate::worktree_clean_content::CONTENT_LIMIT, "the landing never reads past its bound, and read {}", hashed.get());
+    assert!(hashed.get() > spent, "the bytes that were read are charged, and the landing read {}", hashed.get() - spent);
+    remove(root.as_path());
+}
+
+/// A fifo renamed over the path before the open is not opened for reading:
+/// an open that can wait for a writer would hold the landing's index lock for ever.
+#[test]
+fn a_fifo_swapped_over_the_path_is_not_opened() {
+    let root: PathBuf = fixture_root("index-worktree-stat-fifo");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a one\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
+    // The probe runs on a thread of its own so the control ends even when the open waits for a writer.
+    let held_root: &'static std::path::Path = Box::leak(root.clone().into_boxed_path());
+    let held_path: &'static [u8] = Box::leak(b"a".to_vec().into_boxed_slice());
+    let held_blob: &'static [u8] = Box::leak(blob.into_boxed_slice());
+    let swapped: &'static std::path::Path = Box::leak(file.clone().into_boxed_path());
+    let mut before_open = move || {
+        let _removed = std::fs::remove_file(swapped);
+        let name: std::ffi::CString = std::ffi::CString::new(swapped.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+        // SAFETY: `name` is a NUL-terminated string that outlives the call.
+        let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+        assert_eq!(made, 0, "the control made a fifo at {}", swapped.display());
+    };
+    let mut after_read = || {};
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let hashed: StdCell<u64> = StdCell::new(0);
+        let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: held_root, path: held_path, blob: held_blob, mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+        let answer: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read });
+        let _sent = sender.send(answer);
+    });
+    let answer: Option<StatData> = receiver.recv_timeout(std::time::Duration::from_secs(5)).expect("the proof must not wait on a fifo for a writer");
+    assert_eq!(answer, None, "a fifo is not a file the proof records");
     remove(root.as_path());
 }
