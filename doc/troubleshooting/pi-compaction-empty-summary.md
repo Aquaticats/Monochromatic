@@ -198,6 +198,12 @@ if (!hasMessages && previousSummary === undefined) {
 }
 ```
 
+`package/pi-plugin/morph-compact` is not in the working tree;
+the newest commit touching it is
+`64046360d2` (refactor(*):
+pause pi-plugin/morph-compact by moving it to package-paused (Refs
+#1810)) on 2026-10-29.
+
 For manual `/compact`,
  pi throws "Compaction cancelled".
  For
