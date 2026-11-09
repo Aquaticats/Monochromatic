@@ -38,7 +38,7 @@ use crate::policy_content::{Correction, LifecycleContent};
 use crate::policy_convergence::{
     Convergence, FIX_PASS_LIMIT_MESSAGE, FixPasses, PassResult as ConvergencePass,
 };
-use crate::policy_engine::{StageEnd, StageRequest, Unavailable};
+use crate::policy_engine::{StageEnd, StageRequest, Unavailable, pass_exit_code};
 use crate::policy_events::{FindingEvent, PolicyEvent};
 use crate::policy_pass::PassResult;
 use crate::policy_registry::{PolicyId, Severity};
@@ -66,6 +66,7 @@ fn fix_request(config: PolicyConfig) -> StageRequest {
 fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.to_path_buf());
+    facts.common_dir = Some(repo.join(".git"));
     return shipped_checks(
         facts,
         os_arguments(&[]),
@@ -245,6 +246,62 @@ fn a_fix_with_the_wired_policy_listed_completes_and_installs() {
     let result: PassResult = run_direct_fix(&listed, &mut checks, Some(repo.as_path()));
     assert_eq!(result.end, StageEnd::Completed);
     assert_eq!(std::fs::read(repo.join("a.txt")).expect("a"), b"a\n");
+    // The rule that keeps a killed fix's prepared file out of Git is in place, and nothing had to be reported.
+    let exclude: String =
+        std::fs::read_to_string(repo.join(".git/info/exclude")).expect("the repository's exclude file");
+    assert!(
+        exclude.contains(".cli-git-direct-fix-*"),
+        "{exclude}"
+    );
+    assert!(
+        !result.events.iter().any(|event| return matches!(event, PolicyEvent::EngineFailure { .. })),
+        "{result:?}"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A fix whose ignore rule cannot be written still installs,
+///  and reports what it could not do.
+/// Why:
+///   The rule keeps a killed fix's prepared file out of Git;
+///  a repository whose Git directory
+///       refuses the write is a reason to warn the person,
+///  never a reason to leave the corrections
+///       uninstalled or to fail the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // checks.facts.commonDir = repo/a.txt; const result = runDirectFix(...); expect(result.end).toBe('completed'); expect(result.events[0].type).toBe('engine-failure')
+/// ```
+#[test]
+fn a_fix_that_cannot_write_its_ignore_rule_installs_and_says_so() {
+    let root: PathBuf = fixture("direct-fix-exclude-failure");
+    let repo: PathBuf = untidy_repository(root.as_path());
+    let request: StageRequest = fix_request(PolicyConfig::defaults());
+    let mut checks: ShippedChecks<ScriptedFacts> = fix_checks(repo.as_path());
+    // A file where the Git directory should be, so the rule's directory cannot be made.
+    checks.facts.common_dir = Some(repo.join("a.txt"));
+    let result: PassResult = run_direct_fix(&request, &mut checks, Some(repo.as_path()));
+    assert_eq!(result.end, StageEnd::Completed);
+    assert_eq!(std::fs::read(repo.join("a.txt")).expect("a"), b"a\n");
+    let unlisted: &PolicyEvent = result
+        .events
+        .first()
+        .expect("the notice comes before the summary");
+    assert!(
+        matches!(
+            unlisted,
+            PolicyEvent::EngineFailure {
+                code: EngineFailureCode::PolicyIncomplete,
+                trigger: Some(Trigger::DirectFix),
+                ..
+            }
+        ),
+        "{result:?}"
+    );
+    let engine_code: i32 = pass_exit_code(result.events.as_slice(), result.end);
+    assert_eq!(engine_code, 0, "the fix still succeeds");
     remove(root.as_path());
 }
 
