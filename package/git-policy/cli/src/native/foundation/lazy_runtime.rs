@@ -400,6 +400,27 @@ impl Drop for RefusalForTheControl {
 }
 
 /// What:
+///  Starts `future` on the runtime a build that missed its deadline left behind,
+/// or answers nothing when that build never arrived.
+/// Why:
+///   A stand-in runtime has no worker, so the work a late build was made for runs on the build's own runtime;
+/// the task is taken by a function rather than a closure,
+/// so what is started and what it is started on are both named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const late = lateRuntime(); if (late === undefined) return undefined; return late.spawn(future);
+/// ```
+fn spawn_on_the_late_runtime<F>(future: F) -> Option<tokio::task::JoinHandle<F::Output>>
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    let late: &Runtime = LATE_RUNTIME.get()?;
+    return Some(late.spawn(future));
+}
+
+/// What:
 ///  Starts `future` as a task of the process's runtime,
 /// building the runtime on the first call,
 /// and returns nothing where that
@@ -431,10 +452,7 @@ where
         Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
         // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
         //  built for runs there.
-        Ok(_) | Err(_) => match LATE_RUNTIME.get() {
-            Some(late) => Some(late.spawn(future)),
-            None => None,
-        },
+        Ok(_) | Err(_) => spawn_on_the_late_runtime(future),
     };
 }
 
