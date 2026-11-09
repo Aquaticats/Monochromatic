@@ -3368,16 +3368,11 @@ Two readings are open:
 
 Still to do:
 
-- The landing's in-process index reset writes the commit's paths with all-zero stat data
-  (`index/index_reset.rs` `StatData::default()`,
-  as `git reset --no-refresh` does),
-  where native `git commit` leaves the worktree's stat data.
-  The next commit therefore finds those paths stale and refreshes them once,
-  through the question here,
-  one Git start and one hash per path the previous commit landed and this one does not name.
-  Native Git pays nothing for them.
-- The question's pass is single-threaded;
-  preloading it across threads as Git's `core.preloadIndex` does would cut the 56 ms above to about Git's 10 ms.
+- The landing's in-process index reset wrote the commit's paths with all-zero stat data,
+  which the next commit refreshed once;
+  closed by the section below.
+- The question's pass was single-threaded;
+  closed by the section below.
 - A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
   (Git answers a held lock at once,
   measured 0.00 s,
@@ -3386,6 +3381,164 @@ Still to do:
   bounded by `LANDING_LOCK_CEILING`.
 - The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
   `native:perf` compares paired commit deltas and is the run for it.
+
+### The landing records the stat data it can prove, and the staleness question walks its entries in parallel (2026-11-08T19:20:00-05:00)
+
+Branch `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`.
+
+What changed:
+
+- The in-process index reset takes a `WorktreeStat` source
+  (`src/native/index/index_reset.rs`),
+  and the landing names one that records the worktree's stat data
+  (`src/native/index/index_reset_worktree_stat.rs`)
+  for a path whose file provably holds the entry's bytes.
+  The proof is three facts together:
+  the file's raw bytes hash to the entry's object name read as a blob,
+  the state of the one inode read is the same before,
+  during and after the read and the path still names it,
+  and the file is older than the index file being written,
+  compared to the nanosecond as Git's `is_racy_stat` compares them.
+  Everything else keeps the all-zero value `git reset --no-refresh` writes:
+  a file as new as the index (racily clean to Git),
+  another kind of file,
+  a file above `CONTENT_LIMIT`,
+  a file that changed while it was read,
+  and a path no file holds.
+  A file whose bytes Git converts on the way into the index hashes to something else,
+  so a conversion costs a refresh and never a wrong record.
+  One landing hashes at most `CONTENT_LIMIT` bytes in all,
+  and a file that does not fit in what is left keeps the zero value.
+  The 4,000 newest non-merge commits of this repository change a median of 27 KB
+  (p90 209 KB,
+  p99 3.3 MB,
+  largest 23.1 MB,
+  `package/git-policy/cli/e2e/commit-shape-trace.json`),
+  so no commit there spends the bound.
+- The staleness question
+  (`src/native/commit/commit_index_stat_staleness.rs`)
+  walks its entries in contiguous slices on several threads,
+  one linear walk in all,
+  from `STAT_WALK_BREAK_EVEN_ENTRIES` entries up,
+  with the worker count of `parallel_budget.rs`;
+  a worker that panicked counts as one that found a stale entry.
+  It still reads the index's bytes and takes no lock.
+
+Controls, each written before its fix:
+
+- `src/native/index/index_reset_worktree_stat_tests.rs`:
+  a file that holds the entry's bytes records the file's stat data,
+  one that holds other bytes of the same size records nothing,
+  one as new as the index records nothing while one second older records,
+  a symbolic link records the link's own stat data and another target records nothing,
+  one that changed while it was read records nothing,
+  one above the content bound records nothing,
+  and a path of another kind,
+  a missing path and a gitlink record nothing.
+- `src/native/index/index_reset_recorded_stat_tests.rs`:
+  a path the worktree still holds records the file's stat data while a path edited after its capture keeps the zero value and
+  its edit stays in `git status`,
+  a file as new as the index records nothing while the same file two minutes older records,
+  and the commit after a landing asks for no refresh for the paths that landing recorded.
+- `src/native/commit/commit_index_stat_staleness_tests.rs`:
+  the sliced walk answers exactly what the one linear walk answers for one to eight threads on a clean index and on one whose
+  file moved inode,
+  and a walk below the break-even uses one thread.
+- `src/native/index/index_reset_file_tests.rs`:
+  the root commit case compares the two indexes with the stat data zeroed,
+  since the landing now records values where `git reset --no-refresh` writes zeros;
+  every other differential control still compares the files byte for byte.
+
+Failing output of the new controls, before their fix:
+
+- With the proof replaced by a plain `lstat` of the path (no content,
+  stability or racy check),
+  eight controls failed,
+  among them `a_path_the_worktree_holds_records_the_files_stat_data_and_one_edited_after_its_capture_records_none`
+  ("a path edited after its capture keeps the zero stat data Git hashes",
+  the edit would have been hidden),
+  `a_file_that_changed_while_it_was_read_records_nothing`,
+  `a_file_as_new_as_the_index_records_nothing`,
+  `a_file_that_holds_other_bytes_records_nothing`,
+  and `a_file_edited_in_the_same_second_as_its_stat_data_was_read_records_nothing`
+  ("the reset is the plain case",
+  the recorded racily clean entry made the update decline to Git).
+- With the landing's `WorktreeStat::None`,
+  all three controls of `index_reset_recorded_stat_tests.rs` failed
+  ("the path the worktree holds records the file's stat data",
+  "an older file records its stat data",
+  and the commit after a landing needing the refresh).
+
+The measurements and what is still open are in the section after this one.
+
+### What the recorded stat data and the parallel walk measured (2026-11-08T19:45:00-05:00)
+
+Measured on this host (8 CPUs,
+other sessions running),
+with alternating arms and the same binary with the feature switched off as the control,
+so the only difference between the arms is the recording and the parallel walk.
+
+The commit after a commit,
+in throwaway repositories of twelve files where each commit names one path
+(the path the previous commit landed is the one this one does not name),
+traced with `strace -f -e trace=execve,openat` around the second commit,
+three rounds per arm,
+the same counts in every round:
+
+- The arm with the recording off started eight Git processes in that commit and read the previously landed path twice:
+  once by the wrapper's own check and once by the `git update-index --refresh` its staleness question asked for.
+  Its debug log has the line `refreshStatData … holds the worktree's stat data now`.
+- The arm with the recording on started seven Git processes and read that path once.
+  Its debug log carries no `refreshStatData` line:
+  the question answered "not needed",
+  so the commit paid no Git start and no hash for the path the previous commit landed.
+- The wall clock of that commit was 891 and 1,854 ms with the recording off and 960 and 755 ms with it on in
+  four untraced runs,
+  a spread larger than any difference between the arms,
+  so this host under other sessions' load cannot show the saving as milliseconds;
+  the counters above are what the saving is.
+
+The staleness question's walk,
+release build,
+on a throwaway repository of 22,200 committed files
+(no locks taken,
+the index's bytes read in process),
+medians of nine walks for the whole pass and of twenty-five for the shorter ones:
+
+- One thread,
+  no thread started: 160.12 ms.
+  Seven workers,
+  the budget of this 8-CPU host: 30.56 ms.
+  Eight: 27.45 ms.
+  The whole question,
+  index bytes and walk together: 19.37 ms.
+- The break-even is 32 entries:
+  16 entries took 0.125 ms on one thread and 0.145 ms on seven,
+  so the threads lost there;
+  32 took 0.218 ms against 0.158 ms,
+  64 0.391 ms against 0.193 ms,
+  128 0.786 ms against 0.289 ms,
+  256 1.651 ms against 0.479 ms,
+  512 3.223 ms against 0.858 ms,
+  2,048 13.335 ms against 2.912 ms.
+  `STAT_WALK_BREAK_EVEN_ENTRIES` holds that 32 with the table beside it.
+
+Still to do:
+
+- The refresh a commit still asks for when a landed path was edited in the same instant as the index it landed in:
+  such an entry is racily clean to Git,
+  so it keeps the all-zero stat data and the next commit hashes it,
+  as native Git does.
+- The whole question's own index read and parse were not parallelised;
+  they are 19.37 ms of the 22,200-entry measurement above,
+  against Git's 10 ms for the same stat pass.
+- The cost the recording adds to a landing was not measured end to end:
+  it hashes the bytes of each path it can prove,
+  in process,
+  inside the landing's index lock,
+  at most `CONTENT_LIMIT` bytes per landing,
+  where 32 MiB of SHA-1 costs 10 to 20 ms on this host;
+  `native:perf` is the run that would show it against native Git.
 
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 

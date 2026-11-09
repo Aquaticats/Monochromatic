@@ -6471,6 +6471,39 @@ private file,
 so Git's `core.fsync` governs only that fallback;
 the in-process write always flushes the file,
 as Git's default does.
+The entries the update makes from the tree record the worktree's stat data where the file provably holds the tree's bytes
+(`index_reset_worktree_stat.rs`),
+and the all-zero value `git reset --no-refresh` writes everywhere else.
+A path's file proves it when its raw bytes hash to the entry's object name read as a blob,
+when the state of the one inode read is the same before,
+during and after the read and the path still names it,
+and when it is older than the index file being written,
+compared to the nanosecond as Git's `is_racy_stat` compares them.
+A file that is not is racily clean to Git,
+so it keeps the zero value and both Git and the wrapper's own staleness question hash it;
+a path of another kind,
+a file above `CONTENT_LIMIT`,
+a file that changed while it was read,
+and a path no file holds keep the zero value too.
+A file whose bytes Git converts on the way into the index hashes to something else,
+so a conversion can only cost a refresh and never a wrong record.
+One landing hashes at most `CONTENT_LIMIT` bytes in all:
+a file that does not fit in what is left keeps the zero value,
+so a commit that lands a whole worktree never reads it again inside the landing's index lock.
+The 4,000 newest non-merge commits of this repository change a median of 27 KB
+(p90 209 KB,
+p99 3.3 MB,
+largest 23.1 MB,
+`package/git-policy/cli/e2e/commit-shape-trace.json`),
+so no commit there spends the bound,
+and 32 MiB of SHA-1 costs 10 to 20 ms on this host.
+The next commit's staleness question finds the recorded entries clean and starts no Git for them,
+where the zero value cost one Git start and one hash of each file the previous commit landed.
+That question reads the index's bytes and `lstat`s each entry in contiguous slices on several threads above
+`STAT_WALK_BREAK_EVEN_ENTRIES` (`commit_index_stat_staleness.rs`),
+with the worker count of `parallel_budget.rs`,
+and it takes no lock:
+it asks about the file the index names and never writes the index.
 The rename that installs the copy has the durability native Git's has,
 by default and when the user opts in.
 The index can be rebuilt from `HEAD`,
