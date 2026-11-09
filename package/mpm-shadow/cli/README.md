@@ -508,9 +508,10 @@ Adding it is the ordinary lifecycle,
 never `update --all`:
 
 ```sh
-# Lock the new entry alone, then converge the machine-global tools; both work from any directory.
-mpm update -g llama.cpp-cpu
-mpm install -g
+# Lock the new entry alone, then converge the machine-global tools; both work from any directory,
+# because they name `mpm-shadow`, the program that owns these verbs (the machine-wide `mpm` is the real mpm).
+mpm-shadow update -g llama.cpp-cpu
+mpm-shadow install -g
 ```
 
 The lock then records `llama-b9829-bin-ubuntu-x64.tar.gz` for `linux-x64`,
@@ -1136,13 +1137,26 @@ the newest finished copy wins wherever it is.
 - The warning names the upgrade command of that scope as mpm's own pnpm-style verb with the tool id,
   so it moves only that row:
   `mpm update <tool id>` for a tree,
-  and `mpm update -g <tool id>` for the machine-global lock.
+  and `mpm-shadow update -g <tool id>` for the machine-global lock.
   The id is printed as one shell word,
   single-quoted when it holds anything other than letters,
   digits and `@%+=:,./_-`,
   so the command can be pasted as it is.
   It names no mise task,
-  because the repository is moving away from mise and `mpm update -g` works from any directory.
+  because the repository is moving away from mise.
+- The machine-global sentence names `mpm-shadow`,
+  never `mpm`.
+  Only a worktree's `PATH` makes `mpm` this tool:
+  the `mpm-shadow` plan entry's postinstall link puts it first under `.cache/mpm-shadow-bin`.
+  The machine-wide `mpm` is the real mpm of the global plan's `mpm` entry,
+  and it reads `update` as its own `upgrade` verb,
+  so a sentence naming `mpm` failed wherever a shell stood outside a worktree
+  (`Usage: mpm upgrade [OPTIONS] [PACKAGES_SPECS]...`,
+  `Error: No such option '-g'.`,
+  measured 2026-11-08).
+  A machine whose global plan declares no `mpm-shadow` entry has none on `PATH` either;
+  the entry the repository plan carries exposes it in the global exposure directory,
+  which `PATH` holds.
 - The exposed links,
   postinstall links and postinstall commands of both scopes use the winning copy,
   so `mpm-shadow install --global` makes `~/.local/bin/git` run the repository root's newest wrapper (through the global launcher) when that is the newest.
@@ -1152,7 +1166,7 @@ the newest finished copy wins wherever it is.
   in the same words everywhere the tree's sentence appears:
 
   ```text
-  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm update -g <tool id>`
+  <tool id> is locked at <locked> in this machine's global lock, <path to that lock file>, but <used> runs, because older repository tools are never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g <tool id>`
   ```
 
 #### Older managed copies
@@ -1300,7 +1314,8 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   the version the lock pins,
   the version `current` names
   and the command to run:
-  `mpm install` in the tree (`mpm install -g` for the machine-global launcher).
+  `mpm install` in the tree (`mpm-shadow install -g` for the machine-global launcher,
+  because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
 - The launcher never reads `PATH` or the working directory,

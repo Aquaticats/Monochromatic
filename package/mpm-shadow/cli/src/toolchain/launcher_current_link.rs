@@ -174,7 +174,11 @@ pub struct MissingProgram<'facts> {
 /// Why:
 /// `install` rebuilds the exposure directory and every launcher record from the lock,
 /// so it is the one command that fixes a tree whose launcher cannot find its program;
-/// the machine-global scope has no checkout to run it in.
+/// the machine-global scope has no checkout to run it in,
+/// and it names `mpm-shadow` rather than `mpm`,
+/// because only a worktree's `PATH` makes `mpm` this tool,
+/// and the machine-wide `mpm` is the real mpm,
+/// which refuses `-g`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,7 +206,7 @@ pub fn missing_program_advice(facts: MissingProgram<'_>) -> String {
             let tree: PathBuf = facts.lock_file.parent().map(Path::to_path_buf).unwrap_or_default();
             format!("run `mpm install` in {} to make this tree's links again", tree.display())
         }
-        ScopeKind::Global => "run `mpm install -g` to make the machine-global links again".to_string(),
+        ScopeKind::Global => "run `mpm-shadow install -g` to make the machine-global links again".to_string(),
     };
     return format!("{versions} no program named {name} was found under `current` or at the recorded path; {command}");
 }
