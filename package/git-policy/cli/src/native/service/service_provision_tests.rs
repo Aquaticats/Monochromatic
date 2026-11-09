@@ -38,6 +38,8 @@ pub(super) struct Recorder {
     /// in order,
     /// kept apart from the calls.
     budgets: Arc<Mutex<Vec<std::time::Duration>>>,
+    /// What a control reads at the moment the manager is asked to start a unit.
+    at_start: Arc<Mutex<Option<Box<dyn FnMut() + Send>>>>,
 }
 
 impl Manager for Recorder {
@@ -56,6 +58,9 @@ impl Manager for Recorder {
     }
 
     fn start(&mut self, unit: &str) -> Result<(), CallError> {
+        if let Some(read) = self.at_start.lock().expect("lock").as_mut() {
+            read();
+        }
         self.calls.lock().expect("lock").push(format!("start {unit}"));
         return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
@@ -122,6 +127,11 @@ impl Recorder {
 
     pub(super) fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
+    }
+
+    /// What a control reads each time the manager is asked to start a unit.
+    pub(super) fn observe_start(&self, read: Box<dyn FnMut() + Send>) {
+        *self.at_start.lock().expect("lock") = Some(read);
     }
 }
 
@@ -218,6 +228,41 @@ fn provisioning_notes_which_worktree_the_units_are_for() {
     assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
     let mut again: Recorder = Recorder::default();
     provision_with(&machine.host, &mut again).expect("provisioned again");
+    assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  The note that names the worktree is on disk before the manager is asked to start the units.
+/// Why:
+///  The service learns whose units it runs from that note,
+/// and a service that finds none answers `Unmapped`
+///  and never asks whether its worktree is still there,
+/// so the sweep that stops the units of a removed worktree can never name it
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4).
+/// A kill between the
+///  start of the units and the note left exactly that service behind,
+/// for up to the idle exit of three hours.
+/// The note names a directory
+///  that exists and needs no manager,
+/// so nothing is owed to writing it after the start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(noteExistsAtTheMomentOfStart).toBe(true);
+/// ```
+#[test]
+fn the_worktrees_note_is_written_before_the_manager_is_asked_to_start_the_units() {
+    let machine: Machine = machine("provision-note-first-lib");
+    let note: PathBuf = crate::service_units_of_removed_worktrees::note_path(machine.host.runtime_dir.as_path(), INSTANCE);
+    let seen: Arc<Mutex<Vec<bool>>> = Arc::new(Mutex::new(Vec::new()));
+    let mut recorder: Recorder = Recorder::default();
+    let watched: Arc<Mutex<Vec<bool>>> = Arc::clone(&seen);
+    let named: PathBuf = note.clone();
+    recorder.observe_start(Box::new(move || { watched.lock().expect("lock").push(named.exists()); }));
+    provision_with(&machine.host, &mut recorder).expect("provisioned");
+    assert_eq!(seen.lock().expect("lock").as_slice(), [true], "the note names the worktree before the units are started");
     assert_eq!(std::fs::read_to_string(&note).expect("the note"), machine.host.git_dir.to_string_lossy());
     remove(machine.root.as_path());
 }
