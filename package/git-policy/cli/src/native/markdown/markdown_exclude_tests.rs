@@ -92,16 +92,28 @@ fn a_name_that_is_not_utf8_is_matched_by_its_bytes() {
 
 /// A pattern the compiler refuses is reported with the pattern,
 ///  never ignored.
+///  A literal brace is no longer such a pattern:
+///  it is text to Git,
+///  and the matcher is given it escaped.
 #[test]
 fn a_pattern_that_cannot_compile_is_reported() {
+    // What: A character range that runs backwards is the one shape the glob compiler refuses and Git reads as a
+    //       class that matches nothing.
+    // Why:  The refusal must name the caller's own pattern, and the pattern must not be silently dropped with it.
+    //
+    // In TS you'd write (pseudocode):
+    // expect(() => compileExclude(['ok/', '[z-a].md'])).toThrow(/\[z-a\]\.md/);
     let refused: String =
-        compile_exclude(&[String::from("ok/"), String::from("a{b")]).expect_err("refused");
+        compile_exclude(&[String::from("ok/"), String::from("[z-a].md")]).expect_err("refused");
     assert!(
         refused.starts_with(
-            "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a{b\": "
+            "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"[z-a].md\": "
         ),
         "{refused}"
     );
+    // A literal brace compiles, and excludes exactly the file Git excludes.
+    assert!(excluded(&["a{b.md"], b"a{b.md"));
+    assert!(!excluded(&["a{b.md"], b"ab.md"));
 }
 
 /// A directory-only pattern never excludes a file of the same name,

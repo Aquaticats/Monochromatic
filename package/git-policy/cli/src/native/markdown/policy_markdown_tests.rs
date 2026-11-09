@@ -356,7 +356,13 @@ fn a_candidate_the_linter_cannot_check_fails_the_policy() {
 fn exclude_patterns_that_do_not_compile_fail_the_policy() {
     let root: PathBuf = fixture("markdown-bad-exclude");
     let repo: PathBuf = single_repository(root.as_path());
-    let (mut state, log) = scripted_state(rewrite, &["a{b"]);
+    // What: A character range that runs backwards is a class matching nothing to Git and a refusal to the compiler.
+    // Why:  A literal brace is no longer such a pattern: it is text to Git, and the matcher is given it escaped
+    //       (`markdown::markdown_exclude`).
+    //
+    // In TS you'd write (pseudocode):
+    // // scriptedState(rewrite, ['[z-a].md']) and expect the policy to fail naming that pattern.
+    let (mut state, log) = scripted_state(rewrite, &["[z-a].md"]);
     for _ in 0..2 {
         match check_markdown(
             &mut ContentState::new(),
@@ -372,7 +378,7 @@ fn exclude_patterns_that_do_not_compile_fail_the_policy() {
             } => {
                 assert!(
                     message.starts_with(
-                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a{b\": "
+                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"[z-a].md\": "
                     ) && message.ends_with(UNCHECKED_REMEDY),
                     "{message}"
                 );
@@ -556,4 +562,46 @@ fn markdown_paths_are_the_linter_s() {
     ] {
         assert_eq!(is_markdown_path(path), expected, "{path:?}");
     }
+}
+
+/// What:
+///  A literal brace in an exclude pattern names exactly the file Git names,
+///  so the alternate-group reading never excludes a file Git checks.
+/// Why:
+///  The option is documented as gitignore syntax,
+///  where a brace is ordinary text:
+///  reading it as `{old,new}` would silently leave `notesold.md` unchecked and check
+///  `notes{old,new}.md`,
+///  which is a wrong exclusion with no word about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // scriptedState(rewrite, ['notes{old,new}.md']); const outcome = checkMarkdown(...); expect(outcome.findings.map((f) => f.path.text())).toEqual(['notesold.md']);
+/// ```
+#[test]
+fn a_literal_brace_in_an_exclude_pattern_excludes_only_its_own_file() {
+    let root: PathBuf = fixture("markdown-brace-exclude");
+    let repo: PathBuf = single_repository(root.as_path());
+    std::fs::write(repo.join("notes{old,new}.md"), b"![x](img.png)\n").expect("the literal name");
+    std::fs::write(repo.join("notesold.md"), b"![x](img.png)\n").expect("the alternate-group name");
+    let (mut state, log) = scripted_state(rewrite, &["notes{old,new}.md"]);
+    let outcome: PolicyOutcome = check_markdown(
+        &mut ContentState::new(),
+        &add_all(),
+        &mut facts_for(repo.as_path()),
+        &mut state,
+        Trigger::DirectCheck,
+    );
+    assert_eq!(
+        outcome,
+        PolicyOutcome::Findings(vec![autofix(b"a.md", false), autofix(b"notesold.md", false)]),
+        "the file the pattern names is excluded and the one it does not name is checked"
+    );
+    let linted: Vec<Vec<u8>> = log
+        .borrow()
+        .iter()
+        .map(|request| return request.path.clone())
+        .collect();
+    assert_eq!(linted, vec![b"a.md".to_vec(), b"notesold.md".to_vec()]);
+    remove(root.as_path());
 }

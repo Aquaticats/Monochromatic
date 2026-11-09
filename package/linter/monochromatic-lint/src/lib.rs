@@ -109,6 +109,10 @@ pub mod file_discovery;
 /// Bounded cycle-aware fixpoint execution over exact source snapshots.
 #[doc(hidden)]
 pub mod fix_loop;
+/// The line a gitignore pattern is compiled as,
+///  for every consumer of the gitignore matcher.
+#[doc(hidden)]
+pub mod gitignore_pattern;
 /// Where a Cargo package's code starts:
 ///  its library root and executable roots.
 mod layout_crate_roots;

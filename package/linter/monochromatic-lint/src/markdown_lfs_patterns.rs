@@ -7,12 +7,17 @@
 //!  The incumbent evaluates both with one
 //! gitignore matcher,
 //!  so both keep last-match-wins and excluded-parent semantics here.
+//!  Every pattern reaches that matcher through `crate::gitignore_pattern`,
+//!  because the glob compiler under it
+//!       reads a brace as an alternate group while Git reads one as text.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const matcher = ignore().add(patterns); matcher.ignores(repoRelativePath)
 //! ```
 
+/// Import the translation that keeps a gitignore pattern's literal braces literal.
+use crate::gitignore_pattern::for_matcher;
 /// Import the shared ECMAScript trim so attribute lines split as the incumbent splits them.
 use crate::markdown_lfs_config::js_trim;
 /// Import the walker family's gitignore compiler and match outcome,
@@ -91,7 +96,7 @@ impl PathPatterns {
         let mut builder: GitignoreBuilder = GitignoreBuilder::new("");
         for pattern in patterns {
             // The first argument records a source file for diagnostics; these lists have none.
-            if let Err(error) = builder.add_line(None, pattern.as_str()) {
+            if let Err(error) = builder.add_line(None, for_matcher(pattern.as_str()).as_str()) {
                 return Err(PathPatternError {
                     message: format!("Cannot compile path pattern {pattern:?}: {error}."),
                 });

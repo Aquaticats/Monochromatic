@@ -150,6 +150,20 @@ A run whose fixed source passes 64 MiB,
 or whose findings pass 4 MiB,
 is refused as unchecked.
 
+The `exclude` option is gitignore syntax,
+read by the wrapper's own matcher and again by the linked linter,
+and both compile every pattern through `monochromatic_lint::gitignore_pattern::for_matcher`
+(`package/linter/monochromatic-lint/src/gitignore_pattern.rs`):
+a brace is ordinary text to Git,
+while the glob compiler beneath the matcher reads `{a,b}` as an alternate group,
+so a literal brace is escaped for that compiler and a brace inside a character class is left as it is.
+A control beside the matcher asks native Git's `git check-ignore` the same questions for every pattern
+shape it covers,
+and one shape stays different:
+a character range that runs backwards (`[z-a]`) is a class matching nothing to Git and a refusal
+here,
+which fails the policy with a message naming the pattern.
+
 ## Policy re-run after a retried landing
 
 After a commit is prepared again over a branch that moved,
