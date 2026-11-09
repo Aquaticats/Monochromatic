@@ -119,45 +119,72 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
 /// so the person is told what was found and given a command that is safe to paste.
 ///  The judgement words the same facts for the journal;
 ///  these are the sentence a command ends with,
-///  so they name the lock,
+///  so they name every lock that stands,
 ///  what is known about its holder,
-///  and the one command that clears it.
+///  and the one command that clears them all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const words = standing.map((found) => `The lock ${found.lock} stands in the way. ${holder(found)} If no Git is running in this repository, remove it with \`rm -- ${quote(found.lock)}\`.`).join(' ');
+/// const words = `A program is using ${locksNamed(held)}. Nothing proves that a Git process still holds ${locksNamed(unproven)}. If no Git process is running in this repository, remove them with \`rm -- ${quotedList(unproven)}\`.`;
 /// ```
 fn words_of(outcome: &Outcome, standing: &[PathBuf]) -> String {
-    let mut sentences: Vec<String> = Vec::new();
+    let mut held: Vec<(PathBuf, String)> = Vec::new();
+    let mut unproven: Vec<PathBuf> = Vec::new();
     for found in &outcome.left {
-        let holder: &str = match &found.verdict {
-            Verdict::Held(_) => "A program is using it.",
-            Verdict::Unproven(_) => "Nothing proves that a Git process still holds it.",
-            Verdict::TooNew | Verdict::Stale(_) => continue,
-        };
-        sentences.push(standing_sentence(found.lock.as_path(), holder));
-    }
-    if sentences.is_empty() {
-        // No judgement was old enough to word anything, which a lock made during the wait leaves: name what stands.
-        for path in standing {
-            sentences.push(standing_sentence(path.as_path(), "Nothing proves that a Git process still holds it."));
+        match &found.verdict {
+            // The process that has the lock open is the holder the person needs, and its words name it.
+            Verdict::Held(who) => held.push((found.lock.clone(), who.clone())),
+            Verdict::Unproven(_) => unproven.push(found.lock.clone()),
+            Verdict::TooNew | Verdict::Stale(_) => {}
         }
+    }
+    if held.is_empty() && unproven.is_empty() {
+        // No judgement was old enough to word anything, which a lock made during the wait leaves: name what stands.
+        unproven.extend_from_slice(standing);
+    }
+    let mut sentences: Vec<String> = Vec::new();
+    for (lock, who) in &held {
+        sentences.push(format!("A program is using {}: {who}.", locks_named(std::slice::from_ref(lock))));
+    }
+    if !unproven.is_empty() {
+        sentences.push(format!("Nothing proves that a Git process still holds {}.", locks_named(unproven.as_slice())));
+        sentences.push(format!("If no Git process is running in this repository, remove {} with `rm -- {}`.", if unproven.len() == 1 { "it" } else { "them" }, quoted_list(unproven.as_slice())));
     }
     return sentences.join(" ");
 }
 
-/// One lock, what is known about its holder, and the command that clears it.
+/// The locks as the person reads them:
+/// one in full,
+/// several as a list.
 ///
-/// In TS you'd write (pseudocode):
+/// In TS you would write (pseudocode):
 /// ```ts
-/// const sentence = (lock, holder) => `${holder} The lock is ${lock}. If no Git process is running in this repository, remove it with \`rm -- ${quote(lock)}\`.`;
+/// const locksNamed = (locks) => locks.length === 1 ? `the lock \`${locks[0]}\`` : `these locks: ${locks.map((lock) => `\`${lock}\``).join(', ')}`;
 /// ```
-fn standing_sentence(lock: &std::path::Path, holder: &str) -> String {
-    return format!(
-        "{holder} The lock is {}. If no Git process is running in this repository, remove it with `rm -- {}`.",
-        lock.display(),
-        shell_quote(lock)
-    );
+fn locks_named(locks: &[PathBuf]) -> String {
+    let mut names: Vec<String> = Vec::new();
+    for lock in locks {
+        names.push(format!("`{}`", lock.display()));
+    }
+    return match names.as_slice() {
+        [only] => format!("the lock {only}"),
+        many => format!("these locks: {}", many.join(", ")),
+    };
+}
+
+/// The locks as the words of one `rm --`,
+/// each quoted so a shell reads exactly that path.
+///
+/// In TS you would write (pseudocode):
+/// ```ts
+/// const quotedList = (locks) => locks.map((lock) => shellQuote(lock)).join(' ');
+/// ```
+fn quoted_list(locks: &[PathBuf]) -> String {
+    let mut words: Vec<String> = Vec::new();
+    for lock in locks {
+        words.push(shell_quote(lock.as_path()));
+    }
+    return words.join(" ");
 }
 
 /// The wait is controlled in the test module.

@@ -56,7 +56,7 @@ fn a_reference_lock_nothing_proves_gone_is_named_with_the_command_that_clears_it
     assert!(lock.exists(), "a lock nothing proves gone is never removed: {}", lock.display());
     assert!(words.contains(lock.display().to_string().as_str()), "the lock is named: {words}");
     assert!(words.contains("rm -- "), "the command that clears it is given: {words}");
-    assert!(words.contains("Nothing proves that a Git process still holds it"), "the words say what is not known: {words}");
+    assert!(words.contains("Nothing proves that a Git process still holds the lock"), "the words say what is not known: {words}");
     remove(root.as_path());
 }
 
@@ -94,7 +94,7 @@ fn a_lock_a_live_process_has_open_is_named_and_left() {
     let words: String = blocked(wait_out_the_reference_locks(std::slice::from_ref(&git_dir), &seeing, Instant::now()));
     assert!(lock.exists(), "the lock of a live holder is never removed: {}", lock.display());
     assert!(words.contains(lock.display().to_string().as_str()), "the lock is named: {words}");
-    assert!(words.contains("A program is using it"), "the words say a program has it open: {words}");
+    assert!(words.contains("A program is using the lock"), "the words say a program has it open: {words}");
     let _killed = holder.kill();
     let _reaped = holder.wait();
     remove(root.as_path());

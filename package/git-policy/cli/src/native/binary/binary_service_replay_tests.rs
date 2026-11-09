@@ -491,7 +491,11 @@ fn the_tree_that_appeared(scene: &Scene, before: &[PathBuf]) -> PathBuf {
             appeared.push(tree);
         }
     }
-    assert_eq!(appeared.len(), 1, "one attempt made one tree: {appeared:?}");
+    assert_eq!(
+        appeared.len(),
+        1,
+        "one attempt makes one scratch tree, and the command reads its private index after the service answered: a tree that is gone here was removed under that read: {appeared:?}"
+    );
     return appeared.remove(0);
 }
 

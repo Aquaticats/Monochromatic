@@ -38,7 +38,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::IndexInUse(String::from("the editor (process 4242)")),
         ClientFailure::ReferenceLocked {
             branch: String::from("main"),
-            words: String::from("Nothing proves that a Git process still holds it. The lock is /work/repo/.git/refs/heads/main.lock. If no Git process is running in this repository, remove it with `rm -- /work/repo/.git/refs/heads/main.lock`."),
+            words: String::from("Nothing proves that a Git process still holds the lock `/work/repo/.git/refs/heads/main.lock`. If no Git process is running in this repository, remove it with `rm -- /work/repo/.git/refs/heads/main.lock`."),
         },
         ClientFailure::Unavailable,
         ClientFailure::ProgramMissing(String::from("/opt/monochromatic-git-policy-cli/cli-git-service")),
