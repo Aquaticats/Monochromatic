@@ -284,7 +284,7 @@ or the full object name.
 Remote-answer sequence:
 
 1.  Review commit A against the local mock.
-    Return a valid `choice: no` answer whose probability `value` names the first 12 characters of commit B.
+    Return a JSON answer with `choice: no` whose probability `value` names the first 12 characters of commit B.
 2.  The answer reader accepts that arbitrary value and the entry renderer puts it in A's outcome text.
 3.  Review B.
     `names_commit` finds B's prefix inside A's outcome and returns `AlreadyLogged` before reading B or calling the gateway.
@@ -337,7 +337,8 @@ not a decision to add a repository-wide lock.
 
 Status:
 **Reproduced** for a bounded oversized error response;
-unbounded allocation and process-exhaustion consequences are **read from the code only**.
+the missing byte boundary is also **read from the code only** beyond the measured body size.
+Process-exhaustion effects were not tested.
 Risk:
 availability of the service process,
 not a reproduced failed commit.
@@ -499,10 +500,54 @@ and the transport matrix.
 These prove completion events and explicit failure entries,
 not a native-Git latency delta.
 
-The source-boundary tests on the restored tree,
-package Clippy,
-Markdown fixing,
-linting and rendered inspection are still being completed.
+After removing all temporary source files,
+the source-boundary controls passed:
+
+```text
+# mise run //package/git-policy/cli:native:test:host -- standards_review_boundary --success-output=final --failure-output=final
+Starting 11 tests across 1 binary (5082 tests skipped)
+Summary [   8.836s] 11 tests run: 11 passed, 5082 skipped
+```
+
+The output named
+`the_network_client_is_reachable_only_from_the_service_run`,
+`the_real_scan_reads_exactly_the_files_the_module_tree_reaches`,
+and the planted-import positive control.
+The command used `CPUQuota=200%`,
+`MemoryMax=4G`,
+`TasksMax=256`,
+`IOWeight=10` and a 300-second deadline.
+
+`mise run //package/git-policy/cli:native:clippy` also exited `0`,
+with warnings denied by the package task.
+It used the audit-control cgroup limits and a 600-second deadline.
+
+The document validation commands are
+`mise run //:format:monochromatic-lint -- doc/planning/cli-git-standards-review-route-findings-on-main.md`,
+then
+`mise run //:lint:monochromatic-lint -- doc/planning/cli-git-standards-review-route-findings-on-main.md`.
+Both Markdown commands completed with exit `0` and no lint diagnostics.
+Rendered inspection checked Pandoc's GFM-to-HTML output in the ignored audit-output directory:
+finding headings,
+inline status emphasis,
+filename escapes,
+ordered steps and quoted output blocks rendered as intended.
+No blockquote or table is used in this document.
+Markdown validation used `CPUQuota=200%`,
+`MemoryMax=2G`,
+`TasksMax=128`,
+`IOWeight=10` and a 120-second deadline per command;
+rendering used `CPUQuota=100%`,
+`MemoryMax=512M`,
+`TasksMax=64`,
+`IOWeight=10` and a 30-second deadline.
+
+Cross-vendor report reviews checked the receipt mechanism and the limits of the response-memory evidence.
+Their precision corrections were incorporated:
+the native-byte sequence is explicit,
+the interrupted append is a seeded state,
+the response display cap is not proposed as a memory bound,
+and no failed commit or native-Git timing delta is claimed.
 
 ## Limits of this audit
 
