@@ -39,6 +39,30 @@ pub(super) fn store_with(program: &Path, directory: &Path) -> CandidateStore {
     );
 }
 
+/// Two glob modes that disagree in the caller's environment make Git refuse every pathspec,
+/// and the store's own listings name theirs as `:/` and `:(top,literal)<path>`:
+/// a candidate listing is the wrapper's own question and must answer anyway.
+#[test]
+fn a_staging_listing_answers_under_the_callers_conflicting_glob_modes() {
+    let root: PathBuf = fixture("candidate-store-glob-modes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"one\n").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    let overlay: Vec<(OsString, OsString)> = vec![
+        (OsString::from("CLI_GIT_IN_PROCESS_READS"), OsString::from("off")),
+        (OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")),
+        (OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")),
+    ];
+    let mut inherited: CandidateStore = CandidateStore::new(
+        Path::new(REAL_GIT),
+        &[OsString::from("-C"), repo.as_os_str().to_os_string()],
+        overlay.as_slice(),
+    );
+    let records = inherited.stage_records(&[OsString::from(":/")]).expect("the staging listing answers despite the caller's modes");
+    assert_eq!(records.len(), 1, "the one staged entry is listed: {records:?}");
+    remove(root.as_path());
+}
+
 /// A store over the real Git executable.
 pub(super) fn store(directory: &Path) -> CandidateStore {
     return store_with(Path::new(REAL_GIT), directory);

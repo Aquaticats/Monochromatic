@@ -26,8 +26,8 @@ use std::ffi::OsString;
 /// printed for `--help` and after a refused invocation.
 pub const MIGRATE_HELP: &str = "\
 Usage: git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run] [--no-nested-worktrees] [--no-refresh-indexes]
-       git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--dry-run]
-       git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--dry-run]
+       git monochromatic-git-policy-cli migrate-to-subvolume --rollback [--discard-unreadable] [--discard-left-out] [--dry-run]
+       git monochromatic-git-policy-cli migrate-to-subvolume --remove-old [--discard-unreadable] [--discard-left-out] [--dry-run]
 
 Convert the repository's main checkout into a btrfs subvolume at the same path, so that creating a worktree can start
 from a snapshot. Nothing is spawned: the command calls the btrfs ioctls, clones file data, copies the tree, swaps the
@@ -43,6 +43,13 @@ Options:
   --discard-unreadable    With --remove-old: also delete the files this user may not read, which were not copied.
                           With --rollback: also delete the files only the new subvolume holds that this user may not
                           read, which cannot be carried back.
+  --discard-left-out      With --remove-old: also delete the entries of the old tree that the checkout lacks and that
+                          are older than the migration's catch-up. --remove-old names them and deletes nothing without
+                          this flag, because they are either files you deleted from the checkout on purpose or files
+                          you restored into the old tree (the list is written beside the checkout).
+                          With --rollback: also delete the entries of the new subvolume that could not be carried back
+                          because the original tree holds another kind of entry at their path. --rollback names them
+                          and deletes nothing without this flag, because the new subvolume is the only copy of them.
   --no-nested-worktrees   Keep the linked worktrees inside the checkout as ordinary directories (default: each becomes
                           a nested subvolume).
   --no-refresh-indexes    Leave the Git index files as copied (the first git status of each worktree then hashes every
@@ -105,6 +112,10 @@ pub struct MigrateArguments {
     /// With remove-old or rollback:
     /// delete the unreadable files too.
     pub discard_unreadable: bool,
+    /// With remove-old or rollback:
+    /// delete the entries the late-write carry left out of the checkout too,
+    /// or those the rollback's carry-back could not put into the original tree.
+    pub discard_left_out: bool,
     /// Print the help.
     pub help: bool,
 }
@@ -128,6 +139,7 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
         nested_worktrees: true,
         refresh_indexes: true,
         discard_unreadable: false,
+        discard_left_out: false,
         help: false,
     };
     let (mut rollback, mut remove_old, mut migrate_switch): (bool, bool, bool) = (false, false, false);
@@ -140,6 +152,7 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
             "--rollback" => rollback = true,
             "--remove-old" => remove_old = true,
             "--discard-unreadable" => parsed.discard_unreadable = true,
+            "--discard-left-out" => parsed.discard_left_out = true,
             "--no-nested-worktrees" => {
                 parsed.nested_worktrees = false;
                 migrate_switch = true;
@@ -163,6 +176,9 @@ pub fn parse_migrate_arguments(arguments: &[OsString]) -> Result<MigrateArgument
     }
     if parsed.discard_unreadable && !remove_old && !rollback {
         return Err(String::from("--discard-unreadable applies only with --remove-old or --rollback."));
+    }
+    if parsed.discard_left_out && !remove_old && !rollback {
+        return Err(String::from("--discard-left-out applies only with --remove-old or --rollback."));
     }
     if rollback {
         parsed.mode = MigrateMode::Rollback;

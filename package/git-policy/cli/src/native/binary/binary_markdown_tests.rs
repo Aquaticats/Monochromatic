@@ -273,6 +273,17 @@ fn an_exclude_that_does_not_compile_stops_only_markdown_work() {
 /// the shared bound is for single Git commands.
 const COMMIT_BOUND_SECONDS: &str = "120";
 
+/// How long a control waits for the service to remove a landed commit's scratch tree.
+///
+/// Measured on 2026-11-09 in a shaped repository:
+/// the service removes the tree when the client's connection closes,
+/// which is
+/// after the client printed the summary,
+/// so the control reads the directory a moment later.
+/// The wait is bounded because a
+/// tree that stays is the finding this control means to report.
+const SCRATCH_SETTLE: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// The commit `main` names,
 /// read by real Git.
 fn head(fixture: &Fixture, repo: &Path) -> String {
@@ -320,7 +331,11 @@ fn a_markdown_commit_is_checked_in_process_with_no_linter_on_the_path() {
 /// with `TMPDIR` naming a path that does not exist the commit
 /// lands,
 /// the private scratch directory exists beside the repository's other private storage,
-/// and it is empty.
+/// and the commit's own scratch tree is gone from it once the service that held it lets go.
+/// The tree goes when the service removes it,
+/// which is after this command was answered,
+/// so the control waits for the directory
+/// to be empty rather than reading it once.
 #[test]
 fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
     let fixture: Fixture = fixture("commit-scratch-location");
@@ -352,11 +367,19 @@ fn a_commit_keeps_its_git_input_in_the_repository_scratch_directory() {
     );
     assert_ne!(head(&fixture, repo.as_path()), base, "the commit landed");
     let scratch: PathBuf = repo.join(".git").join("monochromatic-git-policy-cli-scratch");
-    let left: Vec<OsString> = std::fs::read_dir(&scratch)
+    let began: std::time::Instant = std::time::Instant::now();
+    let mut left: Vec<OsString> = std::fs::read_dir(&scratch)
         .expect("the repository scratch directory exists")
         .map(|entry| { return entry.expect("entry").file_name(); })
         .collect();
-    assert!(left.is_empty(), "nothing is left in {}: {left:?}", scratch.display());
+    while !left.is_empty() && began.elapsed() < SCRATCH_SETTLE {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        left = std::fs::read_dir(&scratch)
+            .expect("the repository scratch directory exists")
+            .map(|entry| { return entry.expect("entry").file_name(); })
+            .collect();
+    }
+    assert!(left.is_empty(), "nothing is left in {} after {SCRATCH_SETTLE:?}: {left:?}", scratch.display());
     assert!(!unusable.exists(), "nothing created the unusable temporary directory");
     remove(&fixture);
 }

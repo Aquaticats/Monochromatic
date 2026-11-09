@@ -10,8 +10,8 @@ import { join, } from 'node:path';
 import {
   runSudo,
   runSudoAllowingFailure,
-  type FixtureCommandResult,
-} from './tunnel-bypass-command-fixture.ts';
+} from './tunnel-bypass-command-fixture-sudo.ts';
+import type { FixtureCommandResult, } from './tunnel-bypass-command-fixture-types.ts';
 
 /**
  Built CLI bundle exercised at user boundary.

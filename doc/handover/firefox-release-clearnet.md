@@ -127,3 +127,29 @@ The application watcher and its sentinel remain active as the installed routing 
 Pandoc's CommonMark renderer accepted this handover and the updated package READMEs.
 The rendered output was inspected for the application entries and verification prose.
 There is no remaining installation or routing action.
+
+## Package lint at 2026-11-09T14:06:50-05:00
+
+Branch `style/wg-cli-quicker-oxlint-findings` fixes the findings recorded under "Verification",
+and `mise run //package/wg/cli-quicker:lint:oxlint` reports `0 warnings and 0 errors` on it.
+No rule was loosened and no finding carries a suppression.
+
+- `package/wg/cli-quicker/src/tunnel-bypass-command-fixture.ts` split into sibling modules:
+  `tunnel-bypass-command-fixture-types.ts` for the shared types,
+  `tunnel-bypass-command-fixture-staging.ts` for the staged copy of the built CLI,
+  `tunnel-bypass-command-fixture-sudo.ts` for the privileged runners,
+  and the original file for the commands that run inside the fixture namespace and the state reader.
+  The staging test is renamed `tunnel-bypass-command-fixture-staging.unit.test.ts` after the module it exercises.
+- `package/wg/cli-quicker/src/tunnel-bypass-route-shape.ts` reads a decimal field with a cursor
+  and judges each kept keyword with its own branch,
+  so the route grammar carries neither a regex nor a switch.
+- The host tests import the hosts module once,
+  and the stylistic findings in `tunnel-clearnet.ts`,
+  `tunnel-traffic-block-rules.ts`,
+  `tunnel-traffic-block.ts`,
+  and `tunnel-bypass-route-physical.ts` are rewritten in the shapes the rules ask for.
+
+The package build,
+unit tests,
+the type check,
+and the package's Oxlint run pass on that branch.

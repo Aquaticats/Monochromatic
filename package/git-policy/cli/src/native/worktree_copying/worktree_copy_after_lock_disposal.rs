@@ -95,7 +95,10 @@ pub(crate) fn dispose_timed((context, pending, stream): (&GitContext, &PendingTr
 ///   The worktree is whole either way,
 /// so a trash that stays is reported and never fails the add;
 /// the work item
-///  written for it means the commit service empties it later.
+///  written for it means the commit service tries again later,
+/// and so does the next `git worktree add` for that
+///  worktree,
+/// which also names a trash that no record accounts for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
