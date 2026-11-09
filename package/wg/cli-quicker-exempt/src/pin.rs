@@ -7,6 +7,8 @@ use crate::bpf::{attach_marker, HOOK_NAMES};
 /// Debug-only typed pin failure constructor for deterministic fallback tests.
 #[cfg(debug_assertions)]
 use crate::bpf_error::pin_object_invalid;
+/// Lowercase hexadecimal spelling shared with the watcher state names.
+use crate::bytes_as_lowercase_hex::{bytes_as_lowercase_hex, DIGITS_PER_BYTE};
 /// Standard filesystem and syscall error channel.
 use std::io;
 /// Unix metadata device identity and raw descriptor access.
@@ -32,9 +34,6 @@ const BPF_FS_MAGIC: libc::c_long = 0xcafe4a11;
 const RENAME_EXCHANGE: libc::c_uint = 2;
 /// Process-local sequence for staging directory names.
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-/// Hex digits avoid dots,
-///  which bpffs reserves for future extensions.
-const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 /// Source bytes per encoded component keep every bpffs name within `NAME_MAX`.
 const PIN_KEY_CHUNK_BYTES: usize = 100;
 /// Debug-only environment flag simulating affected kernel's typed object-pin failure.
@@ -111,13 +110,9 @@ fn encoded_pin_key(canonical: &Path) -> io::Result<PathBuf> {
             "cgroup path must be absolute",
         ));
     }
-    let mut encoded = String::new();
-    for byte in canonical.as_os_str().as_bytes() {
-        encoded.push(HEX_DIGITS[(byte >> 4) as usize] as char);
-        encoded.push(HEX_DIGITS[(byte & 0x0f) as usize] as char);
-    }
+    let encoded: String = bytes_as_lowercase_hex(canonical.as_os_str().as_bytes());
     let mut key = PathBuf::new();
-    for chunk in encoded.as_bytes().chunks(PIN_KEY_CHUNK_BYTES * 2) {
+    for chunk in encoded.as_bytes().chunks(PIN_KEY_CHUNK_BYTES * DIGITS_PER_BYTE) {
         let component = std::str::from_utf8(chunk).map_err(io::Error::other)?;
         key.push(component);
     }
