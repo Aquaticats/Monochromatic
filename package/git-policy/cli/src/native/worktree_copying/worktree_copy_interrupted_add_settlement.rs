@@ -23,6 +23,8 @@ use crate::worktree_add_binding::{Recorded, decode_record};
 use crate::worktree_copy_stage_claim::COMPLETE_SUFFIX;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
+/// `Duration` is the age a record that names no Git is kept for.
+use std::time::Duration;
 
 /// What recovery decided about one add's record.
 pub struct Settlement {
@@ -91,6 +93,42 @@ fn index_entry_count(index: &Path) -> Option<usize> {
     }
     let count: [u8; 4] = header[INDEX_COUNT_AT..INDEX_HEADER_BYTES].try_into().ok()?;
     return Some(u32::from_be_bytes(count) as usize);
+}
+
+/// What:
+///  How long a record that names no Git process may be kept before it settles.
+/// Why:
+///   The name is written a few calls after the spawn,
+/// so a command killed in between leaves a record that names no process
+///  while its Git may still be at work;
+/// nothing proves that Git gone,
+/// so the record is kept while it is younger than this,
+/// and
+///  a minute is far longer than reaching the name takes and far shorter than a record that nothing will settle
+///  should stay.
+pub(crate) const UNNAMED_CHILD_GRACE: Duration = Duration::from_secs(60);
+
+/// What:
+///  What a record settles to when it names no Git process,
+/// or the platform will not say whether the one it names runs.
+/// Why:
+///   An add whose Git is not proven gone may still make its destination,
+/// so its record stays and nothing is said;
+/// the age is
+///  the only bound there is,
+/// and past it nothing of that add can still be starting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const young = Math.max(0, Date.now() - stat(record).mtimeMs) < UNNAMED_CHILD_GRACE_MS;
+/// return { notice: undefined, keep: young };
+/// ```
+fn unnamed_child_settlement(record: &Path) -> Settlement {
+    let aged: Option<Duration> = std::fs::metadata(record)
+        .and_then(|held| { return held.modified(); })
+        .ok()
+        .and_then(|changed| { return std::time::SystemTime::now().duration_since(changed).ok(); });
+    return Settlement { notice: None, keep: aged.is_some_and(|age| { return age < UNNAMED_CHILD_GRACE; }) };
 }
 
 /// What:
@@ -343,9 +381,18 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
             // The path is printed inside commands the person runs, so it is quoted for the shell.
             // The path is printed inside commands the person runs, so it is quoted for the shell.
             let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish.
+            // Nothing at the path, or nothing Git's pointer there. The Git this add started may still be making it, which
+            //  the record says: a named Git that is proven running keeps the record, a named Git that is gone settles it,
+            //  and a record too young to have named one yet keeps it until the grace has passed.
             if !destination.join(POINTER).exists() {
-                return Settlement { notice: None, keep: false };
+                let Some(child) = crate::worktree_add_binding::running_child_of(text.as_str()) else {
+                    return unnamed_child_settlement(record);
+                };
+                return match child.is_alive(record) {
+                    Ok(true) => Settlement { notice: None, keep: true },
+                    Ok(false) => Settlement { notice: None, keep: false },
+                    Err(_unproven) => unnamed_child_settlement(record),
+                };
             }
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
