@@ -263,6 +263,39 @@ fn a_trash_that_could_not_be_emptied_is_tried_again_and_named() {
 }
 
 /// What:
+///  A named pipe among the trash records does not hold the command that retries them,
+///  and the trash it does not name is left alone.
+/// Why:
+///   This scan runs on every command in a worktree that has a trash,
+/// so an entry that is not a plain file would make every
+///  command wait for a writer that never comes.
+#[test]
+fn a_named_pipe_among_the_trash_records_does_not_hold_the_command() {
+    let (root, worktree, git_dir, _manifest) = worktree_with_planted_trash("trash-pipe", "8".repeat(40).as_str(), 1);
+    let failed: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::FAILED);
+    std::fs::create_dir_all(failed.as_path()).expect("the failed records' directory");
+    let pipe: PathBuf = failed.join("pipe-not-a-record");
+    let name = std::ffi::CString::new(pipe.as_os_str().as_encoded_bytes()).expect("path text");
+    // SAFETY: `name` is NUL-terminated and outlives the call; mode 0600 is this test's own.
+    assert_eq!(unsafe { libc::mkfifo(name.as_ptr(), 0o600) }, 0, "the named pipe");
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let (git_dir_for_scan, worktree_for_scan) = (git_dir.clone(), worktree.clone());
+    let runner = std::thread::spawn(move || {
+        let mut said: Vec<u8> = Vec::new();
+        retry_given_up_trash(git_dir_for_scan.as_path(), worktree_for_scan.as_path(), &mut said);
+        let _sent = sender.send(said);
+    });
+    let said: Vec<u8> = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
+        Ok(said) => said,
+        Err(_still_waiting) => panic!("the trash retry waited on a named pipe instead of skipping it"),
+    };
+    runner.join().expect("the scan ends");
+    assert!(pipe.exists(), "the named pipe itself is left alone");
+    assert!(String::from_utf8_lossy(said.as_slice()).contains("holds directories no record"), "the trash is still named: {}", String::from_utf8_lossy(said.as_slice()));
+    remove(root.as_path());
+}
+
+/// What:
 ///  A directory in the trash parent that no record names is named to the person and never deleted.
 /// Why:
 ///   Removing trash deletes a person's folders,

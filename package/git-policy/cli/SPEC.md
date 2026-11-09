@@ -1782,6 +1782,11 @@ an absent pathname is not proof,
 because a person can move an intact worktree,
 and emptying its registration would
 leave its `.git` file pointing at nothing.
+A directory entry in that folder that is not a plain file is left alone:
+the folder is read on every wrapped command,
+so a
+named pipe,
+a device or a link there would otherwise make a commit wait for a writer that never comes.
 Every wrapped command then finishes a marked record:
 the registration is emptied and
 removed through descriptors opened below `worktrees`,

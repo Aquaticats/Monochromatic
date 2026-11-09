@@ -34,6 +34,7 @@ use crate::diagnostic_log::{debug, warn};
 use crate::fs_beneath::{ObjectId, identity_of, open_directory_at, open_root, remove_at};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::subvolume_remove_walk::{empty_directory, verify_below};
+use crate::worktree_convert_journal::read_plain_file;
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, snapshot_one};
 use crate::worktree_removal_snapshot_promotion::promote_snapshot;
 use std::ffi::{OsStr, OsString};
@@ -47,6 +48,11 @@ const TAG: &str = "worktreeRemovalInterruptedDestroy";
 /// The folder of the common Git directory that holds one record per destroy the wrapper started,
 /// named by the registration's id.
 pub const RECORD_FOLDER: &str = "monochromatic-git-policy-cli/recorded-destroys";
+
+/// The most bytes of a record that is read:
+/// three short lines,
+/// and a worktree path far under any limit.
+const RECORD_LIMIT: u64 = 4096;
 
 /// The last line of a record whose kernel call returned,
 /// which is the only proof that the files of the worktree are gone.
@@ -197,11 +203,7 @@ fn is_newline(byte: &u8) -> bool {
 /// ```ts
 /// type DestroyRecord = { admin: ObjectId; target: string; destroyed: boolean };
 /// ```
-fn read_record(path: &Path) -> Result<DestroyRecord, String> {
-    let bytes: Vec<u8> = match std::fs::read(path) {
-        Ok(read) => read,
-        Err(error) => return Err(format!("it cannot be read ({error})")),
-    };
+fn read_record(bytes: &[u8]) -> Result<DestroyRecord, String> {
     let Some(split_at) = bytes.iter().position(is_newline) else {
         return Err(String::from("it has no identity line"));
     };
@@ -299,7 +301,17 @@ pub fn finish_interrupted_destroys(common_dir: &Path) -> Vec<String> {
 /// Finish one record,
 /// or say why it stays.
 fn finish_one(common_dir: &Path, record: &Path, id: &OsStr, problems: &mut Vec<String>) {
-    let read: DestroyRecord = match read_record(record) {
+    // What a directory entry is, before what it holds: a named pipe, a device or a link is not this command's record, and
+    // opening one would wait for a writer that never comes, on every wrapped command. `read_plain_file` opens without
+    // following a link and without waiting, and refuses anything that is not a plain file.
+    let bytes: Vec<u8> = match read_plain_file(record, RECORD_LIMIT) {
+        Ok(read) => read,
+        Err(error) => {
+            debug(TAG, format!("{} is not a plain record and is left alone ({error})", record.display()).as_str());
+            return;
+        }
+    };
+    let read: DestroyRecord = match read_record(bytes.as_slice()) {
         Ok(found) => found,
         Err(reason) => {
             // A record that cannot be read cannot be used later either: it is said once and dropped.

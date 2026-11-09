@@ -323,6 +323,53 @@ fn a_removal_whose_files_are_gone_is_finished_by_the_next_command_and_keeps_its_
     remove(root.as_path());
 }
 
+/// A named pipe at `path`,
+/// created with the platform's own call.
+fn named_pipe(path: &Path) {
+    let name = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("path text");
+    // SAFETY: `name` is NUL-terminated and outlives the call; mode 0600 is this test's own.
+    let made: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the named pipe {}", path.display());
+}
+
+/// What:
+///  A named pipe among the destroy records does not hold the command that recovers them:
+///  it is skipped,
+///  and the record beside it is still finished.
+/// Why:
+///   Every wrapped command reads that directory,
+/// so an entry that is not a plain file would make a commit wait for
+///  a writer that never comes,
+/// before anything checks whether the entry names a registration.
+#[test]
+fn a_named_pipe_among_the_destroy_records_does_not_hold_the_command() {
+    let root: PathBuf = fixture("remove-destroy-record-pipe");
+    let repo: PathBuf = repository_with_file(root.as_path(), "repo");
+    let worktree: PathBuf = clean_worktree(repo.as_path(), root.join("wt").as_path(), "topic");
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let admin: PathBuf = admin_of(repo.as_path(), "wt");
+    let identity = crate::fs_beneath::identity_of(&std::fs::File::open(admin.as_path()).expect("registration")).expect("identity");
+    record_destroy(common.as_path(), std::ffi::OsStr::new("wt"), &identity, worktree.as_path()).expect("record");
+    record_destroyed(common.as_path(), std::ffi::OsStr::new("wt"));
+    remove(worktree.as_path());
+    let folder: PathBuf = common.join(crate::worktree_removal_interrupted_destroy::RECORD_FOLDER);
+    named_pipe(folder.join("pipe-not-a-record").as_path());
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let scanned: PathBuf = common.clone();
+    let runner = std::thread::spawn(move || {
+        let _said = sender.send(finish_interrupted_destroys(scanned.as_path()));
+    });
+    let problems: Vec<String> = match receiver.recv_timeout(std::time::Duration::from_secs(20)) {
+        Ok(said) => said,
+        Err(_still_waiting) => panic!("the recovery waited on a named pipe instead of skipping it"),
+    };
+    runner.join().expect("the scan ends");
+    assert!(problems.is_empty(), "{problems:?}");
+    assert!(folder.join("pipe-not-a-record").exists(), "the named pipe itself is left alone");
+    assert!(!admin.exists(), "the record beside it is still finished");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A worktree with a conversion's leftover copy beside it is not removed:
 ///  the copy would be left behind with nothing naming it.

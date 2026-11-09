@@ -36,6 +36,7 @@ use crate::service_route::{Route, route_from_environment};
 use crate::service_work::{Verdict, work_directory};
 use crate::transaction_git::GitContext;
 use crate::work_item::{CLAIMED, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::worktree_convert_journal::read_plain_file;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;
@@ -48,6 +49,11 @@ use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrashDispose";
+
+/// The most bytes of a work item record that is read:
+/// the manifest of one trash,
+/// which is short.
+const RECORD_LIMIT: u64 = 64 * 1024;
 
 /// The reference every trash work item carries;
 /// the service accepts only a reference under `refs/`.
@@ -218,7 +224,10 @@ pub fn retry_given_up_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn W
         let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
         for entry in listing.flatten() {
             let record: PathBuf = entry.path();
-            let Ok(text) = std::fs::read_to_string(record.as_path()) else { continue };
+            // A record is a plain file: a named pipe or a device in a state directory is somebody's own entry, and
+            // opening it would wait for a writer that never comes, on every command in this worktree.
+            let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
+            let Ok(text) = String::from_utf8(bytes) else { continue };
             let Ok(item) = WorkItem::decode(text.as_str()) else { continue };
             if item.kind != WorkKind::Trash {
                 continue;

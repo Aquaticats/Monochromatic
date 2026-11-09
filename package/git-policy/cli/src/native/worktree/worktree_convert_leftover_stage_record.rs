@@ -34,6 +34,7 @@
 
 use crate::diagnostic_log::warn;
 use crate::fs_beneath::ObjectId;
+use crate::worktree_convert_journal::read_plain_file;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -43,6 +44,9 @@ const TAG: &str = "worktreeConvertLeftoverStage";
 /// after the dotted wrapper prefix:
 /// `.cli-git-convert-<name>.leftover-stage.json` in the worktree's parent.
 const RECORD_SUFFIX: &str = ".leftover-stage.json";
+
+/// The most bytes of this record that are read.
+const RECORD_LIMIT: u64 = 4096;
 
 /// The wrapper's prefix of every name it keeps beside a worktree.
 const RECORD_PREFIX: &str = ".cli-git-convert-";
@@ -114,7 +118,9 @@ pub fn record_leftover_stage(worktree: &Path, stage: &LeftoverStage) {
 /// ```
 pub fn leftover_stage_of(worktree: &Path) -> Option<LeftoverStage> {
     let path: PathBuf = record_path(worktree)?;
-    let text: String = std::fs::read_to_string(path.as_path()).ok()?;
+    // Only a plain file is this command's record: opening a named pipe would wait for a writer that never comes.
+    let bytes: Vec<u8> = read_plain_file(path.as_path(), RECORD_LIMIT).ok()?;
+    let text: String = String::from_utf8(bytes).ok()?;
     let mut original: Option<ObjectId> = None;
     let mut created: Option<ObjectId> = None;
     for line in text.lines() {
