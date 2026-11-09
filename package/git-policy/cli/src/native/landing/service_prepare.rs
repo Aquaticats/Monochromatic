@@ -68,11 +68,37 @@ use crate::merge_second_pass::Merged as MergedFile;
 use crate::service_replay::{MergeSite, Merged, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
 use crate::external_hooks::warn_external_hooks;
 use crate::traditional_hook_warning::warn_traditional_hooks;
-use crate::transaction_git::{GitContext, run_git_checked};
+use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+
+/// What:
+///  The staging start that puts the working copy of every unmerged file into the commit's own index,
+/// each named with `:(top,literal)` magic.
+/// Why:
+///   Every name is a pathspec the wrapper wrote, and this start skips the caller's prefix,
+/// so literal pathspec mode is switched off for it: under it the names would match nothing and the commit would fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unmergedStagingRequest = (cwd, index, objects, paths) => indexedRequest(cwd, ['--no-literal-pathspecs', 'add', '--all', '--', ...paths.map((path) => `:(top,literal)${path}`)], index, objects);
+/// ```
+fn unmerged_staging_request(cwd: &Path, index: &Path, object_directory: &Path, paths: &[Vec<u8>]) -> GitRequest {
+    let mut staging: Vec<OsString> = vec![
+        OsString::from("--no-literal-pathspecs"),
+        OsString::from("add"),
+        OsString::from("--all"),
+        OsString::from("--"),
+    ];
+    for path in paths {
+        let mut spec: Vec<u8> = b":(top,literal)".to_vec();
+        spec.extend_from_slice(path.as_slice());
+        staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
+    }
+    return indexed_request(cwd, staging.as_slice(), Some(index), Some(object_directory));
+}
 
 /// What the preparation reads that does not change between two preparations of one command.
 pub struct PrepareInputs<'a> {
@@ -288,20 +314,7 @@ pub fn prepare<F: RepositoryFacts>(
     //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
     let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
     if !unmerged_files.is_empty() {
-        // Each path is named with `:(top,literal)` magic, and this start skips the caller's prefix, so literal
-        // pathspec mode is switched off here: under it the names would match nothing and the commit would fail.
-        let mut staging: Vec<OsString> = vec![
-            OsString::from("--no-literal-pathspecs"),
-            OsString::from("add"),
-            OsString::from("--all"),
-            OsString::from("--"),
-        ];
-        for path in &unmerged_files {
-            let mut spec: Vec<u8> = b":(top,literal)".to_vec();
-            spec.extend_from_slice(path.as_slice());
-            staging.push(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(spec));
-        }
-        run_git_checked(context, &indexed_request(cwd, staging.as_slice(), Some(indexes.commit_index.as_path()), Some(indexes.object_directory.as_path())))?;
+        run_git_checked(context, &unmerged_staging_request(cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()))?;
     }
     let candidate_paths: Vec<Vec<u8>> =
         list_changed_index_paths(context, cwd, indexes.commit_index.as_path(), base.as_str(), indexes.object_directory.as_path())?;
@@ -382,3 +395,8 @@ pub(crate) fn exclude_or_stop_for_test(
 ) -> Result<(Vec<String>, Option<String>), TransactionStop> {
     return crate::owed_index_update::exclude_or_stop(context, capture, indexes, mode, captured);
 }
+
+/// Controls for the staging start of unmerged files.
+#[cfg(test)]
+#[path = "service_prepare_tests.rs"]
+mod tests;
