@@ -17,6 +17,11 @@
 ///  or print and exit.
 pub mod action;
 
+/// The value of a Git alias,
+///  split as Git splits it,
+///  and read from `git config --null` without losing a byte.
+pub mod alias_value;
+
 /// The four top-level spellings after which the wrapper announces itself,
 ///  and the text it prints once Git has answered.
 pub mod announced_query;
