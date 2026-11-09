@@ -257,7 +257,7 @@ Commits made on the branch used `--no-enforce-markdown/autofix` while the instal
 Note 2026-11-08T19:33:30-05:00:
 the October umbrella item "the linter cutover task"
 (`doc/handover/cli-git-rust-implementation.md`) named no closing record,
-so this one closes it.
+so this record now carries its closure.
 `b111c0ca39` landed the cutover on 2026-10-10 and `5bc05682e` deleted the five incumbent packages;
 `0b49ae109e` (2026-10-06T18:38:11-04:00,
 `feat(*): run monochromatic-lint from the root lint and format tasks and the Markdown commit policy`)

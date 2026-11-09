@@ -5322,13 +5322,12 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   2026-11-08T19:33:30-05:00 (read only;
   no code changed and no campaign,
   fuzz run or Windows check was started).
-  Two of them close:
+  One of them closes:
   the linter cutover,
-  whose closure and wiring commit `doc/handover/unified-linter-cutover.md` now records,
-  and the release-artifact performance gate,
-  whose limits and figures `doc/planning/one-release-each-batch-2026-11.md` records under the
-  release record of 2026-11-07T22:11:47-05:00.
-  The rest are paused by an owner sentence or stay open,
+  whose closure and wiring commit now sit in `doc/handover/unified-linter-cutover.md`.
+  The rest are paused by an owner sentence,
+  answered in part,
+  or open,
   and each entry says which,
   what settled it,
   and where its evidence or its open work lives.
@@ -5350,12 +5349,22 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   installed,
   and `doc/handover/cli-git-native-signals.md` records `native:clippy:windows` compiling the signal guard's
   Windows branch without ever running it.
-  macOS has no release gate to close:
+  The macOS results are the last recorded ones:
   it is not a release target (the GitHub release carries Linux assets only),
-  its `native_binary` tests still fail there (`/dev/full` is absent,
+  its `native_binary` tests fail there (`/dev/full` is absent,
   several fixture spawns fail with NotFound),
   and its lib tests pass on `m1`.
-  Each resumes when the owner lifts the pause.
+  The release-artifact performance gate is answered in part.
+  `native:perf` measures the release binary's added latency,
+  its limits are its own task description,
+  and its figures are the release records of `doc/planning/one-release-each-batch-2026-11.md`,
+  with the same-binary spread the comparison needs.
+  The binary it measures comes out of the published archive,
+  which `toolchain.lock.json` names as the tarball and sha256 mpm installs,
+  so the latency gate does run on a packaged binary;
+  no record defines a check of the archive's own contents,
+  so whether the older entry also meant one stays open.
+  The Windows and macOS checks resume when the owner lifts the pause.
 - Long fuzz campaigns are open,
   and another agent is running one now.
   It works on branch `test/git-policy-cli-fuzz-long-campaign-results`
@@ -5422,8 +5431,9 @@ lines of a retiring older service still share one stream timestamp (nothing to f
   `snapshots_equal` through two corrections,
   and `the_final_newline_correction_lands_in_the_private_index` reads back the path the loop reports.
   Whether those two kill every timeout mutant the 2026-10-11 record listed is what the campaign would show,
-  so the pause is the only thing that keeps this open,
-  and the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
+  so the pause is the only thing that stops the rerun from starting,
+  and what the rerun would show remains unverified;
+  the coordinator's task list that names it as 24 (with 25 and 29) is not in the repository,
   so what those numbers cover beyond this item is unverified here.
 - Android check (`ANDROID_HOME`) now gets its variables from the mpm env fragment.
   Closed 2026-11-08T15:41:28-05:00:
