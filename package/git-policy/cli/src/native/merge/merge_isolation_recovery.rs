@@ -33,6 +33,9 @@ use crate::merge_isolation_moved::settle_moved_branch;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
 pub use crate::merge_isolation_recovery_cleanup::{drop_record_and_side_ref, partly_installed, untouched};
+/// The reads the decision rests on,
+/// named here so a caller keeps one import.
+pub use crate::merge_isolation_recovery_reads::{holds_the_merge, holds_the_merges_entry, resolve_commit, symbolic_ref};
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
 pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
@@ -48,7 +51,7 @@ use crate::recovery_error::{RecoveryError, io_failure};
 /// Owner liveness of a record.
 use crate::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
 /// Running real Git.
-use crate::transaction_git::{GitRequest, run_git, run_git_checked};
+use crate::transaction_git::{GitRequest, run_git_checked};
 /// Writing the notices of what recovery did.
 use std::io::Write;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -226,85 +229,6 @@ fn owner_liveness(intent: &MergeIntent, record: &Path) -> Result<OwnerLiveness, 
             )));
         }
     }
-}
-
-/// What:
-///  Whether an index entry is the merge's own,
-/// which is the only evidence that Git began to install it.
-/// Why:
-///   Named rather than written as a closure inside `any`,
-/// and it says what the check means.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const holdsTheMergesEntry = (standing: Standing) => standing === 'new';
-/// ```
-fn holds_the_merges_entry(standing: &Standing) -> bool {
-    return *standing == Standing::New;
-}
-
-/// What:
-///  Whether the worktree holds the merge's content at this path,
-/// which is the only evidence that Git began.
-/// Why:
-///   Named rather than written as a closure inside `any`,
-/// and it says what the check means.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const holdsTheMerge = (judged: Judged) => judged.standing === 'new';
-/// ```
-fn holds_the_merge(judged: &Judged) -> bool {
-    return judged.standing == Standing::New;
-}
-
-/// What:
-///  The branch `HEAD` names in `root`,
-/// or nothing when it names a commit itself.
-/// Why:
-///   The checkout a merge installs into is the one its branch is checked out in;
-/// `symbolic-ref` says which branch that is,
-/// and fails
-///  on a detached `HEAD`,
-/// which the record names with no target ref of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const named = await git(['symbolic-ref', '--quiet', 'HEAD']); return named.succeeded ? named.stdout.trim() : undefined;
-/// ```
-fn symbolic_ref(place: &RecoveryPlace, root: &Path) -> Result<Option<String>, RecoveryError> {
-    let request: GitRequest = GitRequest::new(root, &["symbolic-ref", "--quiet", "HEAD"]);
-    let output = match run_git(&place.git, &request) {
-        Ok(done) => done,
-        Err(error) => return Err(RecoveryError(format!("git symbolic-ref could not start: {error}"))),
-    };
-    if !output.succeeded() {
-        return Ok(None);
-    }
-    return Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
-}
-
-/// What:
-///  The commit a ref names,
-/// or nothing when it names none.
-/// Why:
-///   The branch value decides whether the merge landed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function resolveCommit(reference: string): Promise<string | undefined>;
-/// ```
-fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Result<Option<String>, RecoveryError> {
-    let revision: String = format!("{reference}^{{commit}}");
-    let request: GitRequest = GitRequest::new(root, &["rev-parse", "--verify", "--quiet", revision.as_str()]);
-    let output = match run_git(&place.git, &request) {
-        Ok(done) => done,
-        Err(error) => return Err(RecoveryError(format!("git rev-parse could not start: {error}"))),
-    };
-    if !output.succeeded() {
-        return Ok(None);
-    }
-    return Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
 }
 
 /// What:
