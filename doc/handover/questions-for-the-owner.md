@@ -109,31 +109,111 @@ and a stuck terminal cannot be acted on at all.
 Nothing changes until you answer:
 write "A" or "B" here.
 
-### Should a commit whose command died before its checks ran still be pushed?
+### A commit whose command died before its checks ran now stays local, changed 2026-11-09T04:26:58-05:00
 
 A landing moves the branch first and runs the post-commit checks after,
 holding the push until those checks approve it.
 If the command is killed in that gap,
 no verdict exists,
 and the commit is on the branch with its push held.
-The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now pushes such a commit the next time the service wakes for that worktree,
-because a cross-vendor review found a push could stay stranded,
-and a held push with no living owner would otherwise wait forever,
-against your "nothing should ever wait forever or indefinitely".
-A check that is still running is never overtaken:
-only a command proven gone has its push released.
 
-The cost is that a commit whose checks never ran can reach the remote.
-The alternative keeps that commit local until someone pushes it,
-which needs the wrapper to hand the service a durable verdict,
-and the protocol has no such message today.
+This entry used to say the session would push such a commit,
+and asked you to overrule that.
+The session has reversed it,
+for three reasons.
+Cross-vendor reviews keep finding defects in the code that decides a command is gone and releases its push,
+each in something added to fix the last
+(`${HOME}/temp/agent/reviews/landing-route-round-6-sol.txt`).
+The worry behind pushing was a commit held for ever,
+and reading the code says that does not happen:
+a queued push is `git push <remote> <branch>:<target>`
+(`package/git-policy/cli/src/native/push/auto_push.rs:230-245`),
+so the next commit's push on that branch carries the held commit.
+The branch's agent is reproducing that now.
+And keeping a commit local can be undone,
+while a push of a commit whose secret check never ran cannot.
+
+So the branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` is being changed:
+nothing releases a held push by judging a process,
+and the next command in that worktree says in one line that the commit is held and why.
+Write "push it" here to overrule this.
+
+The same fact raises a question that does need you,
+`What should the next push do with a commit its checks blocked?`,
+once the agent has reproduced it.
+
+### Should a commit stop when the repair of a stale index cannot be made?
+
+After a commit lands and its index update fails,
+the next commit from that worktree starts from a stale index,
+and would record the landed file as reverted or deleted.
+A repair takes the stale entries out first.
+The landing branch now stops the commit,
+naming the reason,
+when that repair cannot be carried out.
+You wrote "Commits should never fail."
+and "never discard user data",
+and here they pull against each other.
+
+- A,
+  stop with a named reason,
+  which is what the branch does:
+  the person runs the commit again once the cause is gone.
+  No landed change is lost.
+  The commit fails,
+  which is what your first rule forbids.
+- B,
+  land anyway and warn:
+  the commit succeeds,
+  and the warning names the path.
+  The commit can record a landed file as reverted,
+  which a later commit then publishes unless someone reads the warning.
+
 Ranking:
-push it (current) > keep it local,
-because a commit left unpushed with no message is easy to miss,
-and a pushed commit can still be followed by a fix.
-That is the session's judgment and not something measured.
-Nothing is waiting on this answer;
-write "keep it local" here to change it.
+A > B,
+because a commit that stops can be repeated,
+and a silently reverted file is the failure the repair exists to prevent.
+That is the session's judgment.
+The moved-worktree case the review found is being fixed either way,
+so this is about the causes that remain:
+an index the wrapper cannot read or write.
+
+### Should forced checkouts and resets refuse when they would replace an ignored file?
+
+The discarding-commands branch hands a `switch` over an ignored file to Git,
+which refuses.
+Force overrides that:
+the agent measured that `git checkout -f --no-overwrite-ignore other` still replaced `.env`,
+and `git reset --hard` has no such option.
+In a clean linked worktree those forms can still replace an ignored file the target tree carries.
+
+The session will build option A unless you say otherwise,
+because you wrote "never discard user data":
+read the target tree and the ignored paths,
+refuse naming the paths they share.
+The agent estimates that adds 40 to 120 ms,
+only for these forms and only in a linked worktree.
+Option B is to accept it and document it.
+Option C,
+refusing whenever any ignored file exists,
+would refuse every worktree with `node_modules`.
+Ranking:
+A > B > C,
+because A protects the file at a small cost on a rare form,
+B leaves the loss in place,
+and C blocks routine work.
+
+### `git clean -fdx` is now refused in a linked worktree that has ignored files
+
+This is the same branch,
+and agents will notice it.
+`git clean -fdx` deletes ignored files,
+so the guard now counts them,
+and a worktree with `node_modules` is refused.
+`git clean -nx` shows what would go.
+It follows from "never discard user data",
+and it changes a common way of getting a fresh build.
+Write "allow it in linked worktrees" here if you want the old behaviour back.
 
 ### Should a commit add the manifests of dependents it bumps?
 
@@ -1252,6 +1332,21 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T04:26:58-05:00,
+  a shell alias (`!`) stays unguarded.
+  Git runs it with its own folder first on `PATH`,
+  so the `git` inside it is real Git and not the wrapper
+  (the agent's control prints `/usr/libexec/git-core/git` both ways).
+  Refusing every `!` alias would break ordinary ones such as a pretty `log`.
+- 2026-11-09T04:26:58-05:00,
+  the audit line for `git worktree remove` keeps its count of changed tracked files.
+  It costs 0.09 s against 0.73 s for the removal on a full checkout of this repository.
+  Say "undo" to drop the count and keep the line to two file reads.
+- 2026-11-09T04:26:58-05:00,
+  the in-process ref listing lands although it is slower here than starting Git,
+  by a median of about 9 ms on this repository,
+  because its callers are not on the commit path.
+  A follow-up makes it cheaper or leaves large repositories to Git.
 - 2026-11-09T03:14:38-05:00,
   `mpm-shadow` now refuses a `cargo-git` plan entry that has no `packageId`,
   where it used to take the plan key as the crate name (issue 2626).
