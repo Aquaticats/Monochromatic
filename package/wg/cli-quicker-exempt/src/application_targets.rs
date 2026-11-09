@@ -62,7 +62,7 @@ const PI_AGENT_SERVICE_PREFIX: &str = "pi-";
 /// Suffix of every systemd service unit.
 const SERVICE_SUFFIX: &str = ".service";
 
-/// Slice that carries the toolchain's sync and update runs.
+/// Slice that carries the toolchain's update runs.
 /// The `app-` prefix makes systemd nest it directly under `app.slice`,
 ///  where the watcher scans and watches.
 /// A name such as `monochromatic-updates.slice` would sit beside `app.slice` instead,
@@ -159,7 +159,7 @@ pub fn is_odytty_service_name(name: &str) -> bool {
     return name.starts_with(ODYTTY_SERVICE_PREFIX) && name.ends_with(".service");
 }
 
-/// Reports the slice the toolchain's sync and update runs execute in.
+/// Reports the slice the toolchain's update runs execute in.
 /// Cgroup programs apply to every descendant cgroup,
 ///  so attaching to the slice marks each run scope created below it,
 ///  with no attach per run.

@@ -18,6 +18,9 @@ and nothing for `eminence/xmltree-rs`,
 whose attribute escaping belongs to xml-rs.
 Nothing was filed or posted.
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/src/pipeline/xml-coding.ts` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 A string attribute value that contains a tab (U+0009),

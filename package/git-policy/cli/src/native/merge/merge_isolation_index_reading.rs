@@ -19,6 +19,7 @@ use crate::merge_isolation_changes::{Change, parse_raw_changes};
 use crate::merge_isolation_recovery_steps::{RecoveryPlace, Standing};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::{GitRequest, run_git_checked};
+use std::collections::HashMap;
 use std::path::Path;
 
 /// What:
@@ -47,11 +48,38 @@ pub fn index_standings(
     changes: &[Change],
 ) -> Result<Vec<Standing>, RecoveryError> {
     let staged: Vec<Change> = index_entries(place, root, old_oid)?;
+    // One pass over the index records builds the map every changed path is then looked up in, so the index is read once
+    //  for all of them rather than walked once per change (`AGENTS.md` `RG2`: both lists grow with the repository).
+    let entries: HashMap<&[u8], &Change> = entries_by_path(staged.as_slice());
     let mut found: Vec<Standing> = Vec::with_capacity(changes.len());
     for change in changes {
-        found.push(standing_of_index(entry_of(staged.as_slice(), change.path.as_slice()), change, change));
+        crate::collected_elements_looked_at::note_looked_at(1);
+        found.push(standing_of_index(entries.get(change.path.as_slice()).copied(), change, change));
     }
     return Ok(found);
+}
+
+/// What:
+///  Records of one kind by the path each one names.
+/// Why:
+///   Every changed path asks a list of records which one is its own;
+///  the records are unbounded like the change list,
+///  so the question is answered from a map built in one pass (`AGENTS.md` `RG2`)
+///  instead of a walk over the records per path.
+///  Both `diff-index --cached` and a `diff-tree` between two commits report each path once,
+///  so a repeated path would be a malformed answer and not a pair to choose from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entries = new Map(staged.map((entry) => [entry.path, entry]));
+/// ```
+pub fn entries_by_path(staged: &[Change]) -> HashMap<&[u8], &Change> {
+    let mut entries: HashMap<&[u8], &Change> = HashMap::with_capacity(staged.len());
+    for entry in staged {
+        crate::collected_elements_looked_at::note_looked_at(1);
+        entries.insert(entry.path.as_slice(), entry);
+    }
+    return entries;
 }
 
 /// What:
@@ -76,17 +104,6 @@ pub fn index_entries(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Resul
         Err(error) => return Err(RecoveryError(error.to_string())),
     };
     return parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError);
-}
-
-/// The index entry of one path,
-/// or nothing when the index reports none for it.
-pub fn entry_of<'a>(staged: &'a [Change], path: &[u8]) -> Option<&'a Change> {
-    for candidate in staged {
-        if candidate.path == path {
-            return Some(candidate);
-        }
-    }
-    return None;
 }
 
 /// What:
@@ -116,3 +133,8 @@ pub fn standing_of_index(entry: Option<&Change>, old: &Change, next: &Change) ->
     }
     return Standing::Foreign;
 }
+
+/// The reading's own controls weigh the pass they measure.
+#[cfg(test)]
+#[path = "merge_isolation_index_reading_tests.rs"]
+mod tests;

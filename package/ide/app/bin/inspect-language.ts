@@ -301,6 +301,7 @@ for (const item of cases) {
     console.log((passed ? 'PASS ' : 'FAIL ') + item.name + ': ' + name);
   }
 }
-writeFileSync(join(results, 'results.json'), JSON.stringify(summary, null, 2));
-console.log('Language inspection ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));
-if (failed) process.exitCode = 1;
+const resultsPath = join(results, 'results.json');
+writeFileSync(resultsPath, JSON.stringify(summary, null, 2));
+if (failed) throw new Error('Language inspection FAILED: ' + resultsPath);
+console.log('Language inspection passed: ' + resultsPath);

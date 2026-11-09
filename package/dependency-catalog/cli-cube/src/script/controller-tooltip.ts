@@ -53,12 +53,15 @@ const PINNED_CLOSE_CLASS = 'pinned-tooltip-close';
  probe-derived value before splicing into the tooltip template, so
  malicious package names or licence strings can't inject markup.
  
+ The apostrophe is escaped as well as the double quote, so the result stays
+ safe if a template ever puts a value into a single-quoted attribute.
+ 
  Order is critical: `&` must be replaced first or other replacements
  would double-escape it.
  
  @param raw - Untrusted source string.
  
- @returns Escaped string safe to embed inside an HTML node.
+ @returns Escaped string safe to embed inside an HTML node or attribute value.
  */
 function escapeHtml(raw: string,): string {
   return raw
@@ -77,6 +80,10 @@ function escapeHtml(raw: string,): string {
     .replaceAll(
     '"',
     '&quot;',
+    )
+    .replaceAll(
+    '\'',
+    '&#39;',
     );
 }
 

@@ -9,7 +9,7 @@
 
 use super::{
     APPLICATION_DIRECTORY, ARTIFACT_FILENAME, cache_location, resolve_cache_root, source_digest,
-    CacheEnvironment, CacheRootError, HostPlatform,
+    CacheEnvironment, CacheRootError, HostPlatform, SourceDigest, digest_hex,
 };
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
@@ -207,4 +207,16 @@ fn source_bytes_select_content_addressed_path() {
     for character in digest_component.chars() {
         assert!(character.is_ascii_digit() || ('a'..='f').contains(&character), "lowercase hex digest: {digest_component}");
     }
+}
+
+/// A digest directory name is the digest bytes in lowercase hex,
+///  high nibble first,
+///  with no separator.
+#[test]
+fn digest_spelling_pairs_the_high_nibble_first() {
+    let digest: SourceDigest = SourceDigest(std::array::from_fn(|index: usize| return index as u8));
+    assert_eq!(
+        digest_hex(digest),
+        "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    );
 }

@@ -235,3 +235,161 @@ Skipped or not yet run in this lane:
 - Reflink and non-reflink filesystem tests,
   and the two-process settlement test.
 - Fuzz smoke for worktree-copy input.
+
+## A repository path of the copy is bytes, and so is every record that names one (2026-11-09T15:53:42-05:00)
+
+Branch `fix/git-policy-cli-worktree-copy-ignored-names-keep-bytes`.
+
+The copy kept a repository path as text.
+The manifest walk read each name the filesystem listed with `to_string_lossy`,
+and the
+journal,
+the install log and the stage claim carried the result,
+so a name that is not
+UTF-8 became a name holding U+FFFD.
+
+Measured on the real binary (`target/debug`,
+real Git 2.56.0,
+a fixture whose ignored
+`heavy/` held `bad\xff.bin`,
+a name with a newline and a name with a tab,
+beside an
+ignored file `top\x80.log`):
+`git worktree add` ended with status 2 and the bare text
+`No such file or directory (os error 2)`,
+copied nothing,
+and left the worktree registered
+but unfilled.
+A second fixture,
+holding `heavy/bad\xff.bin` next to a file whose name is exactly the
+lossy spelling,
+failed with `File exists (os error 17)` while staging.
+So no name was silently renamed:
+the copy refused,
+but it could not carry the ignored
+state of such a repository at all.
+
+Every repository path is now the bytes the filesystem reported,
+from the selection through
+the manifest,
+the stage,
+install,
+rollback and the records;
+a diagnostic renders them with
+replacement characters only where a person reads one.
+The order of a manifest is the UTF-16 order of the path's text,
+then its bytes,
+so a name
+that is text keeps the order the incumbent gave it and a name that is not text has a
+reproducible place.
+
+The record rule,
+in `foundation/path_bytes_in_records.rs`:
+the four stage roots keep the text field and the bytes field,
+always;
+a list (`selectedRoots`,
+`intendedEntries`,
+an install log's `intended`) and a single
+`relativePath` keep the text form only when the text spells every byte,
+and otherwise the
+bytes form alone.
+A record the previous release wrote holds text only and is read as it is;
+a record this
+release writes for a name that is not text has no text field,
+so that release refuses it
+(the same rule `root_fields` already used) instead of acting on a replacement spelling.
+Reason for the difference:
+an install log's created-entry lines dominate the record size,
+so a name that is text costs nothing extra.
+
+Evidence,
+after the change:
+
+- the same fixture copies every name exactly (`bad\xff.bin`,
+  the newline name,
+  the tab
+  name,
+  `top\x80.log`,
+  and an ignored directory whose own name is `dir\xfe`),
+  and the
+  destination holds no replacement spelling;
+- four cuts killed the wrapper with `SIGKILL` on its own process group and let an ordinary
+  read-only command recover:
+  on the staged journal (0 of 2,003 entries installed),
+  after
+  the awkward names were installed,
+  and after the whole install before the cleanup.
+  Each recovery reported `recovered ignored-state copies for 1 worktree transaction`,
+  finished with 2,003 entries,
+  missed none of the four names and left no replacement
+  spelling;
+- proof by removal:
+  with the walk's bytes replaced by `to_string_lossy` again,
+  the new
+  manifest control fails with `manifest: WorktreeCopyError("No such file or directory
+  (os error 2)")`.
+
+Controls added:
+`a_name_that_is_not_text_is_one_entry_with_its_own_bytes`,
+`an_ignored_root_whose_name_is_not_text_is_selected_byte_for_byte`,
+`a_named_ignored_file_whose_name_is_not_text_is_found_by_its_bytes`,
+`a_repository_path_is_joined_from_its_parent_and_a_name`,
+`repository_path_order_keeps_the_incumbents_order_and_settles_equal_text_by_bytes`,
+`a_list_and_an_entry_keep_their_bytes_without_losing_the_earlier_release`,
+`a_batch_holding_a_name_that_is_not_text_round_trips_through_its_bytes`,
+`a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_that_has_no_text`
+and `recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name`.
+
+Open,
+found while driving those cuts and not changed here:
+a kill in the middle of one destination file leaves that file partly written,
+because the
+install copies bytes when the destination worktree is its own btrfs subvolume (a hard link
+across subvolumes is `EXDEV`),
+and the resumed copy refuses it as a differing entry:
+`ignored-state copy would overwrite differing destination entry "heavy/zzz-pad-01016.txt"`,
+measured 0 bytes at the destination against 13 in the source.
+The copy then ends without finishing and removes its stage.
+Nothing of the source is lost,
+and the person is told,
+but the worktree stays unfilled.
+
+Commits:
+`87dbe215b0` (the bytes),
+`91ef3e7485` and `389919c65c` (the records' controls and
+the corrected hexadecimal comparison),
+`53394e2d59` (this record),
+`c30f6367e3`,
+`b60f909509` and `cd84905dfd` (the linter's prose breaks,
+the path vocabulary's own module and the list writer's loops).
+`monochromatic-lint --max-warnings 0` over the changed paths reports nothing,
+and `cargo nextest run --lib -E 'test(worktree_copying)'` on this branch is 320 of 320 in 169 s.
+
+### The settling names its entries by bytes (2026-11-09T21:44:36-05:00)
+
+Merged from main:
+a live checkout's ignored churn no longer fails an add.
+The final check answers `Differences` (gone,
+changed,
+appeared) by relative path instead of failing on the first difference,
+each stage-copy slice answers `SliceCopy { stamps, gone }`,
+a vanished entry is a skip,
+and a file that will not settle is left in its source and named.
+
+Every one of those paths is the bytes the filesystem reported,
+so the two walks,
+the settling loop and the unsettled notice compare and report the real name of a file that is
+not text,
+never a replacement spelling.
+The lane's three bound controls and main's five settling controls name their roots and their
+entry lists as bytes;
+none of them asserts anything different from before.
+
+Measured on the built binary,
+with `heavy/bad\xff.bin` rewritten once 36.4 s into a 3,004-entry copy:
+the add exited 0,
+copied 3,003 entries,
+installed the name under its own bytes with the bytes written during the copy,
+left no replacement spelling and no journal.
+`cargo nextest run --lib -E 'test(worktree_copy) or test(path_bytes)'` is 344 of 344 in 181 s,
+and `cargo nextest run --test native_binary --no-run` builds.

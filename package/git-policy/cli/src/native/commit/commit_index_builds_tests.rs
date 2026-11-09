@@ -134,7 +134,7 @@ fn a_build_from_the_real_index_is_noted_as_keeping_the_stat_data() {
 fn a_build_from_the_tree_alone_is_noted_as_not_keeping_the_stat_data() {
     let root: PathBuf = fixture("index-builds-tree-alone");
     let (repo, indexes, base) = committed_repository(root.as_path());
-    // A mark the copy cannot carry makes the retry build the index from the tree alone (`private_index_seed`).
+    // A mark the copy cannot carry makes the retry build the index from the tree alone (`seed_of_index_bytes`).
     git(repo.as_path(), &["update-index", "--assume-unchanged", "--", "a.txt"]);
     let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
     initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");

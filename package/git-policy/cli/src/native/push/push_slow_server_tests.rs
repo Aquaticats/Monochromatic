@@ -48,6 +48,19 @@ const GRACE: Duration = Duration::from_secs(2);
 /// How long a loaded host may take over a stop beyond its limit and the grace.
 const STOP_SLACK: Duration = Duration::from_secs(30);
 
+/// How long the fixture's server reads what the push sends between two looks at whether this control let
+///  the connection go.
+const READ_SLICE: Duration = Duration::from_millis(50);
+
+/// What the fixture's listener did with the push's connection.
+enum Reached {
+    /// The connection was taken and is held.
+    Connected,
+    /// The listener refused it,
+    /// so no connection was ever held and the push has nothing to wait on.
+    Failed(std::io::Error),
+}
+
 /// A bare remote whose `pre-receive` hook sleeps for `silence` and whose server sends no keepalive.
 fn silent_remote(projects: &std::path::Path, silence: Duration) -> PathBuf {
     let remote: PathBuf = projects.join("remote.git");
@@ -127,31 +140,116 @@ fn the_same_silence_behind_a_local_path_is_still_a_stall() {
 /// not a stalled
 ///  push:
 /// the wrapper does not stop the push for time,
-/// and the push ends when the server closes the connection.
+/// and the push ends when the server lets the connection go.
+///
+/// The fixture lets the connection go only when this control says so,
+/// so the claim is an ordering and never a clock:
+/// the push is still running after the server has kept the connection open and silent for several stall windows,
+/// and it ends only once the server lets go.
+/// A fixture that closed the connection first,
+/// or that never took it,
+/// is named as that,
+/// which is what the fixture's own 4 s sleep could not tell from a wrapper that stopped the push.
 #[test]
 fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
     let listener: TcpListener = TcpListener::bind("127.0.0.1:0").expect("a local listener");
     let port: u16 = listener.local_addr().expect("its address").port();
     let silence: Duration = STALL * SILENCE_WINDOWS;
-    let silent = std::thread::spawn(move || {
-        // Take the connection, read what the client sends, answer nothing, and close after the silence.
-        if let Ok((mut stream, _)) = listener.accept() {
-            let mut sink: [u8; 4096] = [0; 4096];
-            let _ = stream.set_read_timeout(Some(silence));
-            let began: Instant = Instant::now();
-            while began.elapsed() < silence && stream.read(&mut sink).is_ok_and(|count| { return count > 0; }) {}
-            std::thread::sleep(silence.saturating_sub(began.elapsed()));
+    let (reached, arriving) = std::sync::mpsc::channel::<Reached>();
+    let (let_go, letting_go) = std::sync::mpsc::channel::<()>();
+    let server = std::thread::spawn(move || {
+        // What:
+        //  Take every connection the push opens, read what it sends, answer nothing, and hold all of them until this
+        //  control lets go.
+        // Why:
+        //  A fixture that holds one connection and refuses to take another leaves the second one to the kernel's backlog,
+        //  where nobody answers it, and an accept that failed used to end the thread in silence,
+        // which is a push that failed for the fixture's sake and read as a wrapper that stopped it.
+        listener.set_nonblocking(true).expect("the fixture's listener can be looked at between two readers");
+        let mut held: Vec<std::net::TcpStream> = Vec::new();
+        let mut told: bool = false;
+        let mut sink: [u8; 4096] = [0; 4096];
+        loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let _blocking = stream.set_nonblocking(false);
+                    let _timeout = stream.set_read_timeout(Some(READ_SLICE));
+                    if !told && reached.send(Reached::Connected).is_err() {
+                        return;
+                    }
+                    told = true;
+                    held.push(stream);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => {
+                    let _sent = reached.send(Reached::Failed(error));
+                    return;
+                }
+            }
+            for stream in &mut held {
+                let _read = stream.read(&mut sink);
+            }
+            if letting_go.try_recv().is_ok() {
+                return;
+            }
+            std::thread::sleep(READ_SLICE);
         }
     });
     let root: PathBuf = fixture("slow-server-holds-connection");
     let repo: PathBuf = repository(root.as_path(), "repo");
     git(repo.as_path(), &["remote", "add", "origin", format!("http://127.0.0.1:{port}/silent.git").as_str()]);
-    let (attempt, elapsed): (PushAttempt, Duration) = run(repo.as_path(), Patience::Progress { stall: STALL });
-    assert_ne!(attempt.exit_code, STOPPED_EXIT_CODE, "the wrapper did not stop a connected push: {}", attempt.output);
-    assert!(!attempt.output.contains("limit=stall"), "{}", attempt.output);
-    assert!(elapsed >= silence - STALL, "the push stayed while the connection was open: {elapsed:?}");
+    std::thread::scope(|scope| {
+        let push = scope.spawn(|| { return run(repo.as_path(), Patience::Progress { stall: STALL }); });
+        // The arrival is waited for as long as the push runs and no longer: a push that ends first is reported with its own
+        //  output, which is the difference between a fixture that lost the connection and a Git that gave up.
+        let arrival: Reached = loop {
+            match arriving.recv_timeout(READ_SLICE) {
+                Ok(answer) => break answer,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    let _let_go = let_go.send(());
+                    let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+                    panic!(
+                        "the fixture's server thread ended before this control let the connection go, and the push ended after {elapsed:?} with {}: {}",
+                        attempt.exit_code, attempt.output
+                    );
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) if push.is_finished() => {
+                    let _let_go = let_go.send(());
+                    let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+                    panic!(
+                        "the push ended before the fixture's listener took its connection: after {elapsed:?} with {}: {}",
+                        attempt.exit_code, attempt.output
+                    );
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+            }
+        };
+        if let Reached::Failed(error) = arrival {
+            let _let_go = let_go.send(());
+            let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+            panic!(
+                "the fixture's listener refused the push's connection ({error}), and the push ended after {elapsed:?} with {}: {}",
+                attempt.exit_code, attempt.output
+            );
+        }
+        // The connection is open and silent for longer than several stall windows. A wrapper that stopped the push for time
+        //  would have ended it by now, and so would a Git that gave up on its own.
+        std::thread::sleep(silence);
+        let ended_while_held: bool = push.is_finished();
+        let _let_go = let_go.send(());
+        let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
+        assert!(
+            !ended_while_held,
+            "the push ended while the server still held the connection, so the wrapper stopped it or Git gave up on its own: after {elapsed:?} \
+             with {}: {}",
+            attempt.exit_code, attempt.output
+        );
+        assert_ne!(attempt.exit_code, STOPPED_EXIT_CODE, "the wrapper did not stop a connected push: {}", attempt.output);
+        assert!(!attempt.output.contains("limit=stall"), "{}", attempt.output);
+        assert!(attempt.output.contains(WAIT_NOTE_PHRASE), "the output names the wait: {}", attempt.output);
+    });
+    server.join().expect("the fixture's server thread ends");
     remove(root.as_path());
-    drop(silent);
 }
 
 /// A server check that outlasts several stall windows does not stop the push,

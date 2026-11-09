@@ -9,6 +9,9 @@ The OpenSnitch rule that blocks nightly `cargo` network access is a different ca
 (`cargo-nightly-1-101-cannot-reach-crates-io.md`);
 the prefetch advice in `dylint-library-tests-and-shared-build-dir.md` is the same mechanism seen from the other side.
 
+Note 2026-11-09T16:38:44-05:00:
+`package/file-enforcer/core/src/toolchain/plan.tools.data.ts` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 `monochromatic-lint` runs `rust/avoidable-closure` through `cargo dylint` for every Rust package it selects.

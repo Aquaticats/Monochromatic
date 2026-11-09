@@ -182,23 +182,25 @@ pub enum Action {
         stderr: String,
     },
     /// Stop without running the caller's command,
-    /// with bytes on standard output.
-    ///  `Vec<u8>` is the report exactly as it is written.
+    /// with bytes on standard output and standard error.
+    ///  `Vec<u8>` is a report exactly as it is written.
     /// Why:
     ///   A report that names pathnames cannot spell them as text:
     /// a pathname is a byte string,
     /// and its text
     ///  spelling with replacement characters names a different file.
-    /// The doctor's list of traditional hooks is such a report.
+    /// The doctor's list of traditional hooks and the explanation of the Git LFS shims it found
+    ///  are such reports,
+    /// and the second one goes to standard error beside the first.
     ExitBytes {
         /// Process exit code.
         code: i32,
         /// Complete report for standard output,
         ///  already line-terminated.
         stdout: Vec<u8>,
-        /// Complete text for standard error,
+        /// Complete report for standard error,
         ///  already line-terminated.
-        stderr: String,
+        stderr: Vec<u8>,
     },
 }
 
@@ -250,7 +252,10 @@ pub fn with_leading_notice(action: Action, notice: Option<&str>) -> Action {
             return Action::Exit { code, stdout, stderr: format!("{lead}{stderr}") };
         }
         Action::ExitBytes { code, stdout, stderr } => {
-            return Action::ExitBytes { code, stdout, stderr: format!("{lead}{stderr}") };
+            // The explanation's own bytes lead the report: a notice is text, and what follows it is not.
+            let mut explained: Vec<u8> = lead.as_bytes().to_vec();
+            explained.extend_from_slice(stderr.as_slice());
+            return Action::ExitBytes { code, stdout, stderr: explained };
         }
     }
 }

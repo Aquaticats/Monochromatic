@@ -1,5 +1,20 @@
 # `gh auth setup-git` writes a version-pinned absolute path into `~/.gitconfig`, breaking `git push` on every `mise upgrade gh`
 
+Note 2026-11-09T16:55:17-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/native/wrapped_command.rs` is now
+`package/git-policy/cli/src/native/invocation/wrapped_command.rs`,
+moved 2026-11-03 in `a0d60dc29a`.
+`package/git-policy/cli/src/native/child_environment.rs` is now
+`package/git-policy/cli/src/native/invocation/child_environment.rs`,
+moved 2026-11-03 in `a0d60dc29a`.
+`package/git-policy/cli/src/native/commit_command.rs` is now
+`package/git-policy/cli/src/native/commit/commit_command.rs`,
+moved 2026-11-03 in `a004a6ab2c`.
+`package/git-policy/cli/src/native/auto_push_single_flight.rs` is now
+`package/git-policy/cli/src/native/push/auto_push_single_flight.rs`,
+moved 2026-11-03 in `d88fd7ab2a`.
+
 ## Symptom
 
 `git push` works.

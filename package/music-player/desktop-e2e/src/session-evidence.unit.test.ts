@@ -7,8 +7,7 @@
 
 import {
   mkdir,
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -32,7 +31,8 @@ await describe({
     it({
       name: 'reads a file under the name the session keeps it by and remembers where it came from',
       fn: async ({ expect, }) => {
-        const workDir = await mkdtemp(join(scratchRoot(), 'e2e-session-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-session-evidence-',),);
+        const workDir = scratchDirectory.path;
         const logPath = join(
           workDir,
           'wide.log',
@@ -45,7 +45,6 @@ await describe({
           name: UNIT_LOG_NAME,
           source: logPath,
         },);
-        await rm(workDir, { recursive: true, force: true, },);
         expect(file,).toEqual({
           kind: 'kept',
           name: 'unit.log',
@@ -57,7 +56,8 @@ await describe({
     it({
       name: 'says why a file is missing instead of failing the check that needs it',
       fn: async ({ expect, }) => {
-        const workDir = await mkdtemp(join(scratchRoot(), 'e2e-session-evidence-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-session-evidence-',),);
+        const workDir = scratchDirectory.path;
         await mkdir(join(workDir, 'gone.service',),);
         const source = join(
           workDir,
@@ -68,7 +68,6 @@ await describe({
           name: 'io.pressure',
           source,
         },);
-        await rm(workDir, { recursive: true, force: true, },);
         expect(file.kind,).toBe('missing',);
         expect(file.name,).toBe('io.pressure',);
         expect(file.source,).toBe(source,);

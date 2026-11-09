@@ -3,6 +3,7 @@ import { join, } from 'node:path';
 
 import { wait, } from '@monochromatic-dev/async-time-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import dedent from 'string-dedent';
 
 import { isJsonRecord, } from './json-shape.ts';
 import {
@@ -338,7 +339,10 @@ async function publishMissingVersions(): Promise<void> {
   }
 
   if (failures.size > 0) {
-    throw new Error(`pnpr publish incomplete; fix each package or add it to PNPR_EXCLUDED_PACKAGES in package/config/pnpr/src/generated-config-settings.ts:\n${[...failures,].map(function toLine([
+    /**
+     One line per package whose publish failed, naming the package and what the registry answered.
+     */
+    const failureLines = [...failures,].map(function toLine([
       name,
       reason,
     ]: readonly [
@@ -347,7 +351,11 @@ async function publishMissingVersions(): Promise<void> {
     ],) {
       return `- ${name}: ${reason}`;
     },)
-      .join('\n',)}`,);
+      .join('\n',);
+    throw new Error(dedent`
+      pnpr publish incomplete; fix each package or add it to PNPR_EXCLUDED_PACKAGES in package/config/pnpr/src/generated-config-settings.ts:
+      ${failureLines}
+    `,);
   }
 }
 

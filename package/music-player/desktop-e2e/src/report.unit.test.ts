@@ -5,9 +5,8 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
-  rm,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
@@ -85,7 +84,8 @@ await describe({
     it({
       name: 'writes the summary file with the counts and the outcomes, and returns the totals',
       fn: async ({ expect, }) => {
-        const out = await mkdtemp(join(scratchRoot(), 'e2e-report-',),);
+        await using scratchDirectory = await mkdtempDisposable(join(scratchRoot(), 'e2e-report-',),);
+        const out = scratchDirectory.path;
         const startedAt = 1_000;
         const finishedAt = 3_500;
         const totals = await writeReport({ outcomes: OUTCOMES, startedAt, finishedAt, outputRoot: join(out, 'nested',), },);
@@ -99,7 +99,6 @@ await describe({
           skipped: 1,
           outcomes: OUTCOMES,
         },);
-        await rm(out, { recursive: true, force: true, },);
       },
     },),
   ],
