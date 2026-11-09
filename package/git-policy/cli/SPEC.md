@@ -10526,7 +10526,7 @@ For injected commit-only semantics:
     Intent-to-add entries stay in the copy,
     because they carry no cached stat data and copy as they are,
     and the paths they name are cleared before the reset
-    (`copy_index_for_reset`,
+    (`write_index_for_reset`,
     `commit_index_copying.rs`):
     the reset to the base then writes the base's own entry at each of those paths,
     replaces one whose mode or object name differs,
@@ -11665,7 +11665,8 @@ empty for a commit that noted no step:
 `calls` how often it ran,
 `totalMs` the whole of its time and `longestMs` its longest run;
 the names are `index stat check` for the in-process answer of whether the real index still records its worktree's stat data,
-`index read` for reading an index's bytes to decide whether it may seed a private index,
+`index read` for the one reading of an index's bytes that every private copy of the commit is written from,
+`index seed` for the walk of those bytes that decides which way an index may seed a private commit index,
 `index equals base` for the in-process answer of whether the captured index already holds the base's tree,
 `index copy` for a copy of an index into a private one,
 `policy blob write` for storing a correction's bytes,

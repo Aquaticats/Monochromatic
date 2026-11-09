@@ -88,6 +88,135 @@ fn copy_keeps_the_source_modification_time() {
     remove(root.as_path());
 }
 
+/// What:
+///  Both private indexes of a commit are written from one read of the real index.
+/// Why:
+///  A second read of the same bytes is one more chance for a cold read of megabytes,
+///  and the copies must hold the state this commit saw,
+///  not a state the real index reached while it prepared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(readFileSync(capturedIndex)).toEqual(snapshot); expect(readFileSync(commitIndex)).toEqual(snapshot);
+/// ```
+#[test]
+fn both_private_indexes_hold_the_bytes_of_one_read_of_the_real_index() {
+    let root: PathBuf = fixture("commit-index-one-read");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    let snapshot: Vec<u8> = std::fs::read(repo.join(".git").join("index")).expect("the real index's bytes");
+    let none: Vec<OsString> = Vec::new();
+    initialize(&repo, &indexes, &selection(TransactionMode::Index, &none, &base));
+    assert_eq!(
+        std::fs::read(&indexes.captured_index).expect("the captured copy"),
+        snapshot,
+        "the captured copy is the state the commit read"
+    );
+    assert_eq!(
+        std::fs::read(&indexes.commit_index).expect("the commit's copy"),
+        snapshot,
+        "the commit's own copy is the same bytes, not a second read"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A staging that lands in the real index after the read reaches neither private copy.
+/// Why:
+///  Another command may stage in the real index while a commit prepares,
+///  and those bytes are that command's work,
+/// not this commit's:
+///  a copy written from a later read would record them under this commit,
+///  and the landing would compare the person's index against a state their commit never saw.
+///  The control proves the staging really happened,
+/// so the two copies being free of it is an answer and not an empty
+///  question.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const index = await readIndexOnce(realIndex); await stageInRealIndex(); await index.writeCopy(captured); await index.writeCopy(commit);
+/// ```
+#[test]
+fn a_staging_that_lands_after_the_read_reaches_neither_private_copy() {
+    let root: PathBuf = fixture("commit-index-one-read-writer");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    let real_index: PathBuf = repo.join(".git").join("index");
+    let index: IndexBytes = IndexBytes::read(real_index.as_path()).expect("the one read");
+    let read: Vec<u8> = index.bytes().to_vec();
+    // A writer stages a file in the real index, as another command of the person's does while this commit prepares.
+    std::fs::write(repo.join("c.txt"), "c\n").expect("c");
+    git(repo.as_path(), &["add", "c.txt"]);
+    assert_ne!(
+        std::fs::read(&real_index).expect("the real index after the staging"),
+        read,
+        "the control: the staging landed in the real index after the read"
+    );
+    index.write_copy(indexes.captured_index.as_path()).expect("the captured copy");
+    index.write_copy(indexes.commit_index.as_path()).expect("the commit's copy");
+    assert_eq!(std::fs::read(&indexes.captured_index).expect("the captured copy"), read, "the writer's staging is not the landing's reference");
+    assert_eq!(std::fs::read(&indexes.commit_index).expect("the commit's copy"), read, "the writer's staging is not this commit's");
+    assert_eq!(
+        seed_of_index_bytes(index.bytes()),
+        PrivateIndexSeed::Copy,
+        "the seed describes the bytes the copies hold"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A preparation states its one read of the index and,
+/// where the mode decides one,
+/// the seed walk of those bytes.
+/// Why:
+///  The record is what an unexplained slow commit is read from,
+///  and a read or a walk that is not stated is time the phase holds and nothing explains.
+///  An index commit takes the real index as it is and decides no seed,
+///  so only an explicit-path preparation walks the bytes for one.
+///  Each copy is stated as it was before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(callsOf('index read')).toBe(1); expect(callsOf('index seed')).toBe(mode === 'index' ? undefined : 1); expect(callsOf('index copy')).toBe(2);
+/// ```
+#[test]
+fn every_selection_mode_states_its_one_read_and_its_seed_walk() {
+    let root: PathBuf = fixture("commit-index-one-read-spans");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    let named: Vec<OsString> = vec![OsString::from("a.txt")];
+    let all: Vec<OsString> = Vec::new();
+    let modes: [(&str, TransactionMode, &Vec<OsString>, Option<usize>); 2] = [
+        ("index", TransactionMode::Index, &all, None),
+        ("explicit path", TransactionMode::ExplicitPath, &named, Some(1)),
+    ];
+    for (called, mode, pathspecs, seed_walks) in modes {
+        let _previous = crate::prepare_work_spans::drain_spans();
+        initialize(&repo, &indexes, &selection(mode, pathspecs, &base));
+        let (spans, dropped) = crate::prepare_work_spans::drain_spans();
+        assert_eq!(dropped, 0, "{called}: every step name fits");
+        assert_eq!(calls_of(spans.as_slice(), "index read"), Some(1), "{called}: the one read of the real index is stated: {spans:?}");
+        assert_eq!(calls_of(spans.as_slice(), "index seed"), seed_walks, "{called}: the walk of those bytes for the seed is stated only where the mode decides one: {spans:?}");
+        assert_eq!(calls_of(spans.as_slice(), "index copy"), Some(2), "{called}: both private copies are stated: {spans:?}");
+    }
+    remove(root.as_path());
+}
+
+/// What:
+///  How often one named step was noted in a drained ledger.
+/// Why:
+///  The control above asks about one step of a preparation and needs the count of that name and no other,
+///  and the ledger keeps names as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const callsOf = (spans, name) => spans.find((span) => span.name === name)?.calls;
+/// ```
+fn calls_of(spans: &[crate::prepare_work_spans::PrepareSpan], name: &str) -> Option<usize> {
+    // A name the ledger never noted answers nothing, which is what makes a missing step a failure of the control.
+    return spans.iter().find(|span| { return span.name == name; }).map(|span| { return span.calls; });
+}
+
 /// Explicit-path selection stages exactly the named paths against the recorded base.
 #[test]
 fn explicit_path_stages_only_the_named_paths() {
