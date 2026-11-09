@@ -1,13 +1,13 @@
-import {
-  dirname,
-  resolve,
-} from '@monochromatic-dev/fs-path-core/ts';
+import { resolve, } from '@monochromatic-dev/fs-path-core/ts';
 import {
   asCssSource,
   parseCss,
   stringifyNodes,
 } from '@monochromatic-dev/css-core-edit/ts';
-import { readTextFile, } from './fs.ts';
+import {
+  readTextFile,
+  writeTextFileEnsuringParentDirectory,
+} from './fs.ts';
 import { inlineCssImports, } from './import.ts';
 import {
   collectMixins,
@@ -98,26 +98,14 @@ export async function buildCss(options: CssBuildOptions,): Promise<string> {
       .children,
   },);
 
-  // Write output: uses dynamic import so browser callers don't pull in node:fs
-  /**
-   Dynamic import keeps `node:fs/promises` out of browser bundles.
-   */
-  const {
-    mkdir,
-    writeFile,
-  } = await import('node:fs/promises');
   /**
    Absolute path for the output file.
    */
   const outputPath = resolve([output,],);
-  await mkdir(
-    dirname(outputPath,),
-    { recursive: true, },
-  );
-  await writeFile(
-    outputPath,
-    result,
-  );
+  await writeTextFileEnsuringParentDirectory({
+    absolutePath: outputPath,
+    content: result,
+  },);
 
   return result;
 }

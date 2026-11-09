@@ -1,12 +1,15 @@
 /**
- Environment-adaptive file reading.
+ Environment-adaptive file access.
  
  Checks the in-memory {@link fsRegistry} first (browser path),
  then falls back to `node:fs` when running under Node/Bun.
  This lets the same build pipeline work on the server (disk I/O)
  and in the browser (pre-populated memory Map).
+ The module is loaded once, behind a computed specifier, so no bundler
+ resolves `node:fs` from a static import site.
  */
 import type NodeFs from 'node:fs';
+import { dirname, } from '@monochromatic-dev/fs-path-core/ts';
 import { fsRegistry, } from './fs-registry.ts';
 
 //region Runtime module loading
@@ -74,11 +77,7 @@ export async function readTextFile(absolutePath: string,): Promise<string> {
     return cached;
 
   if (nodeFs !== NO_NODE_FS) {
-    /**
-     Dynamic import keeps `node:fs/promises` out of browser bundles.
-     */
-    const { readFile, } = await import('node:fs/promises');
-    return readFile(
+    return nodeFs.promises.readFile(
       absolutePath,
       'utf8',
     );
@@ -126,6 +125,51 @@ export function readTextFileSync(absolutePath: string,): string {
 }
 
 //endregion File reading
+
+//region File writing
+
+/**
+ Writes a text file, creating the directories above it when they are absent.
+ Uses the module loaded once in {@link nodeFs}, so no call site names
+ `node:fs` as a static import specifier.
+ Writes reach only the disk: the browser path cannot write, because
+ {@link fsRegistry} is a read-only view of files the host already loaded.
+ 
+ @param absolutePath - Absolute path of the file to write
+ 
+ @param content - Text written verbatim, UTF-8 encoded
+ 
+ @throws When the runtime has no filesystem, or the write itself fails
+ 
+ @example
+ ```ts
+ await writeTextFileEnsuringParentDirectory({
+   absolutePath: '/project/dist/main.css',
+   content: '.a { top: 0; }',
+ },);
+ ```
+ */
+export async function writeTextFileEnsuringParentDirectory({
+  absolutePath,
+  content,
+}: {
+  readonly absolutePath: string;
+  readonly content: string;
+},): Promise<void> {
+  if (nodeFs === NO_NODE_FS)
+    throw new Error(`No filesystem available to write: ${absolutePath}`,);
+
+  await nodeFs.promises.mkdir(
+    dirname(absolutePath,),
+    { recursive: true, },
+  );
+  await nodeFs.promises.writeFile(
+    absolutePath,
+    content,
+  );
+}
+
+//endregion File writing
 
 //region Existence probing
 
