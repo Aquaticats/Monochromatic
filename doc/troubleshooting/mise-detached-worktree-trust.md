@@ -270,12 +270,6 @@ the same mistake now names `//package/translation-repair/<package>:format`.
 The declared task `format:oxlint` was then invoked successfully.
 That task-name error was not a trust or sandbox failure.
 
-`package/module/translation-repair` is not in the working tree;
-the newest commit touching it is
-`9fe80a109e` (docs(module-translation-repair):
-correct the declined record and name the byte-level
-method for what remains) on 2026-10-05.
-
 ## What does not work
 
 - Assuming trust follows equal `mise.toml` content to another canonical path.

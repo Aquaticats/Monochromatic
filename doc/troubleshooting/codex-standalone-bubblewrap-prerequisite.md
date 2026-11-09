@@ -101,19 +101,15 @@ RESEARCH_RUST_PROFILE=codex-host mise run //package/monorepo-task/core-exec:rese
 ```
 
 `package/dev-script/task-util` is not in the working tree;
-the newest commit touching it is
-`592d78b143` (refactor(*):
+it became `package/monorepo-task/core-exec` on 2026-10-29 in `592d78b143`
+(refactor(*):
 eliminate the module,
 rust-module,
 shim,
 stub,
 dev-script,
 desktop-app,
-and remaining generic categories) on 2026-10-29.
-`mise run //package/monorepo-task/core-exec:research:rust:host` was never declared under
-`package/monorepo-task/core-exec`;
-a task of that name lived in `package/dev-script/task-util`,
-which was deleted on 2026-10-29 by `592d78b143`.
+and remaining generic categories).
 
 The task exists only on branch `research/depot-reuse-20261018`
 (commit `3a64b255fb` on 2026-10-18),

@@ -60,10 +60,10 @@ no file in the working tree carries them now.
 `package/git-policy/cli/src/native/transaction/recovery_files.rs` in `9d630d998e`
 (refactor(git-policy-cli):
 move the transaction record modules into a transaction folder).
-`mise run //package/monorepo-task/core-exec:research:reuse:lock-portability` was never declared
-under `package/monorepo-task/core-exec`;
-a task of that name lived in `package/dev-script/task-util`,
-which was deleted on 2026-10-29 by `592d78b143`.
+`mise run //package/monorepo-task/core-exec:research:reuse:lock-portability` is not declared today:
+the task lived in `package/dev-script/task-util`,
+which became `package/monorepo-task/core-exec` on 2026-10-29 in `592d78b143`,
+and that package declares no `research:*` task.
 
 The `RealIndexLock` fields at that file's line 57 retain paths and a `LockIdentity`,
 with no open `File` field.
