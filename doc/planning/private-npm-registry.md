@@ -339,7 +339,7 @@ Scope widened by the owner on 2026-09-14:
     `package/git-policy/cli/src/policy-engine/final-newline-policy.ts`).
   That second path was deleted on 2026-10-13 in `642b6d72cb`;
   the final-newline policy is now `package/git-policy/cli/src/native/policy/policy_final_newline.rs`,
-  applied to the commit index in `package/git-policy/cli/src/native/landing/service_prepare.rs`.
+  applied to the private commit index in `package/git-policy/cli/src/native/commit/commit_convergence.rs`.
 - Dependents bump by patch and the ripple is transitive,
    matching `updateInternalDependencies: patch` in `.changeset/config.json`.
 - The changesets `version` job in `npm-release.yml`
