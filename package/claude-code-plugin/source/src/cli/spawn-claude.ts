@@ -11,10 +11,15 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
+import {
+  type ChildProcess,
+  spawn,
+} from 'node:child_process';
+import { once, } from 'node:events';
 import { randomUUID, } from 'node:crypto';
 import {
   mkdir,
+  rm,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -44,6 +49,7 @@ import {
   SESSION_NOT_FOUND,
 } from '../handler/claude-spawn/session-finder.ts';
 import { splitWhitespace, } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
+import type { ReadonlyDeep, } from 'type-fest';
 
 /**
  TODO: deprecate Optique
@@ -94,6 +100,78 @@ const args = runSync(
       message`Spawn a steerable child Claude Code session in a visible terminal instance.`,
   },
 );
+
+/**
+ Launcher binary the child session is started through.
+ */
+const LAUNCHER = 'terminal-exec' as const;
+
+/**
+ Sentinel the launch wait answers with when the launcher started.
+ 
+ A unique symbol rather than a boolean because the failure arm carries an error:
+ one value distinguishes "started" from "failed with this reason".
+ */
+const LAUNCHER_STARTED: unique symbol = Symbol('spawn-claude/launcher-started-the-child-process',);
+
+/**
+ Waits for the launcher to answer the spawn attempt.
+ 
+ `spawn` reports a launch failure (a missing or non-executable binary, a sandbox
+ denial) as an `'error'` event rather than a throw, and an unanswered `'error'`
+ event kills the process with a raw stack trace. Waiting for either answer also
+ means the state file this CLI pre-created is never left behind by a launcher
+ that never ran.
+ 
+ @param proc - child process the launcher was spawned as
+ 
+ @returns {@link LAUNCHER_STARTED} once the launcher is running, otherwise the failure
+ */
+async function firstLauncherFailure(proc: ChildProcess,): Promise<ReadonlyDeep<Error> | typeof LAUNCHER_STARTED> {
+  try {
+    await once(
+      proc,
+      'spawn',
+    );
+    return LAUNCHER_STARTED;
+  }
+  catch (error: unknown) {
+    return Error.isError(error,)
+      ? error
+      : new Error(String(error,),);
+  }
+}
+
+/**
+ Reports a launcher that never started and removes the state file written for it.
+ 
+ The state file records status `running`, and nothing ever rewrites a file for a
+ child that never launched, so leaving it behind means every hook event of every
+ session re-reads it forever.
+ 
+ @param spawnId - identifier of the spawn that failed
+ 
+ @param failure - error the launcher reported
+ */
+async function discardFailedSpawn(
+  {
+    spawnId,
+    failure,
+  }: {
+    readonly spawnId: string;
+    readonly failure: ReadonlyDeep<Error>;
+  },
+): Promise<void> {
+  process.stderr
+    .write(`spawn-claude: could not start ${LAUNCHER}, so no child session was spawned; the spawn state file was removed: ${failure.message}\n`,);
+  await rm(
+    join(
+      SPAWNS_DIR,
+      `${spawnId}.json`,
+    ),
+    { force: true, },
+  );
+}
 
 /**
  Resolved session identity of the calling Claude instance.
@@ -157,7 +235,7 @@ else {
    Detached child process running the spawned Claude session in a terminal instance.
    */
   const proc = spawn(
-    'terminal-exec',
+    LAUNCHER,
     [
       '--',
       'claude',
@@ -175,7 +253,32 @@ else {
     },
   );
 
-  proc.unref();
+  /**
+   Whether the launcher started, or why it did not.
+   */
+  const launch = await firstLauncherFailure(proc,);
 
-  console.log(JSON.stringify({ spawnId, },),);
+  if (launch === LAUNCHER_STARTED) {
+    // A later launcher failure still reaches a listener instead of killing the
+    // CLI with an unhandled 'error' event.
+    proc.once(
+      'error',
+      function reportLateLauncherFailure(error: ReadonlyDeep<Error>,): void {
+        void discardFailedSpawn({
+          spawnId,
+          failure: error,
+        },);
+      },
+    );
+    proc.unref();
+
+    console.log(JSON.stringify({ spawnId, },),);
+  }
+  else {
+    await discardFailedSpawn({
+      spawnId,
+      failure: launch,
+    },);
+    process.exitCode = 1;
+  }
 }
