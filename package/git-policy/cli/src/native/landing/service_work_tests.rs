@@ -7,7 +7,7 @@ use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::PushRetries;
 use crate::service_work_run_round::run_round;
 use super::*;
-use crate::push_failure_notice::{push_failure_text, take_push_failures};
+use crate::push_failure_notice::{PushOutcome, push_failure_text, take_push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{RENEWALS_PER_LEASE, renewal_interval};
 use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
@@ -153,7 +153,7 @@ fn a_failed_push_leaves_a_notice_that_is_shown_once() {
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Failed(said.to_string())), &ClaimTime::read());
     assert_eq!(names(&repo, FAILED).len(), 1);
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
-    assert_eq!(shown, vec![push_failure_text(BRANCH, OID, said)]);
+    assert_eq!(shown, vec![push_failure_text(BRANCH, OID, PushOutcome::Refused, said)]);
     assert!(take_push_failures(repo.common.as_path()).is_empty(), "a notice is shown once");
     remove(repo.root.as_path());
 }
@@ -171,7 +171,7 @@ fn a_later_successful_push_of_the_branch_clears_its_unshown_failure() {
     enqueue_all(&repo, &[item(&repo, WorkKind::Push, third, BRANCH)]);
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
-    assert_eq!(shown, vec![push_failure_text(other_branch, OTHER_OID, "remote: rejected")], "only the branch that went through is cleared");
+    assert_eq!(shown, vec![push_failure_text(other_branch, OTHER_OID, PushOutcome::Refused, "remote: rejected")], "only the branch that went through is cleared");
     remove(repo.root.as_path());
 }
 
@@ -195,7 +195,7 @@ fn a_skipped_push_leaves_a_notice_and_keeps_an_earlier_failure() {
     assert!(names(&repo, PENDING).is_empty() && names(&repo, CLAIMED).is_empty());
     let shown: Vec<String> = take_push_failures(repo.common.as_path());
     assert_eq!(shown.len(), 2, "the failure and the skip: {shown:?}");
-    assert!(shown.contains(&push_failure_text(BRANCH, OID, said)), "{shown:?}");
+    assert!(shown.contains(&push_failure_text(BRANCH, OID, PushOutcome::Refused, said)), "{shown:?}");
     assert!(shown.iter().any(|text| { return text.contains(reason) && text.contains(OTHER_OID) && text.contains("was not made"); }), "{shown:?}");
     remove(repo.root.as_path());
 }
@@ -442,7 +442,7 @@ fn a_silent_skip_keeps_an_earlier_failure_and_adds_no_notice() {
     enqueue_all(&repo, std::slice::from_ref(&skipped));
     drain(repo.common.as_path(), &Recorder::answering(Verdict::Skipped(String::new())), &ClaimTime::read());
     assert_eq!(names(&repo, DONE), vec![skipped.id()]);
-    assert_eq!(take_push_failures(repo.common.as_path()), vec![push_failure_text(BRANCH, OID, said)]);
+    assert_eq!(take_push_failures(repo.common.as_path()), vec![push_failure_text(BRANCH, OID, PushOutcome::Refused, said)]);
     remove(repo.root.as_path());
 }
 

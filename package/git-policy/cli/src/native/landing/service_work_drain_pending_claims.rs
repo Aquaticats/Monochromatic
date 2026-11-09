@@ -16,7 +16,7 @@
 
 use crate::service_work_handlers_replanning_and_acceptance::*;
 use crate::journald_native::Priority;
-use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
+use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::service_claim_renewal::{held_claims, renewal_interval};
 use crate::service_claim_renewal_running::{ClaimRenewal, Renewal};
 use crate::service_timing::log_entry;
@@ -131,13 +131,15 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
                     settle_all(work_dir.as_path(), &held, &members, DONE);
                 }
                 Verdict::Retry(text) => {
-                    // Without handlers that retry, a retryable push is a failed one.
+                    // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
+                    //  have reached the remote, so its record says that instead of naming what was refused.
                     let said: String = match (members.last(), replanning.first) {
                         (Some(newest), Some(first)) => planned_retry(git_dir, replanning, first, &newest.item, 1, text.as_str()),
                         _ => text,
                     };
                     if let Some(newest) = members.last()
-                        && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), said.as_str())
+                        && let Err(reason) =
+                            record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), PushOutcome::Unfinished, said.as_str())
                     {
                         crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }
@@ -150,7 +152,8 @@ pub(crate) fn drain_pending(git_dir: &Path, handlers: &dyn WorkHandlers, lease: 
                     }
                     // The record goes before the items settle, so an item in `failed` always has its record.
                     if let Some(newest) = members.last()
-                        && let Err(reason) = record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), text.as_str())
+                        && let Err(reason) =
+                            record_push_failure(git_dir, newest.item.branch_ref.as_str(), newest.item.oid.as_str(), PushOutcome::Refused, text.as_str())
                     {
                         crate::service_error!("the failed push of {} could not be recorded for the person: {reason}", newest.item.oid);
                     }

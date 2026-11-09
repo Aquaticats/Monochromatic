@@ -19,7 +19,7 @@
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::journald_native::Priority;
-use crate::push_failure_notice::{clear_push_failures_before, record_push_failure, record_push_skip};
+use crate::push_failure_notice::{PushOutcome, clear_push_failures_before, record_push_failure, record_push_skip};
 use crate::push_retry::{Due, RetryChange, Retrying, pause_before};
 use crate::service_instance::GitDirUnreachable;
 use crate::repo_read_config_text::{last_entry, parse_bool, parse_config_text};
@@ -413,14 +413,14 @@ pub(crate) fn run_due_push_retries(git_dir: &Path, handlers: &dyn WorkHandlers, 
                         text
                     }
                 };
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, said.as_str()) {
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, PushOutcome::Unfinished, said.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }
             Verdict::Failed(text) => {
                 crate::service_warn!("the push of {branch:?} failed on try {} and needs you: {}", due.attempt + 1, text.lines().next().unwrap_or_default());
                 replanning.forget(git_dir, branch);
-                if let Err(reason) = record_push_failure(git_dir, branch, commit, text.as_str()) {
+                if let Err(reason) = record_push_failure(git_dir, branch, commit, PushOutcome::Refused, text.as_str()) {
                     crate::service_error!("the failed push of {commit} could not be recorded for the person: {reason}");
                 }
             }

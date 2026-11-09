@@ -17,10 +17,18 @@
 //!  own Git directory so the check on every command is one directory read that finds nothing when nothing failed.
 //! A record holds
 //!  the branch,
-//! the whole commit name and Git's words with credentials already masked;
+//! the whole commit name,
+//! what the push came to and Git's words with credentials already masked;
 //! the wrapper words the notice when it
 //!  shows it,
 //! so the commit name is abbreviated the way Git abbreviates it in the repository as it is then.
+//! A push Git refused delivered nothing,
+//! and a push that was stopped or gave up for a reason that can pass may or may
+//!  not have reached the remote;
+//! the two are worded apart,
+//! and which one it was is a fact of the push's own outcome,
+//!  never of the words Git and the remote printed,
+//! because a remote's hook controls those.
 //! Records are
 //!  shown on standard error only,
 //! and not at all to a command whose output a program reads (`--porcelain`,
@@ -91,9 +99,14 @@ const LONGEST_KEY: usize = 100;
 /// open to the owner's veto.
 const LONGEST_REASON: usize = 4000;
 
-/// First line of a record that holds its parts as fields;
+/// First line of a record of a push Git refused,
+/// whose parts are fields;
 /// a file without it is the finished text an earlier release wrote.
 const RECORD_MAGIC: &str = "monochromatic-git-policy-cli push notice 1";
+
+/// First line of a record of a push that did not finish,
+/// so whether the remote took the commit is not known.
+const UNFINISHED_MAGIC: &str = "monochromatic-git-policy-cli push unfinished 1";
 
 /// First line of a record of a push the service did not make because the branch has no destination it can name;
 /// its fields are
@@ -107,6 +120,28 @@ const COMMIT_FIELD: &str = "commit: ";
 
 /// Said when Git gave no words at all.
 const NO_REASON: &str = "Git gave no reason.";
+
+/// What:
+///  What a push that left a record came to.
+/// Why:
+///   A refusal proves nothing was delivered,
+/// and a stop or a failure that can pass proves nothing about the remote;
+///  the wording follows this,
+/// never the text of Git's or a remote hook's output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PushOutcome = 'refused' | 'unfinished';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PushOutcome {
+    /// Git refused the push,
+    /// so the commit did not reach the remote.
+    Refused,
+    /// The push was stopped or failed for a reason that can pass,
+    /// so whether the remote took the commit is not known.
+    Unfinished,
+}
 
 /// The directory that holds the records of a repository.
 pub fn notice_directory(git_dir: &Path) -> PathBuf {
@@ -199,17 +234,18 @@ pub fn clean_reason(said: &str) -> String {
 ///  fails here.
 /// The command that shows it may be anyone's,
 /// so it never calls the commit the reader's own.
+///  What the push came to decides the framing,
+/// and never the words of Git's output,
+/// which a remote's hook controls.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// worded({ branchRef, shown, reason })
+/// worded({ branchRef, shown, outcome, reason })
 /// ```
-fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
+fn worded(branch_ref: &str, shown: &str, outcome: PushOutcome, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-    // The stop says what the remote holds when it proved it: then nothing failed, and the commit is not only here.
-    // The stop says what the remote holds when it proved it: then nothing failed, and the commit is not only here.
-    if reason.contains(crate::bounded_push::DELIVERED_BEFORE_THE_STOP) {
-        return worded_delivered(branch, shown, reason);
+    if outcome == PushOutcome::Unfinished {
+        return worded_unfinished(branch, shown, reason);
     }
     let detail: String = if reason.is_empty() {
         NO_REASON.to_string()
@@ -227,28 +263,36 @@ fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
 }
 
 /// What:
-///  The text shown for a backup push the wrapper stopped after the remote had already written the references.
+///  The text shown for a backup push that did not finish,
+/// so whether the remote took the commit is not known.
 /// Why:
-///   Nothing failed and nothing is left to deliver,
-/// so the text never says the commit is only on this computer and never sends
-///  the person to push again;
-/// it gives the remote's own unfinished work
-///  as the thing to finish,
-/// and it says where the wrapper's words are.
+///   A stop proves nothing here:
+/// the proof a stop runs is the push's own,
+/// it never gave a yes,
+/// so the text says what is known
+///  and no more;
+/// the push stays in the service's retry plan,
+/// and that retry is what settles the
+///  question.
 ///  It carries no advice about the service's settings either:
 /// nothing about them was refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// wordedDelivered(branch, shown, reason)
+/// wordedUnfinished(branch, shown, reason)
 /// ```
-fn worded_delivered(branch: &str, shown: &str, reason: &str) -> String {
-    let detail: String = if reason.is_empty() { NO_REASON.to_string() } else { format!("monochromatic-git-policy-cli said:\n{}", indented(reason)) };
+fn worded_unfinished(branch: &str, shown: &str, reason: &str) -> String {
+    let detail: String = if reason.is_empty() {
+        NO_REASON.to_string()
+    } else {
+        format!("monochromatic-git-policy-cli and Git said:\n{}", indented(reason))
+    };
     return format!(
-        "The backup push of branch {branch} delivered commit {shown} to the remote, and monochromatic-git-policy-cli stopped it \
-         while the remote ran its own work after that update, so that work was ended before it finished. The commit is on the \
-         remote and nothing is left to deliver, so nothing here needs fixing. Pushing again runs no remote hook and does not \
-         restart that work; finish it at the remote by hand if it matters.\n{detail}"
+        "The backup push of branch {branch} for commit {shown} did not finish, so the remote may or may not have taken that \
+         commit. The commit is saved in this repository and nothing was lost, and the commit service keeps the push in its \
+         retry plan, so it tries again on its own.\n{detail}\n\
+         That account is what monochromatic-git-policy-cli found and what Git said when the push ended; if it does not show \
+         the commit on the remote, run `git push`."
     );
 }
 
@@ -261,10 +305,10 @@ fn worded_delivered(branch: &str, shown: &str, reason: &str) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pushFailureText({ branchRef, commit, said })
+/// pushFailureText({ branchRef, commit, outcome, said })
 /// ```
-pub fn push_failure_text(branch_ref: &str, commit: &str, said: &str) -> String {
-    return worded(branch_ref, commit, clean_reason(said).as_str());
+pub fn push_failure_text(branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> String {
+    return worded(branch_ref, commit, outcome, clean_reason(said).as_str());
 }
 
 /// What:
@@ -343,9 +387,9 @@ pub fn record_push_skip(git_dir: &Path, branch_ref: &str, commit: &str, said: &s
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await recordPushFailure(gitDir, { branchRef, commit, said })
+/// await recordPushFailure(gitDir, { branchRef, commit, outcome, said })
 /// ```
-pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said: &str) -> Result<(), String> {
+pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, outcome: PushOutcome, said: &str) -> Result<(), String> {
     let directory: PathBuf = notice_directory(git_dir);
     if let Err(error) = create_private_directory_all(directory.as_path()) {
         return Err(format!("creating the notice directory failed: {error}"));
@@ -353,7 +397,11 @@ pub fn record_push_failure(git_dir: &Path, branch_ref: &str, commit: &str, said:
     let path: PathBuf = directory.join(record_name(branch_ref, commit));
     // A repeat of the same failure replaces its record.
     let _removed = std::fs::remove_file(path.as_path());
-    let text: String = format!("{RECORD_MAGIC}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
+    let magic: &str = match outcome {
+        PushOutcome::Refused => RECORD_MAGIC,
+        PushOutcome::Unfinished => UNFINISHED_MAGIC,
+    };
+    let text: String = format!("{magic}\n{BRANCH_FIELD}{branch_ref}\n{COMMIT_FIELD}{commit}\n\n{}", clean_reason(said));
     return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the notice failed: {error}")),
@@ -407,9 +455,13 @@ pub fn record_lost_push(common_dir: &Path, branch_ref: &str, commit: &str) -> Re
 
 /// What a record says besides its branch and commit.
 enum RecordKind<'a> {
-    /// A failed push,
+    /// A push Git refused,
     /// with Git's cleaned words.
     Failed(&'a str),
+    /// A push that did not finish,
+    /// so whether the remote took the commit is not known,
+    /// with Git's cleaned words.
+    Unfinished(&'a str),
     /// A push the service did not make,
     /// with its cleaned words.
     Skipped(&'a str),
@@ -439,7 +491,7 @@ fn earlier_spelling(rest: &str) -> String {
 /// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
 /// ```
 fn current_magic_of(line: &str) -> Option<&'static str> {
-    for current in [RECORD_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
+    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, SKIPPED_MAGIC, LOST_MAGIC] {
         let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);
@@ -462,6 +514,7 @@ fn parse_record(text: &str) -> Option<(&str, &str, RecordKind<'_>)> {
     return Some((branch, commit, match magic {
         LOST_MAGIC => RecordKind::Lost,
         SKIPPED_MAGIC => RecordKind::Skipped(reason),
+        UNFINISHED_MAGIC => RecordKind::Unfinished(reason),
         _ => RecordKind::Failed(reason),
     }));
 }
@@ -661,7 +714,8 @@ fn take_records_from(directory: &Path, worktrees: Option<&Worktrees>, abbreviate
             continue;
         }
         texts.push(match parsed {
-            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), reason),
+            Some((branch, commit, RecordKind::Failed(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Refused, reason),
+            Some((branch, commit, RecordKind::Unfinished(reason))) => worded(branch, abbreviate.name_of(commit).as_str(), PushOutcome::Unfinished, reason),
             Some((branch, commit, RecordKind::Skipped(reason))) => worded_skipped(branch, abbreviate.name_of(commit).as_str(), reason),
             Some((branch, commit, RecordKind::Lost)) => worded_lost(branch, abbreviate.name_of(commit).as_str()),
             // The finished text an earlier release wrote.
