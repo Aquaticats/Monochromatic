@@ -403,14 +403,46 @@ fn a_failed_index_refresh_keeps_the_old_tree() {
     remove(parent.as_path());
 }
 
-/// Run `work` on a thread and fail when it does not finish within the patience:
-/// a blocked open would otherwise hang the run.
+/// What:
+///  Run `work` on a thread and give its answer,
+///  failing when the run it waits in shows no sign of work instead.
+/// Why:
+///   The event is the answer itself:
+/// a run that blocked on a named pipe's open never gives one,
+/// and a run that
+///  is merely slow on this disk gives it late.
+/// A stated patience confused the two:
+/// measured on 2026-11-09 with the host at a load average of 70,
+/// the control below failed alone in 24.7 s at
+///  "a run with a pipe for a journal did not finish within 20s" while the run was working,
+/// and passed alone on quieter minutes.
+/// The window is the watchdog's own (`test_support::STILL_WORKING_WINDOW`), so a blocked open ends the wait and a slow
+///  disk does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await answerWhileTheRunWorks(what, work); // rejects when the run shows nothing for the window
+/// ```
 fn finishes<T: Send + 'static>(what: &str, work: impl FnOnce() -> T + Send + 'static) -> T {
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _sent = sender.send(work());
     });
-    return receiver.recv_timeout(PATIENCE).unwrap_or_else(|_error| { panic!("{what} did not finish within {PATIENCE:?}") });
+    let mut judge: crate::run_progress::Judge = crate::run_progress::Judge::new(crate::test_support::STILL_WORKING_WINDOW);
+    let began: std::time::Instant = std::time::Instant::now();
+    // This thread's own looks are not the run's work, and neither are another reader's.
+    let _reading: Option<crate::run_progress::Reading> = crate::run_progress::Reading::begin();
+    loop {
+        match receiver.recv_timeout(crate::test_support::WAIT_LOOK_EVERY) {
+            Ok(answer) => return answer,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if let Some(ending) = judge.observe(began.elapsed(), crate::run_progress::look_now()) {
+                    panic!("{what} did not finish: the run {ending}");
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("{what}: the thread that runs it ended without an answer"),
+        }
+    }
 }
 
 /// The mode of a file only its owner may use.
@@ -421,9 +453,6 @@ const SEARCH_WITHOUT_LISTING: u32 = 0o311;
 
 /// An ordinary directory mode.
 const LISTABLE: u32 = 0o755;
-
-/// How long a step that must not block may take in a control.
-const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 
 /// A named pipe at `path`,
 /// which blocks whoever opens it for reading until a writer comes.

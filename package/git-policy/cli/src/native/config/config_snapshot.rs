@@ -188,16 +188,107 @@ fn boolean_word(text: &str) -> Option<bool> {
 }
 
 /// What:
+///  One byte as a digit of `radix`,
+/// or nothing when it is not one.
+/// Why:
+///   `strtoimax` stops at the first byte that is not a digit of the radix it chose,
+/// and the loop that walks the
+///  digits needs that answer as a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// parseInt(String.fromCharCode(byte), radix); // NaN when it is not a digit
+/// ```
+fn digit_of(byte: u8, radix: u32) -> Option<u32> {
+    return (byte as char).to_digit(radix);
+}
+
+/// What:
+///  One integer as Git's own reader spells it:
+/// `strtoimax` with base 0,
+/// then an optional `k`,
+/// `m` or `g` unit.
+/// Why:
+///   `git_parse_signed` reads an integer this way and multiplies it by the unit,
+/// so `00` is octal zero,
+///  `0x0` is zero,
+/// `-0` and `+0` are zero,
+/// `0k` is zero,
+/// `010` is eight,
+/// and `1k` is 1024.
+///  A text that reader refuses (a trailing space,
+/// a digit the radix does not hold,
+/// a value past the range of a
+///  signed 64-bit integer) is `None`,
+/// which means Git reads it as something else,
+/// such as a hook path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// gitInteger('0x10'); // 16
+/// ```
+fn git_integer(text: &str) -> Option<i64> {
+    let bytes: &[u8] = text.as_bytes();
+    let mut at: usize = 0;
+    // `strtoimax` skips leading whitespace and takes one sign.
+    while bytes.get(at).is_some_and(u8::is_ascii_whitespace) {
+        at += 1;
+    }
+    let negative: bool = match bytes.get(at) {
+        Some(b'-') => {
+            at += 1;
+            true
+        }
+        Some(b'+') => {
+            at += 1;
+            false
+        }
+        _ => false,
+    };
+    let (radix, first_digit): (u32, usize) = match (bytes.get(at), bytes.get(at + 1).map(u8::to_ascii_lowercase)) {
+        (Some(b'0'), Some(b'x')) => (16, at + 2),
+        (Some(b'0'), _) => (8, at),
+        _ => (10, at),
+    };
+    let mut magnitude: i64 = 0;
+    let mut digits: usize = 0;
+    let mut cursor: usize = first_digit;
+    loop {
+        let Some(byte) = bytes.get(cursor) else { break };
+        let Some(digit) = digit_of(*byte, radix) else { break };
+        magnitude = magnitude.checked_mul(i64::from(radix))?.checked_add(i64::from(digit))?;
+        digits += 1;
+        cursor += 1;
+    }
+    if digits == 0 {
+        return None;
+    }
+    let factor: i64 = match bytes.get(cursor..) {
+        Some(b"") => 1,
+        Some(tail) if tail.eq_ignore_ascii_case(b"k") => 1024,
+        Some(tail) if tail.eq_ignore_ascii_case(b"m") => 1024 * 1024,
+        Some(tail) if tail.eq_ignore_ascii_case(b"g") => 1024 * 1024 * 1024,
+        _ => return None,
+    };
+    let scaled: i64 = magnitude.checked_mul(factor)?;
+    return Some(if negative { -scaled } else { scaled });
+}
+
+/// What:
 ///  `--type=bool` of one value:
 /// a valueless key is true,
 /// empty text is false,
 /// a word from the list is itself,
-///  and a plain decimal integer is whether it is not zero.
+///  and any other text Git's integer reader accepts is whether the integer is not zero.
 /// Why:
-///   Anything else (a bad boolean that Git refuses,
-/// a unit suffix,
+///   Git asks its integer reader for everything that is not a boolean word,
+/// so the integer spellings
+///  (octal,
 /// hexadecimal,
-/// octal) is not modelled.
+/// signs,
+/// unit suffixes) are the person's answer too,
+/// and a value the reader refuses is
+///  the only one left to Git.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -214,7 +305,7 @@ pub fn canonical_bool(value: Option<&[u8]>) -> Option<bool> {
     if let Some(word) = boolean_word(text) {
         return Some(word);
     }
-    let number: u32 = plain_decimal(text)?;
+    let number: i64 = git_integer(text)?;
     return Some(number != 0);
 }
 
