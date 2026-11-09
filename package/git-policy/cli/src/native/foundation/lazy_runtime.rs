@@ -427,15 +427,17 @@ where
     if !tasks_can_run() {
         return None;
     }
-    return match RUNTIME.get_or_init(build_for_this_process) {
-        Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
-        // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
-        //  built for runs there.
-        Ok(_) | Err(_) => match LATE_RUNTIME.get() {
-            Some(late) => Some(late.spawn(future)),
-            None => None,
-        },
-    };
+    if let Ok(built) = RUNTIME.get_or_init(build_for_this_process)
+        && matches!(built.flavor, BuiltFlavor::MultiThread { .. })
+    {
+        return Some(built.runtime.spawn(future));
+    }
+    // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was built
+    // for runs there.
+    if let Some(late) = LATE_RUNTIME.get() {
+        return Some(late.spawn(future));
+    }
+    return None;
 }
 
 /// What:

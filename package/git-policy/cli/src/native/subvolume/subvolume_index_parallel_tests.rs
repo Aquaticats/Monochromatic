@@ -128,9 +128,9 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
         return line;
     });
     let refreshed = {
-        let root: PathBuf = root.clone();
-        let rewrite: Arc<RewriteOne> = Arc::clone(&rewrite);
-        crate::test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || { return refresh_with(root.as_path(), &LARGE_HOST, &rewrite); })
+        let compared_root: PathBuf = root.clone();
+        let held_rewrite: Arc<RewriteOne> = Arc::clone(&rewrite);
+        crate::parallel_test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || { return refresh_with(compared_root.as_path(), &LARGE_HOST, &held_rewrite); })
     };
     let Some((_count, lines)) = refreshed else {
         panic!("the checkout's index kept waiting for the worktrees' rewrites for longer than {ORDERING_RUN_ALLOWED:?}, so the report never finished; nothing here says the ordering is wrong, only that the run did not end")

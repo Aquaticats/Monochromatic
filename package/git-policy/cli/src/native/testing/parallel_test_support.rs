@@ -23,8 +23,39 @@ pub(crate) const PATIENCE: Duration = Duration::from_secs(10);
 /// `wait_timeout_while` has no untimed form,
 /// so the bound it is given is one no run reaches,
 /// and the
-///  control's own deadline (`test_support::finished_within_at`) is what turns a wait that never finishes into a failure.
+///  control's own deadline (`finished_within_at`) is what turns a wait that never finishes into a failure.
 const NO_CLOCK: Duration = Duration::from_secs(60 * 60);
+
+/// What:
+///  `work`'s value,
+/// or nothing when it did not finish within `deadline`;
+/// the thread that runs it is abandoned with the process.
+/// Why:
+///   A control whose work waits on another job's work needs a bound that covers that work,
+/// which costs what the
+///  fixture and the host make it cost;
+/// a fixed short clock over work fails a busy host while the work itself is fine,
+/// so
+///  such a control states its own deadline and the wait it guards takes no clock.
+/// A panic inside the work is the work's own failure and is raised here as itself,
+/// so this
+///  deadline cannot be blamed for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const result = await finishedWithinAt(150_000, () => refresh()); // undefined when the deadline passed
+/// ```
+pub(crate) fn finished_within_at<T: Send + 'static>(deadline: Duration, work: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+    let (sender, receiver) = std::sync::mpsc::channel::<std::thread::Result<T>>();
+    std::thread::spawn(move || {
+        let _ = sender.send(std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)));
+    });
+    return match receiver.recv_timeout(deadline) {
+        Ok(Ok(value)) => Some(value),
+        Ok(Err(payload)) => std::panic::resume_unwind(payload),
+        Err(_passed_or_abandoned) => None,
+    };
+}
 
 /// How long the control for a serial run waits at a point it can never pass.
 pub(crate) const SERIAL_PATIENCE: Duration = Duration::from_millis(200);
