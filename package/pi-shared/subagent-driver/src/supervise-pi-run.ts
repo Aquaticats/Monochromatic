@@ -49,10 +49,8 @@ import {
   recordsIn,
 } from './read-pi-fields.ts';
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
-import {
-  type WatchRequest,
-  watchUntilEnded,
-} from './watch-pi-run.ts';
+import type { WatchRequest, } from './watch-request.ts';
+import { watchUntilEnded, } from './watch-pi-run.ts';
 import { writeSummary, } from './write-summary.ts';
 
 /**
@@ -217,6 +215,26 @@ async function endReasonOfRun(watch: WatchRequest,): Promise<EndReason> {
       .noteDriverFailure(String(error,),);
     return 'driver-failed';
   }
+}
+
+/**
+ Says how many attempts a run made at the model error it ended on, so the reason the driver prints names them.
+
+ @param summary - what the caller reads
+
+ @returns the attempts, in words, or nothing when the run ended on no model error
+ */
+function attemptsOf(summary: RunSummary,): string {
+  if (summary.modelErrorAttempts === undefined) {
+    return '';
+  }
+  /**
+   How many attempts the run made, as text.
+   */
+  const attempts = String(summary.modelErrorAttempts,);
+  return (summary.modelErrorAttempts === 1)
+    ? ' after 1 attempt'
+    : ` after ${attempts} attempts`;
 }
 
 /**
@@ -447,7 +465,7 @@ export async function supervisePiRun(
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
     throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${summary.endReason}". The summary is in ${join(
+      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}. The summary is in ${join(
         options.runFolder,
         'summary.json',
       )} and Pi's standard error in ${
