@@ -35,7 +35,9 @@
 //! ```
 
 use crate::add_timing::{begin_step, begin_work, end_step, end_work};
-use crate::side_by_side_threads::run_beside_caller;
+use crate::blocking_job::BlockingJobError;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::lazy_runtime::run_on_runtime;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::ObjectFormat;
 use crate::repo_read_odb::ObjectDatabase;
@@ -48,9 +50,10 @@ pub use crate::worktree_clean_tree_walk::{ContentTarget, StatCursor, stat_fields
 use crate::worktree_clean_tree_walk::{tree_differs_from_index_by_content, tree_refusal};
 use crate::subvolume_index::{StoredStat, be32, walk_entries};
 use crate::subvolume_index_files::repository_hash_length;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use std::os::unix::fs::MetadataExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The entries of a Git directory that mean an operation is in progress and the index or tree is not a plain state.
 const IN_PROGRESS: &[&str] =
@@ -240,25 +243,41 @@ fn index_differs_from_tree(index: &[IndexEntry], tree: &[FlatEntry]) -> Option<C
 }
 
 /// What:
-///  Whether Git lists an untracked file that no ignore rule covers.
+///  The run that lists the untracked files no ignore rule covers.
 /// Why:
-///   Only Git's ignore rules can tell an untracked file that matters from one it ignores;
-/// `--directory` stops at the
-///  first untracked directory and `--no-empty-directory` leaves out directories without files,
-/// as `git status` does.
+///   Both faces of the scan start the same child,
+/// so the words of a failure and the answer are the same for both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function untrackedFile(context: GitContext, root: string): Promise<string | undefined>;
+/// // `git ls-files --others --exclude-standard --directory --no-empty-directory -z`
 /// ```
-fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, CleanRefusal> {
-    let request: GitRequest = GitRequest {
+fn untracked_listing(root: &Path) -> GitRequest {
+    return GitRequest {
         cwd: root.to_path_buf(),
         arguments: ["ls-files", "--others", "--exclude-standard", "--directory", "--no-empty-directory", "-z"].map(Into::into).to_vec(),
         without_prefix: true,
         ..GitRequest::default()
     };
-    let output = match run_git(context, &request) {
+}
+
+/// What:
+///  The first untracked name Git listed,
+/// or the refusal the run is.
+/// Why:
+///   Only Git's ignore rules can tell an untracked file that matters from one it ignores;
+/// `--directory` stops at the
+///  first untracked directory and `--no-empty-directory` leaves out directories without files,
+/// as `git status` does.
+/// The two faces of the scan make their answer here,
+/// so neither can read a run the other refuses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function firstUntrackedName(run: GitOutput | Error): string | undefined; // throws the reason
+/// ```
+fn first_untracked_name(run: std::io::Result<GitOutput>) -> Result<Option<String>, CleanRefusal> {
+    let output = match run {
         Ok(finished) => finished,
         Err(error) => return Err(CleanRefusal::unreadable(format!("Git could not list untracked files ({error})"))),
     };
@@ -272,6 +291,78 @@ fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, C
         }
     }
     return Ok(None);
+}
+
+/// What:
+///  Whether Git lists an untracked file that no ignore rule covers,
+/// for a caller that is not a task of the runtime.
+/// Why:
+///   The scan's callers are synchronous (the cleanliness check and its controls),
+/// and a task of the runtime awaits a child rather than
+///  entering the runtime to block on one;
+/// `untracked_file_awaiting` is the face such a caller uses.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function untrackedFile(context: GitContext, root: string): string | undefined; // throws the reason
+/// ```
+fn untracked_file(context: &GitContext, root: &Path) -> Result<Option<String>, CleanRefusal> {
+    return first_untracked_name(run_git(context, &untracked_listing(root)));
+}
+
+/// What:
+///  `untracked_file` with the Git child awaited on the runtime.
+/// Why:
+///   The scan runs beside the tracked proof on the runtime,
+/// so its child is awaited there;
+/// the bound and the quiet window
+///  of the run are the synchronous face's (`transaction_git_awaiting.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function untrackedFileAwaiting(context: GitContext, root: string): Promise<string | undefined>;
+/// ```
+async fn untracked_file_awaiting(context: &GitContext, root: &Path) -> Result<Option<String>, CleanRefusal> {
+    return first_untracked_name(run_git_awaiting(context, &untracked_listing(root)).await);
+}
+
+/// What:
+///  `untracked_file`,
+/// timed as the work `untrackedScan` because it is a wait of its own.
+/// Why:
+///   The add timing record sums the work of a step by name;
+/// the scan runs beside the tracked proof and is reported as the
+///  work it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork(); const scanned = untrackedFile(context, root); endWork('untrackedScan', began);
+/// ```
+fn scan_for_untracked_file((context, root): (&GitContext, &Path)) -> Result<Option<String>, CleanRefusal> {
+    let began: std::time::Instant = begin_work();
+    let scanned: Result<Option<String>, CleanRefusal> = untracked_file(context, root);
+    end_work("untrackedScan", began);
+    return scanned;
+}
+
+/// What:
+///  `scan_for_untracked_file` on the runtime:
+/// the same work,
+/// with the child awaited and the time it took still recorded.
+/// Why:
+///   A task of the runtime cannot start this child through the synchronous face,
+/// which would have to enter the runtime;
+///  the timing is written down for a wait as it was for a thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork(); const scanned = await untrackedFileAwaiting(context, root); endWork('untrackedScan', began);
+/// ```
+async fn scan_for_untracked_file_awaiting((context, root): (&GitContext, &Path)) -> Result<Option<String>, CleanRefusal> {
+    let began: std::time::Instant = begin_work();
+    let scanned: Result<Option<String>, CleanRefusal> = untracked_file_awaiting(context, root).await;
+    end_work("untrackedScan", began);
+    return scanned;
 }
 
 /// What:
@@ -473,58 +564,142 @@ fn entry_a_reset_cannot_undo(state: &State) -> Option<CleanRefusal> {
 }
 
 /// What:
-///  The untracked scan of `check_clean`,
-/// timed as the work `untrackedScan` because it runs on a thread of its own.
+///  The tracked-file proof of `check_clean`,
+/// which runs as a job of the blocking pool while the untracked scan is awaited.
 /// Why:
-///   The scan is one Git run over the directory tree;
-/// the add timing record sums the work of threads by name.
+///   The proof reads the index,
+/// the tree of `HEAD` and a stat of every tracked file,
+/// none of which is a question
+///  for a task that also awaits a bounded Git child.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const began = beginWork(); const scanned = untrackedFile(context, root); endWork('untrackedScan', began);
+/// function checkTrackedFiles([root, gitDir, commonDir]: [string, string, string]): CleanSource;
 /// ```
-fn scan_for_untracked_file((context, root): (&GitContext, &Path)) -> Result<Option<String>, CleanRefusal> {
-    let began: std::time::Instant = begin_work();
-    let scanned: Result<Option<String>, CleanRefusal> = untracked_file(context, root);
-    end_work("untrackedScan", began);
-    return scanned;
-}
-
-/// The tracked-file proof of `check_clean`,
-/// which runs on the calling thread beside the untracked scan.
 fn check_tracked_files((root, git_dir, common_dir): (&Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
     return check_tracked(root, git_dir, common_dir, None, false);
 }
 
-/// Cleanliness controls stay out of the release executable.
 /// What:
-///  Check that the worktree at `root`,
-/// whose Git directory is `git_dir` and whose shared directory is `common_dir`,
-/// is
-///  clean;
-/// return what its `HEAD` names,
-/// or the reason it cannot be proven clean.
+///  `check_tracked_files` for a job of the blocking pool,
+/// which owns the paths it reads.
 /// Why:
-///   The caller turns a refusal into a quiet fall to the next rung (or to Git's own removal) and logs the reason.
+///   A job of the pool must own everything it reads,
+/// and the caller's paths live on a stack that the job outlives.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function checkClean(args: { context: GitContext; root: string; gitDir: string; commonDir: string }): Promise<CleanSource>; // throws a reason
+/// function checkTrackedFilesInAJob([root, gitDir, commonDir]: [string, string, string]): CleanSource; // throws the reason
 /// ```
-pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
-    // The tracked files (the index, the tree of `HEAD`, a stat of every file) and the untracked scan (one Git run over the
-    //  directory tree) read different things and write nothing, so they run side by side; the tracked refusal still comes first.
-    let (scan_joined, tracked): (std::thread::Result<Result<Option<String>, CleanRefusal>>, Result<CleanSource, CleanRefusal>) =
-        run_beside_caller(((context, root), scan_for_untracked_file), ((root, git_dir, common_dir), check_tracked_files));
-    let untracked: Result<Option<String>, CleanRefusal> = match scan_joined {
-        Ok(found) => found,
-        Err(_panic) => Err(CleanRefusal::unreadable("the scan for untracked files stopped unexpectedly")),
-    };
+fn check_tracked_files_in_a_job((root, git_dir, common_dir): (PathBuf, PathBuf, PathBuf)) -> Result<CleanSource, CleanRefusal> {
+    return check_tracked_files((root.as_path(), git_dir.as_path(), common_dir.as_path()));
+}
+
+/// What:
+///  The answer two verdicts make:
+/// the tracked proof's refusal first,
+/// then the untracked file's.
+/// Why:
+///   The two checks read different things and their verdicts were always read in this order,
+/// so both faces of the check answer the
+///  same state with the same reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function theCleanVerdict([tracked, untracked]: [CleanSource | Refusal, string | undefined | Refusal]): CleanSource;
+/// ```
+fn the_clean_verdict((tracked, untracked): (Result<CleanSource, CleanRefusal>, Result<Option<String>, CleanRefusal>)) -> Result<CleanSource, CleanRefusal> {
     let clean: CleanSource = tracked?;
     if let Some(name) = untracked? {
         return Err(CleanRefusal::new(CleanRefusalKind::Untracked, format!("{name} is untracked and not ignored")));
     }
     return Ok(clean);
+}
+
+/// What:
+///  Keep the reason of a tracked proof that could not run as a job of the pool.
+/// Why:
+///   A proof that panicked proves nothing,
+/// and a pool that refused the work says which state it is in;
+/// the check reports
+///  either as a refusal rather than unwinding a caller or claiming a verdict.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aRefusedJobIsARefusal(error: BlockingJobError): Refusal;
+/// ```
+fn a_refused_job_is_a_refusal(error: BlockingJobError) -> CleanRefusal {
+    return match error {
+        BlockingJobError::Panicked => CleanRefusal::unreadable("the proof of the tracked files stopped unexpectedly"),
+        other => CleanRefusal::unreadable(format!("the tracked files could not be proven ({other})")),
+    };
+}
+
+/// What:
+///  Check that the worktree at `root`,
+/// whose Git directory is `git_dir` and whose shared directory is `common_dir`,
+/// is
+///  clean,
+/// on the runtime:
+/// the untracked scan awaited on this task and the tracked proof a job of the blocking pool beside it.
+/// Why:
+///   The two read different things and write nothing,
+/// so neither waits for the other;
+/// the scan's wait is bounded by its step
+///  terms and the proof walks every tracked file,
+/// which must never run on the task that awaits that bounded wait.
+/// A task of the runtime cannot start
+///  this child through the synchronous face,
+/// so the scan is the awaited one.
+/// Where the pool refuses a thread,
+/// the proof runs in turn under a place of the
+///  process's bound (`blocking_jobs_within_the_budget.rs`, `run_a_job_or_in_turn`),
+/// so the answer is the same and only the overlap is lost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function checkCleanAwaiting({ context, root, gitDir, commonDir }): Promise<CleanSource>; // throws the reason
+/// ```
+pub async fn check_clean_awaiting(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+    let (untracked, tracked): (Result<Option<String>, CleanRefusal>, Result<Result<CleanSource, CleanRefusal>, BlockingJobError>) = tokio::join!(
+        scan_for_untracked_file_awaiting((context, root)),
+        run_a_job_or_in_turn((root.to_path_buf(), git_dir.to_path_buf(), common_dir.to_path_buf()), check_tracked_files_in_a_job),
+    );
+    let proof: Result<CleanSource, CleanRefusal> = match tracked {
+        Ok(verdict) => verdict,
+        Err(refused) => Err(a_refused_job_is_a_refusal(refused)),
+    };
+    return the_clean_verdict((proof, untracked));
+}
+
+/// What:
+///  `check_clean_awaiting` for a caller that is not a task of the runtime:
+/// it enters the process's runtime once and waits there,
+/// and where no runtime can be built the two checks run one
+///  after another on this thread.
+/// Why:
+///   The callers of this face are synchronous (the removal of a worktree and the choice of a snapshot's source),
+/// so one
+///  of them enters the runtime for them;
+/// from inside the runtime it refuses,
+/// and `check_clean_awaiting` is the face such a caller uses.
+/// The
+///  work done without a runtime is the same work,
+/// with nothing running beside it,
+/// so every verdict is the one the runtime gives.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function checkClean(args: { context: GitContext; root: string; gitDir: string; commonDir: string }): CleanSource; // throws a reason
+/// ```
+pub fn check_clean(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
+    return match run_on_runtime(check_clean_awaiting(context, root, git_dir, common_dir)) {
+        Ok(verdict) => verdict,
+        Err(refusal) => {
+            crate::diagnostic_log::debug("checkClean", format!("the tracked files and the untracked scan run one after another ({refusal})").as_str());
+            the_clean_verdict((check_tracked_files((root, git_dir, common_dir)), scan_for_untracked_file((context, root))))
+        }
+    };
 }
 
 /// What:
