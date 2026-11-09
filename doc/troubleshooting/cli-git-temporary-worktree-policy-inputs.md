@@ -77,7 +77,8 @@ Root `mise.toml:1239` supplies a worktree-relative generated rules input:
 FORBIDDEN_STRINGS_RULES = "{{config_root}}/.cache/forbidden-strings.rules.txt"
 ```
 
-That line is gone: the root `mise.toml` has 1490 lines and names `FORBIDDEN_STRINGS_RULES` nowhere.
+That line is gone:
+the root `mise.toml` has 1490 lines and names `FORBIDDEN_STRINGS_RULES` nowhere.
 The live assignment is `.config/mise/conf.d/20-env.toml:77`,
 and it names two append-list files instead of the composed cache file:
 
@@ -146,7 +147,8 @@ After comparing and reviewing the exact policy,
 use native trust consent;
 `git cli-git trust` is a retired command today,
 answered with an explanation that changes nothing and exits `0`
-(`package/git-policy/cli/SPEC.md`, management commands),
+(`package/git-policy/cli/SPEC.md`,
+management commands),
 so the native wrapper needs no consent for either case,
 and the step below belongs to the retired TypeScript wrapper:
 

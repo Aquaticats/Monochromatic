@@ -98,8 +98,10 @@ The repository installation and generated path are owned by `mise.toml`
 (its static environment sits in `.config/mise/conf.d/20-env.toml`)
 and `file-enforcer.config.jsonc`.
 This sentence named `mise.no-env.toml` and `file-enforcer.config.ts` when the record was written:
-`mise.no-env.toml` became the hand-written `mise.toml`, with the static environment moved to
-`.config/mise/conf.d/20-env.toml`, on 2026-10-31 in `7bbe5719d5`,
+`mise.no-env.toml` became the hand-written `mise.toml`,
+with the static environment moved to
+`.config/mise/conf.d/20-env.toml`,
+on 2026-10-31 in `7bbe5719d5`,
 and the file-enforcer configuration became the tracked `file-enforcer.config.jsonc`
 on 2026-10-30 in `a6aa2e76e9`.
 The commit-only decision is in `package/git-policy/cli/src/native/rule_commit_only.rs`;

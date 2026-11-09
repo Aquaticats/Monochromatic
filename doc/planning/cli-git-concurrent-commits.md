@@ -45,7 +45,8 @@ issue #560 is a real collision.
   The native wrapper takes no `index.lock` of its own:
   a command that cannot take it ends as native Git ends it,
   and the commit service's landing retries it a bounded number of times
-  (`package/git-policy/cli/src/native/lock/index_lock_wait.rs`, module header).
+  (`package/git-policy/cli/src/native/lock/index_lock_wait.rs`,
+  module header).
 - The lock is held across every policy pass,
   the real `git commit` including its hooks,
   and post-commit index installation (`package/git-policy/cli/SPEC.md`,
@@ -337,10 +338,12 @@ Git source at commit `0f8e75abebff` plus experiments with real Git 2.55.0.
    a per-repository hook lock serializes preparation hooks and post-landing `post-commit` by default;
   `cli-git.config` can declare the repository's hooks safe for parallel preparation.
   Both are retired:
-  the wrapper runs no external hook, so no hook lock exists,
+  the wrapper runs no external hook,
+  so no hook lock exists,
   and
   `hooks.concurrentCommits` is only accepted and ignored
-  (`package/git-policy/cli/SPEC.md`, section "Retired keys";
+  (`package/git-policy/cli/SPEC.md`,
+  section "Retired keys";
   `git monochromatic-git-policy-cli doctor` says so).
 - Foreign `index.lock`:
   cli-git injects `core.lockfilePid=true` into every forwarded and spawned Git.
@@ -403,8 +406,10 @@ the owner declined an `AGENTS.md` rule.
   The design session chose that ref;
   the implementation replaced it with the per-transaction shadow object store,
   so no `refs/cli-git/` ref exists
-  (`doc/decision/cli-git-concurrent-commits.md`, lines 43 to 46 and 487 to 488;
-  `package/git-policy/cli/SPEC.md`, section "Transaction protocol").
+  (`doc/decision/cli-git-concurrent-commits.md`,
+  lines 43 to 46 and 487 to 488;
+  `package/git-policy/cli/SPEC.md`,
+  section "Transaction protocol").
 - Hooks during preparation run through the dispatcher shim.
   It resolves the repository's own `core.hooksPath`,
   respects user-disabled events,

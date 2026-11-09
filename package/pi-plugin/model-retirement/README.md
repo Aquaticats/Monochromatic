@@ -160,9 +160,11 @@ Measured over pi-ai's bundled catalog of 1714 entries:
 and no retirement whose keeper is not strictly newer.
 The numbers come from `src/retirement-table.fixture.json`,
 whose `catalogGeneratedAt` is `2026-10-15T19:00:55.287Z`
-and whose abstentions are 13 keeper ambiguities, 12 unordered pairs and 7 versionless protected ids;
+and whose abstentions are 13 keeper ambiguities,
+12 unordered pairs and 7 versionless protected ids;
 the fixture is what the characterization test keeps current.
-The README first stated 1604 entries, 551 retirements and 29 abstentions from an earlier catalog.
+The README first stated 1604 entries,
+551 retirements and 29 abstentions from an earlier catalog.
 
 ## How each provider is filtered
 

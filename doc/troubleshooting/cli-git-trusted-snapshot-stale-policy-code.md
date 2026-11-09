@@ -36,11 +36,13 @@ commit in this repository carries it.
 This mechanism is retired.
 The TypeScript wrapper it describes was replaced by the native `monochromatic-git-policy-cli`,
 whose last TypeScript commit is `f4fc1fa213ece65672e4314983a75266837892f9`
-(`package/git-policy/cli/SPEC.md`, section "What this file specifies");
+(`package/git-policy/cli/SPEC.md`,
+section "What this file specifies");
 the native executable reads `monochromatic-git-policy-cli.config.jsonc` as data,
 runs no repository-supplied code,
 and answers `plugins` and `trust` with an explanation of the retirement
-(`package/git-policy/cli/SPEC.md`, configuration validation).
+(`package/git-policy/cli/SPEC.md`,
+configuration validation).
 The paragraphs below keep the shape of the removed mechanism.
 
 `cli-git.config.ts` imports plugins from `@monochromatic-dev/git-policy-cli/ts`,
@@ -81,9 +83,12 @@ A snapshot mtime older than the source edit proves the gate never saw the change
 The native wrapper has no equivalent remedy:
 it executes only policy code compiled into the executable,
 so a rebuilt
-`monochromatic-git-policy-cli` is what the gate runs, and
-`git cli-git trust --yes` now prints an explanation, changes nothing and exits `0`
-(`package/git-policy/cli/SPEC.md`, management commands).
+`monochromatic-git-policy-cli` is what the gate runs,
+and
+`git cli-git trust --yes` now prints an explanation,
+changes nothing and exits `0`
+(`package/git-policy/cli/SPEC.md`,
+management commands).
 The steps below apply only to the retired TypeScript wrapper.
 
 Run `git cli-git trust --yes` in the affected worktree after changing any code reachable from

@@ -20,7 +20,8 @@ It does not modify the working tree or installed linter.
 retire unapproved native Pi build),
 so that path and the `prepare-native-format` and `private-native-format` tasks the verification
 calls no longer exist in the tree;
-the snapshot keeps them, and nothing in the working tree replaces them.
+the snapshot keeps them,
+and nothing in the working tree replaces them.
 The retained receipt is
 `${HOME}/temp/agent/pi-mimo-preparation-failure-20261018/native-format-fixture.json`.
 The formatter's final oracle reports 10,086 warnings and 90 errors across 494 native files.
@@ -64,7 +65,8 @@ it is separate from the owned environment-inheritance test defect.
 
 The maintained package task reproduced the change inside a disposable 2 GiB,
 two-CPU container;
-the two tasks below belong to the retired native Pi tree, so the block runs only inside the
+the two tasks below belong to the retired native Pi tree,
+so the block runs only inside the
 snapshot the retained receipt names:
 
 ```shell

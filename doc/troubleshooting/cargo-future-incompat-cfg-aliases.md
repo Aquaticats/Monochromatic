@@ -334,7 +334,8 @@ A clean verification build fetches and recompiles the affected build scripts.
 
 The repository applies that update in these standalone lockfiles,
 measured 2026-11-09T14:03:34-05:00
-(`rg -l 'name = "cfg_aliases"' --glob 'Cargo.lock'`, each entry at version `0.2.2`):
+(`rg -l 'name = "cfg_aliases"' --glob 'Cargo.lock'`,
+each entry at version `0.2.2`):
 
 - `package/git-policy/cli/Cargo.lock`;
 - `package/git-policy/cli.fuzz/Cargo.lock`;

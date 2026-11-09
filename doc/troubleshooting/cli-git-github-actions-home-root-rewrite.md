@@ -110,7 +110,8 @@ and `git rev-parse --show-toplevel` were all valid before the package root finde
 - Regression test:
    `package/fs-path/core/src/root-discovery.unit.test.ts`,
    whose `preserves logical home spelling instead of fabricating a var-home path` case is the guard;
-   the record first named it `find-monorepo-root.unit.test.ts`, a file no commit carries.
+   the record first named it `find-monorepo-root.unit.test.ts`,
+  a file no commit carries.
 - Hosted harness:
    `.github/workflows/final-newline.yml`.
 
