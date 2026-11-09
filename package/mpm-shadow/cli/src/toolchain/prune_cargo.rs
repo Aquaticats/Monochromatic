@@ -418,13 +418,13 @@ pub fn prune_toolchain(
             // naming a directory it removed.
             let kept: Vec<&PresentVersion> =
                 present[crate_name].iter().filter(|candidate| return stays(crate_name, candidate, &planned)).collect();
-            if kept.is_empty() {
-                remove_current_link(&scope.toolchain_root, crate_name, &planned)?;
-            } else if let Some(newest) = newest_finished(&kept) {
-                point_current_at(&scope.toolchain_root, crate_name, &newest)?;
+            match newest_finished(&kept) {
+                Some(newest) => point_current_at(&scope.toolchain_root, crate_name, &newest)?,
+                // What: with no finished version that stays, the link is kept only when what it names stays too.
+                // Why: an unfinished install is not something `current` may name,
+                // and a link left naming a version this run deletes dangles once the deletions run.
+                None => remove_current_link(&scope.toolchain_root, crate_name, &planned)?,
             }
-            // Nothing finished stays: there is no finished version for the link to name, and another step's link is
-            // left as it is rather than removed on the way to installing one.
         }
     }
     let mut removed: Vec<PathBuf> = Vec::new();
