@@ -164,11 +164,13 @@ a brace is ordinary text to Git,
 while the glob compiler beneath the matcher reads `{a,b}` as an alternate group,
 so a literal brace is escaped for that compiler and a brace inside a character class is left as it is.
 A control beside the matcher asks native Git's `git check-ignore` the same questions for every pattern
-shape it covers,
-and one shape stays different:
-a character range that runs backwards (`[z-a]`) is a class matching nothing to Git and a refusal
-here,
-which fails the policy with a message naming the pattern.
+shape it covers.
+A character range that runs backwards (`[z-a]`) keeps only the character that opens it,
+which is what Git matches there,
+and the glob compiler refuses the range itself.
+A pattern the compiler still refuses,
+a trailing escape,
+fails the policy with a message naming the pattern.
 
 ## Policy re-run after a retried landing
 
