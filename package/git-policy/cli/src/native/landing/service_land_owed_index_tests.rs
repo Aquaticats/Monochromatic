@@ -1176,11 +1176,12 @@ fn an_unborn_branch_with_an_orphaned_record_still_commits() {
     remove(root.as_path());
 }
 
-/// A record that exists and cannot be read is still an obligation:
-/// the commit says it could not tell,
-/// instead of leaving the entries it owes unprotected.
+/// A record that exists and cannot be read is still an obligation,
+/// and it no longer stops the commit:
+/// the landed deletion it could have named is left out,
+/// and the notice says why.
 #[test]
-fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
+fn an_unreadable_record_leaves_the_landed_deletion_out_and_says_why() {
     let world: World = world("service-land-owed-unreadable-record");
     let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
     land_with_failed_index(&world, 1, &[landed]);
@@ -1190,7 +1191,8 @@ fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
     assert!(found.is_empty(), "nothing can be read of it");
     assert_eq!(unreadable, 1, "and it counts as owed all the same");
     let commit_index: PathBuf = commit_index_of(&world);
-    let answered: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+    let mut note: Option<String> = None;
+    let left: Vec<String> = crate::owed_index_repair::exclude_with_note(
         &world.context.git,
         world.repo.as_path(),
         world.repo.join(".git").as_path(),
@@ -1198,10 +1200,13 @@ fn an_unreadable_record_makes_the_commit_say_it_cannot_tell() {
         Some(commit_index.as_path()),
         Some(commit_index.as_path()),
         &crate::service_land_start::IndexWitness::Absent,
-    );
+        &mut note,
+    )
+    .expect("the commit goes on");
     std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
-    let reason: String = answered.expect_err("a commit that cannot tell what the index owes stops and says so");
-    assert!(reason.contains("cannot be read"), "{reason}");
+    assert_eq!(left, vec![String::from("one.txt")], "the deletion it could have named is left out");
+    let said: String = note.expect("the notice says why");
+    assert!(said.contains("cannot be read") && said.contains("one.txt"), "{said}");
     assert!(record.exists(), "the record is kept for the person");
     remove(world.root.as_path());
 }
@@ -1306,8 +1311,8 @@ fn an_unreadable_obligation_keeps_a_landed_deletion_out() {
     .expect("the commit goes on");
     std::fs::set_permissions(record.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("readable again");
     assert_eq!(left, vec![String::from("one.txt")], "the deletion it would have recorded is left out");
-    let note: String = note.expect("the notice says why");
-    assert!(note.contains("cannot be read") && note.contains("one.txt"), "{note}");
+    let said: String = note.expect("the notice says why");
+    assert!(said.contains("cannot be read") && said.contains("one.txt"), "{said}");
     let landed_blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD:one.txt"]);
     assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "one.txt"]), format!("100644 {landed_blob} 0\tone.txt"), "the landed file stays in the commit");
     remove(world.root.as_path());

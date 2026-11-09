@@ -25,7 +25,8 @@ use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
-/// The exit status `git rev-parse --verify --quiet` gives for a name that is no object: the one answer that means "not there".
+/// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
+/// the one answer that means "not there".
 const NAME_IS_NO_OBJECT: i32 = 1;
 
 /// One entry of a tree or an index:
@@ -226,8 +227,10 @@ pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -
 /// ```
 pub(crate) fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     // An unborn branch has no head to hold an entry: nothing is there, and a commit that owes an index update must not stop for it.
-    // Only `rev-parse --verify --quiet`'s own answer for a name that is no object means that (exit 1 with nothing on the standard
-    //  error); a probe that failed for any other reason is a failure to know the head, and the caller restores what it had.
+    // Only `rev-parse --verify --quiet`'s own answer for a name that is no object means that:
+    //  exit 1 with nothing on the standard error.
+    // A probe that failed for any other reason is a failure to know the head,
+    //  and the caller restores what it had.
     let unborn: GitRequest = GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"]);
     match run_git(git, &unborn) {
         Ok(answer) if answer.succeeded() => {}

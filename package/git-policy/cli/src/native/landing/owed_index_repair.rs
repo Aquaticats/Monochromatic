@@ -253,8 +253,9 @@ pub fn exclude_with_note(
         };
         if !at_risk.is_empty() {
             let index = commit_index.expect("the paths were asked of the commit's own index");
-            set_to_head_paths(git, repository, index, at_risk.as_slice())
-                .map_err(|code| { return format!("the entries an obligation that cannot be read may owe cannot be set to the head ({code:?})"); })?;
+            if let Err(code) = set_to_head_paths(git, repository, index, at_risk.as_slice()) {
+                return Err(format!("the entries an obligation that cannot be read may owe cannot be set to the head ({code:?})"));
+            }
         }
         for path in &at_risk {
             left.push(crate::path_bytes::path_message_text(path.as_slice()));
