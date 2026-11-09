@@ -15,8 +15,10 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { INVALID, } from './task-validation.ts';
-import { parseTaskUpdateInput, } from './task-validation-update.ts';
+import {
+  INVALID,
+  parseTaskUpdateInput,
+} from '../../../dist/final/node/index.mjs';
 
 await describe({
   name: '',
