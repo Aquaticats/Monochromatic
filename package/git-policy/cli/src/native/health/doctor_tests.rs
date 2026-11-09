@@ -24,6 +24,13 @@ fn exit_parts(action: Action) -> (i32, String, String) {
     return (code, stdout, stderr);
 }
 
+/// The hooks location of `cwd`,
+/// located by a task of the runtime,
+/// because locating it asks Git.
+fn located(context: &GitContext, cwd: &Path) -> Result<HooksLocation, String> {
+    return crate::lazy_runtime::run_on_runtime(locate_hooks(context, cwd)).expect("the runtime");
+}
+
 /// Executable regular files and symbolic links are hooks;
 /// samples,
 /// plain files and directories are not.
@@ -124,14 +131,14 @@ fn a_relative_hooks_path_resolves_against_the_worktree_root() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     std::fs::create_dir(repo.join("sub")).expect("sub");
     let context: GitContext = git_context();
-    let plain: HooksLocation = locate_hooks(&context, repo.join("sub").as_path()).expect("locate");
+    let plain: HooksLocation = located(&context, repo.join("sub").as_path()).expect("locate");
     assert_eq!(plain.common_directory, repo.join(".git"));
     assert_eq!(plain.configured, None);
     git(repo.as_path(), &["config", "core.hooksPath", "custom-hooks"]);
-    let relative: HooksLocation = locate_hooks(&context, repo.join("sub").as_path()).expect("locate");
+    let relative: HooksLocation = located(&context, repo.join("sub").as_path()).expect("locate");
     assert_eq!(relative.configured, Some(repo.join("custom-hooks")));
     git(repo.as_path(), &["config", "core.hooksPath", "/elsewhere/hooks"]);
-    let absolute: HooksLocation = locate_hooks(&context, repo.as_path()).expect("locate");
+    let absolute: HooksLocation = located(&context, repo.as_path()).expect("locate");
     assert_eq!(absolute.configured, Some(PathBuf::from("/elsewhere/hooks")));
     remove(root.as_path());
 }
@@ -143,7 +150,7 @@ fn a_linked_worktree_reports_the_shared_common_directory() {
     let repo: PathBuf = repository(root.as_path(), "repo");
     let linked: PathBuf = root.join("linked");
     git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("UTF-8")]);
-    let location: HooksLocation = locate_hooks(&git_context(), linked.as_path()).expect("locate");
+    let location: HooksLocation = located(&git_context(), linked.as_path()).expect("locate");
     assert_eq!(location.common_directory, repo.join(".git"));
     remove(root.as_path());
 }
@@ -313,6 +320,59 @@ fn a_modified_misnamed_or_linked_shim_is_an_unsupported_hook() {
 
 /// Every one of the four names is recognized with its own text.
 #[cfg(unix)]
+/// What:
+///  The report through its synchronous face and through the awaited one is the same report,
+/// field for field.
+/// Why:
+///   The conversion must change no output:
+/// the bridge is the only thing the synchronous face adds,
+/// so a difference here is a change of behaviour and not of threading.
+///  The hook listing,
+/// the fsmonitor line and the configuration notes all come from Git,
+/// so all three parts are compared.
+#[test]
+fn the_two_faces_of_the_report_agree() {
+    let root: PathBuf = fixture("doctor-two-faces");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["config", "hook.review.event", "post-commit"]);
+    git(repo.as_path(), &["config", "hook.review.command", "run it"]);
+    executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    let context: GitContext = git_context();
+    let here: (i32, String, String) = exit_parts(doctor_action(&context, repo.as_path()));
+    let awaited: (i32, String, String) = crate::lazy_runtime::run_on_runtime(async {
+        return exit_parts(doctor_action_with_section(&context, repo.as_path(), None, &no_filesystem_section).await);
+    })
+    .expect("the runtime");
+    assert_eq!(here, awaited);
+    assert_eq!(here.0, 1);
+    remove(root.as_path());
+}
+
+/// What:
+///  The synchronous face of the report,
+/// asked from inside the runtime,
+/// is refused and says so.
+/// Why:
+///   This is what the control above would pass without:
+/// the awaited report could be green for a reason other than the conversion,
+/// and the bridge's refusal must reach the caller as a doctor failure rather than a panic.
+#[test]
+fn the_synchronous_face_of_the_report_is_refused_from_inside_the_runtime() {
+    let root: PathBuf = fixture("doctor-sync-refused");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let refused: (i32, String, String) = crate::lazy_runtime::run_on_runtime(async { return exit_parts(doctor_action(&context, repo.as_path())); })
+        .expect("the runtime");
+    assert_eq!((refused.0, refused.1.as_str()), (2, ""));
+    assert!(
+        refused.2.starts_with("git monochromatic-git-policy-cli doctor: the runtime could not be entered: ")
+            && refused.2.contains("inside itself"),
+        "{}",
+        refused.2
+    );
+    remove(root.as_path());
+}
+
 /// What:
 ///  The whole report is built by a task of the runtime it is awaited on,
 /// and every Git question of it is put from that task.
