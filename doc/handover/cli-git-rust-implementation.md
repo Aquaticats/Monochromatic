@@ -231,6 +231,18 @@ The old tree kept for the rollback stays until the owner deletes it.
   redacted and verified,
   is `~/temp/agent/neuralwatt-investigation-2026-11-09.zip`,
   which the owner asked for and sends.
+  At 2026-11-09T17:08:33Z to 17:08:36Z four responses ended `terminated` on `neuralwatt` and `opencode-go`,
+  all started between 17:06:48Z and 17:07:22Z.
+  A WireGuard interface `fr-par-fr1` had become the route for provider traffic at 17:06:46Z,
+  and the journal does not name what started it.
+  Seven other responses in flight at that moment finished normally:
+  two started before the interface appeared and five started at or after 17:08:23Z.
+  The journal shows no network device event during the earlier clusters,
+  so this burst may be a separate incident.
+  A resumed session larger than the new model's context window compacts first,
+  and the driver's 30 s wait for a prompt's answer ended that run as `prompt-rejected`;
+  the owner wrote "\"That's a limit in our driver \" - so fix it.",
+  and `driver-prompt-waits-through-compaction` is that fix.
   A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
