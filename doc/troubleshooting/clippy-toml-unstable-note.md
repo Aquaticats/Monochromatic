@@ -632,6 +632,61 @@ and the harness verifies both `disallowed-methods` and `allow-unwrap-in-tests` a
 The instability warning is a migration-risk warning about that file format,
 not a present-tense unsupported warning.
 
+## A container lint that mounts only the crate silently drops the ban
+
+### Symptom
+
+A package whose lint task falls back to podman passes where the same source on the host is denied.
+A planted `Result::unwrap` in `package/terminal/app/src/main.rs` passed
+`mise run //package/terminal/app:lint:clippy:container` before the dispatch handed the lint the root file,
+and failed it afterwards with the reason text of that file:
+
+```text
+error: use of a disallowed method `std::result::Result::unwrap`
+   --> src/main.rs:506:64
+    |
+506 |     let _planted_unwrap = std::env::var("PI_ISSUE_1756_PLANT").unwrap();
+    |                                                                ^^^^^^
+    |
+    = note: handle errors with ? or explain intentional panic with expect
+```
+
+### Root cause
+
+Clippy starts its configuration lookup in `CLIPPY_CONF_DIR`,
+else `CARGO_MANIFEST_DIR`,
+and walks up the directories from there.
+A dispatch that mounts only the package directory at `/work` leaves no `clippy.toml` anywhere in that chain,
+and Clippy says nothing about the missing file:
+`disallowed_methods = "deny"` in `[lints.clippy]` switches on a ban whose method list is empty.
+
+### What reaches the lint
+
+- A read-only bind mount at `/clippy.toml`,
+  as `package/music-player/desktop-app` does.
+- A read-only bind mount at `/clippy-conf/clippy.toml` with `CLIPPY_CONF_DIR=/clippy-conf`,
+  as `package/ide/app`,
+  `package/terminal/app` and `package/nested-wayland-session/cli` do.
+  A mount over `/work/clippy.toml` is worse:
+  podman leaves an empty path in the host package directory.
+- A `COPY clippy.toml /work/clippy.toml` in the image,
+  for the mount-free snapshots of
+  `package/linter/monochromatic-lint` and the git-policy native test images.
+
+A bind mount whose source is missing fails loudly instead of linting without the file:
+
+```text
+Error: statfs /path/to/clippy.toml: no such file or directory
+```
+
+### Guard
+
+The container start sites ledger at `package/container-limit/core/src/container-start-sites.unit.test.ts` lists the
+package task files that pass a clippy argument to a container program,
+and fails,
+naming the file,
+when one of them carries neither the mount nor the directory variable.
+
 ## Upstream filing artifact
 
 ### Upstream filing decision
