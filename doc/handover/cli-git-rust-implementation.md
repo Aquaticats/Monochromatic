@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:30:59-05:00)
+#### Reviews and landings in progress (2026-11-09T04:41:17-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -226,10 +226,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and five smaller defects,
   among them a removal whose audit can block for ever on a FIFO.
   Not ready to merge.
-  It waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `discarding-commands-findings-fixed` as run 2,
-  with `discarding-commands-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
   One visible change:
   `git clean -fdx` is refused in a linked worktree that has ignored files,
   such as one with `node_modules`.
@@ -368,17 +365,31 @@ The old tree kept for the rollback stays until the owner deletes it.
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
   its agent reports the five findings of the last review fixed and a saved merge no longer blocking unrelated commands.
-  249 of 249 selected tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/merge-route-round-3-sol.txt`) names further losses of staged or saved work,
-  among them a read-only command installing a saved merge into a different checked-out branch.
-  Not ready to merge.
-  Run 4 of its agent is on them.
+  Run 4 reports the third review's findings fixed,
+  and 250 of 250 selected tests pass on top of main.
+  The review (`${HOME}/temp/agent/reviews/merge-route-round-4-sol.txt`) names three states a kill can leave wrong,
+  among them a partly installed merge losing its only record,
+  a saved write a clean filter can hide,
+  and two windows that need a second process to act between two steps.
+  Round 5 fixes the first four and documents the two windows,
+  and it is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `merge-route-findings-fixed` as run 5,
+  with `merge-route-round-5-prompt.md` and the session file named in run 4's `summary.json`.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   Run 3 took the suggestion to remove the step that loses data:
   recovery no longer exchanges anything,
   and a journal that may hold a person's bytes stays and is named on every later `fix`.
   174 of 174 selected tests pass on top of main,
-  and the review of that round alone (`commit-checks-round-3`) is running.
+  and the review of that round alone (`${HOME}/temp/agent/reviews/commit-checks-round-3-sol.txt`) found nothing wrong with that removal.
+  It names a journal removed without checking a person's permission change,
+  a FIFO in a journal blocking the next `fix`,
+  and notices lost on a failure path,
+  and the window of a write through an open descriptor,
+  which stays documented.
+  Not ready to merge.
+  Run 4 of its agent is on them.
   Before it lands,
   `questions-for-the-owner.md` gets the choice that `fix` refuses a worktree whose Git directory is on another file system,
   if that refusal is still there.
@@ -400,11 +411,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   and 0.34 ms against 3.9 ms on a small one.
   A follow-up makes the listing cheaper or leaves large repositories to Git,
   and closes the `IEOT` difference.
-  It waits for a free agent slot,
-  since all twenty are taken:
-  start the run `reader-ref-listing-cost` from main,
-  on `fix/git-policy-cli-reader-ref-listing-cost`,
-  with `reader-ref-listing-cost-prompt.md`.
+  The agent `reader-ref-listing-cost` is on it,
+  on `fix/git-policy-cli-reader-ref-listing-cost`.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
   Its fix landed on main as `3d53f1f46a`,
