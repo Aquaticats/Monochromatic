@@ -24,7 +24,7 @@
 //! for (let attempt = 0; attempt < ATTEMPTS; attempt++) { const run = await runCapturingStderr(git); if (!lostToService(run)) return show(run); await waitForServiceHold(); }
 //! ```
 
-use crate::forwarding::{exit_code, git_command, outcome_of, run_real_git};
+use crate::forwarding::{ChildOutcome, exit_code, git_command, outcome_of, run_real_git};
 use crate::scratch_location::scratch_file;
 use crate::service_index_wait::{foreign_holds, wait_for_service_hold_within};
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
@@ -92,20 +92,31 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
     return true;
 }
 
-/// Starts Git once with its standard error in `captured`,
-/// and returns its exit status.
-fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<i32> {
+/// What:
+///  Starts Git once with its standard error in `captured`.
+/// Why:
+///   The end is kept whole and not as a status:
+/// a Git that a signal ended has to stay that,
+/// so the caller can end
+///  the wrapper the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runOnce(argv, capturedFd) // { exited: n } | { signaled: n }
+/// ```
+fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
     let mut command = git_command(real_git, arguments, overlay);
     command.stderr(Stdio::from(captured));
     let status = command.status_retrying()?;
-    return Ok(exit_code(outcome_of(status)));
+    return Ok(outcome_of(status));
 }
 
 /// The command with every stream inherited,
 /// as a forwarded command runs when nothing needs to be kept.
 fn run_plainly(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)]) -> ForwardedRun {
     return match run_real_git(real_git, arguments, overlay) {
-        Ok(outcome) => ForwardedRun::Ran(exit_code(outcome)),
+        Ok(ChildOutcome::Exited(code)) => ForwardedRun::Ran(code),
+        Ok(ChildOutcome::Signaled(signal)) => ForwardedRun::Killed(signal),
         Err(error) => ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE },
     };
 }
@@ -154,12 +165,13 @@ pub fn run_again_within(
         // Without a place to keep the output the command runs as it always did, and its refusal, if any, is Git's own.
         let Ok(mut file) = scratch_file(environment) else { return run_plainly(real_git, arguments, overlay) };
         let Ok(for_child) = file.try_clone() else { return run_plainly(real_git, arguments, overlay) };
-        let code: i32 = match run_once(real_git, arguments, overlay, for_child) {
-            Ok(code) => code,
+        let outcome: ChildOutcome = match run_once(real_git, arguments, overlay, for_child) {
+            Ok(outcome) => outcome,
             Err(error) => {
                 return ForwardedRun::Failed { stderr: format!("monochromatic-git-policy-cli: cannot start {}: {error}\n", real_git.display()), code: crate::action::ENGINE_FAILURE_EXIT_CODE };
             }
         };
+        let code: i32 = exit_code(outcome);
         let mut said: Vec<u8> = Vec::new();
         // The output is read back only when the file could be rewound.
         let read_back: std::io::Result<usize> = match file.seek(SeekFrom::Start(0)) {
@@ -178,7 +190,14 @@ pub fn run_again_within(
         if shown.write_all(said.as_slice()).is_ok() {
             let _flushed = shown.flush();
         }
-        return ForwardedRun::Ran(code);
+        // What: The last attempt's death is kept whole.
+        // Why:  A Git this run's last attempt was ended by a signal has to reach the caller as that death, not as the
+        //       status a shell prints for it (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+        //       finding 4 of the round-1 review).
+        return match outcome {
+            ChildOutcome::Exited(_) => ForwardedRun::Ran(code),
+            ChildOutcome::Signaled(signal) => ForwardedRun::Killed(signal),
+        };
     }
     return ForwardedRun::Ran(DIE_STATUS);
 }
