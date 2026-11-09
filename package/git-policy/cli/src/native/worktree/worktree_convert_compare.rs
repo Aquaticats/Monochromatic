@@ -25,12 +25,21 @@
 //! and so is a named pipe or a socket,
 //! whose kind decides
 //!  only that nothing else is compared;
-//! and a regular file whose size and modification time agree is compared by
-//!  contents when its change time is at or after the proving pass,
-//! because an edit can keep the length and put
-//!  the modification time back,
-//! because a change of any of the last four touches neither the size nor the modification time;
-//! the
+//! a change of the permission bits,
+//! the owner,
+//! the group or a carried extended attribute
+//!  touches neither the size nor the modification time,
+//! so every entry is compared by those as well;
+//! and a regular file
+//!  whose size and modification time agree is compared by its contents,
+//! whatever its change time,
+//! because an edit can
+//!  keep the length and put the modification time back before the proving pass.
+//! The report names the files that changed
+//!  after the copy was proved,
+//! which tells a person settling which version is wanted whether the copy or the edit came
+//!  first.
+//! The
 //!  extended attributes are two `llistxattr` calls per entry on most filesystems and the rest comes from
 //!  the metadata already read.
 //!
@@ -40,48 +49,95 @@
 //! ```
 
 use crate::subvolume_sync_attrs::carried_attributes_equal;
-use crate::worktree_copy_compare::regular_file_bytes_equal;
+use crate::worktree_copy_compare::COMPARE_BUFFER_BYTES;
 use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
-/// Whether the entry at `before` changed at or after the instant `synced_ms`,
+/// Whether either side changed at or after the instant `synced_ms`,
 /// with the change time the comparison reads.
 /// Why:
-///   A file's contents can be rewritten to the same length and its modification time put back,
-/// so no other compared field sees it;
-/// the change time cannot be put back by an ordinary
-///  user,
-/// and the proving pass set the copy's own change time before the window opened.
-/// A journal without
-///  the instant is one an earlier release wrote,
-/// so every file is compared by contents rather than none.
+///   The report says whether the bytes that differ changed after the copy was proved,
+/// which tells a person settling which version is wanted whether the copy or the edit came first.
+/// No decision is made from the change time;
+/// every regular file is compared by its contents,
+/// because an edit can keep the length and put the modification time back before
+///  the proving pass,
+/// so no metadata difference is left for the removal to see.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function changedSince(before: Metadata, syncedMs: number | undefined): boolean;
+/// function changedAfterTheProof(before: Metadata, after: Metadata, syncedMs: number | undefined): boolean;
 /// ```
-fn changed_since(before: &std::fs::Metadata, synced_ms: Option<i64>) -> bool {
-    let Some(after) = synced_ms else { return true };
+fn changed_after_the_proof(before: &std::fs::Metadata, after: &std::fs::Metadata, synced_ms: Option<i64>) -> bool {
+    let Some(proved_at) = synced_ms else { return false };
+    return changed_since(before, proved_at) || changed_since(after, proved_at);
+}
+
+/// Whether the entry at `before` changed at or after the instant `proved_at`,
+/// in milliseconds after the epoch,
+/// with the change time the comparison reads.
+fn changed_since(before: &std::fs::Metadata, proved_at: i64) -> bool {
     let changed: i128 = i128::from(before.ctime()) * 1_000_000_000 + i128::from(before.ctime_nsec());
-    return changed >= i128::from(after) * 1_000_000;
+    return changed >= i128::from(proved_at) * 1_000_000;
 }
 
 /// Whether two files hold different bytes.
 /// Why:
-///   See `changed_since`;
-/// the bytes are compared in bounded chunks by the call the copy uses,
-/// so memory does not grow with
-///  the file.
+///   The bytes are compared in bounded chunks,
+/// through the plain-file open on both sides,
+/// so memory
+///  does not grow with the file and a name swapped for a pipe or a link cannot make the read wait or
+///  follow it.
+///  The read is bounded by the lengths the two sides have when they are opened,
+/// and a side that ended early or grew
+///  past its own is a difference;
+/// a file another program keeps extending would otherwise hold the end of the comparison away for
+///  good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function contentsDiffer(old: string, installed: string): boolean; // throws when a file cannot be read
 /// ```
 fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
-    return match regular_file_bytes_equal(old, installed) {
-        Ok(equal) => Ok(!equal),
-        Err(error) => Err(std::io::Error::other(error.0)),
-    };
+    // Both sides go through the plain-file open: a name swapped for a link or a named pipe after the walk read its metadata
+    // must not make this read follow it or wait for a writer, while the conversion holds its claim.
+    let mut left: std::fs::File = crate::plain_file::open_plain_file(old)?;
+    let mut right: std::fs::File = crate::plain_file::open_plain_file(installed)?;
+    let left_length: u64 = left.metadata()?.len();
+    let right_length: u64 = right.metadata()?.len();
+    #[cfg(test)]
+    note_contents_opened(old);
+    if left_length != right_length {
+        return Ok(true);
+    }
+    let mut left_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
+    let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
+    let mut remaining: u64 = left_length;
+    while remaining > 0 {
+        let length: usize = match usize::try_from(remaining) {
+            Ok(size) => size.min(COMPARE_BUFFER_BYTES),
+            Err(_too_large) => COMPARE_BUFFER_BYTES,
+        };
+        let left_chunk: &mut [u8] = &mut left_buffer[..length];
+        let right_chunk: &mut [u8] = &mut right_buffer[..length];
+        // `read_exact` reports a file that ended before the length it had when it was opened as `UnexpectedEof`, which is a
+        // difference: something is writing to one of the two trees.
+        match (std::io::Read::read_exact(&mut left, left_chunk), std::io::Read::read_exact(&mut right, right_chunk)) {
+            (Ok(()), Ok(())) => {}
+            (Err(error), _) | (_, Err(error)) if error.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(true),
+            (Err(error), _) | (_, Err(error)) => return Err(error),
+        }
+        if left_chunk != right_chunk {
+            return Ok(true);
+        }
+        remaining -= u64::try_from(length).unwrap_or(0);
+    }
+    // A file that grew past the length it had when it was opened is a difference as well: the bytes past that length exist
+    // only in the tree that grew, and the person who wrote them settles which version is wanted.
+    if left.metadata()?.len() != left_length || right.metadata()?.len() != right_length {
+        return Ok(true);
+    }
+    return Ok(false);
 }
 
 /// What:
@@ -178,9 +234,9 @@ pub fn first_difference(old: &Path, installed: &Path) -> std::io::Result<Option<
 ///  proving pass finished at `synced_ms`.
 /// Why:
 ///   See the module description.
-/// A regular file whose size and modification time agree is compared by
-///  contents when it changed at or after the proof,
-/// which is when a person's edit can hide behind them.
+/// A regular file whose size and modification time agree is compared by contents,
+/// and a file
+///  that changed at or after the proof is named as one that did.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -229,13 +285,90 @@ pub fn first_difference_after(old: &Path, installed: &Path, synced_ms: Option<i6
                 if before.size() != after.size() || before.mtime() != after.mtime() || before.mtime_nsec() != after.mtime_nsec() {
                     return Ok(Some(format!("{} differs from the installed worktree (size or modification time)", inside.display())));
                 }
-                if changed_since(&before, synced_ms) && contents_differ(&old.join(&inside), &installed.join(&inside))? {
-                    return Ok(Some(format!("{} differs from the installed worktree (contents)", inside.display())));
+                // Either side can hold bytes the other does not: the old tree a late edit, the installed worktree one made
+                // after the exchange, and neither side's change time sees the other's. Every regular file is compared by its
+                // contents, whatever its change time: an edit can keep the length and put the modification time back before
+                // the proving pass, which leaves no metadata for the removal to see.
+                #[cfg(test)]
+                note_contents_open(old.join(&inside).as_path());
+                if contents_differ(&old.join(&inside), &installed.join(&inside))? {
+                    let after_the_proof: &str = if changed_after_the_proof(&before, &after, synced_ms) { ", and it changed after the copy was proved" } else { "" };
+                    return Ok(Some(format!("{} differs from the installed worktree (contents{after_the_proof})", inside.display())));
                 }
             }
         }
     }
     return Ok(None);
+}
+
+#[cfg(test)]
+thread_local! {
+    // The callback a control installs to replace an entry just before its contents are read; nothing in a release build
+    // reads or sets it.
+    static BEFORE_CONTENTS: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+    // The callback a control installs to act on the two files once they are open and their lengths are known; nothing in a
+    // release build reads or sets it.
+    static AFTER_OPEN: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Install `watch` to run for the old entry whose contents are about to be read,
+///  or clear it with `None`.
+/// Why:
+///   A control of what the contents read can meet must replace the entry in the moment between the metadata the walk read
+/// and the open the comparison makes;
+/// no other seam reaches that moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchContentsOpen((path) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_contents_open(watch: Option<Box<dyn FnMut(&Path)>>) {
+    BEFORE_CONTENTS.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the old entry at `path` just before its contents are read.
+#[cfg(test)]
+fn note_contents_open(path: &Path) {
+    BEFORE_CONTENTS.with(|slot| {
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
+}
+
+/// What:
+///  Install `watch` to run for the old entry whose contents are about to be read once both sides are open,
+///  or clear it with `None`.
+/// Why:
+///   A control of how far the read is bounded must extend the two files after they were opened and before the first byte
+/// is read;
+/// no other seam reaches that moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchContentsOpened((path) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_contents_opened(watch: Option<Box<dyn FnMut(&Path)>>) {
+    AFTER_OPEN.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the old entry at `path` once both files are open and their lengths are known.
+#[cfg(test)]
+fn note_contents_opened(path: &Path) {
+    AFTER_OPEN.with(|slot| {
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
 }
 
 /// Comparison controls stay out of the release executable.

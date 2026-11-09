@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 ///  the
 ///  coordinator's pick under the owner's delegation,
 ///  open to the owner's veto.
-const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
+pub(crate) const COMPARE_BUFFER_BYTES: usize = 64 * 1_024;
 
 /// What:
 ///  The metadata of one no-follow entry,
@@ -77,7 +77,7 @@ pub fn lstat_or_absent(path: &Path) -> Result<Option<std::fs::Metadata>, Worktre
 /// ```ts
 /// async function regularFileBytesEqual({ leftPath, rightPath }): Promise<boolean>;
 /// ```
-pub(crate) fn regular_file_bytes_equal(
+fn regular_file_bytes_equal(
     left_path: &Path,
     right_path: &Path,
 ) -> Result<bool, WorktreeCopyError> {

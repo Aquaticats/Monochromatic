@@ -370,6 +370,14 @@ pub(crate) fn land_group(
                         // The push is held before the answer, so a client killed between the two cannot lose it, and the post-commit
                         //  gate is what promotes it.
                         hold_the_push(request, commit.as_str());
+                        // The repository is written down for the next service in the same instant, so a wrapper killed between
+                        //  promoting that push and waking the service is still found when a service starts
+                        //  (`service_claim_watch.rs`, `note_for_the_next_service`).
+                        crate::service_claim_watch::note_for_the_next_service(
+                            context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY).as_path(),
+                            instance,
+                            request.git_dir.as_path(),
+                        );
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
                         "landed"

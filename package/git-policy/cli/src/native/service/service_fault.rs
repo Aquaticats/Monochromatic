@@ -21,6 +21,16 @@ pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_FAULT";
 /// in the order a batch reaches them.
 pub const FAULT_POINTS: [&str; 5] = ["after-objects", "after-intent", "after-ref", "after-index", "before-ack"];
 
+/// The instant in the wrapper after the post-commit gate promoted a landed commit's held push into `pending`,
+/// and before the wake that would run it:
+/// a kill here leaves a push record nothing was told about,
+/// so the service has to find it by itself
+/// (`service_claim_watch.rs`,
+/// `held_push_notices` in `service_handoff.rs`).
+/// Named here because the controls of both halves of that promise reach it,
+/// and it is inert unless the variable names it.
+pub const AFTER_PROMOTE: &str = "after-promote";
+
 /// The instant after `index.lock` was created by exclusive creation
 /// (where the filesystem places no file whole)
 /// and before its marker is written:
