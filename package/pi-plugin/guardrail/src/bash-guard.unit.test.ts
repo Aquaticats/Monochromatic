@@ -72,6 +72,48 @@ await describe({
       ],
     },),
     describe({
+      name: 'unread shell syntax guard decision',
+      children: [
+        it({
+          name: 'blocks bun test hidden inside brace expansion',
+          fn: async function testBlocksBunTestInBraceExpansion() {
+            const decision = await evaluateBashGuard({
+              input: { command: 'printf %s {a,$(bun test)}', },
+              ...FIXTURE_OPTIONS,
+            },);
+            if (decision === GUARDRAIL_NOT_BLOCKED)
+              throw new Error('Expected bun test inside brace expansion to be blocked',);
+            expect(decision.block,).toBe(true,);
+            expect(decision.reason.includes('mise run //package/<path>:test:unit',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'blocks a parameter operation the analyzer cannot read',
+          fn: async function testBlocksUnreadParameterOperation() {
+            const decision = await evaluateBashGuard({
+              input: { command: `printf %s \${value;text}`, },
+              ...FIXTURE_OPTIONS,
+            },);
+            if (decision === GUARDRAIL_NOT_BLOCKED)
+              throw new Error('Expected unread shell syntax to be blocked',);
+            expect(decision.block,).toBe(true,);
+            expect(decision.reason.includes('notUnderstoodNodeKinds',),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'allows a parameter operation the analyzer reads',
+          fn: async function testAllowsReadParameterOperation() {
+            expect(
+              await evaluateBashGuard({
+                input: { command: `printf %s \${value:-text}`, },
+                ...FIXTURE_OPTIONS,
+              },),
+            ).toBe(GUARDRAIL_NOT_BLOCKED,);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: 'absolute real-Git path guard decision',
       children: [
         it({

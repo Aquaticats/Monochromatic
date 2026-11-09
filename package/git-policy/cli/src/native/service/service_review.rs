@@ -287,6 +287,7 @@ pub fn review_item_in(runner: &'static Containment, context: &GitContext, item: 
     );
     return match outcome {
         Contained::Panicked => Verdict::Failed(format!("the review of {} stopped with an internal error", item.oid)),
+        Contained::NoThread(refused) => Verdict::Failed(format!("the review of {} was not started: {refused}", item.oid)),
         Contained::CeilingReached(reached) => Verdict::Failed(ceiling_reason(item.oid.as_str(), reached)),
         Contained::Busy => Verdict::Failed(busy_reason(item.oid.as_str())),
         Contained::Finished(None) => Verdict::Done,

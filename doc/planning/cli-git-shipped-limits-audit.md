@@ -3941,7 +3941,11 @@ and a value that equals another is derived from it.
   `DEFAULT_NOTICE_INTERVAL` and `NOTICE_GRACE` (`wait_progress.rs`),
   `NOTICE_EVERY`
   (`service_index_lock.rs`),
-  `SLOW_LOCK_STEP` (`service_timing.rs`).
+  `SLOW_LOCK_STEP` (`service_timing.rs`),
+  `PUSH_QUEUED_AFTER` (`service_handoff.rs`,
+  15 seconds:
+  a push record still in `pending` after it has outlasted every in-flight claim measured on this host,
+  and the line only says the push has not been made).
 - Poll:
   `NOTICE_POLL` (`markdown_linter_guard.rs`);
   `POLL_PAUSE` (`service_index_watch.rs`,

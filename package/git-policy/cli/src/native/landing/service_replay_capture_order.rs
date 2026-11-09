@@ -149,7 +149,8 @@ fn stamps_by_commit(landed: &[LandedCapture]) -> HashMap<&str, u64> {
 ///  so a path that either name carried is one the walk reports;
 ///  `-m` reports a merge against each parent,
 ///  so a merge that holds one parent's bytes for a path and not the other's is a commit that changed it.
-///  The per-path question followed history simplification, which left such a merge out;
+///  The per-path question followed history simplification,
+/// which left such a merge out;
 ///  a walk that reports it can only hold a path back to subsumption and the merge,
 ///  except where no commit the per-path question reported changed the path at all,
 ///  and this capture there is later than every change of it.

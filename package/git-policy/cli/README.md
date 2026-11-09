@@ -132,7 +132,17 @@ Read-only commands,
    and on a machine where no service can be reached or started a commit stops with a plain message and changes nothing.
   When another commit lands first,
    the wrapper prepares its own commit again on top of the new state.
-  Concurrent commits from several worktrees or sessions therefore never overwrite each other.
+  The commit that concludes a merge,
+   a cherry-pick or a revert is made again the same way on the branch as it is now,
+   with the parents its state names,
+   and an amend whose branch moved becomes a new commit on top of the branch,
+  with the amended message and authorship,
+   leaving the commit it named and the commit that moved the branch as they are,
+  and a line says what it became
+   (`SPEC.md`,
+  "Retry after a moved branch").
+  Concurrent commits from several worktrees or sessions therefore never overwrite each other,
+   and none waits for another.
   The wrapper takes no lock of its own:
   a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).
@@ -3243,10 +3253,15 @@ because nothing else can make it:
   so a repository with both lists leaves them to the service.
 
 The artifact itself is published without a file or directory sync:
-a reader validates its magic, scanner version, platform, source digest, payload digest and engine digest,
+a reader validates its magic,
+scanner version,
+platform,
+source digest,
+payload digest and engine digest,
 so a copy a crash tore is rejected and recompiled,
 and forcing the bytes to the device made the writer wait for a file that is derived data
-(6.7 s and 3.0 s of `fsync` in one measured commit, and 1.5 s in its `rename`).
+(6.7 s and 3.0 s of `fsync` in one measured commit,
+and 1.5 s in its `rename`).
 
 ## Reading the repository in process
 

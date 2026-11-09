@@ -269,11 +269,13 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     };
     let finished: CoordinatedRun = from_forwarded(outcome);
     // A merge, rebase, cherry-pick or revert that Git stopped with a conflict gets the word-level second pass.
-    if let CoordinatedRun::Ran(code) = &finished
-        && let Some(ended) = resolve_after(second_pass_watch.as_ref(), forward, *code, &mut std::io::stderr())
-    {
+    // The pass awaits every Git start it makes, so a person's command reaches it through one entry of the runtime.
+    if let CoordinatedRun::Ran(code) = &finished {
+        let passed_on: Option<i32> = resolve_after(second_pass_watch.as_ref(), forward, *code, &mut std::io::stderr());
         // Every conflicted file resolved and the operation was ended like a clean run: that run's status is the command's.
-        return CoordinatedRun::Ran(ended);
+        if let Some(ended) = passed_on {
+            return CoordinatedRun::Ran(ended);
+        }
     }
     return finished;
 }

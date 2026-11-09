@@ -35,14 +35,14 @@
 //! ```
 
 use crate::service_prepare_ready_shapes::ReplayConflict;
-pub use crate::service_prepare_ready_shapes::{NativeInputs, Prepared, Ready, Scratch};
+pub use crate::service_prepare_ready_shapes::{HandedBackTree, NativeInputs, Prepared, Ready, Scratch};
+pub(crate) use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::service_prepare_ready_shapes::ReadyShape;
 pub use crate::service_prepare_changes_config_and_pathspec_steps::{config_needs_native, config_signs};
-use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, pathspec_file_for, zero_object};
+use crate::service_prepare_changes_config_and_pathspec_steps::{changes_of, normalized, pathspec_texts, the_pathspec_file, zero_object};
 use crate::capture_invocation::{InvocationCapture, base_revision, capture_invocation_base, capture_invocation_layout};
 use crate::commit_prepare_part_durations::PreparePartClock;
 use crate::private_index_request::{CaptureIndexes, indexed_request};
-use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::commit_conclusion::events_with_changed_summary;
 use crate::commit_convergence::{CommitConvergence, CommitConvergenceInput, converge_commit_policies};
 use crate::commit_facts::PrivateIndexFacts;
@@ -72,6 +72,8 @@ use crate::preparation_notice::deliver_notice;
 use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
 use crate::transaction_git::{GitContext, run_git_checked};
+use crate::conclusion_copy::the_state_of_a_conclusion;
+use crate::service_replay_conclusion::{the_same_conclusion, the_state_read_failure};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -133,6 +135,7 @@ pub fn prepare<F: RepositoryFacts>(
         SymbolicHead::Detached => String::from("HEAD"),
     };
     let detached: bool = layout.symbolic_head == SymbolicHead::Detached;
+
     let named: bool = selection.mode == TransactionMode::ExplicitPath;
     let capture: InvocationCapture = capture_invocation_base(context, cwd, layout)?;
     part.next("stagedDeletions");
@@ -187,14 +190,7 @@ pub fn prepare<F: RepositoryFacts>(
         commit_index: scratch.0.join("commit.index"),
         object_directory: capture.layout.object_directory.clone(),
     };
-    let mut pathspec_source: Option<String> = None;
-    if let Some(value) = region.pathspec_from_file {
-        pathspec_source = Some(String::from_utf8_lossy(crate::command_options_query::value_bytes(region_arguments, value)).into_owned());
-    }
-    let pathspec_file: Option<PathBuf> = match pathspec_file_for(scratch.0.as_path(), cwd, pathspec_source.as_deref(), inputs.standard_input) {
-        Ok(made) => made,
-        Err(error) => return Err(failed(format!("reading the pathspec file failed: {error}"))),
-    };
+    let pathspec_file: Option<PathBuf> = the_pathspec_file(region, region_arguments, scratch.0.as_path(), cwd, inputs.standard_input)?;
     let index_selection: IndexSelection<'_> = IndexSelection {
         mode: selection.mode,
         pathspecs: pathspecs.as_slice(),
@@ -211,6 +207,12 @@ pub fn prepare<F: RepositoryFacts>(
     //  the copy does not, and those are what the commit must not record.
     let index_witness: crate::service_land_start::IndexWitness = crate::service_land_start::witness_of(capture.layout.real_index_path.as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
     if let Some(again) = retry {
+        // A conclusion is made again only over the state it was prepared over: another session that concluded or
+        //  abandoned the merge, the cherry-pick or the revert meanwhile leaves nothing this commit could conclude, and an
+        //  ordinary commit of the same tree is not what the person asked for (`Captured::conclusion`).
+        if let Some(expected) = again.captured.conclusion.as_deref() {
+            the_same_conclusion(context, cwd, &capture, expected, reference.trim_start_matches("refs/heads/"))?;
+        }
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
             context,
@@ -280,10 +282,17 @@ pub fn prepare<F: RepositoryFacts>(
     let cleanup: Option<Cleanup> = if state_present { Some(Cleanup { git_dir: capture.layout.git_dir.clone(), scratch: scratch.0.clone(), reftable }) } else { None };
     let selected_privately: bool = selection.read_only;
     let fixed_parents: bool = selection.concludes_sequencer || unborn;
-    let mut pathspec_texts: Vec<String> = Vec::new();
-    for token in &pathspecs {
-        pathspec_texts.push(token.to_string_lossy().into_owned());
-    }
+    let pathspec_texts: Vec<String> = pathspec_texts(&pathspecs);
+    // What a conclusion was prepared over, read here and not when a retry needs it: another command may conclude the
+    //  operation while this commit waits, and the replay must compare against the state this preparation saw.
+    let conclusion_state: Option<String> = the_state_of_a_conclusion(
+        context,
+        cwd,
+        capture.layout.git_dir.as_path(),
+        capture.layout.ref_format,
+        capture.layout.conclusion,
+    )
+    .map_err(the_state_read_failure)?;
     // What every `Ready` of this preparation shares; the closures that carried it are the methods of this record.
     let shape: ReadyShape = ReadyShape {
         pathspecs: pathspec_texts,
@@ -297,6 +306,7 @@ pub fn prepare<F: RepositoryFacts>(
         interactive,
         fixed_parents,
         captured_at,
+        conclusion_state,
     };
     // Files still unmerged when the commit names no paths: Git refuses here (`builtin/commit.c:348`, `refresh_cache_or_die`, which
     //  exits with "Committing is not possible because you have unmerged files"). The owner's rule is "Warn and finish the merge"
@@ -305,7 +315,10 @@ pub fn prepare<F: RepositoryFacts>(
     part.next("unmergedFiles");
     let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
     if !unmerged_files.is_empty() {
-        run_git_checked(context, &unmerged_staging_request(cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()))?;
+        run_git_checked(
+            context,
+            &unmerged_staging_request(cwd, indexes.commit_index.as_path(), indexes.object_directory.as_path(), unmerged_files.as_slice()),
+        )?;
     }
     part.next("changedPaths");
     let candidate_paths: Vec<Vec<u8>> =

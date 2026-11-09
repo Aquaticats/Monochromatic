@@ -1,8 +1,7 @@
 //! What:
-//!  The refresh of an index's stat data before the scratch commit:
-//! the real index's,
-//! which keeps it for the next commit,
-//! and the private index's when the real one could not be written.
+//!  The refresh of an index's stat data:
+//! the private commit index's, which the scratch commit reads,
+//! and the copy's that a landing installs as the real index.
 //! Why:
 //!  Git's own `git commit` refreshes the stat data of the index it commits and writes that index back,
 //! so a worktree whose files all have new inodes costs one read of every file and every later commit is fast.
@@ -23,12 +22,20 @@
 //! so a second copy paid it again;
 //! the same commit over a refreshed index took 109 ms.
 //!  So the refresh runs here,
-//! before the copies are made,
-//! where the ceiling of the scratch step does not apply:
-//! the copies carry the worktree's stat data,
-//! and the real index keeps the refresh,
+//! before the scratch commit,
+//! where the ceiling of the scratch step does not apply,
+//! and it names a private index:
+//! a preparation names the copy it commits,
+//! which takes that file's own lock,
+//! and a landing names the copy it installs,
+//! while the landing holds the real index lock anyway
+//! (`service_land_follow.rs`).
+//!  The real index therefore keeps the refresh,
 //! as native Git keeps it,
-//! so the next commit does not pay it again.
+//! so the commit after this one does not pay it again,
+//! and no preparation ever waits for another program's `index.lock`:
+//! a batch of overlapping commits no longer serializes on the one file they all read
+//! (`doc/decision/cli-git-concurrent-commits.md`).
 //!  `update-index --refresh` is a form the cut experiment proved may be run twice
 //! (`transaction_git_step_rerun_and_end_rules.rs`),
 //! so the step is ended at its class's ceiling and a stop leaves the index as it was.

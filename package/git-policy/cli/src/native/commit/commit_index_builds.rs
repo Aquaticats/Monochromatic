@@ -4,7 +4,7 @@
 //! kept until the commit's timing record takes the figures.
 //! Why:
 //!   An index built from the base or the tree alone holds no stat data,
-//! so the scratch `git commit` hashes every file of the work tree,
+//! so the refresh that follows it hashes every file of the work tree,
 //! LFS-tracked files through the clean filter:
 //! measured in this repository on 2026-11-07,
 //! 233,618,538 bytes cleaned and 3.6 s against 0.1 s with the real index's stat data
@@ -63,7 +63,7 @@ pub struct IndexBuild {
     /// Whether the build started from a copy of the real index,
     /// so every entry the built tree shares with it keeps its cached stat data.
     /// A build from the base or the tree alone holds none,
-    /// and the scratch commit then hashes every file of the work tree.
+    /// and the refresh that follows it hashes every file of the work tree.
     pub stat_data_kept: bool,
 }
 
