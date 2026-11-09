@@ -254,20 +254,37 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
 const LOOK_EVERY: Duration = Duration::from_millis(50);
 
 /// The margin the restart control adds for a loaded host:
-/// many times the stall window of the controls,
-/// which is itself longer than
-/// a healthy local push,
-/// so a slow start is waited for and a plan that was lost is still found out within a fixed time.
-const RESTART_MARGIN: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5);
+/// the longest a push the service made took while the whole suite ran at once,
+/// measured
+///  on 2026-11-09:
+/// `git push` took 23.1 s while `git-receive-pack` sat in uninterruptible disk I/O,
+/// and the push's own wait loop
+///  looked at its child every 10 ms with no gap over 44 ms,
+/// so the wait was never kept from its child.
+///  Measured: `push_ms=23058` in the journal of `a_claim_left_by_a_killed_service_is_run_by_its_successor_with_no_wake`
+/// of a run of 85
+///  of these tests,
+/// against 1.2 to 3 s for the same push alone.
+/// The wait allows that figure and half again,
+/// so a push held by the
+///  host is waited for and a plan that was lost is still found out within a fixed time.
+const LONGEST_CONTENDED_PUSH: Duration = Duration::from_millis(23_100);
+
+/// Half of the longest contended push,
+/// so that the wait allows that figure and half again.
+const HALF_A_CONTENDED_PUSH: Duration = Duration::from_millis(11_550);
 
 /// The stall window of the controls as a number.
 const STALL_SECONDS_NUMBER: u64 = 2;
 
-/// How long the restart control gives a restarted service to deliver:
+/// How long a control waits for a service to deliver:
+/// the longest contended push and half of it again,
 /// its first pause,
-/// the slack the schedule adds,
-/// and the margin.
-const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// and the slack the schedule adds.
+const RESTART_PATIENCE: Duration = LONGEST_CONTENDED_PUSH
+    .saturating_add(HALF_A_CONTENDED_PUSH)
+    .saturating_add(PAUSE)
+    .saturating_add(RETRY_SLACK);
 
 /// Run `work_loop` on a thread,
 /// as the service does,
@@ -326,6 +343,56 @@ fn a_stopped_push_is_still_tried_again_after_the_service_restarts() {
     });
     assert_eq!(notices(&stage), 0, "the record of the failure is gone once the push landed");
     assert_eq!(git_text(stage.repo.as_path(), &["rev-list", "--count", "--all"]), commits_before, "no commit was made");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  How long the control's server holds a push before it accepts it:
+/// longer than the five stall windows the wait used to allow,
+/// and well
+///  inside what it allows now.
+/// Why:
+///   The push is quiet while the server holds it,
+/// and the owner's rule is that only no progress ends a push,
+/// so this
+///  is what a push that waits on a loaded disk looks like from here.
+const HELD_PUSH: Duration = Duration::from_secs(16);
+
+/// The stall window of the control that holds a push:
+/// longer than the hold,
+/// so the push is waited for rather than stopped.
+const HELD_PUSH_WINDOW: &str = "60";
+
+/// What:
+///  A push the server holds for longer than five stall windows still lands inside the wait.
+/// Why:
+///   The controls of this module failed in whole-suite runs on 2026-11-09 with a push that took 23.1 s,
+/// so the wait
+///  was derived from the wrong figure:
+/// the stall window says when a push is silent for too long,
+/// never how long a
+///  push may take,
+/// because a push that works is never stopped (owner,
+/// 2026-11-03:
+/// "Stop only on no progress").
+#[test]
+fn a_push_held_longer_than_five_stall_windows_still_lands_within_the_wait() {
+    let stage: Stage = stage("push-held-past-the-old-patience");
+    let hook: PathBuf = stage.remote.join("hooks").join("pre-receive");
+    std::fs::write(hook.as_path(), format!("#!/bin/sh\nsleep {}\nexit 0\n", HELD_PUSH.as_secs())).expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("hook is executable");
+    let handlers: GitHandlers = GitHandlers::new(git_context()).with_push_environment(&[("CLI_GIT_PUSH_DEADLINE_SECONDS", HELD_PUSH_WINDOW)]);
+    let plans: PathBuf = stage.root.join("journal").join(PLAN_DIRECTORY);
+    let busy: AtomicUsize = AtomicUsize::new(0);
+    let began: Instant = Instant::now();
+    std::thread::scope(|scope| {
+        let (wake, service) = start_service(scope, &handlers, plans.as_path(), &busy);
+        wake.send((stage.repo.join(".git"), None)).expect("the service takes the wake");
+        assert!(wait_until(&|| { return remote_tip(&stage) == stage.landed; }), "the push the server held for {HELD_PUSH:?} landed inside the wait");
+        drop(wake);
+        service.join().expect("the service ends");
+    });
+    assert!(began.elapsed() >= HELD_PUSH, "the server really held the push: {:?}", began.elapsed());
     remove(stage.root.as_path());
 }
 
@@ -835,10 +902,9 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
     remove(stage.root.as_path());
 }
 
-/// How long the controls of a fault in the notes wait for the service to try again:
-/// the pause,
-/// the slack and a margin for a loaded host.
-const NOTE_RETRY_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// How long the control of a fault in the notes waits for the service to try again:
+/// the patience a delivery gets, because the pause it was given is the same plan.
+const NOTE_RETRY_PATIENCE: Duration = RESTART_PATIENCE;
 
 /// Puts a file where the notes' directory should be,
 /// so that nothing can be written or listed under it,
