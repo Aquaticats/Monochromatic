@@ -94,7 +94,8 @@ fn a_process_a_test_starts_may_not_write_a_core_dump() {
 /// without looking at the run.
 /// How long the call took cannot say that:
 /// a thread the scheduler holds just before it makes a wait
-///  that looked slow, and one it holds just after a sleep makes one that slept look quick,
+///  that looked slow,
+/// and one it holds just after a sleep makes one that slept look quick,
 /// so the control reads the
 ///  looks this thread took.
 #[test]
@@ -125,7 +126,8 @@ fn a_wait_gives_up_when_the_run_shows_nothing() {
 /// Why:
 ///   The event is delivered by the wait's own predicate after this many looks,
 /// so the control holds the worker working for
-///  longer than the window without depending on the clock: a thread the scheduler holds only delays the looks.
+///  longer than the window without depending on the clock:
+/// a thread the scheduler holds only delays the looks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -140,7 +142,8 @@ fn looks_past_the_window(window: std::time::Duration) -> usize {
 /// so a slow event is waited for however long it takes.
 /// The worker stops only once the wait has looked at the run for two of its windows,
 /// which is what the
-///  predicate counts: the control cannot pass with a worker that finished before the wait began.
+///  predicate counts:
+/// the control cannot pass with a worker that finished before the wait began.
 #[test]
 fn a_wait_outlives_its_window_while_the_run_keeps_working() {
     let window: std::time::Duration = std::time::Duration::from_millis(200);

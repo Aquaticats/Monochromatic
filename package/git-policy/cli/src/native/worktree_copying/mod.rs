@@ -79,9 +79,14 @@ pub mod worktree_copy_journal_removal;
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim;
 
-/// The judging of stage claims and the removal of the stages that interrupted copies and adds left behind.
+/// The judging of stage claims and the removal of the stages that interrupted copies left behind.
 #[cfg(unix)]
 pub mod worktree_copy_stage_claim_reaping;
+
+/// What an interrupted `git worktree add` settles to,
+/// with the proof its checkout is whole or gone.
+#[cfg(unix)]
+pub mod worktree_copy_interrupted_add_settlement;
 
 /// The registration one staged copy is bound to,
 /// recorded beside its payload and checked before every write into a worktree.
@@ -116,6 +121,11 @@ pub mod worktree_copy_synchronize;
 /// and the proof that it still runs.
 #[cfg(unix)]
 pub mod worktree_copy_owner;
+
+/// Which of a repository's registrations names one destination,
+/// read from the administrative directories rather than from the destination's pointer.
+#[cfg(unix)]
+pub mod worktree_copy_registration_naming;
 
 /// Recovery of interrupted copies:
 /// registration checks,

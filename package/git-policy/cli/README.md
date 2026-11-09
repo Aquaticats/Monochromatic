@@ -3094,6 +3094,32 @@ Each line names what the command waits for,
    36,651 and 171,383 ms,
    and the owner asked for each of them to be investigated.
    A commit that opens the person's editor prints nothing and has no ceiling.
+- A commit whose answer takes longer than `WAITING_NOTICE_AFTER` (10 seconds,
+  `service/wait_ceilings.rs`;
+  twice the owner's bound of 5 s on what a commit may add to native Git,
+  and reached by 26 of the 909 answer waits in this host's commit timing log of 2026-11-09):
+  one line says where the commit stands,
+  and it is said once for each place the service names,
+  not on the repeat schedule above.
+  When the service named the place of the commit's batch it reads `Waiting for N earlier commits.`,
+  or `This commit is next.` for the first place;
+  when it named none it reads "The commit service has not said where this commit stands yet;
+  it has waited 12 seconds.",
+  because the client cannot tell a request still in the queue from a landing waiting behind another
+  program's `index.lock`,
+  and may claim nothing about whether the landing began.
+  A commit that lands within those 10 seconds prints nothing,
+  and `CLI_GIT_STANDING_NOTICE_SECONDS` (a positive number of seconds) sets the wait for a control.
+  The service names the place of a batch's first request only once that request has waited as long,
+  so a client of an earlier release,
+  which prints every place it is told,
+  sees one only for a commit that waited.
+  A place belongs to the connection that named it:
+  a request sent again after its service went away starts with no place,
+  so a stale one is never printed as this wait's.
+  Every line is written by a thread of its own and dropped when the terminal stops taking lines,
+  so a reader that stopped draining costs the commit no more than `WARNING_WRITE_CEILING` (250 ms) at its end
+  and never its answer.
 - A commit whose branch moved while it was being built:
    a commit Git built (a signed one,
    or one with a template or clean-up mode) is built again on the new tip,
@@ -4927,6 +4953,28 @@ all durations in whole milliseconds taken from the monotonic clock:
   `unproven` for an owner nobody could prove alive,
   null when there was none),
   `reconnects` counts connections that broke and `sends` counts requests written.
+- `landing` states what the landing of this commit spent and held,
+  which the service measures and the answer carries,
+  and is `null` for a service of a release that sends no figures:
+  `lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
+  `queuedBehind` is how many requests were still waiting for their answer when the landing finished,
+  `readsMs` is the whole of the residual reads,
+  `reads` names each of them
+  (`config`,
+  `branch`,
+  `parents`,
+  `changed`,
+  `content`,
+  `witness`,
+  `conclusion`,
+  `owed`,
+  `follow`,
+  and never more than `readsMs` together),
+  and `syncs` is every file or directory sync the landing asked for,
+  in the order it asked,
+  each as `{"what": "built-index", "waited": true, "ms": 12}`,
+  with `waited` false for one it handed to the background task and never waited for.
 - `handoffMs` is one figure:
   leaving the work records and waking the service,
   which reaches the service a second time.
@@ -4977,6 +5025,31 @@ all durations in whole milliseconds taken from the monotonic clock:
   The service's `answered` line ends with `steps="git rev-parse@3+4;..."` (`name@offset+duration`,
   the offset from the request's
   acceptance) and `steps_dropped=<count>`.
+
+The landing's own figures are on the same line and in the record's `landing`:
+
+- `landing_ms` is the whole landing,
+  and its phases are `lock_wait_ms` (another program's hold on the index),
+  `reads_ms`,
+  `objects_ms`,
+  `journal_ms`,
+  `ref_ms` and `index_update_ms`.
+- `reads_ms` is named one read at a time by `reads_config_ms`,
+  `reads_branch_ms`,
+  `reads_parents_ms`,
+  `reads_changed_ms`,
+  `reads_content_ms`,
+  `reads_witness_ms`,
+  `reads_conclusion_ms`,
+  `reads_owed_ms` and `reads_follow_ms`,
+  which are parts of it and never more than it together.
+- `lock_hold_ms` is how long the landing held the index,
+  and `queued_behind` is how many requests were still waiting for their answer when it finished,
+  the batch's own taken out.
+- `syncs_waited` and `syncs_queued` count the syncs the landing waited for and the ones it handed to the background,
+  `sync_held_ms` is the time it spent waiting for its own,
+  and `syncs="built-index=12;intent-file=queued;..."` names each one with its milliseconds or with `queued`.
+  A background batch of a landing's records says in the journal how many it made and what they cost.
 
 The service writes to its standard error,
 which the service manager keeps in the journal of its unit.

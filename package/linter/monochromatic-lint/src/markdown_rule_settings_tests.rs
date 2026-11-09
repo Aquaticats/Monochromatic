@@ -122,20 +122,20 @@ fn invalid_settings_are_configuration_errors() {
         r#"{"markdown/single-h1":{"severity":"error","max":3}}"#,
         r#"{"markdown/unknown":{"severity":"error"}}"#,
         r#"{"markdown/lfs-image-url":{"severity":"error","exclude":"package/"}}"#,
-        r#"{"markdown/lfs-image-url":{"severity":"off","exclude":["[z-a]"]}}"#,
+        r#"{"markdown/lfs-image-url":{"severity":"off","exclude":["a\\"]}}"#,
         r#"[]"#,
     ] {
         let value: JsoncValue = parse_jsonc(source).expect("JSONC fixture");
         assert!(markdown_rule_settings(&value).is_err(), "{source}");
     }
     let value: JsoncValue =
-        parse_jsonc(r#"{"markdown/lfs-image-url":{"severity":"error","exclude":["[z-a]"]}}"#)
+        parse_jsonc(r#"{"markdown/lfs-image-url":{"severity":"error","exclude":["a\\"]}}"#)
             .expect("JSONC fixture");
-    let error = markdown_rule_settings(&value).expect_err("reversed range");
+    let error = markdown_rule_settings(&value).expect_err("a trailing escape");
     assert!(
         error.message.contains("markdown/lfs-image-url exclude"),
         "{}",
         error.message
     );
-    assert!(error.message.contains("[z-a]"), "{}", error.message);
+    assert!(error.message.contains(r#""a\\""#), "{}", error.message);
 }

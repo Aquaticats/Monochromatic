@@ -222,6 +222,21 @@ fn an_earlier_capture_keeps_the_bytes_of_an_overlapping_later_one() {
     remove(world.root.as_path());
 }
 
+/// The replay reads the order of a shared path with a top-anchored literal spec the wrapper wrote,
+/// so two glob modes that disagree in the caller's environment must not end the replay as a failure.
+#[test]
+fn a_replay_reads_its_path_order_under_the_callers_conflicting_glob_modes() {
+    let mut world: World = world("replay-glob-modes");
+    world.context.overlay.push((std::ffi::OsString::from("GIT_GLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    world.context.overlay.push((std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    let mine: Captured = captured(&world, &[(1, "mine")]);
+    land(&world, &[(1, "theirs")], "theirs");
+    let with_order: Captured = Captured { captured: 200, landed: vec![tip_captured(&world, 100)], ..mine };
+    let Merged::Tree(tree) = merge(&world, &with_order) else { panic!("expected the later capture to land") };
+    assert_eq!(blob_of(&world, tree.as_str()), lines_with(&[(1, "mine")]));
+    remove(world.root.as_path());
+}
+
 /// Order decides nothing without a stamp for every commit that changed the path,
 /// or without the commit's own stamp.
 #[test]

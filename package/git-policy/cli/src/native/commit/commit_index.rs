@@ -29,7 +29,7 @@ use crate::private_index_request::{CaptureIndexes, indexed_request};
 use crate::commit_staged_additions::{
     StagedAddition, carry_additions, explain_ignored_refusal, pathspecs_of_file, staged_additions_selected,
 };
-use crate::transaction_git::{GitContext, GitFailure, GitOutput, run_git_checked};
+use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
 /// Commit selection mode of the transaction.
 use crate::transaction_journal::TransactionMode;
 /// The index copy steps,
@@ -214,21 +214,17 @@ fn stage_into_the_private_index(
         note_index_build(IndexBuildKind::First, real_index_present);
         if selection.stage_tracked_changes {
             // Whole-tree update of tracked paths, exactly what `commit -a` stages, captured once at invocation. The
-            // pathspec is `:/`, which literal pathspec mode, from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
-            // would read as a file name and stage nothing, so the mode is switched off for this start.
-            private_git(
-                context,
+            // pathspec is `:/`, one the wrapper wrote, so every pathspec mode the caller set is removed from this start:
+            // literal mode would read it as a file name and stage nothing, and two glob modes at once make Git refuse it
+            // and fail the commit.
+            let staged: GitRequest = indexed_request(
                 cwd,
-                indexes.commit_index.as_path(),
-                indexes.object_directory.as_path(),
-                &[
-                    "--no-literal-pathspecs".to_string(),
-                    "add".to_string(),
-                    "--update".to_string(),
-                    "--".to_string(),
-                    ":/".to_string(),
-                ],
-            )?;
+                &["add", "--update", "--", ":/"],
+                Some(indexes.commit_index.as_path()),
+                Some(indexes.object_directory.as_path()),
+            )
+            .own_pathspecs();
+            run_git_checked(context, &staged)?;
         }
         if !selection.stage_into_index {
             return Ok(());
@@ -412,6 +408,24 @@ fn add_selected_paths(
 /// readerAnswer(['diff-index', '--cached', '--name-only', '-z', '--no-renames', base], privateIndex)?.stdout.length === 0
 /// ```
 fn index_equals_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
+    // The question is answered in process from the whole captured index and the base tree, which no Git child covers, so the
+    // record names it: an explicit-path preparation whose milliseconds went here would otherwise look unexplained.
+    let began: std::time::Instant = std::time::Instant::now();
+    let equals: bool = reads_itself_as_the_base(context, cwd, indexes, base_revision);
+    crate::prepare_work_spans::note_span(crate::prepare_work_spans::INDEX_EQUALS_BASE, began.elapsed());
+    return equals;
+}
+
+/// What:
+///  `index_equals_base` without the note of how long the question took.
+/// Why:
+///   The note covers the question a reader declined as well as the one it answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readerAnswer(...)?.stdout.length === 0
+/// ```
+fn reads_itself_as_the_base(context: &GitContext, cwd: &Path, indexes: &CaptureIndexes, base_revision: &str) -> bool {
     let request = indexed_request(
         cwd,
         &["diff-index", "--cached", "--name-only", "-z", "--no-renames", base_revision],
@@ -520,9 +534,11 @@ pub fn list_unmerged_index_paths(
     cwd: &Path,
     commit_index: &Path,
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
+    // `--full-name`: the names are handed to `:(top,literal)<path>` specs and to the person, and a commit run
+    // from a subdirectory would otherwise be answered with names read from that directory.
     let output: GitOutput = run_git_checked(
         context,
-        &indexed_request(cwd, &["ls-files", "--unmerged", "-z"], Some(commit_index), None),
+        &indexed_request(cwd, &["ls-files", "--unmerged", "-z", "--full-name"], Some(commit_index), None),
     )?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for record in output.stdout.split(is_nul_byte) {
