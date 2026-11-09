@@ -1282,3 +1282,42 @@ fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes(
     bytes_claim.release().expect("release");
     remove(bytes_root.as_path());
 }
+
+/// What:
+///  A destination whose pointer cannot be examined keeps the record and says the state is unknown,
+/// instead of
+///  reading the refusal as "no pointer" and dropping what names a registered checkout.
+/// Why:
+///   Recovery decides from `destination/.git` whether a planned add left anything,
+/// and the lookup fails for two
+///  different reasons:
+/// the pointer is not there,
+/// which is an answer,
+/// or the directory cannot be searched,
+/// which is
+///  no answer at all.
+/// `Path::exists()` maps both to false,
+/// so a permission the person or another process holds for a
+///  moment deleted the record and the claim of a worktree that is still registered,
+/// and no later command named it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmodSync(destination, 0o000); const settled = settleInterruptedAdd(record); chmodSync(destination, 0o755);
+/// expect(settled.keep).toBe(true); expect(settled.notice).toContain('cannot be examined');
+/// ```
+#[test]
+fn a_pointer_that_cannot_be_examined_keeps_the_record() {
+    let (root, common, destination) = scene("claim-pointer-unreadable");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(destination.join(".git"), b"gitdir: /nowhere\n").expect("pointer");
+    let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let record: PathBuf = claim.path.with_extension("add");
+    std::fs::set_permissions(destination.as_path(), std::fs::Permissions::from_mode(0o000)).expect("no search permission");
+    let settled: Settlement = settle_interrupted_add(record.as_path());
+    std::fs::set_permissions(destination.as_path(), std::fs::Permissions::from_mode(0o755)).expect("restored");
+    assert!(settled.keep, "an answer that could not be read is not an answer of absence");
+    assert!(settled.notice.as_deref().is_some_and(|text: &str| { return text.contains("cannot be examined"); }), "{:?}", settled.notice);
+    assert!(record.exists(), "the record stays while the state is unknown");
+    remove(root.as_path());
+}

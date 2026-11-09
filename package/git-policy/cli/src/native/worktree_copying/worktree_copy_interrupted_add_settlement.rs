@@ -35,6 +35,11 @@ pub struct Settlement {
     pub keep: bool,
 }
 
+#[path = "worktree_copy_stage_claim_pointer_presence.rs"]
+mod pointer_presence_of_the_destination;
+
+use pointer_presence_of_the_destination::{PointerPresence, pointer_presence};
+
 /// The name of the lock Git takes to write an index,
 /// in the administrative directory of a worktree.
 pub(crate) const INDEX_LOCK: &str = "index.lock";
@@ -341,11 +346,19 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
         },
         Some(Recorded::Planned(destination)) => {
             // The path is printed inside commands the person runs, so it is quoted for the shell.
-            // The path is printed inside commands the person runs, so it is quoted for the shell.
             let shown: String = crate::shell_quote::shell_quote(destination.as_os_str().as_bytes());
-            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish.
-            if !destination.join(POINTER).exists() {
-                return Settlement { notice: None, keep: false };
+            // Nothing at the path, or nothing Git's pointer there: the add made nothing that is left to finish. A lookup that
+            //  fails otherwise is no answer: a directory the person or another process holds closed for a moment must not read
+            //  as "no pointer" and take the record of a worktree that is still registered.
+            match pointer_presence(destination.as_path()) {
+                PointerPresence::Absent => return Settlement { notice: None, keep: false },
+                PointerPresence::Present => {}
+                PointerPresence::Unknown(why) => {
+                    return Settlement {
+                        notice: Some(format!("monochromatic-git-policy-cli: whether an interrupted `git worktree add` left {shown} cannot be examined ({why}); nothing was changed and the record stays.")),
+                        keep: true,
+                    };
+                }
             }
             // A kill between real Git's registration and the wrapper's record of the binding leaves the pointer without the
             //  plan, so the pointer is what names the administrative directory the proof reads.
