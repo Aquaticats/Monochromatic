@@ -12,6 +12,9 @@
 //! and a path it could not compare is not one of them:
 //! two failed reads say nothing about whether the bytes are the same,
 //! so such a path is left as the person has it and is named.
+//! Nothing here waits:
+//! the type of a path is taken from the handle `open_plain_file` returns,
+//! because opening a named pipe for reading waits for a writer that may never come.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -35,7 +38,8 @@ pub(super) const LARGEST_RECORDED_BYTES: u64 = 3 * crate::merge_second_pass::LAR
 
 /// What a worktree path held when the conflicts were read:
 /// its bytes,
-/// or nothing when they cannot be compared (the file cannot be read,
+/// or nothing when they cannot be compared (the path is no plain file when opened,
+/// it cannot be read,
 /// or it is larger than a conflicted file can be).
 /// Why:
 ///   The pass computes a merge from the index stages and then replaces the worktree file.
@@ -48,9 +52,20 @@ pub(super) const LARGEST_RECORDED_BYTES: u64 = 3 * crate::merge_second_pass::LAR
 pub(super) type Held = Option<Vec<u8>>;
 
 /// What the worktree holds at `path` now,
-/// or nothing when it cannot be compared.
+/// or nothing when it cannot be compared:
+/// the path is no plain file when opened,
+/// it cannot be read,
+/// or it is larger than a conflicted file can be.
+/// Why:
+///   Opening a named pipe for reading waits for a writer that may never come,
+/// and a writer that holds one open without
+///  writing takes that wait into the read,
+/// so neither the pass nor the command that runs it would ever finish.
+///  The type is taken from the open handle
+/// (`open_plain_file`),
+/// which cannot be swapped for a different file between a check and the open.
 pub(super) fn worktree_state(path: &Path) -> Held {
-    let file: std::fs::File = std::fs::File::open(path).ok()?;
+    let file: std::fs::File = crate::plain_file::open_plain_file(path).ok()?;
     let mut bytes: Vec<u8> = Vec::new();
     let kept: std::io::Result<usize> = file.take(LARGEST_RECORDED_BYTES + 1).read_to_end(&mut bytes);
     let Ok(read) = kept else { return None };

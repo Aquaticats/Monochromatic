@@ -244,6 +244,84 @@ fn a_path_that_cannot_be_read_is_left_and_named() {
     remove(world.root.as_path());
 }
 
+/// How long an answer that must not wait may take in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  The recorded state of `paths`, answered inside `PATIENCE`.
+/// Why:
+///   A read that waits has no end of its own,
+/// and a test that waited with it could only be stopped from outside;
+/// the panic here names what waited and why it must not.
+fn held_within(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Held> {
+    let (sender, receiver) = std::sync::mpsc::channel::<BTreeMap<Vec<u8>, Held>>();
+    let handed: PathBuf = root.to_path_buf();
+    let asked: BTreeSet<Vec<u8>> = paths.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(held_paths(handed.as_path(), &asked));
+    });
+    return match receiver.recv_timeout(PATIENCE) {
+        Ok(held) => held,
+        Err(_) => panic!("the worktree snapshot did not answer within {PATIENCE:?}"),
+    };
+}
+
+/// What:
+///  A named pipe with no writer at a conflicted path is refused, not waited for.
+/// Why:
+///   `File::open` on a pipe waits for a writer that may never come,
+/// and that wait sits in the middle of a foreground command with no deadline and no way to
+///  end it
+/// (cross-vendor review round 3,
+/// finding 2).
+#[test]
+fn a_named_pipe_with_no_writer_is_not_waited_for() {
+    let (world, entries) = stopped_merge("second-pass-worktree-pipe-no-writer");
+    let path: PathBuf = world.repo.join("a.md");
+    std::fs::remove_file(path.as_path()).expect("the file Git left");
+    make_pipe(path.as_path());
+    let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
+    let held: BTreeMap<Vec<u8>, Held> = held_within(world.repo.as_path(), &created);
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that is no plain file is nothing to compare");
+    drop(entries);
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A named pipe whose writer holds it open and says nothing is refused too.
+/// Why:
+///   A writer that keeps the pipe open takes the wait from the open to the read,
+/// and the byte limit bounds neither,
+///  so the command waited for ever with the file open
+/// (cross-vendor review round 3,
+/// finding 2,
+/// the other half).
+#[test]
+fn a_named_pipe_whose_writer_says_nothing_is_not_waited_for() {
+    let (world, entries) = stopped_merge("second-pass-worktree-pipe-silent-writer");
+    let path: PathBuf = world.repo.join("a.md");
+    std::fs::remove_file(path.as_path()).expect("the file Git left");
+    make_pipe(path.as_path());
+    // One handle that is both ends keeps a writer open without a second process and without a thread that could block.
+    let writer: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).open(path.as_path()).expect("a writer for the pipe");
+    let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
+    let held: BTreeMap<Vec<u8>, Held> = held_within(world.repo.as_path(), &created);
+    assert_eq!(held.get(b"a.md".as_slice()), Some(&None), "a path that is no plain file is nothing to compare");
+    drop(writer);
+    drop(entries);
+    remove(world.root.as_path());
+}
+
 /// A repository whose merge of the two branches stopped with `a.md` conflicted,
 /// with the index entries the pass reads after the command.
 fn stopped_merge(name: &str) -> (World, Vec<IndexEntry>) {
