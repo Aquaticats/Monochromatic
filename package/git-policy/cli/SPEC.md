@@ -2728,8 +2728,10 @@ counted with `strace` over ten commits on 2026-11-07),
 rounded up to a power of two.
 The commit Git builds in the scratch repository runs with the terminal attached and no watch,
 so its entry (`git commit`) is the
-only record of its time,
-signing included.
+only record of the time Git itself took,
+signing and the work Git does included,
+and the notice's own time and the time a program below the step ran are in `scratchSteps` beside it,
+never inside it.
 The gateway call's total deadline is `ureq`'s `global` timeout,
 set to `REVIEW_CALL_CEILING`;
 the transport's other timeouts
@@ -2764,10 +2766,72 @@ the signing program,
 and when the step is stopped:
 a commit whose message came with the command (`-m`,
 `-F`,
-`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
-everything below the command ended with `SIGKILL`,
-the command failing with a message that says nothing was committed and to run the same command again;
+`-C`) is stopped at `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`,
+16,332 ms:
+three times the slowest `git commit` step record that is not one of the three over 26 s,
+5,444 ms,
+in the 907 records of releases 0.6.1-alpha.2 to 0.6.1-alpha.5 read on 2026-11-09;
+owner,
+2026-11-08,
+"About 16 seconds"),
+that `git commit` and the processes it started ended with `SIGKILL` and no other child of the command touched
+(the notice holds the pidfd the step was given the moment it started and signals through it and nothing else,
+reads the programs below the step first and asks that descriptor afterwards whether the step is still there,
+so a walk taken while the step was alive is discarded when it ended in the meantime,
+and signals the step whatever that walk came to,
+recording `belowUnlisted` and saying in the stop's words that the programs the step started could not be listed,
+so one of them may still be running),
+a stop recorded only when a signal was really taken for the step,
+only `ESRCH` from the descriptor's signal read as the step being gone,
+with every other refusal,
+and a look that could not be made,
+leaving the ceiling armed rather than standing down,
+and the command failing with a message that says nothing was committed and to run the same command again;
+a step whose start the kernel refused a descriptor for is taken again at the ceiling,
+and only one proof is accepted before anything is sent:
+the step's record must say the number is a living child of this process that has not been reaped,
+which is the one moment the kernel cannot have given that number to another process
+(a child that exits in the instant before the signal becomes a zombie that still holds the number and discards it);
+with that proof a descriptor is made then,
+or the signal goes to the proved number,
+a record that names another parent means the child was reaped and the step ended,
+so nothing is sent,
+and a record that cannot be read leaves the ceiling armed;
+its lines are written by a thread of their own,
+handed over a queue of one line,
+so a reader that stopped reading holds that thread and never the ceiling,
+a line that cannot be handed over is dropped and counted (`linesDropped`),
+`finish` waits for the notice's answer and for the line already handed over no longer than `NOTICE_BOUND`
+(twice `LOOK_INTERVAL`),
+and a command that ended prints nothing more:
+the writer stops at its next line,
+so at most the one line already inside a write can still reach the reader after the command is over,
+and the writer ends there rather than living on beside a reader that stopped reading;
+a member the kernel refuses a pidfd for is never signalled by its number,
+and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).
+
+##### The one wait the ceiling cannot end
+
+A step whose start the kernel refused a descriptor for is ended at the ceiling by the proof above.
+The one state in which no ceiling can end it is both failures at once:
+the start made no descriptor,
+and `/proc` cannot be read at the ceiling,
+so the step's number cannot be proven to be this process's own unreaped child.
+Then nothing is sent,
+the ceiling stays armed,
+and the notice keeps printing what it knows at its cadence until `/proc` reads again,
+at which point the ceiling fires,
+or until the step ends by itself.
+The person sees the usual waiting lines,
+the last of which promises the stop at the ceiling,
+and a commit that lasts longer than the ceiling says so every cadence;
+`run_native_commit_within` reaches its stop only when the ceiling does.
+This is named here rather than bounded because no honest bound exists:
+the wrapper may not signal a number it cannot prove,
+and the owner's rule against killing another command's process stands.
+The uninterruptible wait after a delivered signal is the separate owner question in
+`doc/handover/questions-for-the-owner.md`.
 
 ##### The quiet windows are labelled unmeasured
 
@@ -3321,6 +3385,27 @@ now inside these bounds:
   hears nothing for `HEARTBEAT_SILENCE` (5 seconds) asks again with the same request identity,
   and ends with the "stopped
   answering" failure when the service greets nothing.
+  After a commit was prepared,
+  that failure reads the branch once (`git merge-base --is-ancestor <prepared> <reference>`)
+  and states what it shows:
+  that the branch holds the commit this command prepared,
+  at its tip or under a later commit,
+  so the commit was made and the command returns the landed commit with exit 0,
+  reporting the landing and handing the after-commit work over as the answer that landed does,
+  through the one function both paths share,
+  so that a refusal from the work after a landed commit is a warning in either
+  path and never the command's failure;
+  that it does not hold it,
+  so the commit was not made by this command,
+  though the service may still land it;
+  or that the branch could not be read,
+  which keeps the words "not known whether the commit was made".
+  The read waits for nothing,
+  and a commit the service builds itself from the request leaves the third answer,
+  because the wrapper has no commit to compare the branch with (2026-11-09T07:44:20Z:
+  a message said the commit was
+  not known to have been made,
+  and the service landed it 73 seconds later).
 - A command that waits renews the modification time of its scratch directory (`SCRATCH_REFRESH_EVERY`),
   so the sweep never
   removes the directory of a command that is still waiting;
@@ -8501,6 +8586,30 @@ and `statDataKept` says whether that build started from a copy of the real index
 keeping the cached stat data of every entry its tree shares with it;
 a build from the base or the tree alone holds none,
 and the scratch commit then hashes every file of the work tree),
+`scratchSteps`
+(one entry per build of the scratch `git commit`,
+empty for a commit that ran none,
+in the order the builds ended:
+`ceilingMs` the ceiling that build ran under,
+`null` for a commit that may open an editor,
+`armed` whether a notice thread ran to enforce it,
+`stoppedAfterMs` how long the step had lasted when the notice ended it,
+recorded only when a signal was really taken for the step,
+`noticeMs` how long the notice's own end took after the step ended,
+`wroteMs` how long the writer spent on the lines it finished,
+`linesDropped` how many lines it dropped because a reader stopped taking them,
+`looks` and `looksFound` how many looks it made for the step and how many found it,
+`below` one entry per program that ran below the step with the milliseconds the same process number,
+start time and name were seen at the look interval,
+kept with a zero bound when a look saw it only once,
+`belowCpuMs` the processor time everything below the step had used at the last look,
+`belowUnlisted` whether the programs below the step could not be listed when it was ended,
+so one of them may still be running,
+`blindLooks` how many looks could not be made at all because `/proc` refused the read,
+and `blockedLooks` how many looks found one of them in uninterruptible sleep;
+an entry whose `armed` is true and whose `looks` is zero is a notice thread that did not answer within its bound;
+the record's own `git commit` step figure is the child alone,
+so `noticeMs` and `below` are never inside it),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,

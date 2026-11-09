@@ -215,35 +215,45 @@ pub fn run_native_commit_within(
         },
     );
     let began: std::time::Instant = std::time::Instant::now();
-    let finished = run_guarded_child(&mut command);
-    let stopped_after: Option<std::time::Duration> = notice.finish();
+    let finished = run_guarded_child(&mut command, &notice);
+    // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
+    // the signing program ran below the step is there too, so a long step names no work the person's terminal did and no
+    // line the notice could not hand to a reader that stopped reading.
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
+    let facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
+    let stopped_after: Option<std::time::Duration> = facts.stopped_after;
+    let below_unlisted: bool = facts.below_unlisted;
+    crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
-        return Err(PreparationError::Git(GitFailure(crate::native_commit_waiting_notice::stop_words(waited, ceiling, signs))));
+        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(waited, ceiling, signs, below_unlisted))));
     }
     return finished;
 }
 
 /// What:
-///  Run the native commit under the signal guard and return its exit code.
+///  Run the native commit under the signal guard,
+///  tell the notice which process is the step as soon as it starts,
+///  and return its exit code.
 /// Why:
 ///   A signal sent to the wrapper while Git runs reaches Git when a process sent it;
 /// Git's ending decides the status.
+///  The number is what lets the notice's ceiling reach this step and no other child of this process,
+/// which the landing service runs beside it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// using guard = installSignalGuard(); return exitCode(await guard.runChild(command));
+/// using guard = installSignalGuard(); return exitCode(await guard.runChildNaming(command, notice.stepNumber()));
 /// ```
-fn run_guarded_child(command: &mut std::process::Command) -> Result<i32, PreparationError> {
+fn run_guarded_child(command: &mut std::process::Command, notice: &crate::native_commit_waiting_notice::NativeCommitNotice) -> Result<i32, PreparationError> {
     let guard: SignalGuard = match SignalGuard::install() {
         Ok(installed) => installed,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));
         }
     };
-    let outcome = match guard.run_child(command) {
+    let outcome = match guard.run_child_telling_its_number(command, notice.step_number()) {
         Ok(finished) => finished,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("git commit could not start: {error}"))));

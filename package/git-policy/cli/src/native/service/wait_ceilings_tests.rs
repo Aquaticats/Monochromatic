@@ -88,14 +88,15 @@ fn a_commit_that_moved_under_its_build_is_rebuilt_until_the_answer_ceiling() {
 }
 
 /// The scratch repository's `git commit` is stopped at three times the slowest `git commit` step record:
-/// the owner's answer of 2026-11-08 ("About 3 s now"),
-/// 3 x 1,002 ms,
+/// the owner's answer of 2026-11-08 ("About 16 seconds"),
+/// 3 x 5,444 ms,
 /// with no rounding up.
 #[test]
 fn the_scratch_commit_step_is_stopped_at_three_times_the_slowest_step_record() {
-    assert_eq!(SLOWEST_MEASURED_COMMIT_STEP, Duration::from_millis(1_002), "the figure of the 14 step records");
+    assert_eq!(SLOWEST_MEASURED_COMMIT_STEP, Duration::from_millis(5_444), "the figure of the records below 16 s");
     assert_eq!(SCRATCH_COMMIT_STEP_MARGIN, 3);
     assert_eq!(SCRATCH_COMMIT_STEP_CEILING, SLOWEST_MEASURED_COMMIT_STEP * SCRATCH_COMMIT_STEP_MARGIN);
+    assert_eq!(SCRATCH_COMMIT_STEP_CEILING, Duration::from_millis(16_332), "about 16 s, the owner's answer");
     let source: &str = include_str!("../commit/commit_preparation.rs");
     assert!(source.contains("SCRATCH_COMMIT_STEP_CEILING"), "the step that runs the scratch commit takes this ceiling");
 }
