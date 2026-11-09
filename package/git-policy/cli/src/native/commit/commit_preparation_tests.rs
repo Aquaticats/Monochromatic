@@ -427,3 +427,49 @@ fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
     assert_eq!(std::fs::read(fixture.repo.join(".git").join("index")).expect("index"), index_before);
     remove(root.as_path());
 }
+
+/// A throwaway SSH signing key and the configuration that signs with it,
+/// in a file an exact `gitdir` condition includes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const key = sshKeygen(root); const included = writeSigningConfig(root, key);
+/// git(repo, ['config', `includeIf.gitdir:${repo}/.git.path`, included]);
+/// ```
+fn signing_included_by_exact_gitdir(root: &Path, repo: &Path) -> PathBuf {
+    let key: PathBuf = root.join("signing-key");
+    let made = std::process::Command::new("ssh-keygen")
+        .args(["-q", "-t", "ed25519", "-N", "", "-C", "fixture", "-f"])
+        .arg(&key)
+        .output()
+        .expect("ssh-keygen starts");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(&made.stderr));
+    let included: PathBuf = root.join("signing.config");
+    std::fs::write(
+        included.as_path(),
+        format!("[commit]\n\tgpgSign = true\n[gpg]\n\tformat = ssh\n[user]\n\tsigningKey = {}\n", key.display()),
+    )
+    .expect("signing configuration");
+    // Only this exact Git directory selects the file, which is what no longer matches in the shadow.
+    let condition: String = format!("includeIf.gitdir:{}/.git.path", repo.display());
+    git(repo, &["config", condition.as_str(), included.to_str().expect("UTF-8")]);
+    return included;
+}
+
+/// A commit whose signing comes from an exact `gitdir` conditional include is signed by the shadow's native commit too:
+/// the person asked for a signature,
+/// and a clean unsigned commit would answer a different request.
+#[test]
+fn signing_from_an_exact_gitdir_include_reaches_the_shadow() {
+    let root: PathBuf = fixture("commit-preparation-gitdir-signing");
+    let fixture: Fixture = prepared_fixture(root.as_path());
+    signing_included_by_exact_gitdir(root.as_path(), fixture.repo.as_path());
+    // The positive control: real Git, in the real Git directory, signs this repository's commits.
+    git(fixture.repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=native control"]);
+    let native: String = git_text(fixture.repo.as_path(), &["cat-file", "commit", "HEAD"]);
+    assert!(native.contains("\ngpgsig "), "the exact gitdir include must sign, or this control proves nothing");
+    // The shadow's own native commit must sign for the same reason.
+    let prepared: PreparedCommit = prepare(&fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
+    assert!(prepared.signed, "the shadow must not turn the person's signing request into an unsigned commit");
+    remove(root.as_path());
+}
