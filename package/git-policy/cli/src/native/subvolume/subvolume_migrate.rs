@@ -197,6 +197,7 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
         if new_path.exists() && !old_path.exists() {
             MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
         }
+        record_installed(run);
         return run.journal.mark("exchange", "done");
     }
     let token: String = token_of(&run.journal);
@@ -215,7 +216,34 @@ fn exchange_trees(run: &mut Run<'_>) -> Result<(), MigrateError> {
     MigrateError::from_io_result(std::fs::rename(&new_path, &old_path), "rename", new_path.as_path())?;
     run.checkpoint("after-rename")?;
     run.line(format!("exchanged; the old tree is now {}", old_path.display()).as_str());
+    record_installed(run);
     return run.journal.mark("exchange", "done");
+}
+
+/// What:
+///  Record which directory the exchange installed at the checkout,
+/// once,
+/// with the step that installed it.
+/// Why:
+///   A later `--remove-old` or `--rollback` tells the installed checkout from one that replaced it by hand with this identity,
+/// and a migration stopped after the exchange but before verification is exactly the state a person is most likely to
+///  rearrange:
+/// recording it only at verification leaves every step in between unprotected.
+/// The first record wins,
+/// so a
+///  directory that took the checkout's place after the install is never blessed with its own identity.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordInstalled(run); // journal.values.installedRoot ??= identityOf(run.layout.root)
+/// ```
+fn record_installed(run: &mut Run<'_>) {
+    if run.journal.value(INSTALLED_ROOT).is_some() {
+        return;
+    }
+    if let Some(identity) = installed_identity(run.layout.root.as_path()) {
+        run.journal.set_value(INSTALLED_ROOT, identity.as_str());
+    }
 }
 
 /// What:
@@ -304,11 +332,9 @@ fn finish(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), MigrateError
     if !root.join(".git").join("HEAD").exists() {
         return Err(MigrateError::Journal(format!("{} has no .git/HEAD after the exchange; run with --rollback to restore the original tree", root.display())));
     }
-    // Which directory the migration installed, so a later --remove-old or --rollback can tell this checkout from one that
-    // replaced it by hand. Recorded with the step, so the file never holds one without the other.
-    if let Some(identity) = installed_identity(root.as_path()) {
-        run.journal.set_value(INSTALLED_ROOT, identity.as_str());
-    }
+    // A journal that somehow reached verification with no installed identity gets one now; the first record is the install's,
+    // and a later step never blesses a directory that took the checkout's place.
+    record_installed(run);
     return run.journal.mark("verify", "done");
 }
 

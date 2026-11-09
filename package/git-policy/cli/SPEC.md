@@ -1619,6 +1619,13 @@ that reason is written beside the code in
 The rewrite of the index stat fields that runs by
 itself (the worktree add's index,
 a rollback) takes `index.lock` for one index from the read to the rename.
+The identity of the installed subvolume is recorded with the `exchange` step itself,
+when the tree is renamed into the
+checkout's place,
+and the first record wins:
+every step between the exchange and the verification is then protected by it,
+and a directory that
+took the checkout's place later is never blessed with its own identity.
 The migration records the identity of the subvolume it installed at the checkout (device and inode,
 in the journal's `values`
 under `installed-root`,

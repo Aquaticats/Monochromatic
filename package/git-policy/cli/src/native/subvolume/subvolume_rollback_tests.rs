@@ -244,6 +244,40 @@ fn a_rollback_killed_right_after_its_exchange_does_not_exchange_again() {
 }
 
 /// What:
+///  A migration stopped after its exchange is protected by the identity of the tree it installed,
+///  so a rollback refuses a
+///  directory put at the checkout's path and deletes nothing.
+/// Why:
+///   Recording the identity only at verification left every step between the exchange and the end unrecorded,
+/// and a
+///  replacement's own files were carried back over and then deleted with the new subvolume.
+#[test]
+fn a_migration_stopped_after_its_exchange_refuses_a_replaced_checkout_in_a_rollback() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-installed-identity");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-catchup", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "the tree was installed before the stop");
+    let installed: PathBuf = parent.join("installed.kept");
+    std::fs::rename(root.as_path(), installed.as_path()).expect("move the installed checkout aside");
+    std::fs::create_dir_all(root.join("ignored")).expect("a directory at the checkout's path");
+    std::fs::write(root.join("README.md"), b"the replacement's own\n").expect("the replacement's file");
+    set_seconds(root.join("README.md").as_path(), 1_000_000_000);
+    // The old tree's copy is newer, so a rollback that trusted the path would carry it over the replacement's file.
+    std::fs::write(layout.old_path.join("README.md"), b"from the old tree\n").expect("late write");
+    set_seconds(layout.old_path.join("README.md").as_path(), 2_000_000_000);
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("installed by the migration"), "the refusal names the identity it expected: {lines2:#?}");
+    assert_eq!(std::fs::read(root.join("README.md")).expect("the replacement's file"), b"the replacement's own\n", "nothing is written into the directory that took the checkout's place");
+    assert_eq!(platform.is_subvolume_root(installed.as_path()), Ok(true), "the installed subvolume is where the person moved it");
+    assert!(!layout.new_path.exists(), "nothing was renamed to the new subvolume's name");
+    assert!(layout.old_path.exists() && layout.journal_path.exists(), "the old tree and its journal are kept");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A rollback resumed after its rename deletes only the directory the journal recorded installing,
 ///  so a directory put at
 ///  the new subvolume's name while the command was down is kept and named.
