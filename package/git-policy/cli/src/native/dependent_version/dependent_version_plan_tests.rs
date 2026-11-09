@@ -6,6 +6,9 @@
 //! The plan is what both entry points apply;
 //! its bytes are the patch.
 //!
+//! `bump-dependents-worktree.unit.test.ts` was deleted on 2026-10-13 in `a2b56c548c` with the TypeScript wrapper,
+//!  and `git show a2b56c548c^:package/git-policy/repository/src/bump-dependents-worktree.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const plan = await planWorkspaceBumps(reader); expect(plan.bumps.map(b => `${b.name}@${b.to}`)).toEqual([...]);

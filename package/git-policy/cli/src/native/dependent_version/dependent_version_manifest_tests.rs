@@ -6,6 +6,9 @@
 //! Why:
 //! The planner must accept exactly what `JSON.parse` accepts and read the same facts.
 //!
+//! `manifest-text.unit.test.ts` was deleted on 2026-10-13 in `a2b56c548c` with the TypeScript wrapper,
+//!  and `git show a2b56c548c^:package/git-policy/repository/src/manifest-text.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(readManifestDependencyFacts({ path, text })).toEqual({ name, version, ... });

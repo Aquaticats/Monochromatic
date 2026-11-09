@@ -353,3 +353,20 @@ fn a_full_sync_report_lists_unresolved_bins() {
     assert!(format_sync_report(&report).contains("unresolved bins: npm, npx"));
     assert!(rig.scope.exposure_dir.join("node").exists());
 }
+
+/// A `PATH` that cannot hold the exposure directory refuses the postinstall command:
+/// running it on the inherited `PATH` alone would miss the tools that directory links,
+/// and the caller learns why instead of the run looking like a success.
+#[test]
+fn a_path_that_cannot_hold_the_exposure_directory_refuses_the_postinstall_command() {
+    let mut rig = Rig::new();
+    write_executable(&shadow_bin_dir(&rig).join("mpm-shadow"));
+    rig.lock.tools[7].declaration.options.postinstall =
+        Some(Postinstall::Run(PostinstallRun { source_bin: "mpm-shadow".to_string(), args: vec!["link".to_string()] }));
+    rig.scope.exposure_dir = rig.scope.root.join("a:b");
+    let tools = vec![rig.lock.tool("cargo:monochromatic-mpm-shadow").expect("shadow")];
+    let outcome = run_postinstall_commands(&rig.context(), &tools);
+    assert!(outcome.succeeded.is_empty(), "{outcome:?}");
+    assert!(outcome.failed[0].1.contains("cannot be put on PATH"), "{outcome:?}");
+    assert!(rig.runner.calls().is_empty(), "no command ran on the inherited PATH alone");
+}

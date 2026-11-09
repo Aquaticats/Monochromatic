@@ -10,6 +10,9 @@
 //! as the incumbent does (`publishable-names.ts:38-81`).
 //!      Lines are trimmed with JavaScript's `String.prototype.trim` set of characters.
 //!
+//! `publishable-names.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/publishable-names.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // readPublishableNames(configText);
