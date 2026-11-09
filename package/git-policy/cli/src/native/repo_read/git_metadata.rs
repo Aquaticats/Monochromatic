@@ -226,6 +226,15 @@ pub fn run_metadata_git_within(
     command.stdin(Stdio::null());
     let terms: WatchTerms = WatchTerms::for_class(ChildClass::Plumbing);
     let quiet: Duration = terms.limit;
+    // What: The clock of the child this read starts, kept as the step the commit's timing record lists.
+    // Why:  A read the in-process readers decline is a Git process, and a commit that waits seconds on one showed that
+    //       wait in its phase and in no step, so the record could not name it.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const began = Date.now(); const output = await watched(...); noteStep(label, began, Date.now() - began);
+    // ```
+    let began: std::time::Instant = std::time::Instant::now();
     let watched: std::io::Result<std::process::Output> = output_watched_within(
         &mut command,
         subject.as_str(),
@@ -242,6 +251,11 @@ pub fn run_metadata_git_within(
     // ```ts
     // if (error.code === 'ETIMEDOUT') throw new Error(`${subject} showed no sign of work for ${quiet}s, or ran ${ceiling}s, and was ended; nothing changed; run the command again`);
     // ```
+    crate::transaction_step_durations::note_step(
+        crate::add_timing::git_step_label(arguments).as_str(),
+        began,
+        began.elapsed(),
+    );
     let output: std::process::Output = match watched {
         Ok(captured) => captured,
         Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {

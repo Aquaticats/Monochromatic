@@ -3032,6 +3032,8 @@ a figure is a gap of some step of the service since the previous answer,
 not of one request.
 Every Git step a command or a landing starts is also listed with its duration (`src/native/transaction/transaction_step_durations.rs`):
 `steps` in the commit timing record (`name`,
+and the read-only queries the in-process readers decline count here too,
+because a commit that waits on one must name it (`src/native/repo_read/git_metadata.rs`);
 the program and the subcommand only;
 `offsetMs` from the command's start;
 `durationMs`) and `stepsDropped`,
