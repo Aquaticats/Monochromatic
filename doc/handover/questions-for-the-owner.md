@@ -49,6 +49,16 @@ Each record is cited so the context is one read away.
   since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
   Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
   Nothing has proved it necessary.
+- `doc/decision/cli-git-concurrent-commits.md` (line 158 and lines 190 to 205) still says an `index.lock` owner proven alive gets an unbounded wait.
+  The shipped code bounds that wait at one minute for a merge and at the service hold ceiling for the service,
+  following the owner's later "nothing should ever wait forever or indefinitely".
+  May the decision record be amended to say so?
+- `LOCK_CEILING` (600 s) no longer bounds any wait;
+  it only feeds `FOREIGN_OWNER_PATIENCE` (1,200 s).
+  The longest lock wait in 4,386 landings that ended by release was 11.49 s.
+  Both values are kept as they were;
+  lowering the patience changes when another namespace's record counts as abandoned,
+  so that stays open.
 - The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
   Should a systemd timer run it,
   and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
@@ -87,6 +97,15 @@ Each record is cited so the context is one read away.
 - May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
 - Should there be an operator override that forces the native Git route when the commit service misbehaves?
 - Rotate `MISE_GITHUB_TOKEN`?
+  A second exposure on 2026-11-08:
+  the agent `tokio-step-t12` read `/proc/<pid>/environ` of a cargo process to find its build directory,
+  and that printed the same variable into its session,
+  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/tokio-step-t12-1/summary.json`.
+  That run started at 2026-11-08T15:03:15-05:00,
+  before the driver began removing credential-named variables (`9ae27d221e`,
+  2026-11-08T18:09:11-05:00).
+  A process that another session started still carries them,
+  so the rule against reading another process's environment stays in force.
   A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
   The value is in that agent's session file,
   named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,

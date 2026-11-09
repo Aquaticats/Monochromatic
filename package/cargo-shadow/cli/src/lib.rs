@@ -937,6 +937,10 @@ pub mod lean_lock_probe;
 /// The scan of `/proc` for processes using a path.
 pub mod lean_proc_scan;
 
+/// The tests of the process scan and of what it cannot read.
+#[cfg(test)]
+mod lean_proc_scan_tests;
+
 /// The one way the lean-folder tools remove an entry.
 pub mod lean_removal;
 
@@ -1001,6 +1005,10 @@ pub mod lean_run_records;
 /// The tests of the run-record retention.
 #[cfg(test)]
 mod lean_run_records_tests;
+
+/// The tests of the wiring of the run-record retention to the tasks that write records.
+#[cfg(test)]
+mod lean_records_wiring_tests;
 
 /// The checkouts of a repository,
 /// found from the Git directory's files.

@@ -34,6 +34,8 @@ Also tell every agent never to print the environment (`env`,
 `printenv`,
 `set`),
 even through a filter,
+never to read another process's (`/proc/<pid>/environ`,
+`ps e`),
 and to name the one variable it wants:
 an agent's `env | rg` put a real GitHub token in its session,
 and all command output goes to the model provider.
