@@ -52,6 +52,32 @@ pub(super) fn run_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]
     return observe(&mut wrapped_commit(fixture, directory, arguments), b"");
 }
 
+/// The two spellings of literal pathspec mode: the global option and the variable.
+#[derive(Clone, Copy, Debug)]
+enum LiteralMode {
+    /// `git --literal-pathspecs <command>`.
+    Option,
+    /// `GIT_LITERAL_PATHSPECS=1` in the command's environment.
+    Variable,
+}
+
+/// Run one wrapped command under one literal pathspec mode.
+fn run_under(fixture: &Fixture, directory: &Path, mode: LiteralMode, arguments: &[&str]) -> Observed {
+    // `mut` allows the variable to be added to the command before it runs.
+    let mut command: Command = match mode {
+        LiteralMode::Option => {
+            let mut prefixed: Vec<&str> = vec!["--literal-pathspecs"];
+            prefixed.extend_from_slice(arguments);
+            wrapped_commit(fixture, directory, prefixed.as_slice())
+        }
+        LiteralMode::Variable => wrapped_commit(fixture, directory, arguments),
+    };
+    if matches!(mode, LiteralMode::Variable) {
+        command.env("GIT_LITERAL_PATHSPECS", "1");
+    }
+    return observe(&mut command, b"");
+}
+
 /// The text of a Git query against the repository.
 pub(super) fn git_text(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
     let output = git(fixture, repo, arguments);
@@ -213,6 +239,149 @@ fn a_final_newline_correction_lands_in_the_commit_and_the_worktree() {
     assert_eq!(porcelain(&fixture, repo.as_path()), "");
     assert_nothing_left(&fixture, repo.as_path());
     remove_settled(&fixture);
+}
+
+/// A final-newline correction lands in the commit and in the worktree copy,
+/// and the summary names the path,
+/// under both spellings of literal pathspec mode:
+/// a commit's candidate list is read with pathspec magic whatever mode the caller set.
+#[test]
+fn a_final_newline_correction_lands_under_literal_pathspec_mode() {
+    for (index, mode) in [LiteralMode::Option, LiteralMode::Variable]
+        .into_iter()
+        .enumerate()
+    {
+        let fixture: Fixture = fixture(format!("commit-literal-newline-{index}").as_str());
+        let repo: PathBuf = edited_repository(&fixture, "repo");
+        std::fs::write(repo.join("a.txt"), b"one\ntwo").expect("edit without the final newline");
+        let landed: Observed = run_under(
+            &fixture,
+            repo.as_path(),
+            mode,
+            &["commit", "--message=second", "--", "a.txt"],
+        );
+        assert_eq!(landed.code, Some(0), "{mode:?}: {}", stderr_of(&landed));
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]),
+            "one\ntwo\n",
+            "{mode:?}: the commit must hold the corrected bytes"
+        );
+        assert_eq!(
+            std::fs::read(repo.join("a.txt")).expect("worktree copy"),
+            b"one\ntwo\n",
+            "{mode:?}: the worktree copy must take the corrected bytes"
+        );
+        assert!(
+            stderr_of(&landed).contains(
+                "\"type\":\"fix-summary\",\"trigger\":\"pre-forward\",\"passes\":1,\"changedPaths\":[\"a.txt\"]"
+            ),
+            "{mode:?}: {}",
+            stderr_of(&landed)
+        );
+        assert_eq!(porcelain(&fixture, repo.as_path()), "", "{mode:?}");
+        remove_settled(&fixture);
+    }
+}
+
+/// `commit -a` stages every tracked change into the private index under both spellings of literal
+/// pathspec mode,
+/// and the real index still holds only what was staged before:
+/// the private staging is a magic pathspec too.
+#[test]
+fn a_commit_of_all_tracked_changes_lands_under_literal_pathspec_mode() {
+    for (index, mode) in [LiteralMode::Option, LiteralMode::Variable]
+        .into_iter()
+        .enumerate()
+    {
+        let fixture: Fixture = fixture(format!("commit-literal-all-{index}").as_str());
+        let repo: PathBuf = edited_repository(&fixture, "repo");
+        let landed: Observed = run_under(
+            &fixture,
+            repo.as_path(),
+            mode,
+            &["commit", "-a", "--no-only", "--message=all"],
+        );
+        assert_eq!(landed.code, Some(0), "{mode:?}: {}", stderr_of(&landed));
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["show", "HEAD:a.txt"]),
+            "one\ntwo\n",
+            "{mode:?}: the tracked edit must land"
+        );
+        assert_eq!(porcelain(&fixture, repo.as_path()), "", "{mode:?}");
+        remove_settled(&fixture);
+    }
+}
+
+/// The only configuration file the native wrapper reads.
+const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
+
+/// A secret a commit stages by path is refused before it lands,
+/// under both spellings of literal pathspec mode,
+/// and the matched text never reaches an event.
+#[test]
+fn a_forbidden_string_stops_a_commit_under_literal_pathspec_mode() {
+    let canary: String = ["LITERAL", "MODE", "CANARY"].join("-");
+    for (index, mode) in [LiteralMode::Option, LiteralMode::Variable]
+        .into_iter()
+        .enumerate()
+    {
+        let fixture: Fixture = fixture(format!("commit-literal-secret-{index}").as_str());
+        let repo: PathBuf = edited_repository(&fixture, "repo");
+        std::fs::create_dir(repo.join("rules")).expect("rules directory");
+        std::fs::write(repo.join("rules/private.txt"), format!("{canary}\n")).expect("rules");
+        std::fs::write(
+            repo.join(CONFIG_FILE_NAME),
+            "{ \"policies\": { \"security/forbidden-strings\": [\"error\", { \"builtinRules\": false, \"rulesFile\": \"rules/private.txt\" }] } }\n",
+        )
+        .expect("configuration");
+        git(
+            &fixture,
+            repo.as_path(),
+            &[
+                "add",
+                "--",
+                "rules/private.txt",
+                CONFIG_FILE_NAME,
+            ],
+        );
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=config"]);
+        std::fs::write(repo.join("leak.txt"), format!("token = {canary}\n")).expect("leak");
+        let before: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+        let refused: Observed = run_under(
+            &fixture,
+            repo.as_path(),
+            mode,
+            &["commit", "--message=leak", "--", "leak.txt"],
+        );
+        let reported: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{mode:?}: {reported}");
+        assert_eq!(
+            git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]),
+            before,
+            "{mode:?}: nothing may land"
+        );
+        assert!(
+            reported.contains("\"type\":\"finding\""),
+            "{mode:?}: {reported}"
+        );
+        assert!(
+            reported.contains("\"policyId\":\"security/forbidden-strings\""),
+            "{mode:?}: {reported}"
+        );
+        assert!(
+            reported.contains("\"trigger\":\"pre-forward\""),
+            "{mode:?}: {reported}"
+        );
+        assert!(
+            reported.contains("\"path\":\"leak.txt\""),
+            "{mode:?}: {reported}"
+        );
+        assert!(
+            !reported.contains(canary.as_str()),
+            "{mode:?}: the matched text must not reach an event: {reported}"
+        );
+        remove_settled(&fixture);
+    }
 }
 
 /// A dry run commits nothing and starts no transaction.
