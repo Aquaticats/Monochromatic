@@ -64,7 +64,7 @@ use std::path::{Path, PathBuf};
 
 /// The paths one record's update covers,
 /// derived from the two branch values when the batch names none.
-fn names_of(git: &GitContext, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> {
+fn names_of(git: &GitContext, repository: &Path, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> {
     if !owed.derived {
         let mut listed: Vec<Vec<u8>> = Vec::with_capacity(owed.paths.len());
         for path in &owed.paths {
@@ -72,7 +72,7 @@ fn names_of(git: &GitContext, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> 
         }
         return Ok(listed);
     }
-    let names: Vec<u8> = crate::service_land_follow::derived_names(git, owed.repository.as_path(), owed.old.as_str(), owed.new.as_str())?;
+    let names: Vec<u8> = crate::service_land_follow::derived_names(git, repository, owed.old.as_str(), owed.new.as_str())?;
     return Ok(names_in(names.as_slice()));
 }
 
@@ -251,7 +251,7 @@ pub fn exclude_what_a_landed_commit_left(
             continue;
         }
         let snapshot: &Path = commit_index.unwrap_or(live_index);
-        let names: Vec<Vec<u8>> = match names_of(git, &owed) {
+        let names: Vec<Vec<u8>> = match names_of(git, repository, &owed) {
             Ok(names) => names,
             Err(code) => return Err(format!("the paths of the index update batch {} owes cannot be read ({code:?})", owed.seq)),
         };
@@ -262,6 +262,12 @@ pub fn exclude_what_a_landed_commit_left(
         let held: BTreeMap<Vec<u8>, Entry> = match index_entries(git, repository, snapshot, names.as_slice()) {
             Ok(entries) => entries,
             Err(code) => return Err(format!("the commit's own index cannot be read for the paths of batch {} ({code:?})", owed.seq)),
+        };
+        // What the head holds there: a path whose copy already holds it is not left out, and is not said, because the commit
+        //  records nothing about it either way.
+        let head: BTreeMap<Vec<u8>, Entry> = match head_entries(git, repository, names.as_slice()) {
+            Ok(entries) => entries,
+            Err(code) => return Err(format!("the worktree's head cannot be read for the paths of batch {} ({code:?})", owed.seq)),
         };
         // A path the person selected is never changed by a guess.
         if commit_index.is_none() {
@@ -286,12 +292,12 @@ pub fn exclude_what_a_landed_commit_left(
             }
             let theirs: bool = match (entry, worktree_object(git, repository, name.as_slice())) {
                 (Some((mode, object)), Ok(Some((worktree_mode, mine)))) => *object == mine && *mode == worktree_mode,
-                // A file that is not there is what the person staged as absent.
-                (None, Ok(None)) => true,
-                // A file that could not be read is no evidence either way: the landed content stays, and the path is said.
+                // Nothing is proof of the person's staging here: a file that is not there with no entry in the copy is what a
+                //  landing whose index update failed leaves, so the landed entry stays and the path is said. A deletion the person
+                //  staged in that window waits for the next commit.
                 _ => false,
             };
-            if !theirs {
+            if !theirs && head.get(name) != entry {
                 excluded.push(name.clone());
             }
         }
@@ -335,7 +341,20 @@ fn worktree_object(git: &GitContext, repository: &Path, name: &[u8]) -> Result<O
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(_) => return Err(FailureCode::Unavailable),
     };
-    let request: GitRequest = GitRequest::new(repository, &[OsStr::new("hash-object"), OsStr::new("--"), path.as_os_str()]);
+    // Git stores a link as the text of its target, so that text is what is hashed: hashing through the link would read the
+    //  referent (when it exists) or fail (when it does not), neither of which is the entry Git made.
+    let linking: bool = metadata.file_type().is_symlink();
+    let mut request: GitRequest = GitRequest::new(repository, &[OsStr::new("hash-object"), OsStr::new("--stdin")]);
+    if linking {
+        let target: std::path::PathBuf = match std::fs::read_link(held.as_path()) {
+            Ok(target) => target,
+            Err(_) => return Err(FailureCode::Unavailable),
+        };
+        use std::os::unix::ffi::OsStringExt as _;
+        request.input = Some(target.into_os_string().into_vec());
+    } else {
+        request = GitRequest::new(repository, &[OsStr::new("hash-object"), OsStr::new("--"), path.as_os_str()]);
+    }
     let object: String = match run_git(git, &request) {
         Ok(answer) if answer.succeeded() => String::from_utf8_lossy(answer.stdout.as_slice()).trim().to_string(),
         _ => return Err(FailureCode::Unavailable),

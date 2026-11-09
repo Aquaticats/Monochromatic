@@ -418,8 +418,9 @@ fn an_alternate_indexes_obligation_survives_attaching_a_detached_head() {
     std::fs::copy(real_index_of(&world), landed.index.as_path()).expect("the alternate index starts as the worktree's");
     land_with_failed_index(&world, 1, &[landed]);
     // The worktree attaches to a branch at the landed commit, and the alternate index keeps its stale entry.
+    let landed_tip: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", landed_tip.as_str()]);
     git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
-    git(world.repo.as_path(), &["update-ref", "refs/heads/main", "HEAD"]);
     let alternate: PathBuf = world.root.join("alternate.index");
     let commit_index: PathBuf = world.root.join("commit.index");
     std::fs::copy(alternate.as_path(), commit_index.as_path()).expect("a commit of that index copies it");
@@ -959,5 +960,95 @@ fn a_refused_repair_stops_the_preparation_with_its_reason() {
         other => panic!("{other:?}"),
     };
     assert!(text.contains("batch 1"), "{text}");
+    remove(world.root.as_path());
+}
+
+/// A staged symlink is compared by what Git stores for a link,
+/// the hash of its target text:
+/// a restoration the person staged is theirs,
+/// and a target that does not exist does not make it unreadable.
+#[test]
+fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
+    let world: World = world("service-land-owed-symlink");
+    let link: PathBuf = world.repo.join("link");
+    std::os::unix::fs::symlink("missing-old", link.as_path()).expect("the first link");
+    git(world.repo.as_path(), &["add", "link"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    std::fs::remove_file(link.as_path()).expect("the link goes");
+    std::os::unix::fs::symlink("missing-new", link.as_path()).expect("the landed link");
+    let mut landed: CommitRequest = request(&world, "landed", "other.txt", "other\n");
+    let target: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]);
+    let _ = target;
+    landed.changes.push(crate::service_protocol::Change {
+        path: String::from("link"),
+        mode: 0o120000,
+        blob: Some(crate::test_support::git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]).clone()),
+    });
+    let _ = &landed;
+    // Land the link's target text as a blob of its own: the change is the link, not its referent.
+    let blob: String = {
+        use std::io::Write as _;
+        let mut child = std::process::Command::new(crate::test_support::REAL_GIT)
+            .current_dir(world.repo.as_path())
+            .args(["hash-object", "-w", "--stdin"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("git starts");
+        child.stdin.as_mut().expect("stdin").write_all(b"missing-new").expect("the target text");
+        let output: std::process::Output = child.wait_with_output().expect("git ends");
+        String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()
+    };
+    landed.changes = vec![crate::service_protocol::Change { path: String::from("link"), mode: 0o120000, blob: Some(blob) }];
+    land_with_failed_index(&world, 1, &[landed]);
+    // The person deliberately restores the old target text and stages it.
+    std::fs::remove_file(link.as_path()).expect("the link goes");
+    std::os::unix::fs::symlink("missing-old", link.as_path()).expect("their link");
+    git(world.repo.as_path(), &["add", "link"]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
+    assert_eq!(left, Vec::<String>::new(), "their staged restoration is theirs: {left:?}");
+    let old_blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^:link"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "link"]), format!("120000 {old_blob} 0\tlink"), "the commit records their restoration");
+    remove(world.root.as_path());
+}
+
+/// An absent worktree file with no entry in the copy is no proof of the person's staging:
+/// it is what a failed index update leaves,
+/// so the landed entry stays and nothing is deleted.
+#[test]
+fn an_absent_worktree_file_with_no_entry_keeps_the_landed_entry() {
+    let world: World = world("service-land-owed-absent");
+    let landed: CommitRequest = request(&world, "landed", "f", "f\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // Nobody staged the deletion: the file is simply gone from the worktree, and the index lacks it as the failed update left it.
+    std::fs::remove_file(world.repo.join("f")).expect("the file goes");
+    std::fs::write(world.repo.join("other.txt"), "other\n").expect("write");
+    git(world.repo.as_path(), &["add", "other.txt"]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
+    assert_eq!(left, vec![String::from("f")], "the landed entry is kept and the path is said");
+    let landed_blob: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD:f"]);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["ls-files", "-s", "--", "f"]), format!("100644 {landed_blob} 0\tf"), "nothing is deleted");
+    remove(world.root.as_path());
+}
+
+/// A derived record is read in the repository the worktree stands in now,
+/// not in the one an old record remembers,
+/// so a moved worktree commits.
+#[test]
+fn a_derived_record_of_a_moved_worktree_does_not_fail_the_commit() {
+    let world: World = world("service-land-owed-derived-moved");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    let mut records: Vec<crate::owed_index_update::Owed> = crate::owed_index_update::records_of(world.repo.join(".git").as_path());
+    assert_eq!(records.len(), 1);
+    records[0].derived = true;
+    records[0].paths = Vec::new();
+    records[0].repository = world.root.join("gone-away");
+    crate::owed_index_update::write(&records[0]).expect("the record");
+    let commit_index: PathBuf = commit_index_of(&world);
+    let left: Vec<String> = exclude(&world, Some(commit_index.as_path()));
+    assert_eq!(left, vec![String::from("one.txt")], "the derived path is left out, in the repository that is there");
     remove(world.root.as_path());
 }

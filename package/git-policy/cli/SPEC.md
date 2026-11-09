@@ -5854,6 +5854,25 @@ or `git commit -- <paths>` to take the worktree's content for them.
 A path with unmerged stages is left alone,
 because a merge in progress is the person's own act,
 and an explicit-path commit names its own selection and is never changed.
+A path is left out only on evidence,
+and absence is not evidence:
+a worktree file that is not there with no entry in the copied index is what a landing whose index update
+failed leaves,
+so the landed entry is kept and the path is said.
+A deletion the person staged in that window therefore waits for the next commit,
+which records it once the index and the branch are read together.
+A link is compared by what Git stores for a link,
+the hash of its target text with mode `120000`,
+never by hashing through it.
+Two interleavings need a second process inside a few instructions and are not covered:
+settling the last owed record between a commit's copy and its exclusion,
+where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
+path,
+and a concurrent staging of the same content a `git commit --all` selected while an unrelated record
+exists,
+where that content is left out of that commit.
+In both the person sees one line naming the path among those left out,
+and the next commit records what the index holds.
 The comparison is made against the commit's own index,
 because that snapshot is what the commit records:
 a program that catches the live index up between the copy and the comparison leaves the snapshot's stale

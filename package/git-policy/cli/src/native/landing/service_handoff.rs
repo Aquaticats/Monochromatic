@@ -26,7 +26,7 @@ use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
 use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// What the wrapper knows about a commit the service landed.
 #[derive(Clone, Debug)]
@@ -150,38 +150,40 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
 }
 
 /// What:
-///  Says once,
-/// in one line,
-/// that a commit of this worktree is held with no verdict.
+///  Records one line for each held push of a worktree,
+/// so the notice every command shows says it once.
 /// Why:
-///   A push whose command died before its checks ran is not released by anything,
-/// and the next push of this branch carries that commit.
-/// The next command in the worktree says which commit it is,
-/// through the notice the worktree's push failures use,
-/// so it is shown once and removed as the person reads it.
+///   A push whose command stopped before the push was released is not released by anything,
+/// and the next push
+///  of its branch carries the commit.
+/// The line is recorded through the notice the worktree's push
+///  failures use,
+/// so it is shown once and taken as it is read,
+/// and it says what is true of both a
+///  command that died and one whose checks never finished.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// noticeHeldPushes(handoff, landed)
+/// recordHeldPushNotices(gitDir) // one skip record per held commit
 /// ```
-pub fn notice_held_pushes(handoff: &ServiceHandoff, landed: &str) {
-    let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
-    let mine: String = push_item(handoff, landed).id();
+pub fn record_held_push_notices(git_dir: &Path) {
+    let work_dir: PathBuf = work_directory(git_dir);
     let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
         return;
     };
     for entry in listing.flatten() {
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if name == mine {
-            continue;
-        }
         let Some(commit) = name.strip_prefix(format!("{}-", WorkKind::Push.name()).as_str()) else { continue };
+        let item: WorkItem = match std::fs::read_to_string(entry.path()).ok().and_then(decode_item) {
+            Some(item) => item,
+            None => continue,
+        };
         let said: String = format!(
-            "the commit {commit} is held: its command stopped before its checks ran, and it goes out with the next push from {}",
-            handoff.reference
+            "the commit {commit} is held: its command stopped before its push was released, and it goes out with the next push from {}",
+            item.branch_ref
         );
-        if let Err(reason) = crate::push_failure_notice::record_push_skip(handoff.git_dir.as_path(), handoff.reference.as_str(), commit, said.as_str()) {
-            crate::diagnostic_log::warn("noticeHeldPushes", format!("the held push of {commit} cannot be said ({reason})").as_str());
+        if let Err(reason) = crate::push_failure_notice::record_push_skip(git_dir, item.branch_ref.as_str(), commit, said.as_str()) {
+            crate::diagnostic_log::warn("recordHeldPushNotices", format!("the held push of {commit} cannot be said ({reason})").as_str());
         }
     }
 }
@@ -256,3 +258,9 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
 #[cfg(test)]
 #[path = "service_handoff_tests.rs"]
 mod tests;
+
+/// The item one held record's text holds,
+/// or nothing when it cannot be read.
+fn decode_item(text: String) -> Option<WorkItem> {
+    return WorkItem::decode(text.as_str()).ok();
+}

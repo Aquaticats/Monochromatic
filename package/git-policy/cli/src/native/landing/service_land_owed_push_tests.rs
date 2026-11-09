@@ -80,38 +80,24 @@ fn a_held_push_stays_held_when_the_service_restarts() {
     remove(world.root.as_path());
 }
 
-/// The next command in the worktree says once,
+/// Every command in the worktree says once,
 /// in one line,
-/// which commit is held.
+/// which commit is held:
+/// the notice is recorded beside the push failures and taken as it is shown.
 #[test]
-fn the_next_command_says_which_commit_is_held() {
+fn every_command_says_which_commit_is_held() {
     let world: World = world("service-land-owed-push-notice");
     let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
     land_with_failed_index(&world, 1, &[landed]);
     let commit: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
-    let handoff: crate::service_handoff::ServiceHandoff = crate::service_handoff::ServiceHandoff {
-        config: crate::service_client::ClientConfig {
-            address: crate::service_server::Bind::Path(world.root.join("no-service.sock")),
-            activation: crate::service_client::Activation::Managed,
-            start_wait: std::time::Duration::from_millis(100),
-            heartbeat_silence: std::time::Duration::from_secs(1),
-            start_watch: None,
-            keep_fresh: None,
-            answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
-            withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
-            extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
-            start_ceiling: crate::wait_ceilings::START_CEILING,
-        },
-        repository: world.repo.clone(),
-        git_dir: world.repo.join(".git"),
-        reference: String::from("refs/heads/main"),
-        parent: String::from("0".repeat(40)),
-    };
-    crate::service_handoff::notice_held_pushes(&handoff, "0".repeat(40).as_str());
+    crate::service_handoff::record_held_push_notices(world.repo.join(".git").as_path());
     let shown: Vec<String> = crate::push_failure_notice::take_push_failures(world.repo.join(".git").as_path());
     assert_eq!(shown.len(), 1, "one line: {shown:?}");
     assert!(shown[0].contains(commit.as_str()), "{}", shown[0]);
-    assert!(shown[0].contains("held") && shown[0].contains("checks") && shown[0].contains("next push"), "{}", shown[0]);
+    assert!(shown[0].contains("held") && shown[0].contains("before its push was released") && shown[0].contains("next push"), "{}", shown[0]);
     assert!(crate::push_failure_notice::take_push_failures(world.repo.join(".git").as_path()).is_empty(), "said once");
+    // The record itself is still held: a notice is not a release.
+    let work_dir: PathBuf = crate::service_work::work_directory(world.repo.join(".git").as_path());
+    assert!(state_directory(work_dir.as_path(), crate::work_item::HELD).join(format!("push-{commit}")).exists(), "the push is still held");
     remove(world.root.as_path());
 }
