@@ -10537,9 +10537,29 @@ For injected commit-only semantics:
     and a file it cannot read is left to Git alone).
     Native Git tracks these paths through the real index and takes their worktree content without asking an ignore rule,
     so the private index must track them too (issue 1807).
-3.  Add exact selected worktree paths to that index using Git pathspec semantics.
-    A selected path that an ignore rule matches and that no index stages is refused,
-    and the message says to stage it with `git add --force` first.
+3.  Add selected worktree paths to that index using Git pathspec semantics,
+    and only the paths native Git takes for the same pathspecs.
+    A selected element that names one file of the worktree is an exact path:
+    it carries no pathspec magic,
+    no pattern character of a mode in effect (`*`,
+    `?`,
+    `[` and `\\` are ordinary in a literal or a noglob mode),
+    and a file or a link is at the pathname it gives,
+    and it is staged with `git add -- <element>`,
+    so `git commit -- <file>` records a file nothing staged,
+    where native Git refuses the pathspec,
+    and a path that an ignore rule matches and that no index stages is refused with the message that says
+    to stage it with `git add --force` first.
+    Every other element is a directory,
+    a pattern or pathspec magic,
+    and it stages the tracked paths the private index holds and the carried additions,
+    never a file nothing staged,
+    with `git add --update -- <element>`:
+    native Git commits the tracked and staged paths a directory or a pattern matches,
+    so a commit of `.`,
+    `*` or a directory leaves every untracked file untracked.
+    A pathspec whose elements match no entry of the private index fails as native Git fails it,
+    and a pathspec file this wrapper cannot read is left to Git alone.
 4.  Apply policy patches to the commit index.
 5.  Remove pathspecs and internal `--only` before invoking native Git
     because the private index is the complete intended tree.

@@ -65,6 +65,31 @@ pub fn modes_in_effect(global_prefix: &[OsString], overlay: &[(OsString, OsStrin
     return found;
 }
 
+/// What:
+///  Whether the pathspec modes in effect read `*`,
+/// `?`,
+/// `[` and `\\` as pattern characters,
+/// so a token holding one of them names a set and not one file.
+/// Why:
+///   `--literal-pathspecs` and `--noglob-pathspecs` make those characters ordinary in a pathspec,
+/// so `st*r.txt` then names the file of that name;
+/// every other mode makes it a pattern.
+///  Git refuses two incompatible modes in one command,
+/// so a command that reaches here carries one answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const globCharactersAreLiteral = (modes: string[]) => modes.some((mode) => /literal|noglob/i.test(mode));
+/// ```
+pub fn glob_characters_are_literal(modes: &[String]) -> bool {
+    for mode in modes {
+        if matches!(mode.as_str(), "--literal-pathspecs" | "--noglob-pathspecs" | "GIT_LITERAL_PATHSPECS" | "GIT_NOGLOB_PATHSPECS") {
+            return true;
+        }
+    }
+    return false;
+}
+
 /// The items in backticks,
 /// joined with commas.
 fn backticked<'item>(items: impl Iterator<Item = &'item str>) -> String {

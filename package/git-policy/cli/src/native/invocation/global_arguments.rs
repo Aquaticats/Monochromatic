@@ -300,6 +300,39 @@ pub fn without_pathspec_mode_options(global_prefix: &[OsString]) -> Vec<OsString
 }
 
 /// What:
+///  The caller's pathspec-mode options,
+/// in the order the caller wrote them.
+/// Why:
+///   A private index start runs without the caller's global prefix (`GitRequest::without_prefix`),
+/// so the caller's own pathspecs reach Git without the mode the caller chose:
+///  `--noglob-pathspecs commit -- 'st*r.txt'` then stages the untracked `stxr.txt`,
+///  and `--icase-pathspecs commit -- a.txt` misses a staged `A.TXT`.
+///  A mode the caller set as a variable is already in the environment of every private start;
+/// the mode written as an option is forwarded by this list.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathspecModeOptions = (prefix: string[]) => prefix.filter((token) => MODE_OPTIONS.includes(token));
+/// ```
+pub fn pathspec_mode_options(global_prefix: &[OsString]) -> Vec<OsString> {
+    let mut kept: Vec<OsString> = Vec::new();
+    // True while the token being visited is the value of the separated-value option before it, so a directory that spells a
+    // mode option is still that directory and not a mode.
+    let mut is_value: bool = false;
+    for token in global_prefix {
+        if is_value {
+            is_value = false;
+            continue;
+        }
+        is_value = takes_value(token.as_encoded_bytes());
+        if !is_value && is_pathspec_mode_option(token.as_encoded_bytes()) {
+            kept.push(token.clone());
+        }
+    }
+    return kept;
+}
+
+/// What:
 ///  Whether Git reads this token as a global option that sets a pathspec mode.
 /// Why:
 ///   `conflict_side_modes::MODE_OPTIONS` names those five options for the conflict-side guard,
