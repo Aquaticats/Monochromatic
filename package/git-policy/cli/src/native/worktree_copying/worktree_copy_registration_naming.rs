@@ -10,7 +10,8 @@
 //! cut short or naming something else while the worktree stays registered;
 //! the registrations answer the same question without reading the pointer at all.
 //!  Nothing here waits or fails:
-//! a `gitdir` that cannot be read is one Git would prune,
+//! a `gitdir` that cannot be read, or holds nothing that could be read,
+//! is an answer that proves nothing rather than an absence,
 //! and a directory that cannot be listed is reported as unknown rather than as an absence.
 //!
 //! In TS you'd write (pseudocode):
@@ -46,14 +47,38 @@ pub enum NamedRegistration {
 }
 
 /// What:
+///  What one registration's `gitdir` file says about a destination.
+/// Why:
+///  Only a `gitdir` that was read whole and names another place proves that this registration names nothing;
+/// a file a command is rewriting is empty,
+/// gone or unreadable for as long as it runs,
+/// and it proves nothing either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Naming = 'names' | 'names-nothing' | 'unproven';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Naming {
+    /// The registration's `gitdir` names the destination.
+    Names,
+    /// The registration names a worktree that is gone or is another place.
+    NamesNothing,
+    /// The registration's `gitdir` was not read whole, or could not be resolved,
+    /// so it proves nothing.
+    Unproven,
+}
+
+/// What:
 ///  Which registration under `<common>/worktrees` names `destination`.
 /// Why:
 ///   The destination's own `.git` file is not evidence:
 /// a command that rewrites it leaves it empty,
 /// half written or naming another directory,
 /// and the registration stays.
-/// A registration whose `gitdir` is missing or names no worktree is one Git would prune,
-/// so it names nothing.
+/// A registration that was read whole and names no worktree, or one whose worktree is gone, is one Git would prune,
+/// so it names nothing,
+/// while a `gitdir` that is gone, empty or unreadable proves nothing.
 ///  The destination is compared by the one canonical spelling both exist under,
 /// because a registration written before the repository moved behind a link names the worktree all the same.
 ///
@@ -80,13 +105,12 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
             }
         };
         match read_plain_file(admin.join("gitdir").as_path(), SMALL_FILE_LIMIT) {
-            Ok(recorded) => {
-                if names_destination(admin.as_path(), recorded.as_slice(), destination) {
-                    return NamedRegistration::Named(admin);
-                }
-            }
-            // An entry without a `gitdir` file is one Git would prune, and it names no worktree.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(recorded) => match naming_by(admin.as_path(), recorded.as_slice(), destination) {
+                Naming::Names => return NamedRegistration::Named(admin),
+                Naming::NamesNothing => {}
+                Naming::Unproven => unproven = true,
+            },
+            // A `gitdir` a command is rewriting is gone or unreadable for as long as it runs, so it proves nothing.
             Err(_unreadable) => unproven = true,
         }
     }
@@ -94,35 +118,36 @@ pub fn registration_naming(common_dir: &Path, destination: &Path) -> NamedRegist
 }
 
 /// What:
-///  Whether one registration's `gitdir` names `destination`.
+///  What one registration's `gitdir` says about `destination`.
 /// Why:
 ///  `gitdir` holds the path of the worktree's `.git` file,
 /// absolute or relative to the administrative directory,
 /// and its last component is always `.git`;
 /// the directory that holds it is the worktree.
 /// A registration whose recorded worktree is gone names nothing this copy could fill,
-/// and one that cannot be resolved for another reason is not this destination's.
+/// while one that could not be read or resolved names nothing either way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const marker = resolveLexically(admin, read('gitdir').trim()); return canonicalize(dirname(marker)) === destination
+/// const naming = namingBy(admin, read('gitdir'), destination); // 'names' | 'names-nothing' | 'unproven'
 /// ```
-fn names_destination(admin: &Path, recorded: &[u8], destination: &Path) -> bool {
+fn naming_by(admin: &Path, recorded: &[u8], destination: &Path) -> Naming {
     let line: &[u8] = recorded.trim_ascii();
     if line.is_empty() {
-        return false;
+        return Naming::Unproven;
     }
     let marker: PathBuf = match resolve_lexically(admin, line) {
         Ok(resolved) => resolved,
-        Err(()) => return false,
+        Err(()) => return Naming::NamesNothing,
     };
     let Some(named) = marker.parent() else {
-        return false;
+        return Naming::NamesNothing;
     };
-    let Ok(canonical) = std::fs::canonicalize(named) else {
-        return false;
+    return match std::fs::canonicalize(named) {
+        Ok(canonical) if canonical.as_path() == destination => Naming::Names,
+        Ok(_another_place) => Naming::NamesNothing,
+        Err(_unresolved) => Naming::NamesNothing,
     };
-    return canonical.as_path() == destination;
 }
 
 /// Registration naming controls stay out of the release executable.

@@ -45,11 +45,12 @@ use std::path::{Path, PathBuf};
 /// cut short or naming something else for as long as it runs,
 /// and the worktree stays registered throughout.
 /// A registration that names the destination while its pointer does not is not an absence,
+/// and neither is a registration or a destination that could not be read,
 /// so the copy is kept and the person is told.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type DestinationRegistration = 'registered' | 'unregistered' | 'unconfirmed';
+/// type DestinationRegistration = 'registered' | 'unregistered' | 'unconfirmed' | 'unproven';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Registration {
@@ -62,6 +63,9 @@ pub enum Registration {
     /// but the destination's pointer does not name it,
     /// so whether the copy may go on cannot be told.
     Unconfirmed,
+    /// The repository's registrations, or the destination's own path, could not be examined,
+    /// so whether a registration names the destination cannot be told.
+    Unproven,
 }
 
 /// What:
@@ -181,7 +185,9 @@ fn pointer_admin(destination: &Path) -> Option<PathBuf> {
 /// cut short or naming another directory while the worktree stays registered,
 /// so reading it alone discarded copies of worktrees that were still there.
 /// Only a proven absence of the registration answers `Unregistered`;
-/// every other state of the pointer is the answer that proves nothing,
+/// every other state of the pointer,
+/// and every file that could not be read,
+/// is an answer that proves nothing,
 /// which keeps the copy and tells the person.
 /// No answer here is a failure:
 /// the pending check runs before every forwarded command,
@@ -191,7 +197,7 @@ fn pointer_admin(destination: &Path) -> Option<PathBuf> {
 /// ```ts
 /// const registration = registrationNaming(commonDir, destination);
 /// if (registration === none) return 'unregistered';
-/// if (registration === unknown) return 'unconfirmed';
+/// if (registration === unknown) return 'unproven';
 /// return pointerAdmin(destination) === registration.named ? 'registered' : 'unconfirmed';
 /// ```
 fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
@@ -200,7 +206,7 @@ fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
         Ok(canonical) if canonical == destination => {}
         Ok(_) => return Registration::Unregistered,
         Err(error) if not_there(&error) => return Registration::Unregistered,
-        Err(_unreadable) => return Registration::Unconfirmed,
+        Err(_unreadable) => return Registration::Unproven,
     }
     return match registration_naming(common_dir, destination) {
         // No registration names the destination, so no copy is this destination's.
@@ -210,7 +216,8 @@ fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
             Some(named) if named == admin => Registration::Registered,
             _ => Registration::Unconfirmed,
         },
-        NamedRegistration::Unknown => Registration::Unconfirmed,
+        // A `gitdir` that could not be read whole, or could not be resolved, proves nothing about the destination.
+        NamedRegistration::Unknown => Registration::Unproven,
     };
 }
 
@@ -218,7 +225,7 @@ fn read_registration(common_dir: &Path, destination: &Path) -> Registration {
 ///  Whether a destination is still a linked worktree of the common directory.
 /// Why:
 ///   Recovery decides whether to finish or discard a copy from this answer,
-/// and every state of the destination's `.git` file reaches one of the three.
+/// and every state of the destination's `.git` file and of the registrations reaches one of the four.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -313,6 +320,16 @@ fn recover_transaction(
             false,
             Some(format!(
                 "monochromatic-git-policy-cli: kept an interrupted ignored-state copy for {destination}: this repository still registers that worktree, but its `.git` file does not name that registration, so nothing was changed. `git worktree list` shows what is registered there, and once a command has left that file naming the registration again the next command resumes the copy."
+            )),
+        ));
+    }
+    // A registration or a destination that could not be read is not an absence of one: the copy stays,
+    // and the person is told which files were kept rather than which answer was assumed.
+    if registration == Registration::Unproven {
+        return Ok((
+            false,
+            Some(format!(
+                "monochromatic-git-policy-cli: kept an interrupted ignored-state copy for {destination} because this repository's registrations, or that destination, could not be examined: whether a registration names that worktree cannot be told, so nothing was changed. Its journal and private stage stay where they are; `git worktree list` shows what is registered there, and the next command resumes the copy once they can be read."
             )),
         ));
     }
