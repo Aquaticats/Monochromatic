@@ -136,7 +136,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   `8026d49827` the alias branch,
   `8d210d933a` the standards-review branch,
   `b28c5cca6f` the entry-and-service branch,
-  and `b3210c70ae` the worktree-copy branch.
+  `b3210c70ae` the worktree-copy branch,
+  and `147f5badc3` the conversion branch.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -159,20 +160,21 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `resume-after-provider-error-prompt.md` for `worktree-add-findings-fixed`,
-  whose run 4 the provider ended mid-work,
-  `worktree-copy-round-4-prompt.md` for `worktree-copy-records-keep-path-bytes`
-  (an empty `.git` discards a pending copy,
-  and a FIFO at `.git` blocks recovery with no bound),
-  and `standards-review-round-2-prompt.md`,
-  whose run 2 was stopped at once because a miscount had started a twenty-first agent.
+  `standards-review-round-2-prompt.md`,
+  whose run 2 was stopped at once because a miscount had started a twenty-first agent,
+  and `subvolume-conversion-round-4-prompt.md` for `subvolume-conversion-findings-fixed`
+  (a same-size edit with its time restored during the proving pass is deleted with the old tree,
+  an edit to the installed file is not compared,
+  and a FIFO swapped in blocks the comparison with no bound).
+  Start each with `start-pi-run-if-a-slot-is-free.ts`,
+  which counts launchers as well as units and refuses at the limit.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
   `intent-to-add-keeps-stat-data` runs 3 and 4,
   `invocation-route-findings-fixed` run 2,
   `tokio-repair-threads-on-the-runtime` run 1
   and `worktree-add-findings-fixed` run 4.
-  All but the last have been resumed.
+  All have been resumed.
 - `merge-route-round-8-sol.txt` names defects in code new on that branch,
   among them a clean filter that hides bytes recovery then deletes,
   so the branch is not to land until its run 9 reports.
