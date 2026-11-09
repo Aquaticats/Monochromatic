@@ -299,7 +299,14 @@ pub fn prepare<F: RepositoryFacts>(
     //  it, and the commit that follows is the one Git would have built for a resolved merge. The files are named in the warning.
     let unmerged_files: Vec<Vec<u8>> = list_unmerged_index_paths(context, cwd, indexes.commit_index.as_path())?;
     if !unmerged_files.is_empty() {
-        let mut staging: Vec<OsString> = vec![OsString::from("add"), OsString::from("--all"), OsString::from("--")];
+        // Each path is named with `:(top,literal)` magic, and this start skips the caller's prefix, so literal
+        // pathspec mode is switched off here: under it the names would match nothing and the commit would fail.
+        let mut staging: Vec<OsString> = vec![
+            OsString::from("--no-literal-pathspecs"),
+            OsString::from("add"),
+            OsString::from("--all"),
+            OsString::from("--"),
+        ];
         for path in &unmerged_files {
             let mut spec: Vec<u8> = b":(top,literal)".to_vec();
             spec.extend_from_slice(path.as_slice());
