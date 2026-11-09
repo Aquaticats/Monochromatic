@@ -6552,6 +6552,17 @@ and nothing after that;
 the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
 and the whole proof 2.9 to 3.1 ms,
 on the release build of 2026-11-09.
+The attribute files the proof reads are charged to the same bound,
+each at most `ATTRIBUTES_LIMIT` and never more than the room that is left,
+so a path whose attributes do not fit keeps the zero stat data and costs a refresh.
+A directory whose `.gitattributes` the index holds while the worktree's copy is missing refuses the record:
+Git reads the index's copy there (`attr.c`,
+measured on Git 2.56.0),
+and a sparse checkout leaves the file outside its cone the same way.
+A read has no time bound,
+which is native Git's own behaviour for the same files under `index.lock`;
+what bounds the person is the client's answer ceiling,
+after which it withdraws the request and the commit is reported as not landed.
 The 4,000 newest non-merge commits of this repository change a median of 27 KB
 (p90 209 KB,
 p99 3.3 MB,

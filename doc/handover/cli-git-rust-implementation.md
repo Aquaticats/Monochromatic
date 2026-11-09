@@ -3541,6 +3541,97 @@ Failing output of the new controls, before their fix:
 
 The measurements and what is still open are in the section after this one.
 
+### The second review of the recorded stat data (2026-11-09T04:30:00-05:00)
+
+The second cross-vendor review found four defects in the proof and named three things it could not determine.
+
+What it found, and what each answer was:
+
+- An attributes file the index holds applies where the worktree's copy is missing,
+  and the proof treated a missing file as no attributes:
+  real Git falls back to the index (`attr.c` `prepare_attr_stack`),
+  probed on Git 2.56.0
+  (`git check-attr filter -- a.txt` still answers `filter: weird` after the worktree's `.gitattributes` is removed,
+  and a sparse checkout whose cone excludes the file reads the index the same way).
+  Fixed in `be7d25c004`:
+  the landing collects the directories whose `.gitattributes` the index holds
+  (`indexed_attribute_directories`,
+  from the entries before the reset and the tree it installs),
+  and the proof refuses a path whose ancestry has such a directory without a worktree copy,
+  from the root down.
+  A path with no indexed copy in its ancestry is unaffected.
+- An unsuccessful read escaped the content bound:
+  the overflow probe read one byte past the room and the caller charged the room,
+  and a partial read that then failed charged nothing.
+  Fixed in `1d16a4aa5e`:
+  the read is one linear pass in `READ_CHUNK` pieces charged as they arrive,
+  capped at the room,
+  and the size the open handle reports decides whether a file is read at all,
+  so nothing is read past the bound and nothing charged for it.
+  Its controls count the bytes the file hands over, through the new read seam,
+  rather than the counter they feed.
+- Attribute reads bypassed the bound and the parsed files stayed cached without one.
+  Fixed in `c5989ba4eb`:
+  `ContentJudge` charges every attribute byte it reads to the landing's budget
+  (`charge_attributes_to`),
+  refuses a file that does not fit,
+  and keeps no more than it charged.
+  A refusal costs the record and never the commit:
+  the reset still proceeds and the entry keeps the zero value.
+  The attribute reading moved to `worktree_clean_content_attributes.rs` for the line limit.
+- A stalled regular-file read has no time bound, and `O_NONBLOCK` does not supply one.
+  It holds:
+  `guarded` is panic protection only (`repo_read_hook.rs:73`),
+  and every ceiling in the landing wraps a child process (`child_watch`) or a client's wait,
+  never an in-process read.
+  What bounds the person is the client's `ANSWER_CEILING` (20 minutes,
+  `wait_ceilings.rs:34`):
+  the client then withdraws the request,
+  the service takes a withdrawal between two landings,
+  and a landing inside the read reports `WithdrawalUnconfirmed` with the step it is stuck in,
+  so the commit is reported and never lands by itself.
+  What we add over native Git:
+  native `git commit` reads the same files synchronously while holding `index.lock`,
+  so a stalled mount stalls it too,
+  but only its own process;
+  our read holds the service's landing thread,
+  and that worktree's other commits queue behind it.
+  Not fixed here:
+  a time bound needs the proof on a worker thread with a deadline
+  (the judge and its caches borrow the landing, so a bounded job would be a per-landing worker that is abandoned on a
+  stall,
+  leaving a thread and a file handle behind each time),
+  which is a cost on the commit path and a leak on the mount it guards,
+  and moving the proof before the lock costs a wide change through the landing's recovery paths
+  and work repeated on every rebuild.
+  The read is bounded in bytes (32 MiB) and the proof costs 2.9 to 3.1 ms for 200 paths,
+  three orders of magnitude inside the owner's five-second bound for a filesystem that answers at all.
+
+What the review could not determine, checked here:
+
+- Attribute matching with case folding and Unicode:
+  `may_apply` answers "may apply" for every spelling it does not model (a quote,
+  an escape,
+  a bracket class,
+  `**`,
+  a trailing slash,
+  a comparison over the work limit),
+  and compares the modelled ones byte for byte,
+  which is Git's own case-sensitive byte matcher (`wildmatch` with `WM_PATHNAME` and no case folding);
+  a "does not apply" answer is therefore one Git would also not match.
+- The nanosecond racy comparison:
+  `IndexStamp::is_racy` is Git's `is_racy_stat` with `USE_NSEC`,
+  and a Git built without nanosecond times compares whole seconds,
+  which marks more entries racily clean than the proof does,
+  so it can only hash more than the proof recorded and never hide an edit.
+  The build here (Git 2.56.0) does not report the option in `git version --build-options`.
+- Sparse indexes and sparse checkouts:
+  `index.sparse` and `core.splitIndex` are in the reset's declined configuration
+  (`index_settings.rs`),
+  so no proof runs for such an index,
+  and the configuration control now covers both keys;
+  a sparse checkout's missing files and missing `.gitattributes` are refused by the proof's own checks.
+
 ### What the recorded stat data and the parallel walk measured (2026-11-08T19:45:00-05:00)
 
 Measured on this host (8 CPUs,
