@@ -206,6 +206,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   (a sweep or release can remove a tree a queued landing needs,
   a slow cleanup fails a commit with `AlreadyExists`,
   and the first sweep has no limit across entries).
+  `wrapper-issue-defects-round-3-prompt.md` for `wrapper-issue-defects-and-linear-scans` as run 3
+  (its branch landed as `3de639be89`;
+  a merge message can claim a false tracking relationship,
+  a conflict diagnostic names the wrong branch,
+  a repository path with a newline reads the wrong index,
+  and `published_tips` is quadratic).
+  Issue 6007 stays open until that round reports.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
 - The provider ended several runs with `terminated`:
