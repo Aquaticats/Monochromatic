@@ -1264,8 +1264,8 @@ fn a_record_of_another_index_names_no_path_of_this_one() {
     let capture: PathBuf = world.root.join("capture.index");
     std::fs::copy(real_index_of(&world), capture.as_path()).expect("the copy a commit makes");
     let commit_index: PathBuf = commit_index_of(&world);
-    std::fs::write(world.repo.join("later.txt"), "later\n").expect("write");
-    git(world.repo.as_path(), &["add", "later.txt"]);
+    // The live index catches up with the landing, so the moved comparison lists one.txt although no record of this index names it.
+    git(world.repo.as_path(), &["add", "one.txt"]);
     let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
         &world.context.git,
         world.repo.as_path(),
