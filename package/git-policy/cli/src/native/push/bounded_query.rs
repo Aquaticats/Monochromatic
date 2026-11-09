@@ -54,7 +54,8 @@ use crate::lazy_runtime::run_on_runtime;
 use crate::start_retry::spawn_retrying_without_blocking;
 /// Owned OS strings of the child environment.
 use std::ffi::OsString;
-/// The pipe's own descriptor, for a write that must not wait in a full pipe.
+/// The pipe's own descriptor,
+/// for a write that must not wait in a full pipe.
 use std::os::fd::AsFd;
 use std::os::fd::AsRawFd;
 /// The anonymous output files and their reading back.
@@ -348,7 +349,7 @@ fn flood_of(arguments: &str) -> SingleFlightError {
 fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duration) -> Result<std::thread::JoinHandle<()>, String> {
     let Some(open) = pipe else {
         // No input was asked of the command, so there is nothing to write and its standard input is not piped.
-        return match crate::scoped_start::spawn_named("cli-git-second-pass-input", || {}) {
+        return match crate::scoped_start::spawn_named("cli-git-second-pass-input", nothing_to_write) {
             Ok(writer) => Ok(writer),
             Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
         };
@@ -360,6 +361,16 @@ fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duratio
         Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
     };
 }
+
+/// A step for the thread a command with no input gets:
+/// it writes nothing and ends,
+/// which closes the writing end it was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// () => {}
+/// ```
+fn nothing_to_write() {}
 
 /// What:
 ///  Writes `bytes` into `open` while the command keeps taking them,

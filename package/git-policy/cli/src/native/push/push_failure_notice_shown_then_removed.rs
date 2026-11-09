@@ -89,7 +89,12 @@ impl Notice {
     /// unlink(claim)
     /// ```
     pub fn show(&self, out: &mut impl Write) -> std::io::Result<()> {
-        if let Err(error) = writeln!(out, "{}", self.text).and_then(|()| { return out.flush(); }) {
+        let written: std::io::Result<()> = writeln!(out, "{}", self.text);
+        let shown: std::io::Result<()> = match written {
+            Ok(()) => out.flush(),
+            Err(error) => Err(error),
+        };
+        if let Err(error) = shown {
             crate::push_failure_notice_claimed_by_one_command::give_back(self.claim.as_path(), self.record.as_path());
             return Err(error);
         }
@@ -126,7 +131,8 @@ thread_local! {
     static BEFORE_REMOVAL: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
-/// Plays `step` in the instant before a claim is removed, until the guard drops.
+/// Plays `step` in the instant before a claim is removed,
+/// until the guard drops.
 #[cfg(test)]
 pub(crate) fn before_removal_in_a_control(step: impl Fn() + 'static) -> BeforeRemovalGuard {
     BEFORE_REMOVAL.with(|slot| { *slot.borrow_mut() = Some(Box::new(step)); });
@@ -144,12 +150,13 @@ impl Drop for BeforeRemovalGuard {
     }
 }
 
-/// Plays the control's step, if one is set.
+/// Plays the control's step,
+/// if one is set.
 #[cfg(test)]
 fn play_before_removal() {
     // Taken out of the slot while it runs, so a step that itself shows a notice does not reach this one again.
-    let step: Option<Box<dyn Fn()>> = BEFORE_REMOVAL.with(|slot| { return slot.borrow_mut().take(); });
-    if let Some(step) = step {
+    let played: Option<Box<dyn Fn()>> = BEFORE_REMOVAL.with(|slot| { return slot.borrow_mut().take(); });
+    if let Some(step) = played {
         step();
         BEFORE_REMOVAL.with(|slot| { *slot.borrow_mut() = Some(step); });
     }

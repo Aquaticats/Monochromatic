@@ -426,7 +426,9 @@ fn a_push_of_a_commit_no_ref_holds_says_so() {
 }
 
 /// What:
-///  A repository with a commit on `feature`, pushed once, whose branch is then deleted.
+///  A repository with a commit on `feature`,
+/// pushed once,
+/// whose branch is then deleted.
 /// Why:
 ///   The push's own failure is what the service must read,
 /// so the fixture is a real repository and a real remote;

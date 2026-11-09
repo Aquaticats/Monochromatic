@@ -94,7 +94,8 @@ thread_local! {
     static BETWEEN_LOOK_AND_WRITE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
-/// Plays `step` in the instant between the look at the checkout and the write, until the guard drops.
+/// Plays `step` in the instant between the look at the checkout and the write,
+/// until the guard drops.
 #[cfg(test)]
 pub(crate) fn between_look_and_write_in_a_control(step: impl Fn() + 'static) -> BetweenGuard {
     BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = Some(Box::new(step)); });
@@ -112,12 +113,13 @@ impl Drop for BetweenGuard {
     }
 }
 
-/// Plays the control's step, if one is set.
+/// Plays the control's step,
+/// if one is set.
 #[cfg(test)]
 fn play_between_look_and_write() {
     // The step borrows nothing of the caller, so it runs here rather than through a reference that would hold the borrow.
-    let step: Option<Box<dyn Fn()>> = BETWEEN_LOOK_AND_WRITE.with(|slot| { return slot.borrow_mut().take(); });
-    if let Some(step) = step {
+    let played: Option<Box<dyn Fn()>> = BETWEEN_LOOK_AND_WRITE.with(|slot| { return slot.borrow_mut().take(); });
+    if let Some(step) = played {
         step();
         BETWEEN_LOOK_AND_WRITE.with(|slot| { *slot.borrow_mut() = Some(step); });
     }
@@ -203,8 +205,8 @@ pub(crate) fn move_the_named_branch(git: &PushGit, branch_ref: &str, local: &str
         //  this branch's tree over them would stage a reversal of the merge on a branch that still holds it.
         if !still_on_the_branch(git, branch_ref, local)? {
             let merged: Option<String> = tree_of(git, merge_oid)?;
-            let checked_out: Option<String> = tree_of(git, "HEAD")?;
-            match checked_out {
+            let shown_here: Option<String> = tree_of(git, "HEAD")?;
+            match shown_here {
                 // The checkout already shows the merge's tree: nothing of this fast-forward is in it.
                 Some(tree) if merged.as_deref() == Some(tree.as_str()) => {
                     debug(TAG, "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back");

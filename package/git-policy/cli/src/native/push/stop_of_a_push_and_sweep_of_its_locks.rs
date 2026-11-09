@@ -141,7 +141,7 @@ pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) 
 fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
     let started = spawn_on_runtime(async move {
         // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
-        let _collected: usize = reap_abandoned_children();
+        let _earlier: usize = reap_abandoned_children();
         if let Some(uncollected) = child {
             let mut owned: OwnedChild = adopt(uncollected);
             // The exit status is not reported: the push was reported at its deadline.
@@ -237,6 +237,23 @@ fn keep_abandoned(child: Child) {
     }
 }
 
+/// Whether `child` has not ended yet,
+/// collecting its exit when it has.
+/// A handle that cannot be judged is given up,
+/// since keeping it would hold a place for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (child) => { const status = child.pollExit(); return status === undefined }
+/// ```
+fn has_not_ended(child: &mut Child) -> bool {
+    return match child.try_wait() {
+        Ok(Some(_status)) => false,
+        Ok(None) => true,
+        Err(_) => false,
+    };
+}
+
 /// What:
 ///  Collects every kept child the kernel has released,
 /// without waiting for one it has not,
@@ -259,15 +276,7 @@ pub fn reap_abandoned_children() -> usize {
         return 0;
     };
     let before: usize = list.len();
-    list.retain_mut(|child| {
-        return match child.try_wait() {
-            // The child ended and its exit is collected here.
-            Ok(Some(_status)) => false,
-            Ok(None) => true,
-            // A handle that cannot be judged is given up: keeping it would hold a place for ever.
-            Err(_) => false,
-        };
-    });
+    list.retain_mut(has_not_ended);
     return before.saturating_sub(list.len());
 }
 

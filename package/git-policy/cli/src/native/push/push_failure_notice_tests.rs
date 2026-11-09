@@ -15,6 +15,8 @@ impl<Name: Fn(&str) -> String> CommitNamer for Name {
     }
 }
 use crate::test_support::{fixture, remove};
+/// The line every failed-push notice ends with.
+use crate::auto_push::PUSH_FAILED_NOTE;
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_COMMIT: &str = "89abcdef0123456789abcdef0123456789abcdef";

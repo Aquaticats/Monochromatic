@@ -1086,7 +1086,8 @@ fn a_plan_kept_after_an_older_forget_survives_its_replay() {
 }
 
 /// What:
-///  A round that plans a retry, forgets the branch and plans it again leaves the last plan after a kill at any
+///  A round that plans a retry,
+/// forgets the branch and plans it again leaves the last plan after a kill at any
 ///  of its changes.
 /// Why:
 ///   The workers publish their plans at once,

@@ -71,7 +71,7 @@ impl ClaimToken {
     /// ```
     pub fn of_this_command() -> ClaimToken {
         let number: u32 = std::process::id();
-        let started: u64 = member_of(i32::try_from(number).unwrap_or(0)).map_or(0, |member| { return member.started; });
+        let started: u64 = member_of(i32::try_from(number).unwrap_or(0)).map_or(0, started_at);
         let made: String = match crate::random_id::random_uuid() {
             Ok(id) => id.chars().take(8).collect(),
             // A command with no random source still claims under its number and start time alone.
@@ -146,7 +146,21 @@ pub fn claimed_by_a_live_command(name: &str) -> bool {
     let Ok(pid) = i32::try_from(number) else {
         return false;
     };
-    return member_of(pid).is_some_and(|member| { return member.started == started; });
+    return match member_of(pid) {
+        Some(member) => member.started == started,
+        None => false,
+    };
+}
+
+/// The kernel's start time for a process,
+/// as the process table reports it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (member) => member.started
+/// ```
+fn started_at(member: crate::process_tree::TreeMember) -> u64 {
+    return member.started;
 }
 
 /// The process number and the kernel's start time a claim's name carries,

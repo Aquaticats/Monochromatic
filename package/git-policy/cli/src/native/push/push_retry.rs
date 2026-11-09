@@ -236,7 +236,8 @@ pub const NO_SUCH_SOURCE_REF: &str = "does not match any";
 ///  the item has a terminal state rather than an endless retry.
 ///  Git prints it per refused refspec
 /// (`builtin/push.c`,
-/// `refspec matches no source`), as `error: src refspec <ref> does not
+/// `refspec matches no source`),
+/// as `error: src refspec <ref> does not
 ///  match any`.
 ///
 /// In TS you'd write (pseudocode):
@@ -405,7 +406,7 @@ impl Drop for StopAfterGuard {
 /// Whether a control's bound is reached after `applied` changes.
 #[cfg(test)]
 fn stopped_after(applied: usize) -> bool {
-    return STOP_AFTER.with(|slot| { return slot.get().is_some_and(|bound| applied >= bound); });
+    return STOP_AFTER.with(|slot| { return slot.get().is_some_and(|bound| { return applied >= bound; }); });
 }
 
 /// What:

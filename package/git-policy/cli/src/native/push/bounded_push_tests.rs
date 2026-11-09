@@ -377,7 +377,8 @@ fn a_tree_still_running_after_the_grace_is_swept_when_it_ends() {
 /// and the attempt says that its
 ///  output was cut.
 /// Why:
-///   The output is the log a person reads, not Git's answer,
+///   The output is the log a person reads,
+/// not Git's answer,
 /// so the attempt is not turned into a stopped push;
 /// but the
 ///  text kept is the head of what was printed,
