@@ -69,7 +69,7 @@ fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: 
     let mut printed: Vec<u8> = Vec::new();
     let result: LadderResult = {
         let mut runner = recording_runner(&steps, fail_reset);
-        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed)
+        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed, &mut std::io::sink())
     };
     return (result, steps.into_inner(), String::from_utf8_lossy(printed.as_slice()).into_owned());
 }
@@ -342,7 +342,7 @@ fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_reco
         let steps: Steps = RefCell::new(Vec::new());
         let result: LadderResult = {
             let mut runner = recording_runner(&steps, false);
-            ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut probe)
+            ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut probe, &mut std::io::sink())
         };
         assert_eq!(result.git, GitStatus { code: Some(0) }, "{name}");
         assert_eq!(probe.marker_seen, Some(true), "{name}: the marker is on disk when the line is printed");
@@ -380,7 +380,7 @@ fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everyth
     let mut printed: Vec<u8> = Vec::new();
     let result: LadderResult = {
         let mut runner = recording_runner(&steps, false);
-        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed)
+        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed, &mut std::io::sink())
     };
     std::fs::set_permissions(claims.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("writable again");
     assert_eq!(result.git, GitStatus { code: Some(0) });
@@ -419,7 +419,7 @@ fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
         return inner(step);
     };
     let mut printed: Vec<u8> = Vec::new();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed);
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed, &mut std::io::sink());
     assert_eq!(result.git, GitStatus { code: Some(1) });
     assert!(printed.is_empty());
     assert_eq!(std::fs::read(root.join("topic/edited.txt")).expect("the replacement is untouched"), b"work in the replacement");
@@ -450,7 +450,7 @@ fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
         return outcome;
     };
     let mut printed: Vec<u8> = Vec::new();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed);
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed, &mut std::io::sink());
     assert_eq!(result.git, GitStatus { code: Some(1) }, "the reset succeeded, but not against the bound worktree");
     assert!(root.join("moved/shared.txt").exists() && root.join("topic/shared.txt").exists(), "both worktrees stand");
     remove(root.as_path());

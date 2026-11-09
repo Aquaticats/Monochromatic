@@ -92,6 +92,27 @@ Each record is cited so the context is one read away.
   If it is,
   a foreign host's process reads as dead to the copy,
   which the audit could not settle alone.
+- The `search-shadow` refusal of `rg` with a piped standard input and a named path is on `main` and not yet released.
+  It refuses on the kind of standard input alone,
+  so a program that starts `rg` through `PATH` with a pipe it never writes to is refused too,
+  and `SEARCH_SHADOW_ALLOW_WIDE=1` does not lift it.
+  Pi's `grep` tool and this repository's own callers are not affected:
+  they give `rg` an ignored or null standard input,
+  or pass `--files`.
+  Should that override apply to this refusal before the release?
+- Issue 3474 also asked whether an unbounded `rg` over a large tree that is not a repository,
+  such as `~/temp/agent`,
+  should be limited too:
+  by a cap on the shadow's own output,
+  or by treating known scratch roots like a repository root.
+  Neither is built.
+  Is either wanted?
+- `package/hall-monitor/daemon` fails its own `lint:oxlint` on `test-import(require-eventual-artifact)`,
+  two findings before and four now that it has the tests issue 1297 asked for.
+  The rule needs an import from a built artifact,
+  and that package has none.
+  Should it gain a `dist` build,
+  or an exemption?
 - The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
   Should a systemd timer run it,
   and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?

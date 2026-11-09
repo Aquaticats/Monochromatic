@@ -71,7 +71,9 @@ const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
 const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 12 GiB and 4 CPUs are this package's Alpine guard bound (the Alpine task below), and 1024 processes is the IDE's bound for 4 CPUs
-// (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:21:30-05:00 on the release build only:
+// peak 5,651,558,400 bytes (5.3 GiB) of 12 GiB, 61 threads of 1024, 293 throttled CPU periods of 4251, no kill.
+// Clippy and nextest share this bound and are unmeasured (doc/handover/container-limits-everywhere.md).
 const cargoContainerBound = { memory: '12g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'libpipewire-0.3', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -602,7 +604,9 @@ const { mkdirSync } = await import('node:fs')
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-// One-shot tool containers take the bound of vm-builder's image:check commands (2 GiB, 2 CPUs, 128 processes; adopted, not measured).
+// One-shot tool containers take the bound of vm-builder's image:check commands (2 GiB, 2 CPUs, 128 processes). Measured 2026-11-08T19:37:39-05:00 for the icon tools only:
+// peak 116,862,976 bytes (111 MiB) of 2 GiB, one thread of 128, no throttling, no kill.
+// The signing containers share this bound and are unmeasured (doc/handover/container-limits-everywhere.md).
 const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 const toolBound = { memory: '2g', cpus: 2, pidsLimit: 128 }
 execFileSync('podman', ['build', ...cachyosBuildArguments('icon-tools'), ...imageBuildLimitArguments(toolBound), '-t', 'localhost/monochromatic/icon-tools', '-f', 'Containerfile.icons', '.'], { stdio: 'inherit' })
@@ -716,7 +720,9 @@ const { existsSync, mkdirSync } = await import('node:fs')
 const cachyosBuildArguments = (imageName) => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/cachyos-image.ts'), '--image-name', imageName, '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
 // RUST_TOOLCHAIN is the nightly toolchain.lock.json records; the Containerfile has no default, so a build without it stops.
 const rustToolchainBuildArguments = () => ['--build-arg', execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/locked-rust-toolchain.ts'), '--build-argument'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim()]
-// One-shot tool containers take the bound of vm-builder's image:check commands (2 GiB, 2 CPUs, 128 processes; adopted, not measured).
+// One-shot tool containers take the bound of vm-builder's image:check commands (2 GiB, 2 CPUs, 128 processes). Measured 2026-11-08T19:37:39-05:00 for the icon tools only:
+// peak 116,862,976 bytes (111 MiB) of 2 GiB, one thread of 128, no throttling, no kill.
+// The signing containers share this bound and are unmeasured (doc/handover/container-limits-everywhere.md).
 const { containerLimitArguments, imageBuildLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 const toolBound = { memory: '2g', cpus: 2, pidsLimit: 128 }
 execFileSync('podman', ['build', ...cachyosBuildArguments('sign'), ...imageBuildLimitArguments(toolBound), '-t', 'localhost/monochromatic/sign', '-f', 'Containerfile.sign', '.'], { stdio: 'inherit' })
