@@ -10,7 +10,7 @@
 //! and the acquisition that goes on to land over it.
 
 use super::*;
-use crate::index_lock_holders::{ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
+use crate::index_lock_holders::{Holder, ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
 use crate::service_fault::hooks;
 use crate::service_index_lock::{Announce, LockFailure, acquire, acquire_within, lock_path_of};
 use crate::service_index_marker::{marker_text, own_identity};
@@ -363,5 +363,76 @@ fn a_landing_never_removes_a_lock_whose_pid_file_names_a_live_process() {
     let refused: Result<_, LockFailure> = acquire_within(&SYSTEM, &index, 5, Duration::from_millis(1500), &|_| {});
     assert_eq!(refused.expect_err("refused").code, FailureCode::IndexInUse);
     assert_eq!(std::fs::read_to_string(&lock).expect("the lock stands"), "");
+    remove(root.as_path());
+}
+
+/// What:
+///  An empty lock whose Git lock PID file names a process that is gone is removed,
+///  and the same lock with a PID file naming a process that runs is left where it is.
+/// Why:
+///  A merge that waited on the first kind used to refuse after twenty rounds with advice that could not work,
+/// so the
+///  merge clears it on this proof
+/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3):
+/// the same body the
+///  service's removal uses,
+/// with the PID file of a gone process as its evidence of disuse instead of no PID file at
+///  all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePidFile(index, deadPid()); expect(removeIfTheOwnerIsGone(SYSTEM, index, completeAndEmpty)).toEqual({ kind: 'removed' }); writePidFile(index, process.pid); expect(removeIfTheOwnerIsGone(...)).toEqual({ kind: 'kept' });
+/// ```
+#[test]
+fn a_lock_a_gone_process_left_is_removed_and_one_a_live_process_left_is_kept() {
+    let (root, index) = index_in("unheld-gone-owner");
+    let lock: PathBuf = lock_path_of(&index);
+    let pid_file: PathBuf = crate::recovery_files::lock_pid_path(&index);
+    std::fs::write(&lock, "").expect("the dead Git's lock");
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid())).expect("the PID file of a process that is gone");
+    let outcome: Unheld = remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty);
+    assert!(matches!(outcome, Unheld::Removed(_)), "a lock a gone process left is removed: {outcome:?}");
+    assert!(!lock.exists());
+    // The same again, with a PID file naming a process that runs: nothing proves it is done with the index.
+    std::fs::write(&lock, "").expect("a live Git's lock");
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", std::process::id())).expect("the PID file of this process, which runs");
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert!(lock.exists(), "a live owner's lock is left where it is");
+    remove(root.as_path());
+}
+
+/// A lock with content,
+/// a lock carrying the service's marker,
+/// and a lock a scan saw a holder of are all left where they are,
+/// whatever the PID file says:
+/// only an empty lock nothing holds and nothing stands behind is removed.
+#[test]
+fn a_dead_owners_lock_is_kept_when_anything_may_still_use_it() {
+    let (root, index) = index_in("unheld-gone-owner-kept");
+    let lock: PathBuf = lock_path_of(&index);
+    let pid_file: PathBuf = crate::recovery_files::lock_pid_path(&index);
+    std::fs::write(pid_file.as_path(), format!("pid {}\n", dead_pid())).expect("the PID file of a process that is gone");
+    // A Git's editor-phase lock holds the whole index; removing it would make that commit fail when the editor closes.
+    std::fs::write(&lock, "a written index").expect("a lock with content");
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert!(lock.exists(), "a lock with content is never removed");
+    // The service's own marker is the service's to judge, not a merge's.
+    std::fs::write(&lock, marker_text(1, &own_identity).expect("the marker's text")).expect("the service's marker");
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &complete_and_empty), Unheld::Kept);
+    assert!(lock.exists(), "the service's lock is not a merge's to remove");
+    // A process that has the lock open is a holder, whatever the PID file says.
+    std::fs::write(&lock, "").expect("an empty lock");
+    let child: std::process::Child = holder_of(&lock);
+    let scanned = |_lock: &Path, _device: u64, _inode: u64| -> HolderEvidence {
+        return HolderEvidence {
+            method: "proc-fd",
+            holders: vec![Holder { pid: i64::from(child.id()), command: None }],
+            partial: Vec::new(),
+        };
+    };
+    assert_eq!(remove_if_the_owner_is_gone(&SYSTEM, &index, &scanned), Unheld::Kept);
+    assert!(lock.exists(), "a held lock is never removed");
+    release(child);
     remove(root.as_path());
 }

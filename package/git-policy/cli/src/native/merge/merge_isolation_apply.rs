@@ -48,14 +48,24 @@ use crate::transaction_owner::current_transaction_owner;
 /// Unique identifiers and the clock.
 use crate::iso_time::now_iso;
 use crate::random_id::random_uuid;
-/// Waiting for any program's hold on the index lock before the checkout changes.
-use crate::index_holder_wait::wait_for_index_release_here;
+/// Waiting for any program's hold on the index lock before the checkout changes,
+/// and what the wait proved.
+use crate::index_holder_wait::{IndexWait, wait_for_index_release_before_a_merge_that_clears_a_dead_lock};
+/// Removing an index lock a gone process left,
+/// on the commit service's proof of disuse.
+use crate::service_index_unheld_removal::remove_if_the_owner_is_gone;
+/// Scanning every readable process for a descriptor on that lock.
+use crate::index_lock_holders::scan_platform_holders_bounded;
+/// The platform whose unlink removes the lock.
+use crate::service_index_placement::SYSTEM;
 /// Owned operating-system text.
 use crate::merge_isolation_git_reads::Session;
 use crate::merge_isolation_run_types::{Bail, IsolatedMerge, IsolatedMergeInput, MergeConfig, Plan, TAG, refused};
 use std::ffi::OsString;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// A span of time the wait lasted.
+use std::time::Duration;
 
 /// What:
 ///  The finished merge with the lines that list the files the second pass merged by word,
@@ -218,9 +228,6 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         let named: GitOutput = session.run(&["symbolic-ref", "--quiet", "HEAD"])?;
         if named.succeeded() { Some(String::from_utf8_lossy(&named.stdout).trim().to_owned()) } else { None }
     };
-    // Git's fast-forward takes `index.lock` before it changes anything and dies when another program holds it. The merge waits
-    //  for the holder here, bounded and naming it; a lock taken in the instant between is met by the round made again.
-    wait_for_index_release_here(git_dir.join("index").as_path(), "merge");
     let transaction_id: String = match random_uuid() {
         Ok(id) => id,
         Err(error) => return Err(Bail::from(error.0)),
@@ -241,6 +248,21 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
         Err(error) => return Err(Bail::from(format!("the merge record could not be written: {error}"))),
     };
     reach_phase(Phase::MergeIntent)?;
+    // Git's fast-forward takes `index.lock` before it changes anything and dies when another program holds it. The merge waits
+    //  for the holder here, bounded and naming it; a lock taken in the instant between is met by the round made again. The
+    //  record is written first, so a wait that ends with the lock still held leaves the next command the work of finishing
+    //  this very merge.
+    let waited: IndexWait = wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), &mut std::io::stderr());
+    // A lock a gone process left is removed on the proof the commit service acts on, so a merge repairs what a commit
+    //  repairs (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`, finding 3).
+    if matches!(waited, IndexWait::OwnerGone(_)) {
+        let _removed = remove_if_the_owner_is_gone(&SYSTEM, git_dir.join("index").as_path(), &scan_platform_holders_bounded);
+    }
+    // A holder that is still there at the ceiling is not this command's to remove, and waiting again would only repeat the same
+    //  minute twenty times: the merge says so once, truthfully, and leaves the record for the next command.
+    if let IndexWait::GaveUp(waited_for) = waited {
+        return Err(refused(2, a_held_index_finding(reference.as_str(), git_dir.join("index.lock").as_path(), waited_for)));
+    }
     let mut overlay: Vec<(OsString, OsString)> = input.overlay.to_vec();
     overlay.push((OsString::from("GIT_REFLOG_ACTION"), OsString::from(format!("merge {reference}"))));
     let mover: Session = Session {
@@ -304,6 +326,35 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
 }
 
 /// What:
+///  The line for a merge that met another program's `index.lock` for longer than the wait's ceiling.
+/// Why:
+///   The refusal must say what happened and what becomes of the merge,
+/// and must not name a cause that never was:
+///  the wait named the holder above,
+/// the record names the merge,
+/// and the next command in this worktree finishes it.
+/// Wait
+///  advice that could not work,
+/// like "Run the merge again" beside a lock nothing releases,
+/// is what finding 3 of
+///  `doc/planning/cli-git-merge-and-repair-route-findings-on-main.md` recorded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: git merge ${reference}: ...`
+/// ```
+fn a_held_index_finding(reference: &str, lock: &Path, waited_for: Duration) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git merge {reference}: {} stayed taken by another program for {} seconds, so this merge \
+         was not applied and the branch did not move. Nothing of the merge is in the checkout, and the merge is recorded: the \
+         next git command in this worktree finishes it once that program is done. If no program is using this repository, the \
+         lock was left by a program that was killed, and removing it lets a command run.\n",
+        lock.display(),
+        waited_for.as_secs()
+    );
+}
+
+/// What:
 ///  Reach a marker phase,
 /// failing the invocation when the marker variable is malformed.
 /// Why:
@@ -320,3 +371,8 @@ pub fn reach_phase(phase: Phase) -> Result<(), Bail> {
         Err(error) => Err(refused(2, format!("monochromatic-git-policy-cli: {error}\n"))),
     };
 }
+
+/// Apply controls stay out of the release executable.
+#[cfg(test)]
+#[path = "merge_isolation_apply_tests.rs"]
+mod tests;

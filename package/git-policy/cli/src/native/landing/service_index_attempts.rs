@@ -132,7 +132,7 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool) -> Looked {
             line: None,
             who: Some(holder_words(pid, None)),
             open,
-            ending: Some(dead_owner_diagnostic(evidence.lock_path.as_path(), pid, COMMIT_NOT_MADE)),
+            ending: Some(dead_owner_diagnostic(evidence.lock_path.as_path(), pid, COMMIT_NOT_MADE, crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT)),
             way_out: None,
         },
         Verdict::EvidenceFree => Looked {

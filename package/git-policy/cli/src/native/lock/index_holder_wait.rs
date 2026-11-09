@@ -44,8 +44,16 @@
 
 /// Evidence about the holder of a lock.
 use crate::index_lock_evidence::{
-    Evidence, Verdict, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    DEAD_OWNER_LOCK_LEFT, Evidence, Verdict, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
+
+/// The sentence a merge's ceiling line ends on before its own apply.
+const MERGE_CONSEQUENCE: &str = "git merge stops waiting and reports what Git says";
+
+/// The sentence a merge's dead owner's line ends on:
+/// the merge clears such a lock when nothing else holds it and goes on.
+const MERGE_DEAD_ENDING: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was changed and the lock was left in place";
+
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
 /// The start time of a process.
@@ -207,6 +215,35 @@ pub fn wait_for_index_release_while_finishing_a_merge(real_index: &Path, out: &m
         real_index,
         "merge",
         RECOVERY_CONSEQUENCE,
+        DEAD_OWNER_LOCK_LEFT,
+        MERGE_LOCK_CEILING,
+        Cadence::from_environment(),
+        out,
+        &Watch::on,
+    );
+}
+
+/// What:
+///  The wait a merge makes before its own apply,
+/// whose dead owner's line says the merge clears that lock,
+/// because it does.
+/// Why:
+///  A merge that waited on a lock a gone process left now removes it on the commit service's proof of disuse and goes
+///  on (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3),
+/// so the line must not promise that the lock was
+///  left in place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await waitForIndexReleaseBeforeAMergeThatClearsADeadLock(realIndex, stderr)
+/// ```
+pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock(real_index: &Path, out: &mut dyn Write) -> IndexWait {
+    return wait_with_watches_and_consequence(
+        real_index,
+        "merge",
+        MERGE_CONSEQUENCE,
+        MERGE_DEAD_ENDING,
         MERGE_LOCK_CEILING,
         Cadence::from_environment(),
         out,
@@ -228,7 +265,7 @@ fn write_then_flush(out: &mut dyn Write, bytes: &[u8]) -> std::io::Result<()> {
 /// so a control can hand it none.
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let consequence: String = format!("git {command} stops waiting and reports what Git says");
-    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), ceiling, cadence, out, set_watch);
+    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
 }
 
 /// `wait_with_watches` with the sentence the ceiling line ends on given,
@@ -237,6 +274,7 @@ fn wait_with_watches_and_consequence(
     real_index: &Path,
     command: &str,
     consequence: &str,
+    dead_ending: &str,
     ceiling: Duration,
     cadence: Cadence,
     out: &mut dyn Write,
@@ -264,7 +302,7 @@ fn wait_with_watches_and_consequence(
             proof = look_at(real_index, &gather_here);
         }
         if let Proof::Dead(pid) = &proof {
-            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence).as_bytes());
+            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence, dead_ending).as_bytes());
             return IndexWait::OwnerGone(elapsed);
         }
         if due {

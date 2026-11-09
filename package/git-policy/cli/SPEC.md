@@ -3136,10 +3136,23 @@ on the commit path:
   Protocol messages are unchanged.
   A client that waits behind a hung write keeps the service busy only as long as the write lasts;
   nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`;
-  at the bound it names the holder and ends the wait,
-  and Git's own
-  refusal ends the merge non-zero with nothing changed.
+- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`,
+  naming the holder while it waits.
+  A lock a process that no longer runs left (an empty lock beside a Git lock PID file naming a process that is gone)
+  is removed on the commit service's proof of disuse (`service_index_unheld_removal.rs`,
+  `remove_if_the_owner_is_gone`:
+  the file is opened and judged through that descriptor,
+  no readable process holds it open,
+  the name still refers to it,
+  and only then is it unlinked),
+  and the merge goes on.
+  A holder that runs,
+  or one nothing proves alive,
+  is not removed:
+  at the bound the wait names it,
+  the merge writes nothing,
+  and the merge exits non-zero saying so and saying that the record it kept
+  lets the next command in that worktree finish the same merge.
   The index reconciliation of a commit with no change left ends the same
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
@@ -3176,7 +3189,10 @@ now inside these bounds:
   with a line that names
   what is known (the person's own `git commit` with its editor open holds the lock with no proof);
   a dead owner (a PID file naming
-  a process that is gone) ends the wait at once with a diagnostic naming it.
+  a process that is gone) ends the wait at once with a diagnostic naming it,
+  and a merge then removes that lock on the same proof of disuse the service acts on
+  (`remove_if_the_owner_is_gone`) and lands;
+  a command that does not remove it says so in the same line.
 - An empty `index.lock` with no service marker and no Git lock PID file,
   that no process of a complete scan (Linux,
   every readable process,

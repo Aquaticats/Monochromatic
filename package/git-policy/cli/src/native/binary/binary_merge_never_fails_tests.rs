@@ -247,3 +247,50 @@ fn a_held_index_lock_does_not_end_every_command_in_the_worktree() {
     assert!(!record.exists(), "the record is gone");
     remove_settled(&fixture);
 }
+
+/// What:
+///  A merge whose repository holds an `index.lock` that a gone Git left lands and exits 0,
+///  the way a commit does,
+///  and says what became of the lock.
+/// Why:
+///  A Git killed under `core.lockfilePid` leaves the empty lock and a PID file naming a process that ended;
+/// the merge used
+///  to wait on it twenty times and then exit 2 with advice that could not work,
+/// while the commit service removed
+///  exactly such a lock and landed
+/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3).
+/// The removal acts on the
+///  commit service's proof of disuse,
+/// so this control is the merge's half of it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('.git/index.lock', ''); write('.git/index~pid.lock', 'pid 4294967\n'); expect((await wrapped(['merge', '--no-edit', 'feature'])).code).toBe(0);
+/// ```
+#[test]
+fn a_lock_a_gone_git_left_does_not_end_a_merge() {
+    for staged in [false, true] {
+        let fixture: Fixture = fixture(format!("merge-dead-lock-{staged}").as_str());
+        let repo: PathBuf = diverged(&fixture, "repo");
+        if staged {
+            stage_unrelated_work(&fixture, repo.as_path());
+        }
+        let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+        let lock: PathBuf = repo.join(".git/index.lock");
+        std::fs::write(lock.as_path(), b"").expect("a Git left the lock");
+        // The PID file `core.lockfilePid` leaves beside it, naming a process that has ended.
+        std::fs::write(repo.join(".git/index~pid.lock"), b"pid 4294967\n").expect("the PID file of a process that is gone");
+        let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+        command.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
+        let ended: Ended = run_acting_on_line(&mut command, "no longer runs", &mut || {});
+        assert_eq!(ended.code, Some(0), "staged={staged}: {}", ended.stderr);
+        assert!(ended.stderr.contains("the merge clears that lock"), "the line says what a merge does with it: {}", ended.stderr);
+        assert!(!lock.exists(), "staged={staged}: the lock a gone process left is gone");
+        assert_eq!(parents(&fixture, repo.as_path()).len(), 2, "staged={staged}: a merge commit");
+        assert_ne!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), head, "staged={staged}: the branch moved");
+        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new());
+        git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
+        remove_settled(&fixture);
+    }
+}

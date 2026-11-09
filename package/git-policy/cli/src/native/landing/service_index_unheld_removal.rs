@@ -51,7 +51,7 @@
 //! removeIfUnheld(platform, index, scan) // open; empty and unmarked? no pid file? scan complete and empty; own descriptors == 1; same file; unlink
 //! ```
 
-use crate::index_lock_evidence::{LockMetadata, PidFile, read_pid_file_evidence};
+use crate::index_lock_evidence::{LockMetadata, PidFile, PidOwner, read_pid_file_evidence};
 use crate::index_lock_holders::HolderEvidence;
 use crate::process_start::resolve_process_start;
 use crate::recovery_files::lock_pid_path;
@@ -144,6 +144,76 @@ fn own_descriptors_of(device: u64, inode: u64) -> usize {
 /// removeIfUnheld(platform, index, scan) // 'removed' | 'changed' | 'kept'
 /// ```
 pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence) -> Unheld {
+    return remove_when(platform, index, scan, Disuse::NoPidFile);
+}
+
+/// What:
+///  Which evidence of disuse a removal acts on.
+/// Why:
+///   The service removes a lock no PID file stands behind,
+/// while a merge that waited on a PID file naming a process
+///  that is gone removes that very lock;
+/// both are the owner's,
+/// from 2026-11-07 and from the answer for a held
+///  `index.lock`,
+/// and only the requirement on the PID file differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Disuse = 'no-pid-file' | 'pid-file-of-a-gone-process';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Disuse {
+    /// No Git lock PID file exists at all.
+    NoPidFile,
+    /// The Git lock PID file names a process that no longer runs.
+    PidFileOfAGoneProcess,
+}
+
+/// What:
+///  Removes the empty `index.lock` of `index` when its PID file names a process that no longer runs,
+/// on the same proof as the service's removal,
+/// and says what it acted on.
+/// Why:
+///   A Git killed under `core.lockfilePid` leaves exactly that,
+/// and a merge that waited on it once used to repeat its wait
+///  twenty times and then refuse with advice that could not work
+/// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 3);
+/// the commit
+///  service already removes what its own proof of disuse names,
+/// so a commit repaired what a merge refused.
+/// A lock with
+///  content,
+/// one carrying the service's marker,
+/// a PID file naming a process that runs,
+/// a holder the scan saw,
+/// a scan that
+///  did not finish and a lock that is not a plain file all leave it where it is.
+///  Only Linux can scan every process,
+/// so elsewhere nothing is proven and nothing is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeIfTheOwnerIsGone(platform, index, scan) // 'removed' | 'changed' | 'kept'
+/// ```
+pub fn remove_if_the_owner_is_gone(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence) -> Unheld {
+    return remove_when(platform, index, scan, Disuse::PidFileOfAGoneProcess);
+}
+
+/// What:
+///  `remove_if_unheld` with the evidence of disuse given.
+/// Why:
+///   One body judges and removes,
+/// so the identity that was opened,
+/// scanned and removed is the same in both
+///  callers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeWhen(platform, index, scan, disuse): Unheld;
+/// ```
+fn remove_when(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, u64, u64) -> HolderEvidence, disuse: Disuse) -> Unheld {
     if !cfg!(target_os = "linux") {
         return Unheld::Kept;
     }
@@ -161,8 +231,14 @@ pub fn remove_if_unheld(platform: &Platform, index: &Path, scan: &dyn Fn(&Path, 
         return Unheld::Kept;
     }
     let identity: LockMetadata = LockMetadata { device: opened.dev(), inode: opened.ino(), ctime_ms: opened.ctime() * 1000 + opened.ctime_nsec() / 1_000_000 };
-    // "There is no Git PID file" is no file at all: a damaged one, or one naming a gone process, is evidence this removal does not judge.
-    if read_pid_file_evidence(lock_pid_path(index).as_path(), &identity, resolve_process_start) != PidFile::Absent {
+    // A damaged PID file, a file naming a process that runs, and (for the service) any PID file at all are evidence this
+    //  removal does not act on.
+    let pid_file: PidFile = read_pid_file_evidence(lock_pid_path(index).as_path(), &identity, resolve_process_start);
+    let disuse_proved: bool = match disuse {
+        Disuse::NoPidFile => pid_file == PidFile::Absent,
+        Disuse::PidFileOfAGoneProcess => matches!(pid_file, PidFile::Owner(_, PidOwner::Missing)),
+    };
+    if !disuse_proved {
         return Unheld::Kept;
     }
     let scanned: HolderEvidence = scan(lock.as_path(), identity.device, identity.inode);
