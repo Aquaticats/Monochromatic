@@ -25,7 +25,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::service_commit::{Running, start, through_service};
+use super::service_commit::{Running, start, through_service, through_service_with};
 use super::support::{Fixture, fixture, git, repository};
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -217,6 +217,42 @@ fn a_plain_commit_with_unmerged_files_finishes_the_merge_with_their_markers_and_
     assert_eq!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]), "", "nothing is unmerged any more");
     assert!(stderr.contains("y.txt") && stderr.contains("conflict markers") && stderr.contains("committed"), "the warning names the file: {stderr}");
     assert!(stderr.contains("follow-up commit"), "the warning says how to fix it: {stderr}");
+    let _killed = service.kill();
+    let _waited = service.wait();
+    remove_settled(&fixture);
+}
+
+/// A plain commit with unmerged files finishes the merge under literal pathspec mode too:
+/// the private staging of the unmerged worktree copies names each path with pathspec magic,
+/// and the variable would turn those names into names that match nothing.
+#[test]
+fn a_plain_commit_with_unmerged_files_finishes_the_merge_under_literal_pathspec_mode() {
+    let fixture: Fixture = fixture("plain-commit-conflicted-literal");
+    let repo: PathBuf = conflicted_merge(&fixture, "repo");
+    let name: String = format!("pccl-{}", std::process::id());
+    let mut service: Running = start(&fixture, name.as_str());
+    let landed: Output = through_service_with(
+        &fixture,
+        &repo,
+        name.as_str(),
+        &["commit", "--message=finish the merge"],
+        &[("GIT_LITERAL_PATHSPECS", "1")],
+    );
+    let stderr: String = String::from_utf8_lossy(&landed.stderr).into_owned();
+    assert_eq!(landed.status.code(), Some(0), "the merge is finished: {stderr}");
+    assert_eq!(
+        git_text(&fixture, &repo, &["rev-list", "--parents", "--max-count=1", "HEAD"])
+            .split_whitespace()
+            .count(),
+        3,
+        "a merge commit: one commit and two parents"
+    );
+    assert!(
+        git_text(&fixture, &repo, &["show", "HEAD:y.txt"]).contains("<<<<<<<"),
+        "the committed blob holds the markers"
+    );
+    assert!(!repo.join(".git/MERGE_HEAD").exists(), "the merge is concluded");
+    assert_eq!(git_text(&fixture, &repo, &["ls-files", "--unmerged"]), "", "nothing is unmerged any more");
     let _killed = service.kill();
     let _waited = service.wait();
     remove_settled(&fixture);

@@ -66,6 +66,9 @@ impl Platform for Recording {
     fn exchange(&self, first: &Path, second: &Path) -> Result<(), PrimitiveError> {
         return self.inner.exchange(first, second);
     }
+    fn flushes_to_disk(&self) -> bool {
+        return self.inner.flushes_to_disk();
+    }
 }
 
 /// A platform whose chosen exchange takes effect and then fails,
@@ -108,6 +111,9 @@ impl Platform for KillAfterExchange {
             return Err(PrimitiveError { operation: "renameat2(RENAME_EXCHANGE)", path: first.to_path_buf(), errno: libc::EINTR });
         }
         return Ok(());
+    }
+    fn flushes_to_disk(&self) -> bool {
+        return self.inner.flushes_to_disk();
     }
 }
 
