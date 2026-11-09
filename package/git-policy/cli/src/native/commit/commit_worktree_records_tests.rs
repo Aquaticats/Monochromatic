@@ -132,6 +132,52 @@ fn a_changed_mode_or_an_unchanged_blob_gets_no_completion() {
     remove(root.as_path());
 }
 
+/// Another file whose name differs only in case is never taken for the corrected path:
+/// `GIT_ICASE_PATHSPECS=1` makes Git list both entries,
+/// and the first one it lists is not the one asked about.
+#[test]
+fn a_case_insensitive_lookup_records_the_path_it_asked_about() {
+    let root: PathBuf = fixture("worktree-records-icase");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("A.txt"), b"upper\n").expect("A");
+    std::fs::write(repo.join("a.txt"), b"old").expect("a");
+    git(repo.as_path(), &["add", "--", "A.txt", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=both"]);
+    let upper: String = String::from_utf8_lossy(git(repo.as_path(), &["rev-parse", ":A.txt"]).stdout.as_slice()).trim().to_string();
+    let corrected: String = {
+        let mut child = std::process::Command::new(REAL_GIT)
+            .current_dir(&repo)
+            .args(["hash-object", "-w", "--stdin"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("hash-object");
+        std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"old\n").expect("write");
+        String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
+    };
+    // The private index holds the corrected bytes of `a.txt`, and the worktree copy still holds the original.
+    git(repo.as_path(), &["update-index", "--cacheinfo", "100644", corrected.as_str(), "a.txt"]);
+    let mut icase: GitContext = context();
+    icase.overlay.push((OsString::from("GIT_ICASE_PATHSPECS"), OsString::from("1")));
+    let records: Vec<AddedPath> = selected_worktree_records(
+        &icase,
+        repo.as_path(),
+        repo.as_path(),
+        repo.join(".git/index").as_path(),
+        &[InstallChange {
+            path: b"a.txt".to_vec(),
+            mode: CandidateMode::Regular,
+            original: Rc::from(b"old".as_slice()),
+            replacement: Rc::from(b"old\n".as_slice()),
+        }],
+    )
+    .expect("records");
+    assert_eq!(records.len(), 1, "{records:?}");
+    assert_eq!(records[0].intended_oid, corrected, "the record names the blob committed for a.txt");
+    assert_ne!(records[0].intended_oid, upper, "the record must not name A.txt's blob");
+    remove(root.as_path());
+}
+
 /// A path whose index entries are all unmerged has no settled entry,
 /// and a stage-zero entry reports its mode and object.
 #[test]

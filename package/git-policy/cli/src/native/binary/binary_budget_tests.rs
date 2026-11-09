@@ -289,11 +289,14 @@ fn prepared_repository(fixture: &Fixture, scenario: Scenario) -> PathBuf {
 /// The same command run under `strace` with the traced calls written to `trace`,
 /// in the environment and directory of
 ///  `inner`.
+/// The trace keeps the `+++ exited with 0 +++` lines:
+/// one `--quiet` suppresses only the attach and
+///  personality messages,
+/// and `binary_budget_trace` reads a line only when it begins with a process ID and a traced call.
 fn traced(inner: &Command, trace: &Path) -> Command {
     let mut outer: Command = Command::new(strace_program().expect("strace is installed"));
     outer
         .arg("--follow-forks")
-        .arg("--quiet")
         .arg("--quiet")
         .arg("--string-limit=4096")
         .arg("--no-abbrev")
