@@ -423,10 +423,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         for (_, queued_group) in groups.drain(..) {
             // The trees this group's requests name: each is the commit's own scratch directory, which nothing may remove before the
             //  landing that reads it, and which the service removes once that landing is over.
-            let mut trees: Vec<std::path::PathBuf> = Vec::new();
+            let mut trees: Vec<(String, std::path::PathBuf)> = Vec::new();
             for queued in &queued_group {
                 if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
-                    trees.push(tree);
+                    trees.push((queued.0.id.clone(), tree));
                 }
             }
             // The shutdown waits for this landing and refuses one that would begin after the stop.
@@ -463,14 +463,18 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             let group: Vec<Queued> = admitted;
             if group.is_empty() {
                 board.end_group(ids.as_slice());
-                remove_the_trees(trees.as_slice());
+                remove_the_trees(&trees);
                 continue;
             }
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after);
+            let preparing_again: Vec<String> = land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
-            remove_the_trees(trees.as_slice());
+            //  A request told to prepare again is the exception: its client still reads the tree it named, so that tree goes when
+            //  the client's own value goes, and by the sweep if that client is killed.
+            let released: Vec<(String, std::path::PathBuf)> =
+                trees.into_iter().filter(|(id, _)| { return !preparing_again.contains(id); }).collect();
+            remove_the_trees(&released);
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.
             if let Some(next_index) = index {
@@ -501,8 +505,8 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 /// ```ts
 /// trees.forEach(startTheRemovalBesideTheLoop);
 /// ```
-fn remove_the_trees(trees: &[std::path::PathBuf]) {
-    for tree in trees {
+fn remove_the_trees(trees: &[(String, std::path::PathBuf)]) {
+    for (_, tree) in trees {
         crate::service_scratch_release_removal::start(tree.clone());
     }
 }

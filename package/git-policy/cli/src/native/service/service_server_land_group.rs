@@ -257,6 +257,8 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
 /// (`wait_ceilings.rs`,
 /// `WAITING_NOTICE_AFTER`).
+/// Returns the identities whose answer asks the client to prepare again: those clients still read the
+///  tree they named, so it is not the service's to remove yet.
 pub(crate) fn land_group(
     context: &LandContext,
     instance: Option<&str>,
@@ -265,7 +267,8 @@ pub(crate) fn land_group(
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
     place_after: Duration,
-) {
+) -> Vec<String> {
+    let mut preparing_again: Vec<String> = Vec::new();
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
     let mut again: Vec<Queued> = Vec::new();
@@ -295,7 +298,7 @@ pub(crate) fn land_group(
         }
     }
     if fresh.is_empty() {
-        return;
+        return preparing_again;
     }
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
@@ -376,10 +379,14 @@ pub(crate) fn land_group(
                     }
                     Outcome::RetryPrepare { base } => {
                         let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
+                        // This client prepares again on the tree it named, so the tree stays until that process is done with it.
+                        preparing_again.push(request.id.clone());
                         stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
+                        // The same: the commit is built again from the tree this build captured.
+                        preparing_again.push(request.id.clone());
                         stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
                         "branch-moved"
                     }
@@ -394,6 +401,7 @@ pub(crate) fn land_group(
             }
         }
     }
+    return preparing_again;
 }
 
 /// What a batch tells its requests is controlled in the test module.

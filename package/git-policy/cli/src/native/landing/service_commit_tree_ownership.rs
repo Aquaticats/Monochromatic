@@ -39,6 +39,11 @@ use crate::service_messages::ClientFailure;
 /// const neverTook = (result) => result.kind === 'still-with-service' || result.kind === 'refused' || result.kind === 'did-not-start' || ...;
 /// ```
 pub(crate) fn the_service_never_took(result: &Result<Submitted, ClientFailure>) -> bool {
+    if the_service_asks_another_preparation(result) {
+        // The service answered that the commit is prepared again, so it keeps the tree for this process: the retry reads the
+        //  private index it names, and this process removes it once that retry is made.
+        return true;
+    }
     let Err(failure) = result else { return false };
     return matches!(
         failure,
@@ -56,6 +61,27 @@ pub(crate) fn the_service_never_took(result: &Result<Submitted, ClientFailure>) 
             | ClientFailure::CouldNotStart(_)
             | ClientFailure::UnitInTheWay(_)
     );
+}
+
+/// What:
+///  Whether the service's answer says the commit is prepared again,
+///  so this process still reads the tree it named.
+/// Why:
+///   A branch that moved under the build,
+/// and a change the landing wants merged onto the new tip,
+///  both make the next preparation read the private index of this one;
+/// the service keeps that tree for the answer and this process removes it,
+///  which is the same rule as for a request no service ever took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const asksAnother = (result) => result.kind === 'moved' || result.kind === 'prepare-again';
+/// ```
+fn the_service_asks_another_preparation(result: &Result<Submitted, ClientFailure>) -> bool {
+    return match result {
+        Ok(Submitted::Moved) | Ok(Submitted::PrepareAgain { .. }) => true,
+        Ok(Submitted::Landed { .. }) | Err(_) => false,
+    };
 }
 
 /// The decision is controlled in the test module.
