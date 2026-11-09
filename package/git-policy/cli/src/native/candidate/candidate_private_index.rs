@@ -72,6 +72,16 @@ pub const PRIVATE_INDEX_PREFIX: &str = "cli-git-add-policy-";
 /// ```
 pub const OWNER_RECORD: &str = "owner";
 
+/// The end of the name a copy is built under before one rename publishes it.
+/// Why:
+///   A copy must hold its owner record before any sweep can see it under the name a sweep visits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const STAGING_SUFFIX = '.making';
+/// ```
+pub const STAGING_SUFFIX: &str = ".making";
+
 /// How many unique names this process has made,
 ///  for private index directories and sibling files.
 static CREATED: AtomicU64 = AtomicU64::new(0);
@@ -132,26 +142,20 @@ pub struct PrivateIndex {
 }
 
 /// What:
-///  The process id a private index directory's name carries,
-///  or nothing when the name is not one
-///       this release wrote.
+///  Whether a directory's name is one this release gives a private index copy,
+///  including the name a copy
+///       is built under before it is published.
 /// Why:
-///  A copy whose owner record a kill prevented carries its owner only in its name,
-///  and one that
-///       names nothing is not proven abandoned.
+///   The sweep visits only these,
+/// so it never looks at another kind of directory in the
+///       Git directory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pidOfName = (name: string) => { const rest = name.slice(PREFIX.length); const pid = Number(rest.split('-')[0]); return pid > 0 ? pid : undefined; };
+/// const isCopyName = (name: string) => name.startsWith(PRIVATE_INDEX_PREFIX);
 /// ```
-fn recognised_owner_pid(name: &str) -> Option<i64> {
-    let rest: &str = name.strip_prefix(PRIVATE_INDEX_PREFIX)?;
-    let first: &str = rest.split('-').next()?;
-    let pid: i64 = first.parse::<i64>().ok()?;
-    if pid < 1 {
-        return None;
-    }
-    return Some(pid);
+fn is_copy_name(name: &str) -> bool {
+    return name.starts_with(PRIVATE_INDEX_PREFIX);
 }
 
 /// What:
@@ -195,13 +199,17 @@ fn owner_is_proven_gone(directory: &Path, name: &str) -> bool {
         // A record that cannot be inspected at all proves nothing either.
         Err(_) => return false,
     }
-    let Some(pid) = recognised_owner_pid(name) else {
-        return false;
-    };
-    return match crate::process_identity::process_birth_identity(pid) {
-        Ok(found) => found.is_none(),
-        Err(_unproven) => false,
-    };
+    // What: A copy with no record is kept, whatever its name says: a process id means something only inside its own
+    //       PID namespace, so a live command of another namespace looks exactly like a dead one from here.
+    // Why:  Removing a live command's copy makes that command fail while it copies or reads the index, and no rule on
+    //       the name can tell the two apart.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // return false; // nothing proves this owner dead
+    // ```
+    let _ = name;
+    return false;
 }
 
 /// What:
@@ -230,7 +238,7 @@ fn reap_copies_of_gone_owners(parent: &Path) {
     for entry in listed.flatten() {
         let path: PathBuf = entry.path();
         let name: String = entry.file_name().to_string_lossy().into_owned();
-        if recognised_owner_pid(name.as_str()).is_none() {
+        if !is_copy_name(name.as_str()) {
             continue;
         }
         if !path.is_dir() {
@@ -366,21 +374,41 @@ impl PrivateIndex {
         };
         // Before a new copy exists, the copies of commands that will never finish leave.
         reap_copies_of_gone_owners(parent);
-        let directory: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{}", unique_suffix()));
-        if let Err(error) = create_private_directory(directory.as_path()) {
+        let suffix: String = unique_suffix();
+        let staging: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{suffix}{STAGING_SUFFIX}"));
+        if let Err(error) = create_private_directory(staging.as_path()) {
             return Err(private_index_failure("creating its directory", &error));
+        }
+        // What: The owner record is written while the directory still carries the staging name, and one `rename`
+        //       publishes it under the name a sweep visits.
+        // Why:  A sweep must never see a copy of this release without its record. A process id read in another PID
+        //       namespace would look dead, so a copy with no record can only be kept, and a copy that is only ever
+        //       published with its record can never need that guess.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const staging = `${final}.making`; mkdir(staging); writeOwner(staging); rename(staging, final);
+        // ```
+        let written: std::io::Result<()> = match current_copy_owner() {
+            Ok(owner) => std::fs::write(staging.join(OWNER_RECORD), owner.token()),
+            // A platform that cannot report this process's identity cannot record one, and the copy is then kept by
+            // every later sweep rather than guessed at.
+            Err(_unreported) => Ok(()),
+        };
+        let directory: PathBuf = parent.join(format!("{PRIVATE_INDEX_PREFIX}{suffix}"));
+        let published: std::io::Result<()> = match written {
+            Ok(()) => std::fs::rename(staging.as_path(), directory.as_path()),
+            Err(error) => Err(error),
+        };
+        if let Err(error) = published {
+            let _ = std::fs::remove_dir_all(staging.as_path());
+            return Err(private_index_failure("publishing its directory", &error));
         }
         // From here on the value owns the directory, so a failure below removes it on drop.
         let private: PrivateIndex = PrivateIndex {
             index: directory.join("index"),
             directory,
         };
-        // The record that lets a later command prove whether this one is still running; a platform that cannot
-        // report this process's identity leaves the name alone to say it, and only a proven-dead process id is
-        // ever acted on.
-        if let Ok(owner) = current_copy_owner() {
-            let _written = std::fs::write(private.directory.join(OWNER_RECORD), owner.token());
-        }
         if let Err(error) = copy_index(real_index, private.index.as_path()) {
             return Err(private_index_failure("copying the index", &error));
         }

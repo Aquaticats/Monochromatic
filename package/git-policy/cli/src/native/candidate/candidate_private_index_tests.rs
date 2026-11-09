@@ -19,7 +19,7 @@
 #![cfg(unix)]
 
 /// Import the type under test and its name prefix.
-use super::{PRIVATE_INDEX_PREFIX, PrivateIndex};
+use super::{PRIVATE_INDEX_PREFIX, PrivateIndex, STAGING_SUFFIX};
 use crate::candidate_error::{CandidateError, CandidateFailure};
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
@@ -203,10 +203,15 @@ fn a_copy_whose_owner_is_gone_is_removed_and_a_live_one_is_kept() {
         pid_namespace: crate::pid_namespace::current_pid_namespace(),
     };
     std::fs::write(abandoned.join("owner"), owner.token()).expect("owner record");
-    // A copy from before owner records existed names its owner only in its own name.
+    // A copy from before owner records existed names its owner only in its own name, and a name proves nothing
+    // across PID namespaces, so it stays for the person to remove.
     let old: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{dead}-2-0"));
     std::fs::create_dir(&old).expect("old directory");
     std::fs::write(old.join("index"), b"stale copy").expect("stale copy");
+    // A copy still being built under its staging name keeps its bytes until it is published.
+    let staging: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{dead}-4-0{STAGING_SUFFIX}"));
+    std::fs::create_dir(&staging).expect("staging directory");
+    std::fs::write(staging.join("index"), b"half a copy").expect("staging copy");
     // A copy whose owner record is unreadable is not proven gone.
     let unreadable: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{dead}-3-0"));
     std::fs::create_dir(&unreadable).expect("unreadable directory");
@@ -214,7 +219,8 @@ fn a_copy_whose_owner_is_gone_is_removed_and_a_live_one_is_kept() {
     // The copy this process holds right now must never be taken away from it.
     let live: PrivateIndex = PrivateIndex::create(real.as_path()).expect("own copy");
     assert!(!abandoned.exists(), "the abandoned copy is removed");
-    assert!(!old.exists(), "the copy without an owner record is removed");
+    assert!(old.exists(), "a copy with no record is kept");
+    assert!(staging.exists(), "a copy being built is kept");
     assert!(unreadable.exists(), "an unproven owner keeps its copy");
     // A later copy leaves the one this process still holds alone.
     let later: PrivateIndex = PrivateIndex::create(real.as_path()).expect("second copy");
@@ -222,6 +228,74 @@ fn a_copy_whose_owner_is_gone_is_removed_and_a_live_one_is_kept() {
     drop(later);
     drop(live);
     std::fs::remove_dir_all(&unreadable).expect("unproven copy");
+    std::fs::remove_dir_all(&old).expect("record-less copy");
+    std::fs::remove_dir_all(&staging).expect("staging copy");
+    assert_eq!(entries(root.as_path()), vec!["index"]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A copy with no owner record is never removed,
+///  and every copy this release publishes holds its record.
+/// Why:
+///  Before the record existed the sweep judged a copy by the process id in its name,
+///  and a
+///       process id means something only inside its PID namespace:
+///  a copy a command in another namespace
+///       was still reading looked dead here,
+///  so the sweep could delete a live command's copy,
+///  and a second
+///       command then failed while copying the index or while using it.
+///  The record is therefore written before the name that a
+///       sweep can see exists at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // writeRecordlessCopy(deadLookingPid); createPrivateIndex(); expect(recordless).toExist(); expect(copiesWithoutRecord()).toEqual([])
+/// ```
+#[test]
+fn a_copy_without_an_owner_record_is_kept_and_every_published_copy_has_one() {
+    let root: PathBuf = fixture("private-index-recordless");
+    let real: PathBuf = root.join("index");
+    std::fs::write(&real, b"DIRC").expect("real index");
+    // A copy whose record a kill prevented, named with a process id no process here has: another PID
+    // namespace's live command looks exactly like this from here.
+    let unseen: i64 = 4_194_304;
+    let recordless: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}{unseen}-1-0"));
+    std::fs::create_dir(&recordless).expect("record-less directory");
+    std::fs::write(recordless.join("index"), b"stale copy").expect("stale copy");
+    let live: PrivateIndex = PrivateIndex::create(real.as_path()).expect("own copy");
+    assert!(
+        recordless.exists(),
+        "a copy nothing proves dead is kept, namespaces aside"
+    );
+    // Every copy this release publishes names its owner, so the interval the old fallback judged cannot exist.
+    let mut unnamed: Vec<String> = Vec::new();
+    for name in entries(root.as_path()) {
+        if !name.starts_with(PRIVATE_INDEX_PREFIX) {
+            continue;
+        }
+        let directory: PathBuf = root.join(&name);
+        if !directory.is_dir() {
+            continue;
+        }
+        if !directory.join("owner").is_file() {
+            unnamed.push(name);
+        }
+    }
+    assert_eq!(
+        unnamed,
+        vec![recordless.file_name().expect("name").to_string_lossy().into_owned()],
+        "only the copy this release did not make may lack a record"
+    );
+    // The record names this process, so a later sweep keeps the copy it is reading.
+    let token: String =
+        std::fs::read_to_string(live.path().parent().expect("dir").join("owner")).expect("record");
+    let owner: crate::worktree_copy_owner::CopyOwner =
+        crate::worktree_copy_owner::CopyOwner::from_token(token.trim()).expect("a token");
+    assert_eq!(owner.pid, i64::from(std::process::id()));
+    drop(live);
+    std::fs::remove_dir_all(&recordless).expect("record-less copy");
     assert_eq!(entries(root.as_path()), vec!["index"]);
     remove(root.as_path());
 }
