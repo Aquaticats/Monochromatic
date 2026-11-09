@@ -626,6 +626,11 @@ Read-only commands,
    Those directories are emptied side by side,
      within the threads and memory the host allows,
      beside the package repair.
+   A directory set aside whole is swept for those containers first,
+     at any depth,
+     a nested worktree and another checkout among them,
+   so nothing of another command's reaches the trash through that route either;
+     the sweep reads no file and follows no link.
    Another command's stage container is not put in that trash at all:
      it is removed before the worktree is installed,
      so

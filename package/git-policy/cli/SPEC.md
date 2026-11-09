@@ -1135,6 +1135,23 @@ so a command that runs
  `git add --all` in that window stages what the container holds,
 and emptying the trash afterwards does not take those
  blobs out of the index.
+A directory that is set aside whole,
+a registered nested worktree or another checkout,
+is swept for the same
+ containers first,
+because a container stands beside the destination of one add and such a directory is another place
+ one can stand:
+every entry named with the stage prefix,
+at any depth,
+is removed with the directory's own files
+ still in it,
+so nothing of another command's reaches the trash through that route either.
+The sweep walks the
+ directory it is moving,
+reads no file,
+follows no link and does not enter a directory that holds `.git`,
+because
+ that is another checkout and is moved whole.
 Everything else the leave-out sets aside,
 the caches,
 the other checkouts and the run
