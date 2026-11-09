@@ -40,8 +40,14 @@ No match-span API is needed for the updated behavior.
 ## Evidence and next action
 
 - `package/forbidden-strings/cli/src/frx_scan.rs` uses rule-ID-only line matches.
-- `package/git-policy/forbidden-strings/src/materialize-candidates.ts` uses synthetic filenames.
-- `package/git-policy/forbidden-strings/src/scanner-output.ts` currently relays original candidate paths.
+- `package/git-policy/forbidden-strings/src/materialize-candidates.ts` uses synthetic filenames
+  (deleted on 2026-10-13 in `642b6d72cb`;
+  the adapter now reads candidate bytes through `package/git-policy/cli/src/native/candidate/`
+  in `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`).
+- `package/git-policy/forbidden-strings/src/scanner-output.ts` currently relays original candidate paths
+  (deleted on 2026-10-13 in `642b6d72cb`;
+  `package/git-policy/cli/src/native/policy/policy_forbidden_strings.rs`
+  now carries the scanner's masked display path and never the original candidate path).
 
 ## Implemented transport
 
