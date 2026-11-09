@@ -12,7 +12,7 @@
 //!  Index-writer
 //!      coordination and the commit rules decide from the expanded command,
 //!  so
-//!      `git -c alias.c=commit c` is a commit (`src/forwarded-command.ts`).
+//!      `git -c alias.c=commit c` is a commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

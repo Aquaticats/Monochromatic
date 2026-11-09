@@ -157,3 +157,7 @@ pub mod git_version_cache;
 /// The Git command a forwarded invocation runs,
 ///  after ordinary alias expansion.
 pub mod forwarded_command;
+
+/// The guarded decision about the command Git will really run,
+/// alias expansion included.
+pub mod guarded_forwarded_command;

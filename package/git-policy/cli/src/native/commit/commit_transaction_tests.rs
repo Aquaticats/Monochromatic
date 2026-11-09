@@ -2,6 +2,8 @@
 
 use super::*;
 use crate::command_commit::parse_commit_region;
+/// `PathBuf` is an owned filesystem path of raw bytes.
+use std::path::PathBuf;
 
 
 /// The commit region of these tokens (everything after `commit`).

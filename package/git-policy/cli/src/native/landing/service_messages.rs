@@ -121,6 +121,12 @@ pub enum ClientFailure {
     /// The service sent nothing for longer than it ever stays silent while it works,
     /// on every try to ask it again.
     ServiceSilent,
+    /// The same silence after a commit was prepared,
+    /// with the branch read afterwards so the message can state what it shows.
+    ServiceSilentAfterPreparing {
+        /// What the branch showed.
+        shows: WhatTheBranchShows,
+    },
     /// The service kept the request for `minutes` minutes without answering,
     /// and the client withdrew it:
     /// it will not land.
@@ -150,6 +156,28 @@ pub enum ClientFailure {
     /// The content prepared for the commit was removed from the repository before the commit landed,
     /// twice.
     ContentPruned,
+}
+
+/// What:
+///  What the branch shows once the service went silent after a commit was prepared.
+/// Why:
+///   "It is not known whether the commit was made" was printed while the service still
+/// held the commit and landed it 73 s later (2026-11-09T07:44:20Z).
+/// One bounded read of the branch turns that into a fact,
+/// and a branch that cannot be read stays the honest "not known".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhatTheBranchShows = 'made' | 'not-made' | 'unread';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WhatTheBranchShows {
+    /// The branch is at the commit this command prepared.
+    Made,
+    /// The branch is not at that commit.
+    NotMade,
+    /// The branch could not be read.
+    Unread,
 }
 
 /// The sentence every failure ends with when nothing was changed.
@@ -236,6 +264,24 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::ServiceSilent => format!(
             "The commit service stopped answering while this commit waited, and it did not answer when asked again, so it is \
              not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to see what is still \
+             staged. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, restart it with \
+             `{RESTART_COMMAND}`, and run the commit again.",
+            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made } => String::from(
+            "The commit service stopped answering, and the commit was made: the branch is at the commit this command \
+             prepared. There is nothing to run.",
+        ),
+        ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::NotMade } => format!(
+            "The commit service stopped answering while this commit waited, and it did not answer when asked again. The \
+             branch is not at the commit this command prepared, so it was not made by this command; the service may still \
+             land it, so run `{}` to see. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, \
+             restart it with `{RESTART_COMMAND}`, and run the commit again. `{}` shows what is still staged.",
+            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
+        ),
+        ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread } => format!(
+            "The commit service stopped answering while this commit waited, and the branch could not be read afterwards, so \
+             it is not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to see what is still \
              staged. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, restart it with \
              `{RESTART_COMMAND}`, and run the commit again.",
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]

@@ -5,11 +5,16 @@
 //!       the repository's top level,
 //!  naming candidates the policy leaves alone.
 //! Why:
-//!  The installed wrapper filtered candidates with the `ignore` package before starting
-//!      the linter (`rewrite-candidates.ts`,
-//!  `rewriteCandidates`),
-//!  so an excluded file never
-//!      starts a linter and never fails for one.
+//!  An excluded candidate never starts a linter and never fails for one:
+//!      `policy_markdown` asks this matcher about a candidate and skips it when the patterns
+//!      name it,
+//!  before any linter reads it.
+//!  The filtering sits in the wrapper because the wrapper starts the linter.
+//!  The TypeScript wrapper this replaced filtered with the same `ignore` package in
+//!      `package/git-policy/cli/src/optional/markdown-lint/rewrite-candidates.ts`
+//!      (`rewriteCandidates`),
+//!  deleted on 2026-10-13 in `642b6d72cb`,
+//!  and this module keeps that contract.
 //!  The linter evaluates its own copy of the
 //!      option with the `ignore` crate's gitignore matcher and a walk over ancestor
 //!      directories (`package/linter/monochromatic-lint/src/markdown_lfs_patterns.rs`);
@@ -146,7 +151,9 @@ impl ExcludeMatcher {
 ///  the separator of Git pathnames.
 /// Why:
 ///   A named predicate for `split`,
-///  because the repository bans anonymous functions.
+///  because `rust/avoidable-closure` reports a closure argument that a named function could replace;
+///  the syntax-only anonymous-function ban once cited here was removed on 2026-10-18
+///  (`doc/decision/rust-closure-lint-dylint.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
