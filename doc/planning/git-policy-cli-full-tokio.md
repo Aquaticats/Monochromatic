@@ -6534,8 +6534,12 @@ Nothing the reviewer raised was left without a change or a stated reason.
 - Branch and worktree:
   `feat/git-policy-cli-tokio-landing-round-on-the-runtime` in
   `.claude/worktrees/pi-tokio-landing-round-on-the-runtime`,
-  from main at `baf3d03fe6`.
-  Commits `02601dbb76` and `8af808f1c0`.
+  from main at `baf3d03fe6`,
+  and main merged into it again at `5ffe9b2dcc` when it had moved to
+  `6232f281d7`.
+  Commits `02601dbb76`,
+  `8af808f1c0`,
+  `ba49929c1c` and the merge `5ffe9b2dcc`.
   Not merged into main.
 - Done:
   the wording of the raw runner's refusal (the finding of
@@ -6680,6 +6684,11 @@ pushes the person's backup.
   Nothing is lost,
   and the caller is told the refresh did not finish.
 
+`a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused` has no plant:
+it measures a state of the code rather than guarding a behaviour,
+and the same read as a task of the runtime answers,
+which is the state its refutation would be.
+
 The wording of a refusal:
 
 - `a_refusal_from_this_runner_says_the_step_may_still_run_and_claims_no_state_of_it`
@@ -6712,6 +6721,19 @@ The wording of a refusal:
   736 passed (four slow),
   8 failed,
   3 skipped.
+  At the merged tip (`5ffe9b2dcc`) the same two suites were run again:
+  `native:test:host` 5164 run,
+  5164 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 757 run,
+  748 passed (three slow),
+  9 failed,
+  3 skipped,
+  the nine being the eight below and
+  `client_service::an_index_writer_waits_for_the_service_to_finish_landing_and_says_so`,
+  which fails alone and fails the same way with this branch's four production
+  files taken from `origin/main`,
+  so it came with the merge and not with the step.
 - The eight binary failures are not this branch's,
   measured:
   `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`,

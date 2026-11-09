@@ -986,9 +986,12 @@
 - Branch and worktree:
   `feat/git-policy-cli-tokio-landing-round-on-the-runtime` in
   `.claude/worktrees/pi-tokio-landing-round-on-the-runtime`,
-  from main at `baf3d03fe6`.
+  from main at `baf3d03fe6`,
+  with main merged again at `5ffe9b2dcc` (it had moved to `6232f281d7`).
   Not merged into main.
-  Commits `02601dbb76` and `8af808f1c0`.
+  Commits `02601dbb76`,
+  `8af808f1c0`,
+  `ba49929c1c` and the merge `5ffe9b2dcc`.
 - Done:
   the raw blocking runner's refusal claims only what it knows
   (the finding of `${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`),
@@ -1041,6 +1044,16 @@
   3 skipped,
   all eight failures pre-existing and measured as such (the plan's section for
   this step names them and the base-arm run that failed the same way);
+  at the merged tip `native:test:host` 5164 run,
+  5164 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 757 run,
+  748 passed (three slow),
+  9 failed,
+  3 skipped,
+  the ninth (`client_service::an_index_writer_waits_for_the_service_to_finish_landing_and_says_so`)
+  being main's,
+  measured the same way;
   `native:clippy` clean;
   `//package/git-policy/cli:lint` 0 errors and 0 warnings.
 - Open failure to read before trusting a green binary run,
