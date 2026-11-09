@@ -361,10 +361,12 @@ fn settle_creation(
     let carried: Option<PathBuf> = finished.carried;
     #[cfg(target_os = "linux")]
     let trash: Option<PendingTrash> = finished.trash;
+    // Set when the copy deliberately left the destination unfilled, as a source that is still being filled does.
+    let mut left_unfilled: bool = false;
     let (copy_failure, created): (Option<WorktreeCopyError>, Vec<PathBuf>) =
         if git.succeeded() || invocation.destination.is_some() {
             let copy_ignored_entered: bool = begin_step("copyIgnored");
-            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, copies, &reserved, git.succeeded(), carried.as_deref(), &mut held, stderr);
+            let copy_ignored_outcome = synchronize_after(invocation, observation, registered_before, copies, &reserved, git.succeeded(), carried.as_deref(), &mut held, &mut left_unfilled, stderr);
             end_step(copy_ignored_entered);
             match copy_ignored_outcome {
                 Ok(roots) => (None, roots),
@@ -389,12 +391,13 @@ fn settle_creation(
     fn exists(path: &Path) -> bool {
         return std::fs::symlink_metadata(path).is_ok();
     }
-    let unfilled: bool = copies
-        && !git.succeeded()
-        && invocation
-            .destination
-            .as_deref()
-            .is_some_and(exists);
+    let unfilled: bool = left_unfilled
+        || (copies
+            && !git.succeeded()
+            && invocation
+                .destination
+                .as_deref()
+                .is_some_and(exists));
     if copy_failure.is_none()
         && !unfilled
         && let Some(unused) = held.take()

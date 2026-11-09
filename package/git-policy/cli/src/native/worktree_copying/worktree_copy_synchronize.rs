@@ -369,6 +369,7 @@ pub(crate) fn synchronize_after(
     git_succeeded: bool,
     carried: Option<&Path>,
     recorded: &mut Option<StageClaim>,
+    left_unfilled: &mut bool,
     stderr: &mut dyn Write,
 ) -> Result<Vec<PathBuf>, WorktreeCopyError> {
     // A main checkout that names no path hands over nothing: no stage, no journal and no summary line.
@@ -474,6 +475,9 @@ pub(crate) fn synchronize_after(
             stderr
                 .write_all(line.as_bytes())
                 .map_err(raw_failure_of)?;
+            // The destination received no ignored state and this command's Git made it, so the record its owner wrote stays
+            // for the next command to report and for the readiness check to hold others back with.
+            *left_unfilled = true;
             return Ok(Vec::new());
         }
     }

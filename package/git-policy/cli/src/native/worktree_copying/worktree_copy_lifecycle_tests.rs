@@ -762,6 +762,56 @@ fn a_destination_made_again_before_the_lookup_is_left_alone() {
     remove(root.as_path());
 }
 
+/// A worktree that receives no copy because its source is still being filled keeps its own unfinished record,
+/// so a later add from it is held back instead of treating its partial ignored state as complete.
+#[cfg(unix)]
+#[test]
+fn a_skipped_unfinished_source_keeps_the_record_of_the_worktree_it_did_not_fill() {
+    let root: PathBuf = fixture("lifecycle-skipped-source-keeps-record");
+    let (main, common) = source(root.as_path());
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let filling: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("filling");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "filling", filling.to_str().expect("utf8")]);
+    // The state a copy in progress leaves: one of the source's ignored entries is there and the rest are not.
+    std::fs::create_dir_all(filling.join("cache")).expect("half-filled cache");
+    std::fs::write(filling.join("cache/half"), b"partial").expect("half");
+    let live = journal_for(main.as_path(), common.as_path(), filling.as_path(), &crate::worktree_copy_owner::current_copy_owner().expect("owner"));
+    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: common.clone(),
+        git_dir: common.join("worktrees").join("filling"),
+        worktree_root: filling.clone(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity,
+            effective_cwd: filling.clone(),
+            creates: true,
+            destination: Some(topic.clone()),
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
+        },
+        &mut |_: &GitStep<'_>| return Ok(run_real(filling.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "the add itself succeeds: {:?}", settlement.copy_failure);
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert!(said.contains("is itself being filled"), "the person is told why nothing was copied: {said}");
+    assert!(!topic.join("cache").exists(), "the half-filled ignored state is not copied");
+    let records: Vec<String> = recorded_names(common.as_path());
+    let add_records: usize = records.iter().filter(|name| return name.ends_with(".add")).count();
+    assert_eq!(
+        add_records, 1,
+        "this command's own unfinished record stays, so a later add from the new worktree is held back: {records:?} {live:?}"
+    );
+    remove(root.as_path());
+}
+
 /// The arguments of a quiet `git worktree add -b <name> <destination>`.
 fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
@@ -982,9 +1032,9 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
         .filter(|name: &String| return !name.ends_with(".json"))
         .collect();
     assert_eq!(
-        claims_left,
-        Vec::<String>::new(),
-        "the destination record of a copy that was refused is settled, so no later command reports an interrupted add"
+        claims_left.iter().filter(|name| return name.ends_with(".add")).count(),
+        1,
+        "the record of the destination this command did not fill stays, so a later add from it is held back: {claims_left:?}"
     );
     remove(root.as_path());
 }
