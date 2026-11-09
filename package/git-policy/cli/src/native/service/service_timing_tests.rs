@@ -45,6 +45,9 @@ const ANSWER_MS: u64 = 31;
 const STAGE_MS: u64 = 37;
 const PLACE_MS: u64 = 953;
 
+/// How many other commits were waiting for this one's landing to finish in the controls.
+const QUEUED_BEHIND: usize = 4;
+
 /// The `key=value` words of a line (a quoted value is taken whole),
 /// after the leading word.
 fn fields(line: &str) -> HashMap<String, String> {
@@ -112,6 +115,7 @@ fn line_for(request: &str, reference: &str, landing: &LandTiming) -> String {
         batch: 9,
         size: 3,
         position: 2,
+        queued_behind: QUEUED_BEHIND,
         arrival: Arrival { accepted: Instant::now(), read: Duration::from_millis(READ_MS) },
         queued: Duration::from_millis(QUEUED_MS),
         settle: Duration::from_millis(SETTLE_MS),
@@ -149,6 +153,7 @@ fn the_answered_line_states_each_phase_of_the_wait() {
     assert_eq!(found["ref_ms"], REF_MS.to_string());
     assert_eq!(found["index_update_ms"], INDEX_UPDATE_MS.to_string());
     assert_eq!(found["lock_hold_ms"], HOLD_MS.to_string(), "the hold is stated, and is no phase of the landing");
+    assert_eq!(found["queued_behind"], QUEUED_BEHIND.to_string(), "how many commits waited for this landing is stated");
     assert_eq!(found["attempts"], "2");
     assert_eq!(found["answer_ms"], ANSWER_MS.to_string());
 }
@@ -477,6 +482,7 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
         batch: 1,
         size: 1,
         position: 1,
+        queued_behind: 0,
         arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
         queued: Duration::ZERO,
         settle: Duration::ZERO,
@@ -513,6 +519,7 @@ fn the_answered_line_names_each_step_with_its_offset_and_duration() {
         batch: 1,
         size: 1,
         position: 1,
+        queued_behind: 0,
         arrival: Arrival { accepted: Instant::now(), read: Duration::ZERO },
         queued: Duration::ZERO,
         settle: Duration::ZERO,

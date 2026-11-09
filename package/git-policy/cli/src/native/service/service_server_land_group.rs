@@ -69,12 +69,16 @@ pub(crate) struct BatchTimes {
     /// When the landing returned,
     /// which starts the answers.
     landed_at: Instant,
+    /// How many requests were still waiting for their answer when the landing finished,
+    /// this batch's own taken out:
+    /// how many commits queued behind it.
+    queued_behind: usize,
 }
 
 impl BatchTimes {
     /// The times of a request that no batch landed.
     fn not_landed(group_began: Instant) -> Self {
-        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now() };
+        return Self { batch: 0, size: 0, group_began, settle: Duration::ZERO, landing: LandTiming::default(), land_total: Duration::ZERO, landed_at: Instant::now(), queued_behind: 0 };
     }
 }
 
@@ -105,6 +109,7 @@ pub(crate) fn log_answer(times: &BatchTimes, request: &CommitRequest, arrival: &
         batch: times.batch,
         size: times.size,
         position,
+        queued_behind: times.queued_behind,
         arrival: *arrival,
         queued,
         settle: times.settle,
@@ -327,7 +332,11 @@ pub(crate) fn land_group(
     let result = land_batch_timed(context, *seq, &requests, &announce, &mut landing);
     // The intent or the finished batch keeps the number now; a landing that wrote none gives the number back.
     drop(claim);
-    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now() };
+    // How many requests were still waiting when this landing finished: the batch's own are still unanswered here, so they come
+    //  out of the count, and what is left is how many commits queued behind this landing.
+    let waiting: usize = crate::service_reply::Reply::waiting();
+    let queued_behind: usize = waiting.saturating_sub(fresh.len());
+    let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now(), queued_behind };
     match result {
         Ok(outcomes) => {
             // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.

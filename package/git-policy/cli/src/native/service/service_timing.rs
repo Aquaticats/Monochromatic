@@ -188,6 +188,9 @@ pub struct Answered<'record> {
     /// This request's place among them,
     /// from one.
     pub position: usize,
+    /// How many other commits were still waiting for their answer when this landing finished,
+    /// which is how many commits queued behind it.
+    pub queued_behind: usize,
     /// How the connection and its request line arrived.
     pub arrival: Arrival,
     /// Time from the request being read to its batch starting to land.
@@ -377,7 +380,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     let mut holder: String = answered.landing.lock_holder.as_ref().map_or_else(String::new, holder_field);
     holder.push_str(lock_notes_fields(&answered.landing.lock_notes).as_str());
     return format!(
-        "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
+        "answered request={:?} branch={:?} outcome={} batch={} size={} position={} queued_behind={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
          reads_config_ms={} reads_branch_ms={} reads_parents_ms={} reads_changed_ms={} reads_content_ms={} \
          reads_witness_ms={} reads_conclusion_ms={} reads_owed_ms={} reads_follow_ms={} \
@@ -389,6 +392,7 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.batch,
         answered.size,
         answered.position,
+        answered.queued_behind,
         answered.arrival.read.as_millis(),
         answered.queued.as_millis(),
         answered.settle.as_millis(),

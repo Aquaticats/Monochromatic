@@ -248,6 +248,8 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let line: &str = answered[0].as_str();
     assert!(line.contains("outcome=landed") && line.contains(format!("branch=\"refs/heads/{branch}\"").as_str()), "{line}");
     assert!(line.contains(" size=1 position=1 "), "{line}");
+    // One commit waits for nothing: nothing queued behind its landing.
+    assert_eq!(ms_of(line, "queued_behind"), 0, "a lone commit has nothing behind it: {line}");
     let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|key| { return ms_of(line, key); }).sum();
     assert!(request_phases <= ms_of(line, "total_ms"), "the phases lie inside the request's total: {line}");
     let landing_keys: [&str; 6] = ["lock_wait_ms", "reads_ms", "objects_ms", "journal_ms", "ref_ms", "index_update_ms"];
