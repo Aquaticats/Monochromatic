@@ -81,10 +81,9 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
-/// What a report of a stopped push says when the remote already holds every reference the push was asked to
-/// deliver.
-///  Citation:
-/// none needed: the phrase names the evidence the stop found, and nothing is bounded by it.
+/// What:
+///  The sentence a report of a stopped push carries when the remote already holds every reference the push was
+///  asked to deliver.
 /// Why:
 ///   A push to a local path runs the remote's `receive-pack` in the push's own tree,
 /// and its `post-receive` hook runs
@@ -404,8 +403,9 @@ pub fn run_bounded_push(
 ///  and a file needs no reader thread that a stuck helper could keep alive.
 ///  A stopped push becomes an attempt that says so,
 ///  so the commit stays saved and the report is recorded for later invocations;
-/// an attempt whose references the
-///  remote already holds says that instead, so a published branch is never reported as a failure.
+/// an attempt whose references the remote
+///  already holds says that instead,
+/// so a published branch is never reported as a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -484,7 +484,7 @@ pub async fn run_bounded_push_awaiting(
     // and it is answered in the time a killed
     //  child is given, so a remote that does not answer leaves the report as it was.
     let delivered: Option<Vec<String>> = match (&ended, question) {
-        (Err(StopCause::Stalled(_)), Some(question)) => refs_already_delivered(&asking, &question, grace, grace).await,
+        (Err(StopCause::Stalled(_)), Some(asked)) => refs_already_delivered(&asking, &asked, grace, grace).await,
         _ => None,
     };
     let captured: String = read_output(&mut output)?;

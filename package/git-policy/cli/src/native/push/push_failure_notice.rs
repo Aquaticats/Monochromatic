@@ -207,6 +207,7 @@ pub fn clean_reason(said: &str) -> String {
 fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
     let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
     // The stop says what the remote holds when it proved it: then nothing failed, and the commit is not only here.
+    // The stop says what the remote holds when it proved it: then nothing failed, and the commit is not only here.
     if reason.contains(crate::bounded_push::DELIVERED_BEFORE_THE_STOP) {
         return worded_delivered(branch, shown, reason);
     }
@@ -242,16 +243,12 @@ fn worded(branch_ref: &str, shown: &str, reason: &str) -> String {
 /// wordedDelivered(branch, shown, reason)
 /// ```
 fn worded_delivered(branch: &str, shown: &str, reason: &str) -> String {
-    let detail: String = if reason.is_empty() {
-        NO_REASON.to_string()
-    } else {
-        format!("monochromatic-git-policy-cli said:\n{}", indented(reason))
-    };
+    let detail: String = if reason.is_empty() { NO_REASON.to_string() } else { format!("monochromatic-git-policy-cli said:\n{}", indented(reason)) };
     return format!(
         "The backup push of branch {branch} delivered commit {shown} to the remote, and monochromatic-git-policy-cli stopped it \
-         while the remote was running its own work after that update, so that work was ended before it finished. The commit is on \
-         the remote and nothing is left to deliver, so nothing here needs fixing. Pushing again runs no remote hook, so it does not \
-         restart that work: finish it at the remote by hand if it matters (a deploy, a mirror, a ledger append).\n{detail}"
+         while the remote ran its own work after that update, so that work was ended before it finished. The commit is on the \
+         remote and nothing is left to deliver, so nothing here needs fixing. Pushing again runs no remote hook and does not \
+         restart that work; finish it at the remote by hand if it matters.\n{detail}"
     );
 }
 

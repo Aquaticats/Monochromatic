@@ -112,9 +112,7 @@ pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
             continue;
         }
         // A valueless or empty entry is the person's own reset, and it names no directory.
-        let Some(bytes) = candidate.value.as_deref() else {
-            return None;
-        };
+        let bytes: &[u8] = candidate.value.as_deref()?;
         if bytes.is_empty() {
             return None;
         }

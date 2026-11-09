@@ -16,7 +16,8 @@ use std::time::Duration;
 const STALL: Duration = Duration::from_millis(2000);
 
 /// The grace the stop is given,
-/// as a short one: the hook is a `sleep` that ends on `SIGTERM` at once.
+/// as a short one:
+/// the hook is a `sleep` that ends on `SIGTERM` at once.
 const GRACE: Duration = Duration::from_secs(2);
 
 /// The environment the fixture's push and its queries run with:

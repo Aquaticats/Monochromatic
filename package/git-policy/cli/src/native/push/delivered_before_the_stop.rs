@@ -27,7 +27,8 @@
 //! const delivered = question && await refsAlreadyDelivered(git, question); // undefined unless every ref matched
 //! ```
 
-/// A query of the push, bounded by what it shows.
+/// A query of the push,
+/// bounded by what it shows.
 use crate::bounded_query::run_bounded_query_awaiting;
 /// Git's own `push` option table,
 /// which decides where the destination and the refspecs sit.
@@ -241,7 +242,10 @@ async fn local_object(git: &AskingGit, source: &OsStr, window: Duration, grace: 
     .to_vec();
     let answer: String = ask(git, arguments.as_slice(), "rev-parse", window, grace).await?;
     let name: String = answer.trim().to_owned();
-    if name.is_empty() { None } else { Some(name) }
+    if name.is_empty() {
+        return None;
+    }
+    return Some(name);
 }
 
 /// What:

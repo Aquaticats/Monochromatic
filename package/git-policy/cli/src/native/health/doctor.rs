@@ -348,7 +348,11 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     };
     // Every value of the key, because the wrapper's own command-scope entry is placed last by Git.
     let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get-all", "core.hooksPath"]).await? {
-        Some(text) => configured_hooks_directory(text.as_str()).filter(|value| { return !value.is_empty(); }),
+        // An empty value is the person's own reset, and it names no directory.
+        Some(text) => match configured_hooks_directory(text.as_str()) {
+            Some(value) if value.is_empty() => None,
+            other => other,
+        },
         None => None,
     };
     let Some(value) = configured_text else {

@@ -454,9 +454,13 @@ fn a_nested_doctor_lists_the_persons_hooks_and_not_the_wrappers() {
         std::ffi::OsString::from("'core.hookspath'='/dev/null/cli-git-no-hooks'"),
     ));
     // Without a configured hooks directory, the default one is still the one scanned.
-    let (code, stdout, stderr) = exit_parts(doctor_action(&context, repo.as_path()));
-    assert_eq!(code, 1, "{stderr}");
-    assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()), "{stderr}");
+    let (default_code, default_stdout, default_stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!(default_code, 1, "{default_stderr}");
+    assert_eq!(
+        default_stdout,
+        format!("{}\n", repo.join(".git/hooks/pre-commit").display()),
+        "{default_stderr}"
+    );
     // A configured one is read through the wrapper's own entry rather than replaced by it.
     git(repo.as_path(), &["config", "core.hooksPath", "custom"]);
     let (code, stdout, stderr) = exit_parts(doctor_action(&context, repo.as_path()));
@@ -523,13 +527,13 @@ fn a_hook_of_an_event_the_author_switched_off_is_not_reported() {
     git(repo.as_path(), &["config", "hook.control.event", "pre-commit"]);
     git(repo.as_path(), &["config", "hook.control.command", "run it"]);
     git(repo.as_path(), &["config", "hook.pre-commit.enabled", "false"]);
-    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
-    assert_eq!((code, stdout.as_str()), (0, ""), "{stderr}");
-    assert!(!stderr.contains("hook.control"), "{stderr}");
+    let (off_code, off_stdout, off_stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!((off_code, off_stdout.as_str()), (0, ""), "{off_stderr}");
+    assert!(!off_stderr.contains("hook.control"), "{off_stderr}");
     // The same hook with its event switched on is reported.
     git(repo.as_path(), &["config", "hook.pre-commit.enabled", "true"]);
-    let (code, stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
-    assert_eq!(code, 1, "{stderr}");
-    assert_eq!(stdout, "hook.control (events: pre-commit)\n");
+    let (on_code, on_stdout, on_stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(on_code, 1, "{on_stderr}");
+    assert_eq!(on_stdout, "hook.control (events: pre-commit)\n");
     remove(root.as_path());
 }
