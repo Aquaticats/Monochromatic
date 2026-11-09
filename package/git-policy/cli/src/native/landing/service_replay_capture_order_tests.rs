@@ -81,7 +81,13 @@ fn context_of() -> GitContext {
 /// this capture's stamp,
 /// and the landed commits the case names.
 fn captured_of(history: &History, captured: u64, landed: Vec<LandedCapture>) -> Captured {
-    return Captured { base: history.base.clone(), tree: String::from("0".repeat(40)), captured, landed };
+    return captured_of_kind(history.base.as_str(), captured, landed);
+}
+
+/// The same capture of a base the case names,
+/// for a history whose base is not the fixture's first commit.
+fn captured_of_kind(base: &str, captured: u64, landed: Vec<LandedCapture>) -> Captured {
+    return Captured { base: base.to_string(), tree: String::from("0".repeat(40)), captured, landed };
 }
 
 /// The path of the `number`th file of a history.
@@ -195,4 +201,74 @@ of every path ({} looks here)",
         width as u64 * width as u64
     );
     remove(history.root.as_path());
+}
+
+/// What:
+///  A merge that changed a path is one of the commits that changed it,
+///  and a merge the service never landed holds the path back.
+/// Why:
+///  `git log -- <path>` follows history simplification,
+///  so a merge whose bytes for the path are the second parent's is not a commit it reports;
+///  the one walk reports a merge against each parent,
+///  so the change is seen,
+///  and a merge this service never landed makes the order unknown.
+///  The unknown answer hands the path to subsumption and the merge,
+///  which is the direction that cannot discard a landed edit;
+///  a later capture that holds every change of the path still lands its bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(orderFor('p.txt', [sideAt10, mergeAt20])).toBe('prepared');
+/// expect(orderFor('p.txt', [sideAt10])).toBe('unordered'); // the merge is unknown
+/// ```
+#[test]
+fn a_merge_that_changed_a_path_counts_as_a_commit_that_changed_it() {
+    let root: PathBuf = fixture("capture-order-merge");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("p.txt"), "base\n").expect("p");
+    std::fs::write(repo.join("q.txt"), "base\n").expect("q");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    // The branch changes the other file, so the merge of `side` is clean and holds `side`'s bytes for p.txt.
+    git(repo.as_path(), &["switch", "--quiet", "--create", "side"]);
+    std::fs::write(repo.join("p.txt"), "side\n").expect("side p");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+    let side_commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("q.txt"), "main\n").expect("main q");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    let main_commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["merge", "--quiet", "--no-ff", "--message=merge", "side"]);
+    let merge_commit: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    // The merge holds p.txt as `side` left it and q.txt as `main` left it, which is what history simplification hides.
+    assert_eq!(git_text(repo.as_path(), &["show", format!("{merge_commit}:p.txt").as_str()]), "side", "the merge kept the side's bytes");
+    std::fs::write(repo.join("after.txt"), "after\n").expect("after");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=after"]);
+    let tip: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::create_dir_all(root.join("scratch")).expect("scratch");
+    let context: GitContext = context_of();
+    let common: PathBuf = repo.join(".git");
+    let objects: PathBuf = common.join("objects");
+    let scratch: PathBuf = root.join("scratch");
+    let site: MergeSite<'_> = MergeSite {
+        context: &context,
+        cwd: repo.as_path(),
+        common_dir: common.as_path(),
+        object_directory: objects.as_path(),
+        scratch: scratch.as_path(),
+    };
+    let p: Vec<SharedPath> = vec![shared(b"p.txt")];
+    // Every commit that changed the path, the merge included, was captured before this one.
+    let captured: Captured = captured_of_kind(base.as_str(), 100, vec![landed(side_commit.as_str(), 10), landed(merge_commit.as_str(), 20)]);
+    let order: BTreeMap<Vec<u8>, CaptureOrderDecision> =
+        capture_order_of_each(&site, &captured, tip.as_str(), p.as_slice()).expect("the capture order");
+    assert_eq!(order.get(&b"p.txt".to_vec()), Some(&CaptureOrderDecision::Prepared), "the merge is one of the commits, and its stamp is earlier");
+    // The merge is a commit this service never landed, so the order of the path is unknown.
+    let unknown_merge: Captured = captured_of_kind(base.as_str(), 100, vec![landed(side_commit.as_str(), 10), landed(main_commit.as_str(), 10)]);
+    let held_back: BTreeMap<Vec<u8>, CaptureOrderDecision> =
+        capture_order_of_each(&site, &unknown_merge, tip.as_str(), p.as_slice()).expect("the capture order");
+    assert_eq!(held_back.get(&b"p.txt".to_vec()), Some(&CaptureOrderDecision::Unordered), "a merge the service never landed leaves the order unknown");
+    remove(root.as_path());
 }

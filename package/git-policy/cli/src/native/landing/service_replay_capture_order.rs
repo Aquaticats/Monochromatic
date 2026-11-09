@@ -146,10 +146,13 @@ fn stamps_by_commit(landed: &[LandedCapture]) -> HashMap<&str, u64> {
 ///   `--raw -z` frames every change as one record then one path,
 ///  so a path that holds any byte or looks like anything else is read as the path it is;
 ///  `--no-renames` names both sides of a rename,
-///  which is what the per-path question asked of Git once per path;
+///  so a path that either name carried is one the walk reports;
 ///  `-m` reports a merge against each parent,
-///  so a merge that resolved a conflict in a path is a commit that changed it,
-///  as the per-path question reported it.
+///  so a merge that holds one parent's bytes for a path and not the other's is a commit that changed it.
+///  The per-path question followed history simplification, which left such a merge out;
+///  a walk that reports it can only hold a path back to subsumption and the merge,
+///  except where no commit the per-path question reported changed the path at all,
+///  and this capture there is later than every change of it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -160,31 +163,31 @@ fn history_arguments<'a>(tip: &'a str, exclusion: &'a str) -> Vec<&'a str> {
 }
 
 /// What:
-///  Whether one field of the walk's output is a change record.
+///  Whether this byte ends one field of the walk's output.
 /// Why:
-///   A record names the two modes,
-/// the two object names and the status before the path it belongs to,
-///  and starts with `:`;
-///  every other field in that position is the commit the records after it belong to.
+///   The walk separates its records and paths by NUL,
+///  and a path may hold any byte but that one,
+///  so one pass over the bytes takes each field as Git printed it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isRawRecord = (field) => field[0] === ':';
+/// const isFieldEnd = (byte) => byte === 0;
 /// ```
 fn is_field_end(byte: &u8) -> bool {
     return *byte == 0;
 }
 
 /// What:
-///  One field of the walk's output as the path it is.
+///  Whether one field of the walk's output is a change record.
 /// Why:
-///   The walk separates its fields by NUL,
-///  and a path may hold any byte but that one,
-///  so the path is taken as the bytes Git printed.
+///   A record names the two modes,
+///  the two object names and the status before the path it belongs to,
+///  and starts with `:`;
+///  every other field in that position is the commit the records after it belong to.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const field = (bytes) => bytes; // Buffer until the next 0x00
+/// const isRawRecord = (field) => field[0] === ':';
 /// ```
 fn is_raw_record(field: &[u8]) -> bool {
     return field.starts_with(b":");
@@ -259,7 +262,8 @@ fn note_history(
 ///  and the history is the same for all of them,
 ///  so one walk answers them all (`AGENTS.md` `RG2`).
 ///  A capture with no stamp of its own is not decided by order at all,
-///  and that is answered without reading the history.
+///  and neither is a conflict with no path at all,
+///  so both are answered without reading the history.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -275,7 +279,7 @@ pub fn capture_order_of_each(
     for entry in shared {
         states.insert(entry.path.clone(), NOTHING_SEEN);
     }
-    if captured.captured == 0 {
+    if captured.captured == 0 || states.is_empty() {
         return Ok(decisions(&states));
     }
     let stamps: HashMap<&str, u64> = stamps_by_commit(captured.landed.as_slice());
