@@ -181,7 +181,7 @@ fn the_source_walk_takes_a_place_of_the_processs_bound() {
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(source.join("cache")).expect("cache");
     std::fs::write(source.join("cache/file"), b"x").expect("file");
-    let selected: Vec<String> = vec![String::from("cache")];
+    let selected: Vec<Vec<u8>> = vec![b"cache".to_vec()];
     let entries: Vec<WorktreeCopyEntry> =
         collect_entry_manifest(source.as_path(), selected.as_slice(), &[]).expect("manifest");
     let stage: PathBuf = root.join("stage");

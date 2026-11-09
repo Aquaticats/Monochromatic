@@ -207,7 +207,7 @@ fn the_install_slices_take_places_of_the_processs_bound() {
     for index in 0..crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES + 40 {
         std::fs::write(stage.join(format!("cache/file-{index:05}")), b"payload").expect("file");
     }
-    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage.as_path(), &[String::from("cache")], &[]).expect("manifest");
+    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder::default();

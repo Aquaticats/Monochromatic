@@ -510,7 +510,7 @@ fn the_copy_slices_take_places_of_the_processs_bound() {
     for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
         std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
     }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[String::from("many")], &[]).expect("manifest");
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
     let stamps = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied");
     assert_eq!(stamps.len(), entries.len());
     // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
