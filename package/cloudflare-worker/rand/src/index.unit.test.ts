@@ -260,6 +260,31 @@ await describe({
           },
         },),
         it({
+          name: 'keeps an interval whose span needs the 32-bit draw inside its bounds',
+          fn: async () => {
+            /**
+             Upper bound of an interval whose span, 2^31 + 1 values, needs
+             exactly the 32-bit draw: the width where a signed reduction
+             answered values below the lower bound with status 200.
+             */
+            const max = 2 ** 31;
+            /**
+             Every draw for this interval.
+             */
+            const results = await servedMany(`/int?min=0&max=${String(max,)}`, MANY_DRAWS,);
+            for (const result of results) {
+              expect(result.status,).toBe(OK,);
+              /**
+               Value served this time.
+               */
+              const value = Number(result.body,);
+              expect(Number.isSafeInteger(value,),).toBe(true,);
+              expect(value >= 0,).toBe(true,);
+              expect(value <= max,).toBe(true,);
+            }
+          },
+        },),
+        it({
           name: 'refuses with 400 everything the origin coerced to zero or answered with 500',
           fn: async () => {
             /**

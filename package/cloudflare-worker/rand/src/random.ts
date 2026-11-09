@@ -102,7 +102,10 @@ export function bitLength(value: number,): number {
  Built from masked 32-bit words so the result stays exactly representable: the
  high word carries at most 21 bits when `bits` is at most
  {@link EXACT_POWER_LIMIT}, so both the shifted high word and the sum stay
- below two raised to 53.
+ below two raised to 53. The single-word width is reduced by remainder rather
+ than by a bitwise AND, because every bitwise operator converts to a signed
+ 32-bit integer: at a width of 32 the mask `2 ** 32 - 1` becomes `-1`, so an AND
+ returns the signed word and about half of all draws below zero.
 
  @param bits - width of the draw, from 1 to {@link EXACT_POWER_LIMIT}
 
@@ -129,7 +132,7 @@ export function drawBits(bits: number,): number {
    */
   const low = nonNullishOrThrow(words[0],);
   if (bits <= WORD_BITS) {
-    return low & ((2 ** bits) - 1);
+    return low % (2 ** bits);
   }
   /**
    Bits the high word contributes above the low word.
