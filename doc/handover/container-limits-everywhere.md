@@ -667,14 +667,24 @@ so no
 
 ### Option chosen: mount the store read-only at the path the links name
 
-`pnpmStoreMountArguments()` in `package/test-harness/core-matrix/src/pnpm-store-mount.ts` returns
-`['--volume', '<store>:<store>:ro']`.
-Source and destination spell the same absolute path,
-because a symbolic link is interpreted against its own
-directory:
-any other mount point leaves the link dangling,
-which is why mounting the store beside the checkout
-cannot work.
+`pnpmStoreMountArguments()` in `package/test-harness/core-matrix/src/pnpm-store-mount.ts` returns one
+`['--volume', '<store>:<store>:ro']` pair per spelling of the store the checkout's links can name.
+Each pair spells source and destination the same absolute path,
+because a symbolic link is interpreted against its own directory,
+so any other mount point leaves the link dangling.
+The spellings differ because pnpm writes each link as a path relative to the link,
+whose length depends on how deep the checkout sits on the host.
+This checkout is 13 folders deep,
+its links climb 11 levels and land on `/var/home/user/.local/share/pnpm/store`;
+mounting it at `/workspace` or `/work` makes the same links climb past the filesystem root and land on
+`/home/user/.local/share/pnpm/store`.
+On this host `/home/user` is a symbolic link to `/var/home/user`
+(`doc/troubleshooting/pnpm-symlinked-store-path.md`),
+so both spellings are mounted,
+the physical one taken from `PNPM_CONFIG_STORE_DIR`,
+which mise supplies,
+and the home-relative one from `$HOME`.
+A host whose home directory is not reached through a symbolic link gets one mount.
 Every site also passes `--security-opt label=disable`,
 and the matrix cells drop their `:Z` mount:
 relabelling the store would rewrite a directory every worktree shares,
@@ -799,6 +809,12 @@ counts above rather than on a stopwatch.
 - `mise run test:browser -- --project=firefox --workers=2`,
   2026-11-09T02:00:16Z:
   `28 passed` in 28.1 s.
+- `mise run //package/upstream-fork/conf:test:container src/bytes.unit.test.ts`,
+  2026-11-09T02:13:27Z:
+  exit 0 in 3 s with `byte conversions` passing,
+  which is the site that mounts the checkout at its host path.
+  Before the physical spelling was mounted it failed with `Cannot find package 'p-limit' imported from
+  /var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-containers-reach-the-shared-pnpm-store/package/test-harness/core/src/describe.ts`.
 
 What the browser runs show:
 the store mount and the rebuilt image removed both blockers,

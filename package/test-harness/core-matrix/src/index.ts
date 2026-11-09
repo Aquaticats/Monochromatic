@@ -46,6 +46,7 @@ export {
   pnpmStoreDirectory,
   pnpmStoreMountArguments,
   STORE_DIRECTORY_FROM_HOME,
+  STORE_DIRECTORY_VARIABLE,
 } from './pnpm-store-mount.ts';
 
 /**

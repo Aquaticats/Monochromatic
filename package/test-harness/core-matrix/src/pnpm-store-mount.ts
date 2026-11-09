@@ -38,9 +38,33 @@ export const STORE_DIRECTORY_FROM_HOME: string = join(
   'store',
 );
 
+/**
+ Names every spelling of the store a container may have to see.
+ */
+export const STORE_DIRECTORY_VARIABLE = 'PNPM_CONFIG_STORE_DIR';
+
 //endregion Names
 
 //region Mount arguments
+
+/**
+ Mount options of one store spelling: source and destination equal, and read-only.
+
+ @param directory - absolute store directory, spelled the way the container must see it
+
+ @returns `--volume` and the mount argument
+
+ @example
+ ```ts
+ const options = mountOptionsOf('/home/user/.local/share/pnpm/store');
+ ```
+ */
+function mountOptionsOf(directory: string,): readonly string[] {
+  return [
+    '--volume',
+    `${directory}:${directory}:ro`,
+  ];
+}
 
 /**
  The shared store directory, as the container that mounts this checkout must spell it.
@@ -69,9 +93,18 @@ export function pnpmStoreDirectory({
 /**
  The `podman run` options that put the shared store at the path this checkout's links name, read-only.
 
+ pnpm writes each `node_modules` link as a relative path from the link to the store's physical directory, so the path
+ a link resolves to depends on how deep the checkout is mounted: a checkout mounted at `/workspace` or `/work` makes
+ the link climb past the filesystem root and land on the home-relative spelling of the store, while a checkout mounted
+ at its host path keeps the physical spelling. On a host whose home directory is reached through a symbolic link those
+ two spellings differ (`doc/troubleshooting/pnpm-symlinked-store-path.md`), so both directories are mounted.
+
  @param home - current user's home directory; taken from the runtime unless a caller supplies one
 
- @returns `['--volume', '<store>:<store>:ro']`, one mount because source and destination must spell the same path
+ @param physicalStoreDirectory - physical store spelling, read from {@link STORE_DIRECTORY_VARIABLE} unless supplied
+
+ @returns `--volume` options, one per distinct store spelling, each read-only and with the source and destination spelled
+   the same path
 
  @example
  ```ts
@@ -81,18 +114,33 @@ export function pnpmStoreDirectory({
  */
 export function pnpmStoreMountArguments({
   home,
+  physicalStoreDirectory = process.env[STORE_DIRECTORY_VARIABLE],
 }: {
   readonly home?: string;
+  readonly physicalStoreDirectory?: string;
 } = {},): readonly string[] {
   /**
-   Store directory, spelled once so the mount cannot join two different paths.
+   Store directory spelled from the home directory, which is the spelling a link keeps when the checkout is mounted
+   shallower than it is on the host.
    */
-  const storeDirectory = pnpmStoreDirectory(home === undefined ? {} : { home, },);
+  const logicalDirectory = pnpmStoreDirectory(home === undefined ? {} : { home, },);
+  /**
+   Physical spelling this host installs into, from mise; empty when nothing supplies one.
+   */
+  const physicalDirectory = (physicalStoreDirectory ?? '').trim();
+  /**
+   Every directory to mount, deduplicated so a host whose home is not a symbolic link gets one mount.
+   */
+  const directories = ((physicalDirectory === '') || (physicalDirectory === logicalDirectory))
+    ? [
+      logicalDirectory,
+    ]
+    : [
+      logicalDirectory,
+      physicalDirectory,
+    ];
 
-  return [
-    '--volume',
-    `${storeDirectory}:${storeDirectory}:ro`,
-  ];
+  return directories.flatMap(mountOptionsOf,);
 }
 
 //endregion Mount arguments

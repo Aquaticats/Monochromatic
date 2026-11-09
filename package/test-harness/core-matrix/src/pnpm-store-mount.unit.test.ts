@@ -19,6 +19,7 @@ import {
   pnpmStoreDirectory,
   pnpmStoreMountArguments,
   STORE_DIRECTORY_FROM_HOME,
+  STORE_DIRECTORY_VARIABLE,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -95,29 +96,74 @@ await describe({
     it({
       name: 'mounts the store at the path its links name and read-only',
       fn: async () => {
-        expect(pnpmStoreMountArguments({ home: HOME, },),).toEqual([
+        expect(
+          pnpmStoreMountArguments({
+            home: HOME,
+            physicalStoreDirectory: '',
+          },),
+        ).toEqual([
           '--volume',
           `${STORE}:${STORE}:ro`,
         ],);
-        expect(pnpmStoreMountArguments(),).toEqual([
+        expect(
+          pnpmStoreMountArguments({
+            home: HOME,
+            physicalStoreDirectory: STORE,
+          },),
+        ).toEqual([
           '--volume',
-          `${join(
-            homedir(),
-            STORE_DIRECTORY_FROM_HOME,
-          )}:${join(
-            homedir(),
-            STORE_DIRECTORY_FROM_HOME,
-          )}:ro`,
+          `${STORE}:${STORE}:ro`,
         ],);
+      },
+    },),
+    it({
+      name: 'also mounts the physical spelling when the home directory is reached through a symbolic link',
+      fn: async () => {
+        /**
+         Physical store spelling, as mise supplies it on a host whose home is a symbolic link.
+         */
+        const physical = '/var/home/fixture/.local/share/pnpm/store';
+        expect(
+          pnpmStoreMountArguments({
+            home: HOME,
+            physicalStoreDirectory: physical,
+          },),
+        ).toEqual([
+          '--volume',
+          `${STORE}:${STORE}:ro`,
+          '--volume',
+          `${physical}:${physical}:ro`,
+        ],);
+      },
+    },),
+    it({
+      name: 'reads the physical spelling from the environment when a caller names none',
+      fn: async () => {
+        /**
+         Physical store spelling the task environment carries.
+         */
+        const physical = process.env[STORE_DIRECTORY_VARIABLE];
+        /**
+         Options built without a physical directory argument.
+         */
+        const options = pnpmStoreMountArguments({ home: HOME, },);
+        if ((physical === undefined) || (physical === '')) {
+          expect(options,).toHaveLength(2,);
+          return;
+        }
+        expect(options,).toContain(`${physical}:${physical}:ro`,);
       },
     },),
     it({
       name: 'spells source and destination the same, so a relative link lands on the store',
       fn: async () => {
         /**
-         Mount argument of the store, the one that is neither the option name nor a read-write or relabelled mount.
+         Mount argument of the store, the one after the option name.
          */
-        const [, mount,] = pnpmStoreMountArguments({ home: HOME, },);
+        const [, mount,] = pnpmStoreMountArguments({
+          home: HOME,
+          physicalStoreDirectory: '',
+        },);
         /**
          Where the mount reads from, and where the container sees it.
          */
@@ -131,7 +177,10 @@ await describe({
         /**
          Options of the mount.
          */
-        const options = pnpmStoreMountArguments({ home: HOME, },);
+        const options = pnpmStoreMountArguments({
+          home: HOME,
+          physicalStoreDirectory: '',
+        },);
         expect(options,).toContain(`${STORE}:${STORE}:ro`,);
         expect(options.some((option,) => option.endsWith(':rw',),),).toBe(false,);
         expect(options.some((option,) => option.endsWith(',z',) || option.endsWith(',Z',),),).toBe(false,);
