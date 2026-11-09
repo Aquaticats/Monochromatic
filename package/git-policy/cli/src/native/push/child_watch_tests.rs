@@ -399,43 +399,63 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
     crate::test_support::remove(root.as_path());
 }
 
-/// What a failed look at the step's own record must not cost:
-/// the signal.
-/// A look that fails (a descriptor limit,
-/// a permission,
-/// an I/O error) says nothing about the process,
-/// and it does not say which process the number names either,
-/// so nothing is signalled:
-/// the number may have been given to an unrelated process since the member was found.
+/// What:
+///  A root nothing could be pinned for is not signalled at all,
+/// and nothing else is either.
+/// Why:
+///  A record that could not be read says nothing about which process holds the number,
+/// and a number that was not
+///  pinned may name an unrelated process by now.
+/// The step is still waited for, and one line says it was not
+///  stopped;
+/// finding 1 of the third review was a signal sent to whatever held the root's number *after*
+///  the root was reaped.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_root_whose_record_could_not_be_read_is_not_signalled() {
+fn a_root_that_could_not_be_pinned_is_not_signalled() {
     let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     assert!(helper_is_running(pid), "the premise: the process runs");
-    // The state a stop is in when `/proc/<pid>/stat` could not be read for the root.
-    crate::child_watch_clock_marks_and_stopping::signal_root_answering(crate::process_tree::ProcessLook::Unknown, pid, libc::SIGKILL);
+    // The state of a stop whose look proved nothing about the root.
+    crate::child_watch_clock_marks_and_stopping::send_to_the_root(None, pid, libc::SIGKILL);
     std::thread::sleep(Duration::from_millis(300));
     let survived: bool = helper_is_running(pid);
     sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
-    assert!(survived, "a number whose record could not be read was signalled: nothing proves which process it names by now");
+    assert!(survived, "a number nothing was pinned for was signalled: it may have named an unrelated process");
 }
 
-/// The other half of the same rule:
-/// a root a look found gone is not signalled at all,
-/// because its number may be another process's by now.
+/// What:
+///  The root's pin is taken from the identity the stop read,
+/// so a member whose start time is not the process's own yields nothing,
+/// and a live one yields the pin its signal goes through.
+/// Why:
+///  The pin, and not a number read again at the signal,
+/// is what keeps finding 1 of the third review closed:
+/// a
+///  process that took the root's number is not the process that was read,
+/// and its start time says so.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_root_a_look_found_gone_is_not_signalled() {
+fn the_root_is_pinned_from_the_identity_the_stop_read() {
     let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
-    crate::child_watch_clock_marks_and_stopping::signal_root_answering(crate::process_tree::ProcessLook::Gone, pid, libc::SIGKILL);
-    std::thread::sleep(Duration::from_millis(300));
-    let survived: bool = helper_is_running(pid);
+    let found: crate::process_tree::TreeMember = match crate::process_tree::look_of(pid) {
+        crate::process_tree::ProcessLook::Alive(found) => found,
+        other => panic!("the control's process is alive: {other:?}"),
+    };
+    // A number whose start time is another process's is not the root this stop read.
+    let stale: crate::process_tree::ProcessLook =
+        crate::process_tree::ProcessLook::Alive(crate::process_tree::TreeMember { pid, started: found.started + 1 });
+    let stale_pin: bool = crate::child_watch_clock_marks_and_stopping::pin_of_the_root(&stale).is_some();
+    // The process the stop read is pinned, and the signal goes through the pin.
+    let live: bool = crate::child_watch_clock_marks_and_stopping::pin_of_the_root(&crate::process_tree::ProcessLook::Alive(found)).is_some();
+    let lived: bool = helper_is_running(pid);
     sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
-    assert!(survived, "a root whose record was read as gone was signalled");
+    assert!(!stale_pin, "a member whose start time is another process's was pinned");
+    assert!(live, "the process the stop read was not pinned");
+    assert!(lived, "the control's own process was left alone");
 }
 
 /// What:
@@ -881,4 +901,43 @@ fn the_output_of_a_step_is_released_once_it_is_read() {
     assert!(String::from_utf8_lossy(output.stdout.as_slice()).contains("kept-for-the-reader"));
     let again: crate::output_capture::Captured = capture.snapshot(1024);
     assert!(again.stdout.is_empty() && again.stderr.is_empty(), "the files were emptied after the read");
+}
+
+/// What:
+///  The wait after the kill ends,
+/// even when the root's record cannot be read,
+/// and it still gives the grace the stop promises.
+/// Why:
+///  A root whose record cannot be read is not an exit,
+/// so it stays in the wait;
+/// nothing else bounded that wait,
+///  and the stop waited for as long as the process lived against a kill that was never sent.
+/// The wait inside the grace, the one past
+///  the grace with nothing in uninterruptible sleep, and the one past the stop's ceiling are the three
+///  answers this has to give.
+#[cfg(target_os = "linux")]
+#[test]
+fn an_unreadable_root_is_waited_for_no_longer_than_the_stop_allows() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    let unknown: crate::process_tree::ProcessLook = crate::process_tree::ProcessLook::Unknown;
+    let member: crate::process_tree::TreeMember = crate::process_tree::TreeMember { pid, started: 1 };
+    let inside: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(Duration::from_millis(1), &[], pid, &unknown);
+    let past_the_grace: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+        crate::bounded_push::STOP_GRACE + Duration::from_secs(1),
+        &[],
+        pid,
+        &unknown,
+    );
+    let past_the_ceiling: bool = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(
+        crate::stop_waits_while_a_member_cannot_be_interrupted::STOP_CEILING + Duration::from_secs(1),
+        &[member],
+        pid,
+        &unknown,
+    );
+    sleeper.kill().expect("the control ends its sleeper");
+    sleeper.wait().expect("the sleeper is collected");
+    assert!(inside, "a stop inside the grace after the kill waited for nothing");
+    assert!(!past_the_grace, "a stop whose root could not be read waited past its grace with nothing left to wait for");
+    assert!(!past_the_ceiling, "a stop waited past its own ceiling");
 }
