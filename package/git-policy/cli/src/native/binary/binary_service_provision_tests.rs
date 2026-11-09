@@ -577,7 +577,7 @@ fn a_failed_push_is_reported_by_the_next_commit() {
     let second: Output = commit(&fixture, &repo, runtime.as_path(), false);
     assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
     let stderr: String = String::from_utf8_lossy(&second.stderr).to_string();
-    assert_eq!(stderr.matches("backup push of branch main failed for commit").count(), 1, "said once: {stderr}");
+    assert_eq!(stderr.matches(super::support::push_unfinished_words()).count(), 1, "said once, and as a push that did not finish: {stderr}");
     drop(service);
     finish(&fixture, runtime.as_path());
 }
