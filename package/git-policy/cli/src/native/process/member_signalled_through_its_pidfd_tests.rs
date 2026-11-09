@@ -81,3 +81,34 @@ fn a_member_with_a_descriptor_is_signalled() {
     assert_eq!(delivered, vec![Delivered::Sent], "a member whose number was proven is signalled through its descriptor");
     assert!(ended.is_some(), "the signalled member ended");
 }
+
+/// What:
+///  Only "no such process" proves the process is gone; any other refusal proves nothing.
+/// Why:
+///   Finding 3 of the third review:
+/// a sandbox can permit `pidfd_open` and deny `pidfd_send_signal`, and a refusal there says nothing about whether the step
+/// is still running. Reading it as gone takes the ceiling away from a step that is still there.
+///  The refusal cannot be produced on demand, so the kernel's answer is injected.
+#[cfg(target_os = "linux")]
+#[test]
+fn only_no_such_process_means_the_member_is_gone() {
+    let mut sleeper: Child = a_sleeper();
+    let member: TreeMember = member_of_the_sleeper(&sleeper);
+    refuse_the_next_signal_with(libc::EPERM);
+    let refused: Vec<Delivered> = kill_members(std::slice::from_ref(&member));
+    let survivor: Option<i32> = ended_within(&mut sleeper, STILL_RUNNING_BOUND);
+    if survivor.is_none() {
+        sleeper.kill().expect("cleanup");
+        sleeper.wait().expect("reaped");
+    }
+    // The positive control: the same member, refused with `ESRCH`, is gone because the kernel said so.
+    let mut other: Child = a_sleeper();
+    let other_member: TreeMember = member_of_the_sleeper(&other);
+    other.kill().expect("cleanup");
+    other.wait().expect("reaped");
+    refuse_the_next_signal_with(libc::ESRCH);
+    let absent: Vec<Delivered> = kill_members(std::slice::from_ref(&other_member));
+    assert_eq!(refused, vec![Delivered::Unproven], "a refusal that is not `ESRCH` proves nothing about the member");
+    assert!(survivor.is_none(), "the member was reported gone and left alone although the refusal was not `ESRCH`: {survivor:?}");
+    assert_eq!(absent, vec![Delivered::Gone], "`ESRCH` is the one refusal that proves the process is gone");
+}

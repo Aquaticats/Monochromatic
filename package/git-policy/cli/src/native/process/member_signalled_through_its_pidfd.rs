@@ -137,6 +137,30 @@ fn a_descriptor_is_refused() -> bool {
     return true;
 }
 
+// What:
+//  A control that makes the next signal answer a refusal the kernel names.
+// Why:
+//   A sandbox that permits `pidfd_open` and denies `pidfd_send_signal` cannot be built here,
+// so the kernel's answer is injected (finding 3 of the third review).
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    // The refusal the next signal answers,
+    // or nothing to let the kernel answer.
+    static SIGNAL_REFUSALS: std::cell::Cell<Option<i32>> = const { std::cell::Cell::new(None) };
+}
+
+/// Make the next signal answer `errno`.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn refuse_the_next_signal_with(errno: i32) {
+    SIGNAL_REFUSALS.with(|armed| { armed.set(Some(errno)); });
+}
+
+/// Take the control's refusal, when one is armed.
+#[cfg(all(test, target_os = "linux"))]
+fn a_signal_is_refused() -> Option<i32> {
+    return SIGNAL_REFUSALS.with(std::cell::Cell::take);
+}
+
 /// The descriptor the kernel makes for `pid`,
 /// or nothing where it refuses one at a limit or under a sandbox.
 #[cfg(target_os = "linux")]
@@ -239,6 +263,10 @@ impl PinnedMember {
 /// ```
 #[cfg(target_os = "linux")]
 pub fn signal_through(descriptor: &std::os::fd::OwnedFd, signal: i32) -> Delivered {
+    #[cfg(test)]
+    if let Some(refused) = a_signal_is_refused() {
+        return if refused == libc::ESRCH { Delivered::Gone } else { Delivered::Gone };
+    }
     let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
         // A signal this build cannot name to the kernel: nothing is sent, and a real-time signal is the only case.
         return Delivered::Unproven;
