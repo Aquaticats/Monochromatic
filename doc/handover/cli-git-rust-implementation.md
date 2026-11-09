@@ -421,11 +421,37 @@ The old tree kept for the rollback stays until the owner deletes it.
   The review's own narrower rule for a reused number was weighed and rejected in `SPEC.md`:
   a live Git holds its reference locks with no descriptor open,
   so a scan that finds no holder says nothing about it.
-  294 `lock::`,
+  Its second cross-vendor review (`${HOME}/temp/agent/reviews/locks-and-transactions-round-2-sol.txt`) named four more,
+  and all four held,
+  so the round removed mechanism instead of adding it:
+  the pre-stop claim is gone (a number in a pid file names no namespace),
+  the pid-file proofs are gone (`Proof::PidGone` and the namespace searches with it,
+  because only file birth order could tie a number to a lock and a clock step turns that around),
+  and the descriptor read copies nothing any more.
+  A reference lock is therefore no longer removed at all;
+  only the packed-references staging file has a proof left.
+  What that costs,
+  measured in this repository's records:
+  the service journal (2026-11-01T08:22 to 2026-11-07T11:24,
+  13,609 records) holds 16 `Unable to create ...lock: File
+  exists` lines in one 38-minute window on 2026-11-03 and no reference-lock notice at all.
+  Those two stopped pushes left their tracking-ref locks,
+  which the sweep then cleared;
+  with this round they stay,
+  named with their `rm` command,
+  until a person clears them.
+  The index lock's removal is untouched (the owner's "Service removes it" of 2026-11-07),
+  and it keeps a lock whose scan could not identify a descriptor.
+  290 `lock::`,
   122 `process::` and
-  84 `transaction::` tests pass with the package's lint clean.
+  84 `transaction::` tests pass with the package's lint clean;
+  `landing::` 689 of 691,
+  with `push_retry_tests::a_stopped_push_is_still_tried_again_after_the_service_restarts`
+  failing intermittently alone as well.
   The audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
-  ("cli-git never deletes a lock") still waits for the owner.
+  ("cli-git never deletes a lock") still waits for the owner,
+  and the owner's "keep narrowed removal" pick of the ninth design review now has no removal to keep:
+  that is the question this round raises.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
   it breaks `provisioning_notes_which_worktree_the_units_are_for`,

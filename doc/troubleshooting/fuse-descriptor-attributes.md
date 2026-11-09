@@ -266,6 +266,57 @@ would be reported unproven rather than held.
   text an ambiguous name for the file,
   so a holder is missed or another file is taken for it.
 
+### A copy of the descriptor does not avoid the server either
+
+`pidfd_getfd(2)` copies another process's descriptor without walking a path,
+and `statx(2)` on the copy with
+`AT_EMPTY_PATH` and `AT_STATX_DONT_SYNC` answered in 21 ms where the path read blocked,
+as the measurements above show.
+Two things make it unusable here.
+
+Closing the copy runs the file system's `flush`,
+not only the last reference's release:
+`close(2)` reaches
+`filp_close` → `f_op->flush`,
+and FUSE's `fuse_flush` sends `FUSE_FLUSH` and waits for the answer
+(`fs/fuse/file.c`,
+`fuse_flush`).
+With the server stopped,
+the descriptor copy's close waits exactly as the path read
+did,
+inside a scan that checks its deadline only between processes.
+
+The copy is also refused where the scan can still read:
+`pidfd_getfd(2)` needs `PTRACE_MODE_ATTACH_REALCREDS`,
+while
+reading `/proc/<pid>/fd` needs only `PTRACE_MODE_READ`.
+With `kernel.yama.ptrace_scope=1` (this host's
+`/proc/sys/kernel/yama/ptrace_scope` is `0`) every unrelated process of the same account is readable and not
+attachable,
+so the copy fails with `EPERM` for the very holder the scan is looking for.
+
+### The gate the wrapper uses instead
+
+The descriptor's record (`/proc/<pid>/fdinfo/<n>`) names its mount (`mnt_id:`),
+and that process's own mount table
+(`/proc/<pid>/mountinfo`,
+readable across accounts) says what the mount is.
+The file is read only when the mount is on a
+fixed list of local file systems,
+where `statx` answers from the kernel's memory and the walk reaches no server;
+every
+other mount,
+and a mount the table does not name,
+is refused and its caller treats the file as one that may be held.
+Measured on this host:
+`/proc/1/mountinfo` and `/proc/<pid>/mountinfo` are readable as an unprivileged user,
+and a file
+in a btrfs subvolume reports an anonymous device (`0:108`),
+while a file in a *nested* subvolume reports another
+(`5243089`),
+so the device and inode pair still separates two subvolumes' files whose mount numbers and inode numbers
+agree.
+
 ## Upstream filing decision
 
 Nothing is filed.
