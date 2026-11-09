@@ -14,7 +14,7 @@
 //! ```
 
 /// Import the reader under test and the values it produces.
-use super::{BatchReply, MAX_BATCH_HEADER_BYTES, ObjectKind, read_batch_reply};
+use super::{BatchReply, MAX_BATCH_HEADER_BYTES, ObjectKind, read_batch_reply, read_batch_reply_within};
 use crate::candidate_error::{CandidateError, CandidateFailure};
 use crate::candidate_object::{ObjectId, parse_object_id};
 use std::io::{BufRead, Read};
@@ -339,4 +339,67 @@ fn header_length_bound_is_exact() {
         failure_of(at_bound.as_slice()),
         CandidateFailure::ReplyTruncated
     );
+}
+
+/// What:
+///  An object larger than the ceiling a check reads whole is consumed and refused as too
+///  large,
+/// and the stream then answers the next request normally.
+/// Why:
+///   Reading a staged 256 MiB asset whole cost 534 MiB of memory (the audit's
+///  `fixture-big-blob`),
+/// so the read is bounded;
+///  the reply must still be consumed whole or every
+///  later reply is misread,
+///  and the refusal must name the sizes,
+///  never the pathname.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const reply = readWithin(stream, oid, 64); expect(reply.code).toBe('object-too-large')
+/// ```
+#[test]
+fn an_object_larger_than_the_ceiling_is_consumed_and_named() {
+    let content: Vec<u8> = vec![b'x'; 200];
+    let mut stream: Vec<u8> = format!("{NAME} blob {}\n", content.len()).into_bytes();
+    stream.extend_from_slice(content.as_slice());
+    stream.extend_from_slice(b"\n");
+    stream.extend_from_slice(format!("{OTHER} blob 3\nabc\n").as_bytes());
+    let mut remaining: &[u8] = stream.as_slice();
+    let refused: BatchReply =
+        read_batch_reply_within(&mut remaining, NAME.as_bytes(), 64).expect("framed reply");
+    let BatchReply::TooLarge {
+        object,
+        kind: too_large_kind,
+        size,
+    } = refused
+    else {
+        panic!("a reply that is too large: {refused:?}");
+    };
+    assert_eq!(object, name());
+    assert_eq!(too_large_kind, ObjectKind::Blob);
+    assert_eq!(size, 200);
+    // The reply was consumed whole, so the next one is framed as usual.
+    let next: BatchReply =
+        read_batch_reply(&mut remaining, OTHER.as_bytes()).expect("the reply after it");
+    let BatchReply::Found {
+        object: next_object,
+        kind: next_kind,
+        bytes,
+    } = next
+    else {
+        panic!("a found reply");
+    };
+    assert_eq!(
+        next_object,
+        parse_object_id(OTHER.as_bytes()).expect("fixture name")
+    );
+    assert_eq!(next_kind, ObjectKind::Blob);
+    assert_eq!(bytes, b"abc".to_vec());
+    // The whole read under the same ceiling still answers.
+    let small: Vec<u8> = format!("{NAME} blob 3\nabc\n").into_bytes();
+    let mut small_stream: &[u8] = small.as_slice();
+    let kept: BatchReply =
+        read_batch_reply_within(&mut small_stream, NAME.as_bytes(), 64).expect("under the ceiling");
+    assert!(matches!(kept, BatchReply::Found { .. }));
 }

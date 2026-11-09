@@ -73,6 +73,24 @@ pub mod policy_forbidden_strings;
 ///  all or none.
 pub mod direct_fix_install;
 
+/// The swap and the replacement write an install uses.
+pub mod direct_fix_install_writes;
+
+/// The journal an install is recorded in,
+/// and the sweep that finishes what a kill interrupted.
+pub mod direct_fix_install_journal;
+
+/// The sweep of the journals an interrupted fix left,
+/// and its sentences.
+pub mod direct_fix_install_journal_sweep;
+
+/// The sentences an install reports.
+pub mod direct_fix_install_messages;
+
+/// What a name holds,
+/// and whether it is exactly what an install put there.
+pub mod direct_fix_install_judging;
+
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.

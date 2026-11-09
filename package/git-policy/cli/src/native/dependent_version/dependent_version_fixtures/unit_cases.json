@@ -1265,7 +1265,7 @@
     }
   },
   {
-    "name": "findDependentBumps ignores a bump when the pnpr config is absent",
+    "name": "findDependentBumps reports a bump it cannot judge when the pnpr config is absent",
     "kind": "workspace",
     "input": {
       "workspace": null,
@@ -1294,15 +1294,14 @@
     },
     "expected": {
       "plan": {
-        "kind": "planned",
-        "bumpedNames": [
-          "@s/base"
-        ],
-        "bumps": []
+        "kind": "failed",
+        "error": "publish-set",
+        "detail": ""
       },
       "policy": {
-        "kind": "findings",
-        "findings": []
+        "kind": "failed",
+        "error": "publish-set",
+        "detail": ""
       }
     }
   },
@@ -1315,7 +1314,7 @@
         {
           "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
           "mode": "regular",
-          "current": "7061636b616765733a0a20202d202740732f617070270a20202d202740732f62617365270a20202d202740732f746f6f6c270a6e6578743a20310a",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f617070270a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f746f6f6c270a0a7765623a0a2020656e61626c653a2066616c73650a",
           "base": true
         },
         {
@@ -1415,7 +1414,7 @@
         {
           "path": "7061636b6167652f636f6e6669672f706e70722f636f6e6669672e79616d6c",
           "mode": "regular",
-          "current": "7061636b616765733a0a20202d202740732f617070270a20202d202740732f62617365270a20202d202740732f746f6f6c270a6e6578743a20310a",
+          "current": "617574683a0a20206f6964633a0a202020202d20776f726b6c6f6164733a0a20202020202020202d2072656769737472793a20720a202020202020202020207061636b616765733a0a2020202020202020202020202d202740732f617070270a2020202020202020202020202d202740732f62617365270a2020202020202020202020202d202740732f746f6f6c270a0a7765623a0a2020656e61626c653a2066616c73650a",
           "base": true
         },
         {
@@ -1460,24 +1459,10 @@
     }
   },
   {
-    "name": "readPublishableNames reads \"a: 1\\n  packages:\\n    - '@s/a'\\n    - '@s/b'\\n  other: x\\n    - '@s/c'\\n\"",
+    "name": "readPublishableNames reads the workload list of \"auth:\\n  oidc:\\n    - workloads:\\n        - registry: r\\n          packages:\\n            - '@s/a'\\n\"",
     "kind": "readPublishableNames",
     "input": {
-      "configText": "a: 1\n  packages:\n    - '@s/a'\n    - '@s/b'\n  other: x\n    - '@s/c'\n"
-    },
-    "expected": {
-      "kind": "names",
-      "value": [
-        "@s/a",
-        "@s/b"
-      ]
-    }
-  },
-  {
-    "name": "readPublishableNames reads \"packages:\\n  - '@s/a'\"",
-    "kind": "readPublishableNames",
-    "input": {
-      "configText": "packages:\n  - '@s/a'"
+      "configText": "auth:\n  oidc:\n    - workloads:\n        - registry: r\n          packages:\n            - '@s/a'\n"
     },
     "expected": {
       "kind": "names",
@@ -1487,25 +1472,39 @@
     }
   },
   {
-    "name": "readPublishableNames reads \"no list here\\n\"",
+    "name": "readPublishableNames reads every workload list of \"auth:\\n  oidc:\\n    - workloads:\\n        - packages:\\n            - '@s/narrow'\\n        - packages:\\n            - '@s/a'\\n\"",
     "kind": "readPublishableNames",
     "input": {
-      "configText": "no list here\n"
+      "configText": "auth:\n  oidc:\n    - workloads:\n        - packages:\n            - '@s/narrow'\n        - packages:\n            - '@s/a'\n"
     },
     "expected": {
       "kind": "names",
-      "value": []
+      "value": [
+        "@s/narrow",
+        "@s/a"
+      ]
     }
   },
   {
-    "name": "readPublishableNames reads \"packages:\\n  - ''\\n\"",
+    "name": "readPublishableNames reports a document without a workload list of \"registries:\\n  monochromatic-dev:\\n    packages:\\n      '@s/*':\\n\"",
     "kind": "readPublishableNames",
     "input": {
-      "configText": "packages:\n  - ''\n"
+      "configText": "registries:\n  monochromatic-dev:\n    packages:\n      '@s/*':\n"
     },
     "expected": {
-      "kind": "names",
-      "value": []
+      "kind": "publish-set",
+      "problem": "it has no `auth.oidc` list of providers"
+    }
+  },
+  {
+    "name": "readPublishableNames reports an empty workload list of \"auth:\\n  oidc:\\n    - workloads:\\n        - registry: r\\n          packages:\\n\"",
+    "kind": "readPublishableNames",
+    "input": {
+      "configText": "auth:\n  oidc:\n    - workloads:\n        - registry: r\n          packages:\n"
+    },
+    "expected": {
+      "kind": "publish-set",
+      "problem": "no `auth.oidc` workload lists a package name"
     }
   }
 ]

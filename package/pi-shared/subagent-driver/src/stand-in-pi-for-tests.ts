@@ -31,12 +31,14 @@ import {
   writeLogLine,
 } from './stand-in-pi-log-fixture.ts';
 import {
-  answer,
   CRASH_STATUS,
-  emit,
   playPrompt,
-  STANDARD_ERROR_TEXT,
 } from './stand-in-pi-prompt-plays-fixture.ts';
+import {
+  answer,
+  emit,
+  STANDARD_ERROR_TEXT,
+} from './stand-in-pi-records-fixture.ts';
 
 /**
  Longest a scenario that refuses to leave stays. A test's own teardown kills it far sooner; this only keeps a fixture from a

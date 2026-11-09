@@ -409,7 +409,8 @@ Measured on this host on 2026-11-09:
 
 The judge and flush controls after the fixes:
 `20 tests run: 20 passed`
-(`run_progress` 13, `subvolume_file_write_steps` 7).
+(`run_progress` 13, `subvolume_file_write_steps` 7;
+ the later controls named in the next subsection make it 21).
 
 The moving-run control was then asked the question the review said it could not answer.
 With the child's 4 KiB write removed and its sleeps kept,
@@ -422,6 +423,37 @@ The write was restored and the control passed again (`PASS [ 3.031s]`).
 What the review did not measure:
 no test in this crate was run with an exhausted descriptor table,
 so both judge findings are shown by made-up looks and times, not by a real stuck process without descriptors.
+
+### The later review rounds of 2026-11-09
+
+A second cross-vendor review of the same branch found two more, and both held.
+
+- `end` wrote its line with `eprintln!`,
+  which panics when the write fails,
+  so on a stderr that refuses writes (a full disk, a closed pipe) only the watcher thread died
+  and the test it watched stayed blocked without a watcher.
+  The line now goes through `writeln!` on a locked stderr whose error is ignored,
+  and the abort follows unconditionally:
+  reporting is never a precondition for ending the process.
+- `two_watchers_do_not_keep_each_other_alive` passed with the fixture's watcher disconnected,
+  because its child arms a one-second watcher of its own, which ends the sleeping child either way.
+  The child now prints how many watchers it registered,
+  and the parent asserts that count beside the ending and the message.
+
+Measured on this host on 2026-11-09:
+
+- `a_stuck_run_ends_its_process_though_its_report_cannot_be_written` runs the stuck child with its stderr on `/dev/full`,
+  bounded by `CHILD_DEADLINE` so a child that never ends fails the control instead of hanging it.
+  With `eprintln!` it failed after `Summary [  45.040s] 2 tests run: 1 passed, 1 failed` with
+  `the watchdog ended the process though its report could not be written`;
+  with the fix it passes in 1.911 s;
+- with the fixture's `watch(QUIET_WINDOW)` removed from `arm_watchdog`,
+  the two-watchers control failed after 6.123 s with `watchers: 1` in the child's output,
+  where it passed before that change;
+  with the arming restored it passes in 2.374 s.
+
+The watchdog controls after both fixes:
+`14 tests run: 14 passed`.
 
 ## What does not work
 

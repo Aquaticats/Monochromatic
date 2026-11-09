@@ -36,6 +36,9 @@ use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts};
 use crate::policy_trigger::Trigger;
 /// Shared fixture directories and real Git.
 use crate::test_support::{fixture, git, remove, repository};
+/// The registry configuration the generator writes,
+///  and its repository path.
+use crate::dependent_version_test_support::{CONFIG_PATH, config_text};
 /// Owned operating-system text.
 use std::ffi::OsString;
 /// Unix permission bits.
@@ -77,6 +80,12 @@ fn path_of(name: &str) -> String {
 /// configuration;
 ///  then `@s/a` raised to `1.1.0` in the worktree.
 fn workspace(root: &Path) -> PathBuf {
+    return workspace_with(root, Some(&config_text(&["@s/a", "@s/b", "@s/c"])));
+}
+
+/// The same workspace,
+///  with the registry configuration text the case names.
+fn workspace_with(root: &Path, registry: Option<&str>) -> PathBuf {
     let repo: PathBuf = repository(root, "repo");
     write(
         repo.as_path(),
@@ -93,11 +102,9 @@ fn workspace(root: &Path) -> PathBuf {
         &path_of("c"),
         &manifest("@s/c", "3.0.0", Some("@s/a")),
     );
-    write(
-        repo.as_path(),
-        "package/config/pnpr/config.yaml",
-        "packages:\n  - '@s/a'\n  - '@s/b'\n  - '@s/c'\n",
-    );
+    if let Some(text) = registry {
+        write(repo.as_path(), CONFIG_PATH, text);
+    }
     git(repo.as_path(), &["add", "--all"]);
     git(
         repo.as_path(),
@@ -449,6 +456,75 @@ fn failures_follow_their_cause() {
                 path: None,
             }
         );
+    }
+}
+
+/// Remove the registry configuration and commit the removal alone,
+/// so the raised manifest
+///  stays in the worktree.
+fn no_registry_configuration(repo: &Path) {
+    git(repo, &["rm", "--quiet", CONFIG_PATH]);
+    git(
+        repo,
+        &["commit", "--quiet", "--message=no-registry", "--", CONFIG_PATH],
+    );
+}
+
+/// Replace the publish set with an empty list and commit that alone.
+fn empty_publish_set(repo: &Path) {
+    write(repo, CONFIG_PATH, &config_text(&[]));
+    git(repo, &["add", "--", CONFIG_PATH]);
+    git(
+        repo,
+        &["commit", "--quiet", "--message=empty-publish-set", "--", CONFIG_PATH],
+    );
+}
+
+/// A publish set that is missing or empty is not a clean result:
+///  the check fails
+///  with code `policy-incomplete`,
+///  says the ripple could not be judged,
+///  and proposes
+///  nothing.
+#[test]
+fn a_missing_or_empty_publish_set_is_not_clean() {
+    let cases: [(&str, fn(&Path), &str); 2] = [
+        (
+            "dependent-no-registry",
+            no_registry_configuration,
+            "the publish set of package/config/pnpr/config.yaml cannot be read \
+             (it is not tracked in this repository), \
+             so whether a dependent is published cannot be judged",
+        ),
+        (
+            "dependent-empty-publish-set",
+            empty_publish_set,
+            "the publish set of package/config/pnpr/config.yaml cannot be read \
+             (no `auth.oidc` workload lists a package name), \
+             so whether a dependent is published cannot be judged",
+        ),
+    ];
+    for (name, change, cause) in cases {
+        let (outcome, proposals) = checked(name, change, &direct(&[":/"]), Trigger::DirectCheck);
+        let PolicyOutcome::Failed {
+            code,
+            message,
+            path,
+        } = outcome
+        else {
+            panic!("expected a failure for {name}, got {outcome:?}");
+        };
+        assert_eq!(code, EngineFailureCode::PolicyIncomplete, "{name}");
+        assert_eq!(path, None, "{name}");
+        assert!(message.contains(cause), "{name}: {message}");
+        assert!(
+            message.ends_with(
+                "Correct the file and retry, or pass \
+                 --no-enforce-mono/dependent-version-bump to skip this policy for one command."
+            ),
+            "{name}: {message}"
+        );
+        assert_eq!(proposals, Vec::<Correction>::new(), "{name}");
     }
 }
 
