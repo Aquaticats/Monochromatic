@@ -23,25 +23,14 @@ mod support;
 /// Import filesystem operations, the I/O error type and child processes.
 use std::{fs, io, process::Command};
 
-/// Import the permission bits (`mode()`) and the `0o700` owner-only value.
+/// Import the permission bits the mode assertion reads.
 use std::os::unix::fs::PermissionsExt;
 
 /// Import the owned path type.
 use std::path::{Path, PathBuf};
 
-/// What:
-/// `const OWNER_ONLY_MODE: u32 = 0o700;` is the mode rule ATH requires for the shared scratch root:
-/// read, write and search for the owner,
-/// nothing for the group and nothing for anyone else.
-/// Why:
-/// The assertion and the diagnostic both read the one value,
-/// so the test cannot drift from the requirement it checks.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const OWNER_ONLY_MODE = 0o700;
-/// ```
-const OWNER_ONLY_MODE: u32 = 0o700;
+/// Import the one definition of the owner-only mode, so the assertion cannot drift from the fixture.
+use support::OWNER_ONLY_MODE;
 
 /// What:
 /// `fn fresh_home() -> io::Result<PathBuf>` declares a helper that makes an empty, unused home directory under
