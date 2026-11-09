@@ -176,6 +176,9 @@ pub mod preparation_notice;
 
 pub mod service_prepare;
 
+/// The staging start that puts every unmerged file's working copy into the commit's own index.
+pub mod service_prepare_unmerged_staging;
+
 /// The renewal that keeps a commit's scratch tree from aging out while the command that owns it lives.
 pub mod service_scratch_renewal;
 
