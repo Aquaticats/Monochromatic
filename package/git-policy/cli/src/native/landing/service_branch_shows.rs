@@ -91,12 +91,27 @@ pub(crate) fn display_text(file: &Path) -> String {
 /// ```ts
 /// const failure = theSilentServiceAfterAPrepare(context, cwd, reference, prepared);
 /// ```
-pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, reference: &str, prepared: Option<&str>) -> ClientFailure {
+pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, reference: &str, prepared: Option<&str>) -> Option<ClientFailure> {
     let shows: WhatTheBranchShows = match prepared {
         Some(made) => what_the_branch_shows(context, cwd, reference, made),
         None => WhatTheBranchShows::Unread,
     };
-    return ClientFailure::ServiceSilentAfterPreparing { shows };
+    return the_silence_means(shows);
+}
+
+/// What:
+///  What a silence means once the branch has been read.
+/// Why:
+///   A commit the branch shows as made is a landed commit and not a failure:
+/// the owner's rule is that commits never fail,
+/// so nothing is reported and the caller takes the landed path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theSilenceMeans = (shows) => shows === 'made' ? undefined : { shows };
+/// ```
+fn the_silence_means(shows: WhatTheBranchShows) -> Option<ClientFailure> {
+    return Some(ClientFailure::ServiceSilentAfterPreparing { shows });
 }
 
 /// Controls for the branch read stay out of the release executable.

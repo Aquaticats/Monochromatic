@@ -74,3 +74,24 @@ fn the_silence_message_states_what_the_branch_shows() {
     assert!(not_made.contains("it was not made") && not_made.contains("may still land"), "{not_made}");
     assert!(unread.contains("it is not known whether the commit was made"), "{unread}");
 }
+
+/// What:
+///  A silence the branch shows as made is not a failure at all.
+/// Why:
+///   Finding 6 of the third review:
+/// a commit that landed and was confirmed by the branch read still went down the failure path,
+/// so the command exited nonzero and skipped the landing report and the handoff.
+/// The owner's rule is that commits never fail.
+#[test]
+fn a_silence_the_branch_shows_as_made_is_not_a_failure() {
+    let root: std::path::PathBuf = crate::test_support::repository(crate::test_support::fixture_root().as_path(), "service-branch-shows-made");
+    let made: String = crate::test_support::git_text(root.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
+    let context: crate::transaction_git::GitContext = crate::test_support::git_context();
+    let at_the_commit: Option<crate::service_messages::ClientFailure> =
+        the_silent_service_after_a_prepare(&context, root.as_path(), "refs/heads/main", Some(made.as_str()));
+    let elsewhere: Option<crate::service_messages::ClientFailure> =
+        the_silent_service_after_a_prepare(&context, root.as_path(), "refs/heads/main", Some("0000000000000000000000000000000000000000"));
+    crate::test_support::remove(root.as_path());
+    assert!(at_the_commit.is_none(), "the command has nothing to report when the branch holds its commit");
+    assert!(elsewhere.is_some(), "a commit the branch does not show still has to be reported");
+}

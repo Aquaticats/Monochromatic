@@ -388,11 +388,14 @@ pub fn service_commit<F: RepositoryFacts>(
             }
             Err(failure) => {
                 // The one silence that could not state a fact now reads the branch once and states what it shows.
-                let worded: ClientFailure = match failure {
+                let worded: Option<ClientFailure> = match failure {
                     ClientFailure::ServiceSilent => {
                         the_silent_service_after_a_prepare(invocation.context, invocation.cwd, ready.reference.as_str(), sent.commit.as_deref())
                     }
-                    other => other,
+                    other => Some(other),
+                };
+                let Some(worded) = worded else {
+                    return Err(TransactionStop::Message(String::from("the branch holds the commit this command prepared")));
                 };
                 return Err(TransactionStop::Message(render(&worded)));
             }
