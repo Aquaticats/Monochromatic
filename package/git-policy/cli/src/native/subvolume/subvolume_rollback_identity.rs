@@ -87,6 +87,38 @@ pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path:
 }
 
 /// What:
+///  The refusal for a deletion whose object is not the checkout the migration installed,
+///  or nothing when it is,
+///  when the name leads nowhere,
+///  or when the journal records no installed identity.
+/// Why:
+///   The rollback deletes the subvolume the migration made,
+/// and a name holds whatever a later process put there.
+/// The recorded exchange makes a resumed run skip the swap,
+/// so the pair check that guards the exchange does not run on that path,
+/// and the deletion would judge by the name alone;
+/// the identity is therefore compared on every path that reaches it.
+/// A journal written by an earlier release records no identity,
+/// and without a record the command cannot tell,
+/// so it does not refuse on a guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = installedIdentityRefusal(run, newPath); // undefined when the object is the recorded one
+/// ```
+pub(crate) fn installed_identity_refusal(run: &Run<'_>, path: &Path) -> Option<Refusal> {
+    let installed: &str = run.journal.value(INSTALLED_ROOT)?;
+    let found: String = object_form(path)?;
+    if found == installed {
+        return None;
+    }
+    return Some(Refusal {
+        cause: format!("{} holds {found}, and the journal records the installed checkout as {installed}", path.display()),
+        remedy: String::from("If the installed checkout was moved or replaced, move it back to that path and run the command again. Nothing was deleted."),
+    });
+}
+
+/// What:
 ///  The refusal for a pair of directories that is not the pair the rollback expects,
 /// or nothing when it is.
 /// Why:

@@ -31,7 +31,7 @@ use crate::subvolume_index_files::IndexLock;
 use crate::subvolume_index_refresh_of_every_worktree::refresh_all_indexes;
 use crate::subvolume_lock::{release_all, token_of};
 use crate::subvolume_preflight::{INSTALLED_ROOT, Refusal, remove_old_refusals, rollback_refusals};
-use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy};
+use crate::subvolume_rollback_identity::{PairLook, PinnedRoot, installed_identity_refusal, object_form, pair_refusal, pin_root, pinned_root_moved, resumed_old_tree_refusal, shown_left_out, uncarried_cause, uncarried_remedy};
 use crate::subvolume_rollback_subvolume_removal::{remove_if_present, remove_subvolume_tree};
 use crate::subvolume_remove::remove_tree;
 use crate::subvolume_run::Run;
@@ -368,6 +368,13 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
                 "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
             ),
         }]));
+    }
+    // The subvolume this deletes is the one the migration installed, compared at every path that reaches the deletion: a
+    // run resumed after the exchange was recorded skips the swap, and with it the pair check that guards the exchange.
+    if new_path.exists()
+        && let Some(refusal) = installed_identity_refusal(run, new_path.as_path())
+    {
+        return Ok(Some(vec![refusal]));
     }
     if new_path.exists() {
         run.line(format!("deleting the new subvolume {} (nested subvolumes first)", new_path.display()).as_str());

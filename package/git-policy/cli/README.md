@@ -1337,6 +1337,11 @@ The carry writes through a descriptor on the directory whose identity was checke
  so a checkout moved aside and another
  put at its path receives nothing,
  and the old tree is kept when the name no longer leads to that directory.
+Before it deletes the new subvolume,
+ `--rollback` compares the identity at that name with the recorded one on every path that
+ reaches the deletion,
+ so a run resumed after the exchange was recorded keeps a subvolume another process put there
+ and names both identities.
 `--remove-old` first carries into the checkout what was written to the original after the catch-up (files newer than
  their copy,
 and files the checkout lacks that are no older than the catch-up;

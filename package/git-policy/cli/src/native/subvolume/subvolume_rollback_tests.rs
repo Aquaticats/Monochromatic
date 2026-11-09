@@ -309,6 +309,37 @@ fn a_rollback_resumed_after_its_rename_keeps_a_directory_put_at_the_new_names_pa
 }
 
 /// What:
+///  A rollback resumed after the exchange was recorded deletes only the subvolume the journal recorded installing,
+///  so a subvolume another process made at the new subvolume's name is kept and named.
+/// Why:
+///   The recorded exchange makes the resumed run skip the swap,
+/// and with it the pair check that guards the exchange,
+/// so the deletion read only that the name holds a subvolume root,
+/// which a subvolume nobody recorded is too.
+#[test]
+fn a_rollback_resumed_after_its_exchange_keeps_a_subvolume_put_at_the_new_names_path() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-resume-replaced-subvolume", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::at("rollback-after-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    // The exchange, the rename and the record happened: the installed subvolume waits at the new subvolume's name.
+    assert_eq!(platform.is_subvolume_root(layout.new_path.as_path()), Ok(true), "the installed subvolume is at the new name");
+    let installed: PathBuf = parent.join("installed.kept");
+    std::fs::rename(layout.new_path.as_path(), installed.as_path()).expect("move the installed subvolume somewhere safe");
+    std::fs::create_dir_all(layout.new_path.join("d")).expect("an unrelated directory at the new subvolume's name");
+    std::fs::write(layout.new_path.join("d/precious.txt"), b"its only copy\n").expect("a file of theirs");
+    platform.register(layout.new_path.as_path());
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("installed checkout"), "the refusal names what it found and what the journal records: {lines2:#?}");
+    assert_eq!(std::fs::read(layout.new_path.join("d/precious.txt")).expect("their file"), b"its only copy\n", "the subvolume is kept where it was");
+    assert_eq!(platform.is_subvolume_root(installed.as_path()), Ok(true), "the installed subvolume is where the person moved it");
+    assert!(layout.journal_path.exists(), "the journal stays");
+    remove(parent.as_path());
+}
+
+/// What:
 ///  A rollback resumed after its exchange renames and deletes only the directory the journal recorded installing,
 ///  so a directory put at the old tree's name while the command was down is kept and named.
 /// Why:

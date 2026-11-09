@@ -1814,12 +1814,16 @@ in milliseconds after the epoch,
 so the removal can tell a file changed after the proof from one the copy already carried;
 a journal written by an earlier release has no such field.
 A rollback deletes the new subvolume only while the name holds a subvolume root,
-which is what the migration created there:
-a directory that replaced it is refused with both paths and nothing is deleted,
-because the removal's fallback would otherwise delete it and whatever it holds.
+which is what the migration created there,
+and only while that object is the checkout the journal recorded installing:
+the recorded identity is compared before the deletion on every path that reaches it,
+including a run resumed after the exchange was recorded,
+which skips the swap and with it the pair check that guards the exchange.
+A directory that replaced it is refused with both paths and nothing is deleted,
+because the removal's fallback would otherwise delete it and whatever it holds,
+and a subvolume that replaced it is refused with both identities.
 One window stays open and is written here rather than closed:
-the journal records no identity for the stage,
-so another process that creates a subvolume at that name in the moment between the check and the
+another process that puts a subvolume at that name in the moment between the identity check and the
 destruction has that subvolume destroyed;
 a person sees the rollback finish and the directory they made gone,
 and nothing names it,
