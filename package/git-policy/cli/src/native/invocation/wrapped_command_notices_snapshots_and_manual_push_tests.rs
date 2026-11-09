@@ -40,14 +40,14 @@ fn a_held_push_is_said_with_no_notice_directory() {
     };
     assert!(!notice_directory(git_dir.as_path()).is_dir(), "no notice directory exists before the push is held");
     crate::work_item::hold(work_dir.as_path(), &item).expect("the push is held");
-    let said: Vec<String> = push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs);
+    let said: Vec<String> = crate::test_support::shown_notices(push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs));
     assert_eq!(said.len(), 1, "one line: {said:?}");
     assert!(said[0].contains(oid.as_str()), "{}", said[0]);
     assert!(said[0].contains("next push"), "{}", said[0]);
     // The words claim only what is known: the push is held, and the next push of its branch carries it.
     assert!(!said[0].contains("stopped"), "the line does not claim the command stopped: {}", said[0]);
     assert!(!said[0].contains("checks"), "and not that its checks ran or not: {}", said[0]);
-    let again: Vec<String> = push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs);
+    let again: Vec<String> = crate::test_support::shown_notices(push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs));
     assert!(again.is_empty(), "said once: {again:?}");
     assert!(
         crate::work_item::state_directory(work_dir.as_path(), crate::work_item::HELD).join(item.id()).exists(),
@@ -62,7 +62,7 @@ fn a_worktree_with_nothing_held_says_nothing() {
     let root: PathBuf = fixture("notices-held-push-quiet");
     let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
     let git_dir: PathBuf = repo.join(".git");
-    assert_eq!(push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs), Vec::<String>::new());
+    assert!(push_notices_for(git_dir.as_path(), git_dir.as_path(), &AsIs).is_empty(), "a worktree with nothing held says nothing");
     assert!(!notice_directory(git_dir.as_path()).is_dir(), "the check made no directory either");
     remove(root.as_path());
 }

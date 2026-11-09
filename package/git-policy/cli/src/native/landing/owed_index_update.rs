@@ -83,7 +83,9 @@ pub struct Owed {
     pub old: String,
     /// The commit the batch landed.
     pub new: String,
-    /// The paths whose entries the batch updates.
+    /// The paths whose entries the batch updates,
+    /// as the bytes Git listed:
+    /// a file name that is not text is still a file name.
     pub paths: Vec<Vec<u8>>,
     /// Whether the paths are every path that differs between `old` and `new`.
     pub derived: bool,

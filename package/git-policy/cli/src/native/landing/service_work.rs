@@ -48,7 +48,7 @@ use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use crate::work_item_recovery::{next_claim_expiry, requeue_expired_reporting};
+use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired_reporting_telling};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -149,8 +149,10 @@ pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
         return keep_plans_while_unreachable(git_dir, retrying, &unreachable);
     }
     let work_dir: PathBuf = work_directory(git_dir);
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
-    tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+    // The notice is written before the item moves to `failed`: nothing scans `failed`, so the order is the only thing that
+    //  keeps a kill in between from abandoning the branch in silence.
+    let _recovered: Recovered = requeue_expired_reporting_telling(work_dir.as_path(), now, lease, MAX_TRIES, &SkipNotice(git_dir));
     run_due_push_retries(git_dir, handlers, retrying.due.as_slice(), &mut replanning);
     drain_pending(git_dir, handlers, lease, renewal, &mut replanning);
     let wait: Option<Duration> = next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
@@ -189,7 +191,7 @@ pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: &C
 /// `drain_common_records` with the lease given,
 /// so a test can use a short one.
 pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
-    return drain_common_records_planned(git_dir, handlers, now, lease, None).wait;
+    return drain_common_records_planned(git_dir, handlers, now, lease, &Retrying::none()).wait;
 }
 
 /// `drain_common_records` for a service round:
@@ -200,15 +202,15 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// when one is due;
 /// that wake drains the common directory as a directory of its own,
 /// which has no `commondir`.
-pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, first: Option<Duration>) -> Drained {
+pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();
     };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
         return Drained::default();
     }
-    let mut replanning: Replanning = Replanning { first, changes: Vec::new() };
-    tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
+    let _recovered: Recovered = requeue_expired_reporting_telling(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES, &SkipNotice(common.as_path()));
     drain_pending(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning);
     let wait: Option<Duration> = next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
     return Drained { wait, changes: replanning.changes };
@@ -333,6 +335,98 @@ impl GitHandlers {
     }
 }
 
+/// What:
+///  Whether the branch the item names exists in the repository,
+/// or nothing when the question cannot be asked.
+/// Why:
+///   A push of a branch that is not there fails the same way on every try,
+/// and nothing about it can pass by waiting;
+///  a push that failed for another reason must still be retried,
+/// so the answer decides,
+/// and never the words of the output.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await git.revParseVerifyQuiet(item.branch_ref); return answer.code === 0 ? true : answer.code === 1 ? false : undefined
+/// ```
+fn branch_exists(git: &PushGit, branch_ref: &str) -> Option<bool> {
+    let asked = crate::auto_push_single_flight::run_query(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", branch_ref])).ok()?;
+    return match asked.code {
+        Some(0) => Some(true),
+        Some(1) => Some(false),
+        _ => None,
+    };
+}
+
+/// What:
+///  The words for a push whose branch the person deleted:
+/// what happened,
+/// which commit it named,
+/// and every ref
+///  that still holds that commit.
+/// Why:
+///   Nothing was sent and nothing can pass by waiting,
+/// so the person is told once that the branch is gone;
+/// the commit
+///  is not on that branch any more because the person removed the branch,
+/// and when no ref holds it any more they are told
+///  that,
+/// with the commit named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refs = await git.for_each_ref(['--contains', item.oid, '--format=%(refname)']);
+/// `... the branch ${branch} no longer exists ... ${refs.length ? `Commit ${oid} is still on ${refs.join(', ')}.` : `Commit ${oid} is on no ref of this repository any more, ...`}`
+/// ```
+fn branch_is_gone_words(git: &PushGit, item: &WorkItem) -> String {
+    let branch: &str = item.branch_ref.strip_prefix("refs/heads/").unwrap_or(item.branch_ref.as_str());
+    // A query that failed is not an answer: nothing is said about where the commit lives when the refs could not be read.
+    let holding: Option<Vec<String>> = match crate::auto_push_single_flight::run_query(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["for-each-ref", "--contains", item.oid.as_str(), "--format=%(refname)"])) {
+        Ok(answer) if answer.code == Some(0) => {
+            let mut named: Vec<String> = Vec::new();
+            for line in String::from_utf8_lossy(answer.stdout.as_slice()).lines() {
+                let held: String = line.trim().to_owned();
+                if !held.is_empty() {
+                    named.push(held);
+                }
+            }
+            Some(named)
+        }
+        Ok(answer) => {
+            crate::service_warn!("the refs that hold {} could not be read (git for-each-ref exited {}), so the notice does not say where the commit lives", item.oid, match answer.code { Some(code) => code.to_string(), None => String::from("on a signal") });
+            None
+        }
+        Err(error) => {
+            crate::service_warn!("the refs that hold {} could not be read ({error}), so the notice does not say where the commit lives", item.oid);
+            None
+        }
+    };
+    const NAMED_AT_MOST: usize = 5;
+    let where_it_lives: String = match holding {
+        None => format!(
+            "Whether any ref of this repository still holds commit {} could not be told, because the refs could not be read.",
+            item.oid
+        ),
+        Some(none) if none.is_empty() => format!(
+            "Commit {} is on no ref of this repository any more, so only its object store keeps it and nothing was pushed for it.",
+            item.oid
+        ),
+        Some(named) => {
+            let shown: Vec<&str> = named.iter().take(NAMED_AT_MOST).map(String::as_str).collect();
+            let more: usize = named.len().saturating_sub(shown.len());
+            format!(
+                "Commit {} is still on {}{}.",
+                item.oid,
+                shown.join(", "),
+                if more == 0 { String::new() } else { format!(" and {more} more refs") }
+            )
+        }
+    };
+    return format!(
+        "monochromatic-git-policy-cli: the branch {branch} no longer exists in this repository, so this push was not made: the branch was deleted. {where_it_lives}          Nothing is retried for it; a commit you want on a branch again can be pushed by hand after naming it with `git branch`."
+    );
+}
+
 /// Trait implementation for the real Git.
 impl WorkHandlers for GitHandlers {
     fn push(&self, items: &[WorkItem]) -> Verdict {
@@ -344,6 +438,10 @@ impl WorkHandlers for GitHandlers {
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
             Ok(result) if result.exit_code == 0 => Verdict::Done,
+            // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
+            //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
+            //  output: any program a push runs can print a line about a branch of its own.
+            Ok(_result) if branch_exists(&git, newest.branch_ref.as_str()) == Some(false) => Verdict::Skipped(branch_is_gone_words(&git, newest)),
             // A conflict, a login the service does not have and a server hook's decline need the person; every other failure can pass
             //  (a stall, the network, an LFS server error, a held lock).
             Ok(result) => match final_failure(result.shown.as_str()) {
