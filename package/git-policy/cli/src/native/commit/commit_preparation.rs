@@ -218,8 +218,13 @@ pub fn run_native_commit_within(
     );
     let began: std::time::Instant = std::time::Instant::now();
     let finished = run_guarded_child(&mut command);
-    let stopped_after: Option<std::time::Duration> = notice.finish();
+    // The step's own figure is the child alone. The notice's own time (its lines are written from its thread, and a write waits
+    // for its reader) is reported beside it in `scratchSteps`, and the time the signing program ran below the step is there too,
+    // so a long step names no work the person's terminal did.
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
+    let facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
+    let stopped_after: Option<std::time::Duration> = facts.stopped_after;
+    crate::scratch_commit_step::note_scratch_step(facts);
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());

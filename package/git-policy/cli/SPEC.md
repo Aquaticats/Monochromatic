@@ -2663,8 +2663,10 @@ counted with `strace` over ten commits on 2026-11-07),
 rounded up to a power of two.
 The commit Git builds in the scratch repository runs with the terminal attached and no watch,
 so its entry (`git commit`) is the
-only record of its time,
-signing included.
+only record of the time Git itself took,
+signing and the work Git does included,
+and the notice's own time and the time a program below the step ran are in `scratchSteps` beside it,
+never inside it.
 The gateway call's total deadline is `ureq`'s `global` timeout,
 set to `REVIEW_CALL_CEILING`;
 the transport's other timeouts
@@ -7821,6 +7823,22 @@ and `statDataKept` says whether that build started from a copy of the real index
 keeping the cached stat data of every entry its tree shares with it;
 a build from the base or the tree alone holds none,
 and the scratch commit then hashes every file of the work tree),
+`scratchSteps`
+(one entry per build of the scratch `git commit`,
+empty for a commit that ran none,
+in the order the builds ended:
+`ceilingMs` the ceiling that build ran under,
+`null` for a commit that may open an editor,
+`armed` whether a notice thread ran to enforce it,
+`stoppedAfterMs` how long the step had lasted when the notice ended it,
+`noticeMs` how long the notice's own join took after the step ended,
+`wroteMs` how long its lines took to write,
+`looks` and `looksFound` how many looks it made for the step and how many found it,
+`below` one entry per program other than Git that ran below the step with the milliseconds it was seen at the look interval,
+`belowCpuMs` the processor time everything below the step had used at the last look,
+and `blockedLooks` how many looks found one of them in uninterruptible sleep;
+the record's own `git commit` step figure is the child alone,
+so `noticeMs` and `below` are never inside it),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,

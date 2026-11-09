@@ -131,12 +131,15 @@ fn a_commit_whose_message_came_with_the_command_is_stopped_at_its_ceiling() {
         sink: Box::new(sink.clone()),
     });
     let ended: Option<i32> = ended_by_signal(&mut step);
-    let stopped: Option<Duration> = notice.finish();
+    let seen: ScratchStepFacts = notice.finish();
     if ended.is_none() {
         step.kill().expect("cleanup");
     }
     assert!(ended.is_some(), "the step was still running after its ceiling");
+    let stopped: Option<Duration> = seen.stopped_after;
     assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(300); }), "{stopped:?}");
+    assert!(seen.armed, "a message on the command line arms the ceiling");
+    assert!(seen.looks >= 1 && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
 }
 
 /// A commit that may open the person's editor has no ceiling:
@@ -155,7 +158,7 @@ fn a_commit_that_may_open_an_editor_is_never_stopped() {
     });
     std::thread::sleep(Duration::from_millis(700));
     let still_running: bool = step.try_wait().expect("status").is_none();
-    let stopped: Option<Duration> = notice.finish();
+    let stopped: Option<Duration> = notice.finish().stopped_after;
     step.kill().expect("cleanup");
     step.wait().expect("reaped");
     assert!(still_running, "an editor commit was stopped");
@@ -176,7 +179,7 @@ fn a_step_that_ended_before_its_ceiling_reports_no_stop() {
         sink: Box::new(Buffer::default()),
     });
     std::thread::sleep(Duration::from_millis(500));
-    assert_eq!(notice.finish(), None);
+    assert_eq!(notice.finish().stopped_after, None);
 }
 
 /// What:
@@ -204,7 +207,7 @@ fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
     std::thread::sleep(Duration::from_millis(400));
     let mut step: std::process::Child = sleeping_step();
     let ended: Option<i32> = ended_by_signal(&mut step);
-    let stopped: Option<Duration> = notice.finish();
+    let stopped: Option<Duration> = notice.finish().stopped_after;
     if ended.is_none() {
         step.kill().expect("cleanup");
         step.wait().expect("reaped");
@@ -227,4 +230,39 @@ fn the_words_of_a_stop_say_what_ended_what_is_kept_and_what_to_run() {
     assert!(said.contains("nothing was committed") && said.contains("index and files are as they were"), "{said}");
     assert!(said.contains("Run the same `git commit` command again"), "{said}");
     assert!(!stop_words(Duration::from_secs(1261), Duration::from_secs(1260), false).contains("signs the commit"));
+}
+
+/// What:
+///  The notice reports which programs ran below the step and for how long.
+/// Why:
+///   Git starts the signing program below itself and the record held no figure for it,
+/// so a commit whose step ran 36,651 ms on 2026-11-08 could not be told from one whose signing program waited,
+/// and the owner asked for the logging that tells them apart (2026-11-08,
+/// "About 16 seconds").
+///  The child here is a `sleep` below this process,
+/// named as the kernel names it.
+#[test]
+fn the_notice_reports_the_programs_that_ran_below_the_step() {
+    let mut step: std::process::Child = std::process::Command::new("sleep").arg("2").spawn().expect("a long-running child");
+    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: Duration::from_secs(120),
+        sink: Box::new(Buffer::default()),
+    });
+    std::thread::sleep(Duration::from_millis(1200));
+    let seen: ScratchStepFacts = notice.finish();
+    step.kill().expect("cleanup");
+    step.wait().expect("reaped");
+    assert!(seen.armed && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
+    assert_eq!(seen.stopped_after, None, "the ceiling never came: {seen:?}");
+    let found: &crate::scratch_commit_step::SeenProgram = seen
+        .below
+        .iter()
+        .find(|program| program.name == "sleep")
+        .unwrap_or_else(|| { panic!("the sleep below the step is not named: {seen:?}") });
+    assert!(found.seen >= Duration::from_millis(750), "the sleep ran while the notice looked: {seen:?}");
+    assert!(found.seen <= Duration::from_millis(1200), "a program cannot be seen longer than it ran: {seen:?}");
 }

@@ -103,6 +103,10 @@ pub mod commit_index_copying;
 /// for the timing record.
 pub mod commit_index_builds;
 
+/// What the waiting notice of the scratch `git commit` saw while the step ran,
+/// for the timing record.
+pub mod scratch_commit_step;
+
 /// The refresh of an index's stat data before the scratch commit,
 /// so its ceiling does not end a commit over a moved worktree.
 pub mod commit_index_stat_refresh;

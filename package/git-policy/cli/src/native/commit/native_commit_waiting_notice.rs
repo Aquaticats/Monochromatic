@@ -82,6 +82,8 @@ use std::io::Write;
 use std::sync::mpsc::{Sender, RecvTimeoutError, channel};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
+/// One member of a process tree.
+use crate::process_tree::TreeMember;
 
 /// The shortest pause between two looks of the notice thread,
 /// so a very short interval does not spin.
@@ -155,6 +157,22 @@ pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool) -> String {
     );
 }
 
+/// What the notice saw while the step ran,
+/// and the ledger the commit's timing record takes it from.
+use crate::scratch_commit_step::ScratchStepFacts;
+/// The kernel's name,
+/// state and processor time of one process.
+use crate::process_tree::ProcessUse;
+/// What:
+///   the process numbers below this one,
+/// from the kernel's per-thread child lists.
+use crate::process_tree::descendant_numbers_from_thread_lists;
+/// What:
+///   one process's name,
+/// state and processor time,
+/// from one `/proc/<pid>/stat`.
+use crate::process_tree::use_of;
+
 /// The running notice:
 /// the thread that prints it and the sender that ends it.
 pub struct NativeCommitNotice {
@@ -162,9 +180,11 @@ pub struct NativeCommitNotice {
     stop: Option<Sender<()>>,
     /// The thread,
     /// joined when the step has ended;
-    /// it answers how long the step had lasted when it ended it,
-    /// when it did.
-    thread: Option<std::thread::JoinHandle<Option<Duration>>>,
+    /// it answers what it saw while the step ran.
+    thread: Option<std::thread::JoinHandle<ScratchStepFacts>>,
+    /// What is reported when no thread ran,
+    /// so a record still says that no ceiling was armed and why.
+    unarmed: ScratchStepFacts,
 }
 
 /// Whether the commit is signed:
@@ -187,25 +207,109 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
     return asked;
 }
 
-/// The program names of what runs below this process,
-/// other than Git itself:
-/// the signer,
-/// for instance.
-fn programs_below() -> Vec<(i32, String)> {
-    let mut found: Vec<(i32, String)> = Vec::new();
+/// What:
+///  Every living process below this one,
+/// with its name,
+/// state and processor time.
+/// Why:
+///   One read of one small file per process,
+/// from the kernel's per-thread child lists,
+/// so a notice that looks many times stays cheap:
+/// a walk costs 19.6 microseconds and a pass over `/proc` 17.6 ms on 2026-11-09 (`process_tree.rs`).
+///  `/proc` itself is read only where the kernel has no child lists.
+///  A process the kernel holds as a zombie is not below the step any more,
+/// as `descendants_of` counts it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const below = lookBelow(); // [{ pid, name, state, cpu }]
+/// ```
+fn look_below() -> Vec<(i32, ProcessUse)> {
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(0);
-    for member in descendants_of(own) {
-        let name: String = std::fs::read_to_string(format!("/proc/{}/comm", member.pid)).map(trim_name).unwrap_or_default();
-        if !name.is_empty() && name != "git" {
-            found.push((member.pid, name));
+    let numbers: Vec<i32> = match descendant_numbers_from_thread_lists(own) {
+        Some(found) => found,
+        None => descendants_of(own).iter().map(member_number).collect(),
+    };
+    let mut found: Vec<(i32, ProcessUse)> = Vec::new();
+    for pid in numbers {
+        if let Some(used) = use_of(pid)
+            && used.state != 'Z'
+        {
+            found.push((pid, used));
         }
     }
     return found;
 }
 
-/// A name from `comm` without its newline.
-fn trim_name(text: String) -> String {
-    return text.trim().to_string();
+/// The number of one member of a tree.
+fn member_number(member: &TreeMember) -> i32 {
+    return member.pid;
+}
+
+/// What:
+///  The names one look saw below the step,
+/// once each.
+/// Why:
+///   The next look credits a program with the interval only when it was there at both ends,
+/// so the names are what the look is remembered by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = [...new Set(below.map(([, used]) => used.name))];
+/// ```
+fn names_seen(below: &[(i32, ProcessUse)]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for (_pid, used) in below {
+        if !names.contains(&used.name) {
+            names.push(used.name.clone());
+        }
+    }
+    return names;
+}
+
+/// The processor time one process below the step has used.
+fn process_cpu(entry: &(i32, ProcessUse)) -> Duration {
+    return entry.1.cpu;
+}
+
+/// Whether one process below the step is in uninterruptible sleep.
+fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
+    return entry.1.state == 'D';
+}
+
+/// The programs below the step other than Git itself,
+/// which the notice line names.
+fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
+    let mut others: Vec<(i32, String)> = Vec::new();
+    for (pid, used) in below {
+        if used.name != "git" {
+            others.push((*pid, used.name.clone()));
+        }
+    }
+    return others;
+}
+
+/// What:
+///  Credit the time since the previous look to every program that was below the step at both looks.
+/// Why:
+///   The kernel records no start and no end of a short program that the notice could read,
+/// so it measures what it can:
+/// a program that starts and ends between two looks is not seen at all,
+/// and the time an entry holds is a lower bound of the time that program ran.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const name of namesAtBothLooks) facts.credit(name, sinceLastLook);
+/// ```
+fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[String], now: &[(i32, ProcessUse)], interval: Duration) {
+    let mut credited: Vec<&str> = Vec::new();
+    for (_pid, used) in now {
+        if !before.contains(&used.name) || credited.contains(&used.name.as_str()) {
+            continue;
+        }
+        facts.credit(used.name.as_str(), interval);
+        credited.push(used.name.as_str());
+    }
 }
 
 /// What:
@@ -237,8 +341,8 @@ impl NativeCommitNotice {
     /// A notice that prints nothing:
     /// the commit opens an editor,
     /// or no thread could be started.
-    fn silent() -> Self {
-        return Self { stop: None, thread: None };
+    fn silent(ceiling: Option<Duration>) -> Self {
+        return Self { stop: None, thread: None, unarmed: ScratchStepFacts::unarmed(ceiling) };
     }
 
     /// What:
@@ -261,7 +365,8 @@ impl NativeCommitNotice {
         let NoticeStart { snapshot, commit_arguments, cadence, ceiling, mut sink } = start;
         let words: Vec<std::ffi::OsString> = commit_arguments.iter().map(std::ffi::OsString::from).collect();
         if opens_editor(words.as_slice()) {
-            return Self::silent();
+            // The person is the wait, and a message typed into an editor would be lost by a stop.
+            return Self::silent(None);
         }
         let signs: bool = signs_commit(snapshot, commit_arguments);
         let (stop, ended) = channel::<()>();
@@ -269,60 +374,103 @@ impl NativeCommitNotice {
         let spawned = std::thread::Builder::new().name(String::from("native-commit-notice")).spawn(move || {
             let mut ticker: Ticker = Ticker::new(cadence);
             let mut first: bool = true;
+            let mut facts: ScratchStepFacts = ScratchStepFacts::unarmed(Some(ceiling));
+            facts.armed = true;
             // When the step was first found below this process; the ceiling is counted from then.
             let mut seen_at: Option<Duration> = None;
+            // The names the previous look saw below the step, and when that look was.
+            let mut before: Vec<String> = Vec::new();
+            let mut last_look: Duration = Duration::ZERO;
             loop {
                 let waited: Duration = began.elapsed();
-                if seen_at.is_none() && !descendants_of(i32::try_from(std::process::id()).unwrap_or(0)).is_empty() {
+                // One look: the step, the programs below it, and what they are using.
+                let below: Vec<(i32, ProcessUse)> = look_below();
+                facts.looks = facts.looks.saturating_add(1);
+                if !below.is_empty() {
+                    facts.looks_found = facts.looks_found.saturating_add(1);
+                }
+                if seen_at.is_none() && !below.is_empty() {
                     seen_at = Some(waited);
                 }
-                let since_seen: Option<Duration> = seen_at.map(|seen| { return waited.saturating_sub(seen); });
-                if since_seen.is_some_and(|seen| { return seen >= ceiling; }) {
+                credit_between_looks(&mut facts, before.as_slice(), below.as_slice(), waited.saturating_sub(last_look));
+                before = names_seen(below.as_slice());
+                last_look = waited;
+                facts.below_cpu = below.iter().map(process_cpu).sum();
+                if below.iter().any(process_is_blocked) {
+                    facts.blocked_looks = facts.blocked_looks.saturating_add(1);
+                }
+                // How long the step has been running, and whether the ceiling has come, once the step has been seen.
+                let since_seen: Option<Duration> = match seen_at {
+                    Some(seen) => Some(waited.saturating_sub(seen)),
+                    None => None,
+                };
+                let ceiling_came: bool = match since_seen {
+                    Some(running) => running >= ceiling,
+                    None => false,
+                };
+                if ceiling_came {
                     // Everything below this process is the step and its signer; nothing of the person's runs there.
-                    let below = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
-                    if below.is_empty() {
+                    let members = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
+                    if members.is_empty() {
                         // The step ended on its own after it was seen running.
-                        return None;
+                        return facts;
                     }
-                    kill_members(below.as_slice());
-                    return Some(waited);
+                    kill_members(members.as_slice());
+                    facts.stopped_after = Some(waited);
+                    return facts;
                 }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, programs_below().as_slice(), ceiling);
+                    let line: String = notice_line(signs, waited, first, other_programs(below.as_slice()).as_slice(), ceiling);
                     first = false;
                     // A closed terminal is not a reason to stop the commit.
+                    let writing: Instant = Instant::now();
                     let _written = sink.write_all(line.as_bytes());
                     let _flushed = sink.flush();
+                    facts.wrote = facts.wrote.saturating_add(writing.elapsed());
                 }
-                // Wake for the sooner of the next line, the look that has not found the step yet, and the ceiling.
+                // Wake for the sooner of the next line, the look, and the ceiling.
                 let to_next: Duration = ticker.next_in(waited);
                 let pause: Duration = match since_seen {
-                    Some(seen) => to_next.min(ceiling.saturating_sub(seen)),
+                    Some(seen) => to_next.min(ceiling.saturating_sub(seen)).min(SIGHTING_INTERVAL),
                     None => to_next.min(SIGHTING_INTERVAL),
                 };
                 match ended.recv_timeout(pause.max(LOOK_PAUSE)) {
                     Err(RecvTimeoutError::Timeout) => {}
-                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return None,
+                    Ok(()) | Err(RecvTimeoutError::Disconnected) => return facts,
                 }
             }
         });
         return match spawned {
-            Ok(thread) => Self { stop: Some(stop), thread: Some(thread) },
-            Err(_) => Self::silent(),
+            Ok(thread) => Self { stop: Some(stop), thread: Some(thread), unarmed: ScratchStepFacts::unarmed(Some(ceiling)) },
+            // The system refused the thread: the step runs with no ceiling, and the record says so.
+            Err(_) => Self::silent(Some(ceiling)),
         };
     }
 
     /// Ends the notice once the step has ended,
-    /// and answers how long the step had lasted when the notice stopped it,
-    /// nothing when it ended by itself.
-    pub fn finish(mut self) -> Option<Duration> {
+    /// and answers what it saw:
+    /// how long the step had lasted when the notice stopped it,
+    /// how long the notice's own join took,
+    /// and what ran below the step.
+    /// Why:
+    ///   The join is timed here because a notice line waits for its reader:
+    /// a step whose figure held that wait would name the terminal as the work.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const began = now(); notice.stop(); const seen = notice.join(); seen.notice = now() - began; return seen;
+    /// ```
+    pub fn finish(mut self) -> ScratchStepFacts {
+        let began: Instant = Instant::now();
         if let Some(stop) = self.stop.take() {
             let _sent = stop.send(());
         }
-        return match self.thread.take() {
-            Some(thread) => thread.join().unwrap_or(None),
-            None => None,
+        let mut facts: ScratchStepFacts = match self.thread.take() {
+            Some(thread) => thread.join().unwrap_or(self.unarmed),
+            None => self.unarmed,
         };
+        facts.notice = began.elapsed();
+        return facts;
     }
 }
 
