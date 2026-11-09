@@ -203,6 +203,34 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in a plain message, recorded 2026-11-09T00:52:14-05:00
+
+- How many Pi agents run at once:
+  "I said 16 is practical,
+  based on a rough estimation.
+  Try 20,
+  and if it doesn't blow up (in terms of api rate limits),
+  we're permanently raising the practical limit to 20."
+  The trial is running.
+  A provider error reaches a run's `feed.jsonl` as an `assistant` record with `"stop":"error"`,
+  and Pi's own retry as an `auto_retry_start` record.
+  Before the trial,
+  at up to sixteen agents,
+  158 feeds held 25,631 model turns,
+  no retry and no error shaped like a rate limit.
+  The eight errors they did hold (five aborted operations,
+  three unconfigured providers) show the count can see an error.
+  Coordinator's pick,
+  veto open:
+  the trial passes after sixty minutes with twenty running and no error shaped like a rate limit.
+  The first such error ends it.
+  A provider that throttles by answering slowly reports no error,
+  so the watcher also prints the median model turn before and during the trial.
+  The count is `${HOME}/temp/agent/pi-runs/watch-trial-of-twenty-pi-agents.ts`.
+  On a pass,
+  `.agents/skills/pi-as-subagent/SKILL.md` gets these words in place of "In practice it's 16."
+  and `file-enforcer write` regenerates its copies.
+
 ## Answered in a plain message, recorded 2026-11-09T00:07:24-05:00
 
 - Kopia and this repository:
