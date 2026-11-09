@@ -178,6 +178,13 @@ in the crate writes `default-features = false`;
 sites keep their `features` lists.
 Tradeoffs:
 
+`package/file-enforcer/core/src/cargo/catalog/default-features.ts` was removed on 2026-10-31 in
+`e7b5130459` (feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names
+its own generator);
+no file in the working tree carries it now.
+
 - The choice is per crate,
   not per site.
   When one site of a dependency disables defaults and another (for example in `[dev-dependencies]`)

@@ -20,6 +20,13 @@ exit statuses,
 configuration snapshots,
 and exact-version Git source.
 
+`package/file-enforcer/core/generator/Containerfile` was removed on 2026-10-31 in `e7b5130459`
+(feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own
+generator);
+no file in the working tree carries it now.
+
 ## Root cause
 
 The first-party write at `Containerfile:48` puts the token-bearing URL in the subsection name.

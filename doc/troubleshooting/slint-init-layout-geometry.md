@@ -144,6 +144,19 @@ loads six labels,
 shows the window,
 and confirms both wrapped-row membership and full-width plate size before and after resize.
 
+`package/music-player/desktop-app/src/ui_binding_tests.rs` was removed on 2026-10-11 in `f36cef6b43`
+(feat(music-player-desktop-app):
+replace the page-tab window with the accepted design (cover and
+two-pane layouts,
+Search,
+Settings,
+template editor,
+menu,
+overlays,
+keyboard));
+no file in the
+working tree carries it now.
+
 Run it through the package task:
 
 ```bash

@@ -58,6 +58,14 @@ await using build = await rolldown({
     define: {
 ```
 
+The paths this record names under `package/git-policy/cli/src/` were removed on 2026-10-13 in
+`642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust
+workflow);
+no file in the working tree carries them now.
+
 That omission was initially read as meaning that the bundler would transpile
 TypeScript without consulting a project configuration.
 Rolldown's public option contract disproves that reading.

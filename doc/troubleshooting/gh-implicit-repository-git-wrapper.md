@@ -309,6 +309,9 @@ gh release view v2.101.0 --repo cli/cli
 `package/search-fetch/pi-plugin/src/github-record-plan.ts`,
 and runs every gh child in a temporary directory so no ambient work tree can supply a repository.
 
+`package/search-fetch/pi-plugin/src/github-record-plan.ts` is not in the working tree and no commit
+in this repository carries it.
+
 ## Verification
 
 Verified against:
