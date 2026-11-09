@@ -210,8 +210,6 @@ export function startRecordOfPiRun({
           length: FEED_PREVIEW_CHARACTERS.modelError,
         },),
       },);
-      // The attempt answers this error, so neither this settle nor a later one reports or counts it again.
-      observed.answerModelError();
     },
     noteDriverFailure: function noteDriverFailure(failure,) {
       state.driverError = failure;

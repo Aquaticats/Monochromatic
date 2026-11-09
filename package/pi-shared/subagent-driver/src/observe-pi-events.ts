@@ -52,12 +52,6 @@ export type ObservedPiRun = {
    Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
    */
   readonly countPromptHandled: () => void;
-
-  /**
-   Takes the model error Pi settled on as answered by another attempt, so a later settle neither reports it again nor counts it
-   again. It is cleared here rather than in the driver's watch so that one error is answered once.
-   */
-  readonly answerModelError: () => void;
 };
 
 /**
@@ -287,10 +281,6 @@ export function startObservingPiRun({
     observe,
     countPromptHandled: function countPromptHandled() {
       state.settled += 1;
-    },
-    answerModelError: function answerModelError() {
-      delete state.pendingModelError;
-      delete state.unrecoveredModelError;
     },
   };
 }

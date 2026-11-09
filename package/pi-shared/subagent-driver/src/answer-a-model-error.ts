@@ -25,7 +25,8 @@ import {
 import type { WatchRequest, } from './watch-request.ts';
 
 /**
- Where the watch stands with a model error: nothing to answer, or a delay it is waiting out before the next attempt.
+ Where the watch stands with a model error: nothing to answer, a delay it is waiting out before the next attempt, or an attempt
+ that has gone and has not ended.
  */
 export type RetryWaiting = {
   /**
@@ -34,10 +35,16 @@ export type RetryWaiting = {
   at?: number;
 
   /**
-   What the model said when its message ended in the error this attempt answers, kept because counting the attempt takes the
-   error as answered and Pi reports no new one until the attempt ends.
+   What the model said when its message ended in the error this attempt answers, kept so the prompt names the failure the
+   attempt was scheduled for rather than whichever one a later settle names.
    */
   problem?: string;
+
+  /**
+   How many settles Pi had produced when this attempt went. The attempt's own settle is the first one after that count, and
+   until one comes the error the attempt answers is neither counted again nor answered again.
+   */
+  settlesAtAttempt?: number;
 };
 
 /**
@@ -84,6 +91,8 @@ function attemptAfterTheError({
 
  @param watch - watch request
 
+ @param retry - where the watch stands with the model error this attempt answers
+
  @param problem - what the model said when its message ended in an error
 
  @returns why the run is over, or that it goes on
@@ -91,12 +100,19 @@ function attemptAfterTheError({
 async function answerWithAnotherAttempt(
   {
     watch,
+    retry,
     problem,
   }: {
     readonly watch: WatchRequest;
+    readonly retry: RetryWaiting;
     readonly problem: string
   },
 ): Promise<RunProgress> {
+  /**
+   How many settles Pi had produced before this attempt, so the attempt's own settle is told from the one before it.
+   */
+  const settlesBefore = watch.record
+    .settledCount();
   /**
    Pi's answer, waited for only as long as the run has left.
    */
@@ -126,6 +142,9 @@ async function answerWithAnotherAttempt(
       disposition,
       error: answer.error ?? null,
     },);
+  delete retry.at;
+  delete retry.problem;
+  retry.settlesAtAttempt = settlesBefore;
   if (answer.success === false) {
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return 'wall-clock';
@@ -171,12 +190,22 @@ export async function answerModelError(
   },
 ): Promise<RunProgress> {
   /**
-   Where a delay already counted for this error stands, which is the attempt it owes.
+   Where a delay already counted for this error stands, which is the attempt it owes, or the attempt that has gone.
    */
   const {
     at,
     problem: awaited,
+    settlesAtAttempt,
   } = retry;
+  if (settlesAtAttempt !== undefined) {
+    if (watch.record
+      .settledCount() <= settlesAtAttempt) {
+      // An attempt has gone and Pi has not finished with it: the attempt's own settle is what tells the driver whether the
+      // failure it answered is recovered, so nothing else is scheduled or sent until one comes.
+      return 'still-running';
+    }
+    delete retry.settlesAtAttempt;
+  }
   if ((at !== undefined) && (awaited !== undefined)) {
     if (Date.now() < at) {
       return 'still-running';
@@ -187,10 +216,9 @@ export async function answerModelError(
       // it did not start, whose reply may still recover the error. The attempt stays owed until Pi rests.
       return 'still-running';
     }
-    delete retry.at;
-    delete retry.problem;
     return await answerWithAnotherAttempt({
       watch,
+      retry,
       problem: awaited,
     },);
   }

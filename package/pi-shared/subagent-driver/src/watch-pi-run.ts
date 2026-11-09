@@ -430,8 +430,11 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         name: nextMessage,
       },);
     }
-    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.at === undefined) && idleLongEnough(watch,)) {
+    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on. A run whose
+    // failure nothing recovered is not finished either: the failure stays until a reply succeeds, so a prompt Pi only handled
+    // ends the run on that failure rather than making it read as one that came back with nothing to report.
+    else if ((retry.at === undefined) && (!watch.record
+      .unrecoveredModelError().failed) && idleLongEnough(watch,)) {
       return 'idle';
     }
   }
