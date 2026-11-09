@@ -142,7 +142,7 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 }
 
 /// What:
-///  Whether the descriptor whose record is `fdinfo` and whose link is `link` is the file with this device number and inode.
+///  Whether the descriptor `fd` of the process whose table directory is `process` is the file with this device number and inode.
 /// Why:
 ///   A device number and an inode name one file on a machine,
 /// which is what `stat(2)` says of `st_dev` and `st_ino`.
@@ -156,22 +156,22 @@ fn belongs_to_this_account(_path: &Path) -> bool {
 /// so a holder that reached it that way was not found at all.
 /// The record's inode number is the cheap test that comes first:
 /// only a descriptor whose record already names the file's inode number is resolved,
-/// and a descriptor's own link is a link to an open file,
-/// whose inode and device are in memory,
-/// so `stat` of it does not wait on the device the file sits on
-/// (on 2026-11-08 a stalled device held eight controls for over two minutes while their scans read other processes' records).
+/// and the answer comes from a copy of the descriptor itself (`opened_file_of`),
+/// never from the path of its link,
+/// because walking that path asks the file's own file system to revalidate its directory entry and a stalled one holds it
+/// for ever (cross-vendor review of 2026-11-09,
+/// finding 3;
+/// `doc/troubleshooting/fuse-descriptor-attributes.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { ino } = parseFdinfo(await readFile(fdinfo, 'utf8'));
-/// ino === inode && sameFile(statSync(`/proc/${pid}/fd/${n}`), { device, inode });
+/// const { ino } = parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8'));
+/// const opened = ino === inode ? openedFileOf({ process, fd }) : undefined;
+/// opened?.device === device && opened?.inode === inode;
 /// ```
 #[cfg(unix)]
-pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -> std::io::Result<bool> {
-    /// The Unix metadata accessors,
-    /// for the device and inode of the open file.
-    use std::os::unix::fs::MetadataExt;
-    let text: String = std::fs::read_to_string(fdinfo)?;
+pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> std::io::Result<bool> {
+    let text: String = std::fs::read_to_string(process.join("fdinfo").join(fd))?;
     let mut held: Option<u64> = None;
     for line in text.lines() {
         if let Some(value) = line.strip_prefix("ino:") {
@@ -181,8 +181,8 @@ pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -
     if held != Some(inode) {
         return Ok(false);
     }
-    let opened: std::fs::Metadata = std::fs::metadata(link)?;
-    return Ok(opened.dev() == device && opened.ino() == inode);
+    let opened: crate::open_file_of_a_descriptor::OpenedFile = crate::open_file_of_a_descriptor::opened_file_of(process, fd)?;
+    return Ok(opened.device == device && opened.inode == inode);
 }
 
 /// What:
@@ -197,8 +197,8 @@ pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -
 /// ```
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(not(unix))]
-pub fn descriptor_is_file(fdinfo: &Path, link: &Path, device: u64, inode: u64) -> std::io::Result<bool> {
-    let _ = (fdinfo, link, device, inode);
+pub fn descriptor_is_file(process: &Path, fd: &std::ffi::OsStr, device: u64, inode: u64) -> std::io::Result<bool> {
+    let _ = (process, fd, device, inode);
     return Ok(false);
 }
 
@@ -274,8 +274,7 @@ fn scan_process(proc_root: &Path, pid: &str, prepared: &Prepared<'_>) -> (bool, 
             Prepared::Inside(directory) => working_directory_is_inside(item.path().as_path(), directory),
             Prepared::File { device, inode } => {
                 let name: std::ffi::OsString = item.file_name();
-                let record: PathBuf = process.join("fdinfo").join(&name);
-                descriptor_is_file(record.as_path(), process.join("fd").join(&name).as_path(), *device, *inode)
+                descriptor_is_file(process.as_path(), name.as_os_str(), *device, *inode)
             }
         };
         match answer {

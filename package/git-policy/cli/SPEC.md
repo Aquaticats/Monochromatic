@@ -4234,7 +4234,22 @@ and the first answer wins:
    A descriptor is matched to the file by the device number and the inode the file has,
    which is the pair that names one file on a machine,
    and the record's inode number is only the cheap test that comes first,
-   before the descriptor's own open link is resolved.
+   before the file the descriptor has open is read.
+   That read is `pidfd_getfd(2)` (a copy of the descriptor into this process) followed by `statx(2)` with
+   `AT_EMPTY_PATH` and `AT_STATX_DONT_SYNC`,
+   never a `stat` of the path `/proc/<pid>/fd/<n>`:
+   walking that path asks the file's own file system to revalidate its directory entry before any attribute is read,
+   and a file system whose server has stopped answers neither,
+   while `SIGTERM` does not end the wait either
+   (cross-vendor review of 2026-11-09,
+   finding 3;
+   measured on this host on 2026-11-09 with a stopped `fuse-overlayfs` server,
+   `doc/troubleshooting/fuse-descriptor-attributes.md`).
+   A descriptor this process may not copy (a process that hid itself with `PR_SET_DUMPABLE`, or of another account)
+   is a process the scan could not look into,
+   so the candidate is unproven and never held or removed on a guess from the link's text,
+   which a bind mount,
+   another mount namespace or a rename makes ambiguous.
    The mount number the kernel writes for a descriptor is not an identity (audit of 2026-11-09,
    finding 4):
    a bind mount gives the same file another mount number,
@@ -4515,6 +4530,9 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
 - A Git on NFS or another network or user-space file system (including a virtual machine's shared directory):
   the file
   system must be on the fixed local list.
+  A lock on a local disk is still matched to a descriptor that holds a file on a stalled file system,
+  and nothing there is waited for: a descriptor is read through the kernel's own copy of it and never through the path of
+  its link (item 3).
 - A clock that steps:
   the margin and the start time of a process read file times against the current clock,
   and the boot

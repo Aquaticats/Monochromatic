@@ -160,8 +160,7 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64) -> (bool, 
         let Ok(entry) = item else {
             continue;
         };
-        let record: PathBuf = process.join("fdinfo").join(entry.file_name());
-        match crate::process_use::descriptor_is_file(record.as_path(), entry.path().as_path(), device, inode) {
+        match crate::process_use::descriptor_is_file(process.as_path(), entry.file_name().as_os_str(), device, inode) {
             Ok(true) => holds = true,
             Ok(false) => {}
             Err(error) if exited(&error) => {}

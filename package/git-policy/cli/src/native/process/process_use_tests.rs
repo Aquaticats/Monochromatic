@@ -124,24 +124,49 @@ fn an_open_descriptor_is_recognized_by_identity_under_any_name() {
 ///  so that holder was not found at all,
 ///  and two files of two btrfs subvolumes reached through one mount share both numbers.
 ///  The record's inode number is the cheap test that comes first;
-///  the descriptor's own open link is the answer.
+///  the answer is the file the copied descriptor has open,
+///  never the text of the descriptor's link (cross-vendor review of 2026-11-09,
+///  finding 3).
 #[test]
 fn a_descriptor_is_matched_by_device_and_inode() {
     let root: PathBuf = fixture("process-use-fdinfo");
     let lock: PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("lock");
+    let alias: PathBuf = root.join("alias");
+    std::fs::hard_link(&lock, &alias).expect("a second name of the lock");
     let other: PathBuf = root.join("other");
     std::fs::write(&other, b"x").expect("another file");
     let metadata: std::fs::Metadata = std::fs::metadata(&lock).expect("lock metadata");
     let (device, inode): (u64, u64) = (metadata.dev(), metadata.ino());
-    let record: PathBuf = root.join("fdinfo");
-    std::fs::write(&record, format!("pos:\t0\nflags:\t0100000\nmnt_id:\t{}\nino:\t{inode}\n", u64::from(u32::MAX))).expect("one record");
-    std::os::unix::fs::symlink(&lock, root.join("fd-lock")).expect("link to the lock");
-    assert!(descriptor_is_file(record.as_path(), root.join("fd-lock").as_path(), device, inode).expect("read"), "the same file is the same file through any mount");
-    std::os::unix::fs::symlink(&other, root.join("fd-other")).expect("link to another file");
-    assert!(!descriptor_is_file(record.as_path(), root.join("fd-other").as_path(), device, inode).expect("read"), "another file is not the lock, whatever its record names");
-    std::fs::write(&record, "pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t2\n").expect("another record");
-    assert!(!descriptor_is_file(record.as_path(), root.join("fd-lock").as_path(), device, inode).expect("read"), "a record that names another inode is not resolved");
+    let holder: Sleeper = Sleeper::start(root.as_path(), Some(alias.as_path()));
+    let process: PathBuf = PathBuf::from("/proc").join(holder.pid().to_string());
+    assert!(
+        descriptor_is_file(process.as_path(), std::ffi::OsStr::new("0"), device, inode).expect("read"),
+        "the same file is the same file through any of its names"
+    );
+    let elsewhere: std::fs::Metadata = std::fs::metadata(&other).expect("the other file's metadata");
+    assert!(
+        !descriptor_is_file(process.as_path(), std::ffi::OsStr::new("0"), elsewhere.dev(), elsewhere.ino()).expect("read"),
+        "another file is not the lock, whatever the descriptor is"
+    );
+    drop(holder);
+    // A table this process cannot ask the kernel about is an error, never a guess from the text of a link: the record
+    // names the lock's inode and the link resolves to the lock, and still nothing is concluded.
+    let mut gone: std::process::Child = Command::new("true").spawn().expect("start true");
+    let gone_pid: u32 = gone.id();
+    gone.wait().expect("reap true");
+    let table: PathBuf = root.join("table").join(gone_pid.to_string());
+    std::fs::create_dir_all(table.join("fd")).expect("the fake descriptor directory");
+    std::fs::create_dir_all(table.join("fdinfo")).expect("the fake record directory");
+    std::fs::write(table.join("fdinfo").join("0"), format!("pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t{inode}\n")).expect("a record naming the lock's inode");
+    std::os::unix::fs::symlink(&lock, table.join("fd").join("0")).expect("a link to the lock");
+    assert!(
+        descriptor_is_file(table.as_path(), std::ffi::OsStr::new("0"), device, inode).is_err(),
+        "a process number no process has is never resolved from a link's target"
+    );
+    // A record that names another inode is not resolved at all.
+    std::fs::write(table.join("fdinfo").join("0"), "pos:\t0\nflags:\t0100000\nmnt_id:\t1\nino:\t2\n").expect("another record");
+    assert!(!descriptor_is_file(table.as_path(), std::ffi::OsStr::new("0"), device, inode).expect("read"), "a record that names another inode is not resolved");
     remove(root.as_path());
 }
 
