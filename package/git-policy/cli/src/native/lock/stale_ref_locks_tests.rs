@@ -234,10 +234,13 @@ fn a_pid_file_born_before_the_lock_is_not_evidence() {
 
 /// A number that a program other than Git now has,
 /// having started after the lock was made,
-/// is not the holder,
-/// which ended.
+/// proves nothing:
+/// a Git that runs under another name looks exactly the same,
+/// and only the start time could tell them apart,
+/// which a step of the clock moves.
+/// The lock stays and the notice names the program and gives the command that clears it.
 #[test]
-fn a_process_number_now_held_by_another_program_proves_the_holder_gone() {
+fn a_number_that_another_program_now_holds_is_not_proof() {
     let stage: Stage = killed::stage("stale-refs-reused", true);
     killed::write_file(stage.lock_of(PLANTED_REF).as_path(), "");
     std::thread::sleep(Duration::from_millis(400));
@@ -245,18 +248,18 @@ fn a_process_number_now_held_by_another_program_proves_the_holder_gone() {
     std::thread::sleep(Duration::from_millis(50));
     killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", other.pid()));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    assert_eq!(outcome.cleared.len(), 1, "{outcome:?}");
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::PidReused { .. }))), "{outcome:?}");
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("sleep")), "{outcome:?}");
+    assert!(outcome.notice().contains("rm -- "), "the person is given the command that clears it: {}", outcome.notice());
     drop(other);
     stage.finish();
 }
 
 /// The wrapper's one executable is also the commit service,
 /// and a process of that name is not Git:
-/// a number it now holds,
-/// with
-///  a start after the lock was made,
-/// is a reused number like any other program's.
+/// a number it now holds is a running program's like any other's,
+/// so the lock stays and is reported.
 /// The service's former name,
 /// a different file,
 ///  was not Git's either,
@@ -283,23 +286,26 @@ fn a_process_named_like_this_program_is_not_git(program: &str) {
     std::thread::sleep(Duration::from_millis(50));
     killed::write_file(stage.pid_file_of(PLANTED_REF).as_path(), &format!("pid {}\n", other.pid()));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Stale(Proof::PidReused { .. }))), "{outcome:?}");
+    assert!(!outcome.cleared_any(), "{outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(text)) if text.contains("running")), "{outcome:?}");
     drop(other);
     stage.finish();
 }
 
-/// A running program that is not named Git but started before the lock was made may be a Git under another name:
+/// A running program that is not named Git may be a Git under another name,
+/// whether it started before the lock was made or after:
 /// it is
-/// taken for the holder.
+/// taken for the holder and the lock stays.
 #[test]
-fn a_process_that_started_before_the_lock_is_the_holder_whatever_its_name() {
+fn a_running_program_that_is_not_named_git_keeps_the_lock_whatever_its_start() {
     let stage: Stage = killed::stage("stale-refs-renamed-git", true);
     let other: Helper = sleeper();
     std::thread::sleep(Duration::from_millis(400));
     plant_lock(&stage, PLANTED_REF, Some(other.pid()));
     let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &judge());
     assert!(!outcome.cleared_any(), "{outcome:?}");
-    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Held(_))), "{outcome:?}");
+    assert!(matches!(verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path()), Some(Verdict::Unproven(_))), "{outcome:?}");
     assert!(stage.lock_of(PLANTED_REF).exists());
     drop(other);
     stage.finish();
@@ -957,6 +963,46 @@ impl Drop for NestedProcess {
         drop(self.child.stdin.take());
         let _waited = self.child.wait();
     }
+}
+
+//endregion
+
+//region The wall clock decides nothing about a holder (cross-vendor review of 2026-11-09, finding 1)
+
+/// A process table whose uptime is zero,
+/// so the start this host derives for `pid` is the whole uptime later than it really is:
+/// the reading a forward correction of the wall clock produces,
+/// which moves the start derived from `/proc/<pid>/stat` and `/proc/uptime` while the lock's birth stays where it is.
+fn table_after_a_forward_clock_step(stage: &Stage, pid: i64) -> PathBuf {
+    let table: PathBuf = stage.root.join("proc-stepped");
+    let process: PathBuf = table.join(pid.to_string());
+    std::fs::create_dir_all(process.as_path()).expect("the process of the table");
+    let stat: String = std::fs::read_to_string(Path::new("/proc").join(pid.to_string()).join("stat")).expect("the running process's stat");
+    std::fs::write(process.join("stat"), stat).expect("stat");
+    std::fs::write(process.join("comm"), "sleep\n").expect("comm");
+    std::fs::write(table.join("uptime"), "0.00 0.00\n").expect("uptime");
+    return table;
+}
+
+/// A running program of this account that is not named like Git,
+/// whose number the pid file names,
+/// and a clock step that puts its start after the lock was made:
+/// a Git that holds the lock under another name looks exactly the same,
+/// so the lock stays and the clock is named as what moved.
+#[test]
+fn a_forward_clock_step_does_not_prove_a_live_holder_reused_the_number() {
+    let stage: Stage = killed::stage("stale-refs-clock-step-live-holder", true);
+    let other: Helper = sleeper();
+    std::thread::sleep(Duration::from_millis(400));
+    plant_lock(&stage, PLANTED_REF, Some(other.pid()));
+    let stepped: Judge = Judge { proc_root: table_after_a_forward_clock_step(&stage, other.pid()), ..judge() };
+    let outcome: Outcome = clear_stale_ref_locks(stage.roots().as_slice(), &stepped);
+    assert!(!outcome.cleared_any(), "the lock of a running process was removed: {outcome:?}");
+    assert!(stage.lock_of(PLANTED_REF).exists());
+    let verdict: Option<Verdict> = verdict_of(&outcome, stage.lock_of(PLANTED_REF).as_path());
+    assert!(matches!(verdict, Some(Verdict::Unproven(text)) if text.contains("correction of the clock")), "{outcome:?}");
+    drop(other);
+    stage.finish();
 }
 
 //endregion

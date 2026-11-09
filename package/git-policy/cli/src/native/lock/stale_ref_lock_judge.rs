@@ -111,21 +111,6 @@ const LOCAL_FILE_SYSTEMS: [&str; 8] = ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", 
 /// open to the owner's veto).
 pub const COARSE_CLOCK_SLACK: Duration = Duration::from_millis(50);
 
-/// How far after the lock's birth a process must have started to count as a later user of the same number,
-/// beyond the
-///  clock's resolution.
-/// Measured:
-/// the start time derived from `/proc/<pid>/stat`,
-/// `/proc/uptime` and the clock read together
-///  exceeded the clock read just before the process was spawned by at most 2.331 ms and 2.329 ms in two runs of 1,000 spawns,
-/// so
-///  100 ms is over forty times the longest error beyond the 20 ms resolution.
-/// Kept;
-/// the coordinator's pick under the owner's
-///  delegation,
-/// open to the owner's veto.
-const REUSE_SLACK_MS: f64 = 100.0;
-
 /// The command name of Git,
 /// and of its helpers (`git-remote-https`),
 /// as the kernel reports it.
@@ -136,13 +121,6 @@ const GIT_COMMAND_PREFIX: &str = "git";
 pub enum Proof {
     /// The process the pid file names is gone.
     PidGone(i64),
-    /// The process number now belongs to a program that is not Git.
-    PidReused {
-        /// The number the pid file names.
-        pid: i64,
-        /// The command name of the process that has it now.
-        command: String,
-    },
     /// The staging file `packed-refs.new` has no lock beside it,
     /// and Git creates it only while holding that lock.
     OrphanStaging,
@@ -370,9 +348,20 @@ impl Judge {
 
     /// What the pid file's process is in the process table as listed:
     /// gone,
-    /// a program that is not Git,
     /// a Git,
+    /// a program that is not Git,
     /// or not known.
+    /// A number that a running program has proves the writer gone only when that program cannot be the writer,
+    /// and its command name does not say that:
+    /// Git may run under another name,
+    /// and the one sign that would tell the two apart is when the process started,
+    /// which this host derives from the wall clock,
+    /// so a correction of the clock moves it against the lock's birth and the same evidence would answer both ways
+    /// (cross-vendor review of 2026-11-09,
+    /// finding 1).
+    /// The start is therefore said and never decides:
+    /// a program that is not named like Git is not proven the holder,
+    /// and not proven a later user of the number either.
     fn judge_listed_pid(&self, pid: i64, lock_born: Option<SystemTime>) -> Verdict {
         return match linux_start(pid, self.proc_root.as_path(), now_ms()) {
             ProcessStart::Missing => Verdict::Stale(Proof::PidGone(pid)),
@@ -382,26 +371,39 @@ impl Judge {
                     Ok(text) => text.trim().to_owned(),
                     Err(_) => String::new(),
                 };
-                // The number was reused only if the program is not Git AND it started after the lock was made; when the two
-                //  disagree (a Git under another name, a clock that moved) the process is taken for the holder.
-                let born_ms: Option<f64> = match lock_born {
-                    Some(at) => match at.duration_since(SystemTime::UNIX_EPOCH) {
-                        Ok(elapsed) => Some(elapsed.as_secs_f64() * 1000.0),
-                        Err(_) => None,
-                    },
-                    None => None,
-                };
-                let started_after: bool = match born_ms {
-                    Some(born) => started_at_ms > born + resolution_ms as f64 + REUSE_SLACK_MS,
-                    None => false,
-                };
-                if command.starts_with(GIT_COMMAND_PREFIX) || !started_after {
-                    Verdict::Held(format!("process {pid} ({command}), which the pid file beside it names, is running"))
-                } else {
-                    Verdict::Stale(Proof::PidReused { pid, command })
+                if command.starts_with(GIT_COMMAND_PREFIX) {
+                    return Verdict::Held(format!("process {pid} ({command}), which the pid file beside it names, is running"));
                 }
+                let named: String = if command.is_empty() {
+                    format!("process {pid}")
+                } else {
+                    format!("process {pid} (`{command}`)")
+                };
+                let moved: &str = if self.starts_after(lock_born, started_at_ms, resolution_ms) {
+                    ", which this host's clock puts after the lock was made, which a later program that took the number would explain and so would a correction of the clock"
+                } else {
+                    ""
+                };
+                Verdict::Unproven(format!(
+                    "the pid file beside it names {named}, which is running and is not named like Git{moved}; a Git running under another name looks the same, so nothing here proves the writer gone"
+                ))
             }
         };
+    }
+
+    /// Whether this host's clock puts the process's start after the lock's birth,
+    /// beyond the clock's resolution.
+    /// Only worded:
+    /// no verdict rests on it,
+    /// because a correction of the clock moves the derived start and nothing else.
+    fn starts_after(&self, lock_born: Option<SystemTime>, started_at_ms: f64, resolution_ms: i64) -> bool {
+        let Some(at) = lock_born else {
+            return false;
+        };
+        let Ok(elapsed) = at.duration_since(SystemTime::UNIX_EPOCH) else {
+            return false;
+        };
+        return started_at_ms > elapsed.as_secs_f64() * 1000.0 + resolution_ms as f64;
     }
 
     /// Whether the lock looks older than the boot by the wall clock.

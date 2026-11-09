@@ -4253,20 +4253,20 @@ and the first answer wins:
    - a process that is gone,
      or a zombie,
      proves the lock stale;
-   - a process that runs,
-     whose command name does not start with `git` **and** that started after the lock was made (its start
-     time from `/proc/<pid>/stat` and `/proc/uptime`,
-     by more than the clock's resolution),
-     proves the number was reused after
-     the holder ended,
-     and the lock stale;
-   - any other running process is taken for the holder,
-     and the lock is **held**:
-     a Git,
-     or a program under another name that
-     started before the lock (a copied Git binary,
+   - a running process whose command name starts with `git` is taken for the holder,
+     and the lock is **held**;
+   - any other running process proves nothing.
+     Git may run under another name (a copied Git binary,
      a launcher),
-     so the two signs must agree to delete.
+     and the one sign that would tell that process from a later program that took the number is when it started,
+     which this host derives from the wall clock,
+     so a correction of the clock moves it against the lock's birth and the same evidence answers both ways
+     (cross-vendor review of 2026-11-09,
+     finding 1).
+     The lock is **unproven**,
+     and the notice says what the number is now,
+     what the clock makes of its start,
+     and the command that clears the file.
    A pid file holds the number its writer had in the writer's own PID namespace,
      and Git records no namespace.
    This proof therefore holds only when both of these are true:
@@ -4394,6 +4394,26 @@ file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
 
+#### Rejected rule: a reused number proven by a scan of the open descriptors
+
+The cross-vendor review of 2026-11-09 (finding 1) proposed a narrower version of the removed proof:
+keep the removal for a number that another program holds when a scan of every process's descriptors could read all of them and
+found none holding the lock,
+and keep the lock when a scan could not read a process.
+The rule is rejected as well,
+because a live Git holds every one of its reference locks with **no descriptor open**
+(the measurement under "Measured while this entry was written" above),
+so a scan that finds no holder says nothing about a holder that closed its descriptor and has not renamed its lock yet,
+which is the state a `reference-transaction` hook leaves a lock in for as long as the hook runs.
+Under that rule the clock would still be the only sign that separates a Git under another name from a later program that
+took the number,
+so a step of the clock would still delete a live lock,
+and the review's own scenario (a holder of another account,
+whose descriptors no unprivileged scan can read) would leave every such lock in place anyway.
+The cost of removing the proof is one stale lock left and named,
+with the command that clears it,
+for the rare case in which a killed holder's number was taken again before the sweep looked.
+
 #### The reftable backend's own lock
 
 A repository keeps its references in one of two backends,
@@ -4449,12 +4469,14 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
 - An older pid file in front of a live holder (above):
   ignored because it is older than the lock.
 - A process number reused by another process:
-  a running non-Git process proves the reuse,
-  and a running Git is held.
-  A Git that is not the holder is kept apart from the holder only by its start time,
-  which is not used because the wall
-  clock may step;
-  the cost is one lock left that could have been removed.
+  Git records only a number,
+  so nothing tells a running Git under another name from a later
+  program that took the number.
+  A running Git is held,
+  and any other running process leaves the lock unproven,
+  with the command that clears it
+  (cross-vendor review of 2026-11-09,
+  finding 1).
 - Another account's process:
   it cannot be read,
   but a lock it holds has its pid file naming that process,
@@ -4490,8 +4512,8 @@ with `a_live_reftable_gits_tables_list_lock_stays` and
   what it concludes
   rests on the pid file and the process table,
   not on any time.
-  For a reused number a step can only make a process look newer,
-  and the second sign (not a Git) must still agree.
+  The derived start of a process moves with the clock,
+  which is why no verdict rests on it either (item 4).
 - Two wrappers removing the same stale lock:
   handled by setting aside with a rename and checking identity (above).
 - A removal that is raced by a new lock at the same path:
@@ -4578,8 +4600,6 @@ pasted and a terminal escape in a file name is never printed raw.
 ```text
 # A lock the wrapper removed (the process of the pid file ended).
 monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/remotes/origin/gone.lock, left by a Git that is gone: process 2629996, named by the pid file beside it, has ended.
-# A lock whose pid number now belongs to a program that is not Git.
-monochromatic-git-policy-cli: removed the reference lock /r/.git/refs/heads/b.lock, left by a Git that is gone: process 42, named by the pid file beside it, has ended and the number now belongs to `sleep`.
 # A lock a running Git holds.
 monochromatic-git-policy-cli: the reference lock /r/.git/packed-refs.lock is in use: process 2630147 (git), which the pid file beside it names, is running; it was left alone.
 # A lock nothing proves stale.
