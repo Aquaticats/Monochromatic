@@ -172,3 +172,50 @@ pub fn staged_work_on_the_merges_paths(target: &str, root: &Path, paths: &[Strin
         record.display()
     ));
 }
+
+/// What:
+///  The refusal for a merge whose expected parent no commit names,
+///  naming the branch,
+///  the record and the commits.
+/// Why:
+///  The text says what to look at and what to remove,
+/// and it belongs beside the other refusals this module keeps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// noCommitNamesTheMergesParent(target, root, intent, record): RecoveryError;
+/// ```
+pub fn no_commit_names_the_merges_parent(target: &str, root: &Path, intent: &MergeIntent, record: &Path) -> RecoveryError {
+    return RecoveryError(format!(
+        "{target} names no commit although the interrupted merge in {} expected {}. Nothing was changed and the record {} was \
+         kept. Check `git status` and `git log {target}`; remove the record when {target} is as you want it.",
+        root.display(),
+        intent.old_oid,
+        record.display()
+    ));
+}
+
+/// What:
+///  The refusal for a merge whose worktree switched branch in the instant before its branch moved,
+///  with the branch already put back.
+/// Why:
+///   The person needs to know the branch was moved and then restored,
+/// which branch the worktree has,
+/// and that the record
+///  waits for them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aWorktreeThatSwitched(target, root, checkedOut, record): RecoveryError;
+/// ```
+pub fn a_worktree_that_switched(target: &str, root: &Path, checked_out: Option<&str>, record: &Path) -> RecoveryError {
+    let landed: &str = checked_out.unwrap_or("a detached HEAD");
+    return RecoveryError(format!(
+        "A merge of {target} in {} was installed here and {target} was moved onto it, but this worktree now has {landed} \
+         checked out: another command switched it in the instant between the last look and the branch move. The branch was put \
+         back where it was and the record {} was kept, so nothing of this merge stays staged in another branch's checkout. Check \
+         out {target} here and run any git command again.",
+        root.display(),
+        record.display()
+    ));
+}

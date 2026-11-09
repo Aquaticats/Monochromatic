@@ -95,7 +95,9 @@ pub(crate) fn settle_moved_branch(
     let worktree_began: bool = worktree.iter().any(holds_the_merge);
     let began: bool = index_began || worktree_began;
     if !began {
-        remove_record(record).map_err(|error| { return MergeRefusal { error, began }; })?;
+        if let Err(error) = remove_record(record) {
+            return Err(MergeRefusal { error, began });
+        }
         return Ok(MergeRecoveryAction::BranchMoved);
     }
     // What each path ends as: the moved head's entry, which is the merge's own entry where the moved head left the path alone.

@@ -61,6 +61,11 @@ pub mod merge_isolation_recovery;
 /// The steps shared by the recovery of an interrupted merge and the settling of a moved branch.
 pub mod merge_isolation_recovery_steps;
 
+/// Finishing a merge from its record:
+/// the install and the branch move,
+/// with the checks it needs.
+pub mod merge_isolation_recovery_complete;
+
 /// What the recovery of a merge reads to decide whose checkout this is and whether it began.
 pub mod merge_isolation_recovery_reads;
 

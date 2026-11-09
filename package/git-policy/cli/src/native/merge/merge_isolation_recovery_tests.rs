@@ -10,7 +10,7 @@ use crate::merge_isolation_recovery_steps::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
-use crate::merge_isolation_recovery_steps::standing;
+use crate::merge_isolation_recovery_steps::{install_entries, standing};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
 

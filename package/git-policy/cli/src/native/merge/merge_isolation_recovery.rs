@@ -41,10 +41,12 @@ pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
 };
 use crate::merge_isolation_recovery_cleanup::{
-    drop_record, drop_side_ref, edits_on_the_merges_own_paths, staged_work_on_the_merges_paths,
+    drop_record, drop_side_ref, edits_on_the_merges_own_paths, no_commit_names_the_merges_parent, staged_work_on_the_merges_paths,
 };
+/// The install and the branch move of a merge that is finished from its record.
+use crate::merge_isolation_recovery_complete::complete;
 use crate::merge_isolation_recovery_steps::{
-    index_standings, install_entries, judge_changes, merge_changes, put_back_stranded_takes,
+    index_standings, judge_changes, merge_changes, put_back_stranded_takes,
 };
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::Change;
@@ -53,7 +55,6 @@ use crate::recovery_error::{RecoveryError, io_failure};
 /// Owner liveness of a record.
 use crate::transaction_owner::{OwnerLiveness, OwnerLivenessError, classify_transaction_owner_record};
 /// Running real Git.
-use crate::transaction_git::{GitRequest, run_git_checked};
 /// Writing the notices of what recovery did.
 use std::io::Write;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
@@ -281,14 +282,22 @@ pub fn settle_failed_merge(
     // Only merged content, or an index entry of the merge, shows that Git began; another change is not its doing.
     let worktree_started: bool = judgements.iter().any(holds_the_merge);
     let began: bool = index_started || worktree_started;
-    let current: Option<String> = resolve_commit(place, root, target).map_err(|error| { return MergeRefusal { error, began }; })?;
+    let current: Option<String> = match resolve_commit(place, root, target) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error, began }),
+    };
     if current.as_deref() == Some(intent.new_oid.as_str()) {
-        drop_record_and_side_ref(place, root, record, intent).map_err(|error| { return MergeRefusal { error, began }; })?;
+        if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
+            return Err(MergeRefusal { error, began });
+        }
         return Ok(MergeRecoveryAction::AlreadyLanded);
     }
     // The checkout belongs to the branch the merge was computed on: installing it into another branch's worktree would put
     //  this merge's files and index into a branch it is not for, and move a branch from a checkout that is not its own.
-    let checked_out: Option<String> = symbolic_ref(place, root).map_err(|error| { return MergeRefusal { error, began }; })?;
+    let checked_out: Option<String> = match symbolic_ref(place, root) {
+        Ok(found) => found,
+        Err(error) => return Err(MergeRefusal { error, began }),
+    };
     if checked_out != intent.target_ref {
         return Err(MergeRefusal {
             error: RecoveryError(format!(
@@ -325,7 +334,9 @@ pub fn settle_failed_merge(
                 }
                 // A merge that a command already reported as saved must not vanish: the record goes, so nothing stops a later
                 //  command, and the side ref keeps its commit and is named.
-                drop_record(record).map_err(|error| { return MergeRefusal { error, began }; })?;
+                if let Err(error) = drop_record(record) {
+                    return Err(MergeRefusal { error, began });
+                }
                 return Ok(MergeRecoveryAction::SavedBranchMoved);
             }
             let action: MergeRecoveryAction = settle_moved_branch(place, record, intent, head, out)?;
@@ -334,25 +345,15 @@ pub fn settle_failed_merge(
             }
             return Ok(action);
         }
-        None => {
-            return Err(MergeRefusal {
-                error: RecoveryError(format!(
-                "{target} names no commit although the interrupted merge in {} expected {}. Nothing was changed and the \
-                 record {} was kept. Check `git status` and `git log {target}`; remove the record when {target} is as you \
-                 want it.",
-                root.display(),
-                intent.old_oid,
-                record.display()
-                )),
-                began,
-            });
-        }
+        None => return Err(MergeRefusal { error: no_commit_names_the_merges_parent(target, root, intent, record), began }),
     }
     // A merge that was saved on a side ref is finished even though nothing of it is in the checkout yet: the record with a side
     //  ref is what says the merge should land, not the checkout (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
     //  finding 3).
     if intent.side_ref.is_none() && !index_started && !worktree_started {
-        drop_record_and_side_ref(place, root, record, intent).map_err(|error| { return MergeRefusal { error, began }; })?;
+        if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
+            return Err(MergeRefusal { error, began });
+        }
         return Ok(MergeRecoveryAction::Discarded);
     }
     let mut foreign: Vec<String> = Vec::new();
@@ -382,92 +383,6 @@ pub fn settle_failed_merge(
     }
     drop_record_and_side_ref(place, root, record, intent).map_err(partly_installed)?;
     return Ok(MergeRecoveryAction::Completed);
-}
-
-/// What:
-///  Bring the index entries and the worktree files of the changed paths to the merged state,
-/// then move the branch.
-/// Why:
-///   The index entries are set first so a file written by `checkout-index` is recorded with the object it holds;
-///  deletions go before writes so a file replaced by a directory of the same name can be created;
-///  the branch moves last,
-/// by compare-and-swap against the old commit,
-/// so a branch that moved meanwhile is left alone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function complete({ place, root, intent, changes, standings }): Promise<void>;
-/// ```
-fn complete(
-    place: &RecoveryPlace,
-    root: &Path,
-    record: &Path,
-    intent: &MergeIntent,
-    changes: &[Change],
-    judgements: &[Judged],
-    installed_before: bool,
-    out: &mut dyn Write,
-) -> Result<Installed, MergeRefusal> {
-    if install_entries(place, root, changes, judgements, installed_before, out)? == Installed::IndexHeld {
-        return Ok(Installed::IndexHeld);
-    }
-    // The checkout was checked for its branch before anything was installed; this is the one more look before the branch moves,
-    //  because another command can switch the worktree between the two while both branches name the same commit.
-    let checked_out: Option<String> = symbolic_ref(place, root).map_err(partly_installed)?;
-    if checked_out != intent.target_ref {
-        return Err(partly_installed(RecoveryError(format!(
-            "A merge of {} in {} was installed here, and this worktree now has {} checked out: the branch was not moved and the \
-             record was kept. Check out {} in this worktree and run any git command again.",
-            intent.target_ref.as_deref().unwrap_or("a detached HEAD"),
-            root.display(),
-            checked_out.as_deref().unwrap_or("a detached HEAD"),
-            intent.target_ref.as_deref().unwrap_or("a detached HEAD")
-        ))));
-    }
-    // A control reaches this instant to switch the worktree as another command would, between the last look and the write.
-    crate::service_fault::reach("before-the-branch-write");
-    let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
-    let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by monochromatic-git-policy-cli recovery)");
-    let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
-    if intent.target_ref.is_none() {
-        arguments.push("--no-deref");
-    }
-    arguments.push(target);
-    arguments.push(intent.new_oid.as_str());
-    arguments.push(intent.old_oid.as_str());
-    if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
-        // The index and every file of the merge are in place and the branch did not move.
-        return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: true });
-    }
-    // The move is checked once more, because another command can switch the worktree in the instant between the last look and
-    //  the write. A worktree that now belongs to another branch gets the branch put back and keeps the record, so nothing of
-    //  this merge stays staged in a checkout it is not for.
-    let after: Option<String> = symbolic_ref(place, root).map_err(partly_installed)?;
-    if after != intent.target_ref {
-        let mut undo: Vec<&str> = vec!["update-ref"];
-        if intent.target_ref.is_none() {
-            undo.push("--no-deref");
-        }
-        undo.push(target);
-        undo.push(intent.old_oid.as_str());
-        undo.push(intent.new_oid.as_str());
-        if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &undo)) {
-            debug(
-                "settleFailedMerge",
-                format!("the branch move of a merge whose worktree switched could not be put back: {error}").as_str(),
-            );
-        }
-        return Err(partly_installed(RecoveryError(format!(
-            "A merge of {target} in {} was installed here and {target} was moved onto it, but this worktree now has {} checked \
-             out: another command switched it in the instant between the last look and the branch move. The branch was put back \
-             where it was and the record {} was kept, so nothing of this merge stays staged in another branch's checkout. Check \
-             out {target} here and run any git command again.",
-            root.display(),
-            after.as_deref().unwrap_or("a detached HEAD"),
-            record.display()
-        ))));
-    }
-    return Ok(Installed::Written);
 }
 
 /// Recovery of records whose owner is dead,
