@@ -218,8 +218,8 @@ pub fn decode_unfilled(text: &str) -> Result<UnfilledCopy, String> {
         .and_then(crate::fs_beneath::ObjectId::decode)
         .ok_or("it holds no identity of the worktree")?;
     let source: PathBuf = path_of_hex(field_of(text, SOURCE_FIELD).ok_or("it names no source worktree")?).ok_or("its source worktree is not a path")?;
-    let reason: Vec<u8> = bytes_of_hex(field_of(text, REASON_FIELD).ok_or("it does not say what the copy ended with")?).ok_or("what it says the copy ended with is not bytes")?;
-    let reason: String = String::from_utf8(reason).map_err(not_text)?;
+    let said: Vec<u8> = bytes_of_hex(field_of(text, REASON_FIELD).ok_or("it does not say what the copy ended with")?).ok_or("what it says the copy ended with is not bytes")?;
+    let reason: String = String::from_utf8(said).map_err(not_text)?;
     let owner: Option<String> = match field_of(text, OWNER_FIELD) {
         Some(token) if !token.is_empty() => Some(token.to_string()),
         _ => None,
@@ -338,8 +338,8 @@ fn unfilled_names(root: &Path) -> Result<Vec<String>, WorktreeCopyError> {
 /// ```ts
 /// names.sort((left, right) => compareJs(left, right))
 /// ```
-fn by_record_name(left: &String, right: &String) -> std::cmp::Ordering {
-    return js_order(left, right);
+fn by_record_name<Name: AsRef<str>>(left: &Name, right: &Name) -> std::cmp::Ordering {
+    return js_order(left.as_ref(), right.as_ref());
 }
 
 /// What:

@@ -217,11 +217,16 @@ fn install_file(
     destination_path: &Path,
     entry: &WorktreeCopyEntry,
 ) -> Result<(), WorktreeCopyError> {
-    // `match` on the link result: success ends here, a refusal copies, and any other failure is reported.
-    match std::fs::hard_link(stage_path, destination_path) {
-        Ok(()) => return Ok(()),
-        Err(error) if is_link_unsupported(&error) => {}
-        Err(error) => return Err(raw_failure(&error)),
+    // The link publishes the staged object itself, so the staged file takes the entry's mode first: the destination's
+    // first instant is never wider than its source. A stage that cannot take it is copied instead, and the copy sets
+    // the mode on the file it fills.
+    if std::fs::set_permissions(stage_path, std::os::unix::fs::PermissionsExt::from_mode(entry.mode)).is_ok() {
+        // `match` on the link result: success ends here, a refusal copies, and any other failure is reported.
+        match std::fs::hard_link(stage_path, destination_path) {
+            Ok(()) => return Ok(()),
+            Err(error) if is_link_unsupported(&error) => {}
+            Err(error) => return Err(raw_failure(&error)),
+        }
     }
     let temporary: std::ffi::OsString = crate::worktree_copy_publish_file::temporary_name_of(
         stage_container_name(stage_root).as_str(),

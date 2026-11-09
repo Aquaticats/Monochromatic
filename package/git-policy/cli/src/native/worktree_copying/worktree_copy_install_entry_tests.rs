@@ -177,6 +177,38 @@ fn existing_destination_file_is_not_replaced() {
     remove(root.as_path());
 }
 
+/// The link path publishes the staged object itself,
+/// so the staged file takes the entry's mode before anything is linked:
+/// a destination never shows a wider mode than its source,
+/// not even in the instant its name first exists.
+#[cfg(unix)]
+#[test]
+fn a_linked_file_never_shows_a_wider_mode_than_its_source() {
+    let root: PathBuf = fixture("install-entry-link-mode");
+    let stage: PathBuf = root.join("stage");
+    let destination: PathBuf = root.join("destination");
+    std::fs::create_dir_all(stage.as_path()).expect("stage");
+    std::fs::create_dir_all(destination.as_path()).expect("destination");
+    std::fs::write(stage.join("key.pem"), b"KEY=credential\n").expect("staged");
+    // The staged copy was made with the process's umask, as a copy of a file is, and holds a credential.
+    std::fs::set_permissions(stage.join("key.pem"), std::os::unix::fs::PermissionsExt::from_mode(0o644)).expect("umask mode");
+    create_selected_entry(
+        stage.as_path(),
+        destination.as_path(),
+        &entry(EntryKind::File, 0o600, "key.pem"),
+    )
+    .expect("installed");
+    let staged: std::fs::Metadata = std::fs::symlink_metadata(stage.join("key.pem")).expect("staged");
+    let installed: std::fs::Metadata = std::fs::symlink_metadata(destination.join("key.pem")).expect("installed");
+    assert_eq!(staged.ino(), installed.ino(), "this control takes the link path");
+    assert_eq!(
+        installed.permissions().mode() & 0o777,
+        0o600,
+        "the destination's first instant is its source's mode"
+    );
+    remove(root.as_path());
+}
+
 /// A destination on another device than the stage,
 /// as a btrfs subvolume beside the stage is:
 /// the link is refused,

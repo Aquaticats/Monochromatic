@@ -477,7 +477,7 @@ pub fn publish_copy_of_file_with(
     let destination_name: OsString = last_name(destination_path)?.to_os_string();
     // `match` on the unnamed file: where the filesystem has none, the entry is filled under this copy's own name.
     let (mut file, named): (std::fs::File, bool) = match unnamed(&directory, mode) {
-        Ok(unnamed) => (unnamed, false),
+        Ok(held) => (held, false),
         Err(error) if is_unsupported(&error, &UNNAMED_UNSUPPORTED_CODES) => {
             remove_present(&directory, temporary).map_err(raw_failure_of)?;
             (create_named(&directory, temporary, mode).map_err(raw_failure_of)?, true)
