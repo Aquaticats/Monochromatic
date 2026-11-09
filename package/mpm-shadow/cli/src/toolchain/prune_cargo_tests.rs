@@ -405,6 +405,42 @@ fn the_link_is_settled_when_the_version_the_plan_keeps_has_vanished() {
     assert!(fs::symlink_metadata(&link).is_err(), "the link does not outlive the version it named");
 }
 
+/// A repoint that fails after another crate's link was removed says what already went,
+/// the way an unlink failure does.
+#[test]
+fn a_repointing_failure_after_another_link_says_what_was_removed() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    // No lock names `monochromatic-a`, so its only version goes and its link goes with it.
+    finish_install(&version_directory(&root, "monochromatic-a", "1.0.0"), "monochromatic-a", "1.0.0", &["monochromatic-a"]);
+    std::os::unix::fs::symlink("1.0.0", current_link(&root, "monochromatic-a")).expect("current");
+    // The lock names `monochromatic-b` at 1.0.0, so 0.9.0 goes and `current` must move to 1.0.0.
+    for version in ["0.9.0", "1.0.0"] {
+        finish_install(
+            &version_directory(&root, "monochromatic-b", version),
+            "monochromatic-b",
+            version,
+            &["monochromatic-b"],
+        );
+    }
+    std::os::unix::fs::symlink("0.9.0", current_link(&root, "monochromatic-b")).expect("current at the older version");
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-b\":{\"request\":\"cargo:monochromatic-b@latest\",\"version\":\"1.0.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    // `monochromatic-b`'s crate directory may be read and searched but not written, so the new link cannot land.
+    let unlistable = root.join("cargo").join("monochromatic-b");
+    set_mode(&unlistable, 0o555);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&unlistable, 0o755);
+    let error = pruned.expect_err("the new link cannot be written");
+    let gone = current_link(&root, "monochromatic-a");
+    assert!(error.message.contains(&gone.display().to_string()), "the report names the link it removed: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a link was removed: {error}");
+}
+
 /// A link this run already removed is not nothing: a failure on the next crate says what went,
 /// the way the recursive removals do.
 #[test]

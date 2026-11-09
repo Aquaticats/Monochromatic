@@ -306,24 +306,32 @@ pub fn point_current_at_newest(toolchain_root: &Path, crate_name: &str) -> Resul
     // What: the newest finished version is written even when the link names an older one.
     // Why: this helper's whole job is to settle the link on that version, and `false` only reports that some other
     // link was left alone.
-    let _written: bool = point_current_at(toolchain_root, crate_name, &newest)?;
+    let _written: bool = point_current_at(toolchain_root, crate_name, &newest, &[])?;
     return Ok(Some(newest));
 }
 
 /// What:
 /// Points `current` at `version`, unless it already names it,
 /// and reports whether the link names `version` afterwards.
+/// `deleted_here` names the versions the caller is about to delete.
 /// Why:
 /// Every tree's exposed link goes through `current`,
 /// and a caller that knows which version survives (the prune, for one) must be able to name it,
 /// rather than have the newest installed version chosen for it.
 /// `false` tells that caller the link was left naming something else, so it can settle the link itself.
+/// A link naming a version in `deleted_here` is never preserved: that version is going away,
+/// and the link has to end on a version that stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function pointCurrentAt(root: string, crate: string, version: string): boolean
+/// export function pointCurrentAt(root: string, crate: string, version: string, deletedHere: string[]): boolean
 /// ```
-pub fn point_current_at(toolchain_root: &Path, crate_name: &str, version: &str) -> Result<bool, ToolchainError> {
+pub fn point_current_at(
+    toolchain_root: &Path,
+    crate_name: &str,
+    version: &str,
+    deleted_here: &[&str],
+) -> Result<bool, ToolchainError> {
     let link: PathBuf = current_link(toolchain_root, crate_name);
     let running: Option<String> = running_version(toolchain_root, crate_name);
     if running.as_deref() == Some(version) {
@@ -336,11 +344,14 @@ pub fn point_current_at(toolchain_root: &Path, crate_name: &str, version: &str) 
     if !version_directory(toolchain_root, crate_name, version).is_dir() {
         return Ok(false);
     }
-    // What: a link that already names a finished version newer than `version` stays as it is.
+    // What: a link that already names a finished version newer than `version` stays as it is,
+    // unless that newer version is one the caller deletes.
     // Why: the caller's snapshot is older than the install in front of it,
-    // and an interrupted or concurrent install is not undone by an older plan.
+    // and an interrupted or concurrent install is not undone by an older plan;
+    // a link left on a version the caller deletes would dangle once the deletions run.
     if let Some(named) = running.as_deref()
         && compare_versions(named, version).is_gt()
+        && !deleted_here.contains(&named)
         && recorded_version(&version_directory(toolchain_root, crate_name, named), crate_name).is_some()
     {
         return Ok(false);

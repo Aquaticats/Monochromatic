@@ -6170,6 +6170,14 @@ which records it once the index and the branch are read together.
 A link is compared by what Git stores for a link,
 the hash of its target text with mode `120000`,
 never by hashing through it.
+That comparison cannot tell a restoration the person staged from one they made without staging it:
+a dangling link whose target text was put back leaves the same index entry either way,
+and nothing is lost in either case,
+because the entry the repair compares is the one the person's own index holds.
+The repair leaves such a path out when the index still holds the text the landing replaced and the
+worktree holds different text,
+and the notice names it,
+so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
 where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
@@ -8774,11 +8782,26 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   Git prints `ignoring <signature> extension` on standard error and answers,
   so the reader declines instead of answering in silence.
   `TREE`,
-  `UNTR`,
-  `EOIE` and `IEOT` are read without a word on any body they are handed,
+  `UNTR` and `EOIE` are read without a word on any body they are handed,
   so those answer,
-  and `REUC` and `FSMN` answer only when their bodies read the way Git reads them,
-  because Git words a body it cannot read for those two.
+  and `REUC`,
+  `FSMN` and `IEOT` answer only when their bodies read the way Git reads them,
+  because Git words a body it cannot read for those three.
+  An `IEOT` table is read when `index.threads` turns threaded loading on and a valid
+  end-of-entries (`EOIE`) extension is present:
+  `read_ieot_extension` (`read-cache.c`,
+  Git 2.56.0) prints `error: invalid IEOT version <n>`
+  for a version other than 1,
+  and it then seeks each block by the table's own byte offsets,
+  so a table naming other bytes is a different listing or none at all
+  (measured on Git 2.56.0,
+  a first block one byte off ends Git without a word,
+  and a first block pointing into the header prints `fatal: unknown index entry format 0xc0110000`).
+  The reader therefore answers an `IEOT` body only when it is version 1,
+  names at least one block,
+  and every block begins where this reader parsed an entry and together they cover all of them;
+  any other body is a decline,
+  so Git answers it.
   An unknown lower-case signature is a required extension,
   which Git stops on and the reader already declined.
 - A ref name Git itself would refuse.
@@ -8803,6 +8826,33 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   because the reader cannot prove Git's bytes for them.
   A listing that holds a name Git refuses declines whole:
   Git words such a name on standard error (`ignoring ref with broken name`) and prints the other refs without it.
+
+#### A ref listing past a measured count is left to Git
+
+`for-each-ref` is the one in-process answer whose cost grows with the repository rather than
+sitting in a Git start:
+every ref it prints is checked against the object database,
+because Git drops a ref whose object is missing (`warning: ignoring broken ref`)
+and the answer must drop it too.
+Measured on 2026-11-09 (release profile,
+arms alternating in one binary,
+this repository with 1442 refs and four packs of 514k objects):
+the answer took 13.7 ms at the median against 3.8 ms for `git for-each-ref`,
+and 10.8 ms of it was that check.
+Of those 10.8 ms,
+6.6 ms were the loose path lookup for every packed object;
+the packs are asked before the loose paths now,
+which leaves 4.3 ms for the check and 7.1 ms for the answer.
+The layout read and the ref walk alone take 1.8 ms,
+and with the measured 3.5 us per ref the answer meets the Git start near 490 refs and loses
+above them.
+`REF_LISTING_LIMIT` (256) is set well below that meeting point,
+because a larger object database makes each check dearer while the Git start stays a constant.
+A repository above the limit declines before the object database is opened or `refs/` is walked,
+and pays the layout read (0.5 ms) and the count of `packed-refs` before Git answers,
+which is the price of the capability rather than of the answer.
+Below the limit the answer is kept:
+a two-ref repository answers in 0.30 ms against 3.8 ms for the Git start.
 
 ### Verification
 
