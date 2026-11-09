@@ -13,8 +13,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import {
+  mkdtempDisposable,
+  writeFile,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setTimeout as delay, } from 'node:timers/promises';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 
 import {
   NO_ATTR_TYPE,
@@ -70,7 +75,6 @@ await describe({
             const attrType = await scanImporterForAttribute({
               specifier: './sample.sql',
               importerPath,
-              importerSourceCache: new Map(),
             },);
 
             expect(attrType,).toBe(NO_ATTR_TYPE,);
@@ -93,6 +97,38 @@ await describe({
              The tag lives on the logger, never inside the message.
              */
             expect(logged,).not.toContain('import-attributes: ',);
+          },
+        },),
+        it({
+          name: 'answers from the importer as it is now, not as an earlier scan found it',
+          fn: async () => {
+            await using directory = await mkdtempDisposable(join(scratchRoot(), 'import-attributes-scan-',),);
+            /**
+             Importer carrying an attribute clause, then rewritten without one.
+             */
+            const importerPath = join(directory.path, 'importer.ts',);
+            /**
+             Specifier both versions of the importer name.
+             */
+            const specifier = './data.js';
+
+            await writeFile(
+              importerPath,
+              `export const load = () => import('${specifier}', { with: { type: 'text', }, });`,
+              'utf8',
+            );
+            expect(
+              await scanImporterForAttribute({ specifier, importerPath, },),
+            ).toBe('text',);
+
+            await writeFile(
+              importerPath,
+              `export const load = () => import('${specifier}');`,
+              'utf8',
+            );
+            expect(
+              await scanImporterForAttribute({ specifier, importerPath, },),
+            ).toBe(NO_ATTR_TYPE,);
           },
         },),
       ],

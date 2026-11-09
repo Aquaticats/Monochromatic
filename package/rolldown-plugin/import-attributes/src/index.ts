@@ -190,13 +190,6 @@ async function resolveTaggedSpecifier({
  ```
  */
 function importAttributesPlugin(): Plugin {
-  /**
-   Cache of importer file sources, keyed by absolute path.
-   Prevents re-reading the same file when multiple imports from it
-   trigger `resolveId` before `transform` has run.
-   */
-  const importerSourceCache = new Map<string, string>();
-
   return {
     name: 'import-attributes',
 
@@ -269,7 +262,6 @@ function importAttributesPlugin(): Plugin {
       const attrType = await scanImporterForAttribute({
         specifier: source,
         importerPath: filePathOf(importer,),
-        importerSourceCache,
       },);
 
       if (attrType === NO_ATTR_TYPE)

@@ -17,7 +17,10 @@ import {
   Visitor,
 } from 'rolldown/utils';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
-import { tagged, } from '@monochromatic-dev/logger-core/ts';
+import {
+  tagged,
+  type Logger,
+} from '@monochromatic-dev/logger-core/ts';
 
 import {
   extractTypeFromOptions,
@@ -40,6 +43,70 @@ const l = tagged({ tag: 'import-attributes', },);
 
 //endregion Logger
 
+//region Importer source
+
+/**
+ Sentinel returned by {@link readImporterSource} when the importer cannot be read.
+ A `unique symbol` so the caller never needs a nullish union to model absence.
+ */
+const UNREADABLE_IMPORTER: unique symbol = Symbol('import-attributes/unreadable-importer',);
+
+/**
+ Reads a file fresh on every call, reporting a read failure through the logger.
+ 
+ Reading per call rather than caching across builds is deliberate: a cache in the
+ plugin instance outlives every rebuild, so an importer edited in watch mode
+ would keep answering with the clause it had when the first build read it.
+ 
+ @param importerPath - absolute path of the importer to read
+ 
+ @param parentLogger - logger of the calling scan, which this adds a tag to
+ 
+ @returns the file's text, or {@link UNREADABLE_IMPORTER} when it could not be read
+ 
+ @example
+ ```ts
+ const source = await readImporterSource({ importerPath: '/project/src/main.ts', parentLogger: l });
+ if (source === UNREADABLE_IMPORTER) {
+   // nothing to scan
+ }
+ ```
+ */
+async function readImporterSource({
+  importerPath,
+  parentLogger,
+}: {
+  readonly importerPath: string;
+  readonly parentLogger: Logger;
+},): Promise<string | typeof UNREADABLE_IMPORTER> {
+  try {
+    return await readFile(
+      importerPath,
+      'utf8',
+    );
+  }
+  catch (error: unknown) {
+    /**
+     Logger tagged for this reader, so the record names who tried to read the file.
+     */
+    const rl = tagged({
+      tag: readImporterSource.name,
+      l: parentLogger,
+    },);
+    // Best-effort scan: an unreadable or virtual importer (e.g. a plugin-generated
+    // module whose id is not a real filesystem path) has no source to scan, so
+    // report no attribute rather than failing the build; the caught error rides in
+    // the message because the logger takes one string and the cause is what a
+    // reader needs to diagnose it.
+    rl.warn(
+      `could not read importer ${importerPath} while scanning for import attributes; treating as no attribute type: ${String(error,)}`,
+    );
+    return UNREADABLE_IMPORTER;
+  }
+}
+
+//endregion Importer source
+
 //region Importer scan
 
 /**
@@ -55,17 +122,13 @@ const l = tagged({ tag: 'import-attributes', },);
  
  @param importerPath - absolute path to the importing file
  
- @param importerSourceCache - cache to avoid re-reading the same file
- 
  @returns attribute type string if found and supported, {@link NO_ATTR_TYPE} otherwise
  
  @example
  ```ts
- const cache = new Map<string, string>();
  const attrType = await scanImporterForAttribute({
    specifier: './sample.sql',
    importerPath: '/project/src/main.ts',
-   importerSourceCache: cache,
  },);
  // 'text' if main.ts contains: import x from './sample.sql' with { type: 'text' }
  ```
@@ -73,11 +136,9 @@ const l = tagged({ tag: 'import-attributes', },);
 export async function scanImporterForAttribute({
   specifier,
   importerPath,
-  importerSourceCache,
 }: {
   readonly specifier: string;
   readonly importerPath: string;
-  importerSourceCache: Map<string, string>;
 },): Promise<string | typeof NO_ATTR_TYPE> {
   /**
    Logger tagged for this scanner; the tag chain names both the plugin and the
@@ -88,37 +149,15 @@ export async function scanImporterForAttribute({
     l,
   },);
 
-  //region Source cache
-
   /**
-   Importer source text; lazily read from disk on cache miss and stored back.
+   Importer source text, read fresh on every call.
    */
-  let source = importerSourceCache.get(importerPath,);
-  if (source === undefined) {
-    try {
-      source = await readFile(
-        importerPath,
-        'utf8',
-      );
-      importerSourceCache.set(
-        importerPath,
-        source,
-      );
-    }
-    catch (error: unknown) {
-      // Best-effort scan: an unreadable or virtual importer (e.g. a plugin-generated
-      // module whose id is not a real filesystem path) has no source to scan, so
-      // report no attribute rather than failing the build; the caught error rides in
-      // the message because the logger takes one string and the cause is what a
-      // reader needs to diagnose it.
-      rl.warn(
-        `could not read importer ${importerPath} while scanning for import attributes; treating as no attribute type: ${String(error,)}`,
-      );
-      return NO_ATTR_TYPE;
-    }
-  }
-
-  //endregion Source cache
+  const source = await readImporterSource({
+    importerPath,
+    parentLogger: rl,
+  },);
+  if (source === UNREADABLE_IMPORTER)
+    return NO_ATTR_TYPE;
 
   if (!source.includes(specifier,))
     return NO_ATTR_TYPE;
