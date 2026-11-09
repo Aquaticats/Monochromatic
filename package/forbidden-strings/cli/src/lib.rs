@@ -929,31 +929,33 @@ pub fn run_cli_from_env() -> Result<i32> {
         }
     }
 
-    // Fused read+scan: each rayon thread maps one file's bytes
-    // (via mmap; falls back to `fs::read` if mmap fails) and
-    // immediately scans them. The two-phase split that used to live
-    // here (Phase A reads, Phase B scans) traded cache locality for
-    // a clean separation but produced no measurable speedup -- after
-    // P1 the AC scan is so fast that file bytes go from disk to AC to
-    // discard within tens of microseconds. Fusing keeps each file's
-    // bytes hot in L1/L2 across the read->scan boundary instead of
+    // Fused read+scan: each rayon worker reads one file's bytes with
+    // `read_with_binary_check` and immediately scans them. The two-phase
+    // split that used to live here (Phase A reads, Phase B scans) traded
+    // cache locality for a clean separation but produced no measurable
+    // speedup -- after P1 the AC scan is so fast that file bytes go from
+    // disk to AC to discard within tens of microseconds. Fusing keeps each
+    // file's bytes hot in L1/L2 across the read->scan boundary instead of
     // risking eviction during the materialize-then-iterate round trip.
-    // What:     `files.par_iter().flat_map_iter(|p| { try mmap(p); scan_content(p, &bytes, &rs) }).collect::<Vec<String>>()`
-    //           runs map+scan as one rayon work unit per file. The
-    //           closure's `Mmap` (or `Vec<u8>` fallback) lives only
-    //           until the scan finishes for that file; rayon
-    //           work-steals across cores.
-    // Why:      Mmap saves the alloc + memcpy that `fs::read` does.
-    //           On a hot page cache, that's measurable on `--all`;
-    //           on a cold cache, MADV_SEQUENTIAL lets the kernel
-    //           readahead-pipeline files. Fallback to `fs::read`
-    //           handles the cases mmap can't (empty files, /proc
-    //           entries, character devices).
+    // What:     `files.par_iter().enumerate().map_with(candidate_scan,
+    //           scan_candidate_file).flatten_iter().collect::<Vec<String>>()`
+    //           runs read+scan as one rayon work unit per file. Each
+    //           worker's `Read` buffer lives only until that file's scan
+    //           finishes; rayon work-steals across cores.
+    // Why:      `read_with_binary_check` opens the file, reads a
+    //           `BIN_PROBE_SIZE` prefix, and reads the whole file only when
+    //           that prefix holds no NUL byte; a binary larger than the
+    //           probe is scanned in the prefix alone. One plain read keeps
+    //           the per-file cost to one open, one probe, and (for text)
+    //           one `read_to_end`, with no per-file mapping setup. The
+    //           mmap variant that once replaced it measured slower on this
+    //           many-small-files workload and was removed; PERF.md records
+    //           the measurement under "Mmap experiment (rejected)".
     //
     // In TS you'd write (pseudocode):
     // ```ts
     // const hits = (await Promise.all(
-    //   files.map(async (p) => scanContent(p, await readFileFastest(p), ruleset))
+    //   files.map(async (p) => scanContent(p, await readWithBinaryCheck(p), ruleset))
     // )).flat();
     // ```
     // What:     Build the canonical-path skip set once at startup
