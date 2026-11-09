@@ -487,6 +487,12 @@ mod service_replay;
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
+/// The report a reconcile owes when it published a merge but could not move the local branch,
+/// or moved it beside uncommitted work,
+/// shown once by a later command.
+#[path = "binary_reconcile_report_shown_once_tests.rs"]
+mod reconcile_report_shown_once;
+
 /// Merge,
 /// pull's merge,
 /// cherry-pick,

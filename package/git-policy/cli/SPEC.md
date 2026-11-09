@@ -5067,7 +5067,8 @@ now inside these bounds:
   A PID file holding a number this process table does not have is waited for the same way by a commit,
   and its line says which number it read and that a Git of another PID namespace writes one this table has
   never had:
-  the number proves no death, so no commit ends early on it
+  the number proves no death,
+  so no commit ends early on it
   (cross-vendor review of 2026-11-09,
   finding 2).
   A merge is the command that acts on that evidence:
@@ -5684,6 +5685,15 @@ in-process reader can) gives every value of the multi-valued keys.
   which would repeat a push that cannot succeed.
   When the branch could not be fast-forwarded it stays behind the remote,
   and the note names the reason and `git merge --ff-only <remote>/<branch>` for when the worktree allows it.
+  The report reaches the person through a record of the worktree's notice directory,
+  shown once by the next command (`record_push_report` in `push_failure_notice.rs`),
+  because the command that ran the push returned before the push ended:
+  it holds the lines the reconcile wrote,
+  which begin with `monochromatic-git-policy-cli: auto-push: `,
+  and it is written whatever the move came to,
+  so the account of a move the worktree would not allow is read as readily as the account of one that followed.
+  Its name carries the report's own prefix,
+  so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
 - No push without a connection waits without a bound,
   and no push with an open connection is stopped for time.
   The push is stopped on no progress and no open connection,
