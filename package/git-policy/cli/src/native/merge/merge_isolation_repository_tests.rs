@@ -373,7 +373,7 @@ fn an_attempt_recovers_a_dead_merge_before_it_checks_the_staged_work() {
     owner.owner_identity = String::from("linux:1");
     let intent: MergeIntent = MergeIntent {
         owner,
-        repository_root: repo.to_string_lossy().into_owned(),
+        repository_root: repo.to_path_buf(),
         target_ref: Some(String::from("refs/heads/main")),
         old_oid: old_oid.clone(),
         new_oid: new_oid.clone(),

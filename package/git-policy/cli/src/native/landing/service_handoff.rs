@@ -105,8 +105,8 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
     for kind in HANDED_OVER.iter().chain(review.iter()).copied() {
         items.push(WorkItem {
             kind,
-            repository: handoff.repository.display().to_string(),
-            git_dir: handoff.git_dir.display().to_string(),
+            repository: handoff.repository.clone(),
+            git_dir: handoff.git_dir.clone(),
             branch_ref: handoff.reference.clone(),
             oid: landed.to_string(),
             parent: handoff.parent.clone(),
@@ -137,8 +137,8 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Write) -> Result<(), ClientFailure> {
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: handoff.repository.display().to_string(),
-        git_dir: handoff.git_dir.display().to_string(),
+        repository: handoff.repository.clone(),
+        git_dir: handoff.git_dir.clone(),
         branch_ref: handoff.reference.clone(),
         oid: tip.to_string(),
         parent: handoff.parent.clone(),
