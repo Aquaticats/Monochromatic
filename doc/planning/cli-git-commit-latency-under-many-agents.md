@@ -559,7 +559,7 @@ every hour that stalled.
 ### What it costs in the records
 
 Over the day ending 2026-11-09T19:01Z,
-730 records of the log and its one generation,
+733 records of the log and its one generation,
 696 of them landed on their first attempt:
 
 - the creation's median is 3742 ms,
