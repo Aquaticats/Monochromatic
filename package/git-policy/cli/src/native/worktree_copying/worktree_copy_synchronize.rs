@@ -333,8 +333,8 @@ pub(crate) fn synchronize_after(
         // A source that is itself receiving a copy holds only part of its ignored files, so nothing is staged from it;
         // the new worktree is made whole by the same add once that copy has finished, and the person is told so.
         // This comes before the record below is taken, so the caller still holds the record and settles it.
-        if source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())? {
-            let line: String = source_still_being_filled_notice(destination, source.as_path());
+        if let Some(unfinished) = source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())? {
+            let line: String = source_still_being_filled_notice(destination, source.as_path(), unfinished);
             stderr
                 .write_all(line.as_bytes())
                 .map_err(raw_failure_of)?;

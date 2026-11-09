@@ -8,11 +8,17 @@
 //!  The answer comes from the durable items this folder already judges:
 //!  a journal names its destination in its record,
 //!  an add's claim names it in the record written beside the claim,
-//!  and the owner of each decides whether it still runs.
-//!  A claim whose owner is dead,
-//!  and a claim that records no destination (a copy's own),
-//!  say nothing about the source,
-//!  so neither holds a copy back.
+//!  and either one that names the source holds a copy back,
+//!  whether its owner still runs or died before it finished:
+//!  a dead owner's install did not complete either,
+//!  so the source still holds only part of its ignored files.
+//!  The owner decides only which sentence the person reads.
+//!  A claim that records no destination (a copy's own) says nothing about the
+//!  source, so it never holds a copy back.
+//!  Claims are read before journals because the copy that owns a stage publishes
+//!  its journal before it releases its claim:
+//!  a reader that finds no claim is then looking at a stage whose journal already
+//!  exists, and a reader that finds no journal saw no claim either.
 //!  Nothing waits and nothing is locked:
 //!  a source that is still being filled makes the command copy nothing and say so.
 //!
@@ -33,18 +39,45 @@ use crate::worktree_copy_stage_claim_reaping::read_claim;
 use std::path::{Path, PathBuf};
 
 /// What:
-///  Whether `source_root` is the destination of a copy whose owner still runs.
+///  The copy that has not finished filling one source,
+/// by whether the process that owns it still runs.
+/// Why:
+///   The person reads a different sentence for a copy that runs now and for one
+/// that was interrupted,
+/// and both hold the new copy back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type UnfinishedCopy = 'running' | 'interrupted';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UnfinishedCopy {
+    /// The owner still runs:
+    /// the copy is filling the source now.
+    Running,
+    /// The owner died before its install finished:
+    /// the source holds part of its ignored files until recovery, or a new add,
+    /// completes it.
+    Interrupted,
+}
+
+/// What:
+///  The copy that has not finished filling `source_root`,
+/// when one is recorded.
 /// Why:
 ///   A creating command stages the source's ignored state;
 /// a source that is itself receiving one holds only part of it,
 ///  so the copy takes nothing from it and the person is told why.
-///  The two kinds of item are read in the same order recovery reads them,
-///  and an owner the platform will not report on counts as alive,
+///  A dead owner's item counts as well as a live one's:
+/// its install did not finish either,
+///  and a later command that finishes it does not repair the copies already
+/// taken from the partial source.
+///  An owner the platform will not report on counts as alive,
 ///  as it does everywhere else in this folder.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function sourceIsStillBeingFilled({ commonDir, sourceRoot }): Promise<boolean>;
+/// async function sourceIsStillBeingFilled({ commonDir, sourceRoot }): Promise<UnfinishedCopy | undefined>;
 /// ```
 ///
 /// # Errors
@@ -54,26 +87,29 @@ use std::path::{Path, PathBuf};
 pub fn source_is_still_being_filled(
     common_dir: &Path,
     source_root: &Path,
-) -> Result<bool, WorktreeCopyError> {
-    for pending in read_pending_journals(common_dir)? {
-        // A journal of another destination is none of this command's business.
-        if !names_root(Path::new(pending.journal.destination_root.as_str()), source_root) {
-            continue;
-        }
-        // A copy whose owner still runs is filling this source; a dead owner's journal is recovery's to end.
-        if !journal_owner_is_dead(&pending)? {
-            debug(
-                "worktreeCopySource",
-                format!(
-                    "{} is still being filled by the journal {}",
-                    source_root.display(),
-                    pending.path.display()
-                )
-                .as_str(),
-            );
-            return Ok(true);
-        }
-    }
+) -> Result<Option<UnfinishedCopy>, WorktreeCopyError> {
+    return source_is_still_being_filled_around(common_dir, source_root, &mut || ());
+}
+
+/// What:
+///  `source_is_still_being_filled`,
+/// with `between` run once after the claims are read and before the journals are.
+/// Why:
+///   A control holds the copy's own handoff there,
+/// publishing its journal and releasing its claim,
+/// so the one instant the two scans could disagree is exercised without timing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function sourceIsStillBeingFilledAround({ commonDir, sourceRoot, between });
+/// ```
+pub fn source_is_still_being_filled_around(
+    common_dir: &Path,
+    source_root: &Path,
+    between: &mut dyn FnMut(),
+) -> Result<Option<UnfinishedCopy>, WorktreeCopyError> {
+    // Claims come first: the copy that owns a stage publishes its journal before it releases its claim, so a reader that
+    // finds no claim is looking at a stage whose journal already exists.
     let root: PathBuf = journal_root(common_dir);
     for name in claim_names(root.as_path())? {
         let claim: PathBuf = root.join(name.as_str());
@@ -87,21 +123,45 @@ pub fn source_is_still_being_filled(
         let Some((_container, owner)) = read_claim(claim.as_path())? else {
             continue;
         };
-        // A claim of a live owner is its add or copy still running; one no owner is written into counts as a dead owner's.
-        if !token_owner_is_dead(owner.as_deref(), claim.as_path())? {
-            debug(
-                "worktreeCopySource",
-                format!(
-                    "{} is still being filled by the claim {}",
-                    source_root.display(),
-                    claim.display()
-                )
-                .as_str(),
-            );
-            return Ok(true);
-        }
+        // A claim of a live owner is its add still running; a dead owner's add never finished, so both hold the copy back.
+        let unfinished: UnfinishedCopy = match token_owner_is_dead(owner.as_deref(), claim.as_path())? {
+            true => UnfinishedCopy::Interrupted,
+            false => UnfinishedCopy::Running,
+        };
+        debug(
+            "worktreeCopySource",
+            format!(
+                "{} is still being filled by the claim {}",
+                source_root.display(),
+                claim.display()
+            )
+            .as_str(),
+        );
+        return Ok(Some(unfinished));
     }
-    return Ok(false);
+    between();
+    for pending in read_pending_journals(common_dir)? {
+        // A journal of another destination is none of this command's business.
+        if !names_root(Path::new(pending.journal.destination_root.as_str()), source_root) {
+            continue;
+        }
+        // A live owner is installing into this source now; a dead owner's install stopped before it finished.
+        let unfinished: UnfinishedCopy = match journal_owner_is_dead(&pending)? {
+            true => UnfinishedCopy::Interrupted,
+            false => UnfinishedCopy::Running,
+        };
+        debug(
+            "worktreeCopySource",
+            format!(
+                "{} is still being filled by the journal {}",
+                source_root.display(),
+                pending.path.display()
+            )
+            .as_str(),
+        );
+        return Ok(Some(unfinished));
+    }
+    return Ok(None);
 }
 
 /// What:
@@ -162,11 +222,15 @@ fn claim_destination(claim: &Path) -> Option<PathBuf> {
 /// ```ts
 /// `monochromatic-git-policy-cli: ${destination} was made, but it received no ignored-state copy, because ${source} ...`
 /// ```
-pub fn source_still_being_filled_notice(destination: &Path, source: &Path) -> String {
+pub fn source_still_being_filled_notice(destination: &Path, source: &Path, unfinished: UnfinishedCopy) -> String {
     let shown_destination: String = quote(destination.to_string_lossy().as_ref());
+    let shown_source: String = quote(source.to_string_lossy().as_ref());
+    let why: String = match unfinished {
+        UnfinishedCopy::Running => format!("because {shown_source} is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished"),
+        UnfinishedCopy::Interrupted => format!("because the ignored-state copy of {shown_source} was interrupted before it finished, so its ignored files are only partly there. Once a command has completed that copy"),
+    };
     return format!(
-        "monochromatic-git-policy-cli: {shown_destination} was made, but it received no ignored-state copy, because {} is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished, `git worktree remove {shown_destination}` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n",
-        quote(source.to_string_lossy().as_ref())
+        "monochromatic-git-policy-cli: {shown_destination} was made, but it received no ignored-state copy, {why}, `git worktree remove {shown_destination}` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n"
     );
 }
 
