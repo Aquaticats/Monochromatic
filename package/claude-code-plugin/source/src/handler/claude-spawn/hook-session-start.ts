@@ -22,6 +22,8 @@ import {
   resolve,
 } from 'node:path';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import {
   BY_PID_DIR,
   type PidMapping,
@@ -38,6 +40,11 @@ import {
  (`=== NO_WARNING`), keeping the warning text free of a nullish union.
  */
 const NO_WARNING: unique symbol = Symbol('claude-spawn/cli-setup-ok',);
+
+/**
+ Module logger for this hook.
+ */
+const loggerForSessionStart = tagged({ tag: 'claude-spawn-session-start', },);
 
 /**
  Handles the SessionStart hook event.
@@ -144,10 +151,15 @@ async function handleSessionStart({
         );
       }
     }
-    catch (_error: unknown) {
-      /**
-       File missing (stale env, already `.reported`) or unreadable: skip.
-       */
+    catch (error: unknown) {
+      // A missing record is ordinary (a stale `CLAUDE_SPAWN_ID`, or a file
+      // another hook already consumed); anything else means the claim never
+      // happened and is worth a log line at the default level.
+      tagged({
+        tag: handleSessionStart.name,
+        l: loggerForSessionStart,
+      },)
+        .debug(`spawn state not claimed: ${String(error,)}`,);
     }
   }
 
@@ -321,8 +333,14 @@ async function autoSetupCli(hookDir: string,): Promise<string | typeof NO_WARNIN
     try {
       await unlink(symlinkPath,);
     }
-    catch (_error: unknown) {
-      /* Does not exist yet. */
+    catch (error: unknown) {
+      // Nothing to remove is the ordinary case; anything else means the stale
+      // link stays and the symlink below fails, so the caught value is logged.
+      tagged({
+        tag: autoSetupCli.name,
+        l: loggerForSessionStart,
+      },)
+        .debug(`no stale spawn-claude symlink to remove: ${String(error,)}`,);
     }
     await symlink(
       cliSource,

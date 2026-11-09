@@ -23,6 +23,8 @@ import { createReadStream, } from 'node:fs';
 import { stat, } from 'node:fs/promises';
 import { buffer, } from 'node:stream/consumers';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import {
   makeOwnedFileParser,
   type OwnedFileParser,
@@ -180,8 +182,10 @@ function parseRecord(line: string,): TranscriptRecord | typeof UNPARSABLE {
   try {
     return parseTranscriptRecord(line,);
   }
-  catch (error) {
-    void error;
+  catch (error: unknown) {
+    // A truncated final line is normal while a session is live, so this is not a
+    // warning; the caught value still names why the line could not be parsed.
+    loggerForTranscript.debug(`skipping a transcript line that is not JSON: ${String(error,)}`,);
     return UNPARSABLE;
   }
 }
@@ -198,6 +202,11 @@ const parseTranscriptRecord: OwnedFileParser<TranscriptRecord> = makeOwnedFilePa
  expected value rather than an error condition.
  */
 const UNPARSABLE: unique symbol = Symbol('claude-code-plugin/stop-reminder/unparsable-transcript-line',);
+
+/**
+ Module logger for transcript reads.
+ */
+const loggerForTranscript = tagged({ tag: 'stop-reminder-transcript', },);
 
 /**
  Sentinel for a newest-first transcript scan that reached the start of its

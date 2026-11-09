@@ -20,6 +20,8 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import {
   parseSpawnState,
   SPAWNS_DIR,
@@ -63,6 +65,11 @@ function formatSpawnResult(state: SpawnState,): string {
 const NOTHING_TO_REPORT: unique symbol = Symbol('claude-spawn/nothing-to-report',);
 
 /**
+ Module logger for the completed-child scan.
+ */
+const loggerForSpawns = tagged({ tag: 'claude-spawn-inject', },);
+
+/**
  Lists the filenames in the spawns coordination directory.
  
  @returns directory entries, or {@link NOTHING_TO_REPORT} when the directory is
@@ -77,7 +84,15 @@ async function readSpawnsDir(): Promise<readonly string[] | typeof NOTHING_TO_RE
   try {
     return await readdir(SPAWNS_DIR,);
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // No spawns directory means no child was ever spawned for this HOME, which
+    // is the ordinary case; the caught value still goes to the log so a genuine
+    // permission or I/O failure is distinguishable from an absent directory.
+    tagged({
+      tag: readSpawnsDir.name,
+      l: loggerForSpawns,
+    },)
+      .debug(`no spawns directory to scan: ${String(error,)}`,);
     return NOTHING_TO_REPORT;
   }
 }
@@ -167,17 +182,32 @@ async function readCompletedChild(
           reportedPath,
         );
       }
-      catch (_error: unknown) {
+      catch (error: unknown) {
         /**
-         Another hook invocation already renamed this file.
+         Another hook invocation already renamed this file, which is the ordinary
+         race this rename exists to lose.
          */
+        tagged({
+          tag: readCompletedChild.name,
+          l: loggerForSpawns,
+        },)
+          .debug(`spawn state already consumed by another hook: ${String(error,)}`,);
         return NOTHING_TO_REPORT;
       }
     }
 
     return formatSpawnResult(state,);
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // A corrupt or unreadable state file holds a completed child's result that
+    // will now never be delivered, so this is reported rather than skipped
+    // silently: without the name and the error it is indistinguishable from an
+    // empty directory.
+    tagged({
+      tag: readCompletedChild.name,
+      l: loggerForSpawns,
+    },)
+      .warn(`spawn state unreadable, so its result cannot be delivered: ${filename}: ${String(error,)}`,);
     return NOTHING_TO_REPORT;
   }
 }

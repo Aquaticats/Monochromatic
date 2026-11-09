@@ -33,12 +33,19 @@ import {
   type SpawnState,
 } from './paths.ts';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import {
   makeHookInputParser,
   makeJsonWriter,
   type JsonWriter,
   type Parser,
 } from '../../runtime/handler-runtime.ts';
+
+/**
+ Module logger for the claude-spawn hook.
+ */
+const loggerForSpawn = tagged({ tag: 'claude-spawn', },);
 
 /**
  Captured at module load. After tsdown bundles the source package into the
@@ -126,10 +133,16 @@ async function updateChildOnStop(
       );
     }
   }
-  catch (_error: unknown) {
-    /**
-     File missing (already `.reported`) or unreadable: skip.
-     */
+  catch (error: unknown) {
+    // A missing file is ordinary here: another hook already consumed this child,
+    // or the spawn never had one. A parse or write failure is not, and it means
+    // the child's final message is lost, so both are reported and only the
+    // ordinary path stays quiet at the default log level.
+    tagged({
+      tag: updateChildOnStop.name,
+      l: loggerForSpawn,
+    },)
+      .debug(`spawn state not updated for ${spawnId}: ${String(error,)}`,);
   }
 }
 

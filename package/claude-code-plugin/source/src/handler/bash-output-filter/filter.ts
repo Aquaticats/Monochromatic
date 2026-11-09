@@ -14,6 +14,8 @@
  @module
  */
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import {
   collapseCwdPaths,
   collapseHomePaths,
@@ -22,6 +24,11 @@ import {
   shouldStripLine,
   truncateLine,
 } from './filter-transforms.ts';
+
+/**
+ Module logger for the filter pipeline.
+ */
+const loggerForFilter = tagged({ tag: 'bash-output-filter', },);
 
 /**
  What one stdin read produced: every byte received, and the failure that stopped
@@ -222,7 +229,10 @@ async function runFilter(): Promise<void> {
     process.stdout
       .write(filtered,);
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // The unfiltered text still reaches stdout; the diagnostic says why it was
+    // not filtered, so a permanently failing transform is visible.
+    loggerForFilter.warn(`filtering failed, writing the input unchanged: ${String(error,)}`,);
     process.stdout
       .write(stdin.text,);
   }
