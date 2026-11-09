@@ -191,6 +191,78 @@ pub fn copy_conclusion_state(
     return Ok(());
 }
 
+/// The heads a conclusion's parents come from,
+/// in the order the preparation reads them:
+/// a merge,
+/// a cherry-pick and a revert.
+pub const CONCLUSION_HEAD_NAMES: [&str; 3] = ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD"];
+
+/// What:
+///  What the merge,
+/// cherry-pick or revert state of the owning worktree names,
+/// as one text that can be compared with a later reading.
+/// Why:
+///   A commit whose branch moved is made again over the state as it is now,
+/// and the state must be the one it was prepared over:
+/// another session that concluded or abandoned the operation meanwhile leaves nothing this commit could conclude,
+/// so it is refused instead of becoming an ordinary commit of the same tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// conclusionStateText({ context, cwd, gitDir, refFormat }) // 'MERGE_HEAD=abc\nCHERRY_PICK_HEAD=\nREVERT_HEAD=\n'
+/// ```
+///
+/// # Errors
+///
+/// `GitFailure` when an entry that exists cannot be read.
+pub fn conclusion_state_text(context: &GitContext, cwd: &Path, git_dir: &Path, ref_format: RefFormat) -> Result<String, GitFailure> {
+    // `mut` collects one line per head,
+    // in the order a person's own `git status` names them.
+    let mut text: String = String::new();
+    for name in CONCLUSION_HEAD_NAMES {
+        text.push_str(name);
+        text.push('=');
+        if is_store_held(ref_format, name) {
+            text.push_str(owning_pseudoref(context, cwd, name).unwrap_or_default().as_str());
+        } else {
+            let bytes: Vec<u8> = recovery_step(read_optional(git_dir.join(name).as_path()))?.unwrap_or_default();
+            text.push_str(String::from_utf8_lossy(bytes.as_slice()).as_ref());
+        }
+        text.push('\n');
+    }
+    return Ok(text);
+}
+
+/// What:
+///  What the conclusion state named when a commit was prepared,
+/// nothing when the commit concluded none.
+/// Why:
+///   A conversion from the kind to the state read happens in one place,
+/// so a preparation and its replay always compare the same three heads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = theStateOfAConclusion({ context, cwd, capture }); // undefined for an ordinary commit and an amend
+/// ```
+///
+/// # Errors
+///
+/// `GitFailure` when an entry that exists cannot be read.
+pub fn the_state_of_a_conclusion(
+    context: &GitContext,
+    cwd: &Path,
+    git_dir: &Path,
+    ref_format: RefFormat,
+    conclusion: crate::transaction_journal::Conclusion,
+) -> Result<Option<String>, GitFailure> {
+    return match conclusion {
+        crate::transaction_journal::Conclusion::Merge | crate::transaction_journal::Conclusion::CherryPick | crate::transaction_journal::Conclusion::Revert => {
+            Ok(Some(conclusion_state_text(context, cwd, git_dir, ref_format)?))
+        }
+        crate::transaction_journal::Conclusion::None | crate::transaction_journal::Conclusion::Amend => Ok(None),
+    };
+}
+
 /// Conclusion copy controls stay out of the release executable.
 #[cfg(test)]
 #[path = "conclusion_copy_tests.rs"]

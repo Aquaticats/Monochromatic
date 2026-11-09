@@ -338,7 +338,8 @@ impl CandidateScanner {
 /// Why:
 ///   A host that arranges the publication elsewhere asks this first,
 ///  so a cache that already holds an artifact costs no write question and no process walk;
-///  the scanner answers with the artifact file's presence, one `stat`,
+///  the scanner answers with the artifact file's presence,
+/// one `stat`,
 ///  and the load validates whatever it finds.
 ///
 /// In TS you'd write (pseudocode):

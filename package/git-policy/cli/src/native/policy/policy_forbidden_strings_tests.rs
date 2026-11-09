@@ -535,7 +535,8 @@ fn a_miss_is_published_by_whoever_was_named_beside_it() {
 /// Why:
 ///   This is the fallback that keeps a machine with no service running from compiling the rules on every
 ///   command;
-///  the probe has to answer with a miss before it, and with the artifact after it.
+///  the probe has to answer with a miss before it,
+/// and with the artifact after it.
 #[test]
 fn a_command_with_no_service_publishes_the_rules_itself() {
     run_isolated(
@@ -585,9 +586,12 @@ fn publishes_itself(work: &Path) {
 ///  for the three shapes a selection has.
 /// Why:
 ///   The service resolves the configuration's files and its environment carries no
-///   `FORBIDDEN_STRINGS_RULES`, so a list the variable named is another text whose artifact never answers
-///   this command's reads; a repository whose configuration names files keeps the list whatever the
-///   variable says, and that is the usual setup here.
+///   `FORBIDDEN_STRINGS_RULES`,
+/// so a list the variable named is another text whose artifact never answers
+///   this command's reads;
+/// a repository whose configuration names files keeps the list whatever the
+///   variable says,
+/// and that is the usual setup here.
 #[test]
 fn only_a_list_the_configuration_names_is_left_to_the_service() {
     let root: PathBuf = PathBuf::from("/repo");

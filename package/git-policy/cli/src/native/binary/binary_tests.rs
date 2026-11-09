@@ -621,6 +621,13 @@ mod service_sequencer;
 #[path = "binary_commit_during_merge_tests.rs"]
 mod commit_during_merge;
 
+/// A commit that concludes a merge,
+/// a cherry-pick or a revert,
+/// and an amend,
+/// whose branch another command moved while the commit waited.
+#[path = "binary_conclusion_on_a_moved_branch_tests.rs"]
+mod conclusion_on_a_moved_branch;
+
 /// Guard:
 /// no option of the wrapper's follows the person's `--` in any Git start,
 /// and no `--quiet` is added.

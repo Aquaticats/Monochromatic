@@ -317,7 +317,8 @@ fn a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start() {
 /// writes a number this table has never had and holds the lock through its editor with no descriptor open.
 /// The verdict is what a merge may act on,
 /// with the empty lock and the complete scan as the rest of its proof;
-/// a committing service only waits for the owner, within its ceiling
+/// a committing service only waits for the owner,
+/// within its ceiling
 /// (cross-vendor review of 2026-11-09,
 /// finding 2).
 #[test]
