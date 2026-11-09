@@ -138,3 +138,37 @@ fn a_step_that_started_without_a_descriptor_is_not_signalled() {
     assert_eq!(came, CeilingCame::Unknown, "a step that cannot be named is not one whose end can be concluded");
     assert!(ended.is_none(), "the step was signalled by its number although its start gave no descriptor to name it: {ended:?}");
 }
+
+/// What:
+///  A walk that ran while the step was alive proves nothing once the step has ended.
+/// Why:
+///   Finding 2 of the third review:
+/// a number cannot be reused while its process is alive,
+/// so the walk is safe only for the instant it is taken,
+/// and stopping at that instant and then signalling the numbers it read reaches whatever took them.
+/// The step here is published while it is alive, ends before the ceiling looks,
+/// and the walk is made to answer a live process that the step never started.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_walk_whose_step_ended_signals_nothing() {
+    let mut step: Child = a_step();
+    let watched: ChildNumber = ChildNumber::not_started_pinned();
+    watched.publish(i32::try_from(step.id()).expect("a process number"));
+    let mut never_the_steps_child: Child = a_step();
+    let planted_pid: i32 = i32::try_from(never_the_steps_child.id()).expect("a process number");
+    let planted: crate::process_tree::TreeMember = match crate::process_tree::member_read(planted_pid) {
+        crate::process_tree::MemberRead::Found(member) => member,
+        other => panic!("the planted member must be a live process: {other:?}"),
+    };
+    step.kill().expect("the step ends");
+    step.wait().expect("reaped");
+    plant_what_the_walk_finds(vec![planted]);
+    let came: CeilingCame = ceiling_came(&watched);
+    let ended: Option<i32> = ended_within(&mut never_the_steps_child, STILL_RUNNING_BOUND);
+    if ended.is_none() {
+        never_the_steps_child.kill().expect("cleanup");
+        never_the_steps_child.wait().expect("reaped");
+    }
+    assert_eq!(came, CeilingCame::TheStepEnded, "a step that ended while its children were read has ended");
+    assert!(ended.is_none(), "a number the walk read was signalled although the step had ended: {ended:?}");
+}

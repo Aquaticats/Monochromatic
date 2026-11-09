@@ -34,6 +34,8 @@ use crate::child_number_told_at_start::ChildNumber;
 /// The processes below the step,
 /// read for the stop.
 use crate::process_tree::descendants_of_read;
+/// One process of that tree.
+use crate::process_tree::TreeMember;
 /// The signal that ends the step,
 /// what it came to,
 /// and whether the step is still there.
@@ -84,6 +86,37 @@ pub enum CeilingCame {
 /// ```ts
 /// const came = ceilingCame(step); // an unreadable tree: 'unknown'
 /// ```
+// What:
+//  A control that plants what the walk below the step answers.
+// Why:
+//   A step that keeps a live child and ends in the same instant cannot be built from real processes:
+//   a child is reparented the moment its parent exits,
+//   so the walk after a real death finds nothing and the gate is never exercised.
+//  A control of this process's own thread.
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    // The answer the next walk gives.
+    static PLANTED_WALK: std::cell::RefCell<Option<Vec<TreeMember>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Plant what the next walk below the step answers.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn plant_what_the_walk_finds(members: Vec<TreeMember>) {
+    PLANTED_WALK.with(|planted| { *planted.borrow_mut() = Some(members); });
+}
+
+/// The processes below the step:
+/// the control's answer when one is planted,
+/// and the kernel's walk otherwise.
+#[cfg(target_os = "linux")]
+fn walk_below(number: i32) -> Option<Vec<TreeMember>> {
+    #[cfg(test)]
+    if let Some(planted) = PLANTED_WALK.with(|planted| { return planted.borrow_mut().take(); }) {
+        return Some(planted);
+    }
+    return descendants_of_read(number);
+}
+
 pub fn ceiling_came(step: &ChildNumber) -> CeilingCame {
     let Some(number) = step.number() else {
         // A step that never started has nothing to end, and nothing is concluded about it.
@@ -95,7 +128,7 @@ pub fn ceiling_came(step: &ChildNumber) -> CeilingCame {
     let Some(descriptor) = step.descriptor() else {
         return CeilingCame::Unknown;
     };
-    let Some(below) = descendants_of_read(number) else {
+    let Some(below) = walk_below(number) else {
         return CeilingCame::Unknown;
     };
     if has_ended(descriptor) {
