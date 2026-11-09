@@ -22,6 +22,10 @@ pub mod doctor_fsmonitor;
 /// and the loud report that none runs.
 pub mod external_hooks;
 
+/// How the checkout the filesystem section reports on is laid out,
+/// and the command that converts each layout.
+pub mod checkout_layout;
+
 /// The non-blocking warning for a configured `core.hooksPath`,
 /// decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;

@@ -99,29 +99,34 @@ fn directories_are_the_default_then_the_configured_one_once() {
     std::fs::create_dir(repo.join("custom")).expect("custom hooks directory");
     let plain: HooksLocation = HooksLocation {
         common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
         configured: None,
     };
     assert_eq!(hook_directories(&plain), vec![hooks.clone()]);
     let configured: HooksLocation = HooksLocation {
         common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
         configured: Some(repo.join("custom")),
     };
     assert_eq!(hook_directories(&configured), vec![hooks.clone(), repo.join("custom")]);
     // The same directory through another spelling of a component that exists is scanned once.
     let same: HooksLocation = HooksLocation {
         common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
         configured: Some(repo.join("./custom")),
     };
     assert_eq!(hook_directories(&same), vec![hooks.clone(), repo.join("./custom")]);
     // The default hooks directory named again by the configured path is one directory too.
     let itself: HooksLocation = HooksLocation {
         common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
         configured: Some(repo.join(".git/./hooks")),
     };
     assert_eq!(hook_directories(&itself), vec![hooks.clone()]);
     // A spelling whose directory does not exist is a directory that holds no hooks either way, so it is kept as given.
     let absent: HooksLocation = HooksLocation {
         common_directory: repo.join(".git"),
+        git_directory: repo.join(".git"),
         configured: Some(PathBuf::from("/repo/./sub/../absent")),
     };
     assert_eq!(hook_directories(&absent), vec![hooks, PathBuf::from("/repo/./sub/../absent")]);
@@ -596,5 +601,59 @@ fn a_dot_dot_after_a_symlink_scans_the_directory_git_runs() {
     // The file the report names is the file Git runs, resolved by the file system and not by the spelling.
     let reported: PathBuf = PathBuf::from(stdout.trim_end());
     assert_eq!(std::fs::canonicalize(reported).expect("the reported hook exists"), std::fs::canonicalize(external.join("hooks/pre-commit")).expect("the ran hook exists"));
+    remove(root.as_path());
+}
+
+/// What:
+///  The checkout the section reports on is the one Git names,
+/// and its layout is Git's answer about which worktree the command runs in.
+/// Why:
+///  The section used to read the directory above the common Git directory,
+/// which is a metadata directory when a
+///  repository keeps its Git directory elsewhere and a bare repository's parent when it keeps none;
+/// both
+///  were measured and named as places to migrate.
+#[test]
+fn the_checkout_is_the_one_git_names_and_its_layout_is_gits_answer() {
+    let root: PathBuf = fixture("doctor-checkout-identity");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let linked: PathBuf = root.join("linked");
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", "feature", linked.to_str().expect("UTF-8")]);
+    let context: GitContext = git_context();
+    let reported = |cwd: &Path| -> (Option<PathBuf>, CheckoutLayout) {
+        let location: HooksLocation = located(&context, cwd).expect("locate");
+        return crate::lazy_runtime::run_on_runtime(checkout_of(&context, cwd, &location)).expect("the runtime");
+    };
+    assert_eq!(reported(repo.as_path()), (Some(repo.clone()), CheckoutLayout::Main));
+    assert_eq!(reported(linked.as_path()), (Some(linked.clone()), CheckoutLayout::Linked));
+    remove(root.as_path());
+}
+
+/// A bare repository has no checkout at all,
+/// and a repository whose Git directory lives elsewhere is reported on
+///  its worktree,
+/// which is what Git answers and no directory name is.
+#[test]
+fn a_bare_repository_has_no_checkout_and_a_separate_git_directory_keeps_its_worktree() {
+    use std::ffi::OsStr;
+    let root: PathBuf = fixture("doctor-checkout-layouts");
+    let bare: PathBuf = root.join("bare-parent");
+    std::fs::create_dir_all(bare.join(".git")).expect("bare Git directory");
+    git(bare.join(".git").as_path(), &["init", "--quiet", "--bare", "--initial-branch=main"]);
+    let worktree: PathBuf = root.join("real-worktree");
+    let metadata: PathBuf = root.join("metadata");
+    std::fs::create_dir(worktree.as_path()).expect("worktree directory");
+    std::fs::create_dir(metadata.as_path()).expect("metadata directory");
+    git(
+        worktree.as_path(),
+        &[OsStr::new("init"), OsStr::new("--quiet"), OsStr::new(format!("--separate-git-dir={}", metadata.join(".git").display()).as_str())],
+    );
+    let context: GitContext = git_context();
+    let reported = |cwd: &Path| -> (Option<PathBuf>, CheckoutLayout) {
+        let location: HooksLocation = located(&context, cwd).expect("locate");
+        return crate::lazy_runtime::run_on_runtime(checkout_of(&context, cwd, &location)).expect("the runtime");
+    };
+    assert_eq!(reported(bare.join(".git").as_path()), (None, CheckoutLayout::Main));
+    assert_eq!(reported(worktree.as_path()), (Some(worktree.clone()), CheckoutLayout::Main));
     remove(root.as_path());
 }

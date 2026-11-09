@@ -56,6 +56,8 @@ use std::time::Duration;
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
 /// The job of such a read, run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
+/// How the checkout the section describes is laid out.
+use crate::checkout_layout::CheckoutLayout;
 
 /// Exit status when at least one traditional hook was found.
 pub const HOOKS_FOUND_EXIT_CODE: i32 = 1;
@@ -80,6 +82,9 @@ pub struct HooksLocation {
     /// Absolute common Git directory,
     /// whose `hooks` directory is the default.
     pub common_directory: PathBuf,
+    /// Absolute Git directory of the worktree the command runs in,
+    /// which equals the common one there and differs in a linked worktree.
+    pub git_directory: PathBuf,
     /// Absolute directory a configured `core.hooksPath` names,
     /// resolved the way Git resolves it.
     pub configured: Option<PathBuf>,
@@ -98,10 +103,10 @@ pub struct HooksLocation {
 /// ```
 pub fn hook_directories(location: &HooksLocation) -> Vec<PathBuf> {
     let mut directories: Vec<PathBuf> = vec![location.common_directory.join("hooks")];
-    if let Some(configured) = &location.configured {
-        if !directory_is_listed(directories.as_slice(), configured.as_path()) {
-            directories.push(configured.clone());
-        }
+    if let Some(configured) = &location.configured
+        && !directory_is_listed(directories.as_slice(), configured.as_path())
+    {
+        directories.push(configured.clone());
     }
     return directories;
 }
@@ -458,23 +463,26 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     };
     let Some(chosen) = configured else {
         return Ok(HooksLocation {
-            common_directory: common,
+            common_directory: common.clone(),
+            git_directory,
             configured: None,
         });
     };
     if chosen.is_absolute() {
         return Ok(HooksLocation {
             common_directory: common,
+            git_directory,
             configured: Some(chosen),
         });
     }
     // A relative value resolves where Git runs hooks; a repository without a worktree has no top level.
     let base: PathBuf = match path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
         Ok(top) => top,
-        Err(_) => git_directory,
+        Err(_) => git_directory.clone(),
     };
     return Ok(HooksLocation {
         common_directory: common,
+        git_directory,
         configured: Some(base.join(chosen)),
     });
 }
@@ -616,6 +624,61 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 }
 
 /// What:
+///  What the filesystem section is told about the repository the command runs in.
+///  `Option<&Path>` is a borrowed path or nothing;
+/// `CheckoutLayout` is how a checkout that exists is laid out.
+/// Why:
+///   The section describes a checkout,
+/// and Git alone says which directory is one:
+/// it reported no top
+///  level for a bare repository,
+/// so that field is `None` there and no checkout advice is printed.
+///  The home is the one the invocation names,
+/// which the line about the repository's link to another drive reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CheckoutViewpoint = { checkout?: string; layout: CheckoutLayout; home?: string };
+/// ```
+pub struct CheckoutViewpoint<'a> {
+    /// The checkout Git reported for where the command runs,
+    /// or nothing when the repository has none.
+    pub checkout: Option<&'a Path>,
+    /// How that checkout is laid out;
+    /// meaningless without a checkout.
+    pub layout: CheckoutLayout,
+    /// The home the invocation names.
+    pub home: Option<&'a Path>,
+}
+
+/// What:
+///  The checkout this command reports on, and its layout, as Git answers them.
+/// Why:
+///   `git rev-parse --show-toplevel` names a worktree root and fails where there is none (a bare repository),
+/// so
+///  the section is never pointed at the directory above a Git directory,
+/// which is a metadata directory or a bare
+///  repository's parent and not a checkout.
+///  The Git directory equal to the common one means the command runs in the main worktree;
+/// a different one means a
+///  linked worktree,
+/// whose conversion command differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { checkout, layout } = await checkoutOf({ context, cwd, location });
+/// ```
+async fn checkout_of(context: &GitContext, cwd: &Path, location: &HooksLocation) -> (Option<PathBuf>, CheckoutLayout) {
+    let layout: CheckoutLayout = if location.git_directory == location.common_directory {
+        CheckoutLayout::Main
+    } else {
+        CheckoutLayout::Linked
+    };
+    let checkout: Option<PathBuf> = path_answer_question(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await.ok();
+    return (checkout, layout);
+}
+
+/// What:
 ///  A filesystem section that is always empty.
 /// Why:
 ///   `doctor_action` prints no filesystem section,
@@ -626,7 +689,7 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 /// ```ts
 /// const noFilesystemSection = (_commonDirectory: string, _home: string | undefined) => '';
 /// ```
-fn no_filesystem_section(_common_directory: &Path, _home: Option<&Path>) -> String {
+fn no_filesystem_section(_viewpoint: &CheckoutViewpoint<'_>) -> String {
     return String::new();
 }
 
@@ -655,7 +718,7 @@ pub async fn doctor_action_with_section(
     context: &GitContext,
     cwd: &Path,
     home: Option<&Path>,
-    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
+    filesystem_section: &dyn Fn(&CheckoutViewpoint<'_>) -> String,
 ) -> Action {
     let location: HooksLocation = match locate_hooks(context, cwd).await {
         Ok(found) => found,
@@ -682,8 +745,10 @@ pub async fn doctor_action_with_section(
     // A report changes nothing, so the earlier release's names in this directory are read where they are and never moved
     // (`SPEC.md`, section Doctor): moving them is left to the commands that write there.
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
-    // The host facts read `statfs` and the mount table under their own ceiling (`host_section`).
-    let section: String = filesystem_section(location.common_directory.as_path(), home);
+    // The host facts read `statfs` and the mount table under their own ceiling, for the checkout Git named.
+    let (checkout, layout): (Option<PathBuf>, CheckoutLayout) = checkout_of(context, cwd, &location).await;
+    let viewpoint: CheckoutViewpoint<'_> = CheckoutViewpoint { checkout: checkout.as_deref(), layout, home };
+    let section: String = filesystem_section(&viewpoint);
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,

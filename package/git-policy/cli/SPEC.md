@@ -547,6 +547,14 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   so a mount that stops answering cannot hold the command:
   a read that gives no answer makes the command say which read it was and carries on,
   with status `2` for a hooks directory and one line of standard error for the host facts.
+  The filesystem section describes the checkout Git reports for where the command runs
+  (`git rev-parse --path-format=absolute --show-toplevel`),
+  and says nothing about a file system when Git reports none,
+  which is the case in a bare repository.
+  A directory name is not a layout proof:
+  the directory above the common Git directory is a metadata directory when the Git directory lives elsewhere.
+  The conversion command it prints follows the layout Git reports:
+  `migrate-to-subvolume` in the repository's main worktree and `convert-worktree-to-subvolume` in a linked one.
 
 ## Lifecycle
 
