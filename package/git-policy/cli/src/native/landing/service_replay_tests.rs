@@ -542,7 +542,11 @@ fn a_private_index_that_is_gone_is_named_instead_of_read_as_the_empty_tree() {
     let gone: PathBuf = world.root.join("scratch/commit.index");
     let stop: TransactionStop = captured_tree(&world.context, world.repo.as_path(), gone.as_path(), common.join("objects").as_path())
         .expect_err("a private index that is not there is not read");
-    let TransactionStop::Message(text) = stop else { panic!("a plain message, not an engine failure") };
+    let text: String = match stop {
+        TransactionStop::Message(text) => text,
+        TransactionStop::Failed { message, .. } => message,
+        TransactionStop::NativeExit(status) => panic!("a message, not Git's own exit {status}"),
+    };
     assert!(text.contains(gone.display().to_string().as_str()), "the index is named: {text}");
     assert!(text.contains(crate::service_messages::NOTHING_CHANGED), "nothing changed: {text}");
     remove(world.root.as_path());
