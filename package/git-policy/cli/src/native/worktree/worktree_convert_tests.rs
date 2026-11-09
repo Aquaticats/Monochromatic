@@ -387,7 +387,7 @@ fn a_socket_stops_a_conversion_before_the_swap_and_deleting_it_finishes() {
     drop(listener);
     let platform: PlainPlatform = PlainPlatform::new();
     let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
-    assert!(message.contains("agent.sock") && message.contains("not recreated"), "{message}");
+    assert!(message.contains("agent.sock") && message.contains("does not recreate"), "{message}");
     assert!(message.contains("nothing was swapped"), "{message}");
     assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
     assert!(worktree.join("agent.sock").exists(), "the socket is still in the worktree");

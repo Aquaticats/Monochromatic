@@ -25,6 +25,7 @@ use crate::subvolume_lock::{acquire, is_ours};
 use crate::subvolume_pass_report::say_what_a_pass_could_not_carry;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree};
+use crate::subvolume_sync_pass_state_and_checks::SAMPLE_SIZE;
 use crate::worktree_convert_inspection::{Candidate, GIT_FILE_LIMIT, converting_path};
 use crate::worktree_convert_journal::{JOURNAL_NAME, Journal, Phase, io_step, is_recorded_object, read_plain_file};
 use crate::worktree_convert_remove::{Removal, remove_recorded_old_tree};
@@ -162,8 +163,29 @@ pub fn pass_changed(stats: &SyncStats) -> bool {
     return stats.files_copied > 0 || stats.deleted > 0 || stats.vanished > 0 || stats.symlinks > 0 || stats.fifos > 0;
 }
 
-/// Fail with the unreadable files a pass could not copy,
-/// because a copy that leaves them out would lose them at the swap.
+/// What:
+///  Fail with what a pass could not carry into the stage,
+///  because a copy that leaves it out would lose it at the swap:
+/// a file
+///  this user cannot read,
+/// or a socket or a device node the copy never recreates.
+/// Why:
+///   The comparison before the removal names an entry the installed tree lacks,
+/// but by then the swap has happened,
+///  `--abandon` refuses,
+/// and the only way out is deleting an entry below a name only this command uses.
+/// Refusing here stops the conversion while the stage is a copy,
+/// so nothing has been swapped,
+///  `--abandon` works,
+/// and a person who stops whatever holds the socket and deletes it,
+/// or unlocks the
+///  file,
+/// finishes by running the command again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// requireComplete(stats, path); // throws when the copy would lose an entry
+/// ```
 pub fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateError> {
     if let Some(first) = stats.unreadable.first() {
         return Err(MigrateError::Journal(format!(
@@ -171,6 +193,19 @@ pub fn require_complete(stats: &SyncStats, path: &Path) -> Result<(), MigrateErr
             path.display(),
             stats.unreadable.len(),
             first.display()
+        )));
+    }
+    if !stats.special_skipped.is_empty() {
+        let mut named: Vec<String> = Vec::new();
+        for entry in stats.special_skipped.iter().take(SAMPLE_SIZE) {
+            named.push(entry.display().to_string());
+        }
+        return Err(MigrateError::Journal(format!(
+            "{} holds {} socket(s) or device node(s) that this copy does not recreate ({}), so the conversion stops here and nothing was swapped: stop whatever holds each one (a socket is recreated by the program that made it), delete it from {}, and run the command again",
+            path.display(),
+            stats.special_skipped.len(),
+            named.join(", "),
+            path.display()
         )));
     }
     return Ok(());

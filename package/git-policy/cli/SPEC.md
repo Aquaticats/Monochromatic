@@ -1386,6 +1386,21 @@ the times and the extended attributes the kernel refused,
 the destination entries it kept,
 and any
 file that changed while it was copied and was copied again.
+A pass that could not carry an entry refuses before the swap:
+a file this user cannot read,
+and a
+Unix socket or a device node,
+which the copy never recreates,
+each end the run with the entries named and
+"nothing was swapped".
+That is the state `--abandon` can still undo,
+and a person finishes by stopping
+whatever holds the socket,
+deleting it and running the command again;
+a socket that reaches the old tree after the swap is
+named with the file to delete rather than a version to choose,
+so no worktree is left in a state no
+command can finish.
 It exchanges the two directories (`RENAME_EXCHANGE`),
 checks that the path is a subvolume root,
 is the subvolume whose identity

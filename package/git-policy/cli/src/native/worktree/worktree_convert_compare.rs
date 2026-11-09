@@ -31,7 +31,7 @@
 //! ```
 
 use crate::subvolume_sync_attrs::carried_attributes_equal;
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{FileTypeExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -71,6 +71,33 @@ fn attribute_difference(before: &std::fs::Metadata, after: &std::fs::Metadata, o
 }
 
 /// What:
+///  Why the installed tree does not hold the old tree's entry `inside` at all,
+/// naming the entry and,
+///  for an entry the copy never recreates,
+/// the file to delete.
+/// Why:
+///   A socket or a device node is left out of every copy by design,
+/// so the only way to finish a conversion
+///  whose old tree still holds one is to delete it there;
+/// a person told to "settle which version is wanted
+///  by hand" has no version to choose and no path to act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function missingEntry(kind, inside, oldPath): string;
+/// ```
+fn missing_entry(kind: std::fs::FileType, inside: &Path, old: &Path) -> String {
+    if kind.is_socket() || kind.is_block_device() || kind.is_char_device() {
+        return format!(
+            "{} is a socket or a device node, which this copy never recreates, and the installed worktree does not hold it; delete it from {} and run the command again",
+            inside.display(),
+            old.display()
+        );
+    }
+    return format!("{} is missing from the installed worktree", inside.display());
+}
+
+/// What:
 ///  The first way the old tree at `old` is not held by the installed tree at `installed`,
 /// or nothing when it is held whole.
 /// Why:
@@ -105,7 +132,7 @@ pub fn first_difference(old: &Path, installed: &Path) -> std::io::Result<Option<
             }
             let after: std::fs::Metadata = match std::fs::symlink_metadata(installed.join(&inside)) {
                 Ok(found) => found,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some(format!("{} is missing from the installed worktree", inside.display()))),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Some(missing_entry(before.file_type(), &inside, &old.join(&inside)))),
                 Err(error) => return Err(error),
             };
             if before.file_type() != after.file_type() {
