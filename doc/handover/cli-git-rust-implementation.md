@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:00:59-05:00)
+#### Reviews and landings in progress (2026-11-09T03:06:48-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -197,8 +197,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   even run alone.
   Run 3 of its agent is on the three defects and judges the races.
   After that round it lands.
-- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
-  its agent is working through its review.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
   `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`
   and `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
@@ -236,18 +234,43 @@ The old tree kept for the rollback stays until the owner deletes it.
   but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
   and the installed copy answers `android sdk install --help`.
   Issue 2622 therefore does not hold for the locked version and gets a comment saying so.
-  The tests and Clippy are rerunning on the corrected branch.
-  Its cross-vendor review comes next,
+  695 of 695 tests and Clippy pass on the corrected branch on top of main.
+  Its cross-vendor review is running as `mpm-shadow-open-issues-round-1`,
   and the issues it fixes are closed only after that.
+  A first attempt attached no source,
+  because `review-branch-with-sol.ts` looked only in the wrapper's folder,
+  so it reviewed nothing and does not count.
+  The script now takes `--source` and `--about`,
+  and stops when it finds no file to attach.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
   319 of 319 selected tests pass on top of main.
-  The first review of its last round was given too wide a range (246 commits),
-  so it does not count as a review of that round,
-  and a second one over the round's own commits is running as `copy-records-round-7-narrow`.
-  Lands if that one is clean.
+  The review of its last round (`${HOME}/temp/agent/reviews/copy-records-round-7-narrow-sol.txt`) names one defect on Linux:
+  `nothing_but_a_reservation` reads every `read_dir` error as an empty destination,
+  so a destination made unreadable during an add can lose its unfinished-add record.
+  That takes another program changing the mode inside the add,
+  and main keeps no such record at all,
+  so the branch lands and the fix follows it.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `copy-route-records-before-git` as run 8,
+  with `copy-route-round-8-prompt.md` and the session file named in run 7's `summary.json`.
+  The same review names a non-Linux build break in `other::Ladder::finish`,
+  left alone under the owner's "Ignore Win and mac until I say so."
+- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
+  its agent reports the five findings of the last review fixed and a saved merge no longer blocking unrelated commands.
+  Its tests on top of main and the review `merge-route-round-3` are running.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
-  654 of 654 selected tests pass on top of main.
-  Its review `commit-checks-round-2` is running.
+  654 of 654 selected tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/commit-checks-round-2-sol.txt`) names further ways a saved file is lost,
+  most of them in the journal and the recovery the last round added.
+  Not ready to merge.
+  Its next brief suggests removing the step that loses data instead of adding another check:
+  when anything is uncertain,
+  the file stays and is named.
+  Run 3 of its agent is on them.
+  Before it lands,
+  `questions-for-the-owner.md` gets the choice that `fix` refuses a worktree whose Git directory is on another file system,
+  if that refusal is still there.
 - That too-wide review named two defects in code already on main,
   and reading the code bears both out.
   A read in `read_by_chunks` retries `EINTR` without a ceiling,
