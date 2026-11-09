@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T01:44:42-05:00)
+#### Reviews and landings in progress (2026-11-09T02:07:53-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -148,21 +148,26 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the cross-vendor review (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-1-sol.txt`) names five defects in the watchdog and its controls,
   all in test code or test builds.
   Run 2 of its agent is on them.
-- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
-  at `3509de3e01`:
-  the cross-vendor review of its latest round
-  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
-  names seven more defects,
-  among them a failed reset that commits a deletion and an approved push left stranded.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
+  the cross-vendor review of its fourth round
+  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`)
+  names more defects,
+  among them a tab in a file name that makes the next commit revert another file,
+  and a promotion that publishes a commit whose gate then blocks it.
   Not ready to merge.
-  Run 4 of its agent is on them.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `landing-route-findings-fixed` as run 5,
+  with `landing-route-findings-fixed-round-5-prompt.md` and the session file named in run 4's `summary.json`.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
-  at `493e72d1e9`:
-  the library suite passed 4835 of 4835.
-  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
-  names three more ways a new worktree can end up unfilled or filled by the wrong command,
-  so it is not ready to merge.
-  Run 6 of its agent is on them.
+  at `6f11d10f45`:
+  the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
+  names two realistic record defects and three races that need another program to move a worktree inside a small window.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `copy-route-records-before-git` as run 7,
+  with `copy-route-records-round-7-prompt.md` and the session file named in run 6's `summary.json`.
+  After that round it lands.
   The fix for a ladder rung that already made its destination has no test of its own,
   and the two-process race has no failing test,
   because nothing can hold a wrapper at a named step.
@@ -202,6 +207,40 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
   The locks audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
   ("cli-git never deletes a lock") waits for the owner.
+
+- `fix/git-policy-cli-service-work-items-keep-path-bytes`:
+  it breaks `provisioning_notes_which_worktree_the_units_are_for`,
+  and its cross-vendor review (`${HOME}/temp/agent/reviews/service-work-items-path-bytes-sol.txt`) names five more defects.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `service-work-items-keep-non-utf8-paths` as run 2,
+  with `service-work-items-path-bytes-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Issue 6005 is commented on or closed after it lands.
+- `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
+  its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
+  among them an interrupted upgrade that leaves every command reaching the old service,
+  and a launcher that clears its environment and so defeats both recursion guards.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `entry-and-service-findings-fixed` as run 2,
+  with `entry-and-service-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+- `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start a run with `tests-that-pass-without-their-race-fixed-prompt.md`,
+  branch `fix/git-policy-cli-controls-witness-their-race-by-ordering`.
+- `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
+  three runs ended within minutes on a Cloudflare 520 or a request timeout,
+  and Pi's automatic retry is off in the owner's settings.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start a run with `driver-resumes-after-provider-errors-prompt.md`.
+- Filtered test runs of the branches on top of main abort tests near 125 seconds,
+  and the same tests pass alone.
+  `fix/git-policy-cli-unit-test-watchdog-judges-progress` changes that watchdog,
+  so it lands before the branches its aborts cloud are judged.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
