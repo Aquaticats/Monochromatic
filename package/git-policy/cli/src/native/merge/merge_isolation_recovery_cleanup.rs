@@ -127,3 +127,48 @@ pub fn drop_record(record: &Path) -> Result<(), RecoveryError> {
         Err(error) => Err(RecoveryError(format!("removing {} failed: {error}", record.display()))),
     };
 }
+
+/// What:
+///  The refusal for files the merge changes that now hold something else,
+///  naming them and the record.
+/// Why:
+///  The text is long and says what the person can do,
+/// and it belongs beside the other refusals this module keeps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// editsOnTheMergesOwnPaths(root, paths, record): RecoveryError;
+/// ```
+pub fn edits_on_the_merges_own_paths(root: &Path, paths: &[String], record: &Path) -> RecoveryError {
+    return RecoveryError(format!(
+        "A merge in {} was interrupted while Git updated these files, and they now hold neither their old nor their merged          content: {}. Nothing was changed and the record {} was kept. Save your edits to them elsewhere, restore them with \
+         `git restore -- <path>`, then run any git command again so recovery can finish the merge; or remove the record to \
+         abandon the merge and check `git status` yourself.",
+        root.display(),
+        paths.join(", "),
+        record.display()
+    ));
+}
+
+/// What:
+///  The refusal for staged work on paths the merge replaces,
+///  naming them and the record.
+/// Why:
+///   A staged version has no other name,
+/// so it is never written over and the person is told which paths hold it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stagedWorkOnTheMergesPaths(target, root, paths, record): RecoveryError;
+/// ```
+pub fn staged_work_on_the_merges_paths(target: &str, root: &Path, paths: &[String], record: &Path) -> RecoveryError {
+    return RecoveryError(format!(
+        "A merge of {target} in {} is unfinished, and the index holds staged content for these paths that the merge would \
+         replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the index. Commit or \
+         unstage it, then run any git command again so recovery can finish the merge; or remove the record to abandon the \
+         merge and check `git status` yourself.",
+        root.display(),
+        paths.join(", "),
+        record.display()
+    ));
+}

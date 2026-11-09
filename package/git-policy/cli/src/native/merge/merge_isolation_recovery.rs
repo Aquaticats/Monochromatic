@@ -40,7 +40,9 @@ pub use crate::merge_isolation_recovery_notice::recovery_notice;
 pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
 };
-use crate::merge_isolation_recovery_cleanup::{drop_record, drop_side_ref};
+use crate::merge_isolation_recovery_cleanup::{
+    drop_record, drop_side_ref, edits_on_the_merges_own_paths, staged_work_on_the_merges_paths,
+};
 use crate::merge_isolation_recovery_steps::{
     index_standings, install_entries, judge_changes, merge_changes, put_back_stranded_takes,
 };
@@ -352,18 +354,7 @@ pub fn settle_failed_merge(
         }
     }
     if !foreign.is_empty() {
-        return Err(MergeRefusal {
-            error: RecoveryError(format!(
-            "A merge in {} was interrupted while Git updated these files, and they now hold neither their old nor \
-             their merged content: {}. Nothing was changed and the record {} was kept. Save your edits to them \
-             elsewhere, restore them with `git restore -- <path>`, then run any git command again so recovery can \
-             finish the merge; or remove the record to abandon the merge and check `git status` yourself.",
-            root.display(),
-            foreign.join(", "),
-            record.display()
-            )),
-            began,
-        });
+        return Err(MergeRefusal { error: edits_on_the_merges_own_paths(root, foreign.as_slice(), record), began });
     }
     // A staged version of a path the merge replaces has no other name, so it is never written over: the finish stops and names
     //  the paths, and the staged content stays in the index.
@@ -374,18 +365,7 @@ pub fn settle_failed_merge(
         }
     }
     if !staged.is_empty() {
-        return Err(MergeRefusal {
-            error: RecoveryError(format!(
-            "A merge of {target} in {} is unfinished, and the index holds staged content for these paths that the merge would \
-             replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the index. Commit or \
-             unstage it, then run any git command again so recovery can finish the merge; or remove the record to abandon the \
-             merge and check `git status` yourself.",
-            root.display(),
-            staged.join(", "),
-            record.display()
-            )),
-            began,
-        });
+        return Err(MergeRefusal { error: staged_work_on_the_merges_paths(target, root, staged.as_slice(), record), began });
     }
     // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
     //  same merge (the recovery is idempotent).
