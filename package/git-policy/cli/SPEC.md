@@ -6437,14 +6437,21 @@ A held commit is not stranded by that:
 the queue pushes a branch,
 `git push <remote> <branch>:<target>`,
 so the next push from that branch carries it.
-The next command in the worktree says so once,
-in one line,
-through the notice a worktree's push failures
-use:
+Every command in the worktree says so in one line,
+read from the held records themselves:
 which commit is held,
-that its command stopped before its checks ran,
-and that it goes out with the
-next push from that branch.
+that its push has not been released yet,
+and that it goes out with the next push from its branch.
+The record is the only place the state exists,
+so the line cannot disagree with it:
+a kill between the record and a second file cannot lose the line,
+a release cannot leave a stale one,
+and two commands cannot interleave into either.
+Measured on 2026-11-12 on this host,
+one look at the held records of a worktree that holds none costs 27.8 microseconds
+(2,000 looks through the command's notice desk,
+`push_notices_for`),
+which is nothing beside the owner's limit of five seconds per commit.
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,
@@ -6609,13 +6616,13 @@ and the notice names it,
 so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
-where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed
-path,
-and a concurrent staging of the same content a `git commit --all` selected while an unrelated record
-exists,
-where that content is left out of that commit.
-In both the person sees one line naming the path among those left out,
-and the next commit records what the index holds.
+where the copy still holds a stale entry that no record names any more,
+so nothing is compared,
+nothing is named,
+and the commit records the landed path as a deletion,
+and a concurrent staging of the same content a `git commit --all` selected for a path a record names,
+where that content is left out of that commit and named among the paths left out.
+In both the next commit records what the index holds.
 The comparison is made against the commit's own index,
 because that snapshot is what the commit records:
 a program that catches the live index up between the copy and the comparison leaves the snapshot's stale

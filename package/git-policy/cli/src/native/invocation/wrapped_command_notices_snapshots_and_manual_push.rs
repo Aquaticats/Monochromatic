@@ -138,6 +138,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
+    // The held records are asked first, and whether or not any notice directory exists: a push held by a command that never said
+    //  anything is said here, because the record is the only place its state exists, and the line stands while the record does.
+    for line in crate::service_handoff::held_push_notices(git_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     let context = checks.facts.transaction_context();
     let cwd: PathBuf = match std::env::current_dir() {
         Ok(directory) => directory,
@@ -154,26 +160,17 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 }
 
 /// What:
-///  What this command says about the worktree's pushes:
-/// the ones that are held,
-/// and the failures the service recorded since one was last shown.
+///  The failures the service recorded since one was last shown.
 /// Why:
-///   A held push is said whether or not a notice directory exists yet,
-/// because the recording is what creates
-///  the directory the check below reads;
-/// asking the directories first would hide exactly the case the line exists
-///  for,
-/// a push held by a command that never released it.
-/// When nothing failed and nothing is held the check is two
+///   Each comes with what removes it once its words are out,
+/// and when nothing failed the check is two
 ///  directory reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pushNoticesFor(gitDir, commonDir) // record held pushes, then take the notices
+/// pushNoticesFor(gitDir, commonDir) // take the notices
 /// ```
 pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<Notice> {
-    // A held push writes its notice where it is held, so the notice directory exists from that moment and the check below finds it;
-    //  a notice is read here and leaves its record once its words were written.
     let own: bool = notice_directory(git_dir).is_dir();
     let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
     if !own && !orphaned {
