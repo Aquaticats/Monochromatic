@@ -635,11 +635,12 @@ kopia snapshot list ${kopiaSource} | tail --lines=6`,
     {
       id: 'c27-container-bind',
       title: 'After the cut-over: a container bind through the link',
-      says: 'W13: a container with the repository as a read-only bind source, spelled through the link, starts and sees the Git folder. It uses the first image already on this host and pulls nothing; its memory, processor and process counts are capped.',
+      says: 'W13: a container with the repository as a read-only bind source, spelled through the link, starts and sees the Git folder. It uses the first image already on this host and pulls nothing; its memory, processor and process counts are capped, and SELinux labelling is off, as in every container this repository runs.',
       // awk reads the whole listing: a reader that stops at the first line ends the writer with SIGPIPE, which pipefail reports as a failure.
+      // Without label=disable a private SELinux label on the repository folder denies the read, which says nothing about the link.
       command: `image=$(podman images --noheading --format '{{.Repository}}:{{.Tag}}' | grep --invert-match '<none>' | awk 'NR == 1')
 test -n "$image"
-podman run --rm --pull=never ${CONTAINER_BIND_LIMIT_OPTIONS} --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
+podman run --rm --pull=never --security-opt label=disable ${CONTAINER_BIND_LIMIT_OPTIONS} --mount type=bind,source=${c.repo},target=/repository,ro --entrypoint test "$image" -d /repository/.git
 echo 'container bind through the link: ok'`,
       check: `grep --fixed-strings 'container bind through the link: ok' "$OUTPUT_FILE"`,
       checkText: 'the container saw /repository/.git',
