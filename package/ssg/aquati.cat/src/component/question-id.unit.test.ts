@@ -429,5 +429,43 @@ await describe({
         expect(checkboxStyles,).toContain('question-checkbox',);
       },
     },),
+    it({
+      name: 'names each question fieldset after its scenario',
+      fn: async function namesFieldsetAfterScenario(): Promise<void> {
+        /**
+         Expected radio question ID, reused for the scenario label target.
+         */
+        const radioId = expectedQuestionId({
+          scenario: RADIO_SCENARIO,
+          options: RADIO_OPTIONS,
+        },);
+        /**
+         Expected checkbox question ID, reused for the scenario label target.
+         */
+        const checkboxId = expectedQuestionId({
+          scenario: CHECKBOX_SCENARIO,
+          options: CHECKBOX_OPTIONS,
+        },);
+        /**
+         Rendered radio question HTML.
+         */
+        const { html: radioHtml, } = QuestionRadio({
+          scenario: RADIO_SCENARIO,
+          options: RADIO_OPTIONS,
+        },);
+        /**
+         Rendered checkbox question HTML.
+         */
+        const { html: checkboxHtml, } = QuestionCheckbox({
+          scenario: CHECKBOX_SCENARIO,
+          options: CHECKBOX_OPTIONS,
+        },);
+
+        expect(radioHtml,).toContain(`<p class="scenario" id="q-${radioId}-scenario">`,);
+        expect(radioHtml,).toContain(`<fieldset aria-labelledby="q-${radioId}-scenario">`,);
+        expect(checkboxHtml,).toContain(`<p class="scenario" id="q-${checkboxId}-scenario">`,);
+        expect(checkboxHtml,).toContain(`<fieldset aria-labelledby="q-${checkboxId}-scenario">`,);
+      },
+    },),
   ],
 },);

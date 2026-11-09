@@ -256,6 +256,10 @@ function renderOption(
 /**
  Renders a quiz question with CSS-only reveal behavior.
  
+ The outer `<p>` carries a derived `id` and the option `<fieldset>` points at
+ it with `aria-labelledby`, so a screen reader announces the scenario as the
+ name of the option group instead of leaving it unnamed.
+ 
  @param props - question props
  
  @returns rendered `<question-radio>` element
@@ -279,6 +283,10 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
    Derived stable id grouping all option inputs of this question.
    */
   const qId = deriveQuestionId(props,);
+  /**
+   Identifier the question's fieldset points at, so the scenario paragraph names the option group.
+   */
+  const scenarioId = `q-${qId}-scenario`;
   return jsx(
     'question-radio',
     {
@@ -288,12 +296,14 @@ export function QuestionRadio(props: QuestionProps,): SafeHtml {
           'p',
           {
             className: 'scenario',
+            id: scenarioId,
             children: props.scenario,
           },
         ),
         jsx(
           'fieldset',
           {
+            'aria-labelledby': scenarioId,
             children: props.options
               .map(function mapOption(
                 opt,
