@@ -382,23 +382,23 @@ fn a_command_past_the_bound_is_stopped_with_the_processes_it_started() {
 /// A look that fails (a descriptor limit,
 /// a permission,
 /// an I/O error) says nothing about the process,
-/// so the step's root is signalled all the same;
-/// reading the failure as "the process is gone" signals nothing,
-/// so the ceiling ends nothing and the wait outlasts it.
+/// and it does not say which process the number names either,
+/// so nothing is signalled:
+/// the number may have been given to an unrelated process since the member was found.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_root_whose_record_could_not_be_read_is_still_signalled() {
+fn a_root_whose_record_could_not_be_read_is_not_signalled() {
     let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
     assert!(helper_is_running(pid), "the premise: the process runs");
     // The state a stop is in when `/proc/<pid>/stat` could not be read for the root.
-    crate::child_watch_clock_marks_and_stopping::signal_root(&crate::process_tree::ProcessLook::Unknown, pid, libc::SIGKILL);
-    let began: Instant = Instant::now();
-    while helper_is_running(pid) {
-        assert!(began.elapsed() < Duration::from_secs(10), "the root of the step kept running: a look that failed was read as a process that was gone");
-        std::thread::sleep(Duration::from_millis(10));
-    }
+    let mut look = || return crate::process_tree::ProcessLook::Unknown;
+    crate::child_watch_clock_marks_and_stopping::signal_root_through(&mut look, pid, libc::SIGKILL);
+    std::thread::sleep(Duration::from_millis(300));
+    let survived: bool = helper_is_running(pid);
+    sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
+    assert!(survived, "a number whose record could not be read was signalled: nothing proves which process it names by now");
 }
 
 /// The other half of the same rule:
@@ -409,12 +409,38 @@ fn a_root_whose_record_could_not_be_read_is_still_signalled() {
 fn a_root_a_look_found_gone_is_not_signalled() {
     let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
     let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
-    crate::child_watch_clock_marks_and_stopping::signal_root(&crate::process_tree::ProcessLook::Gone, pid, libc::SIGKILL);
+    let mut look = || return crate::process_tree::ProcessLook::Gone;
+    crate::child_watch_clock_marks_and_stopping::signal_root_through(&mut look, pid, libc::SIGKILL);
     std::thread::sleep(Duration::from_millis(300));
     let survived: bool = helper_is_running(pid);
     sleeper.kill().expect("the control ends its sleeper");
     sleeper.wait().expect("the sleeper is collected");
     assert!(survived, "a root whose record was read as gone was signalled");
+}
+
+/// What:
+///  A root whose record could not be read stays in the stop's waiting set,
+/// and one a look found gone leaves it.
+/// Why:
+///  The root is a member of the tree only while a look gives its start time,
+/// so a refused look leaves the tree empty;
+///  a stop that judged its wait by the tree alone sent the kill as soon as the request went out and waited for
+///  nothing afterwards,
+/// so a live Git got no cleanup grace.
+#[cfg(target_os = "linux")]
+#[test]
+fn an_unknown_root_stays_in_the_stops_waiting_set() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    let unknown: crate::process_tree::ProcessLook = crate::process_tree::ProcessLook::Unknown;
+    let waited: bool = crate::child_watch_clock_marks_and_stopping::the_stop_waits(&[], pid, &unknown);
+    // The same question for a root a look found gone: the probe has to be able to answer both ways.
+    let gone: crate::process_tree::ProcessLook = crate::process_tree::ProcessLook::Gone;
+    let released: bool = crate::child_watch_clock_marks_and_stopping::the_stop_waits(&[], pid, &gone);
+    sleeper.kill().expect("the control ends its sleeper");
+    sleeper.wait().expect("the sleeper is collected");
+    assert!(waited, "a root whose record could not be read was left out of the wait, so it got no grace and no wait after the kill");
+    assert!(!released, "a root a look found gone was still waited for");
 }
 
 /// What:
@@ -462,6 +488,40 @@ fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
     assert!(failure.to_string().contains(format!("process {holder}").as_str()), "the holder is named by its number: {failure}");
     assert!(waited < Duration::from_secs(3), "the wait outlasted the step by {waited:?}, as long as the holder lived");
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A step that printed its whole answer and ended succeeds though a program it started still holds its standard error open,
+/// and what it printed to standard error before the drain ended comes back with it.
+/// Why:
+///  A step's answer is its exit status and its standard output,
+/// so a program that inherited only the standard error must not
+///  decide that the step failed and take the answer away with it.
+/// A program that holds the standard output open still yields no
+///  answer at all,
+/// which the control above this one checks.
+/// The holder ends by itself (`sleep 4`), so nothing here is signalled.
+#[test]
+fn a_step_whose_standard_error_is_held_open_returns_its_answer() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    // The helper inherits the step's standard error alone: its standard output is the step's answer and closes with the step.
+    command.arg("-c").arg("sleep 4 >/dev/null & printf 'answer\\n'; printf 'warned\\n' >&2").stdin(Stdio::null());
+    let began: Instant = Instant::now();
+    let output: std::process::Output = output_watched_within(
+        &mut command,
+        "a step with a helper on its standard error",
+        "a step with a helper on its standard error",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_secs(60)),
+    )
+    .expect("the step's exit status and standard output are its answer");
+    let waited: Duration = began.elapsed();
+    assert!(output.status.success(), "the step succeeded: {:?}", output.status);
+    assert_eq!(output.stdout, b"answer\n".to_vec(), "the whole answer comes back");
+    assert_eq!(output.stderr, b"warned\n".to_vec(), "what the step printed to standard error before the drain ended comes back");
+    assert!(waited < Duration::from_secs(3), "the wait outlasted the step by {waited:?}, as long as the holder lived");
 }
 
 /// What:

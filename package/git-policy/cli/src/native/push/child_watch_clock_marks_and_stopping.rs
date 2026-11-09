@@ -184,28 +184,124 @@ impl Marks {
     }
 }
 
-/// Send `signal` to the process `raw` while a look at its record does not say it is gone.
-/// Where the record could not be read,
-/// the signal goes out all the same:
-/// nothing about the read proves the process ended,
-/// and a step that is never signalled because its record could not be read keeps running past its ceiling.
+/// The name of `signal` as the person knows it,
+/// for a line that says which signal was not sent.
 #[cfg(unix)]
-pub(crate) fn signal_root(root: &ProcessLook, raw: i32, signal: libc::c_int) {
-    match root {
+fn signal_name(signal: libc::c_int) -> &'static str {
+    return match signal {
+        libc::SIGTERM => "SIGTERM",
+        libc::SIGKILL => "SIGKILL",
+        _ => "a signal",
+    };
+}
+
+/// What:
+///  Send `signal` to the process `raw`,
+/// through a descriptor taken from a look made right here,
+/// or nothing when its record could not be read.
+/// Why:
+///  A number is a safe address only while its process is this process's own unreaped child,
+/// and the root of a step
+///  is reaped by the thread that waits for it as soon as it ends,
+/// so a look taken before an awaited step (the lock
+///  claim) says nothing about what the number names now.
+/// The look is therefore made here,
+/// and the descriptor taken
+///  inside `signal_member` carries its answer through to the signal.
+/// A record that cannot be read proves nothing about the
+///  process,
+/// so no number is signalled that may name an unrelated one,
+/// and one line says the step was not sent that
+///  signal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function signalRoot(pid: number, signal: number): void; // fresh look, pidfd, or a line saying nothing was sent
+/// ```
+#[cfg(unix)]
+pub(crate) fn signal_root(raw: i32, signal: libc::c_int) {
+    // The record is read here, at the signal, and not reused from the start of the stop.
+    let mut look = || return look_of(raw);
+    return signal_root_through(&mut look, raw, signal);
+}
+
+/// What:
+///  `signal_root` over a look the caller supplies,
+/// so a control can read a record that refuses without starving the whole test process.
+/// Why:
+///   The whole decision of a signal is what the look answered,
+/// and the refusal (`ProcessLook::Unknown`) is a branch no
+///  real `/proc` gives a control on demand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function signalRootThrough(look: () => ProcessLook, pid: number, signal: number): void;
+/// ```
+#[cfg(unix)]
+pub(crate) fn signal_root_through(look: &mut dyn FnMut() -> ProcessLook, raw: i32, signal: libc::c_int) {
+    match look() {
         ProcessLook::Alive(found) => {
             // The member is held by a pidfd where the kernel gives one, so a number reused between the look and the signal is
             //  never reached.
-            let _delivered: Delivered = crate::pinned_member_signalled_through_a_pidfd::signal_member(found, signal);
+            let _delivered: Delivered = crate::pinned_member_signalled_through_a_pidfd::signal_member(&found, signal);
         }
-        ProcessLook::Unknown => {
-            // SAFETY: `kill` takes no pointers; the number named the step a moment ago and its record could not be read to say
-            //  otherwise, so it is signalled as the platform without `/proc` always did.
-            unsafe {
-                libc::kill(raw, signal);
-            }
-        }
+        // A refusal is not an exit, and it is not a proof of which process the number names either: nothing is signalled,
+        //  and the person is told the step was not stopped.
+        ProcessLook::Unknown => crate::diagnostic_log::warn(
+            "childWatch",
+            format!(
+                "the step {raw} was not sent {}: its record could not be read, so no number is signalled that may name another \
+                 process. The step is still waited for; check with `ps` whether it runs and what it waits for.",
+                signal_name(signal)
+            )
+            .as_str(),
+        ),
         ProcessLook::Gone => {}
     }
+}
+
+/// What:
+///  Whether the root of a stopped step is still running.
+/// Why:
+///   The record read at the start of the stop judges a root it found,
+/// by the start time that proves the number still names it;
+///  a record that could not be read is read again here,
+/// because the start's read is older than the lock claim,
+/// and a refusal is
+///  not an exit.
+/// A root that was unknown at the start therefore stays in the wait,
+/// so it gets the grace it would have had.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rootStillRunning = (look) => look.kind === 'unknown' ? lookOf(pid).kind !== 'gone' : look.kind === 'alive' && sameStart(look);
+/// ```
+#[cfg(unix)]
+fn root_still_running(raw: i32, at_start: &ProcessLook) -> bool {
+    return match at_start {
+        ProcessLook::Alive(found) => still_running(found),
+        ProcessLook::Gone => false,
+        ProcessLook::Unknown => !matches!(look_of(raw), ProcessLook::Gone),
+    };
+}
+
+/// What:
+///  Whether a stop waits for anything still running:
+/// the root of the step and every member of its tree.
+/// Why:
+///   The root is not always a member of the tree:
+/// a record that could not be read leaves no start time to name it by,
+///  and a stop that then looked only at the tree ended nothing and waited for nothing,
+/// so a live Git got no grace between
+///  the request and the kill.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theStopWaits = (tree, root) => rootStillRunning(root) || tree.some(stillRunning);
+/// ```
+#[cfg(unix)]
+pub(crate) fn the_stop_waits(tree: &[TreeMember], raw: i32, at_start: &ProcessLook) -> bool {
+    return root_still_running(raw, at_start) || tree.iter().any(still_running);
 }
 
 /// What:
@@ -241,18 +337,18 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
     // wait for that output would outlast the bound by as long as they live.
     let below: Vec<TreeMember> = descendants_of(raw);
-    // Three answers, not two: a record that could not be read is not a process that has gone, so the root is still
-    //  signalled (`signal_root`) and still waited for (`still_running`).
-    let root: ProcessLook = look_of(raw);
-    let mut tree: Vec<TreeMember> = match root.clone() {
+    // Three answers, not two: a record that could not be read is not a process that has gone, so the root is still waited
+    //  for (`root_still_running`).
+    let root_at_start: ProcessLook = look_of(raw);
+    let mut tree: Vec<TreeMember> = match root_at_start.clone() {
         ProcessLook::Alive(found) => vec![found],
         ProcessLook::Gone | ProcessLook::Unknown => Vec::new(),
     };
     tree.extend(below.iter().cloned());
     // A process number can be reused once the waiting thread has reaped the child, and the child is reaped as soon as it
-    // ends, which may be well before the grace is over (a helper below it can outlive it). The signals therefore go to the
-    // root only while it is still the process that was found, by its recorded start time; where its record could not be read
-    // it is signalled without that check (`signal_root`), because a refusal is not an exit.
+    // ends, which may be well before the grace is over (a helper below it can outlive it). The signals therefore go through a
+    // descriptor taken from a look made at the signal itself, and never to a number alone; where the record could not be read
+    // nothing is signalled (`signal_root`), because a refusal is not a proof of which process the number names.
     // The locks the tree holds are claimed while their pid files still name the holders: the signals below can cut Git's cleanup
     //  between the removal of a pid file and the removal of its lock.
     let seen: Vec<TreeMember> = tree.clone();
@@ -264,18 +360,18 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
             locks.clone()
         }
     };
-    signal_root(&root, raw, libc::SIGTERM);
+    signal_root(raw, libc::SIGTERM);
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
-    while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && tree.iter().any(still_running) {
+    while escalation_waits(asked.elapsed(), STOP_GRACE, tree.as_slice()) && the_stop_waits(tree.as_slice(), raw, &root_at_start) {
         tokio::time::sleep(STOP_POLL).await;
     }
-    signal_root(&root, raw, libc::SIGKILL);
+    signal_root(raw, libc::SIGKILL);
     kill_members(below.as_slice());
     // The waiting thread reaps the child, so the watcher only looks. A step in an uninterruptible call ends when the kernel
     // lets it go, which can be long after the bound; the locks it creates on the way out are swept then, or when the watch
     // is dropped, whichever comes first.
-    while tree.iter().any(still_running) {
+    while the_stop_waits(tree.as_slice(), raw, &root_at_start) {
         // A mark that arrives is ignored, and a timeout is the next look; a closed channel means the watch was dropped, so nobody
         // is left to tell and the locks are swept below.
         if let Ok(None) = tokio::time::timeout(STOP_POLL, incoming.recv()).await {
