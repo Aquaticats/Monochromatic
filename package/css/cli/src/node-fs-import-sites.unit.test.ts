@@ -7,7 +7,8 @@
  missing builtins. The package therefore loads the module once, behind the
  computed specifier in `fs.ts`, and hands the loaded module to every caller.
  This suite fails when a statically resolvable spelling appears in a source
- module, or when the computed specifier the readers rely on disappears.
+ module, and it reads the specifier out of each `import(...)` call rather
+ than matching a pattern, so a computed argument never counts.
  */
 import { readdirSync, readFileSync, } from 'node:fs';
 import { basename, join, } from 'node:path';
@@ -32,12 +33,30 @@ const sourceDirectory = import.meta.dirname;
 const testFileSuffix = '.test.ts';
 
 /**
- Dynamic-import spelling of Node's filesystem module that a bundler resolves
- statically: `import('node:fs')` or `import('node:fs/promises')` in any quote
- style. A computed specifier (`import(nodeFsSpecifier)`) never matches,
- because its argument is not a string literal.
+ Specifier text of a dynamic import call written with a literal argument,
+ as it reads once quotes and surrounding space are stripped.
  */
-const literalNodeFsImport = /import\(\s*['"`]node:fs(?:\/promises)?['"`]/u;
+const dynamicImportPrefix = 'import(';
+
+/**
+ Quote characters a literal specifier may be written with.
+ */
+const quoteCharacters = [
+  '"',
+  "'",
+  '`',
+] as const;
+
+/**
+ Specifier texts a bundler resolves statically, i.e. Node's filesystem module
+ named as a literal.
+ */
+const literalNodeFsSpecifiers: ReadonlySet<string> = new Set(
+  [
+    'node:fs',
+    'node:fs/promises',
+  ],
+);
 
 /**
  Source modules of this package, test files excluded.
@@ -58,11 +77,48 @@ function bundledSourcePaths(): string[] {
 }
 
 /**
- Line numbers of every statically resolvable `node:fs` import in one module.
+ Argument text of the first dynamic import call on a line, with quotes and
+ surrounding space stripped.
+ 
+ @param line - One source line.
+ 
+ @returns Stripped argument text, or empty string when the line has no
+ complete dynamic import call.
+ */
+function dynamicImportArgument(line: string,): string {
+  const callIndex = line.indexOf(dynamicImportPrefix,);
+  if (callIndex === (-1))
+    return '';
+
+  const argumentStart = callIndex + dynamicImportPrefix.length;
+  const argumentEnd = line.indexOf(')', argumentStart,);
+  if (argumentEnd === (-1))
+    return '';
+
+  /**
+   Argument as written, before quotes are stripped.
+   */
+  const argument = line.slice(
+    argumentStart,
+    argumentEnd,
+  )
+    .trim();
+  return quoteCharacters
+    .reduce(function withoutQuote(text, quote,) {
+      return text.replaceAll(
+        quote,
+        '',
+      );
+    }, argument,)
+    .trim();
+}
+
+/**
+ Statically resolvable `node:fs` import sites in one module.
  
  @param filePath - Absolute path of the module to inspect.
  
- @returns One `relativePath:lineNumber` entry per literal import site.
+ @returns One `fileName:lineNumber` entry per literal import site.
  */
 function literalNodeFsImportSites(filePath: string,): string[] {
   return readFileSync(
@@ -71,7 +127,7 @@ function literalNodeFsImportSites(filePath: string,): string[] {
   )
     .split('\n',)
     .flatMap(function sitesOnLine(line, index,) {
-      return literalNodeFsImport.test(line,)
+      return literalNodeFsSpecifiers.has(dynamicImportArgument(line,),)
         ? [`${basename(filePath,)}:${index + 1}`,]
         : [];
     },);
@@ -84,7 +140,7 @@ await describe({
   children: [
     it({
       name: 'no source module spells node:fs as a static import specifier',
-      fn: () => {
+      fn: async () => {
         const sites = bundledSourcePaths()
           .flatMap(literalNodeFsImportSites,);
         expect(sites,).toEqual([],);

@@ -46,6 +46,16 @@ const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
   ? await import(nodeFsSpecifier) as typeof NodeFs
   : NO_NODE_FS;
 
+/**
+ Promise-based filesystem API of the module loaded above, or
+ {@link NO_NODE_FS} in the browser. Reading it once keeps every call site
+ down to a single member access, so none of them names `node:fs` itself.
+ */
+const nodeFsPromises: typeof NodeFs.promises | typeof NO_NODE_FS = nodeFs
+  === NO_NODE_FS
+  ? NO_NODE_FS
+  : nodeFs.promises;
+
 //endregion Runtime module loading
 
 //region File reading
@@ -76,8 +86,8 @@ export async function readTextFile(absolutePath: string,): Promise<string> {
   if (cached !== undefined)
     return cached;
 
-  if (nodeFs !== NO_NODE_FS) {
-    return nodeFs.promises.readFile(
+  if (nodeFsPromises !== NO_NODE_FS) {
+    return await nodeFsPromises.readFile(
       absolutePath,
       'utf8',
     );
@@ -156,14 +166,14 @@ export async function writeTextFileEnsuringParentDirectory({
   readonly absolutePath: string;
   readonly content: string;
 },): Promise<void> {
-  if (nodeFs === NO_NODE_FS)
+  if (nodeFsPromises === NO_NODE_FS)
     throw new Error(`No filesystem available to write: ${absolutePath}`,);
 
-  await nodeFs.promises.mkdir(
+  await nodeFsPromises.mkdir(
     dirname(absolutePath,),
     { recursive: true, },
   );
-  await nodeFs.promises.writeFile(
+  await nodeFsPromises.writeFile(
     absolutePath,
     content,
   );
