@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@monochromatic-dev/caught-value-core": "workspace:*",
+    "@monochromatic-dev/logger-core": "workspace:*",
     "@valibot/to-json-schema": "catalog:",
     "valibot": "catalog:"
   },

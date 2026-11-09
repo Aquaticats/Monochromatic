@@ -1,8 +1,24 @@
 // Serial request queue: frees the stdin read loop while tool execution stays one at a time.
 
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import { diagnosticLogger, } from './diagnostic-logger.ts';
 
 import type { JsonRpcId, } from './json-rpc.ts';
+
+//region Logging
+
+/**
+ Logger for this module, re-tagged with the enclosing function name at each
+ site.
+ */
+const queueLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'transport-queue',
+},);
+
+//endregion Logging
 
 //region Queue vocabulary: entries, sentinels, and the public surface
 
@@ -291,10 +307,11 @@ export function createSerialRequestQueue(
       await drain();
     }
     catch (error: unknown) {
-      console.error(
-        '[mcp-stdio] request queue stopped:',
-        caughtValueText(error,),
-      );
+      tagged({
+        tag: recordFailure.name,
+        l: queueLogger,
+      },)
+        .error(`request queue stopped: ${caughtValueText(error,)}`,);
       failure.set(
         'error',
         error,

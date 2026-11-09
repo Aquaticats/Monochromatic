@@ -5,6 +5,13 @@
  */
 
 import { readFile, } from 'node:fs/promises';
+import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { tagged, } from '@monochromatic-dev/logger-core/ts/tagged.ts';
+
+import {
+  diagnosticLogger,
+  reportUnreadable,
+} from './diagnostic-logger.ts';
 
 //region Constants
 
@@ -64,7 +71,15 @@ function effortLevelFromSettings(raw: string,): string {
       ? level
       : DEFAULT_EFFORT_LEVEL;
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // The settings file was read, so unparsable text is durable corruption of a
+    // user file rather than an absent one, and it silently reverts the effort
+    // indicator to the default on every render until it is repaired.
+    tagged({
+      tag: effortLevelFromSettings.name,
+      l: diagnosticLogger,
+    },)
+      .warn(`settings JSON is unparsable, so the effort level stays unknown: ${caughtValueText(error,)}`,);
     return DEFAULT_EFFORT_LEVEL;
   }
 }
@@ -84,15 +99,15 @@ function effortLevelFromSettings(raw: string,): string {
  ```
  */
 async function readEffortIndicator(): Promise<string> {
+  /**
+   User home directory; empty path simply fails to resolve settings.
+   */
+  const { HOME: home = '', } = process.env;
+  /**
+   Path to the global Claude Code settings file storing `effortLevel`.
+   */
+  const settingsPath = `${home}/.claude/settings.json`;
   try {
-    /**
-     User home directory; empty path simply fails to resolve settings.
-     */
-    const { HOME: home = '', } = process.env;
-    /**
-     Path to the global Claude Code settings file storing `effortLevel`.
-     */
-    const settingsPath = `${home}/.claude/settings.json`;
     /**
      Raw JSON read from disk.
      */
@@ -106,7 +121,17 @@ async function readEffortIndicator(): Promise<string> {
     const level = effortLevelFromSettings(raw,);
     return EFFORT_SYMBOLS[level] ?? '';
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // A home without a settings file is ordinary, and so is this line: the
+    // reason still names the file the level was read from.
+    reportUnreadable({
+      error,
+      l: tagged({
+        tag: readEffortIndicator.name,
+        l: diagnosticLogger,
+      },),
+      subject: `effort level unreadable from ${settingsPath}`,
+    },);
     return '';
   }
 }
