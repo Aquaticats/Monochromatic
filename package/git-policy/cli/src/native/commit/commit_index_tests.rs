@@ -244,6 +244,33 @@ fn unmerged_paths_are_listed_once() {
     remove(root.as_path());
 }
 
+/// The unmerged paths are named to `:(top,literal)` specs and to the person,
+/// so a commit run from a subdirectory must be answered with repository-relative names:
+/// `git ls-files` alone answers relative to the directory Git runs in.
+#[test]
+fn unmerged_paths_of_a_nested_directory_are_named_from_the_top() {
+    let root: PathBuf = fixture("commit-index-unmerged-nested");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::create_dir(repo.join("sub")).expect("sub directory");
+    std::fs::write(repo.join("sub/f"), b"conflict\n").expect("write sub/f");
+    let blob: String = git_text(repo.as_path(), &["hash-object", "-w", "sub/f"]);
+    let info: String = format!("100644 {blob} 1\tsub/f\n100644 {blob} 2\tsub/f\n100644 {blob} 3\tsub/f\n");
+    let mut request = indexed_request(
+        repo.as_path(),
+        &["update-index", "--index-info"],
+        Some(indexes.commit_index.as_path()),
+        Some(indexes.object_directory.as_path()),
+    );
+    request.input = Some(info.into_bytes());
+    run_git_checked(&git_context(), &request).expect("conflict stages");
+    assert_eq!(
+        list_unmerged_index_paths(&git_context(), repo.join("sub").as_path(), indexes.commit_index.as_path()).expect("unmerged"),
+        vec![b"sub/f".to_vec()],
+        "the path is named as the specs and the warning write it"
+    );
+    remove(root.as_path());
+}
+
 /// The layout of a repository and the capture of its base give the same base the selection uses.
 #[test]
 fn selection_base_is_the_recorded_base() {
