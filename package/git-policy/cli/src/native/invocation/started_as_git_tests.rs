@@ -279,7 +279,7 @@ fn a_chain_whose_own_environment_has_no_marker_continues_the_nearest_one_above_i
     let nearer: Vec<(OsString, OsString)> = vec![(OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 700, STARTER_IDENTITY, 2))];
     let further: Vec<(OsString, OsString)> = vec![(OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 600, STARTER_IDENTITY, 5))];
     assert_eq!(chain_marker_among(own.as_slice(), &[]), None, "nothing above and nothing here");
-    assert_eq!(chain_marker_among(own.as_slice(), &[unmarked.clone()]), None, "an ancestor without a marker says nothing");
+    assert_eq!(chain_marker_among(own.as_slice(), std::slice::from_ref(&unmarked)), None, "an ancestor without a marker says nothing");
     assert_eq!(
         chain_marker_among(own.as_slice(), &[unmarked.clone(), nearer.clone(), further.clone()]),
         Some(StartMarker { starts: 2, ..marker(700, StartMode::Child) }),
@@ -288,14 +288,14 @@ fn a_chain_whose_own_environment_has_no_marker_continues_the_nearest_one_above_i
     let mut with_own: Vec<(OsString, OsString)> = own.clone();
     with_own.push((OsString::from(STARTED_AS_GIT_VARIABLE), marker_value(StartMode::Child, 800, STARTER_IDENTITY, 1)));
     assert_eq!(
-        chain_marker_among(with_own.as_slice(), &[nearer.clone()]),
+        chain_marker_among(with_own.as_slice(), std::slice::from_ref(&nearer)),
         Some(marker(800, StartMode::Child)),
         "this process's own record is its chain"
     );
-    let above: Vec<Vec<(OsString, OsString)>> = vec![unmarked, nearer.clone()];
+    let above: Vec<Vec<(OsString, OsString)>> = vec![unmarked, nearer];
     let (found, said_in) = chain_marker_and_where(own.as_slice(), above.as_slice()).expect("the marker above");
     assert_eq!(found.starts, 2);
-    assert_eq!(said_in, nearer.as_slice(), "the environment the message is written from");
+    assert_eq!(said_in, above.get(1).expect("the second ancestor").as_slice(), "the environment the message is written from");
 }
 
 /// What:

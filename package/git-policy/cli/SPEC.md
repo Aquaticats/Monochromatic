@@ -4787,7 +4787,8 @@ the options weighed and the controls.)
   so no count of it can refuse it:
   Git puts its own exec directory first on the `PATH` it runs an alias with,
   and `git <alias>` inside one is real Git
-  (measured: the marker's count is 1 at every level of nine such aliases,
+  (measured:
+  the marker's count is 1 at every level of nine such aliases,
   and the wrapped `git a` answers with real Git's own output).
   Test:
   `a_finite_chain_of_aliases_reaches_the_command_the_person_asked_for`.
@@ -4815,20 +4816,26 @@ the options weighed and the controls.)
   The message is written from the environment the marker was read in,
   so it names that Git and that `PATH`
   even though the arriving wrapper's own environment held neither.
-  The walk costs 0.18 ms of a forwarded command, measured by alternating two builds that differ only in it
-  (median 4.76 ms without it, 300 pairs);
+  The walk costs 0.18 ms of a forwarded command,
+  measured by alternating two builds that differ only in it
+  (median 4.76 ms without it,
+  300 pairs);
   it is made only when this process's own environment carries no marker.
   Test:
   `a_launcher_that_clears_the_environment_ends_the_chain`.
 - What a cleared environment still hides:
   a launcher that both clears it and replaces itself with the wrapper
   (`exec env --ignore-environment ... wrapper`),
-  which leaves one process number running the wrapper, the launcher and the wrapper again with no
+  which leaves one process number running the wrapper,
+  the launcher and the wrapper again with no
   environment of its own to read and no second process to ask.
-  Nothing in the process survives that `exec` but its number, its open descriptors and its limits,
+  Nothing in the process survives that `exec` but its number,
+  its open descriptors and its limits,
   and the wrapper carries none of them as a record,
   so the level after that one starts again from a first start and no chain of it is counted.
-  The reported shape, whose levels wait for their children, is covered above.
+  The reported shape,
+  whose levels wait for their children,
+  is covered above.
 
 ### The wrapper falls back to the Git its commit service was set up with
 

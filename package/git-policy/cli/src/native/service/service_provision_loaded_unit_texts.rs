@@ -6,7 +6,8 @@
 //! Why:
 //!  A unit file that holds the text this wrapper would write is not by itself an installation the manager runs:
 //! the manager
-//!  starts, reloads and caches units on its own schedule,
+//!  starts,
+//! reloads and caches units on its own schedule,
 //! so a process killed between writing a template and
 //!  asking for the reload leaves files that match while the manager still holds the text it loaded
 //!  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,

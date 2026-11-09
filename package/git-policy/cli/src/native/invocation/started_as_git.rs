@@ -355,7 +355,28 @@ fn own_start_count() -> u32 {
         return marker.starts;
     }
     // The own environment carries none: the nearest ancestor that does names the chain this start continues.
-    return ancestor_marker().map_or(0, |marker| marker.starts);
+    return ancestor_marker().map_or(0, starts_of);
+}
+
+/// The number of starts a marker records,
+/// for the callers that only need that.
+fn starts_of(marker: StartMarker) -> u32 {
+    return marker.starts;
+}
+
+/// The marker of a chain,
+/// where the caller has no use for the environment it was read from.
+fn marker_of_pair(found: (StartMarker, Vec<(OsString, OsString)>)) -> StartMarker {
+    let (marker, environment) = found;
+    drop(environment);
+    return marker;
+}
+
+/// The marker of a chain and the borrowed environment it was read from,
+/// for the callers that only need the marker.
+fn marker_of_borrowed_pair<'a>(found: (StartMarker, &'a [(OsString, OsString)])) -> StartMarker {
+    let (marker, _environment) = found;
+    return marker;
 }
 
 /// What:
@@ -371,7 +392,7 @@ fn own_start_count() -> u32 {
 /// for (const environment of ancestorEnvironments()) { const marker = parseMarker(environment.CLI_GIT_STARTED_AS_GIT); if (marker) return marker; }
 /// ```
 fn ancestor_marker() -> Option<StartMarker> {
-    return first_marker_above(|pid| { return environment_of(pid); }).map(|(marker, _environment)| { return marker; });
+    return first_marker_above(environment_of).map(marker_of_pair);
 }
 
 /// What:
@@ -393,11 +414,11 @@ fn first_marker_above(environment_of: impl Fn(u32) -> Option<Vec<(OsString, OsSt
         if pid == 0 {
             return None;
         }
-        let Some(environment) = environment_of(pid) else { return None };
+        let environment: Vec<(OsString, OsString)> = environment_of(pid)?;
         if let Some(marker) = marker_of(environment.as_slice()) {
             return Some((marker, environment));
         }
-        let Some(parent) = parent_of(pid) else { return None };
+        let parent: u32 = parent_of(pid)?;
         pid = parent;
     }
     return None;
@@ -442,6 +463,16 @@ fn ancestor_environments() -> Vec<Vec<(OsString, OsString)>> {
     return Vec::new();
 }
 
+/// Whether this byte separates the entries of a process environment.
+fn is_separator(byte: &u8) -> bool {
+    return *byte == 0;
+}
+
+/// Whether this byte separates a name from its value in a process environment.
+fn is_equals_sign(byte: &u8) -> bool {
+    return *byte == b'=';
+}
+
 /// What:
 ///  The environment of the process with this number,
 /// as name/value pairs,
@@ -461,11 +492,11 @@ fn environment_of(pid: u32) -> Option<Vec<(OsString, OsString)>> {
     use std::os::unix::ffi::OsStrExt;
     let bytes: Vec<u8> = std::fs::read(format!("/proc/{pid}/environ")).ok()?;
     let mut environment: Vec<(OsString, OsString)> = Vec::new();
-    for entry in bytes.split(|byte| { return *byte == 0; }) {
+    for entry in bytes.split(is_separator) {
         if entry.is_empty() {
             continue;
         }
-        let Some(equals) = entry.iter().position(|byte| { return *byte == b'='; }) else { continue };
+        let Some(equals) = entry.iter().position(is_equals_sign) else { continue };
         let name: OsString = OsString::from(OsStr::from_bytes(&entry[..equals]));
         let value: OsString = OsString::from(OsStr::from_bytes(&entry[equals + 1..]));
         environment.push((name, value));
@@ -736,7 +767,7 @@ pub fn chain_marker_among(
     environment: &[(OsString, OsString)],
     ancestors: &[Vec<(OsString, OsString)>],
 ) -> Option<StartMarker> {
-    return chain_marker_and_where(environment, ancestors).map(|(marker, _where)| { return marker; });
+    return chain_marker_and_where(environment, ancestors).map(marker_of_borrowed_pair);
 }
 
 /// What:

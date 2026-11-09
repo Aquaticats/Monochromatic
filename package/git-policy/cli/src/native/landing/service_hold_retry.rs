@@ -95,7 +95,8 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 /// What:
 ///  Starts Git once with its standard error in `captured`.
 /// Why:
-///   The end is kept whole and not as a status: a Git that a signal ended has to stay that,
+///   The end is kept whole and not as a status:
+/// a Git that a signal ended has to stay that,
 /// so the caller can end
 ///  the wrapper the same way.
 ///
