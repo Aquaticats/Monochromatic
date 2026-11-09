@@ -1,5 +1,9 @@
 # `patch-invalid` hides the finding that caused it
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/policy-engine/commit-transaction-patch.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+
 ## Symptom
 
 A `git commit` through `git-policy-cli` fails with only this on stderr,

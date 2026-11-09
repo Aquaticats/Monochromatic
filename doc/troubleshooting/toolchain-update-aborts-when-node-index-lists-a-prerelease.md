@@ -1,5 +1,14 @@
 # `toolchain:update` aborts when the nodejs.org index lists a pre-release first
 
+Note 2026-11-09T16:38:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/file-enforcer/core/src/toolchain/update.resolvers.node.ts` left the tree on 2026-10-31 in
+`e7b5130459`.
+`package/file-enforcer/core/src/toolchain/update.unit.test.ts` left the tree on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/src/toolchain/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 Observed 2026-10-29.

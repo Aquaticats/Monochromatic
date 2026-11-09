@@ -11,6 +11,15 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:55:17-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/native/rule_linked_worktree.rs` is now
+`package/git-policy/cli/src/native/command/rule_linked_worktree.rs`,
+moved 2026-11-03 in `53334fa2f9`.
+`package/git-policy/cli/src/native/effective_target.rs` is now
+`package/git-policy/cli/src/native/invocation/effective_target.rs`,
+moved 2026-11-03 in `a0d60dc29a`.
+
 ## Symptom
 
 `mise self-update` (mise 2026.10.20,

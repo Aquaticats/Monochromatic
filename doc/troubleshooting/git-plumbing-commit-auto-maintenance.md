@@ -1,5 +1,17 @@
 # Git 2.55 plumbing commits never run automatic maintenance, so one pack per landing slows every later Git process
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/policy-engine/commit-landing-objects.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+`package/git-policy/cli/src/policy-engine/commit-landing-support.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+`package/git-policy/cli/src/policy-engine/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/policy-engine/commit-landing-auto-maintenance.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+
 ## Symptom
 
 Per-commit wall time through the cli-git wrapper grew with the number of commits the wrapper had already landed,

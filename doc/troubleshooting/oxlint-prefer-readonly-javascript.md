@@ -1,5 +1,10 @@
 # Oxlint inserts TypeScript readonly syntax into JavaScript private fields
 
+Note 2026-11-09T16:46:15-05:00:
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+
 ## Symptom and scope
 
 Oxlint `1.88.0` with `oxlint-tsgolint` `7.0.2004`
