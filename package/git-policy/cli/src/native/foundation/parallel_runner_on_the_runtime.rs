@@ -441,9 +441,11 @@ pub(crate) async fn wait_for_a_message_or_a_return<R>(
     receiver: &mut UnboundedReceiver<Message<R>>,
     still_running: &SlotsStillRunning,
 ) -> Option<Message<R>> {
+    // The wake branch is never switched off: a wake stored while nothing waited is consumed here, and a branch
+    //  disabled by the count cannot consume it (`tokio-1.54.1/src/sync/notify.rs`: at most one permit is stored).
     tokio::select! {
         arrived = receiver.recv() => arrived,
-        () = still_running.changed.notified(), if still_running.running.load(Ordering::SeqCst) > 0 => return None,
+        () = still_running.changed.notified() => None,
     }
 }
 
