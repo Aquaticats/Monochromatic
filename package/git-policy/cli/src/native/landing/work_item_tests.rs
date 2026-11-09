@@ -975,3 +975,26 @@ fn a_failing_standard_error_does_not_stop_the_queue() {
     assert_eq!(names(work.as_path(), FAILED), vec![bad]);
     remove(directory.as_path());
 }
+
+/// The notice of a push the service gave up on is made before the record moves to `failed`:
+/// nothing scans `failed`,
+/// so a kill between the two would abandon the branch in silence and no later command would ever learn of it.
+#[test]
+fn the_notice_of_a_given_up_push_is_made_before_the_record_is_failed() {
+    let directory: PathBuf = fixture("work-given-up-notice-first");
+    let work: PathBuf = directory.join(WORK_DIRECTORY);
+    let last_try: WorkItem = WorkItem { tries: MAX_TRIES - 1, ..item(WorkKind::Push, "jjj") };
+    enqueue(work.as_path(), &last_try).expect("enqueue");
+    claim_next(work.as_path(), &clock()).expect("claim").expect("item");
+    let failed_path: PathBuf = state_directory(work.as_path(), FAILED).join(last_try.id());
+    let told: std::cell::RefCell<Vec<bool>> = std::cell::RefCell::new(Vec::new());
+    let telling = |given_up: &WorkItem| {
+        assert_eq!(given_up.id(), last_try.id());
+        told.borrow_mut().push(failed_path.exists());
+    };
+    let recovered: Recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &clock().advanced(LEASE * 2), LEASE, MAX_TRIES, &telling);
+    assert_eq!(recovered.given_up.iter().map(WorkItem::id).collect::<Vec<String>>(), vec![last_try.id()], "the pass gave up on the push");
+    assert_eq!(*told.borrow(), vec![false], "the person's notice was made while the record was still this instance's, before it moved to `failed`");
+    assert!(failed_path.exists(), "and the record then moved to `failed`");
+    remove(directory.as_path());
+}

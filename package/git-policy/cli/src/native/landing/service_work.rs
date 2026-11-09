@@ -48,7 +48,7 @@ use crate::service_review_key::ReviewKey;
 use crate::standards_review_run::ReviewOptions;
 use crate::transaction_git::GitContext;
 use crate::work_item::WorkItem;
-use crate::work_item_recovery::{next_claim_expiry, requeue_expired_reporting};
+use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired_reporting_telling};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -150,7 +150,10 @@ pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
     }
     let work_dir: PathBuf = work_directory(git_dir);
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
-    tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
+    // The notice is written before the item moves to `failed`: nothing scans `failed`, so the order is the only thing that
+    //  keeps a kill in between from abandoning the branch in silence.
+    let telling = |given_up: &WorkItem| tell_about_given_up(git_dir, std::slice::from_ref(given_up));
+    let _recovered: Recovered = requeue_expired_reporting_telling(work_dir.as_path(), now, lease, MAX_TRIES, &telling);
     run_due_push_retries(git_dir, handlers, retrying.due.as_slice(), &mut replanning);
     drain_pending(git_dir, handlers, lease, renewal, &mut replanning);
     let wait: Option<Duration> = next_claim_expiry(work_dir.as_path(), &ClaimTime::read(), lease);
@@ -208,7 +211,8 @@ pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers,
         return Drained::default();
     }
     let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
-    tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
+    let telling = |given_up: &WorkItem| tell_about_given_up(common.as_path(), std::slice::from_ref(given_up));
+    let _recovered: Recovered = requeue_expired_reporting_telling(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES, &telling);
     drain_pending(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning);
     let wait: Option<Duration> = next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);
     return Drained { wait, changes: replanning.changes };
