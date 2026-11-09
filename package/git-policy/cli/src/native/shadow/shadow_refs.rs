@@ -166,6 +166,124 @@ pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &str) -> Vec<u8
 }
 
 /// What:
+///  The bytes of a direct ref's file:
+/// the object name and a line feed.
+/// Why:
+///   That is the whole of a loose ref on the files backend,
+///  so a ref the wrapper writes is the ref Git reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(`${oid}\n`)
+/// ```
+fn direct_ref_value(oid: &str) -> Vec<u8> {
+    let mut bytes: Vec<u8> = oid.as_bytes().to_vec();
+    bytes.push(b'\n');
+    return bytes;
+}
+
+/// What:
+///  The bytes of a symbolic ref's file:
+/// `ref:` ,
+///  the target and a line feed.
+/// Why:
+///   The target is bytes,
+/// because a reference name is,
+///  and a name that is not text reaches the shadow unchanged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.concat([Buffer.from('ref: '), target, Buffer.from('\n')])
+/// ```
+fn symbolic_ref_value(target: &[u8]) -> Vec<u8> {
+    let mut bytes: Vec<u8> = b"ref: ".to_vec();
+    bytes.extend_from_slice(target);
+    bytes.push(b'\n');
+    return bytes;
+}
+
+/// What:
+///  Writes one loose ref of a shadow,
+///  replacing what the name already holds.
+/// Why:
+///   A second attempt of the same transaction finds what the first one wrote,
+/// and a shadow's own `HEAD` is written by the skeleton before this,
+///  so a ref write replaces.
+///  The parents are made only when the write finds none:
+/// a snapshot ref such as `refs/remotes/origin/HEAD` lives packed in the real repository,
+///  so the shadow can hold no directory for it.
+///  The shadow is thrown away when its transaction ends and recovery removes it whole,
+/// so a torn ref file changes no outcome and none is synced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeFile(join(shadow, name), bytes).catch(async (error) => { if (error.code !== 'ENOENT') throw error; await mkdir(dirname(path), { recursive: true }); await writeFile(path, bytes); });
+/// ```
+fn write_loose_ref(shadow: &Path, name: &OsString, value: &[u8]) -> std::io::Result<()> {
+    let path: PathBuf = shadow.join(name);
+    return match std::fs::write(path.as_path(), value) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let Some(parent) = path.parent() else {
+                return Err(error);
+            };
+            std::fs::create_dir_all(parent)?;
+            std::fs::write(path.as_path(), value)
+        }
+        other => other,
+    };
+}
+
+/// What:
+///  Turns the result of one ref write into the failure a commit reports.
+/// Why:
+///   Both kinds of loose ref report the same way,
+/// and a named function stands where a closure that built
+///  that text stood.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refFailure(error: Error): GitFailure; // new GitFailure(`writing a shadow ref failed: ${error}`)
+/// ```
+fn ref_failure(error: std::io::Error) -> GitFailure {
+    return GitFailure(format!("writing a shadow ref failed: {error}"));
+}
+
+/// What:
+///  Writes the files backend's `HEAD`,
+///  and the private target ref it names.
+/// Why:
+///   `HEAD` and a loose ref are two small files,
+/// and Git reads them directly;
+/// the reference update and the symbolic ref that wrote them were two Git starts
+///  per commit for a few bytes each.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await writeLooseRef(shadow, target, `${oid}\n`); await writeLooseRef(shadow, 'HEAD', `ref: ${target}\n`);
+/// ```
+fn write_files_shadow_head(shadow: &Path, symbolic_head: &SymbolicHead, base: &Base) -> Result<(), GitFailure> {
+    let head: OsString = OsString::from("HEAD");
+    match symbolic_head {
+        SymbolicHead::Branch(reference) => {
+            if let Base::Commit(oid) = base {
+                write_loose_ref(shadow, &os_from_path_bytes(reference.as_bytes()), direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
+            }
+            write_loose_ref(shadow, &head, symbolic_ref_value(reference.as_bytes()).as_slice()).map_err(ref_failure)?;
+            return Ok(());
+        }
+        SymbolicHead::Detached => {
+            let Base::Commit(oid) = base else {
+                return Err(GitFailure(String::from(
+                    "A detached HEAD has no unborn preparation base.",
+                )));
+            };
+            write_loose_ref(shadow, &head, direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
+            return Ok(());
+        }
+    }
+}
+
+/// What:
 ///  Points the shadow `HEAD` at the private target:
 ///  symbolic to the branch,
 /// or detached at the base.
@@ -236,6 +354,7 @@ pub fn write_shadow_refs(
     base: &Base,
 ) -> Result<(), GitFailure> {
     let refs: Vec<RefSnapshotEntry> = list_real_refs(context, cwd)?;
+    let files: bool = ref_format == RefFormat::Files;
     match ref_format {
         RefFormat::Files => {
             // Unsynced: nothing reads the throwaway shadow's refs after a crash on the files backend, so a torn or lost
@@ -267,6 +386,16 @@ pub fn write_shadow_refs(
         if entry.symref.is_empty() {
             continue;
         }
+        // A symbolic ref is a file holding `ref: <target>`; the reftable backend keeps its refs in tables only Git writes.
+        if files {
+            write_loose_ref(
+                shadow,
+                &os_from_path_bytes(entry.name.as_slice()),
+                symbolic_ref_value(entry.symref.as_slice()).as_slice(),
+            )
+            .map_err(ref_failure)?;
+            continue;
+        }
         run_git_checked(
             context,
             &shadow_request(
@@ -279,6 +408,9 @@ pub fn write_shadow_refs(
                 ],
             ),
         )?;
+    }
+    if files {
+        return write_files_shadow_head(shadow, symbolic_head, base);
     }
     return write_shadow_head(context, shadow, symbolic_head, base);
 }

@@ -6,6 +6,8 @@ use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
+#[cfg(unix)]
+use crate::recording_git::{recorded_starts, recording_context};
 
 /// A bare shadow repository in the fixture,
 /// with the given ref backend.
@@ -37,6 +39,18 @@ fn decorated_repository(root: &Path) -> (PathBuf, String) {
     git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/main"]);
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     return (repo, head);
+}
+
+/// Whether the only Git start a files snapshot made is the listing of the real refs.
+///
+/// The listing is Git's,
+/// because the wrapper's in-process reader declines a repository this one is too large for,
+///  and every ref write must be the wrapper's own.
+#[cfg(unix)]
+fn assert_only_the_listing_started(log: &Path) {
+    let starts: Vec<String> = recorded_starts(log);
+    assert_eq!(starts.len(), 1, "{starts:?}");
+    assert!(starts[0].starts_with("for-each-ref "), "{starts:?}");
 }
 
 /// Packed text names the header,
@@ -106,6 +120,64 @@ fn files_shadow_snapshots_refs_and_points_head_at_the_branch() {
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/heads/main"]), head);
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/tags/v1"]), head);
     assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "refs/heads/alias"]), "refs/heads/main");
+    remove(root.as_path());
+}
+
+/// The files backend's shadow ref store is written by the wrapper itself:
+/// the one Git start it makes is the listing of the real refs,
+/// and no start writes a ref.
+///
+/// Its ref store is what a hook and the scratch commit read,
+/// so the private target,
+///  the symbolic refs,
+///  and `HEAD` must be exactly what `git update-ref` and `git symbolic-ref` wrote.
+#[cfg(unix)]
+#[test]
+fn a_files_snapshot_writes_every_ref_without_a_git_start() {
+    let root: PathBuf = fixture("shadow-refs-files-no-starts");
+    let (repo, head) = decorated_repository(root.as_path());
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    let (context, log) = recording_context(root.as_path());
+    write_shadow_refs(
+        &context,
+        repo.as_path(),
+        shadow.as_path(),
+        RefFormat::Files,
+        "refs/heads/main",
+        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    assert_only_the_listing_started(log.as_path());
+    assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
+    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/heads/main"]), head);
+    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/tags/v1"]), head);
+    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/heads/Zeta"]), head);
+    assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "refs/heads/alias"]), "refs/heads/main");
+    remove(root.as_path());
+}
+
+/// A detached shadow's `HEAD` is the base itself,
+/// written where Git reads it.
+#[cfg(unix)]
+#[test]
+fn a_files_detached_head_is_written_where_git_reads_it() {
+    let root: PathBuf = fixture("shadow-refs-files-head");
+    let (repo, head) = decorated_repository(root.as_path());
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    let (context, log) = recording_context(root.as_path());
+    write_shadow_refs(
+        &context,
+        repo.as_path(),
+        shadow.as_path(),
+        RefFormat::Files,
+        "refs/heads/main",
+        &SymbolicHead::Detached,
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    assert_only_the_listing_started(log.as_path());
+    assert_eq!(git_text(shadow.as_path(), &["rev-parse", "HEAD"]), head);
     remove(root.as_path());
 }
 
