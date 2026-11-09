@@ -45,7 +45,10 @@ use crate::repository_location::{
 };
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
-use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
+use crate::rule_worktree_dirty::{
+    DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
+    ignored_paths_queries,
+};
 use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
@@ -100,6 +103,16 @@ pub trait RepositoryFacts {
     fn index_vs_head(&mut self) -> Result<IndexVsHead, String>;
     /// Whether the worktree holds uncommitted state of the given scope.
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String>;
+    /// The worktree's ignored files whose paths the given revision's tree also tracks,
+    /// asked for a
+    ///  forced checkout,
+    ///  a forced switch and a hard reset.
+    /// A revision Git cannot resolve falls back to `HEAD`,
+    /// because every form that
+    ///  names no tree writes `HEAD`'s content into the worktree;
+    /// an unreadable `HEAD` is a failure,
+    ///  never an empty answer.
+    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String>;
     /// Whether the repository holds a stash entry.
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
@@ -294,6 +307,45 @@ impl GitFacts {
         }
         return self.layout.as_ref().and_then(Option::as_ref);
     }
+
+    /// What:
+    ///  Every path the given revision's tree holds,
+    ///  as Git printed them;
+    ///  nothing when Git cannot
+    ///       resolve the revision.
+    ///  `Result<Option<Vec<Vec<u8>>>, String>` is "the paths,
+    ///  no such revision,
+    ///  or why Git could
+    ///       not be asked".
+    /// Why:
+    ///   A name that is not a revision (a path of a checkout that names no tree) is resolved through `HEAD` by the
+    ///  caller,
+    ///  while a Git that cannot start or answer at all is a failure;
+    ///  `-r` reads the whole tree and
+    ///  `-z` keeps every path's bytes exactly as they are.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// async treePaths(revision: string): Promise<Buffer[] | undefined>;
+    /// ```
+    fn tree_paths(&mut self, revision: &OsStr) -> Result<Option<Vec<Vec<u8>>>, String> {
+        let mut arguments: Vec<OsString> = self.global_prefix.clone();
+        for token in ["ls-tree", "-r", "-z", "--name-only"] {
+            arguments.push(OsString::from(token));
+        }
+        arguments.push(revision.to_os_string());
+        let output: MetadataOutput = self.query(arguments, "the tree of a revision")?;
+        if !output.success {
+            return Ok(None);
+        }
+        let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+        for path in output.stdout.split(|byte: &u8| return *byte == 0) {
+            if !path.is_empty() {
+                paths.push(path.to_vec());
+            }
+        }
+        return Ok(Some(paths));
+    }
 }
 
 /// What:
@@ -353,6 +405,38 @@ impl RepositoryFacts for GitFacts {
         let arguments: Vec<OsString> = stash_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the repository stash")?;
         return stash_from_output(&output);
+    }
+
+    fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
+        // The revision the command names, when Git can resolve it; every form that names no tree writes `HEAD`'s.
+        let named: Option<Vec<Vec<u8>>> = match revision {
+            Some(name) => self.tree_paths(name)?,
+            None => None,
+        };
+        let tracked: Vec<Vec<u8>> = match named {
+            Some(paths) => paths,
+            None => match self.tree_paths(OsStr::new("HEAD"))? {
+                Some(paths) => paths,
+                None => {
+                    return Err(String::from(
+                        "monochromatic-git-policy-cli could not read the tree of HEAD, so the ignored files \
+                         cannot be compared with the tree this command writes into.",
+                    ));
+                }
+            },
+        };
+        if tracked.is_empty() {
+            return Ok(Vec::<String>::new());
+        }
+        // Git answers for these paths alone, so no query walks the worktree's ignored files.
+        let mut shared: Vec<String> = Vec::<String>::new();
+        for query in ignored_paths_queries(self.global_prefix.as_slice(), tracked.as_slice()) {
+            let output: MetadataOutput = self.query(query, "the ignored files")?;
+            for path in ignored_paths_from_answer(&output)? {
+                shared.push(String::from_utf8_lossy(path.as_slice()).into_owned());
+            }
+        }
+        return Ok(shared);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

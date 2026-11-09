@@ -19,8 +19,8 @@
 
 use super::commit::run_commit;
 use super::support::{
-    Fixture, Observed, fixture, git, observe, observe_raw, porcelain, remove, repository, run_wrapped,
-    stderr_of, stub_manual_viewer, wrapped,
+    Fixture, Observed, fixture, git, observe, observe_raw, porcelain, remove, repository, run_direct,
+    run_wrapped, stderr_of, stub_manual_viewer, wrapped,
 };
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -533,6 +533,77 @@ fn a_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
     remove(&fixture);
 }
 
+/// A repository whose `tracks` branch holds the environment file the person also keeps locally,
+/// with a linked worktree on its own branch,
+/// where the local content is written again.
+fn repository_that_tracks_an_ignored_file(fixture: &Fixture) -> (PathBuf, PathBuf) {
+    let repo: PathBuf = repository_with_ignored_work(fixture, OsStr::new("repo"));
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    keep_ignored_work(linked.as_path());
+    return (repo, linked);
+}
+
+/// A forced `checkout`, a forced `switch` and a hard `reset` replace an ignored file the target
+/// tree tracks,
+/// and the ignored file is where a person keeps their environment and their local secrets,
+/// so the guard reads the target tree and the ignored paths and refuses while they share a path.
+#[test]
+fn a_forced_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
+    let fixture: Fixture = fixture("discard-forced-ignored");
+    let (repo, linked): (PathBuf, PathBuf) = repository_that_tracks_an_ignored_file(&fixture);
+    let person_value: &[u8] = b"SECRET=the person value\n";
+    // What real Git does with the same command, so the loss the guard prevents is measured and not presumed.
+    let replaced: Observed = run_direct(&fixture, linked.as_path(), &["checkout", "--force", "tracks"]);
+    assert_eq!(replaced.code, Some(0), "{}", stderr_of(&replaced));
+    assert_eq!(
+        std::fs::read(linked.join(".env")).expect("ignored file"),
+        b"the tracked version\n",
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    git(&fixture, linked.as_path(), &["checkout", "--force", "side"]);
+    keep_ignored_work(linked.as_path());
+    for arguments in [
+        vec!["checkout", "--force", "tracks"],
+        vec!["switch", "--force", "tracks"],
+        vec!["reset", "--hard", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} replaced the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} replaced the ignored file"
+        );
+        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // The line names what the refusal saw, so a reader knows which paths were at stake.
+    let audit: PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let text: String = std::fs::read_to_string(&audit).expect("audit file");
+    let last: &str = text.lines().last().expect("a last line");
+    assert!(last.contains("\"form\":\"ResetHard\""), "{last}");
+    assert!(last.contains("\"ignoredAndTracked\":\".env\""), "{last}");
+    // A target tree that tracks no ignored path leaves the worktree nothing to lose, so the form runs.
+    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
+    for arguments in [
+        vec!["reset", "--hard", "side"],
+        vec!["checkout", "--force", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    remove(&fixture);
+}
+
 /// A stash entry the repository holds,
 /// as the person reads it.
 fn stash_entries(fixture: &Fixture, repo: &std::path::Path) -> String {
@@ -764,5 +835,47 @@ fn a_branch_deletion_records_the_branch_its_commit_and_whether_it_was_merged() {
     let missing: Observed = run_wrapped(&fixture, repo.as_path(), &["branch", "-D", "no-such-branch"]);
     assert_ne!(missing.code, Some(0));
     assert_eq!(audit_lines_of(repo.as_path()).len(), before);
+    remove(&fixture);
+}
+
+/// An alias is forwarded as the command it expands to,
+/// so the transform that keeps an ignored file sees the
+///  same command the guard decided on.
+#[test]
+fn an_alias_reaches_the_transform_that_keeps_ignored_files() {
+    let fixture: Fixture = fixture("discard-alias-transform");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    keep_ignored_work(repo.as_path());
+    let person_value: &[u8] = b"SECRET=the person value\n";
+    // The same command by name, and through an alias configured in the repository.
+    for arguments in [vec!["checkout", "tracks"], vec!["go"]] {
+        if arguments[0] == "go" {
+            git(&fixture, repo.as_path(), &["config", "alias.go", "checkout tracks"]);
+        }
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert!(!rejected_by_policy(&observed), "{arguments:?} was rejected by the policy: {}", stderr_of(&observed));
+        assert_ne!(observed.code, Some(0), "{arguments:?} replaced the ignored file");
+        assert_eq!(
+            std::fs::read(repo.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} replaced the ignored file"
+        );
+        assert_eq!(branch_of(&fixture, repo.as_path()), "main", "{arguments:?} switched anyway");
+        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // The alias reaches the guard too, so a form the guard rejects is rejected through it.
+    git(&fixture, repo.as_path(), &["config", "alias.wipe", "reset --hard"]);
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    let wiped: Observed = run_wrapped(&fixture, repo.as_path(), &["wipe"]);
+    assert!(rejected_by_policy(&wiped), "{}", stderr_of(&wiped));
+    assert_eq!(
+        std::fs::read(repo.join("tracked.txt")).expect("tracked file"),
+        b"the person wrote this\n"
+    );
     remove(&fixture);
 }

@@ -393,3 +393,30 @@ fn a_direct_check_applies_no_transform() {
     assert_eq!(unchanged.arguments, os_arguments(&["commit", "-a"]));
     assert_eq!(unchanged_asked, vec![String::from("location")]);
 }
+
+/// The transform sees the command Git will run,
+/// so an alias cannot carry a spelling the transform would rewrite
+///  into a command Git runs as the alias.
+#[test]
+fn an_alias_is_transformed_as_the_command_it_expands_to() {
+    let stage: StageRequest = request(Trigger::PreForward, no_controls());
+    // `status` always gets the hints turned off; the alias must get it too, because that is the command Git runs.
+    let (by_name, _asked) = pass(&stage, &["status"], scripted_facts(), LifecycleContent::None);
+    assert_eq!(
+        by_name.arguments,
+        os_arguments(&["-c", "advice.statusHints=false", "status"])
+    );
+    let (through_alias, alias_asked) = pass(
+        &stage,
+        &["-c", "alias.short=status", "short"],
+        scripted_facts(),
+        LifecycleContent::None,
+    );
+    // The wrapper forwards the expansion, global options included, which is the argument list the guard decided on.
+    assert_eq!(
+        through_alias.arguments,
+        os_arguments(&["-c", "alias.short=status", "-c", "advice.statusHints=false", "status"])
+    );
+    assert_eq!(through_alias.arguments[4..], by_name.arguments[2..]);
+    assert_eq!(alias_asked, vec![String::from("location")]);
+}

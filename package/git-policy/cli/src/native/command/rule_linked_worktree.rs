@@ -37,21 +37,22 @@
 /// import { cleanChangesWorktree, parseCleanRegion } from './command_clean.ts';
 /// ```
 use crate::command_branch_delete::branch_deletions;
+use crate::command_checkout_table::{CHECKOUT_TABLE, SWITCH_TABLE};
 use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_region};
 use crate::command_worktree::worktree_removal;
 use crate::command_discard::{
     Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, switch_discard,
+    restores_index_only, revision_before_paths, switch_discard,
 };
-use crate::command_options::OptionError;
-use crate::command_reset::{ResetMode, ResetRegion, parse_reset_region};
+use crate::command_options::{OptionError, OptionSpec};
+use crate::command_reset::{ResetMode, ResetRegion, RESET_TABLE, parse_reset_region};
 use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
 use crate::rule_worktree_dirty::DirtyScope;
 pub use crate::rule_linked_worktree_messages::{
-    dirty_worktree_message, exemption_notice, main_worktree_message, outside_worktree_message,
-    repository_stash_message,
+    dirty_worktree_message, exemption_notice, ignored_file_message, main_worktree_message,
+    outside_worktree_message, repository_stash_message,
 };
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -256,6 +257,59 @@ pub fn dirty_question(command: GuardedCommand) -> DirtyQuestion {
         }
         _ => return DirtyQuestion::Worktree(DirtyScope::Tracked),
     }
+}
+
+/// What:
+///  The tree a guarded form writes into the worktree.
+///  A `struct` is a record with named
+///       fields.
+/// Why:
+///   Whether an ignored file the worktree holds is replaced depends on the tree the form writes,
+///  so
+///       the question has to carry the revision the command names
+///  or nothing when it names none (every form
+///       that names no tree writes `HEAD`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TargetTree = { revision?: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TargetTree {
+    /// The revision the command names,
+    ///  or nothing for `HEAD`.
+    pub revision: Option<OsString>,
+}
+
+/// What:
+///  The tree a guarded form writes into the worktree,
+///  when the form replaces an ignored file that
+///       tree tracks whatever `--no-overwrite-ignore` says;
+///  nothing for every other form.
+///  `&[OsString]` borrows the tokens after the subcommand.
+/// Why:
+///   A forced `checkout`,
+///  a forced `switch` and a hard `reset` overwrite an ignored file whose path their target
+///       tree tracks,
+///  and an ignored file is where a person keeps their environment and their local
+///       secrets;
+///  the token that may name another tree comes from that command's own option table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function targetTree(command: GuardedCommand, region: string[]): TargetTree | undefined;
+/// ```
+pub fn target_tree(command: GuardedCommand, region: &[OsString]) -> Option<TargetTree> {
+    // `match` picks the one table the decided form belongs to; `other` is every form that writes no tree.
+    let table: &[OptionSpec] = match command {
+        GuardedCommand::ResetHard => RESET_TABLE,
+        GuardedCommand::CheckoutPaths => CHECKOUT_TABLE,
+        GuardedCommand::SwitchForce => SWITCH_TABLE,
+        _ => return None,
+    };
+    return Some(TargetTree {
+        revision: revision_before_paths(region, table),
+    });
 }
 
 /// What:

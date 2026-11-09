@@ -1564,6 +1564,13 @@ The rule is:
   and names the file instead.
   Nothing is lost when nothing would be replaced,
   and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
+- A forced `git checkout -f`,
+  a forced `git switch -f` and a `git reset --hard` (`--merge`,
+  `--keep`) override that token,
+  so in a linked worktree they are rejected while the worktree holds an ignored file at a path the tree they
+  write tracks,
+  and the rejection names both.
+  The tracked state of the worktree is still what makes the worktree clean or dirty.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
    Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`,
@@ -1597,7 +1604,8 @@ The rule is:
 The guard reads the command Git will run,
 not the word on the command line:
 an ordinary Git alias is expanded as Git expands it,
-and the decision is taken on the expansion.
+the decision is taken on the expansion,
+and the same expansion is what the fixed transforms rewrite and the wrapper forwards.
 A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,

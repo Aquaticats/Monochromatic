@@ -12,8 +12,11 @@
 
 /// The query builder,
 /// the reader and the scopes.
-use super::{DirtyScope, dirty_from_output, dirty_query_arguments, index_file_is_absent};
-use crate::command_test_support::{fixture, git, os_arguments, remove, repository};
+use super::{
+    DirtyScope, dirty_from_output, dirty_query_arguments, ignored_paths_from_answer,
+    ignored_paths_queries, index_file_is_absent,
+};
+use crate::command_test_support::{byte_argument, fixture, git, os_arguments, remove, repository};
 use crate::git_metadata::MetadataOutput;
 use std::ffi::{OsStr, OsString};
 
@@ -154,5 +157,130 @@ fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
     let git_directory = root.join("git-directory");
     std::fs::create_dir(&git_directory).expect("git directory");
     assert!(!index_file_is_absent(Some(git_directory.as_path()), Some(OsStr::new("other-index"))));
+    remove(root.as_path());
+}
+
+/// The ignored-paths query asks Git for the named paths alone,
+/// exactly as they are,
+/// in as many bounded
+///  starts as the paths need.
+#[test]
+fn the_ignored_paths_query_names_each_path_exactly() {
+    let prefix: Vec<OsString> = os_arguments(&["-C", "dir"]);
+    let paths: Vec<Vec<u8>> = vec![b".env".to_vec(), b"a*b".to_vec(), vec![0xff, 0xfe]];
+    let mut expected: Vec<OsString> = vec![
+        OsString::from("-C"),
+        OsString::from("dir"),
+        OsString::from("--no-optional-locks"),
+        OsString::from("--no-literal-pathspecs"),
+        OsString::from("ls-files"),
+        OsString::from("--others"),
+        OsString::from("--ignored"),
+        OsString::from("--exclude-standard"),
+        OsString::from("-z"),
+        OsString::from("--full-name"),
+        OsString::from("--"),
+        OsString::from(":(top,literal).env"),
+        OsString::from(":(top,literal)a*b"),
+    ];
+    let mut not_utf8: Vec<u8> = b":(top,literal)".to_vec();
+    not_utf8.extend_from_slice(&[0xff, 0xfe]);
+    expected.push(byte_argument(not_utf8.as_slice()));
+    assert_eq!(ignored_paths_queries(prefix.as_slice(), paths.as_slice()), vec![expected]);
+    // No path, no start at all.
+    assert!(ignored_paths_queries(&[], &[]).is_empty());
+    // A long list is asked in bounded starts, and every path lands in exactly one of them.
+    // 4000 paths of about 50 bytes each are more than one start may carry.
+    let many: Vec<Vec<u8>> = (0..4000).map(|index| return format!("dir with a fairly long name/{index}.bin").into_bytes()).collect();
+    let queries: Vec<Vec<OsString>> = ignored_paths_queries(&[], many.as_slice());
+    assert!(queries.len() > 1, "one start carried every path");
+    let mut asked: Vec<String> = Vec::<String>::new();
+    for query in &queries {
+        let specs: Vec<&OsString> = query
+            .iter()
+            .filter(|argument| return argument.to_string_lossy().starts_with(":(top,literal)"))
+            .collect();
+        assert!(!specs.is_empty(), "a start carried no path");
+        for argument in specs {
+            asked.push(argument.to_string_lossy().into_owned());
+        }
+    }
+    assert_eq!(asked.len(), many.len());
+    assert_eq!(asked.first(), Some(&String::from(":(top,literal)dir with a fairly long name/0.bin")));
+    assert_eq!(asked.last(), Some(&String::from(":(top,literal)dir with a fairly long name/3999.bin")));
+}
+
+/// The ignored answer lists exactly the paths Git printed,
+/// and a failed query is an error rather than "nothing is ignored".
+#[test]
+fn the_ignored_answer_lists_the_paths_git_printed() {
+    assert_eq!(
+        ignored_paths_from_answer(&output(true, b".env\0ignored/data.bin\0", b"")),
+        Ok(vec![b".env".to_vec(), b"ignored/data.bin".to_vec()])
+    );
+    assert_eq!(ignored_paths_from_answer(&output(true, b"", b"")), Ok(Vec::<Vec<u8>>::new()));
+    // A path that holds a newline or bytes that are not UTF-8 keeps its bytes exactly.
+    assert_eq!(
+        ignored_paths_from_answer(&output(true, b"od\nd name\0\xff\xfe\0", b"")),
+        Ok(vec![b"od\nd name".to_vec(), vec![0xff, 0xfe]])
+    );
+    assert_eq!(
+        ignored_paths_from_answer(&output(false, b"", b"fatal: not a git repository\n")),
+        Err(String::from("Git could not read the ignored files: fatal: not a git repository"))
+    );
+}
+
+/// Real Git: the ignored-paths query names the ignored files the tree tracks,
+/// a path that is only
+///  untracked is not one of them,
+/// and a path that is ignored but absent is left to the worktree's disk.
+#[test]
+fn real_git_lists_the_ignored_file_the_tree_tracks() {
+    let root = fixture("dirty-ignored-shared");
+    let repo = repository(root.as_path(), "repo");
+    std::fs::write(repo.join(".gitignore"), b".env\nignored/\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"tracked version\n").expect("tracked environment file");
+    std::fs::create_dir_all(repo.join("ignored")).expect("ignored directory");
+    std::fs::write(repo.join("ignored/data.bin"), b"kept elsewhere\n").expect("ignored file");
+    git(repo.as_path(), &["add", "--force", "--", ".env", "ignored/data.bin"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    // The worktree holds both ignored entries again; only the local environment file differs from the tree.
+    std::fs::write(repo.join(".env"), b"the person value\n").expect("ignored file");
+    std::fs::create_dir_all(repo.join("ignored")).expect("ignored directory");
+    std::fs::write(repo.join("ignored/data.bin"), b"the person version\n").expect("ignored file");
+    std::fs::write(repo.join("ignored/local.bin"), b"the person other file\n").expect("ignored work");
+    let tree = crate::command_test_support::git_output(
+        repo.as_path(),
+        os_arguments(&["ls-tree", "-r", "-z", "--name-only", "tracks"]).as_slice(),
+    );
+    let mut tracked: Vec<Vec<u8>> = tree
+        .stdout
+        .split(|byte| return *byte == 0)
+        .filter(|path| return !path.is_empty())
+        .map(|path| return path.to_vec())
+        .collect();
+    tracked.sort();
+    assert_eq!(
+        tracked,
+        vec![b".env".to_vec(), b".gitignore".to_vec(), b"ignored/data.bin".to_vec(), b"tracked.txt".to_vec()]
+    );
+    let queries: Vec<Vec<OsString>> = ignored_paths_queries(&[], tracked.as_slice());
+    assert_eq!(queries.len(), 1);
+    let listed = crate::command_test_support::git_output(repo.as_path(), queries[0].as_slice());
+    let answer = output(listed.status.success(), &listed.stdout, &listed.stderr);
+    assert_eq!(
+        ignored_paths_from_answer(&answer),
+        Ok(vec![b".env".to_vec(), b"ignored/data.bin".to_vec()])
+    );
+    // A tree path that is ignored but absent from the worktree is not a file the command would replace.
+    std::fs::remove_file(repo.join("ignored/data.bin")).expect("drop the ignored file");
+    let remaining = crate::command_test_support::git_output(repo.as_path(), queries[0].as_slice());
+    let after = output(remaining.status.success(), &remaining.stdout, &remaining.stderr);
+    assert_eq!(ignored_paths_from_answer(&after), Ok(vec![b".env".to_vec()]));
     remove(root.as_path());
 }

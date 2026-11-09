@@ -8317,6 +8317,14 @@ and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
 A built-in word is decided without reading any configuration,
 so no process is started for it.
+The expansion is resolved once per invocation and read by all three of them:
+the guard,
+the fixed argument transforms and the argument list forwarded to Git,
+so the tokens a transform adds land on the command Git runs
+(`git go` with `alias.go=checkout tracks` is guarded and transformed as `git checkout tracks`,
+and the wrapper forwards that expansion).
+A built-in word is decided without reading any configuration,
+so no process is started for it.
 A shell alias (`!...`) and an undefined name are forwarded as they are:
 a shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
@@ -8355,7 +8363,32 @@ or where Git refuses the region;
 a caller's own `--overwrite-ignore` after it still wins,
 because Git applies the last spelling.
 A forced `checkout -f` or `reset --hard` overrides the token,
-so ignored files under those forms stay covered by the worktree measurement alone.
+so the ignored file it would replace inside the process is decided before the command runs:
+for a forced `checkout`,
+a forced `switch` and a hard `reset` (`--hard`,
+`--merge`,
+`--keep`),
+the guard reads the paths of the tree that form writes (`git ls-tree -r -z --name-only <revision>`,
+`HEAD` when the form names no tree)
+and asks Git which of them the worktree holds as ignored files,
+then refuses,
+naming the paths,
+while any path is both.
+Only these three forms are read that way,
+and only in a linked worktree;
+the question is one `git ls-files --others --ignored --exclude-standard` over those paths alone,
+so no query walks the worktree's ignored files
+(measured on this repository's worktree at 1,860 tracked paths:
+`git ls-tree` 4 to 6 ms and `git ls-files` 9 to 77 ms per start,
+the spread being host load).
+Every path is named with `:(top,literal)` magic,
+anchored at the top of the worktree and read as itself,
+and the query turns off a caller's `--literal-pathspecs`,
+which would otherwise make the magic a path.
+A tree or an answer Git cannot read is a `fact-unavailable` finding,
+never a clean worktree,
+and a revision Git cannot resolve is read as `HEAD`,
+because every form that names no tree writes `HEAD`'s content.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
@@ -8749,6 +8782,13 @@ with `schemaVersion`,
 `cwd` and `arguments`.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
+A `rejected` line of a forced `checkout`,
+a forced `switch` or a hard `reset` whose tree tracks a path the worktree ignores also has
+`ignoredAndTracked`,
+the paths it read,
+and its `dirty` is `false` because the tracked state of the worktree was clean:
+the refusal is about the ignored files,
+and the paths are named so a reader sees which of them the command would have replaced.
 The line also has `time` (the ISO form),
 `level` (`warn` for `rejected`),
 `release` and `gitDir` (the invocation's own Git directory,

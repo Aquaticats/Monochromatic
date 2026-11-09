@@ -15,13 +15,14 @@
 ///  its texts and the argument builder.
 use super::{
     DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice,
-    main_worktree_message, outside_worktree_message, repository_stash_message,
-    resolve_linked_worktree,
+    TargetTree, decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice,
+    ignored_file_message, main_worktree_message, outside_worktree_message, repository_stash_message,
+    resolve_linked_worktree, target_tree,
 };
 use crate::command_test_support::os_arguments;
 use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
+use std::ffi::OsString;
 
 /// Every guarded form.
 const ALL_COMMANDS: [GuardedCommand; 21] = [
@@ -332,4 +333,58 @@ fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
     assert!(notice.contains("Hint: if MISE_DATA_DIR does not describe a tool cache"), "{notice}");
     assert!(notice.ends_with('\n'), "{notice}");
     assert_ne!(notice, exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo")));
+}
+
+/// A forced checkout,
+/// a forced switch and a hard reset ask which tree they write;
+/// every other form writes no tree and asks nothing.
+#[test]
+fn only_the_forms_that_write_a_tree_ask_which_tree() {
+    let cases: [(GuardedCommand, &[&str], Option<Option<&str>>); 10] = [
+        (GuardedCommand::ResetHard, &["--hard", "tracks"], Some(Some("tracks"))),
+        (GuardedCommand::ResetHard, &["--hard"], Some(None)),
+        (GuardedCommand::ResetHard, &["--hard", "--", "tracks"], Some(None)),
+        (GuardedCommand::CheckoutPaths, &["--force", "tracks"], Some(Some("tracks"))),
+        (GuardedCommand::CheckoutPaths, &["--force", "--", "tracked.txt"], Some(None)),
+        (GuardedCommand::CheckoutPaths, &["--force", "tracks", "--", "tracked.txt"], Some(Some("tracks"))),
+        (GuardedCommand::SwitchForce, &["--force", "tracks"], Some(Some("tracks"))),
+        (GuardedCommand::SwitchForce, &["--force"], Some(None)),
+        (GuardedCommand::Clean, &["-fdx"], None),
+        (GuardedCommand::RestoreWorktree, &["--source", "tracks", "tracked.txt"], None),
+    ];
+    for (command, region, expected) in cases {
+        let answer: Option<TargetTree> = target_tree(command, os_arguments(region).as_slice());
+        assert_eq!(
+            answer,
+            expected.map(|revision| return TargetTree { revision: revision.map(OsString::from) }),
+            "{command:?} {region:?}"
+        );
+    }
+}
+
+/// The text of an ignored file the target tree tracks names the form,
+/// the paths,
+/// the tree and the way
+///  forward,
+/// and it does not claim the worktree is dirty.
+#[test]
+fn the_ignored_file_text_names_the_paths_and_the_tree() {
+    let one: String = ignored_file_message(GuardedCommand::ResetHard, Some(std::ffi::OsStr::new("tracks")), &[String::from(".env")]);
+    assert!(one.contains("git reset --hard"), "{one}");
+    assert!(one.contains("ignores .env"), "{one}");
+    assert!(one.contains("the tree of tracks tracks"), "{one}");
+    assert!(one.contains("would replace it"), "{one}");
+    assert!(!one.contains("uncommitted changes to tracked files"), "{one}");
+    assert!(one.contains("git reset --soft"), "{one}");
+    assert!(one.contains("--no-enforce-worktree"), "{one}");
+    // A form that names no revision writes HEAD.
+    let head: String = ignored_file_message(GuardedCommand::CheckoutPaths, None, &[String::from(".env")]);
+    assert!(head.contains("the tree of HEAD"), "{head}");
+    // A worktree that ignores more shared paths than the text names counts the rest instead of listing them.
+    let many: Vec<String> = (0..7).map(|index| return format!("ignored/{index}.bin")).collect();
+    let listed: String = ignored_file_message(GuardedCommand::SwitchForce, None, many.as_slice());
+    assert!(listed.contains("ignored/0.bin, ignored/1.bin"), "{listed}");
+    assert!(!listed.contains("ignored/5.bin"), "{listed}");
+    assert!(listed.contains("and 2 more"), "{listed}");
+    assert!(listed.contains("would replace them"), "{listed}");
 }

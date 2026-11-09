@@ -592,6 +592,7 @@ fn worktree_policies_read_the_location() {
         }
         WrappedOutcome::Forward { .. } => panic!("a hard reset in the main worktree is rejected"),
     }
+    // A hard reset writes a tree, so a clean linked worktree asks which one before it is let through.
     assert_eq!(
         run(
             &["reset", "--hard"],
@@ -600,7 +601,11 @@ fn worktree_policies_read_the_location() {
         ),
         (
             forwards(&["reset", "--hard"]),
-            vec![String::from("location"), String::from("dirty:Tracked")]
+            vec![
+                String::from("location"),
+                String::from("dirty:Tracked"),
+                String::from("ignored-and-tracked:HEAD")
+            ]
         )
     );
     assert_eq!(

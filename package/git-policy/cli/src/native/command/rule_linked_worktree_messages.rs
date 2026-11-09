@@ -22,6 +22,9 @@
 //! ```
 
 use crate::rule_linked_worktree::GuardedCommand;
+/// The paths a message names before it counts the rest.
+use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
+use std::ffi::OsStr;
 use std::path::Path;
 
 /// The sentence every text ends with:
@@ -255,5 +258,46 @@ pub fn dirty_worktree_message(command: GuardedCommand) -> String {
     return format!(
         "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}: {risk}. \
          {instead} {HATCH_ADVICE}"
+    );
+}
+
+/// What:
+///  The rejection text for a forced checkout,
+/// a forced switch or a hard reset whose target tree tracks a path the
+///  worktree has ignored.
+///  `&[String]` borrows the shared paths;
+///  `Option<&OsStr>` is the revision the command named.
+/// Why:
+///   The tracked state of the worktree is clean,
+/// so the usual text would say it is dirty;
+///  this one names
+///       the ignored files the command would replace with the tree's content,
+///  which is where a person
+///       keeps their environment and their local secrets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function ignoredFileMessage({ command, revision, paths }): string;
+/// ```
+pub fn ignored_file_message(command: GuardedCommand, revision: Option<&OsStr>, paths: &[String]) -> String {
+    let (name, _risk, instead): (&str, &str, &str) = describe(command);
+    let tree: &str = match revision {
+        Some(named) => &named.to_string_lossy(),
+        None => "HEAD",
+    };
+    let mut named: Vec<String> = Vec::<String>::with_capacity(SHARED_PATHS_NAMED.min(paths.len()) + 1);
+    for path in paths.iter().take(SHARED_PATHS_NAMED) {
+        named.push(path.clone());
+    }
+    let mut listed: String = named.join(", ");
+    if paths.len() > SHARED_PATHS_NAMED {
+        listed.push_str(format!(", and {} more", paths.len() - SHARED_PATHS_NAMED).as_str());
+    }
+    return format!(
+        "monochromatic-git-policy-cli: {name} is rejected because this worktree ignores {listed}, which the tree of \
+         {tree} tracks: Git would replace {} with the content that tree carries, and an ignored file is where a person \
+         keeps their environment and their local secrets. Only the tracked state of the worktree is clean, and a forced \
+         form overrides Git's own --no-overwrite-ignore. {instead} {HATCH_ADVICE}",
+        if paths.len() == 1 { "it" } else { "them" }
     );
 }

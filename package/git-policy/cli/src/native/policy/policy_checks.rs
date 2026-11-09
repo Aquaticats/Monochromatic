@@ -84,13 +84,15 @@ use crate::policy_branch_worktree::check_branch_worktree;
 use crate::policy_audited::record_audited;
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
-    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
-    dirty_question, dirty_worktree_message, exemption_notice, repository_stash_message,
-    resolve_linked_worktree,
+    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, TargetTree,
+    dirty_question, dirty_worktree_message, exemption_notice, ignored_file_message,
+    repository_stash_message, resolve_linked_worktree, target_tree,
 };
 /// The guarded decision about the command Git will really run,
 /// alias expansion included.
 use crate::guarded_forwarded_command::{GuardedForwarded, decide_guarded_forwarded};
+/// The subcommand word and the tokens after it, for the tree a guarded form writes.
+use crate::global_arguments::command_tokens;
 /// The named facts a record of an exemption carries.
 use crate::discard_audit_facts::AuditFact;
 /// The Git directory of an identity,
@@ -172,6 +174,13 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// Plain notices the checks produced for the person (a saved copy of a conflicted file),
     /// shown before Git runs.
     pub notices: Vec<String>,
+    /// The guarded decision about the command Git will run,
+    ///  once it has been asked for;
+    ///  the guard,
+    ///  the escape record and the fixed transforms read this one answer,
+    /// so the
+    ///  expansion an alias names is the command all three see.
+    pub forwarded: Option<GuardedForwarded>,
 }
 
 /// What:
@@ -206,7 +215,40 @@ pub fn shipped_checks<F: RepositoryFacts>(
         // The linter is linked in, so it needs nothing from the invocation's environment and is ready at once.
         markdown: markdown_state(Box::new(embedded_linter())),
         notices: Vec::new(),
+        forwarded: None,
     };
+}
+
+/// What:
+///  The guarded decision about the command Git will run,
+///  asked once per invocation.
+///  `<F: RepositoryFacts>` accepts any facts provider.
+/// Why:
+///   An alias makes the word on the command line differ from the command Git runs;
+///  the guard refuses
+///  on the expansion,
+///  the fixed transforms add their tokens to the same expansion,
+///  and that expansion is what
+///  the wrapper forwards.
+///  Resolving once keeps one reading of the alias for all three,
+///  and a built-in
+///  word needs no configuration read and no process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function guardedForwarded(checks): { decision; args } {
+///   return checks.forwarded ??= decideGuardedForwarded(checks.facts.transactionContext(), checks.arguments);
+/// }
+/// ```
+pub fn guarded_forwarded<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) -> GuardedForwarded {
+    // `if let Some(known) = &checks.forwarded` borrows the remembered answer when there is one.
+    if let Some(known) = &checks.forwarded {
+        return known.clone();
+    }
+    let decided: GuardedForwarded =
+        decide_guarded_forwarded(&checks.facts.transaction_context(), checks.arguments.as_slice());
+    checks.forwarded = Some(decided.clone());
+    return decided;
 }
 
 /// What:
@@ -348,13 +390,12 @@ fn now_milliseconds() -> i64 {
 /// ```
 fn check_linked_worktree(
     facts: &mut dyn RepositoryFacts,
-    arguments: &[OsString],
+    forwarded: &GuardedForwarded,
     allowed_worktree_dirs: &[ToolCacheDirectory],
     discarded_limits: Limits,
     notices: &mut Vec<String>,
 ) -> PolicyOutcome {
     // An alias reaches the command Git really runs, so the guard reads the expansion and every record names it.
-    let forwarded: GuardedForwarded = decide_guarded_forwarded(&facts.transaction_context(), arguments);
     let seen: &[OsString] = forwarded.arguments.as_slice();
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match forwarded.decision {
@@ -432,6 +473,11 @@ fn check_linked_worktree(
         record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
         return clean();
     }
+    // The tracked state being clean is the question these forms ask; the tree they write is the second question.
+    let tree: Option<TargetTree> = match command_tokens(seen) {
+        Some((_word, region)) => target_tree(command, region),
+        None => None,
+    };
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
     //  nothing about it and the repository's own stash is asked instead.
     let (measured, rejection): (Result<bool, String>, String) = match dirty_question(command) {
@@ -444,6 +490,31 @@ fn check_linked_worktree(
             return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
         }
         Ok(false) => {
+            // The tracked state being clean says nothing about an ignored file the target tree tracks: a forced
+            //  form overwrites that file whatever `--no-overwrite-ignore` says, and the ignored file is where a person
+            //  keeps their environment and their local secrets. The rejected form is not confirmed clean: a tree that
+            //  cannot be read leaves the command unread, never allowed.
+            if let Some(written) = tree.as_ref() {
+                let shared: Vec<String> = match facts.ignored_files_the_tree_tracks(written.revision.as_deref()) {
+                    Ok(found) => found,
+                    Err(message) => return fact_unavailable(message),
+                };
+                if !shared.is_empty() {
+                    let why: Vec<AuditFact> = vec![AuditFact::Text("ignoredAndTracked", shared.join(" "))];
+                    record_audit_with_facts(
+                        &location.identity,
+                        command,
+                        AuditOutcome::Rejected,
+                        seen,
+                        Some(false),
+                        why.as_slice(),
+                    );
+                    return rejected(
+                        LINKED_WORKTREE_REQUIRED_CODE,
+                        format!("{}{conflict_note}", ignored_file_message(command, written.revision.as_deref(), shared.as_slice())),
+                    );
+                }
+            }
             record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
             return clean();
         }
@@ -496,9 +567,10 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                 return check_require_root(&mut self.facts, self.arguments.as_slice(), trigger);
             }
             PolicyId::LinkedWorktreeOnly => {
+                let forwarded: GuardedForwarded = guarded_forwarded(self);
                 return check_linked_worktree(
                     &mut self.facts,
-                    self.arguments.as_slice(),
+                    &forwarded,
                     self.allowed_worktree_dirs.as_slice(),
                     self.discarded_limits,
                     &mut self.notices,

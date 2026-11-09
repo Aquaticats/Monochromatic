@@ -493,19 +493,24 @@ fn content_policies_follow_the_lifecycle_content() {
 ///  only when the status shows uncommitted state.
 #[test]
 fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
-    for (values, command, scope) in [
-        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, "Tracked"),
-        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, "Tracked"),
-        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, "Tracked"),
-        (vec!["reset"], GuardedCommand::ResetMixed, "Tracked"),
-        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked"),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked"),
-        (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked"),
-        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, "Everything"),
-        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, "IgnoredOnly"),
-        (vec!["stash", "push"], GuardedCommand::Stash, "Tracked"),
+    for (values, command, scope, tree) in [
+        (vec!["restore", "--staged", "a.txt"], GuardedCommand::RestoreStaged, "Tracked", None),
+        (vec!["checkout", "--", "a.txt"], GuardedCommand::CheckoutPaths, "Tracked", Some("HEAD")),
+        (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, "Tracked", Some("topic")),
+        (vec!["reset"], GuardedCommand::ResetMixed, "Tracked", None),
+        (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked", None),
+        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked", None),
+        (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked", None),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, "Everything", None),
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, "IgnoredOnly", None),
+        (vec!["stash", "push"], GuardedCommand::Stash, "Tracked", None),
     ] {
         let dirty_scope = format!("dirty:{scope}");
+        // A form that writes a tree asks which tree once the tracked state is clean, and asks nothing while it is dirty.
+        let tree_question = match tree {
+            Some(revision) => format!("ignored-and-tracked:{revision}"),
+            None => String::new(),
+        };
         for dirty in [false, true] {
             assert_eq!(
                 pre_forward(
@@ -520,13 +525,17 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 "{values:?} main dirty={dirty}"
             );
         }
+        let mut clean_questions: Vec<&str> = vec!["location", dirty_scope.as_str()];
+        if !tree_question.is_empty() {
+            clean_questions.push(tree_question.as_str());
+        }
         assert_eq!(
             pre_forward(
                 PolicyId::LinkedWorktreeOnly,
                 values.as_slice(),
                 dirty_in(linked_worktree("/r", "/w"), false)
             ),
-            (clean(), asked(&["location", dirty_scope.as_str()])),
+            (clean(), asked(clean_questions.as_slice())),
             "{values:?} linked clean"
         );
         assert_eq!(
@@ -668,4 +677,68 @@ fn an_unreadable_status_is_reported() {
             asked(&["location", "dirty:Tracked"])
         )
     );
+}
+
+/// linked-worktree-only:
+///  a forced `checkout`, a forced `switch` and a hard `reset` are rejected in a clean linked worktree
+///  while the worktree ignores a path the tree they write also tracks,
+///  and the line names the path it saw.
+#[test]
+fn a_tree_that_tracks_an_ignored_path_is_rejected_in_a_clean_linked_worktree() {
+    for (values, revision) in [
+        (vec!["checkout", "--force", "tracks"], "tracks"),
+        (vec!["switch", "--force", "tracks"], "tracks"),
+        (vec!["reset", "--hard", "tracks"], "tracks"),
+        (vec!["reset", "--hard"], "HEAD"),
+    ] {
+        let mut shared: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        shared.ignored_and_tracked = Ok(vec![String::from(".env")]);
+        let (outcome, questions): (PolicyOutcome, Vec<String>) = pre_forward(
+            PolicyId::LinkedWorktreeOnly,
+            values.as_slice(),
+            shared,
+        );
+        let PolicyOutcome::Findings(findings) = outcome else {
+            panic!("{values:?} was not rejected")
+        };
+        assert_eq!(findings.len(), 1, "{values:?}");
+        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
+        assert!(findings[0].message.contains("ignores .env"), "{values:?}: {}", findings[0].message);
+        assert!(
+            findings[0].message.contains(format!("the tree of {revision}").as_str()),
+            "{values:?}: {}",
+            findings[0].message
+        );
+        assert_eq!(
+            questions,
+            asked(&["location", "dirty:Tracked", format!("ignored-and-tracked:{revision}").as_str()]),
+            "{values:?}"
+        );
+        // A tree Git cannot read is a failure, never a clean answer.
+        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unreadable.ignored_and_tracked = Err(String::from("Git could not read the tree of a revision: fatal"));
+        assert!(
+            matches!(
+                pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable).0,
+                PolicyOutcome::Failed { code: EngineFailureCode::ContentUnavailable, .. }
+            ),
+            "{values:?} unreadable"
+        );
+        // The same form with nothing shared runs, and the questions it asked are the whole cost.
+        let mut nothing: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        nothing.ignored_and_tracked = Ok(Vec::<String>::new());
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), nothing).0,
+            clean(),
+            "{values:?} nothing shared"
+        );
+        // A form that writes no tree asks nothing about one.
+        let mut unasked: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unasked.ignored_and_tracked = Err(String::from("this form writes no tree"));
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, &["restore", "a.txt"], unasked).0,
+            clean(),
+            "a restore asks nothing about a tree"
+        );
+    }
 }
