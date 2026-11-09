@@ -430,6 +430,8 @@ impl NativeCommitNotice {
                 let waited: Duration = began.elapsed();
                 // One look: the step, the programs below it, and what they are using.
                 // A step that has not started yet is nothing to look at, which is not a look that failed.
+                // A step whose start gave no descriptor cannot be ended by the ceiling, which the record says too.
+                facts.pinnable = !(watched.number().is_some() && watched.descriptor().is_none());
                 let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
                     Some(number) => look_below(number),
                     None => Some(Vec::new()),
@@ -472,7 +474,9 @@ impl NativeCommitNotice {
                     }
                 }
                 if ticker.due(waited) {
-                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling);
+                    // A step that started without a descriptor cannot be stopped, and the line says so from the moment it started.
+                    let can_stop: bool = !(watched.number().is_some() && watched.descriptor().is_none());
+                    let line: String = notice_line(signs, waited, first, other_programs(below).as_slice(), ceiling, can_stop);
                     first = false;
                     // A closed terminal is not a reason to stop the commit, and a reader that stopped reading is not one either:
                     // the line is handed to the writer, and dropped and counted while the writer still holds the one before it.

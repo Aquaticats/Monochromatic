@@ -460,15 +460,14 @@ fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
 #[test]
 fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
     let mut ended_step: std::process::Child = sleeping_step();
-    let ended_number: i32 = step_number(&ended_step);
+    // The step is published while it is alive, which is the only moment the kernel makes its descriptor, and ends after.
+    let already_over: ChildNumber = ChildNumber::not_started_pinned();
+    already_over.publish(step_number(&ended_step));
     ended_step.kill().expect("the step ends");
     ended_step.wait().expect("reaped");
     let mut running_step: std::process::Child = sleeping_step();
-    let running_number: i32 = step_number(&running_step);
-    let already_over: ChildNumber = ChildNumber::not_started_pinned();
-    already_over.publish(ended_number);
     let running: ChildNumber = ChildNumber::not_started_pinned();
-    running.publish(running_number);
+    running.publish(step_number(&running_step));
     let after_the_end: CeilingCame = ceiling_came(&already_over);
     let while_running: CeilingCame = ceiling_came(&running);
     let ended: Option<i32> = ended_by_signal(&mut running_step);

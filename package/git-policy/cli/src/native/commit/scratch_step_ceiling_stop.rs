@@ -34,9 +34,6 @@ use crate::child_number_told_at_start::ChildNumber;
 /// The processes below the step,
 /// read for the stop.
 use crate::process_tree::descendants_of_read;
-/// The step's own record,
-/// and whether it could be read.
-use crate::process_tree::{MemberRead, member_read};
 /// The signal that ends the step,
 /// what it came to,
 /// and whether the step is still there.
@@ -92,39 +89,26 @@ pub fn ceiling_came(step: &ChildNumber) -> CeilingCame {
         // A step that never started has nothing to end, and nothing is concluded about it.
         return CeilingCame::Unknown;
     };
-    let stopped_the_step: bool = match step.descriptor() {
-        Some(descriptor) => {
-            if has_ended(descriptor) {
-                return CeilingCame::TheStepEnded;
-            }
-            // The step is still that process, so its number still names it and its children can be read below it.
-            let Some(below) = descendants_of_read(number) else {
-                return CeilingCame::Unknown;
-            };
-            let answer: Delivered = signal_through(descriptor, libc::SIGKILL);
-            let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
-            match answer {
-                Delivered::Sent => true,
-                Delivered::Gone => false,
-                Delivered::Unproven => return CeilingCame::Unknown,
-            }
-        }
-        // A start whose descriptor the kernel refused: the step is proven by its record and then pinned,
-        // and a step nothing can be proven about keeps the ceiling armed.
-        None => match member_read(number) {
-            MemberRead::Found(member) => match kill_members(std::slice::from_ref(&member)).first() {
-                Some(Delivered::Sent) => true,
-                Some(Delivered::Unproven) => return CeilingCame::Unknown,
-                _ => false,
-            },
-            MemberRead::Gone => false,
-            MemberRead::Unreadable => return CeilingCame::Unknown,
-        },
+    // A start whose descriptor the kernel refused leaves a number and nothing else to name the step by,
+    // and a number read at the ceiling may belong to a process that took it after the step ended.
+    // Nothing is sent, and the line says the step cannot be stopped.
+    let Some(descriptor) = step.descriptor() else {
+        return CeilingCame::Unknown;
     };
-    if stopped_the_step {
-        return CeilingCame::Stopped;
+    let Some(below) = descendants_of_read(number) else {
+        return CeilingCame::Unknown;
+    };
+    if has_ended(descriptor) {
+        // The step ended while its children were being read, so that read proves nothing and nothing from it is signalled.
+        return CeilingCame::TheStepEnded;
     }
-    return CeilingCame::TheStepEnded;
+    let answer: Delivered = signal_through(descriptor, libc::SIGKILL);
+    let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
+    return match answer {
+        Delivered::Sent => CeilingCame::Stopped,
+        Delivered::Gone => CeilingCame::TheStepEnded,
+        Delivered::Unproven => CeilingCame::Unknown,
+    };
 }
 
 /// Controls stay out of the release executable.

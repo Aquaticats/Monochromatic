@@ -112,6 +112,12 @@ pub struct ScratchStepFacts {
     pub below: Vec<SeenProgram>,
     /// The processor time everything below the step had used at the last look.
     pub below_cpu: Duration,
+    /// Whether the ceiling could end the step:
+    /// false for a step whose start gave no descriptor,
+    /// which the kernel refused,
+    /// so nothing may signal it by its number,
+    /// and the line says the commit waits until the step ends.
+    pub pinnable: bool,
     /// How many looks could not be made at all,
     /// because `/proc` could not be read
     /// (a descriptor or memory limit,
@@ -145,6 +151,7 @@ impl ScratchStepFacts {
             looks_found: 0,
             below: Vec::new(),
             below_cpu: Duration::ZERO,
+            pinnable: true,
             blind_looks: 0,
             blocked_looks: 0,
         };
@@ -243,12 +250,12 @@ fn seen_json(program: &SeenProgram) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, blindLooks, blockedLooks })
+/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, linesDropped, looks, looksFound, below, belowCpuMs, pinnable, blindLooks, blockedLooks })
 /// ```
 fn facts_json(facts: &ScratchStepFacts) -> String {
     let names: Vec<String> = facts.below.iter().map(seen_json).collect();
     return format!(
-        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
+        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"linesDropped\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"pinnable\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
         millis(facts.ceiling),
         facts.armed,
         millis(facts.stopped_after),
@@ -259,6 +266,7 @@ fn facts_json(facts: &ScratchStepFacts) -> String {
         facts.looks_found,
         names.join(","),
         facts.below_cpu.as_millis(),
+        facts.pinnable,
         facts.blind_looks,
         facts.blocked_looks,
     );
