@@ -348,3 +348,30 @@ impl OrderedEvents<u64> for SeenEnds {
         }
     }
 }
+
+/// What:
+///  A wait that has already missed its wake does not wait for ever,
+///  although a sending end a refused job keeps open leaves the channel open.
+/// Why:
+///  This is the state the consumer of a run reaches when a lane returns between the count it read and the
+/// wait it builds:
+/// the count is zero, one wake is stored, the channel is empty and open.
+/// The stuck state is what the review of this branch named:
+/// a disabled notification branch cannot use the stored wake, and a channel kept open by a refused job
+/// never says the jobs are gone.
+/// So the run would wait for ever ("nothing should ever wait forever").
+#[test]
+fn a_wake_that_arrived_before_the_wait_still_ends_it_although_the_channel_stays_open() {
+    run_on_runtime(async {
+        let (sender, mut receiver) = tokio::sync::mpsc::unbounded_channel::<Message<u64>>();
+        let still_running: Arc<SlotsStillRunning> = SlotsStillRunning::counting(ONE_PLACE);
+        // The lane returned: the count falls to zero and one wake is stored, before the wait is built.
+        drop(CountedOut(Arc::clone(&still_running)));
+        // The sending end a refused job holds for the life of the process, so the channel stays open.
+        let _refused = sender;
+        let waited = tokio::time::timeout(CONSUMER_STOP_BY, wait_for_a_message_or_a_return(&mut receiver, still_running.as_ref())).await;
+        assert!(waited.is_ok(), "the wait was not ended by a wake that had already arrived, because the branch that reads wakes was switched off while the channel stayed open");
+        assert!(waited.expect("the wait ended").is_none(), "the wait reports no message, because the wake is what ended it");
+    })
+    .expect("the runtime");
+}
