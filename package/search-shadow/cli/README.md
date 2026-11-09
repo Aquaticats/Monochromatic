@@ -54,6 +54,20 @@ The measurements are in `doc/planning/agent-search-io-throttle.md`.
   so drop `-r`.
   Write `--replace TEXT` for real replacement (still allowed).
   There is no escape hatch.
+- Refuses `rg` when its standard input is a pipe and it names a search path,
+  with exit code 2.
+  ripgrep reads the named paths and never the pipe there,
+  so the piped lines would be dropped and the search would run over the path.
+  The message names the command,
+  says the piped input would be ignored,
+  and gives both ways forward:
+  drop the search path to filter the pipe,
+  or drop the pipe to search the path.
+  Naming `-` as a path,
+  `--files`,
+  a redirected file,
+  a socket and an unpiped run are all left alone.
+  There is no escape hatch.
 - Refuses `rg` with `--hidden` / `--no-ignore*` / `-u` / `-.`,
   no search path and no piped input,
   when run from a git repository root.
@@ -191,7 +205,8 @@ and a short section that says the help above is the real tool's own
 and what the shadow adds for that tool:
 
 - `rg`:
-  the `rg -r` refusal and the wide-walk refusal.
+  the `rg -r` refusal,
+  the piped-input refusal and the wide-walk refusal.
 - `grep` / `egrep` / `fgrep`:
   the wide recursive refusal.
 - `find` / `bfs`:

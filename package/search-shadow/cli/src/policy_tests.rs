@@ -72,7 +72,14 @@ fn a_plain_search_is_not_wide_and_names_no_path() {
     // `assert_eq!(a, b)` stops the test with a message when `a != b` (a macro, hence `!`).
     assert_eq!(
         walk(&["foo"]),
-        WalkDescription { widened: false, informational: false, path_count: 0, short_replace: false }
+        WalkDescription {
+            widened: false,
+            informational: false,
+            path_count: 0,
+            short_replace: false,
+            files_mode: false,
+            stdin_marker_named: false,
+        }
     );
 }
 
@@ -148,11 +155,29 @@ fn a_pattern_from_a_flag_makes_every_positional_a_path() {
 }
 
 /// With `--files` there is no pattern,
-/// so every positional is a path.
+/// so every positional is a path,
+/// and the mode is recorded because it also means no input is read.
 #[test]
 fn files_mode_has_no_pattern() {
+    assert!(walk(&["--files", "--hidden"]).files_mode);
     assert_eq!(walk(&["--files", "--hidden"]).path_count, 0);
     assert_eq!(walk(&["--files", "src"]).path_count, 1);
+    assert!(!walk(&["foo"]).files_mode);
+}
+
+/// `-` is ripgrep's "read standard input" only where a path may stand;
+/// as the pattern it names nothing.
+#[test]
+fn the_standard_input_marker_counts_only_where_a_path_may_stand() {
+    assert!(walk(&["X", "-"]).stdin_marker_named);
+    assert!(walk(&["X", "-", "extra/path"]).stdin_marker_named);
+    assert!(walk(&["-e", "X", "-"]).stdin_marker_named);
+    assert!(walk(&["--files", "-"]).stdin_marker_named);
+    assert!(walk(&["X", "--", "-"]).stdin_marker_named);
+    // The pattern position is not a path.
+    assert!(!walk(&["-"]).stdin_marker_named);
+    assert!(!walk(&["X"]).stdin_marker_named);
+    assert!(!walk(&["X", "some/dir"]).stdin_marker_named);
 }
 
 /// A flag's value must not be mistaken for a path or a pattern.

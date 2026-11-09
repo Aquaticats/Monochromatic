@@ -1,9 +1,12 @@
 //! What:
-//! The rules that refuse two ripgrep invocations.
+//! The rules that refuse three ripgrep invocations.
 //! First is the short flag `-r` anywhere (including in clusters like `-rl`):
 //! in ripgrep it means `--replace`,
 //! not grep's "recursive".
-//! Second is a repository-wide unrestricted walk:
+//! Second is a pipe on standard input beside a named search path:
+//! ripgrep reads the paths and never the pipe,
+//! so the caller's lines are lost.
+//! Third is a repository-wide unrestricted walk:
 //! a flag that includes hidden or ignored files (`--hidden` / `--no-ignore*` / `-u` / `-.`)
 //! with no search path,
 //! run from a repository root.
@@ -157,6 +160,13 @@ pub struct WalkDescription {
     /// Whether the short flag `-r` (ripgrep's `--replace`) appears as a flag,
     /// alone or inside a cluster.
     pub short_replace: bool,
+    /// Whether `--files` is given,
+    /// which lists files instead of searching,
+    /// so no input is read and no pattern is taken.
+    pub files_mode: bool,
+    /// Whether a search path is exactly `-`,
+    /// ripgrep's explicit way to say "read standard input".
+    pub stdin_marker_named: bool,
 }
 
 /// What:
@@ -194,8 +204,9 @@ fn long_flag_name(token: &str) -> &str {
 /// and `&[&str]`,
 /// which views borrowed texts).
 /// Why:
-/// It reads rg's argument grammar just enough to know whether a flag widens the walk and how many search
-/// paths are named.
+/// It reads rg's argument grammar just enough to know whether a flag widens the walk,
+/// how many search paths are named,
+/// and whether one of them is the explicit standard-input marker `-`.
 /// It takes `&[String]` and not `Vec<String>` because it only reads and the caller keeps the list.
 ///
 /// In TS you'd write (pseudocode):
@@ -216,7 +227,7 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
     let mut pattern_from_flag: bool = false;
     let mut files_mode: bool = false;
     let mut short_replace: bool = false;
-    let mut positional_count: usize = 0;
+    let mut positionals: Vec<String> = Vec::new();
     let mut after_double_dash: bool = false;
     let mut index: usize = 0;
 
@@ -240,7 +251,7 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
 
         // After `--` everything is a positional argument.
         if after_double_dash {
-            positional_count += 1;
+            positionals.push(token.clone());
             continue;
         }
         if token == "--" {
@@ -319,28 +330,33 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
             continue;
         }
 
-        positional_count += 1;
+        positionals.push(token.clone());
     }
 
     // With `--files`, or a pattern given by `-e` or `-f`, every positional is a path; otherwise the first is the pattern.
-    let mut path_count: usize = positional_count;
-    if !files_mode && !pattern_from_flag && positional_count > 0 {
-        path_count = positional_count - 1;
-    }
+    let first_path_index: usize = if files_mode || pattern_from_flag { 0 } else { 1 };
+    let path_count: usize = positionals.len().saturating_sub(first_path_index);
+    // `-` anywhere a path may stand is ripgrep's "read standard input", so the pipe is not lost there.
+    let stdin_marker_named: bool = positionals
+        .iter()
+        .skip(first_path_index)
+        .any(|path| return path == "-");
 
-    // What:     `WalkDescription { widened, informational, path_count }` builds the record from the variables of the
+    // What:     `WalkDescription { widened, informational, path_count, ... }` builds the record from the variables of the
     // same names (shorthand for `widened: widened`).
     // Why:      Hand the result to the caller.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // return { widened, informational, pathCount: pathCount };
+    // return { widened, informational, pathCount: pathCount, ... };
     // ```
     return WalkDescription {
         widened,
         informational,
         path_count,
         short_replace,
+        files_mode,
+        stdin_marker_named,
     };
 }
 
@@ -378,6 +394,19 @@ pub fn rg_refusal(
             arguments.join(" "),
         );
         return Some(replace_message);
+    }
+
+    // A pipe on standard input beside a named search path loses the caller's lines: ripgrep reads the paths and never
+    // the pipe. This holds in any directory, so it comes before the repository-root question and has no wide-walk escape
+    // hatch (`SEARCH_SHADOW_ALLOW_WIDE` names a full walk, not a dropped pipe).
+    let pipe_would_be_ignored: bool = stdin.is_pipe() && !walk.informational && !walk.files_mode
+        && !walk.stdin_marker_named && walk.path_count > 0;
+    if pipe_would_be_ignored {
+        let pipe_message: String = format!(
+            "search-shadow: refused `rg {}`. Its standard input is a pipe, and ripgrep reads the named search paths and never the pipe, so the piped lines would be dropped. To filter those lines, drop the search path: with no path ripgrep reads its standard input. To search the path, run the same command without a pipe.",
+            arguments.join(" "),
+        );
+        return Some(pipe_message);
     }
 
     // The escape hatch for one deliberate full walk.
