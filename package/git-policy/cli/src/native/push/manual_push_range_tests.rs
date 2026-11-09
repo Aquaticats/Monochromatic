@@ -399,3 +399,40 @@ fn no_control_of_the_range_signals_a_process_by_its_number() {
     assert!(!code.contains(kill.as_str()), "a control of the range still signals a process by its number");
     assert!(!code.contains(recorded.as_str()), "a control of the range still reads a process number to signal it");
 }
+
+/// What:
+///  A write whose reader never reads ends at its own deadline,
+/// and says that not all of it went.
+/// Why:
+///  The request list of a batch query goes in on a thread of its own,
+/// and a program the query started can
+///  hold the read end of that input without ever reading it:
+/// one `write_all` then outlived the query by as long as that
+///  program lived,
+/// and the handle was dropped with the write still blocked in the kernel.
+/// The deadline is the query's own
+///  ceiling,
+/// so the thread ends with the query it serves.
+/// The write runs on a thread of its own and is taken with a deadline,
+/// so a write that never ends is reported
+///  here rather than hanging the run.
+#[test]
+fn a_write_no_one_reads_ends_at_its_deadline() {
+    let (reading, mut writing) = std::io::pipe().expect("a pipe");
+    let (sender, receiver) = std::sync::mpsc::channel::<bool>();
+    let began: Instant = Instant::now();
+    let writing_thread = std::thread::Builder::new()
+        .name(String::from("manual-push-write-control"))
+        .spawn(move || {
+            let _abandoned = sender.send(write_within(&mut writing, &[b'x'; 1_000_000], Duration::from_millis(200)));
+        })
+        .expect("the control's thread");
+    let answer: Result<bool, std::sync::mpsc::RecvTimeoutError> = receiver.recv_timeout(Duration::from_secs(5));
+    let waited: Duration = began.elapsed();
+    // Closing the read end releases the write whatever happened, so the control leaves nothing blocked behind it.
+    drop(reading);
+    let _joined = writing_thread.join();
+    let wrote_all: bool = answer.expect("the write returned; a write nothing read blocked for good");
+    assert!(!wrote_all, "a write nothing read was reported as complete");
+    assert!(waited < Duration::from_secs(3), "the write outlasted its deadline by {waited:?}");
+}

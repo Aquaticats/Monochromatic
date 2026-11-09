@@ -26,14 +26,17 @@ use crate::start_retry::RetryStart;
 use std::collections::BTreeMap;
 /// Owned OS strings for Git arguments and the stdin of batch queries.
 use std::ffi::OsString;
-/// Pipes for the batch queries' stdin and stdout.
-use std::io::Write;
 /// The child a query starts,
-/// handed to the thread that waits for it.
+/// handed to the thread that reads its answers.
 use std::process::Child;
 use std::process::Stdio;
-/// How long a range query may run.
-use std::time::Duration;
+/// How long a range query may run,
+/// and the clock the thread that writes its list measures that against.
+use std::time::{Duration, Instant};
+/// The most bytes one write of the request list hands the kernel,
+/// the pipe buffer POSIX promises is written without waiting for a reader.
+const PIPE_BUFFER: usize = 4096;
+
 /// Remote-tracking ref namespace Git's default fetch refspec writes.
 const TRACKING_NAMESPACE: &str = "refs/remotes/";
 
@@ -150,8 +153,9 @@ fn run_git_bytes_starting_with(
             let text: String = requests.to_owned();
             let mut writing_end = writer;
             let started = std::thread::Builder::new().name(String::from("cli-git-range-input")).spawn(move || {
-                // A Git exit before reading the whole input surfaces through its status, so the write error is ignored here.
-                let _written = writing_end.write_all(text.as_bytes());
+                // A Git that exits before reading the whole list surfaces through its status, and one that never reads it has
+                //  its own ceiling: the write gives up when that passes rather than waiting for the reader's life.
+                let _written: bool = write_within(&mut writing_end, text.as_bytes(), RANGE_QUERY_CEILING);
             });
             match started {
                 Ok(written) => {
@@ -206,6 +210,58 @@ fn run_git_bytes_starting_with(
         )));
     }
     return Ok(answered.stdout);
+}
+
+/// What:
+///  Writes every byte of `text` to `writer`,
+/// giving up once `within` has passed,
+/// and says whether all of it went.
+/// Why:
+///  A `write_all` of a list larger than a pipe waits for the reader,
+/// and a program the query started can hold the read
+///  end of that input without ever reading it,
+/// so one blocked call outlived the query by as long as that program lived.
+///  Waiting for the pipe to take more,
+/// with the query's own ceiling as the deadline,
+/// ends the thread with the query.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function writeWithin(writer: Writable, text: Buffer, within: number): boolean;
+/// ```
+fn write_within(writer: &mut std::io::PipeWriter, text: &[u8], within: Duration) -> bool {
+    use std::io::Write as _;
+    let began: Instant = Instant::now();
+    let mut written: usize = 0;
+    while written < text.len() {
+        let left: Duration = match within.checked_sub(began.elapsed()) {
+            Some(left) if !left.is_zero() => left,
+            _ => return false,
+        };
+        let mut waiting: libc::pollfd = libc::pollfd { fd: std::os::fd::AsRawFd::as_raw_fd(writer), events: libc::POLLOUT, revents: 0 };
+        let millis: libc::c_int = libc::c_int::try_from(left.as_millis()).unwrap_or(libc::c_int::MAX);
+        // SAFETY: `waiting` is one valid `pollfd` for the call, which reads and writes only that.
+        let ready: libc::c_int = unsafe { libc::poll(&raw mut waiting, 1, millis) };
+        if ready < 0 {
+            return false;
+        }
+        // A pipe that took nothing within the deadline is the end of this write: writing again would wait in the kernel with no
+        //  end of its own, which is what this deadline exists to prevent.
+        if ready == 0 {
+            return false;
+        }
+        // One pipe buffer at a time: a larger write in blocking mode waits in the kernel until all of it is taken, which is
+        //  the call this deadline exists to bound.
+        let room: usize = (text.len() - written).min(PIPE_BUFFER);
+        match writer.write(&text[written..written + room]) {
+            Ok(0) => return false,
+            Ok(took) => written += took,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+            // A query that ended before reading the whole list is the status its caller reports, not a failure of the write.
+            Err(_ended) => return false,
+        }
+    }
+    return true;
 }
 
 /// One argument as the words a message shows it with.
