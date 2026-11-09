@@ -103,6 +103,10 @@ pub mod commit_index_copying;
 /// for the timing record.
 pub mod commit_index_builds;
 
+/// What the waiting notice of the scratch `git commit` saw while the step ran,
+/// for the timing record.
+pub mod scratch_commit_step;
+
 /// The refresh of an index's stat data before the scratch commit,
 /// so its ceiling does not end a commit over a moved worktree.
 pub mod commit_index_stat_refresh;
@@ -123,6 +127,21 @@ pub mod commit_preparation;
 /// The configuration native `git commit` reads that decides what it writes,
 /// and its effective values.
 pub mod native_commit_configuration;
+
+/// What the ceiling of the scratch `git commit` does when it comes:
+/// ends the step it watches,
+/// and answers whether that step was signalled.
+pub mod scratch_step_ceiling_stop;
+
+/// The words a stopped scratch `git commit` prints.
+pub mod scratch_step_stop_words;
+
+/// The line a commit prints while it waits for the `git commit` of its scratch repository.
+pub mod scratch_step_notice_line;
+
+/// The programs a look of the notice saw below the step,
+/// and the time each was credited with.
+pub mod scratch_step_programs_below;
 
 /// The waiting notice of the commit Git builds in the scratch repository.
 pub mod native_commit_waiting_notice;

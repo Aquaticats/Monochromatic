@@ -20,6 +20,7 @@ use super::support::{
 };
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::io::{BufRead, Read};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -295,6 +296,346 @@ fn exit_codes_and_stderr_match_native_git() {
         assert_eq!(through_wrapper, through_git, "{arguments:?}");
     }
     remove(&fixture);
+}
+
+/// What:
+///  Run a command whose reader takes one line and then goes away,
+/// and report how the command ended:
+/// its exit
+///  code and the signal that ended it,
+/// one of which is absent.
+/// Why:
+///  This is the shape of `git log -p | head -1`:
+/// the pipeline's reader exits after its one line,
+/// the pipe
+///  closes,
+/// and the command writing to it is ended by `SIGPIPE`.
+/// A caller tells the two apart by `WIFSIGNALED` and by the
+///  status a shell reports (128 + the signal).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(cmd, { stdio: ['ignore', 'pipe', 'pipe'] }); readOneLine(child.stdout); child.stdout.destroy(); return wait(child);
+/// ```
+fn ended_after_one_line(mut command: Command) -> (Option<i32>, Option<i32>) {
+    let mut child: Child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the command starts");
+    let stdout: std::process::ChildStdout = child.stdout.take().expect("piped standard output");
+    let mut reader: std::io::BufReader<std::process::ChildStdout> = std::io::BufReader::new(stdout);
+    let mut line: Vec<u8> = Vec::new();
+    reader.read_until(b'\n', &mut line).expect("the first line");
+    assert!(!line.is_empty(), "the command wrote no line, so a reader that leaves proves nothing");
+    // Dropping the reader closes the pipe, which is what a reader that exits does.
+    drop(reader);
+    // Standard error is drained so that a command writing there cannot block on a pipe nobody reads.
+    let mut errors: std::process::ChildStderr = child.stderr.take().expect("piped standard error");
+    let drained = std::thread::spawn(move || {
+        let mut kept: Vec<u8> = Vec::new();
+        let _read = errors.read_to_end(&mut kept);
+        return kept;
+    });
+    let status: std::process::ExitStatus = child.wait().expect("the command ends");
+    let _said: Vec<u8> = drained.join().expect("the reader of standard error");
+    return (status.code(), status.signal());
+}
+
+/// What:
+///  A read-only command whose reader goes away after one line,
+/// run in a linked worktree,
+/// where the wrapper
+///  keeps a process around Git to settle the ignored-state copy.
+/// Why:
+///  Native Git dies of `SIGPIPE`,
+/// and so does a wrapper that replaced itself with Git;
+/// the copy route runs Git as a child
+///  and reported its death by a signal as exit status 1,
+/// so a script that tells "the reader went away" from "Git failed" took the wrong branch
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(endedAfterOneLine(wrappedIn(linked))).toEqual(endedAfterOneLine(directIn(linked)));
+/// ```
+#[test]
+fn a_reader_that_goes_away_ends_the_run_by_the_signal_native_git_dies_of() {
+    let fixture: Fixture = fixture("sigpipe-copy");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    // Past one pipe buffer, so Git is still writing when the reader has gone.
+    let body: String = (0..20_000).map(|line| { return format!("line {line}\n"); }).collect();
+    std::fs::write(repo.join("big.txt"), body).expect("a file whose patch is past one pipe buffer");
+    git(&fixture, repo.as_path(), &["add", "big.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=big"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("UTF-8")]);
+    let mut native: Command = direct(&fixture);
+    native.current_dir(&linked).args(["log", "-p", "--all"]);
+    let through_native: (Option<i32>, Option<i32>) = ended_after_one_line(native);
+    assert_eq!(through_native, (None, Some(libc::SIGPIPE)), "the control: native Git ends of SIGPIPE");
+    let mut through: Command = Command::new(fixture.root.join("bin/git"));
+    super::support::hermetic(&mut through, &fixture, super::support::wrapper_first_path(&fixture).as_os_str());
+    through.current_dir(&linked).args(["log", "-p", "--all"]);
+    let through_wrapper: (Option<i32>, Option<i32>) = ended_after_one_line(through);
+    assert_eq!(through_wrapper, through_native, "the wrapper's caller sees what Git's caller sees");
+    remove(&fixture);
+}
+
+/// What:
+///  Write a stand-in `git` that answers the wrapper's own reads with the real Git,
+/// and where the wrapper runs the person's
+///  command (`add`),
+/// records its own process number in `pid_file` and then waits on standard input.
+/// Why:
+///   The coordinated route keeps a process around Git,
+/// so the control needs a Git child it can name and
+///  signal while the wrapper waits for it.
+/// The wrapper also runs the command line itself to expand an alias,
+/// with the output
+///  captured and the input closed,
+/// and that read is marked in the environment every start carries
+/// (`started_as_git.rs`):
+/// answering it with the blocking branch would leave that read waiting on the person's terminal.
+/// A command whose standard input is an open
+///  pipe of the caller's is what Git is given here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeExecutable(git, `#!/bin/sh\ncase "$CLI_GIT_STARTED_AS_GIT" in *query*) exec ${REAL_GIT} "$@";; esac\n for token in "$@"; do if [ "$token" = add ]; then echo $$ > '${pidFile}'; read line; exit 0; fi; done; exec ${REAL_GIT} "$@"`);
+/// ```
+fn stand_in_that_waits_before_writing_the_index(path: &Path, pid_file: &Path) {
+    let script: String = format!(
+        "#!/bin/sh\n\
+         case \"${{CLI_GIT_STARTED_AS_GIT}}\" in\n\
+         *query*) exec {REAL_GIT} \"$@\" ;;\n\
+         esac\n\
+         for token in \"$@\"; do\n\
+         if [ \"$token\" = \"add\" ]; then\n\
+         echo $$ > '{pid_file}'\n\
+         read -r line\n\
+         exit 0\n\
+         fi\n\
+         done\n\
+         exec {REAL_GIT} \"$@\"\n",
+        pid_file = pid_file.display(),
+    );
+    executable(path, script.as_bytes());
+}
+
+/// What:
+///  The process number of the stand-in the wrapper is waiting on,
+/// once the file names a process that is still there.
+/// Why:
+///   The control must signal the wrapper's Git and not a process that ended,
+/// and the stand-in writes the number only where
+///  the wrapper runs the person's command,
+/// so a number this returns is one the wrapper is waiting for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitForFile(pidFile) // parseInt(readFileSync(pidFile, 'utf8'))
+/// ```
+fn stand_in_number(pid_file: &Path) -> i32 {
+    for _attempt in 0..2_000 {
+        if let Ok(text) = std::fs::read_to_string(pid_file) {
+            let number: String = text.trim().to_owned();
+            if let Ok(pid) = number.parse::<i32>()
+                && pid > 1
+            {
+                return pid;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("the stand-in never recorded its process number at {}", pid_file.display());
+}
+
+/// What:
+///  One run of `git add` through the wrapper with the stand-in as Git,
+/// whose caller holds its standard input open,
+/// so the wrapper
+///  waits for a Git that waits.
+/// Why:
+///   A signal control needs the child alive at the moment the signal is sent,
+/// and every other input of the invocation has to be
+///  the one an ordinary command gets.
+/// No directory of real Git is on this `PATH`:
+/// a conventional location that `PATH` exposes is promoted to the front of the search,
+/// so `/usr/bin` here
+///  would put the system Git ahead of the stand-in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawn(wrapper, ['add', 'a.txt'], { cwd: repo, env: { PATH: `${bin}:${scripts}` }, stdio: ['pipe', 'pipe', 'pipe'] })
+/// ```
+fn wrapper_waiting_on_a_git_that_waits(fixture: &Fixture, repo: &Path, scripts: &Path) -> Child {
+    let mut path: OsString = fixture.root.join("bin").into_os_string();
+    path.push(":");
+    path.push(scripts.as_os_str());
+    let mut command: Command = Command::new(fixture.root.join("bin/git"));
+    super::support::hermetic(&mut command, fixture, path.as_os_str());
+    return command
+        .current_dir(repo)
+        .args(["add", "a.txt"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the wrapper starts");
+}
+
+/// Send `signal` to the process with this number,
+/// as a person's `kill` or a supervisor does.
+fn send_signal(pid: i32, signal: i32) {
+    // SAFETY: `kill` takes a process number and a signal number, touches no memory of this process, and its answer is
+    //  checked below.
+    let sent: i32 = unsafe { libc::kill(pid, signal) };
+    assert_eq!(sent, 0, "the signal was refused for process {pid}: {}", std::io::Error::last_os_error());
+}
+
+/// What:
+///  How long a signalled wrapper may take to end before the control calls it a hang.
+/// Why:
+///   A signal ends the wrapper at once,
+/// so anything near this is a defect rather than a slow host,
+/// and it is far under
+///  the harness's own backstop for a command that never ends
+/// (`binary_supervisor::SHARED_BACKSTOP_SECONDS`,
+/// 600 seconds).
+/// The control waits with this bound instead of
+///  `Child::wait`,
+/// which a test may not call without one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIGNAL_WAIT = 30_000;
+/// ```
+const SIGNAL_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What:
+///  Waits for a child with a bound,
+/// and ends it when the bound passes.
+/// Why:
+///   A test may not wait without a bound:
+/// the covered run holds its own standard input open,
+/// so a signal that never arrives
+///  leaves the wrapper waiting for ever
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-2 review).
+/// A child the bound ends is named with what it printed,
+/// so the failure says what happened rather than hanging.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitWithin(child: Child, bound: number): ExitStatus { const began = Date.now(); while (Date.now() - began < bound) { const status = child.tryWait(); if (status) return status; sleep(10); } child.kill(); throw new Error(`did not end within ${bound} ms`); }
+/// ```
+fn wait_within(child: &mut Child, bound: std::time::Duration) -> std::process::ExitStatus {
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < bound {
+        if let Some(status) = child.try_wait().expect("the child's state") {
+            return status;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let _killed = child.kill();
+    let status: std::process::ExitStatus = child.wait().expect("the ended child");
+    panic!("the command did not end within {bound:?}: {status:?}");
+}
+
+/// What:
+///  A `SIGTERM` sent to the Git the wrapper runs for an index writer ends the wrapper by that signal,
+/// exactly as it
+///  ends native Git.
+/// Why:
+///  The coordinated route keeps a process around Git,
+/// so Git's death comes back as a value,
+/// and that value
+///  is now the signal itself
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-1
+///  review).
+/// The control beside it sends the same signal to the wrapper's own process,
+/// which proves this run can show a death
+///  by a signal at all.
+/// Each run has a stand-in and a process-number file of its own,
+/// and the control's standard input
+///  is closed before the covered run starts:
+/// a stand-in the control left behind reads its standard input,
+/// and with the pipe closed it
+///  ends instead of waiting,
+/// so the covered run can never take its process number for its own
+/// (finding 4 of the
+///  round-2 review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const through = spawn(wrapper, ['add', 'a.txt']); kill(pidOfItsStandIn, 'SIGTERM'); expect(waitWithin(through)).toMatchObject({ code: null, signal: 'SIGTERM' });
+/// ```
+#[test]
+fn a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal() {
+    let fixture: Fixture = fixture("signal-coordinated");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), b"content\n").expect("the file the command stages");
+    let control_scripts: PathBuf = fixture.root.join("scripts-control");
+    let covered_scripts: PathBuf = fixture.root.join("scripts-covered");
+    std::fs::create_dir_all(&control_scripts).expect("control script directory");
+    std::fs::create_dir_all(&covered_scripts).expect("covered script directory");
+    let control_pid_file: PathBuf = fixture.root.join("control.pid");
+    let covered_pid_file: PathBuf = fixture.root.join("covered.pid");
+    stand_in_that_waits_before_writing_the_index(control_scripts.join("git").as_path(), control_pid_file.as_path());
+    stand_in_that_waits_before_writing_the_index(covered_scripts.join("git").as_path(), covered_pid_file.as_path());
+    // The control: the same invocation, and the signal sent to the wrapper rather than to its Git.
+    let mut control: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), control_scripts.as_path());
+    let control_number: i32 = i32::try_from(control.id()).expect("a process number");
+    send_signal(control_number, libc::SIGTERM);
+    let control_status: std::process::ExitStatus = wait_within(&mut control, SIGNAL_WAIT);
+    // Closing the control's input ends a stand-in it left behind, whose number no other run can then take.
+    drop(control.stdin.take());
+    assert_eq!(control_status.signal(), Some(libc::SIGTERM), "the control: this run shows a death by a signal");
+    assert_eq!(control_status.code(), None);
+    // The covered case: the signal reaches only the Git the wrapper started.
+    let mut through: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), covered_scripts.as_path());
+    let stand_in: i32 = stand_in_number(covered_pid_file.as_path());
+    send_signal(stand_in, libc::SIGTERM);
+    // Standard input stays open until the wrapper is gone, so nothing but the signal ends the stand-in.
+    let status: std::process::ExitStatus = wait_within(&mut through, SIGNAL_WAIT);
+    drop(through.stdin.take());
+    assert_eq!(status.code(), None, "not a normal exit with the status a shell prints for the death");
+    assert_eq!(status.signal(), Some(libc::SIGTERM), "the caller sees the death native Git's caller sees");
+    remove(&fixture);
+}
+
+
+/// What:
+///  A child that never ends is ended by the bound,
+/// and the control fails instead of waiting for ever.
+/// Why:
+///  A test may not wait without a bound:
+/// the covered run of the signal control holds its own standard input open,
+/// so a
+///  signal that never arrives leaves the wrapper waiting until the test runner ends the whole binary
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 4 of the round-2 review).
+/// This is the bound itself,
+/// with a child that waits on a pipe nobody closes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stubborn = spawn('/bin/sh', ['-c', 'read line'], { stdio: ['pipe'] }); expect(() => waitWithin(stubborn, 200)).toThrow(); expect(stubborn.pid).toBeGone();
+/// ```
+#[test]
+fn a_wait_without_an_end_is_ended_at_its_bound() {
+    let mut stubborn: Child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("read line")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the child starts");
+    let began: std::time::Instant = std::time::Instant::now();
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return wait_within(&mut stubborn, std::time::Duration::from_millis(200)); }));
+    assert!(caught.is_err(), "the bound ends the wait");
+    assert!(began.elapsed() < std::time::Duration::from_secs(10), "at its bound, not later");
+    assert!(stubborn.try_wait().expect("the child's state").is_some(), "the child was ended, not left behind");
 }
 
 /// Wait until the process with this ID is real Git,

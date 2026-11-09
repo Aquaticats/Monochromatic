@@ -42,6 +42,23 @@ fn assert_rejected_by(observed: &Observed, policy: &str, context: &str) {
     assert_eq!(stderr.matches('\n').count(), 1, "{context}: {stderr}");
 }
 
+/// Require that a command ran in an exempted repository:
+///  success,
+/// nothing on standard output,
+///  and one line on standard error naming the variable that exempted the repository and the directory it named.
+fn assert_exempted(observed: &Observed, variable: &str, directory: &Path, context: &str) {
+    let stderr: String = stderr_of(observed);
+    assert_eq!(observed.code, Some(0), "{context}: {stderr}");
+    assert_eq!(observed.stdout, Vec::<u8>::new(), "{context}: {stderr}");
+    assert!(stderr.starts_with("monochromatic-git-policy-cli: this repository is exempt from the worktree guard because "), "{context}: {stderr}");
+    assert!(stderr.contains(variable), "{context}: {stderr}");
+    assert!(
+        stderr.contains(directory.display().to_string().as_str()),
+        "{context}: {stderr}"
+    );
+    assert!(stderr.contains("Hint: "), "{context}: {stderr}");
+}
+
 /// Every local branch of a repository,
 ///  one name per line.
 fn branches(fixture: &Fixture, repo: &Path) -> String {
@@ -183,10 +200,13 @@ fn a_tool_cache_checkout_is_exempt_from_the_linked_worktree_rule() {
         );
         std::fs::write(repo.join("tracked.txt"), b"two\n").expect("modify tracked file");
     }
-    // In the cache the main worktree may be reset; Git runs and restores the file.
-    assert_eq!(
-        run_wrapped(&fixture, cached.as_path(), &["reset", "--hard", "--quiet"]),
-        silent_success()
+    // In the cache the main worktree may be reset; Git runs and restores the file, and the wrapper says on standard
+    //  error which variable exempted the repository, because the environment of the command chose that exemption.
+    assert_exempted(
+        &run_wrapped(&fixture, cached.as_path(), &["reset", "--hard", "--quiet"]),
+        "HOME",
+        fixture.root.join("home/.cache/uv").as_path(),
+        "uv cache",
     );
     assert_eq!(
         std::fs::read(cached.join("tracked.txt")).expect("tracked file"),
@@ -250,14 +270,17 @@ fn a_mise_plugin_clone_is_exempt_from_the_linked_worktree_rule() {
         );
         std::fs::write(repo.join("tracked.txt"), b"two\n").expect("modify tracked file");
     }
-    // The form mise runs on a plugin: a forced checkout that discards local changes.
-    assert_eq!(
-        run_wrapped(
+    // The form mise runs on a plugin: a forced checkout that discards local changes, and the line that says which
+    //  variable exempted the clone.
+    assert_exempted(
+        &run_wrapped(
             &fixture,
             plugin.as_path(),
             &["checkout", "--force", "--quiet", "HEAD"],
         ),
-        silent_success()
+        "HOME",
+        fixture.root.join("home/.local/share/mise").as_path(),
+        "mise data directory",
     );
     assert_eq!(
         std::fs::read(plugin.join("tracked.txt")).expect("tracked file"),

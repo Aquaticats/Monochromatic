@@ -1,0 +1,89 @@
+//! What:
+//!  The facts one record of a deleted branch carries,
+//!  against real Git:
+//!  a branch whose commit
+//!       nothing else reaches answers "not merged",
+//!  a branch `HEAD` already contains answers "merged",
+//!  and a name that
+//!       does not exist answers nothing at all.
+//! Why:
+//!  The line exists so the branch can be restored from it,
+//!  which needs the commit,
+//!  and so a reader can see
+//!  whether the commits were already safe elsewhere.
+
+use super::{branch_commit, deletion_facts, merged_into_head};
+use crate::discard_audit_facts::AuditFact;
+use crate::test_support::{fixture, git, isolated_overlay, remove, repository};
+use crate::transaction_git::GitContext;
+use std::ffi::{OsStr, OsString};
+use std::path::PathBuf;
+
+/// A context that reads the fixture repository through `-C`.
+fn context(repo: &std::path::Path) -> GitContext {
+    let mut global_prefix: Vec<OsString> = vec![
+        OsString::from("-C"),
+        repo.as_os_str().to_os_string(),
+    ];
+    global_prefix.shrink_to_fit();
+    return GitContext {
+        real_git: PathBuf::from(crate::test_support::REAL_GIT),
+        overlay: isolated_overlay(),
+        global_prefix,
+        common_dir: None,
+    };
+}
+
+/// The value of one named fact,
+/// or empty text when the record carries none.
+fn value(facts: &[AuditFact], name: &'static str) -> String {
+    for fact in facts {
+        if fact.name() != name {
+            continue;
+        }
+        return match fact {
+            AuditFact::Text(_, text) => text.clone(),
+            AuditFact::Flag(_, flag) => String::from(if *flag { "true" } else { "false" }),
+        };
+    }
+    return String::new();
+}
+
+/// A repository with one branch `main` already contains and one it does not.
+#[test]
+fn real_git_answers_the_commit_and_whether_head_contains_it() {
+    let root: PathBuf = fixture("branch-delete-audit");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=base"]);
+    git(repo.as_path(), &["branch", "merged"]);
+    git(repo.as_path(), &["checkout", "--quiet", "-b", "unmerged"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=unmerged"]);
+    let commit: String = String::from_utf8_lossy(
+        git(repo.as_path(), &["rev-parse", "unmerged"]).stdout.as_slice(),
+    ).trim().to_owned();
+    git(repo.as_path(), &["checkout", "--quiet", "main"]);
+    let reading: GitContext = context(repo.as_path());
+
+    // The unmerged branch: named with its commit, and `HEAD` does not contain it.
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("unmerged"), false).as_deref(), Some(commit.as_str()));
+    assert_eq!(merged_into_head(&reading, Some(repo.as_path()), commit.as_str()), Some(false));
+    let unmerged: Vec<AuditFact> =
+        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("unmerged"), false).expect("the branch exists");
+    assert_eq!(value(&unmerged, "branch"), "unmerged");
+    assert_eq!(value(&unmerged, "reference"), "refs/heads/unmerged");
+    assert_eq!(value(&unmerged, "commit"), commit);
+    assert_eq!(value(&unmerged, "merged"), "false");
+
+    // The merged branch: the same fields say the commits are already in `HEAD`.
+    let merged: Vec<AuditFact> =
+        deletion_facts(&reading, Some(repo.as_path()), OsStr::new("merged"), false).expect("the branch exists");
+    assert_eq!(value(&merged, "merged"), "true");
+    assert_ne!(value(&merged, "commit"), commit);
+
+    // A name with no local branch answers nothing, so the record writes no line for it.
+    assert_eq!(branch_commit(&reading, Some(repo.as_path()), OsStr::new("no-such-branch"), false), None);
+    assert_eq!(deletion_facts(&reading, Some(repo.as_path()), OsStr::new("no-such-branch"), false), None);
+    // Without a known worktree the invocation's own options select the repository.
+    assert_eq!(branch_commit(&reading, None, OsStr::new("unmerged"), false).as_deref(), Some(commit.as_str()));
+    remove(root.as_path());
+}

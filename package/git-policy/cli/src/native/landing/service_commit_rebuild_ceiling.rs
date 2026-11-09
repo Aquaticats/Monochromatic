@@ -78,3 +78,53 @@ pub(crate) fn may_rebuild(branch: &str, builds: usize, first_build_began: std::t
 #[cfg(test)]
 #[path = "service_commit_rebuild_ceiling_tests.rs"]
 mod tests;
+
+/// What:
+///  What a service's `prepare-again` answer comes to:
+///  the retry the next preparation makes,
+///  or the stop that names the branch.
+/// Why:
+///   A commit Git built,
+/// and an amend,
+/// are never sent for another tip,
+/// so the answer is a moved branch for them;
+/// and every other command may rebuild what the preparation captured onto the branch as it is,
+/// while the rebuild ceiling allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const after = afterAPrepareAgain({ native, amend, ready, attempt });
+/// ```
+pub(crate) enum AfterAPrepareAgain {
+    /// What this preparation captured is merged onto the branch by the next one.
+    Retry(crate::service_replay::Captured),
+    /// The command stops,
+    /// naming the branch.
+    Stopped(crate::commit_transaction::TransactionStop),
+}
+
+/// What:
+///  The retry a `prepare-again` answer makes,
+/// or the stop that names the branch.
+pub(crate) fn after_a_prepare_again(
+    native: bool,
+    amend: bool,
+    ready: &crate::service_prepare::Ready,
+    invocation: &crate::commit_transaction::CommitInvocation<'_>,
+    landed: Vec<crate::service_protocol::LandedCapture>,
+    attempt: usize,
+    first_build_began: std::time::Instant,
+) -> AfterAPrepareAgain {
+    if native || amend {
+        return AfterAPrepareAgain::Stopped(crate::service_branch_shows::branch_moved(ready));
+    }
+    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
+    if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
+        let failure: crate::service_messages::ClientFailure = crate::service_messages::ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 };
+        return AfterAPrepareAgain::Stopped(crate::commit_transaction::TransactionStop::Message(crate::service_messages::render(&failure)));
+    }
+    return match crate::service_replay::retry_of(invocation.context, invocation.cwd, ready, landed) {
+        Ok(next) => AfterAPrepareAgain::Retry(next),
+        Err(stop) => AfterAPrepareAgain::Stopped(stop),
+    };
+}

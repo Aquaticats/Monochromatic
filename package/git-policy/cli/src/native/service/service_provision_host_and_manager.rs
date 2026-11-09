@@ -54,6 +54,23 @@ pub struct ProvisionHost {
     pub retirement_wait: std::time::Duration,
 }
 
+/// What:
+///  The runtime directory whose record of the unit texts the manager was told about belongs to this host,
+/// for the
+///  client that drops it when the manager and the files disagree.
+/// Why:
+///   The client is built from this host,
+/// and a closure at the construction site would say the same thing in
+///  every one of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unitsRecordDirOf = (host: ProvisionHost): string => host.runtimeDir;
+/// ```
+pub fn units_record_dir_of(host: &ProvisionHost) -> PathBuf {
+    return host.runtime_dir.clone();
+}
+
 /// How long the earlier single service may take to stop;
 /// it finishes the batch it holds first.
 /// The wait and every question to
