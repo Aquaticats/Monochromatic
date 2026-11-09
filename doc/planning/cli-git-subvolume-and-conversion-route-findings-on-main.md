@@ -928,7 +928,7 @@ So that nobody repeats it:
   the `update_only` carry-back refills every entry the old tree lacks before the
   swap (`subvolume_rollback.rs:168`,
   `subvolume_sync.rs:149`),
-  and the run above shows a clean checkout afterwards.
+  and the rollback run shows a clean checkout afterwards.
   The only refusal on that path is for a missing old tree
   (`subvolume_rollback.rs:160-165`),
   which is the right test for the case it can see.

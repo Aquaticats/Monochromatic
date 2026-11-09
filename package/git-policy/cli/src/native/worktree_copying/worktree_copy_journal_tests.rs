@@ -562,6 +562,35 @@ fn only_a_journals_own_temporaries_are_removed() {
     remove(root.as_path());
 }
 
+/// The removal's workers are jobs of the process's blocking pool:
+/// a worker asks for the one place of the process's bound before its subtree is removed,
+/// which work on a thread of its own never does.
+#[test]
+fn the_removal_workers_take_places_of_the_processs_bound() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::RecvTimeoutError;
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let root: PathBuf = fixture("journal-split-removal-places");
+    let stage: PathBuf = root.join("stage");
+    for subtree in 0..9 {
+        let directory: PathBuf = stage.join(format!("payload/root/group/subtree{subtree}/deeper"));
+        std::fs::create_dir_all(directory.as_path()).expect("directories");
+        std::fs::write(directory.join("file"), b"x").expect("file");
+    }
+    remove_tree_split(stage.as_path()).expect("removed");
+    assert!(!stage.exists(), "every subtree is removed");
+    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+    //  removals reached the process's bound instead of starting at once.
+    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+        Ok(true) => {}
+        Ok(false) => panic!("the job that holds the only place saw no ask, so no worker of the split removal took a place of the process's bound"),
+        Err(RecvTimeoutError::Timeout) => panic!("no worker of the split removal asked for a place of the process's bound within the patience, so the subtrees were not removed by jobs of the blocking pool"),
+        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+    }
+    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a worker of the removal");
+    remove(root.as_path());
+}
+
 /// A stage with several subtrees below the split depth is removed whole,
 /// by workers sharing the subtrees.
 #[test]

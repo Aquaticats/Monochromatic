@@ -172,7 +172,8 @@ impl Marks {
     /// as the waiting thread's end mark does,
     /// and keeps the quiet gap it measured.
     /// Why:
-    ///   A wait can end without a mark: the pin of the child reports it gone,
+    ///   A wait can end without a mark:
+    /// the pin of the child reports it gone,
     /// a stop of the service ends it,
     ///  and the watcher itself ends it after a quiet window or a ceiling.
     /// Every one of those ends the same way,
@@ -469,17 +470,9 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // ends, which may be well before the grace is over (a helper below it can outlive it). Both signals therefore go through
     // the one pin taken when the child started, and never to a number read now: where that start proved nothing, nothing is
     // signalled, and one line says so.
-    // The locks the tree holds are claimed while their pid files still name the holders: the signals below can cut Git's cleanup
-    //  between the removal of a pid file and the removal of its lock.
-    let seen: Vec<TreeMember> = tree.clone();
-    let before_claims: LockLedger = locks.clone();
-    let claiming: LockLedger = match crate::blocking_job::run_blocking_job(move || { return before_claims.claiming(seen.as_slice()); }).await {
-        Ok(claimed) => claimed,
-        Err(error) => {
-            crate::diagnostic_log::debug("childWatch", format!("the locks of the step {pid} were not claimed: {error}").as_str());
-            locks.clone()
-        }
-    };
+    // Nothing is claimed before the signals: a number in a pid file does not say which PID namespace wrote it
+    //  (cross-vendor review of 2026-11-09, finding 1).
+    let claiming: LockLedger = locks.clone();
     let _asked_delivered: Delivered = send_to_the_root(root_pin, raw, libc::SIGTERM);
     let _below_delivered: Vec<Delivered> = terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
@@ -504,7 +497,7 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // thread can start it is not run (the owner, 2026-11-07, "Fail plainly": no inline run of a call that can wait on storage),
     // and the next Git command that meets such a lock names it.
     let sweeping: LockLedger = claiming;
-    if let Err(error) = crate::blocking_job::run_blocking_job(move || { sweeping.sweep(tree.as_slice()); }).await {
+    if let Err(error) = crate::blocking_job::run_blocking_job(move || { sweeping.sweep(); }).await {
         crate::diagnostic_log::debug("childWatch", format!("the lock files of the stopped step {pid} were not swept: {error}").as_str());
     }
 }

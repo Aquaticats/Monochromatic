@@ -11,6 +11,12 @@
 >  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
 >  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
+> `mise.no-env.toml` note:
+>  the file was deleted on 2026-10-31 in `7bbe5719d5`
+>  and became the hand-written `mise.toml`,
+>  with the static environment moved to `.config/mise/conf.d/20-env.toml`.
+>  Every `mise.no-env.toml` citation below keeps the text of its time and its line numbers no longer resolve.
+
 mise 2026.6.13,
  cargo backend,
  `mise lock`,

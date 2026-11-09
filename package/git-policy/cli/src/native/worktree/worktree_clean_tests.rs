@@ -13,6 +13,7 @@
 //! while an ignored file changes nothing.
 
 use super::*;
+use crate::parallel_test_support::{PATIENCE, hold_the_only_place};
 use crate::subvolume_index::StatFields;
 use crate::test_support::{age, fixture, git, git_context, git_text, remove, repository};
 use std::path::PathBuf;
@@ -355,10 +356,57 @@ fn the_cursor_answers_like_a_lookup_of_each_path_alone() {
     remove(root.as_path());
 }
 
-/// Where the system starts no thread the scan for untracked files runs on the calling thread and the verdict is the same (the starts
-/// are refused to this thread by the seam of `scoped_start`).
+/// What:
+///  The tracked files are proven as a job of the process's blocking pool,
+/// beside the untracked scan.
+/// Why:
+///   The proof walks every tracked file,
+/// so a filesystem that stopped answering it would hold the scan's bounded wait
+///  open if it ran on the task that awaits that scan;
+/// a job of the pool is the only place it may run.
+/// Only a job of the pool asks for a place of the process's bound on blocking jobs,
+///  so an ask is the proof that the work left the calling thread:
+/// the holder gives its place back on that ask and never on a clock.
 #[test]
-fn a_clean_worktree_is_clean_where_no_thread_can_start() {
-    let _refused = crate::scoped_start::RefusedStarts::here();
-    a_clean_worktree_is_clean_and_names_its_head();
+fn the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool() {
+    let root: PathBuf = fixture("clean-a-place-of-the-bound");
+    let repo: PathBuf = aged_repository(root.as_path());
+    let (_given_back, finished) = hold_the_only_place();
+    let clean: Result<CleanSource, CleanRefusal> = check(repo.as_path());
+    assert!(clean.is_ok(), "{:?}", clean.err());
+    assert!(
+        finished.recv_timeout(PATIENCE).expect("the job that holds the only place never returned"),
+        "the tracked files were proven without asking for a place of the process's bound on blocking jobs"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  Where the system refuses every thread,
+/// the tracked files are still proven,
+/// and the words of the refusal are the proof's own.
+/// Why:
+///   The owner's rule is "Commits should never fail.",
+/// so a pool that cannot start a thread costs the check its overlap and never its answer.
+///  The staged change is the tracked proof's refusal,
+/// and a check that gave up on the pool would name the pool instead.
+/// The body runs in a child process that is refused every thread it asks for.
+#[test]
+fn a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start") {
+        return;
+    }
+    // The fixture's Git runs are processes of their own, so the limit is lifted while the repository is made and put back
+    //  for the part this control measures.
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    let root: PathBuf = fixture("clean-no-thread");
+    let repo: PathBuf = aged_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), b"edited\n").expect("edit");
+    git(repo.as_path(), &["add", "a.txt"]);
+    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
+    let refused: Result<CleanSource, CleanRefusal> = check(repo.as_path());
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
+    let why: CleanRefusal = refused.expect_err("a staged change is not clean");
+    assert!(why.reason.contains("a.txt is staged with a change"), "{}", why.reason);
+    remove(root.as_path());
 }

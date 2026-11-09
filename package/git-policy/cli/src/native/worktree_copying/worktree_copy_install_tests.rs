@@ -193,6 +193,37 @@ fn installation_copies_every_entry_and_applies_modes() {
 /// plus one file more so the last batch is a short one.
 const FULL_BATCHES_OF_FILES: usize = 2;
 
+/// The install's slices are jobs of the process's blocking pool:
+/// a slice asks for the one place of the process's bound before its files are created,
+/// which a slice on a thread of its own never does.
+#[test]
+fn the_install_slices_take_places_of_the_processs_bound() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::RecvTimeoutError;
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let root: PathBuf = fixture("install-the-bound");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(stage.join("cache")).expect("stage tree");
+    for index in 0..crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES + 40 {
+        std::fs::write(stage.join(format!("cache/file-{index:05}")), b"payload").expect("file");
+    }
+    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage.as_path(), &[String::from("cache")], &[]).expect("manifest");
+    let destination: PathBuf = root.join("destination");
+    std::fs::create_dir(destination.as_path()).expect("destination");
+    let mut recorder: CountingRecorder = CountingRecorder::default();
+    install_snapshot(stage.as_path(), destination.as_path(), &entries, &BTreeSet::new(), &[], &mut recorder).expect("installed");
+    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+    //  install's slices reached the process's bound instead of starting at once.
+    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+        Ok(true) => {}
+        Ok(false) => panic!("the job that holds the only place saw no ask, so no slice of the install took a place of the process's bound"),
+        Err(RecvTimeoutError::Timeout) => panic!("no slice of the install asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"),
+        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+    }
+    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a slice of the install");
+    remove(root.as_path());
+}
+
 /// Selected paths are claimed and settled in batches of at most the batch size,
 /// so the record count grows by batch,
 /// not by entry.

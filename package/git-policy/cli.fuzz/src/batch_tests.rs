@@ -12,8 +12,9 @@
 
 /// Import the generators and invariants under control.
 use super::{
-    Expectation, GENERATED_SHAPES, GeneratedReply, check_batch_reply, check_generated_reply,
-    generated_reply, render_found, request_and_stream,
+    Expectation, GENERATED_SHAPES, GeneratedReply, check_batch_reply, check_batch_reply_within,
+    check_generated_reply, generated_reply, object_of, read_within, render_found,
+    request_and_stream,
 };
 use git_policy_cli::candidate_batch::{BatchReply, ObjectKind};
 use git_policy_cli::candidate_error::CandidateFailure;
@@ -65,6 +66,7 @@ fn generated_replies_reach_every_outcome() {
     let mut kinds: Vec<ObjectKind> = Vec::new();
     let mut failures: Vec<CandidateFailure> = Vec::new();
     let mut missing: usize = 0;
+    let mut skipped: usize = 0;
     let mut long_names: usize = 0;
     let mut short_names: usize = 0;
     let contents: [&[u8]; 5] = [
@@ -81,6 +83,7 @@ fn generated_replies_reach_every_outcome() {
                 data.extend_from_slice(content);
                 check_generated_reply(data.as_slice());
                 let case: GeneratedReply = generated_reply(data.as_slice());
+                let ceiling: usize = case.ceiling;
                 match case.expectation {
                     Expectation::Reply(BatchReply::Found {
                         object,
@@ -98,6 +101,21 @@ fn generated_replies_reach_every_outcome() {
                         }
                     }
                     Expectation::Reply(BatchReply::Missing) => missing += 1,
+                    Expectation::Reply(BatchReply::TooLarge {
+                        object,
+                        kind,
+                        size,
+                    }) => {
+                        assert!(
+                            size > ceiling,
+                            "a skipped reply was built at or below its ceiling: {size} <= {ceiling}"
+                        );
+                        assert!(!object.as_str().is_empty());
+                        if !kinds.contains(&kind) {
+                            kinds.push(kind);
+                        }
+                        skipped += 1;
+                    }
                     Expectation::Failure(failure) => {
                         if !failures.contains(&failure) {
                             failures.push(failure);
@@ -121,6 +139,7 @@ fn generated_replies_reach_every_outcome() {
         );
     }
     assert!(missing > 0 && long_names > 0 && short_names > 0);
+    assert!(skipped > 0, "no skipped reply was generated");
     // Inputs too short to carry a selector or content still build a checked case.
     check_generated_reply(b"");
     check_generated_reply(&[5]);
@@ -170,4 +189,43 @@ fn fixed_hard_cases_hold() {
         name.as_bytes(),
         render_found(name.as_str(), ObjectKind::Blob, large.as_slice()).as_slice(),
     );
+    // A reply above a shortened ceiling is skipped with its content discarded.
+    let held: Vec<u8> = vec![b'a'; 8];
+    let above: Vec<u8> = render_found(name.as_str(), ObjectKind::Blob, held.as_slice());
+    check_batch_reply_within(name.as_bytes(), above.as_slice(), held.len() - 1);
+}
+
+/// A reply exactly at the ceiling is read whole;
+///  one byte above it is skipped with its content discarded,
+///  and both hold the general invariants.
+#[test]
+fn the_ceiling_decides_what_is_kept() {
+    let name: String = "0123456789abcdef0123456789abcdef01234567".to_owned();
+    let content: Vec<u8> = b"eight by".to_vec();
+    // The ceiling is exactly this reply's declared size, so the reply is not above it.
+    let ceiling: usize = content.len();
+    let found: Vec<u8> = render_found(name.as_str(), ObjectKind::Blob, content.as_slice());
+    let (kept, kept_bytes) = read_within(name.as_bytes(), found.as_slice(), ceiling);
+    assert_eq!(
+        kept,
+        Ok(BatchReply::Found {
+            object: object_of(name.as_str()),
+            kind: ObjectKind::Blob,
+            bytes: content,
+        })
+    );
+    assert_eq!(kept_bytes, found.len());
+    check_batch_reply_within(name.as_bytes(), found.as_slice(), ceiling);
+    let skipped: Vec<u8> = render_found(name.as_str(), ObjectKind::Blob, b"nine byte".as_slice());
+    let (answer, answer_bytes) = read_within(name.as_bytes(), skipped.as_slice(), ceiling);
+    assert_eq!(
+        answer,
+        Ok(BatchReply::TooLarge {
+            object: object_of(name.as_str()),
+            kind: ObjectKind::Blob,
+            size: 9,
+        })
+    );
+    assert_eq!(answer_bytes, skipped.len());
+    check_batch_reply_within(name.as_bytes(), skipped.as_slice(), ceiling);
 }
