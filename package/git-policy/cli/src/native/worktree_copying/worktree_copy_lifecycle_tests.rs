@@ -450,7 +450,7 @@ fn an_add_aimed_at_a_registered_worktree_does_not_mark_it_as_being_filled() {
             };
             let _settled = run_with_worktree_copy(
                 &nested,
-                &mut |_step: &GitStep<'_>| return Ok(run_real(taken.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+                &mut |_: &GitStep<'_>| return Ok(run_real(taken.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
                 &mut nested_stderr,
             )
             .expect("settled");
@@ -477,7 +477,8 @@ fn an_add_aimed_at_a_registered_worktree_does_not_mark_it_as_being_filled() {
     remove(root.as_path());
 }
 
-/// Two adds at one destination: the one whose own real Git did not create the worktree copies nothing into it,
+/// Two adds at one destination:
+/// the one whose own real Git did not create the worktree copies nothing into it,
 /// even though a registration stands at the path it named.
 #[cfg(unix)]
 #[test]
@@ -516,7 +517,7 @@ fn a_failed_add_does_not_copy_into_the_worktree_another_command_registered() {
             let other: Invocation = creation_from(main.as_path(), common.as_path(), Some(destination.as_path()));
             let _settled = run_with_worktree_copy(
                 &other,
-                &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice())),
+                &mut |_: &GitStep<'_>| return Ok(run_real(main.as_path(), add_arguments("other", destination.as_path()).as_slice())),
                 &mut other_stderr,
             )
             .expect("settled");
@@ -539,6 +540,45 @@ fn a_failed_add_does_not_copy_into_the_worktree_another_command_registered() {
         "this command wrote nothing into the worktree another command registered: {said}"
     );
     assert!(said.contains("was registered by another `git worktree add`"), "{said}");
+    remove(root.as_path());
+}
+
+/// A copy that has not finished is visible to the source check from before real Git:
+/// the destination record the creating command wrote names its worktree until the copy's journal does,
+/// so a worktree whose copy is still staging can never be another command's source.
+#[cfg(unix)]
+#[test]
+fn a_worktree_whose_copy_has_not_finished_is_a_source_that_is_being_filled() {
+    let root: PathBuf = fixture("lifecycle-staging-is-visible");
+    let (main, common) = source(root.as_path());
+    let topic: PathBuf = std::fs::canonicalize(root.as_path()).expect("canonical root").join("topic");
+    let mut judged: Option<bool> = None;
+    let mut during_staging: Option<bool> = None;
+    let settlement: Settlement = run_with_worktree_copy(
+        &creation_from(main.as_path(), common.as_path(), Some(topic.as_path())),
+        &mut |_: &GitStep<'_>| {
+            let status: GitStatus = run_real(main.as_path(), add_arguments("topic", topic.as_path()).as_slice());
+            // Real Git has registered the worktree and the copy has not staged a byte yet: the record is the proof.
+            judged = Some(
+                crate::worktree_copy_source_still_being_filled::source_is_still_being_filled(common.as_path(), topic.as_path())
+                    .expect("judged")
+                    .is_some(),
+            );
+            return Ok(status);
+        },
+        &mut Vec::new(),
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    assert_eq!(judged, Some(true), "the destination is recorded from before real Git until its journal exists");
+    // Once the copy has finished, nothing names the worktree any more.
+    during_staging = Some(
+        crate::worktree_copy_source_still_being_filled::source_is_still_being_filled(common.as_path(), topic.as_path())
+            .expect("judged")
+            .is_some(),
+    );
+    assert_eq!(during_staging, Some(false), "a finished worktree is a source");
+    assert_eq!(std::fs::read(topic.join("cache/data")).expect("copied"), b"payload");
     remove(root.as_path());
 }
 

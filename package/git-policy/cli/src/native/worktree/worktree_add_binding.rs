@@ -437,11 +437,13 @@ pub enum RegistrationOwner {
 /// Why:
 ///   A `git worktree add` that Git refuses because the destination exists cannot tell
 /// from the path whether the registration there
-///  is its own: another add that ran while its own Git ran leaves
+///  is its own:
+/// another add that ran while its own Git ran leaves
 /// a registration exactly where its own would be.
 /// The first command to write this
 ///  file proves it made the registration.
-/// The write is one exclusive create, so of several commands exactly one succeeds and
+/// The write is one exclusive create,
+/// so of several commands exactly one succeeds and
 ///  the rest read its token;
 /// nothing waits and no lock file exists.
 ///

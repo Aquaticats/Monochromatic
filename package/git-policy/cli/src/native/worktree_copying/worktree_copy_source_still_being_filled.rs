@@ -14,11 +14,13 @@
 //!  so the source still holds only part of its ignored files.
 //!  The owner decides only which sentence the person reads.
 //!  A claim that records no destination (a copy's own) says nothing about the
-//!  source, so it never holds a copy back.
+//!  source,
+//!  so it never holds a copy back.
 //!  Claims are read before journals because the copy that owns a stage publishes
 //!  its journal before it releases its claim:
 //!  a reader that finds no claim is then looking at a stage whose journal already
-//!  exists, and a reader that finds no journal saw no claim either.
+//!  exists,
+//!  and a reader that finds no journal saw no claim either.
 //!  Nothing waits and nothing is locked:
 //!  a source that is still being filled makes the command copy nothing and say so.
 //!
@@ -56,7 +58,8 @@ pub enum UnfinishedCopy {
     /// the copy is filling the source now.
     Running,
     /// The owner died before its install finished:
-    /// the source holds part of its ignored files until recovery, or a new add,
+    /// the source holds part of its ignored files until recovery,
+    /// or a new add,
     /// completes it.
     Interrupted,
 }
@@ -88,8 +91,21 @@ pub fn source_is_still_being_filled(
     common_dir: &Path,
     source_root: &Path,
 ) -> Result<Option<UnfinishedCopy>, WorktreeCopyError> {
-    return source_is_still_being_filled_around(common_dir, source_root, &mut || ());
+    return source_is_still_being_filled_around(common_dir, source_root, &mut nothing_between);
 }
+
+/// What:
+///  The ceiling that runs nothing between the two scans:
+/// the answer a caller that observes no handoff asks for.
+/// Why:
+///   `between` is the control's seam,
+/// and the command itself runs no code at that point.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nothingBetween(): void {}
+/// ```
+fn nothing_between() {}
 
 /// What:
 ///  `source_is_still_being_filled`,

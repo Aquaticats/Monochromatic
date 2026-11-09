@@ -282,13 +282,16 @@ fn unconfirmed_destination_notice(destination: &Path) -> String {
 fn command_token(recorded: Option<&StageClaim>, destination: &Path) -> Result<String, WorktreeCopyError> {
     let name: String = match recorded {
         Some(claim) => claim.identifier(),
-        None => crate::random_id::random_uuid().map_err(|error| {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: could not name the worktree add of {}.",
-                quote(destination.to_string_lossy().as_ref())
-            );
-            return crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0));
-        })?,
+        None => match crate::random_id::random_uuid() {
+            Ok(made) => made,
+            Err(error) => {
+                let message: String = format!(
+                    "monochromatic-git-policy-cli: could not name the worktree add of {}.",
+                    quote(destination.to_string_lossy().as_ref())
+                );
+                return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0)));
+            }
+        },
     };
     let owner: String = crate::worktree_copy_owner::current_copy_owner()?.token();
     return Ok(format!("{name}\n{owner}"));
