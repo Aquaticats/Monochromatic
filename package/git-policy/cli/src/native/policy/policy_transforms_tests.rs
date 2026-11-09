@@ -114,6 +114,25 @@ fn insertions_need_no_repository_fact() {
             vec!["commit", "-o", "-m", "x", "file"],
             vec!["commit", "-o", "-m", "x", "file"],
         ),
+        (
+            vec!["checkout", "topic"],
+            vec!["checkout", "--no-overwrite-ignore", "topic"],
+        ),
+        (
+            vec!["-C", "dir", "switch", "--detach", "HEAD~1"],
+            vec![
+                "-C",
+                "dir",
+                "switch",
+                "--no-overwrite-ignore",
+                "--detach",
+                "HEAD~1",
+            ],
+        ),
+        (
+            vec!["checkout", "--overwrite-ignore", "topic"],
+            vec!["checkout", "--overwrite-ignore", "topic"],
+        ),
         (vec!["add", "file"], vec!["add", "file"]),
         (vec![], vec![]),
         (vec!["--version"], vec!["--version"]),

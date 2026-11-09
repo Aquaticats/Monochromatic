@@ -203,6 +203,29 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
+/// What:
+///  This test binary started on one test,
+/// with `variable` set so the child knows it is the child.
+/// Why:
+///  A descriptor,
+///  a signal mask and a record of one process belong to that process,
+/// so each control of them runs its own body in a child and
+///  asserts what the parent sees.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
+/// ```
+pub(crate) fn child_this_test(variable: &str, name: &str) -> std::process::Output {
+    let binary: PathBuf = this_test_binary().expect("the test binary");
+    return std::process::Command::new(binary)
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env(variable, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child test runs");
+}
+
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
 pub(crate) fn fixture_with_prefix(prefix: &str, name: &str) -> PathBuf {
@@ -246,6 +269,31 @@ pub(crate) fn age(path: &Path) {
 /// Remove only the fixture directory a test created.
 pub(crate) fn remove(root: &Path) {
     std::fs::remove_dir_all(root).expect("remove only the fixture");
+}
+
+/// What:
+///  Shows each notice to a buffer and answers the words it wrote,
+/// as a command's standard error would have received them
+///  without the newline the show adds.
+/// Why:
+///   A record goes only once its words are written out,
+/// so a control reads them through the step the person's terminal
+///  receives them by,
+/// and a record whose words could not be written stays as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// notices.map((notice) => { const out = []; notice.show(out); return out.join('').replace(/\n$/, '') })
+/// ```
+pub(crate) fn shown_notices(notices: Vec<crate::push_failure_notice::Notice>) -> Vec<String> {
+    let mut texts: Vec<String> = Vec::new();
+    for notice in notices {
+        let mut written: Vec<u8> = Vec::new();
+        notice.show(&mut written).expect("a buffer takes the words");
+        let text: String = String::from_utf8(written).expect("the words are UTF-8");
+        texts.push(text.strip_suffix('\n').map(str::to_owned).unwrap_or(text));
+    }
+    return texts;
 }
 
 /// Run real Git in a fixture with no system or global configuration and a fixed identity.
