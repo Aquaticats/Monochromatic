@@ -183,7 +183,7 @@ or a pairing artifact.
 
 ### The coverage table, calibrated against the corpus instead of a guess
 
-The buckets in the table above used an assumed expansion band of 1.5 to 2.5,
+The buckets in the coverage table used an assumed expansion band of 1.5 to 2.5,
  which was a guess about zh-to-en character growth and was wrong.
 A Chinese
  character carries roughly an English word,

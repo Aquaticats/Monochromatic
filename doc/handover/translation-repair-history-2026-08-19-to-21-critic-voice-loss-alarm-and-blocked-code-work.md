@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-19 to 2026-08-21: the critic voice-loss alarm and why code work was blocked
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:build` is now `//package/translation-repair/*:build`
+> carried by each of the packages the split made (2026-10-18 `4bd1aea8d5`).
+
 The early observation that the window seemed to cost critic voices,
 the explanations that were measured and falsified,
 the matched baseline that shrank the anomaly,

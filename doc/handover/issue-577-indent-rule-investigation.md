@@ -1,5 +1,10 @@
 # Issue 577 indent rule investigation: handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/dev-script/task-util:lint:parse` is now
+> `//package/monorepo-task/core-exec:lint:parse` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -214,7 +219,7 @@ stayed out of the commit
     Its parse fallout is recorded in
     `doc/troubleshooting/oxlint-no-arrow-function-unparseable-autofix.md`.
 1.  Root `lint:parse` alias:
-    add a root-mise alias for `//package/dev-script/task-util:lint:parse`
+    add a root-mise alias for `//package/monorepo-task/core-exec:lint:parse`
     once the concurrent root `mise.toml` work lands
     (that file is concurrently dirty and stays untouched here).
 1.  `doc/*.mjs` files have no format owner:

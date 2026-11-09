@@ -15,6 +15,7 @@
 //! Exit status 0 means every worktree is converted,
 //! already a subvolume,
 //! previewed,
+//! undone by `--abandon`,
 //! or
 //!  skipped under `--all`;
 //! 1 means a named worktree was refused before anything changed;
@@ -283,8 +284,13 @@ struct ConversionReport<'a> {
     list: &'a [PathBuf],
     /// Whether the run only lists what it would do.
     dry_run: bool,
-    /// How many worktrees were skipped.
+    /// How many worktrees were refused before anything changed,
+    /// which is what ends a run of named worktrees with status 1.
     refused: usize,
+    /// How many worktrees needed nothing because the path is a subvolume already.
+    already_subvolume: usize,
+    /// How many unfinished conversions the run undid because it was asked to (`--abandon`).
+    undone: usize,
     /// How many worktrees were converted or completed.
     converted: usize,
     /// How many worktrees a dry run would convert or complete.
@@ -310,8 +316,14 @@ impl OrderedEvents<Result<Verdict, MigrateError>> for ConversionReport<'_> {
                 self.would_convert += 1;
                 (self.say)("  would convert");
             }
-            Event::End(_index, Ok(Verdict::AlreadySubvolume)) => (self.say)("  already a subvolume, skipped"),
-            Event::End(_index, Ok(Verdict::Abandoned)) => (self.say)("  the unfinished conversion was undone"),
+            Event::End(_index, Ok(Verdict::AlreadySubvolume)) => {
+                self.already_subvolume += 1;
+                (self.say)("  already a subvolume, skipped");
+            }
+            Event::End(_index, Ok(Verdict::Abandoned)) => {
+                self.undone += 1;
+                (self.say)("  the unfinished conversion was undone");
+            }
             Event::End(_index, Ok(Verdict::Skipped(reasons))) => {
                 self.refused += 1;
                 for reason in reasons {
@@ -355,7 +367,17 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the
     //  filesystem. Lines and results come back to this thread, which says them in input order.
-    let mut report: ConversionReport<'_> = ConversionReport { say, list: list.as_slice(), dry_run: arguments.dry_run, refused: 0, converted: 0, would_convert: 0, failed: 0 };
+    let mut report: ConversionReport<'_> = ConversionReport {
+        say,
+        list: list.as_slice(),
+        dry_run: arguments.dry_run,
+        refused: 0,
+        already_subvolume: 0,
+        undone: 0,
+        converted: 0,
+        would_convert: 0,
+        failed: 0,
+    };
     run_ordered(OrderedRun {
         items: list.as_slice(),
         lanes: lanes.as_slice(),
@@ -363,9 +385,13 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
         work: &ConvertEachWorktree { platform, options, interrupt },
         on_event: &mut report,
     });
-    let (refused, converted, would_convert, failed): (usize, usize, usize, usize) =
-        (report.refused, report.converted, report.would_convert, report.failed);
+    let (refused, already_subvolume, undone, converted, would_convert, failed): (usize, usize, usize, usize, usize, usize) =
+        (report.refused, report.already_subvolume, report.undone, report.converted, report.would_convert, report.failed);
+    // A worktree that is a subvolume already costs nothing and was skipped, as the line beside its name says, so it counts in
+    //  the summary's skips; a refusal is counted apart because a refusal of a named worktree alone decides the status.
+    let skipped: usize = refused + already_subvolume;
     let failures: String = if failed > 0 { format!(", {failed} failed") } else { String::new() };
+    let undone_text: String = if undone > 0 { format!(", {undone} undone") } else { String::new() };
     let left_text: String = if left_out > 0 { format!("; {left_out} registered worktree(s) left out") } else { String::new() };
     // A dry run converts nothing, so its summary counts what it listed as a conversion it would make; the other counters
     // would say "0 converted" beside lines that say "would convert".
@@ -374,7 +400,7 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     } else {
         format!("{converted} converted or completed")
     };
-    (report.say)(format!("{} worktree(s) looked at, {counted}, {refused} skipped{failures}{left_text}.", list.len()).as_str());
+    (report.say)(format!("{} worktree(s) looked at, {counted}, {skipped} skipped{undone_text}{failures}{left_text}.", list.len()).as_str());
     if failed > 0 {
         return FAILED_EXIT_CODE;
     }

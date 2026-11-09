@@ -312,6 +312,17 @@ Consumers (`fetch-blob`,
 Both versions exist purely for back-compat with retired Node releases;
  on Node 22+ the platform's `node:stream` module covers every API both versions expose.
 
+Current state (2026-11-08):
+ no workspace package requests `readable-stream` any more,
+so this example is historical.
+`pnpm why readable-stream` resolves nothing,
+and the override stands as dormant defense in depth.
+The chains above left the workspace with their packages:
+ winston and winston-transport through `package-deprecated/mcp/nvim`,
+ and isomorphic-git through `package-paused/webapp-forge/server` and `package-paused/webapp-forge/stress`,
+ neither tree matching the `package/*/*` workspace glob.
+The technique below still describes how the shim and its override are wired.
+
 The shim at `package/pnpm-override/shim-readable-stream/` re-exports `node:stream`:
 
 ```js
@@ -359,7 +370,9 @@ overrides:
 After install,
  three transitive `readable-stream` edges (`winston@3.15.0/node_modules/readable-stream`,
  `winston-transport@4.9.0/node_modules/readable-stream`,
- `isomorphic-git@1.37.6/node_modules/readable-stream`) symlink to the workspace shim.
+ `isomorphic-git@1.37.6/node_modules/readable-stream`) symlinked to the workspace shim.
+None of those three exists in the tree today (2026-11-08);
+ the wiring they demonstrate is unchanged.
 The substitution unifies `instanceof` identity across the workspace (every consumer of `readable-stream` now operates
 on `node:stream`'s classes directly) and makes the transitive `abort-controller` fallback guards inside
 `readable-stream@4`'s `pipeline.js`,

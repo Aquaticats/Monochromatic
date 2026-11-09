@@ -418,6 +418,12 @@ Measured 2026-10-20 in the repository worktree:
   and never loads the root configuration;
   the repository lint invocations do.
 
+`package/git-policy/cli/src/native/markdown_linter_config.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/markdown/markdown_linter_config.rs` in `e9b9276e83`
+(refactor(git-policy-cli):
+move the markdown modules into a markdown folder and follow the moves in
+tooling and docs).
+
 This is not the dependency-drift class of `doc/troubleshooting/deps-update-api-drift.md`:
 no `package/deps-update/cli` bump is involved,
 and the consumer (the configuration) is ahead of the resolved binary,

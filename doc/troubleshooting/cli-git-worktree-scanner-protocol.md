@@ -39,6 +39,14 @@ const scannerArguments = [
 ];
 ```
 
+`package/git-policy/cli/src/optional/forbidden-strings/scan-candidates.ts` was removed on
+2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins
+and trust workflow);
+no file in the working tree carries it now.
+
 The same file's line 382 throws the generic infrastructure diagnostic for
 an exit other than the scanner's success/finding statuses.
 The old artifact's `--help` lists no `--name-path` option,

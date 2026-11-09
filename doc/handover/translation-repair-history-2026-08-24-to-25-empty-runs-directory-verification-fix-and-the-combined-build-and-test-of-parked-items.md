@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-24 to 2026-08-25: the verification command that read an empty runs directory as a green run, and the combined build and test of the parked items
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src` is now split across the `src/` folders of the 36
+> packages under `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

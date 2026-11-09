@@ -1,5 +1,16 @@
 # Image processing library vet
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/webapp-productivity/wc/src/favicon.ts` is now `package/wc/app/src/favicon.ts`
+> (2026-10-29 `592d78b143`).
+> `package/webapp-productivity/wc/src/favicon.unit.test.ts` is now
+> `package/wc/app/src/favicon.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/webapp-productivity/wc/src/page.browser.test.ts` is now
+> `package/wc/app/src/page.browser.test.ts` (2026-10-29 `592d78b143`).
+> `package/ssg/aquati.cat/src/images/convert.ts` is not a path this repository held;
+> `package/ssg/aquati.cat/src/image/convert.ts` is it today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

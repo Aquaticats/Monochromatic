@@ -93,7 +93,10 @@ The plan is therefore two goals,
 - `git-policies/` becomes `git-policy/`.
   The guard CLI stays at `git-policy/cli` and its name changes from `cli-git` to `git-policy-cli`;
   the bin name `git` is untouched.
-  `AGENTS.md` rules GCW and CLG update their `cli-git` mentions and the cited source path.
+  `AGENTS.md` rules GCW and CLG update their `cli-git` mentions and the cited source path
+  (GCW:
+  retired from `AGENTS.md` 2026-09-29;
+  the README section that held it was dropped 2026-10-13).
 - `agent-harnesses-shared/` becomes `agent-harness-shared/`;
   all six member packages take `agent-harness-shared-*` names,
   including the two previously named `module-current-time-context` and `module-terminal-title`.
@@ -219,7 +222,9 @@ established terms of art (`dotfiles`,
      `ownership-marker/`,
      `rolldown-plugin/`,
      `intellij-plugin/`.
-4.   `git-policy/` including the `git-policy-cli` rename and GCW/CLG updates.
+4.   `git-policy/` including the `git-policy-cli` rename and GCW/CLG updates (GCW:
+     retired from `AGENTS.md` 2026-09-29;
+     the README section that held it was dropped 2026-10-13).
 5.   `oxlint-plugin/` including `config/oxlint` consumers and the TSD rule mention.
 6.   `agent-harness-shared/`.
 7.   Leaf renames:

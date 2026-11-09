@@ -1,5 +1,10 @@
 # Lane outcome vocabulary handover: flagged-pass findings and fixes, 2026-08-18
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+
 The measured findings and landed fixes that followed the flagged pass on 2026-08-18:
 relocation locality and line structure loss,
 the semantic wrap and the bundling trap it exposed,

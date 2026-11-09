@@ -1,5 +1,15 @@
 # Unified linter handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/rust-module/rust-linter-core` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/rust-module/rust-linter-pattern` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/cli/markdown-lint/README.md` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -616,7 +626,10 @@ Round 9 answers (user,
    `lint:markdown`,
    `format:markdown`,
    and the 17 package `lint:rust` tasks;
-   `AGENTS.md` MXR and RDC updated at cutover;
+   `AGENTS.md` MXR and RDC updated at cutover (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now);
    the incumbent packages and their registrations deleted at cutover;
    unpatched `hcl-edit` 0.9.7,
    because meow's two patches fix write-back defects and the linter only reads;

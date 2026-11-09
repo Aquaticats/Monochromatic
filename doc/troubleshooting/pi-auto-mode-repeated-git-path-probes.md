@@ -384,6 +384,11 @@ That harness no longer runs:
 with the source it tested,
 so the counts below describe the deleted suite.
 
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.unit.test.ts` was removed on
+2026-10-17 in `a3955898f1` (refactor(pi-plugin-auto-mode):
+remove superseded extension pipeline);
+no file in the working tree carries it now.
+
 The 2026-08-27 run passed every test.
 Its log contained 810 missing-candidate records,
 five resolver entries,

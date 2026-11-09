@@ -1,5 +1,13 @@
 # Translation repair MiMo trial: log of 2026-10-05, the coverage attributions re-verified
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/json-guard.ts` is now
+> `package/translation-repair/document-structure/src/json-guard.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/test/src/describe.ts` is now `package/test-harness/core/src/describe.ts`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -478,8 +486,7 @@ distinguishes that branch from other paths returning the same value,
   reach runs select narrow test file sets,
   so lines other drivers exercise are cold there on purpose
   (the `cold since then (ran there)` rows);
-  earlier paragraphs mixed those rows into the same claim
-  as the stuck lines,
+  the cold rows were first read as one claim with the stuck lines,
   and the re-verification separates them.
 
 - Environment:
@@ -488,7 +495,7 @@ distinguishes that branch from other paths returning the same value,
   and the tool-behavior reproductions will use one
   so the trial tree stays clean.
   No execution limit of any kind was reported by the runtime;
-  earlier notes claiming one are retracted.
+  claims that one existed are retracted.
 
   Next:
   the decisive experiment for `resolution-wire.ts:328`

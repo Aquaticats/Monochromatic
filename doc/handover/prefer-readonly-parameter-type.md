@@ -1,5 +1,10 @@
 # Handover: making `prefer-readonly-parameter-type` bulletproof
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/webapp-productivity/rss/src/index.ts` is now `package/rss/app/src/index.ts`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

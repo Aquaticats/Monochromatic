@@ -554,10 +554,14 @@ All conditional on keeping TypeScript on Node.
   verified);
   Rust has the same 300-line budget (`MXR`,
   `AGENTS.md:1005-1013`,
-  verified).
+  verified;
+  MXR retired from `AGENTS.md` 2026-09-29,
+  `rust/max-lines` and `MXL` now).
 - Docs in code:
   `TSD` TSDoc on all declarations (`AGENTS.md:1121`),
-  `RDC` rustdoc on all Rust items (`:1015-1018`)
+  `RDC` rustdoc on all Rust items (`:1015-1018`;
+  RDC retired from `AGENTS.md` 2026-09-29,
+  `rust/require-rustdoc` now)
 - (verified).
 - Errors:
   `PP4` custom error classes and `@throws` (`AGENTS.md:1281`),

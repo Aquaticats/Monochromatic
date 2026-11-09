@@ -1,5 +1,17 @@
 # Lane outcome vocabulary handover: the rendering audit, from design to the settled-artifact run
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:audit-sensitivity` is now
+> `//package/translation-repair/probe:audit-sensitivity` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:rendering-audit-settled` is now
+> `//package/translation-repair/probe:rendering-audit-settled` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:rendering-audit-settled-report` is now
+> `//package/translation-repair/probe:rendering-audit-settled-report`
+> (2026-10-18 `4bd1aea8d5`).
+> `doc/troubleshooting/chaining-a-command-behind-a-long-run.md` is deleted
+> (2026-08-17 `fd6cdec848`) and no path of that name exists today.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

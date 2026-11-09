@@ -1,5 +1,14 @@
 # Claude CPU cap and thermal watch
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/claude-cpu-cap/src/summarize-samples.ts` is now
+> `package/claude-cpu-cap/daemon/src/summarize-samples.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/claude-cpu-cap/src/analyze-episode.ts` is now
+> `package/claude-cpu-cap/daemon/src/analyze-episode.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/claude-cpu-cap/src/cpu-watch.ts` is now
+> `package/claude-cpu-cap/daemon/src/cpu-watch.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -1002,8 +1011,8 @@ for VFIO passthrough.
   Ubuntu reports of it working and one Ubuntu 24.04 report of it failing for lack of current firmware.
   A Linux review
   of a Gigabyte board with an MT7925 module found its Bluetooth not detected.
-  Realtek RTL8922AE boards carry the OGC
-  kernel regression report from the earlier note.
+  Realtek RTL8922AE boards carry the OGC kernel regression report in the `Linux Wi-Fi` bullet of
+  `Replacement board research (2026-10-13, about 21:20 EDT, nothing bought or decided)`.
   Result:
   Wi-Fi does not separate the Taichi Lite from the Hero on
   paper;
@@ -1338,7 +1347,7 @@ current stock and street price were not checked.
   The B650E-E beats the Taichi Lite because the Lite is discontinued,
   so only
   used stock exists.
-  Against the earlier list,
+  Against the `Ranking and reasons` list,
   both Strix boards give the RX 7600 a better slot than the Nova (CPU or
   chipset Gen4 x4 instead of Gen3 x2) at a similar launch price,
   but have less VFIO evidence.
@@ -1607,7 +1616,7 @@ The day-one checks under "Checks before buying" still decide it.
   and the paste is not the Noctua NT-H1 the checklist assumes.
   The user tightened the screws until they
   could not turn them with a normal screwdriver and little force,
-  which matches Noctua's instruction (below).
+  which matches the NH-D15 manual's tightening instruction.
   Noctua's NH-D15 manual and torque FAQ (fetched 2026-10-13) give this checklist,
   with the user's answers pending:
   - Tighten the heatsink screws 2 to 3 turns each in turn,
@@ -1646,7 +1655,7 @@ The day-one checks under "Checks before buying" still decide it.
 - What do the six motherboard readings measure?
   (The ambient reference is the Corsair probe;
   see the hardware facts.)
-- The probe cannot touch the fins (answered above),
+- The probe cannot touch the fins (the hardware facts answer it),
   so fin or exhaust temperature stays unmeasured.
   Contact versus airflow now has to be judged from Tctl against watts and fan speed.
 - A higher fan floor was offered and not taken:
@@ -1670,7 +1679,7 @@ The day-one checks under "Checks before buying" still decide it.
 1. No monitor and no 4-hour check (ended by the user).
    Read alerts from the journal only when the user asks.
 2. When a session has run sustained load,
-   run `node package/dev-script/claude-cpu-cap/src/summarize-samples.ts 1`.
+   run `node package/claude-cpu-cap/daemon/src/summarize-samples.ts 1`.
    It still needs a chiplet comparison and a (Tctl minus probe) per watt figure.
 3. The service stays running;
    stop it only if the user asks.
@@ -1698,7 +1707,7 @@ The day-one checks under "Checks before buying" still decide it.
    not
    raw temperature,
    because the load will differ.
-   `node package/dev-script/claude-cpu-cap/src/analyze-episode.ts <from> <to>` prints the medians.
+   `node package/claude-cpu-cap/daemon/src/analyze-episode.ts <from> <to>` prints the medians.
    The NT-H2 AM5 Edition includes the NA-TPG1 paste guard and 3 cleaning wipes;
    Noctua's AM5 pattern is five small
    dots (four of about 2 mm near the corners,
@@ -1879,7 +1888,7 @@ medians at 120 to 140 W were 1996,
 which channels drive the cooler was not checked).
 So the fan settings were never matched between the boards,
 and the old board had the faster fans.
-Read the 120 to 140 W result above as:
+Read the old board's 120 to 140 W result as:
 the new board holds 80 degrees at fan
 speeds well below the old maximum,
 not as a controlled comparison.

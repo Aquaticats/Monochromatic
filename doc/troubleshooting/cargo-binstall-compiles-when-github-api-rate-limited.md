@@ -210,6 +210,13 @@ Catalog that fails:
    which the source sleeps up to 10 minutes by default,
    so it trades a silent compile for a long silent wait.
 
+`package/file-enforcer/core/src/toolchain/mpm-manifest.ts` was removed on 2026-10-31 in `e7b5130459`
+(feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own
+generator);
+no file in the working tree carries it now.
+
 ## What does not work
 
 - Cargo's package-cache lock as the cause (see the wrong reading above).

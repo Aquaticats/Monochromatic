@@ -1,5 +1,43 @@
 # cli-git native dependent-version planner
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:differential:dependent-version` is retired
+> (2026-10-13 `a2b56c548c`) and the native executable owns the dependent-version bump today.
+> `//package/git-policy/cli:native:lint:rust` is retired (2026-10-06 `0b49ae109e`) and
+> `mise run //:lint:monochromatic-lint -- package/git-policy/cli` lints that Rust today.
+> `package/module` is gone (2026-10-29 `592d78b143`);
+> its packages sit at `package/<name>/<variant>` such as `package/kv-store/core` and
+> `package/llm/llm-type` today.
+> `package/git-policy/cli/src/bin.ts` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional` is deleted (2026-10-13 `642b6d72cb`) and
+> `package/forbidden-strings/core` and `package/linter/monochromatic-lint` carry its two
+> features in Rust today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/rule` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository/src/bump-dependents.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+> `package/git-policy/cli.fuzz/bin/container.mjs` is now
+> `package/git-policy/cli.fuzz/bin/container.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/cli.fuzz/bin/planted-controls.mjs` is now
+> `package/git-policy/cli.fuzz/bin/planted-controls.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/repository` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper
+> under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/api` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper under
+> `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/forbidden-strings` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/native-interop` is deleted (2026-11-01 `cd67a90f6c`) and the
+> old-format interop harness has no replacement.
+
 Note 2026-10-29:
 `package/rust-module` no longer exists.
 Its packages were placed with their products by `592d78b143`,
@@ -1375,7 +1413,7 @@ The planner modules and their tests are byte for byte those of the gated commit 
   ran as a user unit started with `systemd-run --user`
   so that it would outlive the agent's shell;
   each step is the package task named in its section.
-- The Oxlint 1.86.0 default formatter aborted earlier in this work
+- The Oxlint 1.86.0 default formatter aborted
   (a panic at `apps/oxlint/src/output_formatter/default.rs:181:14`)
   while linting a harness file with many findings;
   `--format=unix` worked.

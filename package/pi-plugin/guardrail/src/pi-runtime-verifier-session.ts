@@ -8,7 +8,10 @@
  @module
  */
 
-import { join, } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 
 import {
   type AgentSession,
@@ -63,6 +66,11 @@ const DENIED_COMMIT_MESSAGE = 'denied absolute-path commit';
  Commit message of the same call spelled through the PATH wrapper, which must land.
  */
 const ALLOWED_COMMIT_MESSAGE = 'commit through the PATH wrapper';
+
+/**
+ Commit message of the call that reassigns PATH to the real-Git folder, which must be refused.
+ */
+const DENIED_PATH_ASSIGNMENT_COMMIT_MESSAGE = 'denied PATH-assignment commit';
 
 /**
  Tool whose Bash calls this verification drives.
@@ -269,6 +277,10 @@ async function openGuardedSession({
     {
       command: `git commit -m ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} ${repository.stagedFileName}`,
     },
+    {
+      command: `PATH=${JSON.stringify(dirname(realGitPath,),)}:$PATH git commit `
+        + `-m ${JSON.stringify(DENIED_PATH_ASSIGNMENT_COMMIT_MESSAGE,)}`,
+    },
   ];
   /**
    Scripted provider and its model.
@@ -362,19 +374,27 @@ function mismatch(problem: string,): PiGuardrailVerificationError {
  
  @param result - tool result of the denied call
  
+ @param label - which denied call this result belongs to, named in a mismatch
+ 
  @returns the denial text
  
  @throws {@link PiGuardrailVerificationError} when the call was not refused with the remedy
  
  @example
  ```typescript
- const denialText = requireRefusal(deniedResult);
+ const denialText = requireRefusal({ result: deniedResult, label: 'absolute-path commit' });
  ```
  */
-function requireRefusal(result: ForeignBorrowed<ToolResultMessage>,): string {
+function requireRefusal({
+  result,
+  label,
+}: {
+  readonly result: ForeignBorrowed<ToolResultMessage>;
+  readonly label: string;
+},): string {
   if ((result.toolName !== BASH_TOOL_NAME) || (!result.isError)) {
     throw mismatch(
-      `the absolute-path commit was not refused: ${JSON.stringify({
+      `the ${label} was not refused: ${JSON.stringify({
         toolName: result.toolName,
         isError: result.isError,
         text: toolResultText(result,),
@@ -503,13 +523,18 @@ async function verifyAbsoluteGitGuardAtPiBoundary({
     deniedResult,
     readOnlyResult,
     wrapperResult,
+    deniedPathAssignmentResult,
   ] = results;
   if ((deniedResult === undefined)
     || (readOnlyResult === undefined)
-    || (wrapperResult === undefined))
+    || (wrapperResult === undefined)
+    || (deniedPathAssignmentResult === undefined))
     throw mismatch('Bash tool results are missing',);
 
-  requireRefusal(deniedResult,);
+  requireRefusal({
+    result: deniedResult,
+    label: 'absolute-path commit',
+  },);
   requireReadOnlyOutput({
     result: readOnlyResult,
     stagedFileName: repository.stagedFileName,
@@ -530,6 +555,11 @@ async function verifyAbsoluteGitGuardAtPiBoundary({
         + `found ${JSON.stringify(subjects,)}`,
     );
   }
+  requireRefusal({
+    result: deniedPathAssignmentResult,
+    label: 'PATH-assignment commit',
+  },);
+
   if (provider.responsesLeft() !== 0) {
     throw mismatch(
       `expected every scripted response to be used, ${String(provider.responsesLeft(),)} left`,
@@ -550,6 +580,8 @@ async function verifyAbsoluteGitGuardAtPiBoundary({
       `refused ${JSON.stringify(DENIED_COMMIT_MESSAGE,)} through ${realGitPath}`,
       `ran ${JSON.stringify(`${JSON.stringify(realGitPath,)} status --short`)}`,
       `landed ${JSON.stringify(ALLOWED_COMMIT_MESSAGE,)} through the PATH wrapper`,
+      `refused ${JSON.stringify(DENIED_PATH_ASSIGNMENT_COMMIT_MESSAGE,)} `
+        + `with ${JSON.stringify(dirname(realGitPath,),)} ahead on PATH`,
     ].join('; ',),
   };
 }

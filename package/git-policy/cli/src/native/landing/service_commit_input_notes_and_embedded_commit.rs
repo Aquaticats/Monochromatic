@@ -240,6 +240,9 @@ pub(crate) fn embedded_commit(invocation: &CommitInvocation<'_>, parsed: Service
 /// const { address, provision } = routeForThisWorktree(invocation, timing); // throws outside a repository
 /// ```
 pub(crate) fn route_for_this_worktree(invocation: &CommitInvocation<'_>, timing: &mut CommitTiming) -> Result<(Bind, Option<ProvisionHost>), TransactionStop> {
+    // The environment read here is the invocation's own, on the same terms as `route_from_environment` reads it: `main`
+    //  hands the entry `std::env::vars_os()` and nothing changes the wrapper's own environment, so the home this commit was
+    //  started with is the home its service route is chosen from.
     let runtime: Option<PathBuf> = non_empty_path_variable("XDG_RUNTIME_DIR");
     let config_home: Option<PathBuf> = non_empty_path_variable("XDG_CONFIG_HOME");
     let home: Option<PathBuf> = non_empty_path_variable("HOME");

@@ -1,5 +1,15 @@
 # Translation repair run continuity: supervision
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:corpus-pass` is now
+> `//package/translation-repair/corpus-pass:corpus-pass` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src` is now split across the `src/` folders of the 36
+> packages under `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/consolidate-driver.ts` is now
+> `package/translation-repair/corpus-pass/src/consolidate-driver.ts`
+> (2026-10-18 `4bd1aea8d5`).
+
 Part of the [run continuity index](translation-repair-run-continuity.md).
 
 ## Current stop condition
@@ -331,7 +341,7 @@ The two are now separable.
 
 ## Verifying it rather than trusting it
 
-Every check below was run against the live system before the supervisor was
+Every check this section lists was run against the live system before the supervisor was
  armed,
 because a supervisor whose detection is wrong is worse than none:
 it

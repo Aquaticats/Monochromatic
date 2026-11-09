@@ -1,5 +1,15 @@
 # Superlinear cost dismissed as acceptable: gate research
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/file-enforcer/core/src/toolchain/providers.parse.ts` is deleted
+> (2026-10-31 `e7b5130459`) and the toolchain code is `package/mpm-shadow/cli/src/toolchain`
+> today.
+> `package/claude-code-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
+> `package/pi-plugin/cost-dismissal` serves its job today.
+> `package/pi-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
+> `package/dsh-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
+
 ## Purpose
 
 State of the research into how to stop agents from waving away superlinear cost with "inputs are short today".
@@ -624,7 +634,7 @@ Cost of the instrument itself:
 p90 240.0 s,
 max 418.1 s),
 the spend the owner's cost correction then paused
-(the pause entry above).
+(the 2026-10-29 pause bullet in "Decisions on record").
 
 The determinism pair on `d4988f4c9b57` agrees at the verdict level
 (both runs named cost,
@@ -675,7 +685,7 @@ and that no `AGENTS.md` rule backs it in that phase,
 since a mandate would not count as shadow.
 Next:
 the trigger's model call is paused
-(the pause entry above),
+(the 2026-10-29 pause bullet in "Decisions on record"),
 and the uniform scoring pass of 2026-10-29 settled all 65 entries
 (heading `Shadow runs so far`),
 so nothing accumulates on its own now.

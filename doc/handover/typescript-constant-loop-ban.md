@@ -1,5 +1,16 @@
 # TypeScript constant-loop ban handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/css-edit/src` is now `package/css/core-edit/src`
+> (2026-10-29 `592d78b143`).
+> `//package/module/css-edit:test:unit` is now `//package/css/core-edit:test:unit`
+> (2026-10-29 `592d78b143`).
+> `//package/module/css-edit:lint:oxlint` is now `//package/css/core-edit:lint:oxlint`
+> (2026-10-29 `592d78b143`).
+> `//package/module/css-edit:lint:types` is now `//package/css/core-edit:lint:types`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
