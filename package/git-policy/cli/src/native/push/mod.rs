@@ -71,6 +71,10 @@ pub mod bounded_push;
 /// The stop of a running push and the sweep of the lock files it and what it started leave.
 pub mod stop_of_a_push_and_sweep_of_its_locks;
 
+/// Where a control holds a run's limit until the ordering it needs has happened,
+/// so a stop is never decided by elapsed time alone.
+pub mod push_limit_held_for_an_ordering;
+
 /// The bytes a push and its processes move,
 /// sampled,
 /// and the clock that stops it on a stall.

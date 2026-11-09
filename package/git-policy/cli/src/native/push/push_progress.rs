@@ -88,6 +88,8 @@
 /// The patience a clock keeps,
 /// and what a stop reports.
 use crate::bounded_push::{StopCause, StopReport};
+/// Whether a control holds a limit for an ordering it needs first.
+use crate::push_limit_held_for_an_ordering::limit_has_passed;
 use crate::push_deadline_and_patience_settings::Patience;
 /// The processes below the push,
 /// and the identity of each.
@@ -535,12 +537,12 @@ impl Clock {
         let now: Instant = Instant::now();
         let elapsed: Duration = now.duration_since(self.started);
         let stall: Duration = match self.patience {
-            Patience::Fixed(limit) => return (elapsed >= limit).then_some(StopCause::Deadline),
+            Patience::Fixed(limit) => return limit_has_passed(elapsed, limit).then_some(StopCause::Deadline),
             Patience::Progress { stall } => stall,
         };
         let Some(meter) = self.meter.as_mut() else {
             // Nothing is measured here, so the stall window is the whole deadline, unless the run must never end by wall time.
-            return (self.wall_fallback && elapsed >= stall).then_some(StopCause::Deadline);
+            return (self.wall_fallback && limit_has_passed(elapsed, stall)).then_some(StopCause::Deadline);
         };
         if now >= self.next_sample {
             let progressed: bool = if self.looked { meter.sample(self.root) } else { meter.sample_root(self.root) };
