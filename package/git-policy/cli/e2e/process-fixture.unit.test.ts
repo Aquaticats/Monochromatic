@@ -26,14 +26,25 @@ await describe({
           cwd: process.cwd(),
           env: {},
         },),).toThrow(FixtureCommandError,);
-        // An unhandled `error` event on the child would end the process here, before the next assertion runs.
-        await new Promise<void>((resolve,) => {
-          setTimeout(
-            resolve,
-            ERROR_EVENT_GRACE_MS,
-          );
-        },);
-        expect(true,).toBe(true,);
+        // An unhandled `error` event on the child arrives on a later tick as an uncaught exception,
+        // so this window is the failure signal; the listener records one instead of letting it end the process.
+        const uncaught: unknown[] = [];
+        const recordUncaught = (error: unknown,): void => {
+          uncaught.push(error,);
+        };
+        process.on('uncaughtException', recordUncaught,);
+        try {
+          await new Promise<void>((resolve,) => {
+            setTimeout(
+              resolve,
+              ERROR_EVENT_GRACE_MS,
+            );
+          },);
+        }
+        finally {
+          process.off('uncaughtException', recordUncaught,);
+        }
+        expect(uncaught,).toHaveLength(0);
       },
     },),
   ],
