@@ -13,7 +13,7 @@ use super::*;
 use crate::index_lock_holders::{ScanLimit, scan_platform_holders_bounded, scan_proc_fd_holders_stopping};
 use crate::service_fault::hooks;
 use crate::service_index_found::WaitNotes;
-use crate::service_index_lock::{Announce, LockFailure, acquire, acquire_noting_wait, acquire_within, lock_path_of};
+use crate::service_index_lock::{Announce, LockFailure, acquire_noting_wait, acquire_within, lock_path_of};
 use crate::service_index_marker::{marker_text, own_identity};
 use crate::service_index_placement::SYSTEM;
 use crate::service_protocol::FailureCode;
