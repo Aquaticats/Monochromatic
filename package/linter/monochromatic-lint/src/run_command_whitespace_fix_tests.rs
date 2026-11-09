@@ -196,7 +196,11 @@ fn a_blockquote_break_keeps_the_marker_at_the_same_depth() {
         comparable_tokens("a.md", source)
     );
     // Every written line carries its marker, so the quotation holds in the raw text too.
-    assert!(fixed.lines().all(|line| line.starts_with("> ")), "{fixed}");
+    /// Whether every line of one quotation starts with its marker and a space.
+    fn every_line_quoted(text: &str) -> bool {
+        return text.lines().all(|line| return line.starts_with("> "));
+    }
+    assert!(every_line_quoted(fixed.as_str()), "{fixed}");
     let context: MarkdownSource = parse(fixed.as_str());
     let mut root_children: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
     for id in context.all_nodes() {
@@ -328,13 +332,13 @@ fn real_tree_keeps_every_token_and_block_structure_under_the_whitespace_rule() {
         let mdx: bool = name.ends_with(".mdx");
         let before = MarkdownSource::new(name.clone(), source, mdx);
         let after = MarkdownSource::new(name.clone(), fixed, mdx);
-        let (Ok(before), Ok(after)) = (before, after) else {
+        let (Ok(parsed_before), Ok(parsed_after)) = (before, after) else {
             skipped += 1;
             continue;
         };
         structured += 1;
-        if paragraph_placements(&before).expect("an acyclic parse")
-            != paragraph_placements(&after).expect("an acyclic parse")
+        if paragraph_placements(&parsed_before).expect("an acyclic parse")
+            != paragraph_placements(&parsed_after).expect("an acyclic parse")
         {
             moved.push(name.clone());
         }
