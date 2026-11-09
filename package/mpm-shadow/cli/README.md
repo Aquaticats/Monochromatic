@@ -1845,6 +1845,8 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
 
 ```bash
 mise run //package/mpm-shadow/cli:lint
+mise run //package/mpm-shadow/cli:lint:types
 mise run //package/mpm-shadow/cli:lint:clippy
 mise run //package/mpm-shadow/cli:test
+mise run //package/mpm-shadow/cli:test:debug
 ```
