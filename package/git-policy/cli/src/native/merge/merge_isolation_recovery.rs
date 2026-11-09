@@ -253,7 +253,7 @@ pub fn settle_failed_merge(
     intent: &MergeIntent,
     out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
-    let root: &Path = Path::new(intent.repository_root.as_str());
+    let root: &Path = intent.repository_root.as_path();
     let target: &str = intent.target_ref.as_deref().unwrap_or("HEAD");
     let changes: Vec<Change> = merge_changes(place, root, intent).map_err(untouched)?;
     // A file a command that stopped left under its private name is put back before the paths are judged: the path is empty

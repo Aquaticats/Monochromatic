@@ -80,7 +80,7 @@ fn dead_owner(id: &str) -> TransactionOwner {
 fn record_of(world: &World, owner: TransactionOwner, target_ref: Option<&str>) -> PathBuf {
     let intent: MergeIntent = MergeIntent {
         owner,
-        repository_root: world.repo.to_string_lossy().into_owned(),
+        repository_root: world.repo.to_path_buf(),
         target_ref: target_ref.map(String::from),
         old_oid: world.old_oid.clone(),
         new_oid: world.new_oid.clone(),

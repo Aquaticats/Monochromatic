@@ -26,6 +26,56 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
+### OpenAI stopped one audit with a cybersecurity flag: how should it continue?, asked 2026-11-09T06:03:57-05:00
+
+The `gpt-6.1-sol` audit of how the wrapper reads command lines ended after about 14 minutes with this error from the provider:
+"This content was flagged for possible cybersecurity risk.
+If this seems wrong,
+try rephrasing your request.
+If you're doing authorized security work that requires more cyber permissive safeguards,
+apply for Daybreak access via <https://platform.openai.com/settings/organization/status-and-access> before retrying."
+The error does not say which content was flagged.
+The audit was reading and running the wrapper on throwaway repositories.
+
+The session did not restart the audit,
+reword it,
+or hand the same audit to another model,
+because that would be getting around the flag,
+and whether to do so is the owner's call.
+What it wrote is kept:
+`doc/planning/cli-git-invocation-and-argument-route-findings-on-main.md` is committed as `dbb8087dfe`
+on the branch `docs/planning-cli-git-invocation-and-argument-audit`,
+and that file's section "Verification still in progress" names what was unfinished.
+Its worktree also holds one uncommitted test file of the audit's,
+`package/git-policy/cli/src/native/invocation/forwarded_command_tests.rs`,
+left as it was.
+
+The other `gpt-6.1-sol` audit and the reviews are still running.
+If one of them is flagged it is treated the same way.
+
+Options,
+best first:
+
+- Keep auditing without that access.
+  The findings already written are defects in the owner's own tool,
+  so they go to a fix agent like every other audit's findings,
+  and the unfinished part stays unfinished.
+  Nothing else is needed from the owner.
+- The owner applies for the access the error names,
+  then says so here,
+  and the session resumes the audit from its saved session.
+  This covers the unfinished part,
+  and it is an application made on the owner's OpenAI account,
+  so only the owner can make it.
+- The owner says the audit may be finished on the DeepSeek model.
+  That covers the unfinished part with no application,
+  and it is the route the session will not take unasked.
+
+Ranking:
+the first over the second because no work waits on it;
+the second over the third because it keeps the auditor the owner chose
+("Please use gpt-6.1-sol with the openai provider for audits and reviews.").
+
 ### What should the next push do with a commit its checks blocked?, asked 2026-11-09T05:03:17-05:00
 
 `package/git-policy/cli/README.md:2194` promises this:

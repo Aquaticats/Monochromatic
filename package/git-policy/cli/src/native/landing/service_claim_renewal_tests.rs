@@ -62,8 +62,8 @@ fn claimed_item(name: &str, stamp: &ClaimTime) -> (PathBuf, PathBuf, Claimed) {
     let work_dir: PathBuf = root.join("work");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: root.display().to_string(),
-        git_dir: root.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: root.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: OID.to_owned(),
         parent: String::new(),
@@ -257,8 +257,8 @@ fn settlements_racing_renewals_lose_no_claim() {
     let work_dir: PathBuf = root.join("work");
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
-        repository: root.display().to_string(),
-        git_dir: root.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: root.to_path_buf(),
         branch_ref: String::from("refs/heads/main"),
         oid: OID.to_owned(),
         parent: String::new(),

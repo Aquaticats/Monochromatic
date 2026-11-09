@@ -71,7 +71,7 @@ pub(crate) fn settle_moved_branch(
     moved_to: &str,
     out: &mut dyn Write,
 ) -> Result<MergeRecoveryAction, MergeRefusal> {
-    let root: &Path = Path::new(intent.repository_root.as_str());
+    let root: &Path = intent.repository_root.as_path();
     let changes: Vec<Change> = merge_changes(place, root, intent).map_err(untouched)?;
     put_back_stranded_takes(root, changes.as_slice(), out);
     // The same judgement the straight completion makes,

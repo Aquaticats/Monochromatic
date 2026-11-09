@@ -13,6 +13,7 @@
 //! ```
 
 use std::ffi::OsString;
+use std::path::Path;
 
 /// What:
 ///  Raw path bytes as an operating-system string for a command line or a file name.
@@ -41,6 +42,23 @@ pub fn os_from_path_bytes(bytes: &[u8]) -> OsString {
     {
         return OsString::from(String::from_utf8_lossy(bytes).into_owned());
     }
+}
+
+/// What:
+///  The bytes of an operating-system path,
+/// so a check or a writer can look at the name Git listed instead of a spelling of it.
+///  `&[u8]` borrows from `path`.
+/// Why:
+///   A file name is bytes,
+/// and only the properties of those bytes say whether a name is plain or where it leads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Buffer.from(path)
+/// ```
+pub fn path_bytes_of(path: &Path) -> &[u8] {
+    use std::os::unix::ffi::OsStrExt;
+    return path.as_os_str().as_bytes();
 }
 
 /// What:

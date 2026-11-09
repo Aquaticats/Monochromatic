@@ -86,6 +86,10 @@ and a trial at 20 agents on 2026-11-09 met no rate-limit error.
 On going higher the owner said:
 "no,
 that's definitely going to blow up."
+Audits and reviews sit outside that limit and use another model.
+The owner on 2026-11-09:
+"Please use gpt-6.1-sol with the openai provider for audits and reviews.
+Those don't count within the 20 limit."
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
