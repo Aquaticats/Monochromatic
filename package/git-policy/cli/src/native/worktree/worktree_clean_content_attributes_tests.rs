@@ -25,7 +25,8 @@ fn fixture_root(name: &str, attributes: &[u8]) -> std::path::PathBuf {
     return root;
 }
 
-/// An attributes file grown under the read takes no byte past the room, and every byte it hands over is charged.
+/// An attributes file grown under the read takes no byte past the room,
+/// and every byte it hands over is charged.
 #[test]
 fn an_attributes_file_that_grows_under_the_read_takes_no_byte_past_the_room() {
     let root: std::path::PathBuf = fixture_root("attributes-grown", b"# eight\n");

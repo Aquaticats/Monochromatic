@@ -23,7 +23,7 @@ use crate::fs_beneath::{open_directory_beneath, open_file_at};
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_text::{ConfigEntry, last_entry};
 use crate::worktree_attributes::{may_apply, parse_attribute_lines};
-use crate::worktree_clean_content::{ATTRIBUTES_LIMIT, CONTENT_LIMIT, read_at_most};
+use crate::worktree_clean_content::{ATTRIBUTES_LIMIT, CONTENT_LIMIT};
 use crate::worktree_clean_content_attribute_sources::{AttributeFile, FixedSources, SystemAttributes, converting_macros, first_converting_token, has_quoted_line};
 use crate::worktree_path_failure_message::subject_failure;
 use std::collections::HashSet;
@@ -31,6 +31,9 @@ use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+
+/// The bytes one attribute read asks for at most.
+const ATTRIBUTES_CHUNK: usize = 64 * 1024;
 
 impl<'a> ContentJudge<'a> {
     /// Read an attributes file at an absolute path the way Git does,
@@ -117,34 +120,49 @@ impl<'a> ContentJudge<'a> {
     /// What:
     ///  The bytes of an attributes file,
     /// up to `room`,
-    /// taken with the read a control sets or the operating system's own.
+    /// taken with the read a control sets or the operating system's own,
+    /// each piece charged as it arrives.
     /// Why:
-    ///   The read is one place,
-    /// so a control can hand over what a file grown under it would,
-    /// and the caller charges what was taken.
+    ///   The bound is on the reading,
+    /// not on the size an earlier look reported:
+    /// a file that grows after that look may not hand over a byte the caller
+    ///  never counted,
+    /// so the read is capped at the room and the file is measured again after it,
+    /// and a file whose size moved under the read is refused rather than parsed
+    ///  short.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function attributeBytes(file, room) { let data = []; while (data.length <= room) { const taken = read(file, new Uint8Array(room + 1)); if (taken === 0) break; data.push(...taken); } return data.length > room ? undefined : data; }
+    /// function attributeBytes(file, room) {
+    ///   const data = []; while (data.length < room) { const taken = read(file, new Uint8Array(Math.min(64 << 10, room - data.length)));
+    ///     if (taken === 0) break; data.push(...taken); spent += taken; }
+    ///   return stat(file).size === data.length ? data : undefined;
+    /// }
     /// ```
     fn attribute_bytes(&self, file: &std::fs::File, room: u64, label: &dyn std::fmt::Display) -> Result<Option<Vec<u8>>, String> {
         let mut data: Vec<u8> = Vec::new();
-        let mut buffer: Vec<u8> = vec![0; usize::try_from(room.saturating_add(1)).unwrap_or(usize::MAX)];
-        while data.len() as u64 <= room {
+        let mut buffer: Vec<u8> = vec![0; usize::try_from(room.min(ATTRIBUTES_CHUNK as u64)).unwrap_or(ATTRIBUTES_CHUNK)];
+        while (data.len() as u64) < room {
+            let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(ATTRIBUTES_CHUNK);
             let taken: usize = match self.attribute_read {
-                Some(read) => subject_failure(read(file, buffer.as_mut_slice()), label, "cannot be read")?,
+                Some(read) => subject_failure(read(file, &mut buffer[..want]), label, "cannot be read")?,
                 None => {
                     use std::io::Read as _;
-                    subject_failure((&*file).take(buffer.len() as u64).read(buffer.as_mut_slice()), label, "cannot be read")?
+                    subject_failure((&*file).take(want as u64).read(&mut buffer[..want]), label, "cannot be read")?
                 }
             };
             if taken == 0 {
                 break;
             }
-            data.extend_from_slice(&buffer[..taken]);
+            let took: usize = taken.min(want);
+            data.extend_from_slice(&buffer[..took]);
+            self.charge(took as u64);
         }
-        self.charge(room.min(data.len() as u64));
-        return Ok(if data.len() as u64 > room { None } else { Some(data) });
+        let after: std::fs::Metadata = subject_failure(file.metadata(), label, "cannot be examined")?;
+        if after.len() != data.len() as u64 {
+            return Ok(None);
+        }
+        return Ok(Some(data));
     }
 
     /// Add `bytes` to the caller's bound,

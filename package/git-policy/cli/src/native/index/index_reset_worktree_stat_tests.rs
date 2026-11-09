@@ -511,10 +511,12 @@ fn the_attribute_files_a_landing_reads_are_charged() {
     remove(root.as_path());
 }
 
-/// A nested path with an indexed root `.gitattributes` is judged without a panic:
-/// the handle of the file's own directory is borrowed then, and replacing the cache under that borrow panics rather
-/// than refusing the record.
-/// The worktree's copy is the one Git applies here, so the file records.
+/// A nested path with an indexed root `.gitattributes` is judged
+/// without a panic:
+/// the handle of the file's own directory is borrowed then,
+/// and replacing the cache under that borrow panics.
+/// The worktree's copy is the one Git applies here,
+/// so the file records.
 #[test]
 fn a_nested_path_with_an_indexed_root_attributes_file_records_rather_than_panicking() {
     let root: PathBuf = fixture_root("index-worktree-stat-nested-attributes");

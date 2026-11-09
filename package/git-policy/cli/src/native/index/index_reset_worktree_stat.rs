@@ -417,8 +417,8 @@ impl<'a> LandingStat<'a> {
     /// The handle is duplicated for the caller rather than lent out of the cache:
     /// this method replaces the cache whenever another directory is asked for,
     /// and a borrow of the cache alive across that call panics
-    ///  (`RefCell` holds one mutable borrow, and the third review found exactly that with the root and an ancestor's
-    ///  `.gitattributes`).
+    ///  (`RefCell` holds one mutable borrow,
+    /// and the third review found exactly that with the root and an ancestor's `.gitattributes`).
     /// A duplicate costs one `dup` a path and cannot outlive the call it is made for.
     ///
     /// In TS you'd write (pseudocode):
