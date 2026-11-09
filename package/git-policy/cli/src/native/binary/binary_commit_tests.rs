@@ -52,7 +52,8 @@ pub(super) fn run_commit(fixture: &Fixture, directory: &Path, arguments: &[&str]
     return observe(&mut wrapped_commit(fixture, directory, arguments), b"");
 }
 
-/// The two spellings of literal pathspec mode: the global option and the variable.
+/// The two spellings of literal pathspec mode:
+///  the global option and the variable.
 #[derive(Clone, Copy, Debug)]
 enum LiteralMode {
     /// `git --literal-pathspecs <command>`.

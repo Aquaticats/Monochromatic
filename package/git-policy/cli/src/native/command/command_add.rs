@@ -109,8 +109,8 @@ pub const ADD_TABLE: &[OptionSpec] = &[
     row(UNREAD, None, Some("pathspec-file-nul"), Arity::None, true),
 ];
 
-/// Pathspecs Git resolves to the whole worktree, or to every changed path below the working
-///       directory.
+/// Pathspecs Git resolves to the whole worktree,
+///       or to every changed path below the working directory.
 /// Why:
 ///   Pathspec grammar has magic and globs,
 /// so a fixed list cannot be complete;

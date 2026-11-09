@@ -5191,8 +5191,19 @@ It rejects `-A`,
 and `--update`
 with the option spellings Git accepts,
 and it rejects a positional pathspec equal to one of nine fixed spellings that Git resolves to
-the whole worktree (or, for `.` and `./`, to every changed path below the working directory):
-`.`, `./`, `*`, `:/`, `:/*`, `:/**`, `:(top)`, `**` and `:(glob)**`.
+the whole worktree
+(or,
+for `.` and `./`,
+to every changed path below the working directory):
+`.`,
+`./`,
+`*`,
+`:/`,
+`:/*`,
+`:/**`,
+`:(top)`,
+`**`
+and `:(glob)**`.
 The list is a fixed enumeration in `command/command_add.rs` and is therefore incomplete by nature:
 pathspec magic and globs can select the same set in further spellings.
 `:(top)/*` is not in it because Git 2.56.0 fails in its own pathspec preparation
