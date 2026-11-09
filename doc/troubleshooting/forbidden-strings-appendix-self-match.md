@@ -221,6 +221,11 @@ Renaming `package/cli/forbidden-strings` to a new directory re-lists every file 
 and the policy scanned each one again.
 Three files match the scanner's own rules by design:
 
+`package/cli/forbidden-strings` is not in the working tree;
+the newest commit touching it is
+`113633b259` (refactor(*):
+move cli packages into product categories) on 2026-10-29.
+
 - `data/builtin-rules.txt`,
   rule `aws-amazon-bedrock-api-key-short-lived` (line 118 at the time),
    whose body is a literal that the rule matches;

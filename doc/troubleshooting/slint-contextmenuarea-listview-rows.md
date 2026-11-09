@@ -264,6 +264,11 @@ The implementation is `package/file-manager/app/ui/app.slint` (the
  with the Rust identity plumbing in
 `package/file-manager/app/src/menu.rs`.
 
+`package/file-manager/app/ui/app.slint` is not in the working tree and no commit in this repository
+carries it.
+`package/file-manager/app/src/menu.rs` is not in the working tree and no commit in this repository
+carries it.
+
 Tradeoffs:
 
 - The row identity for a menu command must be recorded by the app on the click

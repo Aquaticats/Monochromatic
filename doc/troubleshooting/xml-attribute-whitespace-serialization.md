@@ -772,6 +772,13 @@ insertion before `</map>`,
  and attribute-level `setOption`,
 and passed all of its XML cases with byte-identical untouched spans and idempotent reruns.
 
+`package/file-enforcer/core/src/pipeline/xml-coding.ts` was removed on 2026-10-31 in `e7b5130459`
+(feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own
+generator);
+no file in the working tree carries it now.
+
 Tradeoffs:
 
 - Every byte outside the replaced range is kept,

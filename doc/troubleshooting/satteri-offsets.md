@@ -34,6 +34,11 @@ return hasAstralCodePoints(source,)
   : node;
 ```
 
+`package/cli/markdown-lint/src/parse.ts` was removed on 2026-10-06 in `5bc05682ec` (chore(*):
+delete the five linter packages monochromatic-lint replaces);
+no file in the working tree carries
+it now.
+
 The helper treats an existing offset as a code-point index:
 
 ```typescript

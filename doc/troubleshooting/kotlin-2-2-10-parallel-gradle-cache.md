@@ -9,6 +9,10 @@ mise run //package/music-player/android-app:prototype:build
 mise run //package/music-player/android-app:lint
 ```
 
+`mise run //package/music-player/android-app:prototype:build` was removed on 2026-10-06 by
+`0b49ae109e`;
+the package declares no `prototype:*` task today.
+
 The `prototype:build` address is not on `main`:
 branch `prototype/music-player-theme-compose` declares it on 2026-09-04 (commit `d99257112e`),
 and `main`'s `package/music-player/android-app/mise.toml` has no `prototype:*` task.
