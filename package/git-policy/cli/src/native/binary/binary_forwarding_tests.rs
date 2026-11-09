@@ -20,6 +20,7 @@ use super::support::{
 };
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::io::{BufRead, Read};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -294,6 +295,87 @@ fn exit_codes_and_stderr_match_native_git() {
         assert_eq!(through_git.code, Some(code), "{arguments:?}");
         assert_eq!(through_wrapper, through_git, "{arguments:?}");
     }
+    remove(&fixture);
+}
+
+/// What:
+///  Run a command whose reader takes one line and then goes away,
+/// and report how the command ended:
+/// its exit
+///  code and the signal that ended it,
+/// one of which is absent.
+/// Why:
+///  This is the shape of `git log -p | head -1`:
+/// the pipeline's reader exits after its one line,
+/// the pipe
+///  closes,
+/// and the command writing to it is ended by `SIGPIPE`.
+/// A caller tells the two apart by `WIFSIGNALED` and by the
+///  status a shell reports (128 + the signal).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(cmd, { stdio: ['ignore', 'pipe', 'pipe'] }); readOneLine(child.stdout); child.stdout.destroy(); return wait(child);
+/// ```
+fn ended_after_one_line(mut command: Command) -> (Option<i32>, Option<i32>) {
+    let mut child: Child = command.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the command starts");
+    let stdout: std::process::ChildStdout = child.stdout.take().expect("piped standard output");
+    let mut reader: std::io::BufReader<std::process::ChildStdout> = std::io::BufReader::new(stdout);
+    let mut line: Vec<u8> = Vec::new();
+    reader.read_until(b'\n', &mut line).expect("the first line");
+    assert!(!line.is_empty(), "the command wrote no line, so a reader that leaves proves nothing");
+    // Dropping the reader closes the pipe, which is what a reader that exits does.
+    drop(reader);
+    // Standard error is drained so that a command writing there cannot block on a pipe nobody reads.
+    let mut errors: std::process::ChildStderr = child.stderr.take().expect("piped standard error");
+    let drained = std::thread::spawn(move || {
+        let mut kept: Vec<u8> = Vec::new();
+        let _read = errors.read_to_end(&mut kept);
+        return kept;
+    });
+    let status: std::process::ExitStatus = child.wait().expect("the command ends");
+    let _said: Vec<u8> = drained.join().expect("the reader of standard error");
+    return (status.code(), status.signal());
+}
+
+/// What:
+///  A read-only command whose reader goes away after one line,
+/// run in a linked worktree,
+/// where the wrapper
+///  keeps a process around Git to settle the ignored-state copy.
+/// Why:
+///  Native Git dies of `SIGPIPE`, and so does a wrapper that replaced itself with Git;
+/// the copy route runs Git as a child
+///  and reported its death by a signal as exit status 1,
+/// so a script that tells "the reader went away" from "Git
+///  failed" took the wrong branch
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(endedAfterOneLine(wrappedIn(linked))).toEqual(endedAfterOneLine(directIn(linked)));
+/// ```
+#[test]
+fn a_reader_that_goes_away_ends_the_run_by_the_signal_native_git_dies_of() {
+    let fixture: Fixture = fixture("sigpipe-copy");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    // Past one pipe buffer, so Git is still writing when the reader has gone.
+    let body: String = (0..20_000).map(|line| { return format!("line {line}\n"); }).collect();
+    std::fs::write(repo.join("big.txt"), body).expect("a file whose patch is past one pipe buffer");
+    git(&fixture, repo.as_path(), &["add", "big.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=big"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", linked.to_str().expect("UTF-8")]);
+    let mut native: Command = direct(&fixture);
+    native.current_dir(&linked).args(["log", "-p", "--all"]);
+    let through_native: (Option<i32>, Option<i32>) = ended_after_one_line(native);
+    assert_eq!(through_native, (None, Some(libc::SIGPIPE)), "the control: native Git ends of SIGPIPE");
+    let mut through: Command = Command::new(fixture.root.join("bin/git"));
+    super::support::hermetic(&mut through, &fixture, super::support::wrapper_first_path(&fixture).as_os_str());
+    through.current_dir(&linked).args(["log", "-p", "--all"]);
+    let through_wrapper: (Option<i32>, Option<i32>) = ended_after_one_line(through);
+    assert_eq!(through_wrapper, through_native, "the wrapper's caller sees what Git's caller sees");
     remove(&fixture);
 }
 
