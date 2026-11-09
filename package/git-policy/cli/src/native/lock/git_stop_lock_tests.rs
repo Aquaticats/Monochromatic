@@ -32,8 +32,8 @@ use std::time::{Duration, Instant};
 /// The deadline of the held lock's command:
 /// long enough for Git to start and take the lock,
 /// short enough to wait for.
-/// It is held until the holder announces its lock
-/// (`Watching`),
+/// It is held until a look of the control sees Git's lock and the pid file beside it
+/// (`the_holder_holds_its_lock`),
 /// so it says how long the run goes on after the lock is held,
 /// never when the lock must be held.
 const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
