@@ -239,7 +239,11 @@ pub fn prepare<F: RepositoryFacts>(
     //  live index: this commit's own index is set to the head for the paths whose entry disagrees with it, and the person is told
     //  (`owed_index_repair.rs`, `doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`). An explicit-path commit names
     //  its own selection, so only the notice is given for it.
-    let excluded: Vec<String> = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
+    let (excluded, unreadable_note): (Vec<String>, Option<String>) = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
+    if inputs.first && let Some(note) = unreadable_note.as_ref() {
+        let _written = std::io::stderr().write_all(note.as_bytes());
+        let _newline = std::io::stderr().write_all(b"\n");
+    }
     if inputs.first
         && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())
     {
@@ -393,6 +397,6 @@ pub(crate) fn exclude_or_stop_for_test(
     indexes: &CaptureIndexes,
     mode: TransactionMode,
     captured: &crate::service_land_start::IndexWitness,
-) -> Result<Vec<String>, TransactionStop> {
+) -> Result<(Vec<String>, Option<String>), TransactionStop> {
     return crate::owed_index_update::exclude_or_stop(context, capture, indexes, mode, captured);
 }

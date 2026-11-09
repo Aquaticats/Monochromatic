@@ -130,7 +130,9 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `421ab69c3e` landed the landing branch,
   `2522a13f4f` the literal-pathspec branch,
   `2b309f8f25` the test-coverage branch,
-  and `87f5771748` the index offset guard.
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  and `dea0f5d24e` the landing branch's follow-up on a failed head probe.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
@@ -138,8 +140,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   landing run 12,
   worktree-removal run 6,
   worktree-add run 4,
-  child-process run 5
-  and merge run 8.
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6
+  and literal-pathspec run 3.
   Worktree-add and child-process open with a merge of main in conflict,
   which their briefs tell them to resolve first,
   so neither branch has landed.
@@ -147,12 +153,19 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `resume-after-wall-clock-prompt.md` for `wrapper-issue-defects-and-linear-scans`,
-  which reached its time limit in a full test run,
-  `shadow-and-replay-round-2-prompt.md`,
-  `push-route-round-5-prompt.md`,
-  and `literal-pathspec-round-3-prompt.md`.
-- The shadow branch has passed its tests on top of main and waits for its round 2:
+  `locks-and-transactions-round-4-prompt.md`
+  and `commit-scratch-removal-round-3-prompt.md`.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- The alias branch's merge with main is committed and its tests are running.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
   `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
   a subsection holding `=` that loses its value,
   and a long value that stops the scratch commit from starting.

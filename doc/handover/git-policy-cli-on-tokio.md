@@ -979,6 +979,109 @@
 - Main was merged into this branch at `69a0e7f75c` (the coordinator);
   the commits of this step are its own.
 
+## Step T12, the landing round's controls, and the four things its move needs first
+
+- Written:
+  2026-11-09T11:40:00-05:00.
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-landing-round-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-landing-round-on-the-runtime`,
+  from main at `baf3d03fe6`,
+  with main merged again at `5ffe9b2dcc` (it had moved to `6232f281d7`).
+  Not merged into main.
+  Commits `02601dbb76`,
+  `8af808f1c0`,
+  `ba49929c1c` and the merge `5ffe9b2dcc`.
+- Done:
+  the raw blocking runner's refusal claims only what it knows
+  (the finding of `${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`),
+  and `landing/service_round.rs` has the controls its move must keep:
+  the answer a drain of one directory after another gives,
+  a lane's order,
+  what a refused thread does partway through a round,
+  and the measurement that says why the round cannot run its items as
+  blocking jobs.
+- Not done,
+  and measured as not contained:
+  the move of `drain_directories` onto the runtime.
+  It needs four things first,
+  and the plan's section
+  "Step T12,
+  the landing round:
+  what blocks it and what now pins it"
+  names each with its file and lines:
+  an awaited push chain (about a dozen functions in six files,
+  with the synchronous faces kept for `manual_push_probe` and `push_stacking`),
+  an awaited maintenance (two functions),
+  a claim renewal whose stop does not wait for a task,
+  and the claims,
+  the settles and the notices inside
+  `run_blocking_job_within_the_budget`.
+- The next agent starts with the awaited push chain,
+  then the awaited maintenance,
+  then the renewal's stop,
+  then the round itself onto `run_ordered_awaiting_on_the_runtime`:
+  `landing/service_round.rs` first,
+  and `landing/service_work_run_round.rs` keeps a synchronous face that enters
+  the runtime once.
+- The refusal's three states are now separate values,
+  which is what the review asked for:
+  `MayStillRunAfterItsThreadWasRefused` (the runner that takes no claim),
+  `NoThreadToStart` (a caller that took the claim before it answered),
+  and `StartedAfterItsThreadWasRefused` (the job took the claim first).
+  `OrderedRunError` carries the same three,
+  and the index refresh counts the first with the ends whose result is not
+  known.
+- Checks at the tip,
+  `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own
+  control group at `TasksMax=4000`:
+  `native:test:host` 5087 run,
+  5087 passed (one slow),
+  12 skipped;
+  `native:test:binary:host` 744 run,
+  736 passed (four slow),
+  8 failed,
+  3 skipped,
+  all eight failures pre-existing and measured as such (the plan's section for
+  this step names them and the base-arm run that failed the same way);
+  at the merged tip `native:test:host` 5164 run,
+  5164 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 757 run,
+  748 passed (three slow),
+  9 failed,
+  3 skipped,
+  the ninth (`client_service::an_index_writer_waits_for_the_service_to_finish_landing_and_says_so`)
+  being main's,
+  measured the same way;
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+- Open failure to read before trusting a green binary run,
+  measured and not this branch's:
+  `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`
+  fails 2 of 2 alone and once inside a full run,
+  "6 of 47 kills left the repository unrecovered",
+  each with "a staging directory stays after the next commands:
+  `.cli-git-worktree-copy-<id>`",
+  and it fails the same way with this branch's four production files restored
+  to `baf3d03fe6`,
+  which is the measurement that it predates this step.
+  The folder is `worktree_copying/`,
+  which another agent is changing.
+- `native:perf`,
+  five arms between 07:50 and 08:00 with this tree's binary and main's at
+  `baf3d03fe6`,
+  alternating and with two arms of one binary as the control:
+  the same binary's commit medians ran 57.6 to 853.9 ms (14.8 times) and its
+  signed medians 57.3 to 404.9 ms,
+  which covers every difference between the two binaries;
+  forwarded commands stayed 1.4 to 3.6 ms added;
+  both binaries broke the 5,000 ms commit bar under a load average of 53 to 121
+  on six CPUs.
+  So no arm attributes anything to this step,
+  and none of its files runs in a commit.
+  The plan's section for this step has every arm.
+
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
 Nothing of T13 is done and nothing of it can be done first:
