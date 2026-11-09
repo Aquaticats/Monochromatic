@@ -94,6 +94,10 @@ pub struct LandTiming {
     /// one,
     /// and one more each time the branch moved under it.
     pub attempts: usize,
+    /// Which of the residual reads spent the time,
+    /// named one by one;
+    /// their sum is never more than `reads`.
+    pub reads_split: ReadSplit,
 }
 
 impl LandTiming {
@@ -101,9 +105,62 @@ impl LandTiming {
     /// the branch reads,
     /// the comparisons with the branch,
     /// the check for removed
-    ///  content.
+    ///  content,
+    /// and the rest of what `reads_split` names one by one.
     pub fn reads(&self, landing: Duration) -> Duration {
         return landing.saturating_sub(self.lock_wait + self.objects + self.journal + self.ref_update + self.index_update);
+    }
+}
+
+/// What:
+///  How the residual reads of a landing split,
+///  one named stretch each.
+/// Why:
+///   `reads` was one number for the branch reads,
+///  the comparisons with the branch,
+///  the check for removed content,
+///  the index witness,
+///  the conclusion copy,
+///  the records a batch owes and the head question under the lock;
+///  a landing that spent a second there
+///  could not say which one did.
+///  Every named stretch is a part of what `reads` subtracts,
+///  so the sum of them never exceeds it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ReadSplit = { config: number; branch: number; parents: number; changed: number; content: number; witness: number; conclusion: number; owed: number; follow: number };
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ReadSplit {
+    /// Reading the configuration snapshot and deciding whether the history is plain,
+    /// once for the batch,
+    /// before it starts.
+    pub config: Duration,
+    /// Reading the branch's commit and asking whether the worktree still has it checked out,
+    /// before the index lock is asked for.
+    pub branch: Duration,
+    /// Listing the parents of the commit an amend replaces.
+    pub parents: Duration,
+    /// Comparing the requests with the branch since their base,
+    /// one listing per distinct base.
+    pub changed: Duration,
+    /// Looking for the content of the batch in the object store before anything is imported.
+    pub content: Duration,
+    /// Recording the index file the landing saw.
+    pub witness: Duration,
+    /// Keeping the copy of the conclusion state a cleanup removes.
+    pub conclusion: Duration,
+    /// Taking the index update and the held push a batch owes before its branch moves.
+    pub owed: Duration,
+    /// Reading the worktree's head again after the branch moved.
+    pub follow: Duration,
+}
+
+impl ReadSplit {
+    /// Every named read added together.
+    pub fn total(&self) -> Duration {
+        return self.config + self.branch + self.parents + self.changed + self.content + self.witness + self.conclusion + self.owed + self.follow;
     }
 }
 
@@ -318,6 +375,8 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
     return format!(
         "answered request={:?} branch={:?} outcome={} batch={} size={} position={} read_ms={} queued_ms={} settle_ms={} \
          lock_wait_ms={}{holder} lock_hold_ms={} reads_ms={} objects_ms={} journal_ms={} ref_ms={} index_update_ms={} attempts={} landing_ms={} \
+         reads_config_ms={} reads_branch_ms={} reads_parents_ms={} reads_changed_ms={} reads_content_ms={} \
+         reads_witness_ms={} reads_conclusion_ms={} reads_owed_ms={} reads_follow_ms={} \
          answer_ms={} total_ms={} quiet_ms={} quiet_steps={:?} steps={:?} steps_dropped={}",
         answered.request,
         answered.reference,
@@ -337,6 +396,15 @@ pub fn answered_line(answered: &Answered<'_>) -> String {
         answered.landing.index_update.as_millis(),
         answered.landing.attempts,
         answered.land_total.as_millis(),
+        answered.landing.reads_split.config.as_millis(),
+        answered.landing.reads_split.branch.as_millis(),
+        answered.landing.reads_split.parents.as_millis(),
+        answered.landing.reads_split.changed.as_millis(),
+        answered.landing.reads_split.content.as_millis(),
+        answered.landing.reads_split.witness.as_millis(),
+        answered.landing.reads_split.conclusion.as_millis(),
+        answered.landing.reads_split.owed.as_millis(),
+        answered.landing.reads_split.follow.as_millis(),
         answered.answer.as_millis(),
         answered.total.as_millis(),
         longest_healthy(answered.quiet),

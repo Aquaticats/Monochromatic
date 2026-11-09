@@ -35,8 +35,10 @@ const INDEX_UPDATE_MS: u64 = 23;
 /// the branch move and the index build,
 /// so within their sum.
 const HOLD_MS: u64 = 31;
-/// Time of the landing no named phase covers.
-const READS_MS: u64 = 29;
+/// Time of the landing no named phase covers,
+/// more than the named reads of `landing_with_named_reads` add up to:
+/// the named reads are parts of the residual and never more than it.
+const READS_MS: u64 = 137;
 const ANSWER_MS: u64 = 31;
 /// The flush of the marker and the wait for the holder,
 /// which the controls give other numbers than the phases.
@@ -85,6 +87,7 @@ fn landing() -> LandTiming {
         index_update: Duration::from_millis(INDEX_UPDATE_MS),
         hold: Duration::from_millis(HOLD_MS),
         attempts: 2,
+        reads_split: super::ReadSplit::default(),
         lock_notes: WaitNotes {
             holder: Some(String::from("Process 4242 (git)")),
             found: Some(String::from("foreign no-marker size=0 age_ms=40 open_by=[4242 (git)]")),
@@ -159,6 +162,72 @@ fn the_phases_add_up_to_the_totals() {
     assert_eq!(landing_phases, number("landing_ms"));
     let request_phases: u64 = ["read_ms", "queued_ms", "settle_ms", "landing_ms", "answer_ms"].iter().map(|name| { return number(name); }).sum();
     assert_eq!(request_phases, number("total_ms"));
+}
+
+/// Milliseconds each named read is given in the controls,
+/// all different and all below `READS_MS`,
+/// so a field read from the wrong read shows.
+const READS_CONFIG_MS: u64 = 2;
+const READS_BRANCH_MS: u64 = 3;
+const READS_PARENTS_MS: u64 = 5;
+const READS_CHANGED_MS: u64 = 7;
+const READS_CONTENT_MS: u64 = 11;
+const READS_WITNESS_MS: u64 = 13;
+const READS_CONCLUSION_MS: u64 = 17;
+const READS_OWED_MS: u64 = 19;
+const READS_FOLLOW_MS: u64 = 23;
+
+/// A landing whose residual reads are named one by one.
+fn landing_with_named_reads() -> LandTiming {
+    let mut split: LandTiming = landing();
+    split.reads_split = super::ReadSplit {
+        config: Duration::from_millis(READS_CONFIG_MS),
+        branch: Duration::from_millis(READS_BRANCH_MS),
+        parents: Duration::from_millis(READS_PARENTS_MS),
+        changed: Duration::from_millis(READS_CHANGED_MS),
+        content: Duration::from_millis(READS_CONTENT_MS),
+        witness: Duration::from_millis(READS_WITNESS_MS),
+        conclusion: Duration::from_millis(READS_CONCLUSION_MS),
+        owed: Duration::from_millis(READS_OWED_MS),
+        follow: Duration::from_millis(READS_FOLLOW_MS),
+    };
+    return split;
+}
+
+/// What:
+///  The residual reads of a landing are named one by one,
+/// so a slow landing says which read spent the time.
+/// Why:
+///   `reads_ms` alone was one number for the branch reads,
+/// the comparisons,
+/// the content check,
+/// the witness,
+/// the conclusion copy,
+/// the records the batch owes and the head question under the lock;
+/// a landing
+///  that took a second there could not say where.
+#[test]
+fn the_answered_line_names_each_read_of_the_landing() {
+    let line: String = line_for("req-reads", "refs/heads/main", &landing_with_named_reads());
+    let found: HashMap<String, String> = fields(line.as_str());
+    assert_eq!(found["reads_config_ms"], READS_CONFIG_MS.to_string());
+    assert_eq!(found["reads_branch_ms"], READS_BRANCH_MS.to_string());
+    assert_eq!(found["reads_parents_ms"], READS_PARENTS_MS.to_string());
+    assert_eq!(found["reads_changed_ms"], READS_CHANGED_MS.to_string());
+    assert_eq!(found["reads_content_ms"], READS_CONTENT_MS.to_string());
+    assert_eq!(found["reads_witness_ms"], READS_WITNESS_MS.to_string());
+    assert_eq!(found["reads_conclusion_ms"], READS_CONCLUSION_MS.to_string());
+    assert_eq!(found["reads_owed_ms"], READS_OWED_MS.to_string());
+    assert_eq!(found["reads_follow_ms"], READS_FOLLOW_MS.to_string());
+    // The named reads are parts of `reads_ms` and never more than it: the landing's own phases stay the whole.
+    let named: u64 = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"]
+        .iter()
+        .map(|name| {
+            return found[*name].parse::<u64>().expect("a number");
+        })
+        .sum();
+    assert!(named <= READS_MS, "the named reads add up to no more than the residual: {named} of {READS_MS}");
+    assert_eq!(found["reads_ms"], READS_MS.to_string(), "the residual still states its whole");
 }
 
 /// A landing that waited for nobody names no holder.

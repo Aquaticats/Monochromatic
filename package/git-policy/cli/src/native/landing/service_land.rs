@@ -137,6 +137,7 @@ pub fn land_batch_timed(
     // The landing queues its own syncs and settles them when it ends: nothing is flushed while the person waits for a commit that
     //  is published, and what a landing that publishes nothing wrote is flushed before it returns (`service_durable.rs`). The
     //  index file follows `core.fsync` as native Git's index write does; a configuration that cannot be read is taken to name it.
+    let config_began: Instant = Instant::now();
     let snapshot: Option<ConfigSnapshot> = match requests.first() {
         Some(first) => read_config_snapshot(&context.git, first.repository.as_path()),
         None => None,
@@ -153,6 +154,7 @@ pub fn land_batch_timed(
         Some(first) => history_is_plain(first.common_dir.as_path(), &context.git, snapshot.as_ref()),
         None => false,
     };
+    timing.reads_split.config = config_began.elapsed();
     let settings: Settings<'_> = Settings { import_fsync: import_fsync.as_deref(), plain_history };
     let result: Result<Vec<Outcome>, FailureCode> = land_batch_body(context, seq, requests, announce, timing, &settings);
     // A step ended at its ceiling anywhere else in the landing: the clients are told which, and the commit the batch built, when it
@@ -245,6 +247,7 @@ fn land_batch_body(
         timing.attempts += 1;
         // The commit the branch names, asked in the one spelling the in-process readers answer (`<ref>^{commit}`), so the question
         //  starts no Git; for a branch, which only ever names a commit, the answer is the same as for the bare name.
+        let branch_began: Instant = Instant::now();
         let branch_commit: String = format!("{}^{{commit}}", first.reference);
         let old: String = match checked(&git, repository, &["rev-parse", "--verify", "--quiet", branch_commit.as_str()], None) {
             Ok(found) => found,
@@ -259,11 +262,14 @@ fn land_batch_body(
         //  symbolic `HEAD` is not refused by Git's own compare when it is told not to follow it (measured: it replaces the
         //  symbolic reference), so a head that became a branch is found here, before the move. The same question is asked
         //  again once the index lock is held, because the worktree can switch while the lock is awaited.
-        if !still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())? {
+        let still_ours: bool = still_checked_out(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str())?;
+        timing.reads_split.branch += branch_began.elapsed();
+        if !still_ours {
             return Ok(vec![Outcome::BranchMoved; requests.len()]);
         }
         // Only an amend uses the parents of the commit it replaces; they are read from the object store, and listed by Git when the
         //  store cannot say (the same rule as for the commit Git built).
+        let parents_began: Instant = Instant::now();
         let amended_parents: Vec<String> = if alone && !unborn && first.amend {
             let replaced_commit: Option<BuiltCommit> = if settings.plain_history { read_commit(first.common_dir.as_path(), first.base.as_str()) } else { None };
             match replaced_commit {
@@ -276,9 +282,12 @@ fn land_batch_body(
         } else {
             Vec::new()
         };
+        timing.reads_split.parents += parents_began.elapsed();
         // One tree comparison per distinct base: the paths that changed on the branch since then.
         outcomes = vec![Outcome::RetryPrepare { base: old.clone() }; requests.len()];
+        let changed_began: Instant = Instant::now();
         let landing: Vec<(usize, &CommitRequest)> = requests_that_land(&git, repository, requests, old.as_str())?;
+        timing.reads_split.changed += changed_began.elapsed();
         if landing.is_empty() {
             return Ok(outcomes);
         }
@@ -288,7 +297,10 @@ fn land_batch_body(
         }
         // Content that `git gc --prune=now` removed after the preparation is found before anything is imported or moved: the
         //  client prepares the commit again, and says so plainly when that is not enough.
-        if batch_content_missing(first.common_dir.as_path(), batch.as_slice()) {
+        let content_began: Instant = Instant::now();
+        let missing: bool = batch_content_missing(first.common_dir.as_path(), batch.as_slice());
+        timing.reads_split.content += content_began.elapsed();
+        if missing {
             return Err(FailureCode::Unavailable);
         }
         let objects_began: Instant = Instant::now();
@@ -341,10 +353,14 @@ fn land_batch_body(
         //  move and the index install leaves it where the person's next command reads it (`owed_index_update.rs`).
         // Everything the batch owes is taken here, before the branch moves, so a kill after the move leaves the record of the index
         //  update and the held push of every commit it would land (`work_item_holding.rs`).
+        let owed_began: Instant = Instant::now();
         crate::service_server_land_group::what_a_batch_owes(&intent);
+        timing.reads_split.owed += owed_began.elapsed();
         // What the conclusion's cleanup compares is the client's to lose: a copy is kept in the journal before the branch moves, so
         //  a cleanup that fails once and is finished by a restart still removes the state (`conclusion_state_copy.rs`).
+        let conclusion_began: Instant = Instant::now();
         crate::conclusion_state_copy::keep_of_intent(intent.cleanup.as_ref(), context.journal.as_path(), seq);
+        timing.reads_split.conclusion += conclusion_began.elapsed();
         let journal_began: Instant = Instant::now();
         let written = write_intent(context.journal.as_path(), &intent);
         timing.journal += journal_began.elapsed();
@@ -376,6 +392,7 @@ fn land_batch_body(
         //  made only over the file the landing saw. It is recorded for a commit Git built as for any other, since the witness
         //  needs no list of paths. A record that cannot be written leaves a batch no replay is made for, and this landing
         //  still updates the index itself while it holds the lock.
+        let witness_began: Instant = Instant::now();
         match witness_of(first.index.as_path()) {
             Ok(witness) => {
                 if let Err(error) = write_start(context.journal.as_path(), seq, &witness) {
@@ -384,6 +401,7 @@ fn land_batch_body(
             }
             Err(error) => crate::service_error!("batch {seq}: the index file cannot be looked at ({error}); a restart will not replay the index update"),
         }
+        timing.reads_split.witness += witness_began.elapsed();
         reach("before-ref");
         // A commit built elsewhere made no scratch branch, so there is none to remove with the move.
         let removal: String = if first.commit.is_some() { String::new() } else { format!("delete {scratch}\n") };
@@ -425,7 +443,9 @@ fn land_batch_body(
         //  be caught inside the transaction. The head is read again with the lock held: a worktree that left the branch keeps
         //  its own index, and the commits stay on the branch they were made for. A switch after this look is the state native
         //  Git leaves too (`git commit` then `git symbolic-ref HEAD <other>`): the index describes the commit made.
+        let follow_began: Instant = Instant::now();
         let followed: Result<bool, FailureCode> = follows_move(&git, repository, first.git_dir.as_path(), first.common_dir.as_path(), first.reference.as_str(), new.as_str());
+        timing.reads_split.follow += follow_began.elapsed();
         // The branch has moved: the commits exist whatever happens to the index, which recovery finishes.
         let index_update_began: Instant = Instant::now();
         let settled: bool = finish_after_move(&git, &intent, held, context.journal.as_path(), followed);

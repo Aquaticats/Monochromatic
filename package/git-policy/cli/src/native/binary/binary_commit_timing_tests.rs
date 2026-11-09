@@ -254,6 +254,10 @@ fn a_wrapped_commit_leaves_one_record_and_the_service_one_line_for_it() {
     let landing_phases: u64 = landing_keys.iter().map(|key| { return ms_of(line, key); }).sum();
     let landing_total: u64 = ms_of(line, "landing_ms");
     assert!(landing_phases <= landing_total && landing_total - landing_phases < u64::try_from(landing_keys.len()).expect("a small count"), "{line}");
+    // The residual reads are named one by one, so a slow landing says which read spent the time; each is a part of `reads_ms`.
+    let read_names: [&str; 9] = ["reads_config_ms", "reads_branch_ms", "reads_parents_ms", "reads_changed_ms", "reads_content_ms", "reads_witness_ms", "reads_conclusion_ms", "reads_owed_ms", "reads_follow_ms"];
+    let named_reads: u64 = read_names.iter().map(|key| { return ms_of(line, key); }).sum();
+    assert!(named_reads <= ms_of(line, "reads_ms"), "the named reads are parts of the residual ({} of {}): {line}", named_reads, ms_of(line, "reads_ms"));
     assert!(!line.contains("lock_holder"), "nobody held the index: {line}");
     let everything: String = std::fs::read_to_string(&places.log).expect("log") + &std::fs::read_to_string(repo.join(".git").join(TIMING_FILE)).expect("record");
     assert!(!everything.contains(MESSAGE), "the commit's text is in a log");
