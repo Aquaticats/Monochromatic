@@ -205,6 +205,21 @@ fn named_ignored_file_is_selected_alone() {
     remove(root.as_path());
 }
 
+/// The named spec is the wrapper's own, so two glob modes that disagree in the caller's environment must not make
+/// the listing refuse it and the copy fail.
+#[test]
+fn a_named_ignored_file_is_selected_under_the_callers_conflicting_glob_modes() {
+    let root: PathBuf = fixture("selection-named-glob-modes");
+    let source: PathBuf = source_with_named_file(root.as_path(), "source");
+    let mut inherited: crate::transaction_git::GitContext = git_context();
+    inherited.overlay.push((std::ffi::OsString::from("GIT_GLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    inherited.overlay.push((std::ffi::OsString::from("GIT_NOGLOB_PATHSPECS"), std::ffi::OsString::from("1")));
+    let roots: Vec<String> = read_named_ignored_roots(&inherited, source.as_path(), &[String::from(".cache/rules.txt")])
+        .expect("the listing answers despite the caller's modes");
+    assert_eq!(roots, vec![String::from(".cache/rules.txt")]);
+    remove(root.as_path());
+}
+
 /// A named file the source does not have selects nothing and is not an error.
 #[test]
 fn absent_named_file_selects_nothing() {
