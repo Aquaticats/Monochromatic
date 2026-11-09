@@ -94,7 +94,9 @@ pub fn rules_file_refusal_reason(refusal: RulesFileRefusal) -> &'static str {
 ///  the separator of the option's components.
 /// Why:
 ///   A named predicate for `split`,
-///  because the repository bans anonymous functions.
+///  because `rust/avoidable-closure` reports a closure argument that a named function could replace;
+///  the syntax-only anonymous-function ban this once cited was removed on 2026-10-18
+///  (`doc/decision/rust-closure-lint-dylint.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

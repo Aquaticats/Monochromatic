@@ -209,7 +209,7 @@ catalog:
   # conf-fork.fuzz vendored upstream-conf oracle dependency; dev-only.
   'uint8array-extras': '>=1.6.0'
   # The shell analyzer consumes the SyntaxNode/Redirection AST introduced in unbash 5.
-  'unbash': '>=6.0.3'
+  'unbash': '>=6.0.4'
   'unified': '>=11.0.5'
   'valibot': '>=1.5.0'
   'wawoff2': '>=2.0.1'

@@ -179,7 +179,8 @@ sets the mark map,
 - Userspace `wireguard-go` fallback (kernel module present here).
 - `resolvconf` (openresolv) path;
    target system uses systemd-resolved.
-- `SaveConfig` (writes conf back) — not needed,
+- `SaveConfig` (writes conf back):
+  not needed,
    conf is source of truth.
 
 ## Package

@@ -1,5 +1,7 @@
 // Prerequisites of the rust/avoidable-closure check for this package (package/linter/monochromatic-lint/README.md,
-// section "Prerequisite manifest"): cxx-qt-build locates Qt by running qmake, and Fedora installs only qmake6.
+// section "Prerequisite manifest"): a Qt 6 qmake, because cxx-qt-build runs `qmake -query` to locate Qt.
+// qt-build-utils takes QMAKE when it is set and otherwise the first PATH candidate that works, trying qmake6,
+// qmake-qt5 and qmake in that order, and this check's own probe searches qmake6 and qmake.
 {
   "qmake": true,
 }

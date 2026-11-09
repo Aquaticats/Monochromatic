@@ -7,6 +7,9 @@
 //!  cases where it disagrees with
 //!      Git 2.56.0 are marked as divergences and follow Git.
 //!
+//! `argv.unit.test.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/parser/argv.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(parseArgv({ args, spec })).toEqual(...)
@@ -26,6 +29,9 @@ use std::ffi::OsString;
 
 /// The declared surface of the incumbent `argv.unit.test.ts`:
 ///  one flag and one value option.
+///
+/// `argv.unit.test.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+///  and `git show 642b6d72cb^:package/git-policy/cli/src/parser/argv.unit.test.ts` reads it there.
 const INCUMBENT_TABLE: &[OptionSpec] = &[
     row(ALL, Some(b'a'), Some("all"), Arity::None, true),
     row(MESSAGE, Some(b'm'), Some("message"), Arity::Required, true),
