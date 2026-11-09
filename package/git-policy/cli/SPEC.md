@@ -577,9 +577,19 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   The exit status never depends on it,
   and doctor never writes configuration.
   A listing that cannot be read or parsed is said plainly in place of the line.
-- It does not load configuration,
-  recover transactions or take a lock,
-  and it changes nothing.
+- It loads `monochromatic-git-policy-cli.config.jsonc` only to name the retired `hooks`,
+  `indexLock` and `landing` keys and the limits of the folder of saved copies;
+  a file that cannot be loaded is not its to report,
+  and every other command names the problem.
+  It recovers no transaction,
+  takes no lock,
+  and it changes nothing:
+  a name an earlier release kept in the common Git directory stays where it is,
+  and the report reads a kept folder under whichever spelling stands there
+  (`kept_names_in_the_git_directories.rs`,
+  `path_for_reading`).
+  The program that owns those names settles them,
+  and that is not this command.
   Each file system read of it (the hook directories,
   the shim files and the host facts of the filesystem section)
   is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
@@ -4368,10 +4378,104 @@ on the commit path:
   Protocol messages are unchanged.
   A client that waits behind a hung write keeps the service busy only as long as the write lasts;
   nothing in the wrapper ends it.
-- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`;
-  at the bound it names the holder and ends the wait,
-  and Git's own
-  refusal ends the merge non-zero with nothing changed.
+- A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`,
+  naming the holder while it waits.
+  A lock a process that no longer runs left (an empty lock beside a Git lock PID file naming a process that is gone)
+  is removed on the commit service's proof of disuse (`service_index_unheld_removal.rs`,
+  `remove_if_the_owner_is_gone`:
+  the file is opened and judged through that descriptor,
+  no readable process holds it open,
+  the name still refers to it,
+  and only then is it unlinked),
+  and the merge goes on.
+  A holder that runs,
+  one nothing proves alive,
+  and a lock the proof of disuse does not cover (one that holds content,
+  one behind the service's marker,
+  one a process has open) are not removed.
+  Such a merge is saved instead (`SPEC.md:2187`,
+  the owner's answer):
+  its commit is written to `refs/cli-git/kept/<number>` (a number no other command kept,
+  by an `update-ref` whose old value is all zeros),
+  a second record naming that ref is written beside the first,
+  the command says where the merge is and what finishes it,
+  and it exits 0.
+  The next git command in that worktree finishes the checkout once the lock is free:
+  the merge's own paths are installed,
+  the branch moves by compare-and-swap against the recorded old commit,
+  Settling installs only into the checkout of the branch the merge was computed on:
+  when `HEAD` names another branch,
+  nothing is written,
+  a record kept on a side ref stays with it,
+  and the line names the branch the merge is for;
+  a record with no side ref that has nothing of the merge in the checkout goes instead,
+  because another branch's checkout has nothing for it to finish and nothing of it was saved;
+  `HEAD` is read again immediately before the branch moves,
+  and a worktree that changed branch by then keeps the record as well.
+  The record and the side ref go when the merge lands,
+  and the side ref is deleted only while it still holds the merge's commit.
+  and everything the merge does not change is left as it is,
+  so an edit made meanwhile to such a file is carried forward.
+  Staged content is never written over:
+  an index entry for a path the merge replaces that is neither the branch's nor the merge's stops the finish,
+  names the paths,
+  keeps the record and leaves the staged content in the index,
+  because a staged version has no other name.
+  That check is read before the write and cannot be made part of it:
+  `git update-index --index-info` has no way to
+  write an entry only when the one it replaces is the one that was read,
+  and `git read-tree -m -u`,
+  which refuses a path that is not up to date,
+  would replace the whole install this route is built on.
+  So a staged entry that arrives after the check and before the write replaces the merge's entry,
+  and the merge lands over it;
+  the window runs from the reading that judged the entries to the `git update-index` call that writes them,
+  and the take of every file the merge writes sits inside it.
+  Closing it needs another command to stage inside that window,
+  and the person would see the merge land and their staged version gone from the index,
+  with nothing in the output saying which one it was.
+  The same shape is a second window:
+  `HEAD` is read to learn whose checkout this is,
+  and another command can switch the worktree to a branch that names the same commit between that read and the install,
+  so the merge's files and index land in a checkout that now belongs to the other branch.
+  The read is made once more immediately before the branch moves,
+  and a `HEAD` that differs keeps the record,
+  moves nothing and says which branch the merge is for.
+  The branch write verifies the branch and not `HEAD`,
+  so a switch that lands in the instant between that look and the write is met by one more read straight after it:
+  a `HEAD` that differs then puts the branch back where it was by compare-and-swap against the merge commit,
+  keeps the record,
+  and says which branch the worktree now has,
+  that the merge's index entries and files are still in it,
+  and how to finish the merge there or undo what is staged.
+  The entries and files are not removed:
+  the record is what finishes the merge later,
+  so the person is told what is in the checkout rather than that it is clean.
+  A switch that lands after that third read is not covered,
+  and closing it would need the write itself to check `HEAD`,
+  which `git update-ref` cannot do:
+  a `symref-verify HEAD` in the same transaction as the update of the branch `HEAD` names is refused as two updates of
+  `HEAD`.
+  Closing that one needs another command to switch inside the same window,
+  and the person would see the merge's staged content in the `git status` of the branch they had switched to,
+  that branch's files otherwise unchanged,
+  and the merged branch moved,
+  with nothing in the output saying which command did it.
+  An edit made meanwhile to one of the merge's own paths is never overwritten:
+  the finish stops and names the file.
+  A merge whose commit cannot be kept on a side ref is refused with nothing changed,
+  never promised for a finish it may not reach.
+  A branch that advances after the merge was saved makes that merge unable to land as it was saved:
+  when nothing of it was installed its record goes,
+  so no later command is stopped for it,
+  the side ref keeps the merge commit,
+  and the line names the ref,
+  the commit and `git merge <commit>` as the way to land it;
+  when the index or a file of it is already installed,
+  the record stays,
+  nothing is removed,
+  and the command stops with the line naming the record and the moved branch,
+  because those entries and that file have nothing else that ever settles them.
   The index reconciliation of a commit with no change left ends the same
   way.
   A forwarded writer waits for the service's hold until `SERVICE_HOLD_CEILING`,
@@ -4403,6 +4507,52 @@ on the commit path:
   service's retry plan,
   which keeps the push and tries it again.
 
+#### Windows that need another process
+
+Three instants need another command to act inside a few instructions of this one,
+and no mechanism is added for them;
+each is named with what the person would see.
+
+- A blob staged between recovery's index read and its own index write.
+  Recovery reads the index and classifies a path as holding the branch's entry;
+  another command stages a different blob for that path without touching the worktree file;
+  recovery then writes the merge's entry over it with `git update-index --index-info`.
+  What the person sees:
+  the merge lands and their staged version is gone from the index,
+  with nothing in the output saying which version it was.
+- An edit a clean filter hides.
+  A path has a clean filter that removes `NOTE:` lines;
+  recovery judges its content and takes the file aside;
+  another program changes `NOTE: old` to `NOTE: new`,
+  keeping the length and restoring the modification time;
+  every field of the identity and the filtered object are then unchanged,
+  so the private name is removed at the finish.
+  What the person sees:
+  the changed `NOTE:` bytes are gone,
+  and neither the Git object nor the merged file holds them.
+- Two recoveries of the same dead record.
+  The first takes a file aside and writes the merge's index entry for it;
+  the second,
+  starting on the same dead owner's record,
+  finds the private name and renames the file back to its path,
+  because the repair does not ask whether the process that left it is still running.
+  The first then finishes:
+  its private name is gone,
+  so its removal step says so and reports the merge complete.
+  What the person sees:
+  the branch moves onto the merge while the file the merge deletes is back in the checkout as an untracked file,
+  and both commands report success.
+- A detached `HEAD` made symbolic after the last check.
+  The record names no branch and recovery starts with a detached `HEAD`;
+  another command makes `HEAD` symbolic to a branch at the same commit after the last read;
+  recovery's `update-ref --no-deref HEAD` writes the merge commit as a detached `HEAD` over that symbolic one.
+  The read after the write then finds no branch,
+  which is what the record expects,
+  so the merge is reported complete.
+  What the person sees:
+  their worktree is detached at the merge commit instead of on the branch they switched to,
+  and that branch itself did not move.
+
 Decided by the coordinator under the owner's delegation,
 veto open (inventory,
 "Picks"):
@@ -4425,7 +4575,10 @@ now inside these bounds:
   with a line that names
   what is known (the person's own `git commit` with its editor open holds the lock with no proof);
   a dead owner (a PID file naming
-  a process that is gone) ends the wait at once with a diagnostic naming it.
+  a process that is gone) ends the wait at once with a diagnostic naming it,
+  and a merge then removes that lock on the same proof of disuse the service acts on
+  (`remove_if_the_owner_is_gone`) and lands;
+  a command that does not remove it says so in the same line.
 - An empty `index.lock` with no service marker and no Git lock PID file,
   that no process of a complete scan (Linux,
   every readable process,
@@ -10119,6 +10272,195 @@ an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format
 (`.git/cli-git-transaction`)
 with the way to recover it.
+A merge that settling finishes says so on standard error,
+naming the ref it landed on and the merge commit,
+because the command may have been run only to look at the worktree;
+the same line names the ref a merge was abandoned on when the branch moved while it was prepared.
+Settling writes the index only after waiting,
+bounded and naming the holder,
+for any program's `index.lock`,
+so a program that holds the index does not end every command in that worktree;
+a lock that outlasts `MERGE_LOCK_CEILING` writes nothing,
+leaves the record and the checkout as they were,
+and the next command finishes the same merge.
+That leaving alone is for a merge that installed nothing:
+when the merge's index entries or files are already installed and the index stays held,
+the command is stopped and told the lock,
+the record and what is installed,
+because a command that went on would read the half-installed merge as another session's staged work.
+A staged entry for a path the merge changes is judged before the take and written after it,
+so another command that stages one of those paths inside that window replaces a version this command never read:
+the standings are read once,
+every file the merge writes is taken aside,
+and only then does `git update-index --index-info` write the merge's entries,
+which replace whatever entry is there.
+Closing it needs a write that lands only while the entry it replaces is the one that was read,
+which `--index-info` does not offer;
+the window is the length of the take and one `git update-index` call.
+The person would see the merge land,
+the version they had staged in that window gone from the index with the merge's content in its place,
+and nothing in the output saying which content was overwritten.
+A path is judged against the two sides of its change by the object its bytes hash to and by the mode Git records,
+and the old side wins a tie,
+so a change that alters neither is not evidence that a merge began.
+The mode is read as part of the file because Git records it in the index entry:
+a file whose bytes are the branch's and whose executable bit is the person's is the person's,
+and the merge stops and names the path rather than erase the bit.
+A repository whose `core.fileMode` is false records no such bit,
+so no mode difference is read there,
+as Git reads none;
+a key Git does not answer for is read as true.
+Settling takes every file it must write aside by one rename that never replaces,
+and checks what it took against the device,
+inode,
+size,
+mode and modification time the judgement read,
+and then against the bytes:
+the taken file is hashed with the attributes of the path it belongs to and must be the object the judgement read,
+so the bytes that make way for the merge are exactly the bytes that were judged.
+A program that keeps its descriptor across the rename can write the same length into the file and put its modification time back,
+which leaves every part of the identity as it was;
+the bytes are what decides there.
+a file saved in between is put back,
+nothing of the merge is written,
+the paths are named on standard error and the record is kept.
+The files are checked out without `--force`,
+so a file that appears in the instant after the take is skipped and Git's own words are reported.
+A command that stops between a take and the write leaves the file under a private name beside its path,
+`.cli-git-recovery-<key>-<pid>-<count>-<nanos>`,
+where the key is a 64-bit FNV-1a hash of the file's name in 16 hex digits,
+so a name at the file system's component limit still has a private name that can exist;
+the next command puts such a file back before it judges the path,
+says on standard error that it did,
+and where the path holds something else keeps both and names the private file.
+A file written into a taken one after the take checked it is kept rather than removed,
+and its private name is said.
+The private name is removed only on a proof that nothing can write into the file any more,
+asked in this order:
+a scan of every process this command can read finds none with the file open,
+which is the proof the commit service's lock removal acts on,
+and then,
+as the last step before the unlink,
+the file's **raw bytes** still hash to the branch's own file form for that path,
+which is the judged object with the path's clean filter applied and those bytes hashed with no filter.
+A clean filter can hide bytes a person saved from the object Git records,
+so the filtered object is not the identity of an aside:
+the raw bytes are,
+and a file that carries bytes the branch's form does not have is kept with its private name and named.
+A symbolic link's object is the text of its target,
+so a taken link is hashed from that text and the file it points at is never read.
+A file whose raw bytes are not the branch's own form is not taken either,
+so the merge stops and names the path rather than replace it.
+A writer that still holds the file is seen by the scan,
+and a writer that let go has already written,
+so the bytes then show it;
+a write that arrives after both would have to open the private name,
+which nothing outside this command knows.
+The guarantee rests on that,
+not on a check made just before the unlink.
+That look and the unlink are not one step:
+the raw bytes are read,
+the branch's form for the path is hashed after them,
+and only then is the private name removed,
+so a program that opens that name between the read and the unlink writes bytes the comparison never saw,
+and the unlink removes them.
+Closing it needs a removal that proves nothing can write into the file,
+which no unlink offers;
+the window is the length of those two reads.
+The person would see a program's write into a file that was set aside vanish,
+with the merge's content in the checkout and nothing in the output saying that anything was removed.
+The limit is that removal's:
+a process in another user namespace,
+or one that cannot be read,
+is not seen,
+so a file such a process holds open is removed with its private name.
+A scan that was cut at its bound,
+or could not list the processes,
+proves nothing and the file is kept.
+A take whose read of the bytes fails after the rename puts that file back before it reports anything,
+and a file that cannot go back is named and counted as installed;
+a take or a write that fails puts every file it already took back,
+and a path the merge deletes is never removed again after its take,
+so a file that appeared in that instant stays;
+the emptied directories of every path the merge deletes are pruned on each attempt,
+whether or not the path already stands at its end state,
+because a kill between finishing a child's private name and removing the directory it emptied leaves an empty directory
+that `checkout-index` would refuse.
+The settling of a branch that moved reads the checkout and the index the same way the completion does,
+so a directory the branch's own files explain is read the same way there,
+and a staged entry for a path the merge changes that is neither the merge's nor the moved head's stops it,
+naming the paths and keeping the staged content.
+A checkout holding the merge's file for one path and the branch's content for the others is a writing that a kill
+stopped between two files,
+so it is put back to the moved head like every other path of a begun merge,
+and the line naming the moved branch is true of the checkout it leaves.
+A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
+nothing is set aside for it,
+the merge's own deletions empty it before the checkout,
+and the merge's file takes its place.
+That judgement is made through every directory below the path,
+because a tree diff names the files the merge deletes and no directory of its own;
+an emptied directory below the path is the branch's only where the merge deletes a path under it,
+which is where the pruning of those deletions reaches,
+and any other emptied directory stops the finish before anything is written.
+A directory that no such deletion explains is someone else's and stops the finish,
+naming the path,
+and so does a directory that holds any file the merge does not delete,
+such as an untracked file of the person's:
+it is refused before anything is written,
+because replacing it would leave the merge half installed and the file in the way.
+A record that is discarded,
+a record whose owner still runs and a branch that already names the merge
+change nothing of the branch and say nothing.
+A merge saved on a side ref that cannot be finished now never stops a command while nothing of it has been installed:
+the line says where the merge is and what blocked it,
+and the command goes on.
+A record that names no side ref and has nothing of the merge in the checkout does not stop a command either:
+another branch's checkout has nothing for it to finish and nothing of it was saved,
+so the record goes and the merge is run again on the branch it is for.
+Once its index has been written or a file of it moved aside it is a begun merge,
+so a refusal stops the command and says the merge is partly installed in that worktree;
+that is decided by what the index and the checkout hold when the refusal is made,
+not by which step refused,
+so a foreign file or a staged entry met after the install began stops the command too.
+The branch is resolved before anything else,
+so a merge whose branch already names the merge commit is settled from that alone and its leftover record goes without a
+worktree read that may have become impossible.
+What they hold is otherwise read once,
+before anything can refuse,
+the index first and the worktree second:
+every refusal after that point reports from that one reading,
+an index that cannot be read counts as holding the merge,
+a worktree that cannot be read is reported by what the index holds,
+and a merge whose own commits,
+refs or branch cannot be read counts as holding it too,
+because a refusal then cannot prove the checkout is untouched.
+That reading has a window of its own:
+the index is read before the worktree,
+so another command can stage one of the merge's paths between them,
+and a worktree read that then fails is judged by the entries the index held a moment before.
+The index then holds the merge's entries for some paths and not for every one,
+which is not the answer that stops the command,
+so a saved merge's refusal is let past:
+the person would see this command go on and `git diff --cached` show the merge's entries as ordinary staged work,
+with the line naming what blocked the finish and nothing saying that a merge's entries are among the staged ones.
+Closing it needs one read of the index and the worktree together,
+which no pair of Git commands offers;
+the record is kept,
+so the first command that meets a readable worktree settles the merge.
+A merge counts as installed when one of its paths both holds its side in the index or the files and is a path the branch does not already hold that side for.
+That is the only evidence an install leaves:
+an independent commit of the same content gives the branch that content,
+so the path stops being evidence,
+while an install leaves the branch as it was,
+whatever another command does to the checkout afterwards,
+and a merge that another command touched after the install still counts as installed.
+A record is kept for the next command when anything of the merge is present at all,
+so a half-installed merge is never only discarded.
+A begun merge's refusal still stops it,
+because the checkout may hold that merge's files.
+Standard output is never touched by these lines,
+because scripts read it.
 A field of bytes that is present and does not decode is damage,
 never absence.
 An intent whose `repositoryHex`,
