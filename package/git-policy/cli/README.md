@@ -3546,6 +3546,13 @@ so a credential is never readable at a wider mode than its source,
 not even while the copy runs,
 and a copy killed at any moment leaves nothing at a file's real name for the next command to refuse.
 
+A worktree whose ignored-state copy ended before it finished is named by every command in the repository,
+with `git worktree remove --force <path>` and the same `git worktree add` line that copies the ignored state again.
+The copy writes that record before its first entry and removes it when it completes,
+so a copy killed at any moment is resumed by the next command and a copy that truly cannot finish leaves the worktree
+named instead of forgetting what is missing there.
+The line goes when the worktree is removed or is replaced by another one at the same path.
+
 A `git worktree add` killed between Git's registration of the worktree and the end of its checkout leaves a record in the
  common Git directory.
 Every command that runs the recovery before it prints one line on standard error about that worktree,

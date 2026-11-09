@@ -1175,6 +1175,10 @@ and anything another process added to it meanwhile stays there and is named in a
 Git's line `HEAD is now at <abbreviation> <subject>` is printed unless `--quiet` was given.
 The snapshot carries the whole ignored state of the source,
 so the ignored-state copy skips that destination.
+The swap this command made itself proves the worktree is its own,
+so the skip comes before any question about the reservation the destination answered for before the swap:
+no line says the worktree received no copy,
+and no record describes it as unfilled.
 
 Leaving out of a snapshot:
 before the stage is made private and its stubs removed,
@@ -2768,6 +2772,18 @@ the batch's absent paths are claimed before any of them is created,
 and their identities are recorded after.
 Installation cost therefore grows linearly with the entry count.
 A trailing log fragment without a line terminator is an unfinished append;
+An installation writes one record of its destination and that destination's identity before its first entry,
+`<identifier>.unfilled` beside the journal,
+naming the worktree,
+the source and the owner that wrote it,
+and removes it when the installation completes.
+Every command that runs the recovery names a worktree whose record's owner is dead and whose destination is still that
+object,
+with the `git worktree remove --force` and same `git worktree add` commands that settle it,
+and removes the record once the worktree is gone or a different object stands at that path.
+An add whose own Git was refused at a destination that carries another command's registration proof settles its own
+record and says so,
+instead of promising a later command's report of a record nothing keeps.
 recovery ignores it and truncates it before appending.
 A complete line whose bytes are not UTF-8 is corruption:
 reading it with replacement characters would claim a path the writer never named,

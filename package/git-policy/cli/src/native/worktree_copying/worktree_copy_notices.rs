@@ -103,7 +103,8 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
 
 
 /// What:
-///  The line for a destination this command will not copy into.
+///  The line for a destination this command will not copy into,
+/// where `record_stays` says whether this command keeps a record of it.
 /// Why:
 ///   A worktree that receives no ignored-state copy must say so,
 /// and the person needs the two facts that decide what to do:
@@ -112,16 +113,20 @@ pub(crate) fn ownership_of(reserved: &Reservation, git_succeeded: bool, destinat
 /// or their own directory),
 /// and the commands that
 ///  show or remove a worktree.
+/// A refused add whose destination carries another command's proof settles its own record,
+/// so
+///  promising that a later command reports one would send the person looking for a record nothing keeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `monochromatic-git-policy-cli: ${quote(destination)} received no ignored-state copy: ...`
 /// ```
-pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership) -> String {
+pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership: DestinationOwnership, record_stays: bool) -> String {
     let shown: String = quote(destination.to_string_lossy().as_ref());
     let why: &str = match ownership {
         DestinationOwnership::MadeAgain => "the worktree this command registered is no longer at that path, so the ignored state was not copied into it and the record of this add stays; `git worktree list` shows where it is now",
-        DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
+        DestinationOwnership::GitFailed if record_stays => "this command's own `git worktree add` did not succeed, so the ignored state was not copied into the worktree it may have registered; the record of this add stays and a later command reports it",
+        DestinationOwnership::GitFailed => "this command's own `git worktree add` did not succeed, and the worktree at that path was made by another command, so nothing was copied into it and this command keeps no record of it",
         DestinationOwnership::Mine => "it is not this command's to fill",
     };
     return format!(

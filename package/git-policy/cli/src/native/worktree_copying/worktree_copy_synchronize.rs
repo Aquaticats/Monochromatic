@@ -341,6 +341,14 @@ pub(crate) fn synchronize_after(
     if !copies {
         return Ok(Vec::new());
     }
+    // A snapshot rung swapped this command's own snapshot into the destination after proving the registration it was
+    // bound to, so the worktree is this command's whatever object the reservation captured before that swap: the ignored
+    // state the person asked for is already there, and the record of this add is settled as a whole one's.
+    if let Some(carried_root) = carried
+        && carried_root == destination
+    {
+        return Ok(vec![destination.to_path_buf()]);
+    }
     let ownership: DestinationOwnership = ownership_of(reserved, git_succeeded, destination);
     // This command's own name for the registration: its stage claim's random name, which no other command shares, and the
     // process, so the person's line can name which process made a worktree this command did not.
@@ -363,7 +371,10 @@ pub(crate) fn synchronize_after(
         if ownership == DestinationOwnership::MadeAgain {
             *left_unfilled = true;
         }
-        let line: String = not_this_commands_destination_notice(destination, ownership);
+        // A refused add whose destination carries another command's proof settles this command's record, so the line
+        // must not promise one a later command would report.
+        let record_stays: bool = !(ownership == DestinationOwnership::GitFailed && *another_commands_worktree);
+        let line: String = not_this_commands_destination_notice(destination, ownership, record_stays);
         stderr
             .write_all(line.as_bytes())
             .map_err(raw_failure_of)?;
@@ -391,7 +402,7 @@ pub(crate) fn synchronize_after(
     {
         for worktree in &found.created {
             if worktree.binding.destination_id != identity {
-                let line: String = not_this_commands_destination_notice(destination, DestinationOwnership::MadeAgain);
+                let line: String = not_this_commands_destination_notice(destination, DestinationOwnership::MadeAgain, true);
                 stderr
                     .write_all(line.as_bytes())
                     .map_err(raw_failure_of)?;

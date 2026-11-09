@@ -710,6 +710,10 @@ fn two_adds_at_one_absent_destination_fill_it_once() {
     // The refused command reads the other command's proof on the registration and settles its own record.
     let records: Vec<String> = recorded_names(common.as_path());
     assert!(records.is_empty(), "the refused command keeps no record for a worktree another completed: {records:?}");
+    // Nothing of this command's record stays, so the line must not promise that a later command will report one.
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert!(!said.contains("the record of this add stays"), "no record stays, so the line must not promise one: {said}");
+    assert!(said.contains("was made by another command"), "the line says whose worktree stands there: {said}");
     remove(root.as_path());
 }
 
@@ -1051,6 +1055,33 @@ fn btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in() {
     assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
     let said: String = String::from_utf8(stderr).expect("utf8");
     assert!(said.contains(crate::worktree_trash::MAIN_SNAPSHOT_NOTE), "the note reaches the stream the caller handed in: {said:?}");
+    remove(root.as_path());
+}
+
+/// A snapshot that carried the source's ignored state needs no copy,
+/// so a successful snapshot add is never reported as one that received none,
+/// and the record of the add is settled because it is whole.
+#[test]
+fn btrfs_a_snapshot_add_that_carried_its_ignored_state_reports_no_missing_copy() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("lifecycle-snapshot-carried") else { return };
+    let main: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let topic: PathBuf = root.join("topic");
+    let mut invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(topic.as_path()));
+    invocation.add_plan = Some(crate::worktree_ladder_test_support::plan_to(topic.clone()));
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &invocation,
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_without_checkout("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    // The snapshot carried the ignored state itself, so the worktree holds it and nothing is owed.
+    assert_eq!(std::fs::read(topic.join("ignored/pkg/index.js")).expect("carried ignored state"), b"module.exports = 1;\n");
+    assert!(!said.contains("received no ignored-state copy"), "a whole worktree is not reported as unfilled: {said:?}");
+    assert_eq!(recorded_names(common.as_path()), Vec::<String>::new(), "a whole add leaves no record naming it unfilled");
     remove(root.as_path());
 }
 
