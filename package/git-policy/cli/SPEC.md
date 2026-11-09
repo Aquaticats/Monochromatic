@@ -4130,7 +4130,8 @@ never as proof.
 
 Candidates are reference locks of the Git directory and the common Git directory:
 `packed-refs.lock`,
-`HEAD.lock` and every
+`HEAD.lock`,
+`reftable/tables.list.lock` and every
 `*.lock` under `refs/`.
 `index.lock`,
 `config.lock`,
@@ -4319,6 +4320,42 @@ so a file older than the margin that is still the same
 file after the lock was looked for and found absent has no live maker,
 and it is removed by the same set-aside step
 (`Proof::OrphanStaging`).
+
+#### The reftable backend's own lock
+
+A repository keeps its references in one of two backends,
+and each locks its own file.
+The files backend keeps `packed-refs.lock`,
+`HEAD.lock` and `refs/**/*.lock`;
+the reftable backend keeps its references and its list of tables in the `reftable` directory of the Git directory,
+and every writer holds `reftable/tables.list.lock` for the whole transaction
+(`reftable/stack.c`,
+`reftable_stack_init_addition`,
+`reftable_addition_commit`).
+A reftable repository holds none of the files-backend locks,
+so before 2026-11-09 a killed Git's `tables.list.lock` was not a candidate:
+a forwarded fetch or push did not clear it and did not name it,
+and every later `git update-ref` or `git commit` failed with "cannot lock references" (audit of 2026-11-09,
+finding 1).
+Both backends' locks are therefore candidates,
+whatever the repository's own format says,
+because a repository that switched backends may hold either.
+The reftable lock needs no new proof:
+Git says which process holds it in `tables.list~pid.lock`,
+which it creates after the lock under `core.lockfilePid` exactly as it does for the other locks,
+so the pid file, the margin, the local-file-system rule,
+the boot comparison and the set-aside step are the ones above.
+The tables list is written into the lock itself and renamed,
+so the lock is empty while it is held and a stale one is removed whole.
+There is no staging file to go with it:
+temporary table files (`*.temp.*`) and tables that no `tables.list` names are not locks,
+they block no writer,
+and they stay where they are.
+Tests,
+red first:
+`a_reftable_tables_list_lock_left_by_a_killed_git_is_cleared`,
+with `a_live_reftable_gits_tables_list_lock_stays` and
+`a_reftable_lock_that_nothing_proves_gone_is_left_and_named`.
 
 #### Races, and how each is handled
 

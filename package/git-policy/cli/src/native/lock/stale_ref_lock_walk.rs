@@ -11,10 +11,20 @@
 //! The walk lists directory entries by
 //!  their own file type,
 //! so a symbolic link is never followed and a link named like a lock is never a candidate.
+//! A repository keeps its references in one of two backends,
+//! and each locks its own file:
+//! the files backend locks `packed-refs.lock`,
+//! `HEAD.lock` and `refs/**/*.lock`,
+//! and the reftable backend locks `reftable/tables.list.lock`,
+//! with no files-backend lock beside it (audit of 2026-11-09,
+//! finding 1).
+//! Both are read here,
+//! whatever the repository's own backend is,
+//! because a repository that switched backends may hold either.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const candidates = refLockCandidates(roots); // packed-refs.lock, HEAD.lock, refs/**/*.lock
+//! const candidates = refLockCandidates(roots); // packed-refs.lock, HEAD.lock, refs/**/*.lock, reftable/tables.list.lock
 //! ```
 
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
@@ -25,6 +35,20 @@ const PACKED_STAGING: &str = "packed-refs.new";
 
 /// The name of the lock of the packed references.
 const PACKED_LOCK: &str = "packed-refs.lock";
+
+/// The lock of the reftable backend's list of tables,
+/// below the Git directory,
+/// which every writer of a reference takes:
+/// `reftable_new_stack` names the list `reftable/tables.list` and
+/// `reftable_stack_init_addition` holds its lock while it writes (`reftable/stack.c`).
+/// The list is written into the lock and renamed,
+/// so the lock is empty for most of the hold,
+/// and Git writes `tables.list~pid.lock` beside it under `core.lockfilePid` exactly as it does for the files backend.
+const REFTABLE_TABLES_LOCK: &str = "reftable/tables.list.lock";
+
+/// The files a Git directory locks for its references,
+/// whichever backend it keeps them in.
+const REFERENCE_LOCKS: [&str; 3] = [PACKED_LOCK, "HEAD.lock", REFTABLE_TABLES_LOCK];
 
 /// A reference lock and the Git directory it was found below.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -77,7 +101,8 @@ fn is_reference_lock(path: &Path, is_file: bool) -> bool {
 /// Every reference lock below `roots`,
 /// in path order:
 /// `packed-refs.lock`,
-/// `HEAD.lock` and every lock under `refs`.
+/// `HEAD.lock`,
+/// the reftable backend's `reftable/tables.list.lock` and every lock under `refs`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -86,7 +111,7 @@ fn is_reference_lock(path: &Path, is_file: bool) -> bool {
 pub fn ref_lock_candidates(roots: &[PathBuf]) -> Vec<Candidate> {
     let mut found: Vec<Candidate> = Vec::new();
     for root in roots {
-        for name in [PACKED_LOCK, "HEAD.lock"] {
+        for name in REFERENCE_LOCKS {
             let path: PathBuf = root.join(name);
             if is_regular_file(path.as_path()) {
                 found.push(Candidate { root: root.clone(), lock: path, orphan_staging: false });
