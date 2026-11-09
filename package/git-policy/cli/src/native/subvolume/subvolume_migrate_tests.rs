@@ -187,10 +187,10 @@ fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
         let handles: Vec<(&str, std::thread::ScopedJoinHandle<'_, ()>)> = points
             .iter()
             .enumerate()
-            .map(|(index, (point, after))| {
-                let (point, after): (&str, u64) = (*point, *after);
+            .map(|(index, killed_at)| {
+                let (stop_at, after): (&str, u64) = *killed_at;
                 let name: String = format!("migrate-kill-{index}");
-                return (point, scope.spawn(move || { return kill_point_at(name.as_str(), point, after); }));
+                return (stop_at, scope.spawn(move || { return kill_point_at(name.as_str(), stop_at, after); }));
             })
             .collect();
         for (point, handle) in handles {

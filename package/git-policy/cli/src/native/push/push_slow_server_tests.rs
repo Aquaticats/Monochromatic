@@ -48,14 +48,16 @@ const GRACE: Duration = Duration::from_secs(2);
 /// How long a loaded host may take over a stop beyond its limit and the grace.
 const STOP_SLACK: Duration = Duration::from_secs(30);
 
-/// How long the fixture's server reads what the push sends between two looks at whether this control let the connection go.
+/// How long the fixture's server reads what the push sends between two looks at whether this control let
+///  the connection go.
 const READ_SLICE: Duration = Duration::from_millis(50);
 
 /// What the fixture's listener did with the push's connection.
 enum Reached {
     /// The connection was taken and is held.
     Connected,
-    /// The listener refused it, so no connection was ever held and the push has nothing to wait on.
+    /// The listener refused it,
+    /// so no connection was ever held and the push has nothing to wait on.
     Failed(std::io::Error),
 }
 
@@ -140,7 +142,8 @@ fn the_same_silence_behind_a_local_path_is_still_a_stall() {
 /// the wrapper does not stop the push for time,
 /// and the push ends when the server lets the connection go.
 ///
-/// The fixture lets the connection go only when this control says so, so the claim is an ordering and never a clock:
+/// The fixture lets the connection go only when this control says so,
+/// so the claim is an ordering and never a clock:
 /// the push is still running after the server has kept the connection open and silent for several stall windows,
 /// and it ends only once the server lets go.
 /// A fixture that closed the connection first,
@@ -201,7 +204,7 @@ fn a_server_that_holds_the_connection_without_answering_is_waited_for() {
         //  output, which is the difference between a fixture that lost the connection and a Git that gave up.
         let arrival: Reached = loop {
             match arriving.recv_timeout(READ_SLICE) {
-                Ok(reached) => break reached,
+                Ok(answer) => break answer,
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
                     let _let_go = let_go.send(());
                     let (attempt, elapsed): (PushAttempt, Duration) = push.join().expect("the push thread ends");
