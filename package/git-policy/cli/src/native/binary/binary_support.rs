@@ -24,6 +24,7 @@ pub use crate::support_btrfs_controls::*;
 pub use crate::support_fixture_directories::*;
 pub use crate::support_fixture_service::*;
 pub use crate::support_fixture_service_log::*;
+pub use crate::support_fixture_service_readiness::*;
 pub use crate::support_observation::*;
 pub use crate::support_program_names_and_time_bound::*;
 pub use crate::support_resource_limits::*;
