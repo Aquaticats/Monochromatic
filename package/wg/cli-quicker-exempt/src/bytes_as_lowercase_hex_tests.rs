@@ -6,6 +6,8 @@ use super::*;
 use crate::application_watch_state::watch_state_directory;
 /// The bpffs directory pin keys live under.
 use crate::pin::{pin_dir_for, PIN_ROOT};
+/// The unit-name escape of a cgroup path.
+use crate::scope_naming::escape_unit_name;
 /// Expected spellings are compared as whole paths.
 use std::path::{Path, PathBuf};
 
@@ -50,4 +52,22 @@ fn pin_key_and_watcher_state_name_spell_one_sample_the_same_way() {
     );
     let pin_directory: PathBuf = pin_dir_for(Path::new(sample_key)).expect("pin directory");
     assert_eq!(pin_directory, Path::new(PIN_ROOT).join(SAMPLE_SPELLING));
+}
+
+/// The single-byte spelling agrees with the standard formatter on every byte,
+///  so the unit name after `\x` and the path components stay the same digits.
+#[test]
+fn every_byte_matches_the_standard_lowercase_formatting() {
+    for byte in u8::MIN..=u8::MAX {
+        let mut spelled: String = String::new();
+        push_lowercase_hex_byte(&mut spelled, byte);
+        assert_eq!(spelled, format!("{byte:02x}"), "byte {byte}");
+    }
+}
+
+/// The unit-name escape of a cgroup path spells its escaped bytes with the shared digits.
+#[test]
+fn the_scope_name_escape_spells_bytes_with_the_shared_digits() {
+    assert_eq!(escape_unit_name("a/b-c"), "a-b\\x2dc");
+    assert_eq!(escape_unit_name("\u{e9}"), "\\xc3\\xa9");
 }

@@ -25,10 +25,22 @@ const HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
 pub fn bytes_as_lowercase_hex(bytes: &[u8]) -> String {
     let mut spelled: String = String::with_capacity(bytes.len() * DIGITS_PER_BYTE);
     for byte in bytes {
-        spelled.push(char::from(HEX_DIGITS[usize::from(byte >> 4)]));
-        spelled.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
+        push_lowercase_hex_byte(&mut spelled, *byte);
     }
     return spelled;
+}
+
+/// Appends the two lowercase hexadecimal digits of `byte`,
+///  high nibble first.
+///
+/// What:
+///      `pub fn push_lowercase_hex_byte(out: &mut String, byte: u8)`.
+/// Why:
+///       A unit name escapes one byte at a time after a `\x` prefix,
+///  and it must spell that byte exactly as the path components do.
+pub fn push_lowercase_hex_byte(out: &mut String, byte: u8) {
+    out.push(char::from(HEX_DIGITS[usize::from(byte >> 4)]));
+    out.push(char::from(HEX_DIGITS[usize::from(byte & 0x0f)]));
 }
 
 /// Unit tests for the spelling and for the two call sites that share it.
