@@ -44,16 +44,14 @@
 //!  removes a reference lock only on a proof and through a conditional removal,
 //! and it says what it found and which
 //!  command clears a lock it will not remove.
-//! The judgement is given one proof of its own,
-//! which a container's view of the
-//!  machine cannot give it:
-//! the numbers of the processes of the stopped tree that have ended.
-//! A pid file born at or after a
-//!  lock that was itself born after the child started,
-//! naming one of them,
-//! names a process the wrapper started and saw end,
-//! in
-//!  its own namespace (the container gate found the sweep leaving its own child's locks without it).
+//! The sweep adds no proof of its own.
+//! A number in a pid file is not one:
+//! a Git of a sibling PID namespace that shares this repository may have written that number,
+//! and a lock this wrapper's child was seen to hold cannot be told from another Git's lock at the same path
+//! (cross-vendor review of 2026-11-09,
+//! finding 1).
+//! A lock the sweep will not remove is named,
+//! with the command that clears it.
 //!  Locks of other protocols (the index,
 //! the shallow file,
 //! object and pack locks) are not touched or mentioned.
@@ -68,22 +66,14 @@
 use crate::diagnostic_log::warn;
 /// The Git directories a command works in.
 use crate::git_directory_roots::roots_of_command;
-/// How reference locks are judged,
-/// and what the judge knows of the wrapper's own stopped child.
-use crate::stale_ref_lock_found::PidFile;
-use crate::stale_ref_lock_identity::identity_of;
-use crate::stale_ref_lock_judge::{ClaimedLock, Judge, OwnEnded};
-use crate::stale_ref_lock_walk::ref_lock_candidates;
-/// The processes of the stopped tree and whether each still runs.
-use crate::process_tree::{TreeMember, still_running};
+/// How reference locks are judged.
+use crate::stale_ref_lock_judge::Judge;
 /// The judgement and conditional removal of the reference locks below some Git directories.
 use crate::stale_ref_locks::clear_stale_ref_locks;
 /// Paths of the repository.
 use std::path::{Path, PathBuf};
 /// The command whose children are stopped.
 use std::process::Command;
-/// The wall clock the kernel stamps files with.
-use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
@@ -104,26 +94,24 @@ const PID_TEXT_PREFIX: &str = "pid ";
 ///  Where a command's Git child can leave reference locks.
 /// Why:
 ///   The sweep after a stop judges the locks of this repository,
-/// the one the child worked in;
-/// the time taken before the
-///  child started tells a lock born in its life from an older one.
+/// the one the child worked in,
+/// and removes one only on a proof about its holder.
+/// It adds none of its own:
+/// a number in a pid file says nothing about which namespace wrote it,
+/// and a lock a member of the tree was seen to hold is a lock another Git may hold at the same path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LockLedger = { roots: string[]; since: Date; judge?: Judge };
+/// type LockLedger = { roots: string[]; judge?: Judge };
 /// ```
 #[derive(Clone, Debug)]
 pub struct LockLedger {
     /// The Git directory and the common Git directory of the repository the command runs in;
     /// empty when none is found.
     roots: Vec<PathBuf>,
-    /// The wall-clock time read before the child started.
-    since: SystemTime,
     /// The judge of this process,
     /// unless a control sets another.
     judge: Option<Judge>,
-    /// The locks a member of the tree was seen holding before the stop signalled it.
-    claimed: Vec<ClaimedLock>,
 }
 
 impl LockLedger {
@@ -131,7 +119,7 @@ impl LockLedger {
     /// for a child that holds no Git lock,
     /// such as a reader of objects.
     pub fn none() -> Self {
-        return Self { roots: Vec::new(), since: SystemTime::now(), judge: None, claimed: Vec::new() };
+        return Self { roots: Vec::new(), judge: None };
     }
 
     /// The ledger of a command that has not started yet:
@@ -139,41 +127,7 @@ impl LockLedger {
     /// or from
     ///  its working directory (the process's own when the command sets none).
     pub fn before_start(command: &Command) -> Self {
-        let since: SystemTime = SystemTime::now();
-        return Self { roots: roots_of_command(command), since, judge: None, claimed: Vec::new() };
-    }
-
-    /// What:
-    ///  The same ledger with the reference locks that a still-running member of `tree` holds,
-    /// as the pid files beside them say now.
-    /// Why:
-    ///   Git removes a lock's pid file and then the lock,
-    /// so a kill between the two leaves a lock nothing names.
-    /// The pid file is read
-    ///  before the stop signals the tree,
-    /// while it still names its holder,
-    /// and the lock is pinned by its file identity;
-    /// once the
-    ///  member has ended the sweep removes that lock on the wrapper's own observation,
-    /// whatever load delayed the holder's cleanup.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// const ledger = LockLedger.beforeStart(command).claiming(tree); // before child.kill('SIGTERM')
-    /// ```
-    pub fn claiming(mut self, tree: &[TreeMember]) -> Self {
-        for candidate in ref_lock_candidates(self.roots.as_slice()) {
-            if candidate.orphan_staging {
-                continue;
-            }
-            let Some(identity) = identity_of(candidate.lock.as_path()) else { continue };
-            let born: Option<SystemTime> = std::fs::symlink_metadata(candidate.lock.as_path()).ok().and_then(created_of);
-            let PidFile::Names(pid) = Judge::pid_file_state(candidate.lock.as_path(), born) else { continue };
-            if holder_is_running(tree, pid) {
-                self.claimed.push(ClaimedLock { lock: candidate.lock, device: identity.device, inode: identity.inode, born_ns: identity.born_ns, pid });
-            }
-        }
-        return self;
+        return Self { roots: roots_of_command(command), judge: None };
     }
 
     /// The same ledger with another judge,
@@ -203,16 +157,8 @@ impl LockLedger {
     /// ```ts
     /// function sweep(tree: TreeMember[]): string[];
     /// ```
-    pub fn sweep(&self, tree: &[TreeMember]) -> Vec<PathBuf> {
-        let mut judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
-        // The one proof that is the wrapper's own: the numbers of the stopped tree's processes that have ended.
-        let mut pids: Vec<i64> = Vec::new();
-        for member in tree {
-            if !still_running(member) {
-                pids.push(i64::from(member.pid));
-            }
-        }
-        judge.own_ended = Some(OwnEnded { pids, since: self.since, claimed: self.claimed.clone() });
+    pub fn sweep(&self) -> Vec<PathBuf> {
+        let judge: Judge = self.judge.clone().unwrap_or_else(Judge::here);
         let outcome = clear_stale_ref_locks(self.roots.as_slice(), &judge);
         let notice: String = outcome.notice();
         if !notice.is_empty() {
@@ -224,22 +170,6 @@ impl LockLedger {
         }
         return removed;
     }
-}
-
-/// The creation time of a file,
-/// when its metadata holds one.
-fn created_of(metadata: std::fs::Metadata) -> Option<SystemTime> {
-    return metadata.created().ok();
-}
-
-/// Whether `pid` is a member of `tree` that still runs.
-fn holder_is_running(tree: &[TreeMember], pid: i64) -> bool {
-    for member in tree {
-        if i64::from(member.pid) == pid && still_running(member) {
-            return true;
-        }
-    }
-    return false;
 }
 
 /// The process number a pid file names,

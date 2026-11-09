@@ -173,12 +173,29 @@ and GitHub boundaries.
 ### Module interface
 
 The implementation home is `package/git-policy/cli/src/repository-safety/`.
+The TypeScript wrapper that path belonged to was deleted on 2026-10-13,
+ in `642b6d72cb`,
+ so the module is a Rust folder in the native wrapper,
+ `package/git-policy/cli/src/native/repository_safety/`,
+ declared in `package/git-policy/cli/src/native/lib.rs` beside its sibling subsystems,
+ with its own `mod.rs` listing the files inside it
+ (the source layout `package/git-policy/cli/README.md` documents).
 It exposes three concepts:
 
 ```ts
 assertSafeGitInvocation({ args, cwd, env })
 assertSafeCommitEnvironment({ cwd, env })
 verifyCommits({ cwd, source })
+```
+
+The Rust restatement of the same three concepts,
+which is what an implementer writes today:
+
+```rust monochromatic-lint-skip-rustdoc
+//! The three concepts as the native module would declare them.
+assert_safe_git_invocation(&Invocation { args, cwd, env })
+assert_safe_commit_environment(&Environment { cwd, env })
+verify_commits(&VerificationRequest { cwd, source })
 ```
 
 `source` is a tagged union for explicit object IDs,
@@ -200,11 +217,23 @@ The interface stays small while hiding:
 - diagnostic formatting.
 
 Implement identity checks as cli-git policy and lifecycle modules bundled into the existing single `index.mjs` artifact.
+There is no `index.mjs` in the tree:
+ it left with the TypeScript wrapper on 2026-10-13,
+ in `642b6d72cb`.
+The single artifact today is the native executable `monochromatic-git-policy-cli`
+ (`[[bin]]` in `package/git-policy/cli/Cargo.toml`,
+ built from `package/git-policy/cli/src/native/main.rs`),
+ installed as `git` ahead of the real Git on `PATH`,
+ with the scanner and the Markdown linter linked into it.
 Pre-forward checks cover commit-producing commands;
 post-commit checks gate automatic push;
 manual-push checks consume cli-git's Git-native authoritative push updates and candidate ranges.
 All internal Git subprocesses reuse `package/git-policy/cli/src/resolve-git.ts` and a sanitized environment,
 so verification cannot recurse into cli-git.
+That path was deleted on 2026-10-13,
+ in `642b6d72cb`;
+ the real Git resolution is now `package/git-policy/cli/src/native/invocation/real_git.rs`,
+ which never selects this wrapper.
 
 A linked-worktree
 and clean-clone fixture must prove the built shadow `git` resolves from the active package installation
@@ -212,7 +241,7 @@ without falling back to a main-checkout artifact or another worktree.
 
 ### Trusted identity source
 
-Do not hardcode `Aquaticat` in TypeScript source.
+Do not hardcode `Aquaticat` in the wrapper's source.
 Provision exact local committer identities in a dedicated user policy file,
 for example:
 
@@ -224,7 +253,7 @@ The file is a regular,
 non-symlink file owned by the current user with mode `0600`
 under a directory that is not group-writable or world-writable.
 The production path is not overridable by process environment.
-Tests inject a fixture path through the TypeScript dependency seam,
+Tests inject a fixture path through a test-only parameter,
 not a production environment variable.
 
 The initial policy contains the currently effective identity,

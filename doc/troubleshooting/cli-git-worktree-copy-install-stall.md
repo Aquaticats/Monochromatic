@@ -11,6 +11,14 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09:
+the `package/git-policy/cli/src/worktree-copy/` citations below are historical.
+The folder's successors are `package/git-policy/cli/src/native/worktree_copying/`,
+whose `mod.rs` declares one module per file,
+and the TypeScript wrapper left the tree on 2026-10-13 in `642b6d72cb`.
+The quoted excerpts stay pinned to `255de52b4`,
+the revision they were read at.
+
 ## Symptom
 
 On 2026-09-26,

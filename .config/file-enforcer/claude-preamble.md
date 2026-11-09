@@ -31,6 +31,13 @@ WUC:
  a stale fire is a harness slip to stop,
  not a task to redo.
 
+PLQ:
+ A Claude Code native subagent that polls a process,
+ issuing a command for it more than twice in a row,
+ returns now,
+ saying what still runs:
+ a workaround for a Claude Code defect.
+
 Use `spawn-claude` outside sandbox to launch a steerable child Claude Code session in a visible terminal window.
 The child runs independently,
 but result forwarding back to the parent is unreliable (a Claude Code limitation),

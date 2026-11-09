@@ -1,11 +1,13 @@
 //! Controls for foreign `index.lock` evidence:
-//!  PID file text and owner comparison,
+//!  PID file text and what the process table says,
 //!  lock metadata
 //! without following links,
 //!  classification precedence,
 //!  the gather with injected sources,
 //!  and the
 //! prose the wrapper prints.
+//!  Two of them pin the verdict against the wall clock (audit of 2026-11-09,
+//! finding 3).
 
 use super::*;
 use crate::index_lock_holders::Holder;
@@ -23,30 +25,54 @@ fn lock_changed_at_1000() -> LockMetadata {
     };
 }
 
-/// A start source reporting no process.
-fn start_missing(_pid: i64) -> ProcessStart {
-    return ProcessStart::Missing;
-}
-
-/// A start source reporting a process that started before the lock changed.
-fn start_before(_pid: i64) -> ProcessStart {
-    return ProcessStart::Running {
-        started_at_ms: 500.0,
-        resolution_ms: 10,
+/// The process table's answer for a PID that runs,
+/// started at `started_at_ms`,
+/// and named `command`.
+fn process_of(started_at_ms: f64, resolution_ms: i64, command: Option<&str>) -> PidProcess {
+    return PidProcess {
+        start: ProcessStart::Running {
+            started_at_ms,
+            resolution_ms,
+        },
+        command: command.map(String::from),
     };
 }
 
-/// A start source reporting a process that started after the lock changed.
-fn start_after(_pid: i64) -> ProcessStart {
-    return ProcessStart::Running {
-        started_at_ms: 5000.0,
-        resolution_ms: 10,
+/// A process table reporting no process.
+fn start_missing(_pid: i64) -> PidProcess {
+    return PidProcess {
+        start: ProcessStart::Missing,
+        command: None,
     };
 }
 
-/// A start source that cannot read the start time.
-fn start_unknown(_pid: i64) -> ProcessStart {
-    return ProcessStart::Unknown(String::from("probe failed"));
+/// A Git that this host's clock puts before the lock's change time.
+fn start_before(_pid: i64) -> PidProcess {
+    return process_of(500.0, 10, Some("git"));
+}
+
+/// A Git that this host's clock puts after the lock's change time,
+/// which a forward step of the wall clock produces for a live holder.
+fn start_after(_pid: i64) -> PidProcess {
+    return process_of(5000.0, 10, Some("git"));
+}
+
+/// A process whose start time cannot be read.
+fn start_unknown(_pid: i64) -> PidProcess {
+    return PidProcess {
+        start: ProcessStart::Unknown(String::from("probe failed")),
+        command: None,
+    };
+}
+
+/// A scan that saw no process with the lock open and could see everything.
+fn no_holders(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
+    return HolderEvidence {
+        method: "proc-fd",
+        holders: Vec::new(),
+        partial: Vec::new(),
+        unresolvable: Vec::new(),
+    };
 }
 
 /// A holder scan that finds one process,
@@ -59,6 +85,7 @@ fn scan_one(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
             command: Some(String::from("git")),
         }],
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
 }
 
@@ -98,32 +125,18 @@ fn pid_file_text_names_a_positive_safe_integer() {
     assert_eq!(parse_pid_file_text(""), None);
 }
 
-/// A live process that started no later than the change,
-///  plus its resolution,
-///  owns the lock.
+/// The start the evidence words is compared with the change time,
+///  plus the start's resolution,
+///  and it decides nothing:
+///  it only says what this host's clock reads.
 #[test]
-fn owner_evidence_compares_start_with_the_change_time() {
+fn the_worded_start_compares_with_the_change_time() {
     let lock: LockMetadata = lock_changed_at_1000();
-    assert_eq!(owner_evidence(ProcessStart::Missing, &lock), PidOwner::Missing);
-    assert_eq!(
-        owner_evidence(ProcessStart::Unknown(String::from("r")), &lock),
-        PidOwner::StartUnknown(String::from("r"))
-    );
-    let before: ProcessStart = ProcessStart::Running {
-        started_at_ms: 500.0,
-        resolution_ms: 1,
-    };
-    assert_eq!(owner_evidence(before, &lock), PidOwner::StartedBeforeLock(500.0));
-    let at_edge: ProcessStart = ProcessStart::Running {
-        started_at_ms: 1020.0,
-        resolution_ms: 20,
-    };
-    assert_eq!(owner_evidence(at_edge, &lock), PidOwner::StartedBeforeLock(1020.0));
-    let past_edge: ProcessStart = ProcessStart::Running {
-        started_at_ms: 1021.0,
-        resolution_ms: 20,
-    };
-    assert_eq!(owner_evidence(past_edge, &lock), PidOwner::StartedAfterLock(1021.0));
+    assert!(!process_of(500.0, 1, Some("git")).starts_after(&lock));
+    assert!(!process_of(1020.0, 20, Some("git")).starts_after(&lock));
+    assert!(process_of(1021.0, 20, Some("git")).starts_after(&lock));
+    assert!(!start_missing(42).starts_after(&lock), "a gone process has no start to compare");
+    assert!(!start_unknown(42).starts_after(&lock));
 }
 
 /// An absent PID file is absent evidence,
@@ -131,40 +144,26 @@ fn owner_evidence_compares_start_with_the_change_time() {
 #[test]
 fn the_pid_file_is_absent_or_unreadable() {
     let root: PathBuf = fixture("evidence-pid-file-kinds");
-    let lock: LockMetadata = lock_changed_at_1000();
     let absent: PathBuf = root.join("index~pid.lock");
-    assert_eq!(read_pid_file_evidence(absent.as_path(), &lock, start_missing), PidFile::Absent);
+    assert_eq!(read_pid_file_evidence(absent.as_path(), start_missing), PidFile::Absent);
     std::fs::create_dir(&absent).expect("directory in place of the PID file");
     assert!(matches!(
-        read_pid_file_evidence(absent.as_path(), &lock, start_missing),
+        read_pid_file_evidence(absent.as_path(), start_missing),
         PidFile::Unreadable(_)
     ));
     remove(root.as_path());
 }
 
-/// A PID file naming a process is classified by the process's start against the lock.
+/// A PID file naming a process carries what the process table says about that number.
 #[test]
-fn the_pid_file_names_an_owner_classified_by_its_start() {
+fn the_pid_file_carries_what_the_process_table_says() {
     let root: PathBuf = fixture("evidence-pid-file-owner");
     let path: PathBuf = root.join("index~pid.lock");
     std::fs::write(&path, "pid 42\n").expect("PID file");
-    let lock: LockMetadata = lock_changed_at_1000();
-    assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_missing),
-        PidFile::Owner(42, PidOwner::Missing)
-    );
-    assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_before),
-        PidFile::Owner(42, PidOwner::StartedBeforeLock(500.0))
-    );
-    assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_after),
-        PidFile::Owner(42, PidOwner::StartedAfterLock(5000.0))
-    );
-    assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_unknown),
-        PidFile::Owner(42, PidOwner::StartUnknown(String::from("probe failed")))
-    );
+    assert_eq!(read_pid_file_evidence(path.as_path(), start_missing), PidFile::Owner(42, start_missing(42)));
+    assert_eq!(read_pid_file_evidence(path.as_path(), start_before), PidFile::Owner(42, start_before(42)));
+    assert_eq!(read_pid_file_evidence(path.as_path(), start_after), PidFile::Owner(42, start_after(42)));
+    assert_eq!(read_pid_file_evidence(path.as_path(), start_unknown), PidFile::Owner(42, start_unknown(42)));
     remove(root.as_path());
 }
 
@@ -174,20 +173,19 @@ fn the_pid_file_names_an_owner_classified_by_its_start() {
 fn malformed_pid_files_quote_at_most_sixty_four_units() {
     let root: PathBuf = fixture("evidence-pid-file-malformed");
     let path: PathBuf = root.join("index~pid.lock");
-    let lock: LockMetadata = lock_changed_at_1000();
     std::fs::write(&path, "x".repeat(100)).expect("long text");
     assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_missing),
+        read_pid_file_evidence(path.as_path(), start_missing),
         PidFile::Malformed("x".repeat(64))
     );
     std::fs::write(&path, "\u{1F600}".repeat(40)).expect("emoji text");
     assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_missing),
+        read_pid_file_evidence(path.as_path(), start_missing),
         PidFile::Malformed("\u{1F600}".repeat(32))
     );
     std::fs::write(&path, "short").expect("short text");
     assert_eq!(
-        read_pid_file_evidence(path.as_path(), &lock, start_missing),
+        read_pid_file_evidence(path.as_path(), start_missing),
         PidFile::Malformed(String::from("short"))
     );
     remove(root.as_path());
@@ -231,9 +229,8 @@ fn an_absent_lock_is_not_an_error() {
 }
 
 /// A proven live owner by descriptor beats every PID file;
-///  then a PID file that started before the
-/// lock proves a live owner;
-///  then one naming a gone process proves a dead owner.
+///  then a PID file naming a running Git proves a live owner;
+///  then one holding a number this process table does not have is read as such.
 #[test]
 fn classification_prefers_a_descriptor_then_the_pid_file() {
     let holder: HolderEvidence = HolderEvidence {
@@ -243,9 +240,10 @@ fn classification_prefers_a_descriptor_then_the_pid_file() {
             command: Some(String::from("git")),
         }],
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::Missing), Some(holder))),
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(holder))),
         Verdict::ProvenAlive {
             pid: 55,
             by_descriptor: true,
@@ -256,26 +254,96 @@ fn classification_prefers_a_descriptor_then_the_pid_file() {
         method: "proc-fd",
         holders: Vec::new(),
         partial: Vec::new(),
+        unresolvable: Vec::new(),
     };
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::StartedBeforeLock(1.0)), Some(empty.clone()))),
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_before(42)), Some(empty.clone()))),
         Verdict::ProvenAlive {
             pid: 42,
             by_descriptor: false,
-            command: None,
+            command: Some(String::from("git")),
         }
     );
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::Missing), Some(empty.clone()))),
-        Verdict::Dead(42)
-    );
-    assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::StartedAfterLock(9.0)), Some(empty.clone()))),
-        Verdict::EvidenceFree
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(empty.clone()))),
+        Verdict::Dead(42),
+        "a number this table does not have is the verdict a merge acts on, and a commit only waits for"
     );
     assert_eq!(
         classify_index_lock(&evidence_with(PidFile::Absent, Some(empty))),
         Verdict::EvidenceFree
+    );
+}
+
+/// A Git that runs is the holder whatever this host's clock says about its start.
+/// Why:
+///  A forward step of the wall clock moves a live holder's derived start past the lock's change time,
+///  and the pre-fix rule read that as a reused number,
+///  so the commit behind the lock was told that nothing proves a holder alive (audit of 2026-11-09,
+/// finding 3).
+#[test]
+fn a_git_whose_start_the_clock_puts_after_the_lock_is_still_the_holder() {
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_after(42)), Some(no_holders(Path::new(""), 0, 0)))),
+        Verdict::ProvenAlive {
+            pid: 42,
+            by_descriptor: false,
+            command: Some(String::from("git")),
+        },
+        "a live Git's lock is held, not evidence-free, after a clock step"
+    );
+}
+
+/// The other direction of the same step:
+/// a program that is not named like Git is no proof of a holder,
+/// before or after the lock's change time,
+/// because a later program with that number reads the same way.
+#[test]
+fn a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start() {
+    for started_at_ms in [500.0_f64, 5000.0] {
+        assert_eq!(
+            classify_index_lock(&evidence_with(PidFile::Owner(42, process_of(started_at_ms, 10, Some("sleep"))), Some(no_holders(Path::new(""), 0, 0)))),
+            Verdict::EvidenceFree,
+            "a sleep that this host's clock puts at {started_at_ms} is no holder"
+        );
+    }
+}
+
+/// A PID file that holds a number this process table does not have is read as that and no more,
+/// and its words say so:
+/// Git writes its own number into the lock's PID file and no PID namespace,
+/// and a number means a process only inside the namespace that wrote it,
+/// so a live Git in another PID namespace (a container with this repository mounted in)
+/// writes a number this table has never had and holds the lock through its editor with no descriptor open.
+/// The verdict is what a merge may act on,
+/// with the empty lock and the complete scan as the rest of its proof;
+/// a committing service only waits for the owner, within its ceiling
+/// (cross-vendor review of 2026-11-09,
+/// finding 2).
+#[test]
+fn a_pid_file_number_this_table_does_not_have_is_named_for_what_it_is() {
+    let lock: &Path = Path::new("/repo/index.lock");
+    let evidence: Evidence = evidence_with(PidFile::Owner(42, start_missing(42)), Some(no_holders(lock, 0, 0)));
+    assert_eq!(
+        classify_index_lock(&evidence),
+        Verdict::Dead(42),
+        "the number is this table's evidence about a number, and its owner may be alive elsewhere"
+    );
+    let blocker: String = blocker_words(&evidence);
+    assert!(blocker.contains("PID 42"), "{blocker}");
+    assert!(blocker.contains("a number this process table does not have"), "the verdict claims no death: {blocker}");
+    let diagnostic: String = dead_owner_diagnostic(lock, 42, "this commit was not made", DEAD_OWNER_LOCK_LEFT);
+    assert!(diagnostic.contains("PID number 42"), "{diagnostic}");
+    assert!(diagnostic.contains("another PID namespace"), "why this table does not have it is said: {diagnostic}");
+    assert!(!diagnostic.contains("no longer runs"), "the diagnostic claims no death: {diagnostic}");
+    // The same evidence with a live Git in the PID file is the holder, and nothing here read it as gone.
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_before(42)), Some(no_holders(lock, 0, 0)))),
+        Verdict::ProvenAlive {
+            pid: 42,
+            by_descriptor: false,
+            command: Some(String::from("git")),
+        }
     );
 }
 
@@ -286,15 +354,15 @@ fn classification_prefers_a_descriptor_then_the_pid_file() {
 #[test]
 fn a_skipped_scan_leaves_only_the_pid_file() {
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::StartedBeforeLock(1.0)), None)),
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_before(42)), None)),
         Verdict::ProvenAlive {
             pid: 42,
             by_descriptor: false,
-            command: None,
+            command: Some(String::from("git")),
         }
     );
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::Missing), None)),
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), None)),
         Verdict::Dead(42)
     );
     assert_eq!(
@@ -306,8 +374,13 @@ fn a_skipped_scan_leaves_only_the_pid_file() {
         Verdict::EvidenceFree
     );
     assert_eq!(
-        classify_index_lock(&evidence_with(PidFile::Owner(42, PidOwner::StartUnknown(String::from("r"))), None)),
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_unknown(42)), None)),
         Verdict::EvidenceFree
+    );
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, process_of(500.0, 10, None)), None)),
+        Verdict::EvidenceFree,
+        "a running process whose command name could not be read proves nothing"
     );
 }
 
@@ -331,7 +404,7 @@ fn gathering_skips_the_scan_only_for_a_proven_live_owner() {
     let scanned: Evidence = gather_with(real_index.as_path(), start_missing, scan_one)
         .expect("gather")
         .expect("lock present");
-    assert_eq!(scanned.pid_file, PidFile::Owner(42, PidOwner::Missing));
+    assert_eq!(scanned.pid_file, PidFile::Owner(42, start_missing(42)));
     assert_eq!(scanned.holders, Some(scan_one(root.as_path(), 0, 0)));
     assert_eq!(classify_index_lock(&scanned), Verdict::ProvenAlive {
         pid: 55,
@@ -407,11 +480,41 @@ fn the_change_time_rounds_nanoseconds_down_to_milliseconds() {
 #[test]
 fn many_unreadable_processes_are_summarized_in_the_wait_line() {
     let reasons: Vec<String> = (0..200).map(|number| { return format!("PID {number}: Permission denied (os error 13)"); }).collect();
-    let scan: HolderEvidence = HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: reasons.clone() };
+    let scan: HolderEvidence = HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: reasons.clone(), unresolvable: Vec::new() };
     let evidence: Evidence = evidence_with(PidFile::Absent, Some(scan));
     let end: WaitEnd<'_> = WaitEnd { within: crate::wait_ceilings::LANDING_LOCK_CEILING, ending: crate::service_index_attempts::COMMIT_WITHDRAWN };
     let line: String = unproven_wait_line(Path::new("/repo/index.lock"), Some(&evidence), end);
     assert!(line.contains(format!("{} processes could not be looked at", reasons.len()).as_str()), "{line}");
     assert!(line.contains("PID 0: Permission denied"), "{line}");
     assert!(!line.contains("PID 100: Permission denied"), "a line that lists every reason is not a summary: {line}");
+}
+
+/// A scan that could not identify a descriptor whose record names the lock.
+fn one_unresolvable(_path: &Path, _device: u64, _inode: u64) -> HolderEvidence {
+    return HolderEvidence {
+        method: "proc-fd",
+        holders: Vec::new(),
+        partial: Vec::new(),
+        unresolvable: vec![String::from("PID 4242 fd 3: its mount is a `fuse` file system, whose attributes are not in the memory of this kernel, so the file is not read")],
+    };
+}
+
+/// A PID file naming a number this table does not have is no proof that the owner is dead while the scan could not
+/// identify a descriptor that names the lock:
+/// the holder may be alive,
+/// so the verdict is evidence-free and the commit waits within its ceiling as it does for a live holder
+/// (cross-vendor review of 2026-11-09,
+/// finding 4).
+#[test]
+fn an_unidentified_holder_keeps_a_pid_file_from_naming_the_number_as_absent() {
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(one_unresolvable(Path::new(""), 0, 0)))),
+        Verdict::EvidenceFree,
+        "a live holder the scan could not identify is not dead because its number is absent here"
+    );
+    // The same evidence without that descriptor is the verdict a merge may act on, whose words claim no death.
+    assert_eq!(
+        classify_index_lock(&evidence_with(PidFile::Owner(42, start_missing(42)), Some(no_holders(Path::new(""), 0, 0)))),
+        Verdict::Dead(42)
+    );
 }

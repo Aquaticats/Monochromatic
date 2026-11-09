@@ -241,6 +241,7 @@ for (const item of cases) {
 }
 // endregion
 
-writeFileSync(join(results, 'results.json'), JSON.stringify(summary, null, 2));
-console.log('Language lifecycle ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));
-if (failed) process.exitCode = 1;
+const resultsPath = join(results, 'results.json');
+writeFileSync(resultsPath, JSON.stringify(summary, null, 2));
+if (failed) throw new Error('Language lifecycle FAILED: ' + resultsPath);
+console.log('Language lifecycle passed: ' + resultsPath);

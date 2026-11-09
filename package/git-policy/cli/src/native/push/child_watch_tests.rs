@@ -1170,7 +1170,7 @@ fn each_stream_is_found_by_its_own_pipe() {
     let identity: Option<(u64, u64)> = crate::step_output_read_whole_through_pipes::pipe_identity(error_read.as_fd());
     let named: Vec<i64> = match identity {
         Some((mount, inode)) => {
-            crate::process_use::processes_using(&crate::process_use::UseTarget::File { mount, inode }).users.iter().map(|user| { return user.pid; }).collect()
+            crate::process_use::processes_using(&crate::process_use::UseTarget::Mounted { mount, inode }).users.iter().map(|user| { return user.pid; }).collect()
         }
         None => Vec::new(),
     };
@@ -1226,14 +1226,20 @@ fn the_tree_of_a_root_that_has_ended_is_not_read() {
 }
 
 /// What:
-///  A watcher whose child has ended, and whose ceiling has passed, waits for a mark instead of taking the ceiling
+///  A watcher whose child has ended,
+/// and whose ceiling has passed,
+/// waits for a mark instead of taking the ceiling
 ///  branch again.
 /// Why:
 ///  The branch that stopped for a root the pin reports gone went round the loop without receiving a mark and without
-///  sleeping, while the wait stayed begun and the ceiling stayed passed, so every turn took the same branch again:
+///  sleeping,
+/// while the wait stayed begun and the ceiling stayed passed,
+/// so every turn took the same branch again:
 ///  the watcher held a worker of the runtime and never received the end mark queued behind it
 ///  (the fifth review's finding 3).
-///  The sender is dropped, which is how a dropped watch ends the loop, and the task must answer that.
+///  The sender is dropped,
+/// which is how a dropped watch ends the loop,
+/// and the task must answer that.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceiling_again() {
@@ -1289,10 +1295,13 @@ fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceilin
 /// What:
 ///  A step ended at the ceiling carried by its own wait takes the processes it started with it.
 /// Why:
-///  The fallback ceiling ended the leader alone, and a helper the step started kept running after the wrapper
-///  reported the step ended, though `StepBound::EndAt` says a step ends with its whole process tree
+///  The fallback ceiling ended the leader alone,
+/// and a helper the step started kept running after the wrapper
+///  reported the step ended,
+/// though `StepBound::EndAt` says a step ends with its whole process tree
 ///  (the fifth review's finding 2).
-///  The step's own shell waits for a helper that outlives every control here, so a helper still alive at the end of
+///  The step's own shell waits for a helper that outlives every control here,
+/// so a helper still alive at the end of
 ///  this control shows that nothing reached it.
 #[cfg(target_os = "linux")]
 #[test]
@@ -1330,11 +1339,13 @@ fn a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_w
 /// Why:
 ///  The child was moved into the closure of the refused start,
 /// and the start's failure dropped that closure and the child
-///  with it. A dropped `Child` is neither ended nor reaped,
+///  with it.
+/// A dropped `Child` is neither ended nor reaped,
 /// so the step the command had just started ran on with an owner,
 ///  and became a zombie of this process for the rest of its life once it ended
 ///  (the fifth review's finding 3).
-///  The step ends when this control releases it, and nothing may keep it a zombie afterwards.
+///  The step ends when this control releases it,
+/// and nothing may keep it a zombie afterwards.
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {

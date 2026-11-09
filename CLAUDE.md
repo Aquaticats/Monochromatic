@@ -31,6 +31,13 @@ WUC:
  a stale fire is a harness slip to stop,
  not a task to redo.
 
+PLQ:
+ A Claude Code native subagent that polls a process,
+ issuing a command for it more than twice in a row,
+ returns now,
+ saying what still runs:
+ a workaround for a Claude Code defect.
+
 Use `spawn-claude` outside sandbox to launch a steerable child Claude Code session in a visible terminal window.
 The child runs independently,
 but result forwarding back to the parent is unreliable (a Claude Code limitation),
@@ -287,17 +294,32 @@ A same-vendor subagent is a second pass:
  never as independent.
 
 XVW:
- Cross-vendor review,
- `timeout` in seconds:
- `timeout 3600 pi --model openai/gpt-6.1-sol --print --no-tools --no-skills --no-themes --thinking xhigh "<question>"`
- alongside advisor,
- never instead.
+ GPT reviews and audits,
+ `timeout` sized in seconds:
+ `timeout 3600 codex exec --dangerously-bypass-approvals-and-sandbox --model gpt-6.1-sol --config model_reasoning_effort=xhigh "<question>"`.
+
+XVB:
+ Every `codex` run passes `--dangerously-bypass-approvals-and-sandbox`,
+ because its auto mode has too many issues,
+ and names `xhigh` explicitly.
+
+XVS:
+ Keep GPT runs small,
+ one narrow question each:
+ GPT models cannot be trusted on long-horizon work.
+
+LHZ:
+ Long-horizon reviews and audits,
+ in every harness:
+ use Claude Sonnet,
+ by whatever route that harness offers.
 
 PFW:
- A `gpt-6.1-sol` review reads only what you paste:
- whole files,
- never prose;
- a diff goes in as `@path`.
+ Alongside advisor,
+ never instead:
+ a `gpt-6.1-sol` review reads the paths its prompt names,
+ whole files and the diff,
+ never prose.
 Background it;
  never poll or kill it;
  it may never return.
@@ -664,9 +686,11 @@ UPN:
  Never run bare `mpm upgrade --all`.
 
 TRB:
- External tool fails with a diagnostic:
- `rg` its message in `doc/troubleshooting/` before any workaround;
- follow a recorded verified workaround as written.
+ External tool diagnostic:
+ `rg` its message in `doc/troubleshooting/`;
+ apply an authorized repair unasked,
+ follow recorded workarounds as written,
+ then recheck the emitting tool.
 
 EDR:
  Parallel tool calls may run in any order,
@@ -760,13 +784,12 @@ HRM:
  put write-heavy work on `/Volumes/MacData`.
 
 RXI:
- Every command an agent does not consider trivial,
+ Every non-trivial command,
  in every agent:
- run it in its own cgroup with CPU,
+ run it as a harness-managed background process,
+ in its own cgroup with CPU,
  memory,
- process-count and disk-weight limits,
- each sized to that command,
- and state the bounds.
+ process-count and disk-weight limits sized to it.
 
 RXS:
  Per-command cgroups:

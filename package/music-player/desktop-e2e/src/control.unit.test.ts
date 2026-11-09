@@ -5,8 +5,7 @@
  */
 
 import {
-  mkdtemp,
-  rm,
+  mkdtempDisposable,
 } from 'node:fs/promises';
 import {
   createServer,
@@ -34,6 +33,7 @@ type FakeCompositor = {
   readonly close: () => Promise<void>;
   readonly commands: string[];
   readonly socket: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
 
 /**
@@ -41,11 +41,15 @@ type FakeCompositor = {
  
  @param answer - the line it answers to every command
  
- @returns its socket path, the commands it received and a way to close it
+ @returns its socket path, the commands it received and a way to close it, which
+   also removes its fixture directory
  */
 async function startFakeCompositor(answer: string,): Promise<FakeCompositor> {
-  const dir = await mkdtemp(join(scratchRoot(), 'e2e-control-',),);
-  const socket = join(dir, 'c.sock',);
+  const directory = await mkdtempDisposable(join(scratchRoot(), 'e2e-control-',),);
+  /**
+   Socket inside the directory, so closing the compositor also removes the socket file.
+   */
+  const socket = join(directory.path, 'c.sock',);
   const commands: string[] = [];
   const server: Server = createServer((client,) => {
     client.setEncoding('utf8',);
@@ -61,17 +65,22 @@ async function startFakeCompositor(answer: string,): Promise<FakeCompositor> {
   await new Promise<void>((resolve,) => {
     server.listen(socket, resolve,);
   },);
+  /**
+   Shuts the server down and removes the fixture directory, however the test ends.
+   */
+  const close = async (): Promise<void> => {
+    await new Promise<void>((resolve,) => {
+      server.close(() => {
+        resolve();
+      },);
+    },);
+    await directory.remove();
+  };
   return {
     socket,
     commands,
-    close: async () => {
-      await new Promise<void>((resolve,) => {
-        server.close(() => {
-          resolve();
-        },);
-      },);
-      await rm(dir, { recursive: true, force: true, },);
-    },
+    close,
+    [Symbol.asyncDispose]: close,
   };
 }
 
@@ -127,10 +136,9 @@ await describe({
     it({
       name: 'sends one line and returns the trimmed answer',
       fn: async ({ expect, }) => {
-        const compositor = await startFakeCompositor('ok',);
+        await using compositor = await startFakeCompositor('ok',);
         expect(await sendCommand({ socket: compositor.socket, line: 'move 2 2', },),).toBe('ok',);
         expect(compositor.commands,).toEqual(['move 2 2',],);
-        await compositor.close();
       },
     },),
     it({
@@ -155,7 +163,7 @@ await describe({
     it({
       name: 'sends the key commands of tap, down, up and chord in order',
       fn: async ({ expect, }) => {
-        const compositor = await startFakeCompositor('ok',);
+        await using compositor = await startFakeCompositor('ok',);
         const control = createControl({ socket: compositor.socket, shotsDir: '/shots', label: 'wide', },);
         await control.tap('tab',);
         await control.down('alt',);
@@ -175,13 +183,12 @@ await describe({
           'click 3 4 left',
           'click 5 6 right',
         ],);
-        await compositor.close();
       },
     },),
     it({
       name: 'rejects an answer that does not start with ok and names the command',
       fn: async ({ expect, }) => {
-        const compositor = await startFakeCompositor('err unknown key: f5',);
+        await using compositor = await startFakeCompositor('err unknown key: f5',);
         const control = createControl({ socket: compositor.socket, shotsDir: '/shots', label: 'wide', },);
         let caught: unknown;
         try {
@@ -191,17 +198,15 @@ await describe({
           caught = error;
         }
         expect((caught as Error).message,).toBe('compositor answered "err unknown key: f5" to "key f5 tap"',);
-        await compositor.close();
       },
     },),
     it({
       name: 'moves the pointer away, then saves a screenshot named by label and shot',
       fn: async ({ expect, }) => {
-        const compositor = await startFakeCompositor('ok',);
+        await using compositor = await startFakeCompositor('ok',);
         const control = createControl({ socket: compositor.socket, shotsDir: '/shots', label: 'wide', },);
         expect(await control.shot('ring',),).toBe('/shots/wide-ring.png',);
         expect(compositor.commands,).toEqual(['move 2 2', 'screenshot /shots/wide-ring.png',],);
-        await compositor.close();
       },
     },),
   ],

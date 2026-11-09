@@ -139,12 +139,16 @@ fn a_step_on_a_directory_of_its_own_runs_and_leaves_its_marker() {
 }
 
 /// What:
-///  Runs a step that outlives the bound it is given, releases it, and answers what the command said and whether the
+///  Runs a step that outlives the bound it is given,
+/// releases it,
+/// and answers what the command said and whether the
 ///  step's end was collected.
 /// Why:
-///  Both controls of the left-running path need the same step and the same measure, and they differ only in the state
+///  Both controls of the left-running path need the same step and the same measure,
+/// and they differ only in the state
 ///  they put the runtime in.
-///  A step that ends while this process lives and is not collected is a zombie of it, which
+///  A step that ends while this process lives and is not collected is a zombie of it,
+/// which
 ///  `process_tree::use_of` reports with the state the kernel holds it in.
 async fn a_step_left_running_released_and_collected(step_name: &str, bound: StepBound) -> (std::io::Error, bool) {
     let directory: PathBuf = fixture(step_name);
@@ -200,10 +204,12 @@ async fn a_step_left_running_released_and_collected(step_name: &str, bound: Step
 ///  This path asked how the runtime was first built,
 /// so a late build was read as a process with no worker at all:
 /// the child was
-///  taken out of its owner and dropped, and nothing collected it when it ended
+///  taken out of its owner and dropped,
+/// and nothing collected it when it ended
 ///  (the fifth review's finding 4).
 ///  The question is the one the rest of the branch asks,
-/// whether a task can run now, which a late build answers yes to
+/// whether a task can run now,
+/// which a late build answers yes to
 ///  (`a_control_stands_in_for_a_late_runtime`).
 #[cfg(target_os = "linux")]
 #[test]
@@ -230,8 +236,10 @@ fn a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtim
 ///  With no worker the child is left running on purpose,
 /// and it was taken out of its owner and dropped:
 /// a step that
-///  ended while this process lived stayed a zombie of it, which the reaper list exists to prevent
-///  (the fifth review's finding 4, at the branch this control takes).
+///  ended while this process lived stayed a zombie of it,
+/// which the reaper list exists to prevent
+///  (the fifth review's finding 4,
+/// at the branch this control takes).
 #[cfg(target_os = "linux")]
 #[test]
 fn a_step_left_running_where_no_task_can_run_is_collected_by_a_reaper() {
