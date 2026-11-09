@@ -96,3 +96,31 @@ fn the_retired_key_and_a_broken_file_are_reported() {
     assert_eq!(render_notes(&broken), "");
     remove(root.as_path());
 }
+
+/// What:
+///  A hook the person configured is still listed when the wrapper's own switch for its event is
+///  in the command scope of the read.
+/// Why:
+///   Every Git the wrapper starts carries `-c hook.<event>.enabled=false`,
+/// and a child of one passes it on through
+///  `GIT_CONFIG_PARAMETERS`,
+/// where it is read as command-scope configuration;
+/// a doctor run inside such a child found every event
+///  off and listed nothing.
+#[test]
+fn a_switch_the_wrapper_supplied_does_not_hide_a_configured_hook_from_doctor() {
+    let root: PathBuf = fixture("doctor-config-hook-switch");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    git(repo.as_path(), &["config", "hook.control.event", "pre-commit"]);
+    git(repo.as_path(), &["config", "hook.control.command", "run the linter"]);
+    // The switches a wrapped commit supplies to every Git it starts, inherited here as a child inherits them.
+    let mut context: GitContext = git_context();
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_CONFIG_PARAMETERS"),
+        std::ffi::OsString::from("'hook.pre-commit.enabled'='false'"),
+    ));
+    let findings: ConfigFindings = findings_of(&context, repo.as_path());
+    assert_eq!(findings.hooks.len(), 1, "the person's hook is listed");
+    assert_eq!(render_hook_lines(&findings), "hook.control (events: pre-commit)\n");
+    remove(root.as_path());
+}
