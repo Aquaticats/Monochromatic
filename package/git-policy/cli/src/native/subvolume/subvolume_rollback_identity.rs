@@ -64,10 +64,18 @@ pub(crate) fn as_recorded(identity: ObjectId) -> String {
 /// const refusal = resumedOldTreeRefusal(run, oldPath, newPath); // undefined when the object is the recorded one
 /// ```
 pub(crate) fn resumed_old_tree_refusal(run: &Run<'_>, old_path: &Path, new_path: &Path) -> Option<Refusal> {
-    if new_path.exists() {
-        return None;
-    }
     let installed: &str = run.journal.value(INSTALLED_ROOT)?;
+    // The rename already happened, so the directory the resumed run deletes is the one at the new name.
+    if object_form(new_path).is_some() {
+        let found: String = object_form(new_path)?;
+        if found == installed {
+            return None;
+        }
+        return Some(Refusal {
+            cause: format!("{} holds {found}, and the journal records the installed checkout as {installed}", new_path.display()),
+            remedy: String::from("If the installed checkout was moved or replaced, move it back to that path and run the command again. Nothing was renamed or deleted."),
+        });
+    }
     let found: String = object_form(old_path)?;
     if found == installed {
         return None;

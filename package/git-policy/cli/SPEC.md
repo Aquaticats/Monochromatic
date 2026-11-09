@@ -1632,9 +1632,12 @@ A journal written by an earlier release records no identity,
 and a command that has none does not refuse on a guess.
 A rollback resumed after its exchange renames what the old tree's name holds to the new subvolume's name and then deletes
 it,
-so that object's identity is compared with the recorded installed checkout before anything is renamed:
+so that object's identity is compared with the recorded installed checkout before anything is renamed,
+and so is the
+object at the new subvolume's name once the rename has happened:
 an object that is
 not the recorded one is reported with both identities and nothing is renamed or deleted,
+whichever of the two names holds it,
 a name with nothing at it is not
 a refusal (there is nothing to rename or delete),
 and a journal with no recorded installed identity has nothing to compare.
