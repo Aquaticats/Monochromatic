@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:04:40-05:00)
+#### Reviews and landings in progress (2026-11-09T04:12:53-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -229,14 +229,21 @@ The old tree kept for the rollback stays until the owner deletes it.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
   run 2 of its agent reports the broken control and the five findings of the first review fixed.
-  Its tests on top of main and the review `path-bytes-round-2` are running.
+  On top of main 1311 of 1313 selected tests pass,
+  and the two failures are in `landing::service_work::push_retry_tests`.
+  The review (`${HOME}/temp/agent/reviews/path-bytes-round-2-sol.txt`) names a service from before the change committing a file under a replacement name,
+  a request too long for the protocol where the old route would have worked,
+  and a retry plan of another directory deleted.
+  Not ready to merge.
+  Run 3 of its agent is on them.
   Issue 6005 is commented on or closed after it lands.
 - `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
   its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
   among them an interrupted upgrade that leaves every command reaching the old service,
   and a launcher that clears its environment and so defeats both recursion guards.
-  Run 2 of its agent reports all four fixed;
-  its tests on top of main and the review `entry-and-service-round-2` are running.
+  Run 2 of its agent reports all four fixed,
+  677 of 677 selected tests pass on top of main,
+  and the review `entry-and-service-round-2` is running.
   A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
   because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
@@ -254,10 +261,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   so a dependent goes unbumped,
   and nesting that exhausts the stack.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `dependent-version-publish-list-fixed` as run 3,
-  with `dependent-version-publish-list-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  Run 3 of its agent is on them.
   That round picks a rule that ends this class of misread:
   a maintained parser or a reader limited to what the generator writes.
 - `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`:
@@ -335,8 +339,20 @@ The old tree kept for the rollback stays until the owner deletes it.
   which main has worse because it always deletes,
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
-  Run 2 of its agent is on them.
-  That round also checks the fixes resting on claims about real tools against those tools.
+  Run 2 of its agent reports them fixed,
+  703 of 703 tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`) names a prune that can delete a version a lock still names,
+  and a `current` link left pointing at a deleted version.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `mpm-shadow-open-issues` as run 3,
+  with `mpm-shadow-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
+  By its own report the agent ran its cargo commands outside the required resource limits,
+  and that listing installed `1.79.0` in the real rustup home before the guard existed,
+  which it uninstalled.
+  `1.99.0` also appeared there during the round and no step it reports installed it.
   `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
   before that,
   a branch outside the wrapper got an empty review.
