@@ -482,6 +482,12 @@ mod service_pruned;
 #[path = "binary_service_replay_tests.rs"]
 mod service_replay;
 
+/// A commit whose branch write meets a reference lock:
+/// the wait for a live holder,
+/// and the lock that nothing proves gone, named with the command that clears it.
+#[path = "binary_service_reference_lock_tests.rs"]
+mod service_reference_lock;
+
 /// A backup push the service made after a commit returned and the remote refused,
 /// shown by the next wrapper command.
 #[path = "binary_push_failure_tests.rs"]

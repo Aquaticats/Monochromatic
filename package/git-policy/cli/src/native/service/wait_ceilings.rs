@@ -199,6 +199,27 @@ pub const LANDING_LOCK_CEILING: Duration = whole_minutes_at_least(Duration::from
     LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT.as_millis() as u64 * CEILING_MARGIN as u64,
 ));
 
+/// The longest a landing waits for a reference lock that refused its branch write.
+///  Why:
+///   Git refuses a reference update at once when a lock file stands,
+///  and a live holder lets go within its own step:
+///  the longest reference step of the service's journal took 3,438 ms
+///  (`stale_ref_lock_judge.rs`,
+///  `LONGEST_LIVE_REF_STEP`),
+///  and a lock younger than twice that is not even judged,
+///  because a live Git may still be filling it (`stale_ref_lock_judge.rs`,
+///  `MARGIN`).
+///  Waiting exactly that margin lets a live holder finish and lets the lock be judged at the end of the wait,
+///  so the commit lands instead of failing,
+///  and a lock nothing proves gone is named with the command that clears it.
+///  It replaces no wait:
+///  the write was refused at once before,
+///  and the commit failed after three refusals read as a moved branch,
+///  which took 17 to 28 seconds and said nothing true
+///  (2026-11-09,
+///  a killed `git update-ref --stdin` holding `refs/heads/main.lock`).
+pub const REFERENCE_LOCK_WAIT: Duration = crate::stale_ref_lock_judge::MARGIN;
+
 /// The slowest `git commit` step of the scratch repository in this repository's commit timing log,
 /// one figure per record,
 /// of the records that do not run past the 16 s the owner chose.

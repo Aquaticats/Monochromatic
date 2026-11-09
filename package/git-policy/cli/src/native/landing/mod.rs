@@ -112,6 +112,12 @@ pub mod service_land_copy;
 
 pub mod service_land_follow;
 
+/// What a landing does when its branch write is refused while the branch is still where the batch found it:
+/// the reference locks that stand,
+/// the bounded wait for a live holder,
+/// and the words for the locks nothing proves gone.
+pub mod service_land_reference_lock;
+
 /// The copy the service keeps of the conclusion state a landed commit removes.
 pub mod conclusion_state_copy;
 

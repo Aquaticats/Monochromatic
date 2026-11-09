@@ -6554,6 +6554,52 @@ red first:
 with `a_live_reftable_gits_tables_list_lock_stays` and
 `a_reftable_lock_that_nothing_proves_gone_is_left_and_named`.
 
+#### A landing whose branch write a lock refuses
+
+Git answers a refused reference update the same way whether the branch moved or a lock file stands,
+and the service told them apart by asking the branch again after the refusal:
+a branch that still names the commit the batch was built on did not move,
+so a lock is what refused the write
+(`src/native/landing/service_land_batch_body.rs`,
+`src/native/landing/service_land_reference_lock.rs`).
+A refusal that is not a moved branch spends no landing attempt,
+so the sentence "the branch changed N times" is never said for a lock:
+that sentence is said only for a branch that really changed.
+A live holder lets go on its own within its step,
+so the landing waits for the standing locks,
+bounded by `REFERENCE_LOCK_WAIT`
+(`src/native/service/wait_ceilings.rs`),
+which is the margin a lock is judged at: twice the 3,438 ms longest live reference step of the service journal.
+The index lock is given up before the wait,
+so another program's commit is not held behind a lock this landing only waits for.
+The locks are judged and cleared by the judgement above,
+through the same proof,
+notice and set-aside removal,
+and the landing tries its write again as soon as nothing stands.
+A lock that is still there at the bound,
+or one that a proof does not reach,
+ends the commit with a plain message that names the lock,
+says what is known about its holder,
+gives the exact command that clears it,
+and says that nothing in the repository changed
+(`FailureCode::ReferenceLocked`,
+`ClientFailure::ReferenceLocked`).
+No lock is removed on a claim about this service's own killed child,
+for the reasons above.
+The words of the judgement also go to the journal,
+with the lock's size,
+age and the evidence it was judged by.
+Tests,
+red first:
+`a_reference_lock_nothing_proves_gone_is_named_with_the_command_that_clears_it`,
+with `a_lock_a_live_process_has_open_is_named_and_left`,
+`a_staging_file_with_no_lock_is_cleared_and_the_write_may_be_tried_again`,
+`nothing_standing_costs_no_wait`,
+`a_young_lock_is_looked_at_again_until_the_deadline_and_then_named`,
+and the binary controls
+`a_commit_that_meets_a_reference_lock_names_it_with_the_command_that_clears_it` and
+`a_commit_that_meets_a_live_reference_lock_waits_for_it_and_lands`.
+
 #### Races, and how each is handled
 
 - A holder that wrote its lock,
@@ -11948,8 +11994,11 @@ The ceiling itself does not move,
 so `MAX_CHANGES` changes of a text name at the measured path length still fit one line,
 and only a name that is not text pays for its bytes.
 
-The commit request speaks protocol version 9,
-the first that names the commit's scratch tree in a field of its own.
+The commit request speaks protocol version 10,
+the first whose landing answers `reference-locked`
+when a reference lock refused its branch write;
+a client of version 9 reads a failure word it does not know as an answer it cannot read.
+Version 9 was the first that names the commit's scratch tree in a field of its own.
 A service of version 8 works the tree out from the request's index,
 which is the worktree's real index rather than a tree,
 so it lands the commit and leaves the tree to the age sweep.

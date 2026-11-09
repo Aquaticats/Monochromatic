@@ -85,6 +85,10 @@ pub fn failure_for(code: FailureCode, request: &CommitRequest) -> ClientFailure 
         FailureCode::RepositoryReadOnly => read_only_failure(repository.as_str(), crate::repository_move_freeze::move_state_folder().as_deref()),
         FailureCode::PermissionDenied => ClientFailure::PermissionDenied(repository),
         FailureCode::IndexInUse => ClientFailure::IndexInUse(String::from("Another program")),
+        FailureCode::ReferenceLocked => ClientFailure::ReferenceLocked {
+            branch: request.reference.trim_start_matches("refs/heads/").to_string(),
+            words: String::new(),
+        },
         FailureCode::Rejected => ClientFailure::Refused,
         FailureCode::BranchKeepsChanging => ClientFailure::BranchKeepsChanging {
             branch: request.reference.trim_start_matches("refs/heads/").to_string(),
@@ -328,6 +332,14 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                         Some(who) => who,
                         None => String::from("Another program"),
                     })));
+                }
+                Heard::Message(ServiceMessage::Failed { code: FailureCode::ReferenceLocked, .. }) => {
+                    // The service named the locks it left and the command that clears each; without that answer the
+                    //  message names the lock by the branch's own name.
+                    let words: String = holder.take().unwrap_or_else(|| {
+                        return format!("The reference lock of {} stands in the way, and nothing proves that a Git process still holds it.", request.reference);
+                    });
+                    break Some(Err(ClientFailure::ReferenceLocked { branch: request.reference.trim_start_matches("refs/heads/").to_string(), words }));
                 }
                 Heard::Message(ServiceMessage::Failed { code, .. }) => break Some(Err(failure_for(code, request))),
                 Heard::Message(ServiceMessage::Waiting { text }) => {
