@@ -389,13 +389,20 @@ fn settle_creation(
     // was never filled, so the record stays and the next command reports it as an interrupted add.
     // A destination that still exists after a Git that failed is a worktree this command asked for and did not fill: the
     // record stays, so a later command reports it instead of finding a worktree that looks whole.
-    fn exists(path: &Path) -> bool {
-        return std::fs::symlink_metadata(path).is_ok();
+    /// Whether the path may hold something:
+    /// absent is the only answer that says it does not,
+    /// so a path this command
+    /// may not look at keeps the record rather than losing it.
+    fn may_hold_something(path: &Path) -> bool {
+        return !matches!(
+            std::fs::symlink_metadata(path),
+            Err(ref error) if error.kind() == std::io::ErrorKind::NotFound
+        );
     }
     /// A destination that holds anything other than this command's empty reservation:
     /// a worktree that was not filled.
     fn holds_a_worktree(path: &Path) -> bool {
-        return exists(path) && !nothing_but_a_reservation(path);
+        return may_hold_something(path) && !nothing_but_a_reservation(path);
     }
     let unfilled: bool = left_unfilled
         || (copies

@@ -158,7 +158,11 @@ fn conda_file<'a>(files: &'a [Value], version: &str, subdir: &str) -> Option<(&'
         }
         let build: i64 = build_number_of(file);
         if build > best_build {
-            best = Some((text_at(file, &["basename"])?, text_at(file, &["sha256"])?));
+            // An incomplete row is skipped, keeping any complete candidate already collected.
+            let (Some(basename), Some(sha256)) = (text_at(file, &["basename"]), text_at(file, &["sha256"])) else {
+                continue;
+            };
+            best = Some((basename, sha256));
             best_build = build;
         }
     }

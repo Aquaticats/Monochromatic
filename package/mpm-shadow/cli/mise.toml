@@ -10,6 +10,10 @@ run = "cargo build"
 description = "cargo check (no codegen)"
 run = "cargo check"
 
+[tasks."lint:types"]
+description = "Type-level gate for this crate: cargo check plus clippy with warnings denied"
+run = ["cargo check", "cargo clippy --release --all-targets -- --deny warnings"]
+
 [tasks."lint:clippy"]
 description = "Run clippy over the lib, bin and tests with warnings denied"
 run = "cargo clippy --release --all-targets -- --deny warnings"
@@ -21,6 +25,10 @@ run = "cargo clippy --fix --allow-dirty --allow-staged"
 [tasks.test]
 description = "cargo nextest run"
 run = "cargo nextest run --release"
+
+[tasks."test:debug"]
+description = "cargo nextest run in debug mode for fast iteration"
+run = "cargo nextest run"
 
 [tasks.package]
 description = "Build and verify the crates.io package tarball"

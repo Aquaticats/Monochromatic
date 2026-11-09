@@ -213,6 +213,53 @@ fn run_child(name: &str) -> std::process::Output {
         .expect("the child test runs");
 }
 
+/// How long a child a watcher must end is given before the control counts it as a run that never ended.
+/// The child starts this test binary (measured at up to 11 s on this host under load),
+/// waits its one-second window
+/// and aborts,
+/// so this is four times the slowest start measured (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
+const CHILD_DEADLINE: Duration = Duration::from_secs(45);
+
+/// What:
+///  Run the child test `name` with its standard error on `stderr`,
+/// and give back what it said and how it ended,
+/// or nothing where it outlived
+///  `CHILD_DEADLINE`,
+/// in which case it is killed first.
+/// Why:
+///   A watcher that cannot end its process leaves a blocked child alive for ever,
+/// so a control that waits for such a child without a
+///  deadline would hang the run it is checking;
+/// the deadline turns that into a failed control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(exe, args, { stdio: ['ignore', 'pipe', stderr] });
+/// const status = await withDeadline(child, CHILD_DEADLINE); // kill and return undefined when it passes
+/// return status === undefined ? undefined : { status, stdout: await read(child.stdout) };
+/// ```
+fn run_child_with_stderr_until(name: &str, stderr: std::process::Stdio) -> Option<std::process::Output> {
+    let mut child: std::process::Child = std::process::Command::new(this_test_binary().expect("the test binary"))
+        .args(["--exact", child_path(name).as_str(), "--ignored", "--nocapture", "--test-threads=1"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(stderr)
+        .spawn()
+        .expect("the child test starts");
+    let started: Instant = Instant::now();
+    loop {
+        match child.try_wait().expect("the child is waited for") {
+            Some(_ended) => return Some(child.wait_with_output().expect("the child's output")),
+            None if started.elapsed() >= CHILD_DEADLINE => {
+                child.kill().expect("the child that outlived the deadline is killed");
+                let _reaped = child.wait();
+                return None;
+            }
+            None => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
+}
+
 /// Child of the control below:
 /// a run whose only task waits for a message nobody sends.
 #[test]
@@ -252,6 +299,66 @@ fn a_stuck_run_ends_its_process() {
     assert!(said.contains("showed no sign of work for"), "{said}");
 }
 
+/// A run that stops moving ends its process even where the report cannot be written,
+/// so a full disk cannot leave a blocked test alive without its watchdog.
+#[test]
+fn a_stuck_run_ends_its_process_though_its_report_cannot_be_written() {
+    let file: std::fs::File = match std::fs::OpenOptions::new().write(true).open("/dev/full") {
+        Ok(opened) => opened,
+        Err(error) => {
+            eprintln!("skipped: this system has no /dev/full to refuse a report ({error})");
+            return;
+        }
+    };
+    let ended: Option<std::process::Output> = run_child_with_stderr_until("child_that_stops_moving", std::process::Stdio::from(file));
+    let output: std::process::Output = ended.expect("the watchdog ended the process though its report could not be written");
+    let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    assert!(ran.contains(child_path("child_that_stops_moving").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    assert_eq!(output.status.signal(), Some(libc::SIGABRT), "the watchdog ended the process, though its report could not be written");
+}
+
+/// How many watchers `child_that_sleeps_under_two_watchers` arms:
+/// the fixture's one and the one it starts itself.
+/// The child prints the count it saw and the parent reads it,
+/// because the child's own watcher ends it either way,
+/// so a control that only looked at how the child ended would pass with the fixture's watcher disconnected.
+const WATCHERS_UNDER_TEST: usize = 2;
+
+/// What:
+///  How many watchers this process has registered,
+/// waiting up to `within` for `expected` of them to start.
+/// Why:
+///   A watcher registers itself at the start of its own thread,
+/// so the count is the control's to read only once the
+///  threads have run;
+/// a fixed sleep would make the control's meaning depend on the host's load.
+/// Every look at the count writes a newline
+///  (a line,
+/// because this process's standard output is held until one arrives),
+/// and a write is work,
+/// so the watcher that must end this child does not judge it quiet while it is still finding out,
+/// and a child
+///  that saw fewer watchers than it expected can still say so.
+/// The count is read again every 200 ms,
+/// which is well inside the watcher's own 500 ms look.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const deadline = now() + within; let running = watching().length;
+/// while (running !== expected && now() < deadline) { write('\n'); await sleep(200); running = watching().length }
+/// return running;
+/// ```
+fn watchers_running(expected: usize, within: Duration) -> usize {
+    let started: Instant = Instant::now();
+    let mut running: usize = watching().len();
+    while running != expected && started.elapsed() < within {
+        let _written = std::io::stdout().write_all(b"\n");
+        std::thread::sleep(Duration::from_millis(200));
+        running = watching().len();
+    }
+    return running;
+}
+
 /// Child of the control below:
 /// a run under the fixture's watcher and one of its own that shows nothing at all,
 /// so neither watcher may count the other's readings as the run's work.
@@ -261,6 +368,8 @@ fn child_that_sleeps_under_two_watchers() {
     forbid_core_dumps();
     arm_watchdog();
     let _armed: Option<std::thread::JoinHandle<()>> = watch(Duration::from_secs(1));
+    // The parent reads this count: one watcher ends this child either way, so only the count tells two apart from one.
+    println!("watchers: {}", watchers_running(WATCHERS_UNDER_TEST, Duration::from_secs(5)));
     std::thread::sleep(Duration::from_secs(5));
 }
 
@@ -272,6 +381,8 @@ fn two_watchers_do_not_keep_each_other_alive() {
     let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
     let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
     assert!(ran.contains(child_path("child_that_sleeps_under_two_watchers").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    // One watcher ends this child either way, so the count is what tells the two watchers apart from one.
+    assert!(ran.contains(format!("watchers: {WATCHERS_UNDER_TEST}").as_str()), "both watchers ran, so neither could count the other's readings as the run's work:\n{ran}");
     assert_eq!(output.status.signal(), Some(libc::SIGABRT), "a watcher ended the process:\n{said}");
     assert!(said.contains("a test is stuck"), "{said}");
 }
