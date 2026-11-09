@@ -164,6 +164,59 @@ fn an_archive_tool_is_its_version_directory() {
     assert_eq!(observe_tool(&rig.context(), &tool), Some("1.2.3".to_string()));
 }
 
+/// What:
+/// A Go-installed tool is read from the executables `go install` writes into its `bin` directory (the `GOBIN` the route
+/// sets),
+/// not from the version directory.
+/// Why:
+/// The route creates that directory before `go` runs,
+/// so the directory alone answers "installed" for a tool whose binaries are missing,
+/// and every later `install` would skip it.
+#[test]
+fn a_go_tool_is_absent_until_its_gobin_holds_the_executable_go_writes() {
+    let rig = Rig::new();
+    let mut tool = rig.tool("cargo:fd-find");
+    tool.declaration.route = super::model::Route::GoInstall;
+    let install = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3").expect("a plain name");
+    fs::create_dir_all(install.join("bin")).expect("make the gobin the route makes before go runs");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "an empty gobin is not an installed tool");
+    write_executable(&install.join("bin").join("fd"));
+    assert_eq!(observe_tool(&rig.context(), &tool), Some("1.2.3".to_string()));
+    assert!(rig.runner.calls().is_empty(), "the observation starts nothing");
+}
+
+/// The other half of the same rule:
+/// a declaration that names no binary is read from any executable in its `bin` directory,
+/// so a `go install` that wrote nothing is still absent.
+#[test]
+fn a_go_tool_with_no_declared_bin_is_read_from_any_executable_in_its_gobin() {
+    let rig = Rig::new();
+    let mut tool = rig.tool("cargo:fd-find");
+    tool.declaration.route = super::model::Route::GoInstall;
+    tool.declaration.bins = Vec::new();
+    let install = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "1.2.3").expect("a plain name");
+    fs::create_dir_all(install.join("bin")).expect("make");
+    fs::write(install.join("bin").join("notes"), "not a program").expect("write a file no one can run");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "a file no one can run is not an installed program");
+    write_executable(&install.join("bin").join("anything"));
+    assert_eq!(observe_tool(&rig.context(), &tool), Some("1.2.3".to_string()));
+}
+
+/// A Go tool left at an older version is reported by that version,
+/// the way every other directory route reports one,
+/// but only when that version's `bin` directory holds its executable.
+#[test]
+fn a_go_tool_is_read_from_an_older_version_that_still_holds_its_executable() {
+    let rig = Rig::new();
+    let mut tool = rig.tool("cargo:fd-find");
+    tool.declaration.route = super::model::Route::GoInstall;
+    let older = tool_install_dir(&rig.scope.toolchain_root, "cargo:fd-find", "0.9.0").expect("a plain name");
+    fs::create_dir_all(older.join("bin")).expect("make");
+    assert_eq!(observe_tool(&rig.context(), &tool), None, "a version directory holding no executable is not an install");
+    write_executable(&older.join("bin").join("fd"));
+    assert_eq!(observe_tool(&rig.context(), &tool), Some("0.9.0".to_string()), "the older finished version is what there is");
+}
+
 #[test]
 fn the_android_sdk_is_present_when_its_command_line_tools_directory_exists() {
     let rig = Rig::new();
