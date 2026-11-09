@@ -125,15 +125,15 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T01:24:26-05:00)
+#### Reviews and landings in progress (2026-11-09T03:00:59-05:00)
 
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`,
-  at `66c35466ea`:
-  the cross-vendor review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-2-sol.txt`)
-  says a rewrite reported as never started can stay queued in Tokio and run later,
-  so the report's promise that the index stayed as it was can be false.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
+  the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
+  names a final wake that can be missed so a run waits for ever,
+  index preparation that can block the runtime before its first await,
+  and refused jobs that later run outside the blocking-job budget.
   Not ready to merge.
-  Run 3 of its agent is on that finding.
+  Run 4 of its agent is on them.
 - `fix/git-policy-cli-push-route-records-and-ceilings`,
   at `5b0393dbf6`:
   its agent reports all eleven audit findings fixed,
@@ -141,25 +141,30 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress`:
-  362 of 362 tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-1-sol.txt`) names five defects in the watchdog and its controls,
-  all in test code or test builds.
-  Run 2 of its agent is on them.
-- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
-  at `3509de3e01`:
-  the cross-vendor review of its latest round
-  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
-  names seven more defects,
-  among them a failed reset that commits a deletion and an approved push left stranded.
-  Not ready to merge.
+  landed on main as `8dc110a1fd`,
+  with 30 of 30 selected tests passing on top of main,
+  among them tests that had aborted near 120 seconds.
+  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-3-sol.txt`) names two more defects,
+  both in test code:
+  a failing stderr can end the watchdog without ending the test,
+  and one control passes with its guard removed.
   Run 4 of its agent is on them.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
+  its agent fixed the seven findings of the fourth review
+  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`),
+  among them a tab in a file name that made the next commit revert another file,
+  and a promotion that published a commit whose gate then blocked it.
+  Not ready to merge:
+  the package lint fails on file length in three files,
+  two tests fail,
+  and one fix has no failing-output control and another no test.
+  Run 6 of its agent is on those.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
-  at `493e72d1e9`:
-  the library suite passed 4835 of 4835.
-  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
-  names three more ways a new worktree can end up unfilled or filled by the wrong command,
-  so it is not ready to merge.
-  Run 6 of its agent is on them.
+  at `6f11d10f45`:
+  the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
+  names two realistic record defects and three races that need another program to move a worktree inside a small window.
+  Run 7 of its agent is on the two record defects and judges the races.
+  After that round it lands.
   The fix for a ladder rung that already made its destination has no test of its own,
   and the two-process race has no failing test,
   because nothing can hold a wrapper at a named step.
@@ -178,10 +183,22 @@ The old tree kept for the rollback stays until the owner deletes it.
   The cause of 36,651 ms is not established.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
-- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
-  `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
-  and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
-  their agents are working through their reviews.
+- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/merge-route-round-2-sol.txt`)
+  says a branch that advances discards a merge already reported as saved,
+  and that finishing a saved merge can overwrite a staged-only edit.
+  Not ready to merge.
+  Run 3 of its agent is on them.
+- `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
+  among them a FIFO that makes a commit wait forever,
+  and two races that need another program to rename a directory inside a small window.
+  Two subvolume tests abort near 120 seconds on the branch merged with main,
+  even run alone.
+  Run 3 of its agent is on the three defects and judges the races.
+  After that round it lands.
+- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  its agent is working through its review.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
   `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`
   and `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
@@ -191,6 +208,69 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
   The locks audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
   ("cli-git never deletes a lock") waits for the owner.
+
+- `fix/git-policy-cli-service-work-items-keep-path-bytes`:
+  it breaks `provisioning_notes_which_worktree_the_units_are_for`,
+  and its cross-vendor review (`${HOME}/temp/agent/reviews/service-work-items-path-bytes-sol.txt`) names five more defects.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+  Issue 6005 is commented on or closed after it lands.
+- `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
+  its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
+  among them an interrupted upgrade that leaves every command reaching the old service,
+  and a launcher that clears its environment and so defeats both recursion guards.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+- `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
+  The agent `controls-witness-their-race-by-ordering` is on them.
+- `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
+  111 of 111 selected tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-1-sol.txt`) names three defects,
+  among them that a missing publish configuration fails a commit,
+  against the agent's report that commits were unaffected.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+- `fix/mpm-shadow-open-issues-batch`:
+  695 of 695 tests passed on top of main before the coordinator took one fix back.
+  That fix (`e1ff956920`) replaced `android sdk install` with `sdkmanager` on the claim of issue 2622 that the Android tools archive ships no `android` program,
+  but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
+  and the installed copy answers `android sdk install --help`.
+  Issue 2622 therefore does not hold for the locked version and gets a comment saying so.
+  The tests and Clippy are rerunning on the corrected branch.
+  Its cross-vendor review comes next,
+  and the issues it fixes are closed only after that.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
+  319 of 319 selected tests pass on top of main.
+  The first review of its last round was given too wide a range (246 commits),
+  so it does not count as a review of that round,
+  and a second one over the round's own commits is running as `copy-records-round-7-narrow`.
+  Lands if that one is clean.
+- `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  654 of 654 selected tests pass on top of main.
+  Its review `commit-checks-round-2` is running.
+- That too-wide review named two defects in code already on main,
+  and reading the code bears both out.
+  A read in `read_by_chunks` retries `EINTR` without a ceiling,
+  which is now the third item of `repo-read-findings-fixed-prompt.md`.
+  The test `a_running_renewal_renews_the_held_claims_until_it_is_dropped` compares against a snapshot taken before the drop,
+  which went to the inbox of `controls-witness-their-race-by-ordering`.
+- `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  start a run with `repo-read-findings-fixed-prompt.md`,
+  branch `fix/git-policy-cli-readers-match-git-on-extensions-and-ref-names`.
+- `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
+  among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
+  The agent `policy-and-candidate-findings-fixed` is on them.
+- `doc/planning/cli-git-hook-route-findings-on-main.md` names four defects,
+  among them a stopped push that kills a local remote's `post-receive` after the branch has landed and then reports failure.
+  The agent `hook-route-findings-fixed` is on them.
+- `package/pi-shared/subagent-driver` should resume a run a transient provider error ended:
+  three runs ended within minutes on a Cloudflare 520 or a request timeout,
+  and Pi's automatic retry is off in the owner's settings.
+  The agent `driver-resumes-after-provider-errors` is on it.
+- Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
+  Rerun those tests after merging main before judging a branch by them.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
@@ -5275,6 +5355,60 @@ so `git clean -fdx` deletes them and a plain `git checkout <branch>` can replace
 An alias reaches no guard,
 `git stash drop` in a clean linked worktree discards the repository's stash,
 and `git branch -D` is unguarded.
+
+No review covers the settings and dependent-version route either:
+the settings file the wrapper reads before anything else,
+the Git configuration snapshot,
+the rules files the configuration names,
+and the dependent bumps a commit is supposed to make.
+Its audit,
+with two findings ranked by what they risk losing,
+both reproduced,
+is `doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`
+(2026-11-09;
+main at `70b67c6ef2`).
+The ripple reads whichever `packages:` line comes first in the generated
+registry configuration,
+so a second list above the publish set leaves both `check` and `fix` silent
+about a stale dependent;
+and a wrapped commit never plans a bump at all,
+against the owner's decision of 2026-09-15,
+which `SPEC.md` now contradicts.
+
+The judgement half of the check route is audited too:
+which content each policy reads at which lifecycle point,
+how the engine decides what runs,
+and what a person is told.
+Its audit,
+with two findings,
+both reproduced,
+is `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md`
+(2026-11-09;
+main at `4fcd560cea`).
+The state changes,
+waits,
+locks and races of the same two folders are the commit-check audit's,
+so that page does not repeat them.
+`GIT_LITERAL_PATHSPECS=1`,
+or `git --literal-pathspecs commit`,
+turns the `:(top,literal)` pathspecs a commit's candidates are listed with
+into names that match nothing,
+so every content policy judges nothing for that commit:
+a secret that a commit without the variable refuses lands instead,
+a bad final newline is not corrected,
+and a root `CONTEXT.md` lands with no event at all because that policy has no
+post-commit trigger.
+The direct route got the same defect and its fix in `1899e041ef`;
+the commit route's two arms were not changed and have no control.
+Separately,
+`add-explicit` names four whole-tree pathspec spellings and lets five that Git
+resolves to the whole tree pass,
+`:/*`,
+`:/**`,
+`:(top)`,
+`**` and
+`:(glob)**`,
+while `:(top)/*` fails inside Git and is reported as `content-unavailable`.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

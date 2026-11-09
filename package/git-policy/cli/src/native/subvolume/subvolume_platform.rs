@@ -69,6 +69,18 @@ pub trait Platform {
     fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
         return std::fs::hard_link(existing, new);
     }
+    /// Whether the journal and index steps of this platform flush their writes to disk (`subvolume_file_write_steps`).
+    /// The real platform does.
+    /// A stand-in says no because the control that uses it simulates a kill in the
+    ///  process,
+    /// which loses no page cache,
+    /// so a flush proves nothing there and costs the disk the control shares
+    ///  (measured 2026-11-08:
+    /// the same control took 35.4 s and 32.2 s with the flushes and 2.1 s and 2.4 s
+    ///  without them).
+    fn flushes_to_disk(&self) -> bool {
+        return true;
+    }
     /// Which configuration files and system attributes file Git reads here.
     /// The default names no Git and no variables,
     /// so the
