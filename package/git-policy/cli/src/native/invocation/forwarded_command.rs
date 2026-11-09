@@ -451,8 +451,16 @@ fn resolve_command(
         };
         // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.
         if value.first() == Some(&b'!') {
-            let shell_command: Option<Vec<OsString>> =
-                shell_command_of(context, environment, value.as_slice(), shell_depth);
+            // Git appends the caller's own words to the alias value before it starts the shell (`git.c:401` to
+            //  `git.c:402`), so the command the shell runs carries them after the alias's own words; a value of `!git`
+            //  alone would otherwise read as no command at all.
+            let shell_command: Option<Vec<OsString>> = shell_command_of(
+                context,
+                environment,
+                value.as_slice(),
+                shell_depth,
+                &current[layout.prefix_len + 1..],
+            );
             return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command);
         }
         let Some(words) = split_alias_command(value.as_slice()) else {
@@ -516,9 +524,11 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
 }
 
 /// What:
-///  The argument vector of the one plain `git` command a `!` alias names,
+///  The argument vector of the one plain `git` command a `!` alias runs,
 ///  when the value names one.
-///  `&[(OsString, OsString)]` borrows the environment the nested reading asks about.
+///  `&[(OsString, OsString)]` borrows the environment the nested reading asks about;
+///  `&[OsString]` borrows the caller's own words,
+///       which Git hands the shell after the alias's.
 /// Why:
 ///   Git prepends its own executable directory to `PATH` before it runs the shell
 ///  (`exec-cmd.c:333` to
@@ -526,25 +536,36 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
 ///  so the `git` a shell alias names is the real Git and the wrapper never sees that command
 ///  run;
 ///  reading the value reaches the guard the decision this crate already knows.
+///  Git appends the caller's words to the value before the shell reads it,
+///  so the command that runs
+///  is the words of the value and then the caller's,
+///  and a reading that stopped at the value would guard a command nobody runs.
 ///  The reading is kept to one command with no global
 ///  option of its own:
 ///  a global such as `-C` would move the command away from the repository the caller described.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function shellCommandOf({ context, environment, value, shellDepth }): string[] | undefined;
+/// function shellCommandOf({ context, environment, value, shellDepth, callerArguments }): string[] | undefined;
 /// ```
 fn shell_command_of(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     value: &[u8],
     shell_depth: usize,
+    caller_arguments: &[OsString],
 ) -> Option<Vec<OsString>> {
     // One shell is read: a shell alias named inside another is left unread, so a chain of them cannot repeat.
     if shell_depth >= 1 {
         return None;
     }
-    let words: Vec<OsString> = os_words(shell_git_words(value)?);
+    // The shell runs the alias's own words first and the caller's after them (`git.c:401` to `git.c:402`), so the
+    //  nested Git parses both: a value of `!git` alone has no word of its own and the caller's words start its command.
+    let mut words: Vec<OsString> = os_words(shell_git_words(value)?);
+    words.extend(caller_arguments.iter().cloned());
+    if words.is_empty() {
+        return None;
+    }
     let nested: ResolvedCommand = resolve_command(context, environment, words.as_slice(), shell_depth + 1);
     // Only a built-in this crate already read is handed on, and only when no global option stands before it.
     if !nested.is_builtin() || nested.subcommand_index != 0 {
@@ -555,7 +576,9 @@ fn shell_command_of(
 
 /// What:
 ///  The words after `!git` in an alias value,
-///  when the value is exactly one plain `git` command.
+///  when the value is exactly one plain `git` command;
+///  no word at all when the value names `git` and nothing else,
+///  whose command the caller's own words then make.
 /// Why:
 ///   The shell splits and expands its command line,
 ///  so only a value whose bytes the shell passes through
@@ -590,9 +613,6 @@ fn shell_git_words(value: &[u8]) -> Option<Vec<Vec<u8>>> {
     }
     if !current.is_empty() {
         words.push(current);
-    }
-    if words.is_empty() {
-        return None;
     }
     return Some(words);
 }

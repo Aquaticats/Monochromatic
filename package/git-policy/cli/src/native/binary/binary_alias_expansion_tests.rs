@@ -149,6 +149,36 @@ fn a_shell_alias_that_names_one_git_command_is_refused_like_the_command() {
 }
 
 /// What:
+///  The caller's own arguments are what the shell of a `!git` alias runs,
+///  so an alias that names only `git` still reaches the discard guard.
+/// Why:
+///  Git appends the caller's words to the alias value before it starts the shell
+///  (`git.c:401` to `git.c:402`),
+///  so `git -c 'alias.wipe=!git' wipe reset --hard` runs a hard reset;
+///  a reading that stops at the alias value sees a shell command with no words and
+///  cannot guard the command the caller asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // real Git: tracked.txt becomes BASE; the wrapper: refused, tracked.txt stays USER DATA
+/// ```
+#[test]
+fn a_shell_alias_naming_only_git_runs_the_callers_arguments_under_the_guard() {
+    let fixture: Fixture = fixture("alias-expansion-shell-arguments");
+    let control: PathBuf = repository_with_unstaged_work(&fixture, "control");
+    let refused: PathBuf = repository_with_unstaged_work(&fixture, "refused");
+    let arguments: [&str; 5] = ["-c", "alias.wipe=!git", "wipe", "reset", "--hard"];
+    // The positive control proves the invocation discards the work when the alias value alone is not read.
+    let direct_run: Observed = observe(direct(&fixture).current_dir(control.as_path()).args(arguments), b"");
+    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
+    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let observed: Observed = run_wrapped(&fixture, refused.as_path(), arguments.as_slice());
+    assert_ne!(observed.code, Some(0), "the wrapper ran the shell alias's reset: {}", stderr_of(&observed));
+    assert_eq!(tracked(refused.as_path()), USER_DATA, "the shell alias discarded the work");
+    remove(&fixture);
+}
+
+/// What:
 ///  The same refusal from a clean linked worktree,
 ///  where the guard of uncommitted work has nothing to reject and the copy of a
 ///       main checkout is not involved.
