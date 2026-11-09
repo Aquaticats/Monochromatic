@@ -23,7 +23,7 @@ use crate::candidate_error::{CandidateError, CandidateFailure};
 /// Import the validated object name a tree source is named by.
 use crate::candidate_object::ObjectId;
 /// Import the captured-query runner and the byte helpers.
-use crate::git_metadata::{MetadataOutput, path_from_git_bytes, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, strip_git_line};
 /// What:
 ///  `HashMap<K, V>` is a key-to-value table and `HashSet<T>` a collection of distinct values.
 /// Why:
@@ -245,6 +245,13 @@ impl CandidateAttributes {
         ) {
             Ok(captured) => captured,
             Err(error) => {
+                // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
+                if let Some(stopped) = read_stopped_text(operation.as_str(), &error) {
+                    return Err(attribute_failure(
+                        CandidateFailure::GitNotStarted,
+                        stopped.as_str(),
+                    ));
+                }
                 return Err(attribute_failure(
                     CandidateFailure::GitNotStarted,
                     format!("git {operation} could not be started: {error}.").as_str(),

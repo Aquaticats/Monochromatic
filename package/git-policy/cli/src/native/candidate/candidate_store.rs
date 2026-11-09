@@ -32,7 +32,7 @@ use crate::candidate_stage::{StageRecord, parse_stage_records};
 /// Import the version types and builder.
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
 /// Import the captured-query runner and its line helper.
-use crate::git_metadata::{MetadataOutput, run_metadata_git, strip_git_line};
+use crate::git_metadata::{MetadataOutput, read_stopped_text, run_metadata_git, strip_git_line};
 /// `OsString` is owned operating-system text of raw OS bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths of raw OS bytes.
@@ -260,6 +260,13 @@ impl CandidateStore {
         ) {
             Ok(captured) => captured,
             Err(error) => {
+                // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
+                if let Some(stopped) = read_stopped_text(operation, &error) {
+                    return Err(CandidateError::new(
+                        CandidateFailure::GitNotStarted,
+                        stopped.as_str(),
+                    ));
+                }
                 return Err(listing_failure(
                     CandidateFailure::GitNotStarted,
                     operation,
