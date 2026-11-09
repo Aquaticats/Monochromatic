@@ -102,7 +102,7 @@ pub(crate) fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str
     return Ok(match settle_failed_merge(&place, record.as_path(), &intent, &mut std::io::stderr()) {
         Ok(MergeRecoveryAction::Completed) => Ok(()),
         Ok(_) => Err(refusal_of(&moved.stderr)),
-        Err(error) => Err(format!("{} ({})", refusal_of(&moved.stderr), error.0)),
+        Err(error) => Err(format!("{} ({})", refusal_of(&moved.stderr), error.error.0)),
     });
 }
 

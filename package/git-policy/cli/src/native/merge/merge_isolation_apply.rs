@@ -314,7 +314,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
                 moved.code.unwrap_or(2),
                 format!("{}{}", String::from_utf8_lossy(&moved.stderr), not_applied_finding(reference.as_str(), detail.as_str())),
             ),
-            Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.0.as_str(), None)),
+            Err(error) => refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None)),
         });
     }
     reach_phase(Phase::MergeApplied)?;

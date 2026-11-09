@@ -411,6 +411,29 @@ pub fn remove_record(record: &Path) -> Result<(), RecoveryError> {
     };
 }
 
+/// What:
+///  Why a merge stopped,
+///  and whether anything of it is already in the index or the worktree.
+/// Why:
+///   A merge that was saved on a side ref with nothing installed may be left for a later command,
+/// while one whose index
+///  has been written or whose file has been moved aside must stop the command:
+/// a read-only command that went on
+///  would read a half-applied merge as another session's work
+///  (a cross-vendor review of the third round, finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MergeRefusal = { error: RecoveryError; began: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MergeRefusal {
+    /// What stopped the merge.
+    pub error: RecoveryError,
+    /// Whether the index or the worktree already holds part of the merge.
+    pub began: bool,
+}
+
 /// What came of writing the index and the files of the merge.
 ///
 /// In TS you'd write (pseudocode):
@@ -533,7 +556,7 @@ pub fn install_entries(
     changes: &[Change],
     judgements: &[Judged],
     out: &mut dyn Write,
-) -> Result<Installed, RecoveryError> {
+) -> Result<Installed, MergeRefusal> {
     let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
     if !may_install(waited) {
         return Ok(Installed::IndexHeld);
@@ -577,7 +600,7 @@ pub fn install_entries(
                 if !left.is_empty() {
                     refusal.push_str(format!(" Files that could not be put back: {}", left.join(", ")).as_str());
                 }
-                return Err(RecoveryError(refusal));
+                return Err(MergeRefusal { error: RecoveryError(refusal), began: !left.is_empty() });
             }
         }
     }
@@ -585,7 +608,7 @@ pub fn install_entries(
         let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
         let mut refusal: String = changed_after_judging(root, changed.as_slice()).0;
         refusal.push_str(left.join(", ").as_str());
-        return Err(RecoveryError(refusal));
+        return Err(MergeRefusal { error: RecoveryError(refusal), began: !left.is_empty() });
     }
     let mut index_input: Vec<u8> = Vec::new();
     for change in changes {
@@ -601,9 +624,11 @@ pub fn install_entries(
     update.input = Some(index_input);
     if let Err(error) = run_git_checked(&place.git, &update) {
         // The files are aside and the index is untouched: put them back rather than leave half a merge.
-        let _restored = put_back(&everything_taken(&taken_writes, &taken_deletions));
-        return Err(RecoveryError(error.to_string()));
+        let left: Vec<String> = put_back(&everything_taken(&taken_writes, &taken_deletions));
+        return Err(MergeRefusal { error: RecoveryError(error.to_string()), began: !left.is_empty() });
     }
+    // From here the index holds the merge's entries, so a command that stops must not go on reading the checkout.
+    let began: bool = true;
     // A deleted path's file was taken aside, so its directory can be reached even when the merge leaves it empty; the
     //  directories go once every aside name in them is gone,
     // and they go before the checkout,
@@ -616,7 +641,9 @@ pub fn install_entries(
         }
         deletions.push(worktree_path(root, change.path.as_slice()));
     }
-    finish_asides(&taken_deletions, out)?;
+    if let Err(error) = finish_asides(&taken_deletions, out) {
+        return Err(MergeRefusal { error, began });
+    }
     for location in &deletions {
         remove_empty_parents(root, location.as_path());
     }
@@ -630,14 +657,16 @@ pub fn install_entries(
             Err(error) => {
                 let restored: Result<(), RecoveryError> = restore_what_git_did_not_write(&taken_writes, out);
                 return Err(match restored {
-                    Ok(()) => RecoveryError(error.to_string()),
-                    Err(left) => RecoveryError(format!("{error} ({})", left.0)),
+                    Ok(()) => MergeRefusal { error: RecoveryError(error.to_string()), began },
+                    Err(left) => MergeRefusal { error: RecoveryError(format!("{error} ({})", left.0)), began },
                 });
             }
         };
         // The checkout carries no `--quiet`; what Git said of it is kept in the journal.
         record_words(&["checkout-index", "-z", "--stdin"], &checked_out);
     }
-    finish_asides(&taken_writes, out)?;
+    if let Err(error) = finish_asides(&taken_writes, out) {
+        return Err(MergeRefusal { error, began });
+    }
     return Ok(Installed::Written);
 }

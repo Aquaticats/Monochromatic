@@ -35,10 +35,11 @@ use crate::merge_isolation_changes::{Change, parse_raw_changes};
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_steps::{
-    Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, index_entries, index_holds_the_merge, install_entries,
-    judge_changes, merge_changes, put_back_stranded_takes, remove_record, standing_of_index,
+    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_entries, index_holds_the_merge,
+    install_entries, judge_changes, merge_changes, put_back_stranded_takes, remove_record, standing_of_index,
 };
-/// The fail-closed recovery failure.
+/// The fail-closed recovery failure,
+/// and the refusal that says whether the merge began.
 use crate::recovery_error::RecoveryError;
 /// Running real Git.
 use crate::transaction_git::{GitRequest, run_git_checked};
@@ -68,18 +69,18 @@ pub(crate) fn settle_moved_branch(
     intent: &MergeIntent,
     moved_to: &str,
     out: &mut dyn Write,
-) -> Result<MergeRecoveryAction, RecoveryError> {
+) -> Result<MergeRecoveryAction, MergeRefusal> {
     let root: &Path = Path::new(intent.repository_root.as_str());
-    let changes: Vec<Change> = merge_changes(place, root, intent)?;
+    let changes: Vec<Change> = merge_changes(place, root, intent).map_err(untouched)?;
     put_back_stranded_takes(root, changes.as_slice(), out);
     // The same judgement the straight completion makes,
     // so a directory the branch's own files explain is read the same way here.
-    let worktree: Vec<Judged> = judge_changes(place, root, changes.as_slice())?;
+    let worktree: Vec<Judged> = judge_changes(place, root, changes.as_slice()).map_err(untouched)?;
     let worktree_began: bool = worktree.iter().any(|judged| { return judged.standing == Standing::New; });
     // The index is read first and the worktree standings only decide when it holds nothing of the merge, as `||` ran.
-    let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())? || worktree_began;
+    let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice()).map_err(untouched)? || worktree_began;
     if !began {
-        remove_record(record)?;
+        remove_record(record).map_err(untouched)?;
         return Ok(MergeRecoveryAction::BranchMoved);
     }
     // What each path ends as: the moved head's entry, which is the merge's own entry where the moved head left the path alone.
@@ -89,9 +90,9 @@ pub(crate) fn settle_moved_branch(
     );
     let output = match run_git_checked(&place.git, &request) {
         Ok(done) => done,
-        Err(error) => return Err(RecoveryError(error.to_string())),
+        Err(error) => return Err(untouched(RecoveryError(error.to_string()))),
     };
-    let beyond: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
+    let beyond: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError).map_err(untouched)?;
     let mut ends: Vec<Change> = Vec::with_capacity(changes.len());
     for change in &changes {
         let mut moved_entry: Option<&Change> = None;
@@ -115,7 +116,7 @@ pub(crate) fn settle_moved_branch(
     }
     // A staged version of a path the merge changes has no other name, so it is never written over here either: the settling
     //  stops and names the paths, and the staged content stays in the index.
-    let staged_index: Vec<Change> = index_entries(place, root, intent.old_oid.as_str())?;
+    let staged_index: Vec<Change> = index_entries(place, root, intent.old_oid.as_str()).map_err(untouched)?;
     let mut staged: Vec<String> = Vec::new();
     for end in &ends {
         let entry: Option<&Change> = staged_index.iter().find(|found| { return found.path == end.path; });
@@ -124,14 +125,14 @@ pub(crate) fn settle_moved_branch(
         }
     }
     if !staged.is_empty() {
-        return Err(RecoveryError(format!(
+        return Err(untouched(RecoveryError(format!(
             "A merge in {} lost the branch to a newer commit, and the index holds staged content for these paths that the \
              settling would replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the \
              index. Commit or unstage it, then run any git command again.",
             root.display(),
             staged.join(", "),
             record.display()
-        )));
+        ))));
     }
     let mut foreign: Vec<String> = Vec::new();
     let mut held: Vec<Judged> = Vec::with_capacity(ends.len());
@@ -156,18 +157,33 @@ pub(crate) fn settle_moved_branch(
         held.push(Judged { standing: settled, identity: judged.identity, content: judged.content.clone() });
     }
     if !foreign.is_empty() {
-        return Err(RecoveryError(format!(
+        return Err(untouched(RecoveryError(format!(
             "A merge in {} lost the branch to a newer commit while Git updated these files, and they now hold neither \
              their old content, the merge's nor the newer commit's: {}. Nothing was changed and the record {} was kept. \
              Save your edits to them elsewhere, restore them with `git restore -- <path>`, then run any git command again.",
             root.display(),
             foreign.join(", "),
             record.display()
-        )));
+        ))));
     }
     if install_entries(place, root, ends.as_slice(), held.as_slice(), out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    remove_record(record)?;
+    remove_record(record).map_err(|error| MergeRefusal { error, began: true })?;
     return Ok(MergeRecoveryAction::BranchMoved);
+}
+
+/// What:
+///  A refusal about a merge that wrote nothing,
+/// so a command that meets it may go on when the merge was saved.
+/// Why:
+///  Every refusal before the index write leaves the checkout as it was,
+/// and the flag says so once for all of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const untouched = (error: RecoveryError): MergeRefusal => ({ error, began: false });
+/// ```
+fn untouched(error: RecoveryError) -> MergeRefusal {
+    return MergeRefusal { error, began: false };
 }

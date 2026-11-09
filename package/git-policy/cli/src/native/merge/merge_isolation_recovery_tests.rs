@@ -754,8 +754,8 @@ fn a_file_saved_after_the_judgement_is_not_replaced() {
     let mut said: Vec<u8> = Vec::new();
     let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
         .expect_err("a file that changed after the judgement is not the merge's to replace");
-    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
-    assert!(refused.0.contains("changed after this command judged them"), "the reason is stated: {}", refused.0);
+    assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
+    assert!(refused.error.0.contains("changed after this command judged them"), "the reason is stated: {}", refused.error.0);
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the edit"), b"an edit saved after the judgement\n", "the edit is kept");
     let after = snapshot(&world);
     assert_eq!(after.0, before.0, "the index is exactly as it was");
@@ -788,7 +788,7 @@ fn a_file_created_after_the_judgement_is_not_replaced() {
     let mut said: Vec<u8> = Vec::new();
     let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
         .expect_err("a file that appeared where the merge adds one is not the merge's to replace");
-    assert!(refused.0.contains("dir/new.txt"), "the path is named: {}", refused.0);
+    assert!(refused.error.0.contains("dir/new.txt"), "the path is named: {}", refused.error.0);
     assert_eq!(std::fs::read(world.repo.join("dir/new.txt")).expect("the person's file"), b"a file of my own\n", "the file is put back");
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing was left at a private name");
     remove(world.parent.as_path());
@@ -1003,7 +1003,7 @@ fn a_take_that_fails_puts_the_files_it_already_took_back() {
     let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
         .expect_err("the take of a path in a read-only directory fails");
     let _writable = std::fs::set_permissions(world.repo.join("sealed"), std::fs::Permissions::from_mode(0o755));
-    assert!(!failed.0.is_empty(), "the failure is named");
+    assert!(!failed.error.0.is_empty(), "the failure is named");
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file"), old, "the file taken before the failure is put back");
     assert_eq!(std::fs::read(world.repo.join("sealed/zeta.txt")).expect("the file"), b"old zeta\n", "the file that failed is where it was");
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
@@ -1040,7 +1040,7 @@ fn a_write_that_fails_puts_the_files_it_already_took_back() {
     let mut said: Vec<u8> = Vec::new();
     let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
         .expect_err("an object the repository does not hold stops the write");
-    assert!(!failed.0.is_empty(), "the failure is named");
+    assert!(!failed.error.0.is_empty(), "the failure is named");
     // The path whose write Git refused holds its old content again; the files Git did write hold the merge's.
     assert_eq!(std::fs::read(world.repo.join("zeta.txt")).expect("the file Git did not write"), b"old zeta\n", "the file is put back where it was");
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file Git wrote"), b"f.txt feature\n", "what Git wrote stays written");
@@ -1074,7 +1074,7 @@ fn a_file_whose_mode_changed_after_the_judgement_is_not_replaced() {
     let mut said: Vec<u8> = Vec::new();
     let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
         .expect_err("a path whose mode changed after the judgement is not the merge's to replace");
-    assert!(refused.0.contains("f.txt"), "{}", refused.0);
+    assert!(refused.error.0.contains("f.txt"), "{}", refused.error.0);
     let mode: u32 = std::fs::metadata(location.as_path()).expect("the file").permissions().mode() & 0o777;
     assert_eq!(mode, 0o755, "the person's executable bit is kept");
     remove(world.parent.as_path());
@@ -1398,5 +1398,39 @@ fn a_directory_that_explains_itself_does_not_stop_the_moved_branch_settling() {
     assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved);
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
     assert!(world.repo.join("dir/child.txt").is_file(), "the branch's directory is still the checkout's");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A saved merge whose install stops after the index was written is reported as begun,
+///  and the command stops.
+/// Why:
+///  The catch for a saved merge accepted every error and said nothing of the merge was in the checkout,
+/// although the
+///  index had been written and a file had been moved aside
+/// (a cross-vendor review of the third round, finding 5).
+/// A partly installed merge read by a command as another session's work is exactly what the stop exists for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = directoryToFileWorld(); deferredRecord(); const held = holdOpen('dir/child.txt'); await expect(recover(...)).rejects.toMatch(/partly installed/); release(held);
+/// ```
+#[test]
+fn a_saved_merge_that_is_partly_installed_stops_the_command() {
+    let world: World = directory_to_file_world("merge-recovery-partly-installed");
+    let _record: PathBuf = deferred_record_of(&world, "24242424-0000-4000-8000-000000000024", "refs/cli-git/kept/24");
+    // A process that can be read holds the file the merge deletes open, so its private name is kept and the directory the
+    //  merge replaces cannot be emptied: the checkout then fails after the index was written.
+    let kept_open: std::fs::File = std::fs::File::open(world.repo.join("dir/child.txt")).expect("the file to keep open");
+    let mut holder: std::process::Command = std::process::Command::new("sleep");
+    holder.arg("120").stdin(std::process::Stdio::from(kept_open));
+    let mut writer: std::process::Child = holder.spawn().expect("a process holding the file open");
+    drop(holder);
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a partly installed merge stops the command");
+    writer.kill().expect("the process ends");
+    writer.wait().expect("reaped");
+    assert!(refused.0.contains("partly installed"), "it says the merge is partly installed: {}", refused.0);
+    assert!(!world.repo.join("dir/child.txt").exists(), "the file was moved aside before the failure");
     remove(world.parent.as_path());
 }
