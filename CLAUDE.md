@@ -58,6 +58,7 @@ it may never return.
 If you ask GPT to find issues,
 it will find issues.
 Be sure to dismiss them via your own judgement at some point.
+Sometimes they just nitpick.
 
 Agent-authored pages and documents stay on this machine:
 open local files in the user's browser;
