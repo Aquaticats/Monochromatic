@@ -70,6 +70,26 @@ fn write_then_check_through_the_auto_started_server_and_the_server_exits_when_id
 }
 
 #[test]
+fn a_malformed_idle_seconds_value_is_a_usage_error_naming_the_variable_and_the_value() {
+    let harness = Harness::new();
+    harness.write("file-enforcer.config.jsonc", CONFIG);
+    harness.write("AGENTS.md", "body\n");
+    let output = harness
+        .command(&["check"])
+        .env("FILE_ENFORCER_IDLE_SECONDS", "12s")
+        .output()
+        .expect("the binary runs");
+    let lines = support::parse_lines(&String::from_utf8_lossy(&output.stdout));
+    assert_eq!(output.status.code(), Some(2), "{lines:?}");
+    assert_eq!(lines.len(), 1, "one line: {lines:?}");
+    assert_eq!(lines[0]["type"].as_str(), Some("error"), "{lines:?}");
+    let message = lines[0]["message"].as_str().unwrap_or_default();
+    assert!(message.contains("FILE_ENFORCER_IDLE_SECONDS"), "the message names the variable: {message}");
+    assert!(message.contains("12s"), "the message names the rejected value: {message}");
+    assert!(harness.server_pids().is_empty(), "a rejected value starts no server");
+}
+
+#[test]
 fn several_clients_at_once_share_one_server_and_all_succeed() {
     let harness = Harness::new();
     harness.write("file-enforcer.config.jsonc", CONFIG);

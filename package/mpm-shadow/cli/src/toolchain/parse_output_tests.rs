@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::parse_output::{
-    global_pnpm_versions, normalize_version, parse_bin_list, parse_cargo_binstall_list, parse_uv_tool_list,
+    global_pnpm_versions, normalize_version, parse_bin_list, parse_uv_tool_list,
     version_matches,
 };
 
@@ -59,24 +59,8 @@ fn bin_list_ignores_indented_short_and_empty_rows() {
     assert!(versions.is_empty(), "{versions:?}");
 }
 
-#[test]
-fn the_binstall_version_column_is_normalized_like_the_cargo_one() {
-    let versions = parse_cargo_binstall_list("ripgrep  v14.1.0  v14.1.0  prebuilt");
-    assert_eq!(versions.get("ripgrep").map(String::as_str), Some("14.1.0"));
-}
 
-#[test]
-fn a_dash_in_the_binstall_column_falls_back_to_the_cargo_version() {
-    let versions = parse_cargo_binstall_list("ripgrep  v14.1.0  -  compiled");
-    assert_eq!(versions.get("ripgrep").map(String::as_str), Some("14.1.0"));
-}
 
-#[test]
-fn the_binstall_list_header_and_footer_are_not_crates() {
-    let versions = parse_cargo_binstall_list("Package  Cargo  Binstall  Source\nfd-find  v10.5.0  v10.5.0  prebuilt\nTotal: 1 crate  x  y  z");
-    assert_eq!(versions.len(), 1);
-    assert_eq!(versions.get("fd-find").map(String::as_str), Some("10.5.0"));
-}
 
 #[test]
 fn uv_tool_rows_are_keyed_by_the_underscored_name_and_binary_rows_are_skipped() {

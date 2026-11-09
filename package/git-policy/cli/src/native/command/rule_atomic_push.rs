@@ -7,6 +7,9 @@
 //!  which prevents partially
 //!      applied pushes.
 //!
+//! `atomic-push.unit.test.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/rule/atomic-push.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // atomicPush(['push', 'origin', 'main']) => ['push', '--atomic', 'origin', 'main']
@@ -76,6 +79,9 @@ pub fn atomic_push(
 }
 
 /// Every `atomic-push.unit.test.ts` case and the spellings the incumbent missed.
+///
+/// `atomic-push.unit.test.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+///  and `git show 642b6d72cb^:package/git-policy/cli/src/rule/atomic-push.unit.test.ts` reads it there.
 #[cfg(test)]
 #[path = "rule_atomic_push_tests.rs"]
 mod tests;
