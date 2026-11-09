@@ -293,13 +293,14 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
     let drained = crate::lazy_runtime::run_on_runtime(async { return crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(|| ()).await; });
     assert!(matches!(drained, Ok(Ok(()))), "the job that starts the pool's first thread ran: {drained:?}");
     let ran_afterwards: usize = ran.load(Ordering::SeqCst);
+    let promised_unchanged: bool = said.contains("given up on before it could start");
     assert!(
-        !said.contains("could not be started") || ran_afterwards == 0,
-        "the report said the work of each index could not be started, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
+        !promised_unchanged || ran_afterwards == 0,
+        "the report said the work of each index was given up on before it could start, and {ran_afterwards} of them ran afterwards, so the indexes are not as they were: {said}"
     );
     assert!(
-        said.contains("could not be started") || said.contains("not known"),
-        "the report must say either that no rewrite was started or that its result is not known: {said}"
+        promised_unchanged || said.contains("not known"),
+        "the report must say either that no rewrite could start or that its result is not known: {said}"
     );
     remove(parent.as_path());
 }

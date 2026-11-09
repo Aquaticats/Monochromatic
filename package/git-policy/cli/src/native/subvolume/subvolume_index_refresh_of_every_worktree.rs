@@ -27,6 +27,7 @@ use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
 use crate::parallel_runner::{Event, OrderedEvents};
 use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
+use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_index_files::{IndexLock, RefreshOptions, linked_worktrees_inside, refresh_index_file_with, repository_hash_length};
 use std::future::Future;
@@ -194,19 +195,30 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
             let index: PathBuf = target.index.clone();
             let tree: PathBuf = target.tree.clone();
             let references: Vec<PathBuf> = target.references.clone();
+            // The claim decides, once, between this job doing the work and the report giving up on it: the pool
+            //  queues a job before it asks for a thread, so a job it could not start may still run later.
+            let claim: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
+            let jobs_claim: Arc<TheClaimOnAJobsWork> = Arc::clone(&claim);
             let rewritten = run_blocking_job_within_the_budget(move || {
-                return (rewrite)(index.as_path(), tree.as_path(), &RefreshOptions { lock, references: references.as_slice(), hash_length });
+                // The claim comes first, before anything reads or writes the index.
+                if !jobs_claim.the_job_takes_it() {
+                    return None;
+                }
+                return Some((rewrite)(index.as_path(), tree.as_path(), &RefreshOptions { lock, references: references.as_slice(), hash_length }));
             })
             .await;
             return match rewritten {
-                Ok(line) => line,
-                // The kinds of end promise different things: one wrote nothing, and one may have written the index.
+                Ok(Some(line)) => line,
+                // The report had already given up on this job, so the work was not done and the index is as it was.
+                Ok(None) => String::from("not rewritten, because the report gave up on this work before it ran"),
                 Err(refused) => match refused {
-                    BlockingJobError::NoThreadToStart => {
+                    BlockingJobError::NoThreadToStart if claim.the_reporter_takes_it() => {
                         self.gave_no_result.never_started.fetch_add(1, Ordering::SeqCst);
                         format!("not rewritten ({refused})")
                     }
-                    BlockingJobError::Panicked | BlockingJobError::Cancelled => {
+                    // The kinds of end that leave the index unknown: the job started after the report gave up on it,
+                    //  it panicked, or it was cut off.
+                    BlockingJobError::NoThreadToStart | BlockingJobError::Panicked | BlockingJobError::Cancelled => {
                         self.gave_no_result.ended_without_a_result.fetch_add(1, Ordering::SeqCst);
                         format!("ended without a known result, so this index may have been written or may be as it was ({refused})")
                     }
@@ -333,7 +345,8 @@ pub async fn refresh_all_indexes_awaiting(request: &AllIndexes, say: &mut dyn Li
     }
     let mut why: Vec<String> = Vec::new();
     if never_started > 0 {
-        why.push(format!("{never_started} of {count} index file(s) were not rewritten, because the work of each one could not be started, so those stay as they were"));
+        // Only a job whose work the report claimed before it could start is promised unchanged.
+        why.push(format!("{never_started} of {count} index file(s) were not rewritten, because the work of each one was given up on before it could start, so those stay as they were"));
     }
     if ended_without_a_result > 0 {
         why.push(format!("{ended_without_a_result} of {count} index file(s) ended without a known result, so whether those were rewritten is not known; run the command again to rewrite them"));

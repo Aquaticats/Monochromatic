@@ -92,7 +92,11 @@ pub struct OrderedRunOfOwned<'run, T, R> {
 #[derive(Debug)]
 pub enum OrderedRunError {
     /// The system refused a thread for a job,
-    /// so the items that job had not reached were not run.
+    /// so that job's own item had not run when the run answered,
+    ///  and the items after it in its lane were not run.
+    /// The pool queues a job before it asks for a thread,
+    /// so the item it held may still run later,
+    ///  and nothing of this error says what that item then did.
     NoThreadToStart,
     /// A job panicked,
     /// so the items after it in its lane were not run.
@@ -109,8 +113,10 @@ impl std::fmt::Display for OrderedRunError {
         return match self {
             OrderedRunError::NoThreadToStart => write!(
                 formatter,
-                "the system refused a thread for a step of this run, so the items it had not reached were not run. Hint: check the \
-                 process limit (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
+                "the system refused a thread for a step of this run, so the items after it in its lane were not run, and the \
+                 item it held had not run when this was reported; the pool had already queued that step, so it may still run \
+                 later. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, free some, and run the \
+                 command again"
             ),
             OrderedRunError::Panicked => write!(formatter, "a step of this run panicked, so the items after it in its lane were not run"),
             OrderedRunError::Cancelled => write!(formatter, "a step of this run was cancelled because the runtime was ending"),
