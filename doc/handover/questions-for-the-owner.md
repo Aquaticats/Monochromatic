@@ -1616,6 +1616,11 @@ nothing here needs an answer.
   in the code a person's conflict resolution depends on.
   Both ways are recorded in `doc/planning/git-policy-cli-full-tokio.md`.
   Say "undo" to have awaited twins instead.
+  Carried out on the branch `refactor/git-policy-cli-merge-second-pass-awaited`
+  at `403254deeb`;
+  the awaited push chain stops at the branch move,
+  because the recovery of an interrupted merge still reads Git synchronously,
+  as that document's step record measures.
 - 2026-11-09T16:22:51-05:00,
   all 22 crates that declare a build profile are now covered by `file-enforcer` presets,
   with a new rule for the shape the shadow crates share (`cargo-profile-shadow`),
