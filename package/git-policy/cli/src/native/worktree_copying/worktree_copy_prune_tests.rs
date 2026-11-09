@@ -124,12 +124,44 @@ fn record_names_need_their_parents() {
     }
 }
 
-/// Without a rule nothing is left out by name.
+/// Without a rule nothing is left out by name,
+/// except another command's stage container.
 #[test]
 fn no_rule_leaves_out_nothing() {
     assert!(!Prune::Never.skips_path("node_modules/.pnpm-store"));
     assert!(!Prune::Never.skips_path("package/x/target/debug/incremental"));
     assert!(!Prune::Never.skips_checkout(&[String::from(".git")]));
+}
+
+/// What:
+///  A stage container belongs to the one add or copy that is filling it,
+/// so no rule carries it into another
+///  worktree.
+/// Why:
+///   A container is an ordinary directory holding the other worktree's whole payload (its ignored state,
+/// credentials
+///  included) and its destination lies beside the one the snapshot is made for,
+/// so a snapshot of the main
+///  checkout carries it whole and nothing names it afterwards.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const prune of [SKIPPING, COPYING, Prune.Never]) assert(prune.skipsPath('.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543/payload/node_modules/pkg/index.js'))
+/// ```
+#[test]
+fn a_stage_container_of_another_command_is_never_carried() {
+    let container: &str = ".cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543";
+    for prune in [SKIPPING, COPYING, Prune::Never] {
+        for path in [
+            container.to_string(),
+            format!(".claude/worktrees/{container}"),
+            format!(".claude/worktrees/{container}/payload/node_modules/pkg/index.js"),
+        ] {
+            assert!(prune.skips_path(path.as_str()), "{path} is another command's stage container");
+        }
+    }
+    assert!(!SKIPPING.skips_path("package/x/node_modules"), "a dependency tree of the source is not a stage");
+    assert!(!SKIPPING.skips_path("package/x/cli-git-worktree-copy-notes.md"), "a name that merely holds the prefix is not a stage");
 }
 
 /// A directory holding `.git`,

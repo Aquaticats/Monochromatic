@@ -17,7 +17,8 @@ use crate::service_provision::ProvisionHost;
 use crate::service_route::Route;
 use crate::service_work::{Verdict, WorkHandlers, drain, work_directory};
 use crate::work_item::{WorkItem, WorkKind, enqueue};
-use crate::test_support::{fixture, git, git_context, remove};
+use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::work_item::{DONE, state_directory};
 use crate::service_messages::UPDATING_NOTICE;
 use crate::service_protocol::{ClientMessage, PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_client, encode_service};
@@ -160,6 +161,64 @@ fn btrfs_a_linked_source_sets_nothing_aside() {
     let before: usize = std::fs::read_dir(stage.join("node_modules")).expect("listing").count();
     assert_eq!(prune_snapshot(stage.as_path(), &source).expect("pruned").count, 0);
     assert_eq!(std::fs::read_dir(stage.join("node_modules")).expect("listing").count(), before);
+    remove(root.as_path());
+}
+
+/// What:
+///  A stage container of another command is set aside by name,
+/// wherever it sits below the snapshot,
+/// its whole payload with it.
+/// Why:
+///   A container is an ordinary directory holding the ignored state of another worktree
+/// (credentials included),
+/// and its
+///  destination lies below the same folder as this add's,
+/// so a snapshot carries it whole and nothing names it
+///  afterwards:
+/// a `git add --all` in the new worktree would commit it.
+///   The walk needs no btrfs to decide what it leaves out,
+/// so the control builds the snapshot's shape in a disposable directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { count } = await pruneSnapshot(stage, source)
+/// expect(count).toBe(1)
+/// expect(existsSync(join(stage, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543'))).toBe(false)
+/// ```
+#[test]
+fn a_stage_container_below_the_snapshot_is_set_aside() {
+    let root: PathBuf = fixture("trash-stage-container");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("kept.txt"), b"kept\n").expect("a tracked file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=kept"]);
+    let stage: PathBuf = root.join("stage");
+    let container: PathBuf = stage.join(".claude/worktrees").join(format!("{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543"));
+    std::fs::create_dir_all(container.join("payload/node_modules/pkg")).expect("the other command's stage");
+    std::fs::write(container.join("payload/node_modules/pkg/index.js"), b"another worktree's dependency\n").expect("the other command's payload");
+    std::fs::write(stage.join("kept.txt"), b"kept\n").expect("the tracked file in the snapshot");
+    let source: SnapshotSource = SnapshotSource {
+        root: repo.clone(),
+        git_dir: repo.join(".git"),
+        common_dir: repo.join(".git"),
+        clean: crate::worktree_clean::CleanSource {
+            head_commit: String::new(),
+            head_tree: Vec::new(),
+            tracked: 0,
+            index_seconds: 0,
+            hash_length: 20,
+            attribute_blobs: Vec::new(),
+            index_bytes: std::fs::read(repo.join(".git/index")).expect("the index"),
+        },
+        nested: Vec::new(),
+        config: crate::config_snapshot::read_config_snapshot(&git_context(), repo.as_path()).expect("configuration"),
+        trash_ignored: false,
+        dirty: None,
+    };
+    let pruned: Pruned = prune_snapshot(stage.as_path(), &source).expect("the leave-out runs");
+    assert_eq!(pruned.count, 1, "the container is the one directory set aside");
+    assert!(!container.exists(), "the other command's stage container is not carried");
+    assert!(stage.join("kept.txt").exists(), "the tracked file stays");
     remove(root.as_path());
 }
 
