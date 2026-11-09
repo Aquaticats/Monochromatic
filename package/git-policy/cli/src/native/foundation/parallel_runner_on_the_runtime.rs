@@ -386,16 +386,16 @@ pub(crate) async fn finish_the_run<R>(
     // The first item begins before any job says anything, as in the scoped form.
     cursor.advance(on_event);
     loop {
-        tokio::select! {
-            arrived = receiver.recv() => {
-                if let Some(said) = arrived {
-                    cursor.tell(said, on_event);
-                }
-            }
-            () = still_running.changed.notified(), if still_running.running.load(Ordering::SeqCst) > 0 => {}
-        }
         if still_running.running.load(Ordering::SeqCst) == 0 {
             break;
+        }
+        if receiver.is_closed() {
+            // No job can say anything more, so the count is the only thing left to wait for.
+            still_running.changed.notified().await;
+            continue;
+        }
+        if let Some(said) = wait_for_a_message_or_a_return(&mut receiver, still_running).await {
+            cursor.tell(said, on_event);
         }
     }
     // A job that returned said everything it had to say before it returned.
@@ -418,6 +418,33 @@ pub(crate) async fn finish_the_run<R>(
         Some(error) => Err(error),
         None => Ok(()),
     };
+}
+
+/// What:
+///  Waits for one message from the jobs of one run,
+///  or for one job of it to return.
+/// Why:
+///  The consumer of a run has nothing else to do,
+/// and the count of the jobs still running is the only thing that ends it
+/// (`finish_the_run`),
+///  so this is the one place where that wait is written.
+/// A wake this call has already missed is not lost:
+/// `Notify::notify_one` stores one permit while no task waits
+/// (`tokio-1.54.1/src/sync/notify.rs`),
+///  and this branch must therefore never be switched off.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = await Promise.race([receiver.recv(), oneReturned()]); // undefined: a job returned
+/// ```
+pub(crate) async fn wait_for_a_message_or_a_return<R>(
+    receiver: &mut UnboundedReceiver<Message<R>>,
+    still_running: &SlotsStillRunning,
+) -> Option<Message<R>> {
+    tokio::select! {
+        arrived = receiver.recv() => arrived,
+        () = still_running.changed.notified(), if still_running.running.load(Ordering::SeqCst) > 0 => return None,
+    }
 }
 
 /// What:

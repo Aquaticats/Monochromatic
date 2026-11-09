@@ -296,3 +296,55 @@ fn a_lane_set_that_leaves_an_item_out_is_refused() {
         OrderedRunOfOwned { items: Arc::from(vec![1_u64, 2]), lanes: Arc::from(vec![vec![0_usize]]), workers: 1, work: Arc::new(Quiet), on_event: &mut Nothing };
     run_ordered_and_wait_here(run).expect("the run finished");
 }
+
+/// How long the control of the consumer's ending waits before it reports that the consumer never ended.
+/// A refused job keeps its sending end for the life of the process, so a consumer that waits for the channel
+/// to close waits for ever; two seconds is long past the time a report of one item needs.
+const CONSUMER_STOP_BY: Duration = Duration::from_secs(2);
+
+/// What:
+///  The consumer stops once every job has returned,
+///  though a refused job keeps its sending end for the life of the process,
+/// and a wake that arrives between the count and the select is not lost.
+/// Why:
+///  The pool queues a refused job with everything it holds,
+/// its sending end included (`tests::a_refused_job_keeps_its_place.rs`),
+///  so the channel never closes and the count is the only thing that ends the consumer.
+/// A consumer that disables its wake branch when the count reaches zero can then wait for ever
+/// ("nothing should ever wait forever").
+#[test]
+fn the_consumer_stops_when_the_last_job_returned_although_a_refused_job_holds_a_sending_end() {
+    run_on_runtime(async {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel::<Message<u64>>();
+        let still_running: Arc<SlotsStillRunning> = SlotsStillRunning::counting(ONE_PLACE);
+        // The one job answered, and then returned: the count falls to zero and one wake is stored, before the
+        //  consumer looks at the count.
+        let _answered = sender.send(Message::Done(0, 42));
+        drop(CountedOut(Arc::clone(&still_running)));
+        // The sending end a refused job holds for the life of the process, so the channel stays open.
+        let _refused = sender;
+        let mut slots: tokio::task::JoinSet<Result<(), BlockingJobError>> = tokio::task::JoinSet::new();
+        let mut seen: SeenEnds = SeenEnds::default();
+        let ended = tokio::time::timeout(CONSUMER_STOP_BY, finish_the_run(receiver, still_running.as_ref(), 1, &mut seen, &mut slots)).await;
+        assert!(ended.is_ok(), "the consumer waited for a sending end that a refused job keeps open, although every job had returned");
+        let outcome: Result<(), OrderedRunError> = ended.expect("the consumer ended");
+        assert!(outcome.is_ok(), "the one item ended with its answer: {outcome:?}");
+        assert_eq!(seen.ends, vec![(0, 42)], "the item that answered was reported");
+    })
+    .expect("the runtime");
+}
+
+/// The items that ended, as their index and their answer.
+#[derive(Default)]
+struct SeenEnds {
+    /// One entry per item that ended.
+    ends: Vec<(usize, u64)>,
+}
+
+impl OrderedEvents<u64> for SeenEnds {
+    fn on_event(&mut self, event: Event<'_, u64>) {
+        if let Event::End(index, answer) = event {
+            self.ends.push((index, answer));
+        }
+    }
+}
