@@ -1263,8 +1263,10 @@ Three fields were added to the commit timing record because a slow landing could
   the conclusion copy,
   the records a batch owes,
   and the head question under the lock.
-  `reads_ms` stays the whole, and the named parts never add up to more than it.
-- `landing.lockHoldMs` is how long the landing held the index lock, which is what the commits behind it queued on,
+  `reads_ms` stays the whole,
+  and the named parts never add up to more than it.
+- `landing.lockHoldMs` is how long the landing held the index lock,
+  which is what the commits behind it queued on,
   and `landing.queuedBehind` is how many requests were still waiting for their answer when the landing finished.
 - `landing.syncs` is every file or directory sync the landing asked for,
   in the order it asked,
@@ -1275,19 +1277,23 @@ The service measures all three,
 so the answer to a commit carries them and the record states them;
 a service of a release that sends none leaves the field `null`,
 never zeros.
-The `answered` line of the journal states the same figures, so the two files agree.
+The `answered` line of the journal states the same figures,
+so the two files agree.
 
 ### The measurement
 
-One binary, two runs of four rounds of eight overlapping commits in a disposable clone of this repository
+One binary,
+two runs of four rounds of eight overlapping commits in a disposable clone of this repository
 (452 990 objects and 22 462 tracked files),
 started together on one branch so they land as one batch:
 
-- run A: 32 commits,
+- run A:
+  32 commits,
   median 4 280 ms,
   p95 8 623 ms,
   14 of 32 over 5 000 ms.
-- run B, the same binary:
+- run B,
+  the same binary:
   32 commits,
   median 22 002 ms,
   p95 40 868 ms,
@@ -1310,17 +1316,27 @@ clone the repository somewhere disposable,
 point its `origin` at a bare repository of that scratch tree so no push reaches the checkout it came from,
 and start the wrapper's service for the clone with `bench`-style arguments under an `XDG_RUNTIME_DIR` of its own.
 
-The commit's phases, as the record counts them:
+The commit's phases,
+as the record counts them:
 
-- prepare: median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
-- submit: median 755 ms and 10 843 ms (p95 3 025 and 24 813).
-- gate: median 151 ms and 1 519 ms (p95 2 701 and 10 569).
-- build: median 3 ms in both; after-landing, handoff and uncovered time under 80 ms.
+- prepare:
+  median 3 487 ms in run A and 5 442 ms in B (p95 5 276 and 19 282).
+- submit:
+  median 755 ms and 10 843 ms (p95 3 025 and 24 813).
+- gate:
+  median 151 ms and 1 519 ms (p95 2 701 and 10 569).
+- build:
+  median 3 ms in both;
+  after-landing,
+  handoff and uncovered time under 80 ms.
 
-The landing, as the service splits it:
+The landing,
+as the service splits it:
 
-- landing: median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
-- the wait for another program's hold on the index: median 10 539 ms in run B (p95 14 249),
+- landing:
+  median 382 ms in run A and 10 756 ms in B (p95 2 773 and 17 113).
+- the wait for another program's hold on the index:
+  median 10 539 ms in run B (p95 14 249),
   which is 98 percent of that run's median landing.
 - everything the landing itself does:
   reads median 29 ms in A and 15 ms in B,
@@ -1328,25 +1344,40 @@ The landing, as the service splits it:
   the intent journal 0 ms,
   the branch move 14 ms,
   the index update 89 ms.
-- the hold on the index: median 165 ms in A and 190 ms in B (p95 207 and 2 771).
-- queued behind a landing: seven commits for the first request of each batch and none for the rest,
+- the hold on the index:
+  median 165 ms in A and 190 ms in B (p95 207 and 2 771).
+- queued behind a landing:
+  seven commits for the first request of each batch and none for the rest,
   because the eight commits of a round land as one batch.
 - six syncs per landing,
   always handed to the background and never waited for:
   193 over 32 landings in each run,
-  named `intent-file`, `intent-dir`, `index-dir`, `indexed-file`, `indexed-dir` and `journal-dir`,
+  named `intent-file`,
+  `intent-dir`,
+  `index-dir`,
+  `indexed-file`,
+  `indexed-dir` and `journal-dir`,
   with `lock-marker` only for the first landing of a run (the marker is made ahead after that).
 
 ### The same clone, one commit at a time
 
-A third run, of six commits one after another in the same clone,
+A third run,
+of six commits one after another in the same clone,
 so nothing ever queued:
 
-- the wait for another program's hold on the index: median 1 ms, largest 3 040 ms.
-- the hold on the index: median 305 ms, largest 724 ms.
-- the index update: median 192 ms.
-- reads: median 4 ms.
-- queued behind a landing: none, in every one of the six.
+- the wait for another program's hold on the index:
+  median 1 ms,
+  largest 3 040 ms.
+- the hold on the index:
+  median 305 ms,
+  largest 724 ms.
+- the index update:
+  median 192 ms.
+- reads:
+  median 4 ms.
+- queued behind a landing:
+  none,
+  in every one of the six.
 
 Seven siblings in one batch turn that 1 ms into 10 539 ms,
 and no sibling at all leaves it at 1 ms.
@@ -1361,7 +1392,8 @@ locking only around the write,
 one sync per batch and one index update per batch is already how the landing works.
 The landing's one large cost is a wait it does not cause:
 each commit of a batch refreshes the real index in its own preparation
-(`git update-index --refresh`, which takes `index.lock`),
+(`git update-index --refresh`,
+which takes `index.lock`),
 so the batch's landing waits for its own members to stop refreshing,
 and those members wait for the landing in turn.
 
@@ -1376,13 +1408,123 @@ The tail is elsewhere:
   p95 34 511 ms,
   and the slowest commit of that run spent 34 511 ms of its 37 227 ms there;
 - the post-commit gate,
-  p95 2 701 ms in run A and 4 380 ms in the run one commit at a time;
+  p95 2 701 ms in run A and 4 380 ms in the run one commit at a time,
+  which "Where the gate's seconds were,
+  and what a gate spends now" settles as the gate's own copy
+  of the real index,
+  gone from this worktree since `195f167602`;
 - the per-commit refresh of the real index by the preparation,
   which the landing of a batch waits for and which a batch needs once.
 
 The first and the third are the preparation's,
 which another branch is changing,
 and the second is the gate's.
+
+## Where the gate's seconds were, and what a gate spends now (2026-11-09T16:10:00-05:00)
+
+The gate's p95 of 2 701 ms in run A and 4 380 ms in the run one commit at a time
+was not a policy's work and not a Git child of the gate.
+Every candidate request used to copy the real index into a private one,
+and the gate prepares the landed commit's candidates after the branch moves,
+so one of those copies was the gate's own:
+three megabytes read and written inside the command's process,
+which starts no Git child and therefore stood in no `steps` entry of the record.
+The trace behind "A request that only lists the index reads it in place"
+put the copy a candidate request makes at 2 288 ms and 4 813 ms in two commits
+under the host's input and output pressure.
+`195f167602` removed the copy from every request that only lists the index,
+the landed one included,
+so a gate in this release copies nothing.
+
+### The measurement
+
+The method is the one the figures above came from,
+run again on 2026-11-09 between 15:12 and 16:20,
+under the load the host had then:
+other sessions were running their own builds and a performance run of their own,
+and the load average stood between 61 and 115 on eight CPUs.
+Each run makes eight overlapping commits in each of three rounds,
+started together on one branch of a disposable clone of this worktree
+(458 808 objects in packs and 22 556 tracked files),
+with the wrapper's own service,
+and its own `HOME`,
+journal and runtime directory.
+The spread of one unchanged binary comes first,
+because it is the floor any difference is read against:
+
+- `77d79100fd`,
+  the binary the figures above were measured with:
+  gate median 3 571 ms and 2 047 ms,
+  p95 6 136 ms and 5 818 ms.
+- `b9000c1929`,
+  this worktree's `HEAD`,
+  which carries `195f167602`:
+  gate median 72 ms and 115 ms,
+  p95 96 ms and 248 ms.
+
+Two runs of one binary differ by 1.7 times at the gate's median for `77d79100fd` and 1.6 times for `b9000c1929`,
+and by 1.1 and 2.6 times at its p95.
+The two binaries differ by 18 to 50 times at the median and 24 to 64 times at the p95,
+in every pairing of their runs,
+which is not the host's spread.
+One more binary settles which change did it:
+`77d79100fd` with `195f167602` applied to it and nothing else,
+built the same day,
+holds the gate at 45 ms at the median and 55 ms at its p95 in one run of the same method,
+with every one of its 24 commits between 33 ms and 57 ms.
+That change touches the candidates a gate prepares and nothing else about the gate;
+it also removes the two copies the preparation itself made,
+so the control's commits are shorter than the record's overall and only its gate is compared here.
+
+The documents the runs wrote are `perf/gate-account-2026-11-09-*.json`:
+`baseline-a` and `baseline-b` are the runs of `77d79100fd`,
+`before-a` and `before-b` the runs of `b9000c1929`,
+and `control` the run of the one-change build.
+Each holds every phase of its commits,
+the gate's spans,
+the four slowest gates with their spans and Git children,
+and the service's `answered` lines.
+
+### What a gate spends now, by name
+
+The record's spans name every stretch of a gate in this release:
+
+- `policy final-newline at post-commit`,
+  14 ms and 28 ms at the median in the two runs of `HEAD`.
+  It is the gate's first content policy,
+  so it pays for the landed commit's candidate set:
+  the `git diff-tree` of the landed commit (11 ms and 18 ms at the median)
+  and the reading of the bytes that listing names.
+  The record's shared `candidates prepared` span covers the same preparation at both lifecycle points,
+  so the gate's own share of that work is read from this span and from `git diff-tree` beside it.
+- `policy security/forbidden-strings at post-commit`,
+  52 ms and 84 ms at the median.
+  It holds the loading of the rules,
+  the listing of the landed commit's parents (3 ms and 9 ms in `git rev-list`),
+  the listing of a parent's whole tree for the content a move already put in history
+  (25 ms and 35 ms in `git ls-tree`),
+  and the scan itself.
+- `policy markdown/autofix at post-commit` and `policy mono/catalog-specifiers at post-commit`,
+  0 ms each:
+  a commit of one text file has no candidate of either kind.
+- what those four spans leave of `gateMs`,
+  which is the facts provider and the pass itself,
+  3 ms at the median and 16 ms at the largest.
+
+No step of a gate is worth removing.
+The one duplication left is the parent tree's listing,
+which the same command's preparation already made for the same commit:
+the preparation lists the base's whole tree to answer the same question,
+and the landed commit's parent is that base unless a replay rebuilt the commit.
+That is 25 to 35 ms of a 72 to 115 ms gate,
+about 0.2 percent of a commit,
+and sharing it between the two checks would need process-wide state between two readers,
+which `candidate_store_commit_listings.rs` keeps out of the store on purpose.
+
+What these runs leave unmeasured is a commit that changes Markdown:
+the embedded linter runs at both lifecycle points for such a commit,
+and every commit in these runs is one text file.
+A measurement of a Markdown commit's gate would need a run whose agents commit Markdown.
 
 ## What this could not determine
 
@@ -1414,7 +1556,8 @@ and the second is the gate's.
 
 - The ranking of the four entries above changes:
   the landing's own share is smaller than the records suggested
-  (382 ms of a 4 280 ms median commit, with no named read over 51 ms),
+  (382 ms of a 4 280 ms median commit,
+  with no named read over 51 ms),
   and what its number was made of is a wait on the preparation of the batch's own members.
   Removing waste inside the landing would therefore not move the tail,
   and the entry that would is the preparation's per-commit refresh of the real index,
@@ -1430,5 +1573,16 @@ and the second is the gate's.
   which costs every commit a flush of the disk,
   and to take the wait off the
   command's path another way.
+- The gate's two figures are settled,
+  and nothing in a gate is worth removing.
+  Its p95 was the gate's own copy of the real index,
+  which `195f167602` removed before the gate was measured again:
+  a build of the record's binary with that one change applied holds the gate at 45 ms at the median,
+  against 2 047 to 3 571 ms without it,
+  and this worktree's `HEAD` holds it at 72 to 115 ms at the median
+  with the landed commit's candidate set and the forbidden-strings scan inside it.
+  The parent tree's listing repeats what the same command's preparation listed for the same commit,
+  worth 25 to 35 ms of that gate,
+  and it stays until such a hand-off is wanted more than the store's rule against process-wide state.
 - The four ranked entries of this record are proposals,
   not work in progress.
