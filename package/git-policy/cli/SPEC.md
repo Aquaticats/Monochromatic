@@ -8539,7 +8539,36 @@ from the paths that differ between the old branch and the new commit.
 
 For injected commit-only semantics:
 
-1.  Build a commit index from the preparation base.
+1.  Build a commit index from the preparation base:
+    copy the real index captured at invocation and reset the copy to the base,
+    so every entry the base shares with the real index keeps its cached stat data
+    and the scratch `git commit` does not read and hash the whole work tree
+    (measured:
+    233,618,538 bytes of LFS content cleaned and 3.6 s for an index built from the base alone,
+    against 0.1 s for a copy).
+    Intent-to-add entries stay in the copy,
+    because they carry no cached stat data and copy as they are:
+    the reset to the base then leaves a mark whose mode and object name match the entry the base holds,
+    replaces one that differs,
+    and drops one the base does not hold,
+    exactly as native Git's own reset does.
+    The selected additions are carried afterwards
+    (`git diff-index --cached --diff-filter=A` against the base,
+    step 2),
+    and that step is never skipped for an index holding such a mark:
+    a force-added ignored file the real index holds as intent-to-add is an addition the selection names,
+    and native Git records it with its worktree content (measured against Git 2.56.0).
+    A tracked file whose intent-to-add entry equals the base's entry stays in the commit's tree,
+    where native Git leaves that path out:
+    the scratch `git commit` builds its tree from the base for every path the command does not name,
+    and the wrapper never records a removal the person did not make.
+    An index that holds an assume-unchanged or skip-worktree entry,
+    or one the in-process readers do not understand,
+    is built from the base alone instead:
+    a copied mark makes `git add --all` skip or refuse a file the commit named,
+    where native Git stages it.
+    A rebuild after the branch moved builds its index the same way (`initialize_retry_index`),
+    with the same answers.
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
