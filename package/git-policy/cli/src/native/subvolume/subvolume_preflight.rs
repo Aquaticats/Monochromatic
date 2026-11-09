@@ -305,6 +305,14 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
             "Look at what it is. If it is the leftover of a migration whose journal was deleted, remove it (`btrfs subvolume delete <path>`, or empty it and `rmdir` it) and run the command again. If it is something else, rename it.",
         ));
     }
+    // The stage is what the copy fills and the deleting delta acts on; before the exchange it is the directory at the
+    // stage's name, and it must be the subvolume this migration recorded making.
+    if journal.has_begun("create")
+        && !journal.has_begun("exchange")
+        && let Some(refusal) = stage_identity_refusal(platform, layout, journal)
+    {
+        found.push(refusal);
+    }
     if layout.old_path.exists() && !journal.has_begun("exchange") {
         found.push(refuse(
             format!("{} exists already, and it is where the original tree would be moved", layout.old_path.display()),
@@ -312,6 +320,56 @@ fn state_refusals(platform: &dyn Platform, layout: &Layout, journal: &Journal) -
         ));
     }
     return found;
+}
+
+/// Whether the directory at `path` holds no entry;
+/// a listing that fails answers `false`,
+/// so nothing is adopted that cannot be shown empty.
+fn holds_no_entry(path: &Path) -> bool {
+    let Ok(mut entries) = std::fs::read_dir(path) else { return false };
+    return entries.next().is_none();
+}
+
+/// What:
+///  The refusal for the directory at the stage's name when it is not the subvolume the journal recorded creating.
+/// Why:
+///   A resume skips the creation step when the journal records it as done,
+/// and without this check the copy runs
+///  into a subvolume another process made at that name and the deleting delta removes the files it holds.
+/// The identity the
+///  journal records before anything is copied in is what tells the two apart,
+/// and it survives a rename and the exchange.
+/// A journal that records the creation but not the identity was written by an earlier release or by a run killed between
+///  the two records;
+/// an empty subvolume at the name is adopted then,
+/// because a copy into an empty subvolume loses
+///  nothing,
+/// and anything else is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = stageIdentityRefusal(platform, layout, journal);
+/// ```
+fn stage_identity_refusal(platform: &dyn Platform, layout: &Layout, journal: &Journal) -> Option<Refusal> {
+    let new_path: &Path = layout.new_path.as_path();
+    let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(new_path);
+    return match (journal.stage_identity(), found) {
+        (Some(recorded), Some(named)) if crate::worktree_convert_journal::is_recorded_object(&recorded, &named) => None,
+        (Some(_), Some(_)) => Some(refuse(
+            format!("{} is not the subvolume this migration created (the journal records another identity), so nothing is copied into it or deleted from it", new_path.display()),
+            "If the subvolume is yours, move it away and run the command again; if it is the migration's own stage, move it back to that name.",
+        )),
+        (Some(_), None) => Some(refuse(
+            format!("{} was created by this migration and is gone, so the copy has nowhere to go", new_path.display()),
+            "If it was moved, move it back to that path. Otherwise run `git monochromatic-git-policy-cli migrate-to-subvolume --rollback` to clear the journal, then run the migration again.",
+        )),
+        (None, None) => None,
+        (None, Some(_)) if platform.is_subvolume_root(new_path).unwrap_or(false) && holds_no_entry(new_path) => None,
+        (None, Some(_)) => Some(refuse(
+            format!("{} holds something the journal records no identity for, so it cannot be shown to be the subvolume this migration made; nothing is copied into it or deleted from it", new_path.display()),
+            "If it is yours, move it away and run the command again; if it is the migration's own stage, run `git monochromatic-git-policy-cli migrate-to-subvolume --rollback` to clear the journal, then run the migration again.",
+        )),
+    };
 }
 
 /// The refusal for a conversion of the linked worktree whose administrative directory this is,
