@@ -133,17 +133,28 @@ fn detects_bulk_flags_in_every_git_spelling() {
     }
 }
 
-/// Only the four literal pathspecs are bulk matches;
-///  other magic is not,
-///  as shipped.
+/// Every spelling Git resolves to the whole worktree is a bulk match;
+///  other magic and ordinary names are not.
 #[cfg(unix)]
 #[test]
-fn matches_only_the_literal_bulk_pathspecs() {
+fn matches_every_whole_tree_pathspec_spelling() {
     use crate::command_test_support::byte_argument;
     for values in [
-        vec![":(top)"],
         vec![":/*"],
+        vec![":/**"],
+        vec![":(top)"],
         vec!["**"],
+        vec![":(glob)**"],
+    ] {
+        assert_eq!(
+            matches(values.as_slice()),
+            vec![(BulkKind::Pathspec, 0)],
+            "{values:?}"
+        );
+    }
+    for values in [
+        vec![":(top)sub"],
+        vec![":(literal)**"],
         vec![".."],
         vec!["./."],
         vec![":!x"],
@@ -240,5 +251,25 @@ fn table_and_bulk_spellings_match_git() {
     std::fs::write(root.join("-A"), b"new.txt\n").expect("write pathspec file");
     git(root.as_path(), &["add", "--pathspec-from-file", "-A"]);
     assert_eq!(staged(root.as_path()), "new.txt");
+    remove(directory.as_path());
+}
+
+/// Git stages the whole worktree for each whole-tree spelling the parser names,
+/// at the top level and below it.
+#[test]
+fn every_whole_tree_spelling_stages_the_whole_worktree_in_git() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("add-whole-tree");
+    std::fs::write(root.join("top.txt"), b"top\n").expect("write top file");
+    std::fs::create_dir(root.join("sub")).expect("sub directory");
+    std::fs::write(root.join("sub/below.txt"), b"below\n").expect("write below file");
+    for spelling in [":/*", ":/**", ":(top)", "**", ":(glob)**"] {
+        git(root.as_path(), &["add", "--", spelling]);
+        assert_eq!(
+            staged(root.as_path()),
+            "sub/below.txt\ntop.txt",
+            "{spelling}"
+        );
+        git(root.as_path(), &["reset", "--quiet"]);
+    }
     remove(directory.as_path());
 }

@@ -46,6 +46,11 @@ fn bulk_forms_are_rejected_and_named() {
         (vec!["add", "-u"], "-u"),
         (vec!["add", "--update"], "--update"),
         (vec!["add", "*"], "*"),
+        (vec!["add", ":/*"], ":/*"),
+        (vec!["add", ":/**"], ":/**"),
+        (vec!["add", ":(top)"], ":(top)"),
+        (vec!["add", "**"], "**"),
+        (vec!["add", ":(glob)**"], ":(glob)**"),
         (vec!["add", "-vA"], "-vA"),
         (vec!["add", "-Au"], "-Au"),
         (vec!["add", "-A", "."], "-A, ."),
@@ -79,6 +84,8 @@ fn explicit_forms_pass() {
         vec!["--no-such-global", "add", "."],
         vec!["add", "./file"],
         vec!["add", ".hidden"],
+        vec!["add", ":(top)sub/file"],
+        vec!["add", ":(literal)**"],
     ] {
         assert_eq!(decide(values.as_slice()), None, "{values:?}");
     }

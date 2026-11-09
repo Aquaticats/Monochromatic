@@ -8,7 +8,9 @@
 //!      ones the caller never looked at,
 //!  so one commit stops describing one change.
 //!  The
-//!      policy rejects those forms.
+//!      policy rejects those forms,
+//!  and the pathspec magic and glob spellings that select the same set
+//!      (`command_add.rs` holds the one list).
 //!  This file decides from the arguments alone;
 //!  it reads
 //!      no file and starts no process.

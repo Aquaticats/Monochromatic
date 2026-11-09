@@ -13,7 +13,6 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
-import type { ConnectionToPi, } from './connection-to-pi.ts';
 import {
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
@@ -21,25 +20,17 @@ import {
   STOP_FILE_NAME,
 } from './driver-constants.ts';
 import type {
-  DriverOptions,
   EndReason,
-  RecordOfPiRun,
   RunProgress,
 } from './driver-types.ts';
+import {
+  answerModelError,
+  type RetryWaiting,
+} from './answer-a-model-error.ts';
 import { answerMillisecondsBefore, } from './deadline.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
-
-/**
- What watching a run needs.
- */
-export type WatchRequest = {
-  readonly connection: ConnectionToPi;
-  readonly record: RecordOfPiRun;
-  readonly options: DriverOptions;
-  readonly inbox: string;
-  readonly deadline: number;
-};
+import type { WatchRequest, } from './watch-request.ts';
 
 /**
  The code the operating system gave a failure, when it gave one.
@@ -340,11 +331,6 @@ async function progressAgainstLimits(
   if (Date.now() >= wallDeadline) {
     return 'wall-clock';
   }
-  if (watch.record
-    .unrecoveredModelError()
-    .failed) {
-    return 'model-error';
-  }
   if ((await readdir(watch.options
     .runFolder,)).includes(STOP_FILE_NAME,)) {
     return 'stop-file';
@@ -390,6 +376,26 @@ function idleLongEnough(watch: WatchRequest,): boolean {
 }
 
 /**
+ Tells whether the run may end as one that came back with nothing to report: Pi has rested long enough, and no failure it settled
+ on is still unanswered.
+
+ A failure stays until a reply succeeds, so a prompt Pi only handled leaves the run ending on that failure rather than making it
+ look like a run that finished its task with nothing to say.
+
+ @param watch - watch request
+
+ @returns whether the run ends here
+ */
+function mayEndIdle(watch: WatchRequest,): boolean {
+  /**
+   The failure the run settled on, when nothing after it recovered.
+   */
+  const failure = watch.record
+    .unrecoveredModelError();
+  return (!failure.failed) && idleLongEnough(watch,);
+}
+
+/**
  Checks the limits and delivers the next inbox message, on every tick, until something ends the run. One message per tick keeps
  them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
  stalled answer cannot keep the stop file or the wall clock from being seen.
@@ -404,6 +410,10 @@ function idleLongEnough(watch: WatchRequest,): boolean {
  ```
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
+  /**
+   Where the watch stands with the model error it last answered, so one error is answered by one attempt.
+   */
+  const retry: RetryWaiting = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -420,16 +430,28 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       return progress;
     }
     /**
-     The next message to deliver, if any.
+     Where the run stands with the model error Pi settled on, if it settled on one.
      */
-    const [nextMessage,] = await readyMessages(watch.inbox,);
+    const afterModelError = await answerModelError({
+      watch,
+      retry,
+    },);
+    if (afterModelError !== 'still-running') {
+      return afterModelError;
+    }
+    /**
+     The next message to deliver, if any. An inbox message waits out a retry that is about to go, so a prompt meant for a resting
+     Pi cannot start a run the retry prompt then lands in the middle of.
+     */
+    const [nextMessage,] = (retry.owed === undefined) ? await readyMessages(watch.inbox,) : [];
     if (nextMessage !== undefined) {
       await deliverOrSetAside({
         watch,
         name: nextMessage,
       },);
     }
-    else if (idleLongEnough(watch,)) {
+    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
+    else if ((retry.owed === undefined) && mayEndIdle(watch,)) {
       return 'idle';
     }
   }
