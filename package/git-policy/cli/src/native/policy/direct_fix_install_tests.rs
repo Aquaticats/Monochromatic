@@ -29,9 +29,76 @@ use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
 use crate::direct_fix_install_writes::{Kept, write_new};
 use crate::test_support::{fixture, git, remove, repository};
+use std::ffi::CString;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+/// What:
+///  Give `path` the extended attribute `name` with `value`;
+///  false when the filesystem refuses it.
+/// Why:
+///  A control that plants an attribute must know whether the filesystem can hold one,
+///  so a refusal is reported as a control that did not run rather than as a defect.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const planted = (path, name, value) => { try { setxattrSync(path, name, value); return true } catch { return false } };
+/// ```
+fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
+    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+        return false;
+    };
+    // SAFETY: both strings are NUL-terminated and outlive the call; `value` holds `value.len()` initialised bytes.
+    let result: libc::c_int = unsafe {
+        libc::lsetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+        )
+    };
+    return result == 0;
+}
+
+/// What:
+///  The value of the extended attribute `name` of `path`,
+///  or nothing when it has none.
+/// Why:
+///  The control must read the person's data back from the same name and by the same rule the fix does,
+///  never through the file's own bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const attribute = (path, name) => { try { return getxattrSync(path, name) } catch { return undefined } };
+/// ```
+fn attribute(path: &Path, name: &[u8]) -> Option<Vec<u8>> {
+    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+        return None;
+    };
+    // SAFETY: a null buffer with size 0 asks the system for the length of the value.
+    let size: isize = unsafe { libc::lgetxattr(path_text.as_ptr(), name_text.as_ptr(), std::ptr::null_mut(), 0) };
+    if size < 0 {
+        return None;
+    }
+    let mut value: Vec<u8> = vec![0; usize::try_from(size).ok()?];
+    // SAFETY: `value` holds `size` writable bytes.
+    let read: isize = unsafe {
+        libc::lgetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            value.as_mut_ptr().cast(),
+            value.len(),
+        )
+    };
+    if read < 0 {
+        return None;
+    }
+    value.truncate(usize::try_from(read).ok()?);
+    return Some(value);
+}
 
 /// A worktree with a regular file at the top,
 ///  an executable one below,
@@ -245,6 +312,49 @@ fn the_mode_owner_and_kind_of_a_file_survive_a_fix() {
     assert_eq!(kept_script, 0o6755, "{kept_script:o}");
     let after: std::fs::Metadata = std::fs::metadata(&private).expect("a");
     assert_eq!((after.uid(), after.gid()), (owner_before, group_before));
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  The extended attributes a file carries survive a fix,
+///  and one the replacement cannot be given stops the fix with a word.
+/// Why:
+///  A user attribute is the person's data outside the file's bytes,
+///  which Git never stores and no commit can bring back;
+///  a replacement that drops it deletes the only copy without saying so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(a, 'user.draft', 'only-copy-of-draft'); await installCorrections(...); expect(getxattr(a, 'user.draft')).toBe('only-copy-of-draft')
+/// ```
+#[test]
+fn the_extended_attributes_of_a_file_survive_a_fix() {
+    let fixture_tree: Tree = tree("install-attributes");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    // The value is the person's only copy: nothing in Git, and nothing in the fix's journal, holds it.
+    if !set_attribute(path.as_path(), b"user.draft", b"only-copy-of-draft") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(
+        std::fs::read(&path).expect("a"),
+        b"a\n",
+        "the fix installed its correction"
+    );
+    assert_eq!(
+        attribute(path.as_path(), b"user.draft"),
+        Some(b"only-copy-of-draft".to_vec()),
+        "the data the file carried outside its bytes is still there"
+    );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     remove(fixture_tree.root.as_path());
 }
 
