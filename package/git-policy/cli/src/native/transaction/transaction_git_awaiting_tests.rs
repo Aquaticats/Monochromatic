@@ -172,3 +172,42 @@ fn a_run_leaves_no_descriptor_open() {
     assert_eq!(after, before, "the runs left {} descriptors of their own open", after.saturating_sub(before));
     remove(root.as_path());
 }
+
+/// What:
+///  A branch write of the landing asked of the **synchronous** face from inside
+///  the runtime still lands.
+/// Why:
+///  This is why the synchronous face was not turned into a bridge over the
+///  asynchronous one:
+/// a step with an `Unbounded` bound makes no pipes,
+/// and the pipes are the only reason the
+///  synchronous face enters the runtime,
+/// so a bridge would have turned a working path into `RuntimeError::Nested`.
+/// The control fails if a later change
+///  makes the synchronous face enter the runtime for every bound.
+#[test]
+fn a_branch_write_of_the_landing_asked_of_the_synchronous_face_inside_the_runtime_still_lands() {
+    let root: PathBuf = fixture("transaction-git-awaiting-sync-branch-write");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let head: GitOutput = crate::lazy_runtime::run_on_runtime(async {
+        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "HEAD"])).await;
+    })
+    .expect("the runtime")
+    .expect("rev-parse HEAD");
+    let commit: String = String::from_utf8_lossy(head.stdout.as_slice()).trim().to_string();
+    let moving: GitRequest = GitRequest::new(repo.as_path(), &["update-ref", "refs/heads/landed-synchronously", commit.as_str()]);
+    let written: GitOutput = crate::lazy_runtime::run_on_runtime(async {
+        return in_a_landing_task(async { return crate::transaction_git::run_git(&context, &moving); }).await;
+    })
+    .expect("the runtime")
+    .expect("the synchronous face of a branch write runs from inside the runtime");
+    assert!(written.succeeded(), "{}", written.error_text());
+    let moved: GitOutput = crate::lazy_runtime::run_on_runtime(async {
+        return run_git_checked_awaiting(&context, &GitRequest::new(repo.as_path(), &["rev-parse", "refs/heads/landed-synchronously"])).await;
+    })
+    .expect("the runtime")
+    .expect("rev-parse of the ref the write moved");
+    assert_eq!(String::from_utf8_lossy(moved.stdout.as_slice()).trim(), commit);
+    remove(root.as_path());
+}
