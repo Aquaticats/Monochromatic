@@ -229,22 +229,21 @@ const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_mil
 ///  child the kernel cannot stop uses it up.
 const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// What:
-///  The grace for the runs of the current thread;
-/// a control shortens it so a child that cannot be collected ends the control
-///  at once instead of at the shipped bound.
-/// Why:
-///   The grace is a shipped resource limit,
-/// and a control that proved the leaving path by a real hung filesystem would need a
-///  hung filesystem.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// let stopGrace = STOP_GRACE;
-/// ```
 #[cfg(test)]
 thread_local! {
-    /// The stop grace for the runs of this thread.
+    /// What:
+    ///  The grace for the runs of the current thread;
+    /// a control shortens it so a child that cannot be collected ends the control
+    ///  at once instead of at the shipped bound.
+    /// Why:
+    ///   The grace is a shipped resource limit,
+    /// and a control that proved the leaving path by a real hung filesystem would need a
+    ///  hung filesystem.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// let stopGrace = STOP_GRACE;
+    /// ```
     pub(crate) static STOP_GRACE_FOR_THIS_THREAD: std::cell::Cell<Option<std::time::Duration>> = const { std::cell::Cell::new(None) };
 }
 
