@@ -3516,6 +3516,22 @@ the children of a number that was reused are not this step's,
 and a status the wait already collected is the answer rather than a ceiling the stop reached
 (the fourth review's findings 1 and 2).
 
+One window is left open there, and this file records it rather than closing it.
+The pin answers whether the root has ended (`the_root_is_still_there`),
+and the tree is walked after that answer (`descendants_of_a_root_that_still_runs`,
+`src/native/push/child_watch_clock_marks_and_stopping.rs`).
+For a process that is not the step's to receive a signal there,
+the root would have to end, be reaped, and have its number handed to another process that starts children,
+all within the few instructions between that answer and the walk
+(the fifth review's finding 1).
+Everything after the walk closes its own interval:
+a member is signalled through a descriptor opened while its number was proven to still name it,
+so the proof covers the moment of the signal, and the walk itself is what the proof cannot cover.
+That window is open in the same way where nothing proved which process the root's number names:
+the walk goes on there (`Pinned::Unproven`),
+so that a bound is never lost to a record that could not be read,
+and a member that cannot be proven at its signal is not signalled at all.
+
 A signal is sent through a descriptor that names the process,
 never to a number read a moment earlier.
 Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the two in which the
@@ -3575,7 +3591,25 @@ not that it was ended
 (the fourth review's findings 4,
 5 and 9).
 `OwnedChild::end_and_reap` takes the same grace before it hands a leader on,
-so the step route has the bound this file states for a leader that does not end in `STOP_GRACE`.
+so the step route has the bound this file states for a leader that does not end in `STOP_GRACE`,
+and it answers whether that leader was left running,
+which is what the sentence of a ceiling the wait carried says (`AtTheCeiling`).
+
+A step left running is owned by a thread that waits for it,
+and that thread is given the child through a channel rather than through its closure:
+a refused start drops its closure,
+so a child moved into it would be neither ended nor reaped,
+and would stay a zombie of this process once it ended.
+The child the refused start hands back goes to the reaper above
+(the fifth review's finding 3).
+Where no task of the runtime can run at all,
+the child a step left running is handed to that reaper too
+(the fifth review's finding 4).
+Which of the two ways awaits that child is decided by whether a task can run now
+(`tasks_can_run`),
+not by how the runtime was first built:
+a build that missed its deadline can have arrived since,
+and its workers take the child.
 
 A batch query of the manual push is read by the runtime,
 not by threads of its own.
@@ -3635,8 +3669,8 @@ and nothing ends it at its ceiling.
 The refusal is now said once in the command's diagnostics,
 the watch records it,
 and the wait carries the step's own ceiling:
-a step that has one is ended at it and fails with a sentence naming the refused thread and the
-limit to check.
+a step that has one is ended at it, with the whole process tree `StepBound::EndAt` names,
+and fails with a sentence naming the refused thread and the limit to check.
 A step with no ceiling is still waited for as long as it lives,
 which the owner decided for a write that cannot be run twice,
 and the sentence that says nothing watches it is what tells the person
@@ -3666,6 +3700,12 @@ labelled unmeasured) after the step has ended,
 and the step fails with a sentence that names the program still holding the output,
 which the mount and inode of the pipe find (`src/native/process/process_use.rs`),
 and says to check that program with `ps` and to run the command again.
+An end of file wins over that drain:
+the read is asked first at every poll,
+and where the reactor has not yet heard that the last writer closed, the descriptor itself is asked,
+whose non-blocking read answers end of file at once.
+So a step that wrote its whole answer and ended is answered, not reported as one whose output is held open
+(the fifth review's finding 5).
 What the read got before that moment is not returned as the step's answer:
 a step whose output may be incomplete is reported,
 never guessed at.
@@ -3717,7 +3757,9 @@ finding 9).
 The list goes in from a thread of its own,
 the answers are read by the runtime,
 and the wait carries `PLUMBING_STEP_CEILING`,
-so a query that never answers is ended and reported with the command line and the ceiling.
+so a query that never answers is ended and reported with the command line and the ceiling,
+and a query the kernel would not let end is reported as one left running rather than as one ended
+(the fifth review's finding 6).
 A list that was cut short at that ceiling is reported rather than answered,
 because what Git answered
 covers only the part of the list that went in.
