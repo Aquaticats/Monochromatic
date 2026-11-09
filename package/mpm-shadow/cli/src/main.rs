@@ -38,17 +38,14 @@ use mpm_shadow::constants::SHADOWED_NAME;
 /// Imports the launcher mode.
 use mpm_shadow::toolchain::launcher::{launch_record_of_current_exe, run_launcher};
 
-/// Imports the shadow-mode function.
-use mpm_shadow::shim::run_shim;
+/// Imports the shadow-mode function and the name check that picks it.
+use mpm_shadow::shim::{invoked_as_name, run_shim};
 
 /// Imports the owned operating-system text type.
 use std::ffi::OsString;
 
 /// Imports the process-environment module.
 use std::env;
-
-/// Imports `Path` to take the file name off argv[0].
-use std::path::Path;
 
 /// What:
 /// `fn main()` is the entry point the operating system calls;
@@ -66,10 +63,7 @@ fn main() {
     let all_arguments: Vec<OsString> = env::args_os().collect();
 
     // The name the program was started under: argv[0] keeping only its final path segment, as text.
-    let mut invoked_as: String = String::new();
-    if let Some(file_name) = Path::new(&all_arguments[0]).file_name() {
-        invoked_as = file_name.to_string_lossy().to_string();
-    }
+    let invoked_as: String = invoked_as_name(&all_arguments);
 
     // A hard link the toolchain made for a repository-published tool carries a record beside it: run as a launcher.
     if let Some(record) = launch_record_of_current_exe() {

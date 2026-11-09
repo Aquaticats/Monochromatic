@@ -105,7 +105,12 @@ fn observe_bin_sourced(ctx: &Context, tool: &LockedTool) -> Option<String> {
     let mut env = ctx.path_env();
     env.insert("BIN_CONFIG".to_string(), ctx.scope.bin_config_file.to_string_lossy().to_string());
     let outcome: RunOutcome = ctx.run(&RunRequest::new(&cli.to_string_lossy(), &["list"]).with_env(env));
-    let versions = parse_bin_list(&format!("{}{}", outcome.stdout, outcome.stderr));
+    // A listing that failed proves nothing about what is installed, and only the rows `bin list` writes on standard
+    // output are a listing: a diagnostic on standard error that looks like a row is not one.
+    if !outcome.succeeded() {
+        return None;
+    }
+    let versions = parse_bin_list(&outcome.stdout);
     for name in &tool.declaration.bins {
         if let Some(version) = versions.get(name) {
             return Some(version.clone());

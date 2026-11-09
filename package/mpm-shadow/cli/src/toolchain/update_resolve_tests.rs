@@ -3,11 +3,13 @@
 //! (no previous lock row exists in any of these tests),
 //! against a table-driven fake network.
 
+use serde_json::Value;
+
 use super::fakes::{FakeHttp, Rig};
 use super::hash::sha256_hex;
 use super::model::{Artifact, Declaration, Request};
 use super::update_android_conda::{cmdline_packages, resolve_android, resolve_conda};
-use super::update_github::{glob_matches, resolve_github};
+use super::update_github::{asset_digest, glob_matches, release_by_tag, resolve_github};
 use super::update_github_assets::pick_asset;
 use super::update_go_zig::{resolve_go_module, resolve_go_runtime, resolve_zig};
 use super::update_java_aws::{resolve_aws, resolve_java};
@@ -541,3 +543,63 @@ fn a_brand_new_downloaded_tool_resolves_with_no_lock_at_all() {
 }
 
 //endregion github
+
+/// An incomplete row with a higher build number is skipped, not treated as the answer:
+/// a complete lower-build row already found for the subdir still resolves the platform,
+/// where the old `?` inside the accumulator threw it away and failed the whole platform.
+#[test]
+fn conda_keeps_a_complete_lower_build_row_when_a_higher_build_row_is_incomplete() {
+    let rig = Rig::new();
+    rig.http.serve(
+        "https://api.anaconda.org/package/conda-forge/bubblewrap",
+        b"{\"latest_version\": \"0.13.1\", \"files\": [\
+          {\"version\": \"0.13.1\", \"basename\": \"linux-64/bubblewrap-0.13.1-h0_0.conda\", \"sha256\": \"a1\", \"attrs\": {\"subdir\": \"linux-64\", \"build_number\": 0}}, \
+          {\"version\": \"0.13.1\", \"attrs\": {\"subdir\": \"linux-64\", \"build_number\": 2}}, \
+          {\"version\": \"0.13.1\", \"basename\": \"linux-aarch64/bubblewrap-0.13.1-h0_0.conda\", \"sha256\": \"b1\", \"attrs\": {\"subdir\": \"linux-aarch64\", \"build_number\": 0}}]}",
+    );
+    let resolution = resolve_conda(&rig.context(), "bubblewrap", None).expect("the complete row resolves the platform");
+    assert_eq!(row(&resolution.artifacts, "linux-x64").sha256, "a1");
+    assert_eq!(row(&resolution.artifacts, "linux-arm64").sha256, "b1");
+}
+
+/// A digest of another algorithm is not recorded as the artifact SHA-256:
+/// the file is hashed instead, so the lock row can verify at install time.
+#[test]
+fn a_non_sha256_asset_digest_falls_back_to_hashing_the_download() {
+    let rig = Rig::new();
+    let url = "https://github.com/o/r/releases/download/v1/tool.tar.gz";
+    rig.http.serve(url, b"the bytes");
+    let other: Value = serde_json::from_str("{\"name\": \"tool.tar.gz\", \"digest\": \"sha384:abcd\"}").expect("a value");
+    assert_eq!(asset_digest(&rig.context(), &other, url).expect("hashed"), sha256_hex(b"the bytes"));
+    let none: Value = serde_json::from_str("{\"name\": \"tool.tar.gz\", \"digest\": \"\"}").expect("a value");
+    assert_eq!(asset_digest(&rig.context(), &none, url).expect("hashed"), sha256_hex(b"the bytes"));
+    let recorded: Value = serde_json::from_str("{\"name\": \"tool.tar.gz\", \"digest\": \"sha256:abc\"}").expect("a value");
+    assert_eq!(asset_digest(&rig.context(), &recorded, url).expect("recorded"), "abc");
+}
+
+/// A tag is one URL path segment:
+/// characters such as `#`, `?` and `%` are percent-encoded, so the request cannot lose its path at a fragment
+/// or ask for a different tag, and `+` is encoded too because a path treats it literally.
+#[test]
+fn a_release_tag_is_percent_encoded_as_one_path_segment() {
+    let rig = Rig::new();
+    let url = "https://api.github.com/repos/o/r/releases/tags/v1.0%231%2B2";
+    rig.http.serve(url, b"{\"tag_name\": \"v1.0#1+2\"}");
+    let release = release_by_tag(&rig.context(), "o/r", "v1.0#1+2").expect("the encoded tag resolves");
+    assert_eq!(release["tag_name"], "v1.0#1+2");
+    assert_eq!(rig.http.requests(), vec![url.to_string()]);
+}
+
+/// A checksum file that could not be read is named in the error,
+/// beside the missing row it caused,
+/// so a network failure is not reported as a checksum file that lacks the archive.
+#[test]
+fn a_node_checksum_fetch_failure_is_named_when_no_row_is_found() {
+    let rig = Rig::new();
+    rig.http.fail("https://unofficial-builds.nodejs.org/download/release/v1.0.0/SHASUMS256.txt", "connection refused");
+    let error = resolve_node(&rig.context(), Some("1.0.0")).expect_err("no checksum rows");
+    let message: &str = error.message();
+    assert!(message.contains("no row for node-v1.0.0-linux-"), "{message}");
+    assert!(message.contains("connection refused"), "the failed fetch is named: {message}");
+    assert!(message.contains("HTTP 404"), "the primary host's non-2xx status is named: {message}");
+}
