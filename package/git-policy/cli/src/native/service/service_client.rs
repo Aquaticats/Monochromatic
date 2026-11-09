@@ -187,7 +187,7 @@ fn say_where_it_stands(notices: &mut dyn Write, config: &ClientConfig, parked: O
         return;
     }
     // What the person was last told: the place the service named, or nothing when it named none.
-    let named: Option<usize> = place.map(|(number, _of)| number);
+    let named: Option<usize> = place.map(|(number, _of)| return number);
     if *told == Some(named) {
         return;
     }
@@ -282,7 +282,7 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
                 Heard::Message(ServiceMessage::Position { number, of }) => {
                     // Every place the service names is recorded, printed or not; the person is told it once the wait has
                     //  mattered, so a commit that lands at once says nothing new.
-                    if last_place.map(|(named, _of)| named) != Some(number) {
+                    if last_place.map(|(named, _of)| return named) != Some(number) {
                         last_place = Some((number, of));
                         trace.positions.push(number);
                     }

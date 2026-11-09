@@ -349,7 +349,7 @@ pub(crate) fn land_group(
     *seq = claim.seq();
     // The first request of a batch has waited since its connection was accepted; the wait that matters for being told
     //  it is next is the one it has borne when the batch begins to land.
-    let waited: Duration = fresh.first().map_or(Duration::ZERO, |(_, _, arrival)| arrival.accepted.elapsed());
+    let waited: Duration = fresh.first().map_or(Duration::ZERO, |(_, _, arrival)| return arrival.accepted.elapsed());
     for (number, of) in place_notices(fresh.len(), waited, place_after) {
         let Some((_, stream, _)) = fresh.get(number - 1) else {
             continue;
