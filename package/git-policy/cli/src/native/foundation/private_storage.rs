@@ -12,9 +12,9 @@
 //!  must never be written through a planted link,
 //!  and must be private to
 //!      the account.
-//!  The incumbent's `src/trust/registry-io.ts` defines these semantics;
-//!  both
-//!      wrappers write and read the same files.
+//!  Each primitive is the one place that rule is written,
+//!  so every record of the wrapper is created,
+//!      synced and read the same way.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

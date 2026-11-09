@@ -462,6 +462,35 @@ fn a_stale_current_in_the_winning_root_is_repaired_before_another_scope_links_th
     assert!(resolved.ends_with(Path::new("0.4.5").join("bin").join(GIT_BIN)), "the newest copy runs: {}", resolved.display());
 }
 
+/// Only an unfinished version survives because the other root forwards to it, and the link names the version this
+/// run deletes: the link must go rather than outlive its target,
+/// since an unfinished install is not something `current` may name.
+#[test]
+fn prune_removes_a_link_that_names_its_own_deletion_when_only_an_unfinished_version_stays() {
+    let duo = Duo::new();
+    fs::write(&duo.rig.scope.lock_file, "{\"schemaVersion\":1,\"tools\":{}}").expect("a lock that names nothing");
+    finish_install(&version_directory(&duo.repository_root(), GIT_CRATE, "0.4.4"), GIT_CRATE, "0.4.4", &[GIT_BIN]);
+    // 0.4.5 is still being written: its program is there and cargo's record is not, so it counts as unfinished.
+    write_executable(&version_directory(&duo.repository_root(), GIT_CRATE, "0.4.5").join("bin").join(GIT_BIN));
+    symlink("0.4.4", current_link(&duo.repository_root(), GIT_CRATE)).expect("current at the finished version");
+    fs::create_dir_all(duo.global_root().join("cargo").join(GIT_CRATE)).expect("make the global crate directory");
+    symlink(
+        version_directory(&duo.repository_root(), GIT_CRATE, "0.4.5"),
+        current_link(&duo.global_root(), GIT_CRATE),
+    )
+    .expect("the global root forwards to the unfinished version");
+    duo.list_own_worktree();
+    prune_toolchain(&duo.rig.scope, &duo.rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&duo.repository_root(), GIT_CRATE);
+    assert!(!version_directory(&duo.repository_root(), GIT_CRATE, "0.4.4").exists(), "the finished version this run deletes goes");
+    assert!(version_directory(&duo.repository_root(), GIT_CRATE, "0.4.5").is_dir(), "the forwarded unfinished version stays");
+    assert!(
+        fs::symlink_metadata(&link).is_err(),
+        "the link names the deleted version and is not something an unfinished install may replace"
+    );
+}
+
 /// A version the other root forwards to stays while a newer one is pruned, because no lock names the crate:
 /// `current` must name the newest version that stays, never the newest installed one,
 /// or a successful prune leaves it naming a directory it just removed.

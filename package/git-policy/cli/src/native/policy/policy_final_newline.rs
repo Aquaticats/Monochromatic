@@ -4,14 +4,12 @@
 //!       bytes must end with exactly one LF byte.
 //! Why:
 //!  The rule,
-//!  its finding and its generated-output path families are the installed
-//!      wrapper's (`final-newline-policy.ts`,
-//!  `final-newline-normalize.ts`),
-//!  so the native
-//!      wrapper reports the same files with the same words.
+//!  its finding and its generated-output path families keep the words the
+//!      TypeScript wrapper (deleted on 2026-10-13 in `642b6d72cb`) reported them with,
+//!  so a file reported before the rewrite is reported the same way after it.
 //!  A file whose `text` Git attribute is unset (`-text`,
 //! which `binary` includes) keeps its exact bytes,
-//!      which the installed wrapper could only do by path;
+//!      which the TypeScript wrapper could only do by path;
 //!  the attribute travels with a package that moves,
 //!      where a path list goes stale.
 //!  The normalized bytes are
@@ -57,7 +55,9 @@ pub const FINAL_NEWLINE_MESSAGE: &str = "Non-empty text file must end with exact
 ///  the separator of Git pathnames.
 /// Why:
 ///   A named predicate for `split`,
-///  because the repository bans anonymous functions.
+///  because `rust/avoidable-closure` reports a closure argument that a named function could replace;
+///  the syntax-only anonymous-function ban once cited here was removed on 2026-10-18
+///  (`doc/decision/rust-closure-lint-dylint.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
