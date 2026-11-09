@@ -319,10 +319,9 @@ fn tracked_below(source: &SnapshotSource, directory: &[u8]) -> Option<String> {
 ///  command's stage container is left out,
 /// because that container holds another worktree's ignored state (credentials
 ///  included) and no rule of any source makes it state of this one.
-/// A btrfs stand-in holds nothing and cannot be renamed or removed as a
-///  directory,
-/// so the walk leaves it where it is and the snapshot's stand-in sweep removes it
-///  (`worktree_snapshot_placeholders.rs`).
+/// A btrfs stand-in holds nothing and btrfs refuses to rename it,
+/// so the walk leaves it where it is and the
+///  snapshot's stand-in sweep removes it as an empty directory (`worktree_snapshot_placeholders.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -399,8 +398,8 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
             if child_relative == b".git" || child_relative == TRASH_PARENT.as_bytes() {
                 continue;
             }
-            // A stand-in of a nested subvolume the snapshot did not carry holds nothing and refuses both a rename and an
-            //  empty-directory removal here, so it stays for the stand-in sweep, which knows the two places that hold worktrees.
+            // A stand-in of a nested subvolume the snapshot did not carry holds nothing and btrfs refuses to rename it, so it
+            //  stays for the stand-in sweep, which removes it as an empty directory in the two places that hold worktrees.
             if is_stand_in(directory.join(&name).as_path()) {
                 continue;
             }

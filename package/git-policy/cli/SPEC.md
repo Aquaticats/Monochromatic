@@ -1045,7 +1045,7 @@ btrfs's stand-in for a
 subvolume a snapshot did not carry) is never moved:
 it holds nothing,
 so it carries no ignored state,
-and btrfs refuses both a rename and an empty-directory removal of it.
+and btrfs refuses to rename it.
 It stays for the stand-in sweep,
 which removes it as an empty directory in the folders that hold this repository's worktrees.
 Names are kept as bytes:
