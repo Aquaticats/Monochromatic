@@ -1,5 +1,10 @@
 # Translation repair history, first handover document: overnight of 2026-08-14 into 15 with the pick-up note, the roster guard, shared preparation, the translate lane driver and alignment guard, the poisonable cache and the open questions
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:roster-bench` is now
+> `//package/translation-repair/bench:roster-bench` (2026-10-18 `4bd1aea8d5`).
+
 The pick-up note of 2026-08-15 that sent the reader to the open decisions,
 and the first half of the overnight session:
 the roster guard rewritten to measure available weight,

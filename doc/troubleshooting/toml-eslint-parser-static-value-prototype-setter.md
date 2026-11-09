@@ -162,6 +162,9 @@ because primitives are lost and objects can replace the projection prototype.
 walks authored key nodes iteratively,
 and rejects a source containing any `__proto__` key segment before calling `getStaticTOMLValue`.
 
+`package/toml-edit/core/src/fuzz/equality.ts` is not in the working tree and no commit in this
+repository carries it.
+
 Round-trip and metamorphic properties use fast-check `pre` for that classification.
 This keeps the generated input in the campaign while discarding only a case the external oracle cannot represent.
 

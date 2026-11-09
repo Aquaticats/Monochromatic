@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-23 to 2026-08-24: the silent anchor that cost a run its page, and reading the published tree back
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:verify-published` is now
+> `//package/translation-repair/run:verify-published` (2026-10-18 `4bd1aea8d5`).
+
 The run that finished and delivered nothing,
 the first diagnosis that was wrong and the one-expression publisher defect,
 the silence column that could not tell a gap from an emptying,

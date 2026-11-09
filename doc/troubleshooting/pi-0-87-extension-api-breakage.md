@@ -115,6 +115,15 @@ See [`task-tsc-shared-chunk-silent-pass.md`](task-tsc-shared-chunk-silent-pass.m
   A local capture showed an empty Anthropic `system` field without the fix
   and the advisor prompt with it.
 
+`package/pi-shared/model-selection/src/types.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/model-selection/src/types.ts` in `b710410e81` (refactor(*):
+move
+model-selection to agent-harness-shared).
+`package/pi-plugin/advisor/src/advisor-client.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/advisor-client.ts` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+
 ## Verification
 
 - `context.unit.test.ts` failed with the original error before the first fix

@@ -1,5 +1,10 @@
 # Oxlint node/no-sync handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/parsers` is now `package/git-policy/cli/src/native/command`
+> (2026-10-13 `642b6d72cb`).
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.

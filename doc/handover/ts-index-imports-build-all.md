@@ -1,5 +1,14 @@
 # Handover: index-only /ts cross-package imports, and build every package
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/config/tsdown/src/index.ts` is deleted (2026-07-15 `844e9dedda`) and
+> `package/config/rolldown/src/index.ts` is the neutral build config today.
+> `package/config/tsdown/src/index.node.ts` is deleted (2026-07-15 `844e9dedda`) and
+> `package/config/rolldown/src/index.node.ts` is the Node entry today.
+> `package/dev-script/deps-cube/tsdown.node.config.ts` is now
+> `package/dependency-catalog/cli-cube/rolldown.node.config.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

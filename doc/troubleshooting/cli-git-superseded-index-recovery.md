@@ -237,6 +237,19 @@ Shared repository access across PID namespaces is a hypothesis requiring a dispo
 not an established cause of this refusal.
 Denied permission does not establish that an owner is dead.
 
+`package/git-policy/cli/src/native/recovery_inspect.rs` was removed on 2026-11-01 in `72e0534cca`
+(refactor(git-policy-cli):
+delete the transaction landing,
+recovery,
+registry,
+replay,
+gate and
+index-writer coordination;
+binary tests of the old route retired,
+push expectations still to
+restate);
+no file in the working tree carries it now.
+
 [Repository issue #1784](https://github.com/Aquaticats/Monochromatic/issues/1784)
 tracks read availability and namespace-aware ownership controls.
 This is separate from the unrelated LFS incident in #1770

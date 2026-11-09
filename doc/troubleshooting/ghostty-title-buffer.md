@@ -20,6 +20,9 @@ In this repository the affected surfaces are terminal-title integrations:
 - `package/claude-code-plugin/source/src/handlers/terminal-title/index.ts`,
   which writes OSC 0 title sequences to `/dev/tty`.
 
+`package/claude-code-plugin/source/src/handlers/terminal-title/index.ts` is not in the working tree
+and no commit in this repository carries it.
+
 ## Root cause
 
 Ghostty's stream handler receives OSC title payload text as `[]const u8`,

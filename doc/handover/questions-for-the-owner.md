@@ -92,6 +92,14 @@ Each record is cited so the context is one read away.
   If it is,
   a foreign host's process reads as dead to the copy,
   which the audit could not settle alone.
+  A new `git worktree add` from a worktree still being filled now gets no ignored-state copy and one line saying so.
+  The only remedy today is to remove that worktree and add it again,
+  because Git refuses an existing path and the wrapper has no way to copy ignored state on demand.
+  Should the wrapper gain a command that fills an existing worktree?
+  Two gaps stay open:
+  a copy still staging records no destination,
+  so it is not detected until the record written before Git is on `main`;
+  and the snapshot and clone routes can still carry a half-filled set from a busy source.
 - The `search-shadow` refusal of `rg` with a piped standard input and a named path is on `main` and not yet released.
   It refuses on the kind of standard input alone,
   so a program that starts `rg` through `PATH` with a pipe it never writes to is refused too,
@@ -822,6 +830,23 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-08T22:14:46-05:00,
+  secret scanner:
+  when `forbidden-strings --all` cannot read a repository's index,
+  it prints that tracked files hidden by `.gitignore` were not covered,
+  and it keeps its exit status,
+  so a scan that finds nothing in the visible files still exits 0.
+  The reason is your rule "Commits should never fail."
+  The cost is that the commit gate and CI pass with less coverage while saying so.
+  Say "undo" to make that case a failure.
+- 2026-11-08T22:14:46-05:00,
+  TOML library:
+  a float wrapper holding a numeric string (`{ tomlKind: 'float', value: '1.5' }`) no longer turns into a number;
+  it is refused.
+  Only one unit test relied on the old behaviour.
+  A plain number or bigint with no wrapper is still written unchecked,
+  so a very large one can come out as `1e+21` or outside TOML's range;
+  that is unchanged.
 - 2026-11-05T03:58:47Z,
   program rename:
   this repository's settings file keeps its old name `cli-git.config.jsonc`

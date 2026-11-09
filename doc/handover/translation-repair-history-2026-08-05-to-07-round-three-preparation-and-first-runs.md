@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-05 to 2026-08-07: round three prepared and its first runs
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:score-agreement` is now
+> `//package/translation-repair/probe:score-agreement` (2026-10-18 `4bd1aea8d5`).
+
 Archiving round two,
 the stop-at-fifteen-entries policy,
 the grading tools built while the pass ran,

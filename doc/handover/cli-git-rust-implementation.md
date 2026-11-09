@@ -1,5 +1,12 @@
 # cli-git implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+> is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+> `package/file-enforcer/core/src/watch/notify.ts` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/core-rust` serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.
@@ -3367,6 +3374,125 @@ Two `standards_review_client` tests failed and one ended at the 300 s nextest ti
 7-minute run of the same suite,
 and all twelve of that module pass alone in 3 s,
 so they are host-load flakes that this change does not touch.
+
+Corrected 2026-11-08T21:55:00-05:00,
+branch `fix/git-policy-cli-standards-review-client-order-not-time`:
+"host-load flake" was a label and not a cause,
+and a capped run found two defects in the controls themselves.
+
+Reproduced with the module's own allowance capped:
+twelve processes,
+one per control,
+sharing `CPUQuota=3%`
+(the runner is `${HOME}/temp/agent/standards-review-client-flakes/run-tests-in-parallel.sh`,
+which runs the built test binary once per control,
+as nextest does).
+Eight of the twelve failed,
+seven of them with the client's own wording,
+`reply: "The operation was aborted due to timeout"`,
+because the 400 ms quiet window elapsed before a starved process read a reply that had already
+arrived,
+and a ninth,
+`a_silent_server_ends_after_the_quiet_window`,
+was still running when the run's 320 s stop reached it:
+its call was aborted by the window before it connected,
+and `Mock::finish` then waited unbounded on the mock's `accept` for a call that never came.
+That is the shape of the 300 s nextest stop:
+waits with no bound of their own,
+under a one-hour ceiling (`ROOMY = 3,600 s`),
+so nothing inside the control ends the wait.
+That cap slows the controls:
+the module takes 3.0 s alone at `CPUQuota=500%`,
+and each control took 10 to 25 s at 3%.
+With the changes below all twelve pass at 3%.
+
+What each control claims and what decides it:
+
+- `the_request_carries_method_headers_and_body`,
+  `an_error_status_is_a_reply`,
+  `a_chunked_body_is_read_whole`,
+  `a_redirect_is_not_followed`:
+  the reply's bytes are what the client returns.
+  A 400 ms window against a starved read decided them before.
+  They take `ANSWER_WINDOW` (10 s) now and judge the reply and that the mock wrote its answer whole.
+- `a_silent_server_ends_after_the_quiet_window`:
+  a silent server ends the call at the window with the timeout wording.
+  It also asserted `elapsed >= 400 ms`,
+  a clock,
+  and could hang in `Mock::finish`.
+  It reads the order of events now:
+  the call reached the server,
+  and the server was still holding when the call closed it
+  (`AnswerEnded::CallerClosedTheSilence`).
+  `Mock::finish` panics naming `CONNECTION_DEADLINE` where no call connected.
+- `a_refused_connection_names_the_cause`:
+  a closed port is a transport failure.
+  The same window decided it before;
+  the mock's answer ending is asserted first now.
+- `an_unreadable_authority_is_refused`:
+  no clock;
+  unchanged.
+- `a_reply_that_keeps_arriving_is_never_cut_off`:
+  the window judges quiet time and not wall time.
+  It asserted `elapsed > 2 * window`,
+  a clock,
+  and failed the other way under load (more than 1.2 s between two bytes of a reply).
+  It asserts the body length and that no byte was left unsent now,
+  with `TRICKLE_WINDOW` (5 s) and a cadence a fiftieth of it.
+- `a_reply_that_keeps_arriving_is_ended_at_the_ceiling`:
+  the ceiling ends a reply that keeps arriving.
+  It asserted `elapsed >= ceiling && elapsed < 4 * ceiling`.
+  It asserts that the ceiling's wording names the call and its figure,
+  and that the reply was still arriving (`AnswerEnded::CallerLeft` with unsent bytes).
+- `the_client_is_built_on_hyper_and_no_longer_on_ureq`:
+  source text;
+  unchanged.
+- `a_tls_server_is_reached_only_through_a_trusted_authority`:
+  a trusted authority is reached and the embedded roots are refused.
+  `serve_tls` waited unbounded on its second `accept`,
+  and the control started `openssl` without a bound.
+  Both are bounded now (`CONNECTION_DEADLINE`,
+  `OPENSSL_DEADLINE`),
+  and it asserts that both calls reached the server:
+  a refused handshake is still a call that arrived.
+- `the_quiet_gap_kept_for_a_call_is_the_calls_own_and_not_the_idle_waiting_thread`:
+  the ledger figure for the call comes from the call's own bytes.
+  It asserted `kept < 800 ms` against a measurement whose own sampling interval is 500 ms,
+  so the host's scheduling decided it
+  (measured under the cap:
+  `the call kept a quiet gap of 1.800001758s though a byte arrived every 100ms`).
+  It checks what a look at a thread that moves nothing of its own saw while the call's bytes moved
+  on the process's sockets,
+  and on its own counters alone,
+  and keeps only `kept >= PAUSE` from the figure itself.
+
+The name-lookup controls of the same module pair
+(`standards_review_client_name_lookup_on_the_blocking_pool_tests.rs`)
+still wait with no bound of their own:
+`to_socket_addrs` on the blocking pool,
+and two child processes started with `Command::output`.
+They did not fail in the loaded run,
+and this change does not touch them.
+`standards_review_run_tests.rs`,
+`service/service_review_tests.rs` and
+`landing/service_work_tests.rs` take `ANSWER_WINDOW` and `CONTROL_CEILING`
+in place of a 400 ms window and a one-hour ceiling,
+but their own timing assertions
+(`the_runner_stops_waiting_for_a_job_at_its_ceiling` asserts `waited < ceiling * 20`)
+are the same class of wall-clock bound and are left for their own change.
+
+Checked on the final tree of this branch (2026-11-08T22:40:00-05:00):
+`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast` ran 4,768 tests,
+4,766 passed,
+8 skipped,
+and two failed outside this module:
+`landing::service_index_lock::tests::an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one`
+got an empty list where it expected a wait (`service_index_lock_tests.rs:232`),
+and `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+hit the unit-test watchdog at 120 s (`the unit-test run exceeded 120s: a test is stuck`).
+Both pass alone (2.5 s and 21.6 s),
+which is the same contention shape this section corrected in the standards-review controls,
+and neither module is changed here.
 
 Owner question:
 `package/git-policy/cli/SPEC.md:5471` says a commit prepares
@@ -7143,32 +7269,6 @@ are in append mode now).
   The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
   (2026-11-08T15:41:28-05:00),
   so the container tasks are on the pin from now on.
-- `foundation::parallel_runner_on_the_runtime::tests::items_run_at_the_same_time` fails whenever the test process is
-  allowed 2 CPUs and passes on the same tree when it is allowed 5.
-  Measured 2026-11-08 on the branch of the conversion-summary and fold kill-point work in the test's own cgroup
-  (`CPUQuota=200%`,
-  `MemoryMax=2G`,
-  `TasksMax=512`,
-  `IOWeight=10`;
-  logs `~/temp/agent/fold-kill-cost/19-items-run-alone.log` and `20-items-run-cpu500.log`):
-  `left: 2` against `right: 4` after 10.010 s at the 200% cap,
-  and a pass in 0.012 s at 500%.
-  `nproc` inside those scopes printed 2 and 5,
-  which is the positive control that the allowance is what moves it.
-  The control asks the run for `ITEMS` workers,
-  but the runtime's worker count is `budgeted_workers` off `available_parallelism`,
-  which the quota lowers,
-  so a point every item must reach can never be met and the two workers that did start wait out `PATIENCE`
-  (10 s in `parallel_test_support.rs`).
-  The gate container runs at 2 CPUs,
-  so this control fails there;
-  it came in with the tokio runtime's first part (`2b1f830568`,
-  linted in `c1e6a78a4c`,
-  merged by `6240b51a7a`) and nothing on this branch touched it.
-  Not fixed here:
-  the choice is between a control that asks for no more items than the plan's workers and a floor the budget may not
-  go below,
-  which is the runtime's design and not this work's.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
@@ -7450,6 +7550,25 @@ and a copy into a registration the command did not create),
 so "may be moot" does not extend to the copy route itself.
 The v3 decision "do not fix these on the current
 repository-wide layout" (2026-11-01) stands until then.
+
+No review covers the publishing route either:
+the push record a landing or a merge leaves,
+the queue,
+the retry plan and the reconcile.
+Its audit,
+with twelve findings ranked by what they risk losing,
+four of them reproduced,
+one of those in part,
+is `doc/planning/cli-git-push-route-findings-on-main.md`
+(2026-11-09;
+main at `554f973343`).
+The first two leave a branch of a landed commit unpublished with no record that says so:
+a push record keyed by the commit alone
+(the second branch reaching a commit is never queued),
+and a retry notice written before the retry plan is durable.
+The waits that no ceiling ends,
+the one move that can advance a branch the reconcile never checked,
+and the notice deleted before it is shown are there with `path:line` and suggested fixes.
 
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,

@@ -490,6 +490,10 @@ Read-only commands,
   and a copy a dead process left is recovered by the next command.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
+  A worktree whose own ignored-state copy is still running is no source:
+  a second add run from it creates its worktree,
+  writes one line saying that the worktree received no ignored state and why,
+  and names the commands that have the copy made once the first add has finished.
   The wrapper reads the destination of every form Git's option parser accepts (abbreviated long options resolved as Git
    resolves them,
   bundled short options,

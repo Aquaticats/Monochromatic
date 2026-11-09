@@ -24,6 +24,10 @@ and the fallback message as `PUSH_FAILED_NOTE`.
 Repeating that command cannot itself integrate divergent histories.
 The wrapper's successful commit exit and retained failure output do not establish successful publication.
 
+`package/git-policy/cli/src/native/auto_push.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/push/auto_push.rs` in `d88fd7ab2a` (refactor(git-policy-cli):
+move the push modules into a push folder).
+
 [Issue 1769](https://github.com/Aquaticats/Monochromatic/issues/1769)
 records the requested isolated reconciliation,
 preservation of concurrent state,

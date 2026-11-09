@@ -103,6 +103,16 @@ A nonempty malformed live list still produces an authoritative empty result.
 Explicit settings and argv restrictions that match no models still produce no candidates.
 Tests in `package/pi-shared/model-selection/src/sdk-scope.unit.test.ts` cover these boundaries.
 
+`package/pi-shared/model-selection/src/sdk-scope.unit.test.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/model-selection/src/sdk-scope.unit.test.ts` in `b710410e81`
+(refactor(*):
+move model-selection to agent-harness-shared).
+The paths this record names under `package/pi-plugin/auto-mode/src/` were removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries them now.
+
 The credential-loss hypothesis was rejected by the real SDK reproduction:
 
 ```json

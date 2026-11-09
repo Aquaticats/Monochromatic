@@ -1,5 +1,10 @@
 # cli-git native interoperability matrix
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:interop` is retired (2026-11-01 `cd67a90f6c`) and no
+> interop task exists today.
+
 Note 2026-11-08:
 these tasks this document names no longer exist:
 `//package/git-policy/cli:native:interop` went on 2026-11-01 (`cd67a90f6c`);

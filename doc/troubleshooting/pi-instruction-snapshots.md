@@ -158,6 +158,16 @@ active.add(value);
 pending.push({leave:true,value});
 ```
 
+`package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody/messages.mjs` was removed
+on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no file in the working tree carries it now.
+`package/pi-plugin/auto-mode/src/input-receipt-budget.ts` was removed on 2026-10-19 in `7ac15b19b4`
+(refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file in the working
+tree carries it now.
+
 The work stack removes an object from `active` after its descendants finish.
 Shared metadata can therefore occur in separate branches;
 message aliases retain their separate rejection rule.

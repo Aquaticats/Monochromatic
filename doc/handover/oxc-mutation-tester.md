@@ -1,5 +1,12 @@
 # Handover: oxc mutation tester (issue 247)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/mutation-test/src/index.ts` is now `package/mutation-test/cli/src/index.ts`
+> (2026-10-29 `113633b259`).
+> `//package/dev-script/mutation-test:build` is now `//package/mutation-test/cli:build`
+> (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

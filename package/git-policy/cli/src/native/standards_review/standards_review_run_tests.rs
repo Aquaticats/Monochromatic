@@ -19,7 +19,7 @@ impl<Read: Fn(&[String]) -> Result<LandedCommit, String>> LandedCommitReader for
         return self(files);
     }
 }
-use crate::standards_review_mock::{Answer, Mock, SILENT_AT_MOST, http_reply};
+use crate::standards_review_mock::{ANSWER_WINDOW, Answer, CONTROL_CEILING, Mock, SILENT_AT_MOST, http_reply};
 use crate::standards_review_entry::SHORT_SHA_LENGTH;
 use crate::standards_review_input::{CODE_SUFFIXES, SHARED_LOG_RELATIVE, TRACKED_LOG_RELATIVE};
 use crate::test_support::{fixture, remove};
@@ -30,9 +30,6 @@ const ELAPSED_MS: u64 = 1250;
 
 /// The fixed clock's first reading.
 const START_MS: u64 = 1_791_344_041_123;
-
-/// A quiet window short enough for the timeout test.
-const SHORT: Duration = Duration::from_millis(400);
 
 /// A clock that reads `START_MS`,
 /// then `START_MS + ELAPSED_MS`,
@@ -61,7 +58,9 @@ fn reader(names: &[String]) -> Result<LandedCommit, String> {
 /// Options writing to `directory/log.md` at `endpoint`.
 fn options(directory: &Path, endpoint: &str, key: Option<&str>) -> ReviewOptions {
     // The log is not made here: the run creates it on its first delivery.
-    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: SHORT, call_ceiling: Duration::from_secs(3600), trusted_pem: None };
+    // The window and the ceiling are the mock's own figures: a gateway that answers must never be ended by either,
+    // and a gateway that neither answers nor falls silent fails with the client's message instead of holding the control.
+    return ReviewOptions { log_path: directory.join("log.md"), api_key: key.map(String::from), endpoint: String::from(endpoint), quiet_window: ANSWER_WINDOW, call_ceiling: CONTROL_CEILING, trusted_pem: None };
 }
 
 /// A full review:
@@ -79,7 +78,7 @@ fn a_review_sends_the_built_input_and_logs_the_verdict() {
     let expected_body: String = request_body(build_input(&commit, &names[..1]).model_input.as_str());
     let outcome: ReviewOutcome = review_landed(&names, "0123456789abcdefff", "the subject", &|files: &[String]| return reader(files), &opts, &clock());
     assert!(matches!(&outcome, ReviewOutcome::Reviewed(judged) if judged.top == "partial"), "{outcome:?}");
-    assert!(mock.finish().ends_with(expected_body.as_str()));
+    assert!(mock.finish().seen.ends_with(expected_body.as_str()));
     let log: String = std::fs::read_to_string(opts.log_path.as_path()).expect("log");
     assert!(log.contains(&format!("  {}\n", format_iso_milliseconds(i64::try_from(START_MS + ELAPSED_MS).expect("fits")))));
     assert!(log.contains(&format!("  {} s\n", seconds_with_tenth(ELAPSED_MS))));

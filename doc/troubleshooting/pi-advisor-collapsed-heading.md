@@ -20,6 +20,15 @@ The collapsed renderer intentionally shows a header plus one summary line.
 const firstLine = firstAdvisoryLine(text,);
 ```
 
+`package/pi-plugin/advisor/src/rendering-summary.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/rendering-summary.ts` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+`package/pi-plugin/advisor/src/rendering-summary.unit.test.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/rendering-summary.unit.test.ts` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+
 Before the fix,
  `firstAdvisoryLine` returned the first non-empty line.
 For Markdown-shaped advisor responses,
