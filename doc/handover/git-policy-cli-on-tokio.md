@@ -946,6 +946,36 @@
   `parallel_runner` and `worktree_convert_command` 107 of 107;
   `native:clippy` clean;
   `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- A fourth review found four things,
+  all right,
+  fixed in `37c5ac28ec` (a dropped caller revokes the claim),
+  `e35cb2da53` (a conversion finds what it covers on the blocking pool),
+  `9d73b723bc` (a preparation control's cleanup cannot wait for a reader that cannot come) and `6f032b9cc6`
+  (a refused start says whether the step will run or already has),
+  with the room seam of `a180366183`.
+  The two controls the coordinator saw fail were measured:
+  the index order control's waiting item could take
+  the last place its peers needed (14.7 s in an 88-test selection,
+  0.05 s alone,
+  33.9 s in their run),
+  and the
+  conversion order control converted four worktrees at one place,
+  which is four real conversions one after
+  another at about 28 s each on a busy disk (105 s in a 19-test selection,
+  1.1 s alone).
+  A control now takes the room it needs (`room_for_blocking_jobs_in_a_control`),
+  and the conversion controls
+  convert only what their report needs.
+  The plan,
+  "A fourth review",
+  and "The two controls the coordinator saw fail,
+  measured".
+- Round 5's checks,
+  the whole selection at CPU quotas of 100% and 200%:
+  218 run,
+  218 passed.
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
 - Main was merged into this branch at `69a0e7f75c` (the coordinator);
   the commits of this step are its own.
 

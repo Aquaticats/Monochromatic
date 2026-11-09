@@ -5773,6 +5773,107 @@ The only unbounded wait on that path was the completion loop's,
 which the first finding of this round removed;
 a refused job on the path cannot be ruled out under the load the review's run carried.
 
+#### A fourth review: a revoked claim, a pool-side target search, two controls' cleanups, and a truthful refusal
+
+- Cancelling a queued job did not revoke its claim.
+  The claim was taken only on the returned error,
+  so a future dropped at its `.await` left it free and the
+  closure the pool still held queued ran afterwards:
+  a conversion could change a worktree after its caller
+  reported a timeout,
+  with no reader left for its progress or its result.
+  `TheCallOnAJob` holds the claim and the place of one job and acts when the call is dropped before it
+  settles.
+  The control,
+  `a_job_whose_caller_stopped_waiting_does_not_run_afterwards`,
+  kept the pool's only thread inside another job so the measured closure was queued at the moment the timeout
+  dropped it,
+  and failed with "the job whose caller stopped waiting ran afterwards,
+  so a step can act after its
+  caller reported a timeout".
+- Worktree path resolution blocked the runtime before its first await:
+  `execute_run_awaiting` ran `targets` (Git for `--all`,
+  a scan of the linked worktrees) and `lanes_of`
+  (a synchronous `std::fs::canonicalize` of each target) on the polling thread.
+  `find_the_targets_and_lanes` is one job of the blocking pool now,
+  like the index refresh's
+  `prepare_the_run`.
+  The control keeps the process's only place inside another job,
+  registers a linked worktree while the run
+  waits,
+  and shows the run converts it;
+  planted (the finding done on the awaiting task) it fails with "the
+  worktree registered while the run waited was not converted,
+  so the run had decided what it covers before it
+  first waited".
+- The preparation control's cleanup could wait for ever on its named pipe,
+  and its first rewrite also joined
+  the blocked thread before its assertion (which the plant caught as a 310 s timeout).
+  The cleanup opens the pipe with `O_NONBLOCK`,
+  runs on its own thread,
+  and is waited for with a bound;
+  the
+  control now fails in five seconds with "the control's cleanup did not end within 5000 ms:
+  opening the named
+  pipe for a reader that can never come waits for ever" (planted) instead of holding the test process to the
+  watchdog.
+- The refusal diagnostic said a step "had not started",
+  which is false when the job lost the claim race and
+  the pool ran it on another thread.
+  `a_refused_thread_start` decides in the one place that takes the claim:
+  `NoThreadToStart` now says the step will not run and changed nothing,
+  and the new
+  `StartedAfterItsThreadWasRefused` says it has started and that whether it finished is not known.
+  `OrderedRunError` carries the same pair,
+  and the index report counts such a job as one whose result is not
+  known.
+  The control drives both orders and failed to compile before the fix (no decision,
+  no variant).
+
+#### The two controls the coordinator saw fail, measured
+
+Both are controls that put their items in flight at once,
+and the measured cause was the same in each:
+the
+process's room for blocking jobs,
+and a control that had the item which *waits* hold the last place its peers
+need.
+
+- `the_report_keeps_the_order_of_the_checkout_then_its_worktrees` needs the checkout's rewrite to hold a place
+  while it waits for the other three,
+  so with room for exactly four the waiting item could take the last place
+  its peers needed and the wait then ended only at its 10 s patience:
+  measured at 14.7 s inside an 88-test
+  selection and 0.05 s alone,
+  and 33.9 s in the coordinator's run.
+- `the_report_keeps_input_order_whichever_worktree_finishes_first` took 105 s (once past the 120 s watchdog)
+  inside a 19-test selection and 1.1 s alone;
+  with the host's own bound of two it failed at 3.8 s on its 3 s
+  patience.
+  What grew was not a wait but the storage work:
+  it held the process to one place,
+  so four worktrees
+  were four conversions one after another,
+  and one conversion takes about 28 s at a 2-CPU allowance while the
+  host's disk is busy.
+
+The seam is `room_for_blocking_jobs_in_a_control`:
+the room a control asks for is what `budgeted_workers`
+answers while it runs,
+and that one derivation feeds both the runtime's blocking pool and the bound,
+so a
+control runs at any CPU quota instead of passing without running.
+The two order controls ask for one place more
+than their items (the waiting item never holds the last place its peers need),
+the conversion controls convert
+as little as their report needs (`WORKTREES` is two,
+the bound controls make one worktree more than the overlap
+they expect),
+and the slowest conversion control measured 16.1 s at a 2-CPU allowance,
+leaving the watchdog a
+margin of seven.
+The whole selection passes 218 of 218 at 100% and at 200%.
+
 #### Checks
 
 The folders this step touches,
