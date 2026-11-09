@@ -202,8 +202,28 @@ The old tree kept for the rollback stays until the owner deletes it.
   and it passed in the same filter on main.
   No cause is measured yet (rule `SUF`).
   `wrapper-tests-that-fail-only-in-a-suite` run 2 with `wrapper-tests-suite-round-2-prompt.md` has every name.
-  All 20 agent slots were in use,
-  so it follows `mpm-shadow-open-issues` run 7 when a slot frees.
+  Its run 2 has started,
+  and it has the five findings of `wrapper-tests-suite-round-1-sol.txt` as well.
+- Landed:
+  `58ccfd1df5` (a held push says so where it is held) and `45f5c93e86` (the object check asks the packs first,
+  and a long ref listing is left to Git).
+  The review `landing-route-round-10-sol.txt` names three ways the held notice and the held record disagree.
+  The notice is no worse than main's,
+  which had none in that case.
+  `reader-ref-listing-cost-round-1-sol.txt` names a version-4 index whose offset table starts a block on a
+  compressed path.
+  Real Git never writes one,
+  main answered it the same way,
+  and a small guard is still owed.
+- Fix briefs written and waiting for a free agent slot,
+  in this order:
+  `landing-route-findings-fixed` run 11 with `landing-route-round-11-prompt.md` (one source for the held notice,
+  and path bytes in every field of the owed index record);
+  `locks-and-transactions-findings-fixed` run 3 with `locks-and-transactions-round-3-prompt.md`;
+  `subvolume-conversion-findings-fixed` run 3 with `subvolume-conversion-round-2-prompt.md`.
+  The lock and conversion branches do not land before those runs:
+  their reviews (`locks-and-transactions-round-2-sol.txt`,
+  `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
