@@ -178,6 +178,8 @@ where
     //  it must still hold a place, while a job this frame gives up on must do nothing at all.
     let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
     let held: Arc<ThePlaceOfOneJob> = ThePlaceOfOneJob::holding(place);
+    // A caller that stops waiting drops this, and the job the pool still holds queued must then do nothing.
+    let mut call: TheCallOnAJob = TheCallOnAJob { claimed: Arc::clone(&claimed), held: Arc::clone(&held), settled: false };
     let (jobs_claim, jobs_place) = (Arc::clone(&claimed), Arc::clone(&held));
     let outcome = run_blocking_job(move || {
         // The claim comes first, before anything of the job's own work.
@@ -189,7 +191,11 @@ where
     })
     .await;
     return match outcome {
-        Ok(Some(value)) => Ok(value),
+        Ok(Some(value)) => {
+            // The job ran and gave its place back as its work ended.
+            call.settled = true;
+            Ok(value)
+        }
         // The job found the claim taken, which only this frame's reporter does, and only after this call returned.
         Ok(None) => panic!("a blocking job found its own work given up on while the caller still waited for it"),
         Err(failed) => {
@@ -198,9 +204,48 @@ where
             if claimed.the_reporter_takes_it() {
                 held.give_it_back();
             }
+            call.settled = true;
             Err(failed)
         }
     };
+}
+
+/// What:
+///  The claim and the place of one job,
+///  until the call that made them settles them.
+/// Why:
+///  A caller that stops waiting drops this value,
+/// and the pool may still hold the job's closure queued
+/// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`),
+///  so the claim is taken here to make that closure do nothing;
+/// the place goes back only then,
+///  because a job that took the claim first holds it until its work ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // on drop, before the call settled: if (claim.theReporterTakesIt()) place.giveItBack();
+/// ```
+struct TheCallOnAJob {
+    /// The claim on the job's work.
+    claimed: Arc<TheClaimOnAJobsWork>,
+    /// The place the job holds.
+    held: Arc<ThePlaceOfOneJob>,
+    /// Whether this call has already decided who gives the place back.
+    settled: bool,
+}
+
+impl Drop for TheCallOnAJob {
+    fn drop(&mut self) {
+        if self.settled {
+            return;
+        }
+        // The caller stopped waiting: a job the pool has not started must do nothing, and its place goes back here
+        //  unless that job took the claim, in which case it gives the place back when its work ends.
+        if self.claimed.the_reporter_takes_it() {
+            self.held.give_it_back();
+        }
+    }
 }
 
 #[cfg(test)]
