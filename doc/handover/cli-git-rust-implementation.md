@@ -692,12 +692,18 @@ The Pi agent `worktree-add-findings-fixed` has the message and is asked to name 
   and Pi's own OpenAI login had begun to fail with `invalid_grant`.
   The owner then wrote:
   "I think we can go more ambitious with codex reviews and audits now that I've effectively approved it running with tools."
-  So `review-branch-with-sol.ts` and the new `start-codex-audit.ts` give `codex` its own detached worktree,
-  and the session's suggestion,
+  The session's suggestion,
   revisable,
-  is that a finding counts only when it was reproduced against a binary built there.
+  is that a finding counts only when it was reproduced.
   The rules are in `${HOME}/temp/agent/pi-runs/shared-rules-for-codex-audits.md`,
   and runs write to `${HOME}/temp/agent/codex-runs`.
+  The owner then wrote:
+  "Keep GPT runs small.
+  GPT models cannot be trusted on any long horizon work."
+  That is rule `XVS` in `AGENTS.md`.
+  The session had just started broad audits of up to three hours and stopped them within minutes.
+  It replaces them with runs of one narrow question against one prebuilt binary,
+  and it reruns every reported reproduction before acting on it.
   The audit OpenAI flagged stays stopped until the owner answers the question about it.
   Pi audits ran under a name beginning `sol-`,
   and the count against the limit of 20 leaves those units out:

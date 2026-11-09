@@ -296,6 +296,11 @@ XVB:
  because its auto mode has too many issues,
  and names `xhigh` explicitly.
 
+XVS:
+ Keep GPT runs small,
+ one narrow question each:
+ GPT models cannot be trusted on long-horizon work.
+
 PFW:
  Alongside advisor,
  never instead:
