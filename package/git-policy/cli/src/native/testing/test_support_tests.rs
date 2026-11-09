@@ -86,3 +86,54 @@ fn a_process_a_test_starts_may_not_write_a_core_dump() {
     let output = std::process::Command::new("sh").args(["-c", "ulimit -c; ulimit -H -c"]).output().expect("sh runs");
     assert_eq!(String::from_utf8_lossy(&output.stdout).split_whitespace().collect::<Vec<&str>>(), vec!["0", "0"]);
 }
+
+/// A wait whose event has already happened returns at once,
+/// without looking at the run.
+#[test]
+fn a_wait_whose_event_has_happened_returns_at_once() {
+    let began: std::time::Instant = std::time::Instant::now();
+    assert!(wait_until(&|| { return true; }));
+    assert!(began.elapsed() < WAIT_LOOK_EVERY, "the wait slept although its event had happened: {:?}", began.elapsed());
+}
+
+/// A wait whose event never happens and whose run shows nothing ends with the window,
+/// and says it gave up because the run stopped moving.
+#[test]
+fn a_wait_gives_up_when_the_run_shows_nothing() {
+    let window: std::time::Duration = std::time::Duration::from_millis(300);
+    let began: std::time::Instant = std::time::Instant::now();
+    let held: bool = wait_until_for(WaitingFor { window, done: &|| { return false; } });
+    assert!(!held, "an event that never happened was reported as held");
+    assert!(began.elapsed() >= window, "the wait ended before its window passed: {:?}", began.elapsed());
+}
+
+/// A wait outlives many windows while the run keeps working,
+/// so a slow event is waited for however long it takes.
+#[test]
+fn a_wait_outlives_its_window_while_the_run_keeps_working() {
+    let window: std::time::Duration = std::time::Duration::from_millis(200);
+    let working: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let still_working: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&working);
+    let worker = std::thread::spawn(move || {
+        use std::io::Write as _;
+        let mut sink: std::fs::File = std::fs::OpenOptions::new().write(true).open("/dev/null").expect("a sink");
+        let began: std::time::Instant = std::time::Instant::now();
+        while began.elapsed() < window * 3 {
+            sink.write_all(&[b'x'; 4096]).expect("a write");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        still_working.store(false, std::sync::atomic::Ordering::SeqCst);
+    });
+    let began: std::time::Instant = std::time::Instant::now();
+    let held: bool = wait_until_for(WaitingFor { window, done: &|| { return !working.load(std::sync::atomic::Ordering::SeqCst); } });
+    worker.join().expect("the worker ends");
+    assert!(held, "an event the working run delivered was given up on");
+    assert!(began.elapsed() >= window, "the wait ended inside its window: {:?}", began.elapsed());
+}
+
+/// The window a control's wait uses is shorter than the watchdog's,
+/// so a control reports why it gave up before the run is ended.
+#[test]
+fn the_controls_window_is_below_the_watchdogs() {
+    assert!(STILL_WORKING_WINDOW < QUIET_WINDOW, "{STILL_WORKING_WINDOW:?} is not below {QUIET_WINDOW:?}");
+}

@@ -474,6 +474,27 @@ pub(crate) fn watch(window: Duration) -> Option<std::thread::JoinHandle<()>> {
 }
 
 /// What:
+///  One look at this run now,
+/// taken by the thread that calls it,
+/// for a control that ends a wait when the run stops working.
+/// Why:
+///   The controls judge a wait by the same evidence the watchdog does:
+/// a run that keeps moving is left alone,
+/// however long its event takes,
+/// and only a run that shows nothing is over.
+/// The calling thread's own readings are left out,
+/// as the watchers' are,
+/// so a control that looks for its event is not itself the work it waits for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lookNow(): Look | undefined { return look(currentThreadId()) }
+/// ```
+pub(crate) fn look_now() -> Option<Look> {
+    return current_thread_id().and_then(look);
+}
+
+/// What:
 ///  Look at the run until it ends the process.
 /// Why:
 ///   The loop is the whole of the watchdog:

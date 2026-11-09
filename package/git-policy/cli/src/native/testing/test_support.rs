@@ -468,6 +468,85 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
     return command.status().expect("the child test starts");
 }
 
+/// How long a control's wait lets the run show nothing before it counts the event it waits for as lost.
+/// Why:
+///   A wall clock cannot tell a service that lost its work from one whose push is slow on a contended disk.
+/// Measured on 2026-11-09 in the push-retry controls of this crate while the host ran at a load average of 100 and more:
+/// a local one-commit push took 9.6 s and 12.0 s (`push_ms=9605`, `push_ms=12009`) against 1.2 to 3 s alone,
+/// and controls whose wait allowed 11.8 s failed while the push went on to land just after it.
+/// The judgment is the watchdog's own (`run_progress`),
+/// whose window is 120 s on the same evidence
+/// (`QUIET_WINDOW` in `testing/test_support.rs`:
+/// the longest stretch a working run showed nothing was 8.0 s);
+/// this window is half of it,
+/// so a control's own report reaches the reader before the watchdog ends the run.
+pub(crate) const STILL_WORKING_WINDOW: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// How often a control's wait looks for its event and at the run's own work.
+pub(crate) const WAIT_LOOK_EVERY: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// What:
+///  One wait and how long it lets the run show nothing.
+/// Why:
+///   The controls wait for their events with `STILL_WORKING_WINDOW`,
+/// and their own controls wait with a window they can reach in a moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WaitingFor = { window: Duration; done: () => boolean };
+/// ```
+pub(crate) struct WaitingFor<'a> {
+    /// How long nothing may move before the event counts as lost.
+    pub(crate) window: std::time::Duration,
+    /// Whether the event the wait is for has happened.
+    pub(crate) done: &'a dyn Fn() -> bool,
+}
+
+/// What:
+///  Wait until `done` holds, for as long as the run keeps working, and give whether it held.
+/// Why:
+///   A control's event (a push that lands, a claim that is settled) takes as long as the disk takes,
+/// and a wait that gives up on a clock fails while the event is still coming.
+/// Only a run that shows no sign of work is over:
+/// the wait ends when the run has moved nothing for its window,
+/// which is the evidence the watchdog judges,
+/// so a slow push is waited for and a plan that was lost fails.
+/// A run that keeps working for ever is ended by the test runner's own per-test limit
+/// (`.config/nextest.toml`,
+/// `slow-timeout` 60 s times `terminate-after` 5),
+/// so nothing waits without a bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waitUntil = (done) => waitUntilFor({ window: STILL_WORKING_WINDOW, done });
+/// ```
+pub(crate) fn wait_until(done: &dyn Fn() -> bool) -> bool {
+    return wait_until_for(WaitingFor { window: STILL_WORKING_WINDOW, done });
+}
+
+/// `wait_until` with the window given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitUntilFor({ window, done }: WaitingFor): boolean;
+/// ```
+pub(crate) fn wait_until_for(waiting: WaitingFor<'_>) -> bool {
+    let WaitingFor { window, done } = waiting;
+    let mut judge: crate::run_progress::Judge = crate::run_progress::Judge::new(window);
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        if done() {
+            return true;
+        }
+        std::thread::sleep(WAIT_LOOK_EVERY);
+        // The look is taken after the wait for the event, so a run that stopped working while the event was checked is still seen to have moved.
+        if let Some(ending) = judge.observe(began.elapsed(), crate::run_progress::look_now()) {
+            eprintln!("a control's wait gave up after {:.1} s because the run {ending}", began.elapsed().as_secs_f64());
+            return done();
+        }
+    }
+}
+
 /// Controls for the fixture helpers above.
 #[path = "test_support_tests.rs"]
 mod tests;
