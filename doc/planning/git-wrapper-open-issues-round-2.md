@@ -219,9 +219,13 @@ Everything else under `src/native/lock/` and `src/native/landing/` that converts
   including the new `an_inherited_ignore_is_not_replaced_by_the_guard`,
   `sides_that_changed_different_paths_share_none` and
   `a_relative_hooks_path_in_a_bare_repository_resolves_against_the_git_directory`.
-- The three surviving controls of `#4505` and `#4516`,
-  by name,
-  in the same binary.
+- The surviving controls named for `#4505` and `#4516`:
+  `transaction::transaction_owner::tests::dead_owners_are_dead`
+  (1 passed)
+  and `landing::service_land::finish_git_failure_tests`
+  (4 passed,
+  including `a_failed_ancestry_question_keeps_the_batch_and_a_clean_no_drops_it`
+  and `a_git_that_fails_does_not_make_a_landed_batch_look_unmoved`).
 - Six guard removals,
   one filtered run each,
   to prove every new or changed control can fail;
