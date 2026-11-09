@@ -1541,12 +1541,15 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     let foreign: ForeignIndexLock = ForeignIndexLock::take(lock.as_path());
     let intent: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    // The landing says so from its own thread, before it blocks, once it has found the lock held and has not read the branch;
-    //  the word goes with the landing, so one that ends without waiting is heard at once rather than at the end of a window.
     let (waiting, said) = std::sync::mpsc::channel();
-    let announce = move |_: Announce| { let _told = waiting.send(()); };
     let (heard, outcomes) = std::thread::scope(|scope| {
-        let landing = scope.spawn(|| { return land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &announce); });
+        let landing = scope.spawn(|| {
+            // The landing says so from its own thread, before it blocks, once it has found the lock held and has not read the
+            //  branch; the channel goes with this thread, so a landing that ends without waiting is heard at once rather than
+            //  at the end of a window.
+            let announce = move |_: Announce| { let _told = waiting.send(()); };
+            return land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &announce);
+        });
         let heard: Result<(), &'static str> = match said.recv_timeout(WAIT_WORD_CEILING) {
             Ok(()) => Ok(()),
             Err(RecvTimeoutError::Disconnected) => Err("the landing ended without waiting for the index lock"),
