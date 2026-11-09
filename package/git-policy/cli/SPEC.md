@@ -9954,6 +9954,14 @@ with `schemaVersion`,
 `hatch` or `saved-conflict`),
 `dirty`,
 `cwd` and `arguments`.
+Each path and argument this line names is written beside its text as its bytes
+(`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+the two-field form every other record of a path takes (`path_bytes_in_records.rs`),
+so a command whose working directory or argument is not UTF-8 is still the command the line names:
+the line exists to attribute a loss to it.
+The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,

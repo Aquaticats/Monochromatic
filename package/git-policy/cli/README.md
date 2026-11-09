@@ -1779,7 +1779,11 @@ the release,
 the process and its parent,
  the worktree kind and the worktree's Git directory (`gitDir`),
 the form,
-the working directory and the arguments
+the working directory and the arguments,
+ each path field and each argument written beside its text as its bytes (`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+ so a name that is not UTF-8 still names the command that was run
  (a decision that saved conflicted files also lists where each copy went).
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
