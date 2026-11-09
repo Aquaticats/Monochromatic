@@ -144,6 +144,25 @@ fn index_with_tracked_staging_stages_only_tracked_changes() {
     remove(root.as_path());
 }
 
+/// `commit -a` stages tracked changes with a `:/` pathspec the wrapper wrote,
+/// so two glob modes that disagree in the caller's environment must not make that start fail the commit.
+#[test]
+fn index_with_tracked_staging_survives_the_callers_conflicting_glob_modes() {
+    let root: PathBuf = fixture("commit-index-tracked-glob-modes");
+    let (repo, indexes, base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("a.txt"), "changed\n").expect("change a");
+    let pathspecs: Vec<OsString> = Vec::new();
+    let mut choice: IndexSelection = selection(TransactionMode::Index, &pathspecs, &base);
+    choice.stage_tracked_changes = true;
+    let mut inherited: GitContext = git_context();
+    inherited.overlay.push((OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")));
+    inherited.overlay.push((OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")));
+    initialize_commit_index(&inherited, repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &choice)
+        .expect("the tracked staging start survives the caller's modes");
+    assert_eq!(changed(&repo, &indexes, &base), vec![b"a.txt".to_vec()]);
+    remove(root.as_path());
+}
+
 /// An include stages the named paths into the copy,
 /// and the real index stays as it was.
 #[test]
