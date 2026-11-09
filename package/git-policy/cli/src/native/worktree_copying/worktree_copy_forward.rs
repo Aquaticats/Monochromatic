@@ -498,7 +498,7 @@ fn run_settled(
                 Ok(ChildOutcome::Signaled(_)) => return Ok(GitStatus { code: None }),
                 // A step that was ended at its ceiling did start, so the failure says what happened rather than that it could not start.
                 Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
-                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` was ended: {error}", words_of(child_arguments.as_slice()))));
+                    return Err(WorktreeCopyError(format!("monochromatic-git-policy-cli: the step `{}` did not finish: {error}", words_of(child_arguments.as_slice()))));
                 }
                 Err(error) => {
                     return Err(WorktreeCopyError(format!(

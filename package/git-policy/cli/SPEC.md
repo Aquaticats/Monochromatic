@@ -1662,6 +1662,15 @@ it writes the wrapper's own stage or the new worktree,
 the source is
 never written,
 and a lock it held is named by the report of an interrupted `git worktree add`.
+The ending is bounded too:
+`SIGKILL` goes to the step's whole process group,
+and the wrapper waits `STOP_GRACE` for the leader to exit and be collected
+(`src/native/invocation/forwarding.rs`,
+a few seconds,
+which only a child the kernel cannot stop uses up);
+a child still inside an uninterruptible call after that is left where it is,
+the add fails with the step's words and says that it has not exited,
+and nothing waits for the call the ceiling exists to end.
 A process killed between Git's run and the end of the add leaves the claim and a record;
 the next recovery changes
 nothing,

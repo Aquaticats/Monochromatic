@@ -12,7 +12,7 @@
 #![cfg(unix)]
 
 /// Import the forwarding functions under test and shared fixtures.
-use super::{ChildOutcome, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
+use super::{ChildOutcome, STOP_GRACE_FOR_THIS_THREAD, exit_code, git_command, replace_process_with_real_git, run_real_git, run_real_git_until};
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
@@ -230,4 +230,74 @@ fn a_run_inside_its_ceiling_reports_what_the_child_did() {
     let missing: PathBuf = root.join("no-git");
     assert_eq!(run_real_git_until(missing.as_path(), &[], &[], std::time::Duration::from_secs(30)).expect_err("nothing to start").kind(), std::io::ErrorKind::NotFound);
     remove(root.as_path());
+}
+
+/// What:
+///  A ceiling whose child cannot be collected inside the stop grace still returns,
+/// and its error says the child has not
+///  exited.
+/// Why:
+///   `SIGKILL` cannot be ignored,
+/// so a child still running after the grace is inside a system call the kernel cannot
+///  interrupt (a hung filesystem,
+/// a dead FUSE server);
+/// a plain `wait` there would wait for exactly the thing the
+///  ceiling exists to end (owner: "nothing should ever wait forever or indefinitely").
+/// The grace is set to zero for
+///  this thread,
+/// so the leaving path is what the control reaches,
+/// and the leader's number proves the kill itself was sent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shortenStopGrace(0); const error = await awaitReject(runRealGitUntil(program, [], [], 300));
+/// expect(error.message).toContain('has not exited'); expect(isAlive(leader)).toBe(false);
+/// ```
+#[test]
+fn a_ceiling_whose_child_cannot_be_collected_returns_and_says_so() {
+    let root: PathBuf = fixture("forward-ceiling-uncollected");
+    let child_number: PathBuf = root.join("child.pid");
+    let program: PathBuf = root.join("uninterruptible-git");
+    let script: String = format!("#!/bin/sh\necho $$ > {}\nsleep 600\n", child_number.display());
+    executable(program.as_path(), script.as_bytes());
+    STOP_GRACE_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<std::time::Duration>>| slot.set(Some(std::time::Duration::ZERO)));
+    let began: std::time::Instant = std::time::Instant::now();
+    let error: std::io::Error = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_millis(300)).expect_err("the ceiling ends the step");
+    let waited: std::time::Duration = began.elapsed();
+    STOP_GRACE_FOR_THIS_THREAD.with(|slot: &std::cell::Cell<Option<std::time::Duration>>| slot.set(None));
+    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut, "{error}");
+    assert!(error.to_string().contains("300ms") && error.to_string().contains("has not exited"), "the error names the ceiling and what it saw: {error}");
+    assert!(waited < std::time::Duration::from_secs(20), "it does not wait for a child that cannot be stopped: {waited:?}");
+    assert!(collected_here(number_in(child_number.as_path())), "the kill ended the child, and only its collection was left to this process");
+    remove(root.as_path());
+}
+
+/// What:
+///  Whether a child of this process has ended,
+/// asking without waiting,
+/// and collecting it when it has.
+/// Why:
+///   A leader the wrapper left unreaped is a zombie,
+/// and a zombie answers `kill(pid, 0)`,
+/// so the proof that the
+///  kill reached it is a `waitpid` that reports it ended;
+/// asking without waiting keeps the control bounded when the
+///  proof would fail.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let tries = 0; tries < 40; tries += 1) { if (waitpid(pid, WNOHANG) === pid) return true; await delay(50); } return false;
+/// ```
+fn collected_here(pid: i32) -> bool {
+    for _try in 0..40 {
+        let mut status: libc::c_int = 0;
+        // SAFETY: `waitpid` takes the number of a child of this process and a status integer this function owns, and it
+        // touches no other memory.
+        let collected: libc::pid_t = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
+        if collected == pid {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    return false;
 }

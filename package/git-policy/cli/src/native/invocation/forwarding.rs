@@ -213,6 +213,51 @@ pub fn run_real_git(
 const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_millis(20);
 
 /// What:
+///  How long a child that was just killed is given to exit and be collected before the wrapper leaves without it.
+/// Why:
+///   `SIGKILL` cannot be ignored,
+/// so a child still running after this grace is inside a system call the kernel cannot
+///  interrupt (a hung filesystem,
+/// a dead NFS or FUSE server);
+/// the ceiling exists for exactly that case,
+/// and waiting for the
+///  child to leave it would wait for the thing that never answers (owner:
+/// "nothing should ever wait forever or
+///  indefinitely").
+/// A killed child normally exits in microseconds,
+/// so this grace is hundreds of thousands of times that: only a
+///  child the kernel cannot stop uses it up.
+const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// What:
+///  The grace for the runs of the current thread;
+/// a control shortens it so a child that cannot be collected ends the control
+///  at once instead of at the shipped bound.
+/// Why:
+///   The grace is a shipped resource limit,
+/// and a control that proved the leaving path by a real hung filesystem would need a
+///  hung filesystem.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// let stopGrace = STOP_GRACE;
+/// ```
+#[cfg(test)]
+thread_local! {
+    /// The stop grace for the runs of this thread.
+    pub(crate) static STOP_GRACE_FOR_THIS_THREAD: std::cell::Cell<Option<std::time::Duration>> = const { std::cell::Cell::new(None) };
+}
+
+/// The stop grace the current thread's runs use.
+fn stop_grace() -> std::time::Duration {
+    #[cfg(test)]
+    if let Some(shortened) = STOP_GRACE_FOR_THIS_THREAD.with(std::cell::Cell::get) {
+        return shortened;
+    }
+    return STOP_GRACE;
+}
+
+/// What:
 ///  Run real Git as a child with inherited streams and wait no longer than `ceiling`,
 /// ending the child and every process
 ///  it started when the ceiling is reached.
@@ -227,6 +272,11 @@ const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_mil
 /// so a stop takes the
 ///  filters it started with it and nothing beside it,
 /// and the leader is then reaped so it leaves no zombie.
+///  The reap is bounded by `STOP_GRACE`:
+/// a child the kernel cannot stop is left,
+/// and the error says so,
+/// because
+///  waiting for it is waiting for the call the ceiling exists to end.
 ///  The person's own forwarded command is never run this way:
 /// native Git waits as long as its own work
 ///  takes,
@@ -237,8 +287,9 @@ const BOUNDED_LOOK_INTERVAL: std::time::Duration = std::time::Duration::from_mil
 /// const child = spawn(gitPath, args, { stdio: 'inherit', detached: true });
 /// const deadline = Date.now() + ceilingMs;
 /// while (Date.now() < deadline) { const status = tryWait(child); if (status) return status; await delay(20); }
-/// process.kill(-child.pid, 'SIGKILL'); await child.exited;
-/// throw new Error(`it ran longer than ${ceiling}s and was ended`);
+/// process.kill(-child.pid, 'SIGKILL');
+/// const collected = await collectWithin(child, STOP_GRACE);
+/// throw new Error(collected ? `it ran longer than ${ceiling}s and was ended` : `it ran longer than ${ceiling}s and has not exited`);
 /// ```
 pub fn run_real_git_until(
     real_git: &Path,
@@ -266,27 +317,40 @@ pub fn run_real_git_until(
             }
         }
     }
-    stop_child_group(&mut child);
+    let collected: bool = stop_child_group(&mut child);
+    // A child that did not exit inside the grace is still running: the message says what was seen instead of claiming it ended.
+    let ending: String = if collected {
+        String::from("and was ended, with the filters and helpers it started")
+    } else {
+        format!("and was told to stop {:?} ago, but it has not exited: it is inside a call the kernel cannot interrupt, so it may still write, and this command did not wait for it", stop_grace())
+    };
     return Err(std::io::Error::new(
         std::io::ErrorKind::TimedOut,
         format!(
-            "it ran longer than {:?} and was ended, with the filters and helpers it started; something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)",
-            ceiling
+            "it ran longer than {ceiling:?} {ending}; something it waited for never answered, and a lock it held may still stand (`index.lock` in the worktree's Git directory)"
         ),
     ));
 }
 
 /// What:
-///  End the child's whole process group and reap the leader.
+///  End the child's whole process group and collect the leader,
+/// waiting no longer than the stop grace,
+///  and report whether the leader was collected.
 /// Why:
 ///   Killing only the leader would leave a smudge filter or a Git LFS process writing into the worktree
 ///  beside a cleanup that removes what it writes.
+/// A plain `wait` here would wait for the child to leave the call that the ceiling
+///  interrupted,
+/// which is the wait this whole path exists to avoid;
+/// a leader left unreaped is a zombie for as
+///  long as this process lives,
+/// which is cheaper than a command that never returns.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// process.kill(-child.pid, 'SIGKILL'); await child.exited;
+/// process.kill(-child.pid, 'SIGKILL'); return await collectWithin(child, STOP_GRACE);
 /// ```
-fn stop_child_group(child: &mut std::process::Child) {
+fn stop_child_group(child: &mut std::process::Child) -> bool {
     #[cfg(unix)]
     {
         if let Ok(leader) = libc::pid_t::try_from(child.id()) {
@@ -295,8 +359,15 @@ fn stop_child_group(child: &mut std::process::Child) {
             let _stopped: libc::c_int = unsafe { libc::kill(-leader, libc::SIGKILL) };
         }
     }
-    // A child killed so must be collected: a leader left unreaped is a zombie for as long as this process lives.
-    let _collected: std::io::Result<std::process::ExitStatus> = child.wait();
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_status)) => return true,
+            Ok(None) if began.elapsed() >= stop_grace() => return false,
+            Ok(None) => std::thread::sleep(BOUNDED_LOOK_INTERVAL),
+            Err(_unwaitable) => return false,
+        }
+    }
 }
 
 /// What:
