@@ -550,7 +550,7 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
   so a mount that stops answering cannot hold the command:
   a read that gives no answer makes the command say which read it was and carries on,
-  with status `2` for a hooks directory and one line of standard error for the host facts.
+  with status `2` for a hooks directory and one line of standard error for the host facts and for the folder of saved copies.
   The filesystem section describes the checkout Git reports for where the command runs
   (`git rev-parse --path-format=absolute --show-toplevel`),
   and says nothing about a file system when Git reports none,
