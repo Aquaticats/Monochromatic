@@ -14,6 +14,8 @@
 //! because an unreadable lock might name a version that is about to be deleted,
 //! and a file given with `--lock` names versions or refuses the command:
 //! it may not be absent, since a file that said what to keep cannot be read as keeping nothing.
+//! A crate directory the scan cannot read refuses the command too:
+//! reading it as empty would remove the whole directory, including a version a lock names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -379,13 +381,11 @@ pub fn prune_toolchain(
                 Some(versions) => !versions.is_empty(),
                 None => false,
             };
-            if remaining {
-                // Only a crate this repository publishes has a `current` link, and it was repointed before the
-                // deletions above, so the link already names the newest finished version that stays.
-            } else if !had_versions {
-                // A directory that held no version before holds only a `current` link that forwards to the other toolchain
-                // root's newer copy (see `managed_losers.rs`); nothing was pruned from it, so it stays.
-            } else if let Err(error) = fs::remove_dir_all(&crate_dir) {
+            // Only a crate that held versions and has none left is removed with its directory:
+            // a crate that keeps one already has its `current` link repointed above,
+            // and a directory that held no version before holds only a `current` link forwarding to the other
+            // toolchain root's newer copy (see `managed_losers.rs`), which this run never pruned.
+            if !remaining && had_versions && let Err(error) = fs::remove_dir_all(&crate_dir) {
                 return Err(ToolchainError::failure(format!("cannot remove {}: {error}", crate_dir.display())));
             }
         }
