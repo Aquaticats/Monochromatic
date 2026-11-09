@@ -4340,6 +4340,37 @@ the tree has not been through it),
 `native:perf` (the plan asks for it after T12),
 and the mutation campaign.
 
+#### The overlap control expects the runner's bound, not a typed four, 2026-11-08T20:30:54-05:00
+
+`items_run_at_the_same_time` asked one run for four workers and expected four items at a single point.
+The jobs of this runner are bounded by the process's bound on blocking jobs,
+which `budgeted_workers` sizes from `available_parallelism`,
+so a container's CPU quota lowers it:
+measured in the test's own cgroup,
+`CPUQuota=200%` gave `available_parallelism` 2 and `budgeted_blocking_jobs()` 2,
+and a probe of four items kept at most 2 inside their job at once (51.6 ms in two waves),
+against `available_parallelism` 6 and a bound of 5 (26.8 ms) at the session's 600% allowance.
+The old control failed there in 10.011 s with `left: 2` against `right: 4`,
+which is the two items that did start waiting out `PATIENCE`.
+So the control was wrong and not the runner:
+the runner says in its module doc that it runs its items under that bound,
+and its `workers` field names the bound now too,
+where the typed four had read as a guarantee.
+The control derives the count from the runner's promise (`jobs_that_may_overlap`:
+the workers it asks for,
+the lanes and `budgeted_blocking_jobs()`) and runs exactly that many items at a rendezvous of that size;
+where the bound is one it prints why it has nothing to measure and returns,
+because one job at a time can never meet another.
+Planted control:
+with `at_once` in `run_ordered_on_the_runtime` set to one,
+the control fails in 10.016 s with `left: 1` against `right: 2`,
+so it still catches a runner that runs its items one after another.
+Both allowances:
+`mise run //package/git-policy/cli:native:test:host -- foundation::parallel_runner_on_the_runtime`
+passed 9 of 9 at `CPUQuota=200%` and at the session's 600%,
+with `items_run_at_the_same_time` in 0.007 s and in 0.009 s.
+Commit `520d8991c2` on `fix/git-policy-cli-parallel-runner-control-holds-at-any-cpu-count`.
+
 ### Step T12, the leaf-first asynchronous Git and the ordered runner that awaits, 2026-11-08T19:29:56-05:00
 
 Branch `feat/git-policy-cli-tokio-steps-12-and-13` in
