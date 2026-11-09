@@ -1,5 +1,8 @@
 # Node 26.7.0 exhausts its heap when corpus bench reads repeatedly resolve Git
 
+Note 2026-11-09T16:56:27-05:00:
+`package/git-policy/cli/src/resolve-git.ts` left the tree on 2026-08-28 in `2aef2d409a`.
+
 ## Symptom
 
 Writer-calibration preparation on frozen `45e64e411` failed in a Podman 5.8.4 container

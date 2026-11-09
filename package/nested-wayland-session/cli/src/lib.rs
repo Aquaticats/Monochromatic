@@ -111,6 +111,9 @@ pub mod control_window;
 /// Pointer hover and held-button injection through the nested seat.
 pub mod input_pointer;
 
+/// Percent-escaping shared by every one-line answer format.
+pub mod percent_escape;
+
 /// Taskbar progress answer text,
 ///  including the one-line URI escaping.
 pub mod launcher_format;

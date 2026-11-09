@@ -167,6 +167,105 @@ branch and checked-out files,
 and no ignored state.
 The Pi agent `worktree-add-findings-fixed` has the message and is asked to name the path and survive the disappearance.
 
+#### Claude Sonnet audits, the gate on `742076c71d`, and what waits for an agent slot (2026-11-09T16:48:18-05:00)
+
+The release gate on `742076c71d` ended with 69 of 6,699 tests failed
+(`gpc-gate-wrapper-next-alpha-on-742076c71d-20261109T161449-0500.log` in `~/temp/agent/gate/`).
+A new gate runs on `776281f4ee`.
+Owners of the failures:
+
+- The lock scan refuses every file on an `overlay` mount (`process/open_file_of_a_descriptor.rs:159`),
+  so in a container a stale lock is never cleared:
+  the Pi agent `lock-scan-reads-overlay-mounts`.
+- Panics where the system refused a thread,
+  under the gate's `--pids-limit 512`:
+  the Pi agent `refused-thread-ends-no-command`.
+- The rest,
+  among them commit budgets that rose and controls that no longer match the product:
+  the Pi agent `gate-failures-after-todays-landings`.
+
+The owner asked for long reviews and audits on Claude Sonnet.
+Reports are at `~/temp/agent/sonnet-audits/<name>/final.md`,
+and every finding has a reproduction beside it.
+The coordinator's judgement of each,
+under rule `WGH`:
+
+- `push-delivery`:
+  a pending push a killed wrapper left is never delivered,
+  a delivered held commit is reported as held for ever,
+  and a reconcile's report never reaches the person.
+  The Pi agent `push-delivery-audit-findings-fixed` owns them.
+  Its blocked-commit finding is the open owner question in `doc/handover/questions-for-the-owner.md`.
+- `service-restart-and-version-skew`:
+  no commit was lost or doubled in any combination.
+  A landed commit can be reported as not made,
+  and the rollback advice does not say how to stop the newer service:
+  both are briefed.
+  Dismissed:
+  an older release moves a newer push record to `failed`,
+  because only a rollback reaches it,
+  that release cannot change,
+  and the next push carried the commit.
+- `worktree-lifecycle`:
+  a `0600` credential is `0644` until its chmod,
+  and permanently if the add is killed there,
+  and a kill during install leaves empty files and a half-filled worktree that nothing records.
+  Both come from the EXDEV copy fallback.
+  The Pi agent `worktree-copy-install-keeps-modes-and-finishes` owns them.
+  A later run killed a snapshot-route add ten times:
+  two kills left a full snapshot of the main checkout beside the destination,
+  credentials and a copy of `.git` included,
+  and small records of killed adds pile up in `<git-dir>/monochromatic-git-policy-cli-worktree-copy/v1`.
+  `package/git-policy/cli/SPEC.md` says the person removes the stage,
+  so removing it automatically is an owner question in `doc/handover/questions-for-the-owner.md`.
+  Killing `migrate-to-subvolume` eight times during its copy phase lost nothing and every run resumed;
+  the swap and index-rewrite phases were not reached.
+  Two `worktree_copy` controls,
+  `a_creation_recovers_a_dead_journal_first` and `a_refused_add_leaves_no_record_for_the_worktree_another_command_completed`,
+  timed out at 300 s in a 344-test run of the ignored-names branch and pass alone.
+  The first took 0.7 s to 27.3 s on a checkout without that branch and 1.4 s to 12.0 s with it,
+  so the branch did not add the time.
+  What the time goes to is unmeasured,
+  and under rule `SUF` it stays a contention defect until it is.
+- `merge-and-pull-never-fail`:
+  a dead Git's `index.lock` makes every command exit 2,
+  read-only commands wait 60 s over a saved merge,
+  and the owner's "Carry edits forward" is still not built:
+  both are briefed.
+- `never-stuck`:
+  a FIFO at `.git/index.lock` or at a rules file blocks for ever,
+  and it is briefed.
+- `differential-against-real-git`:
+  `git commit -- .` also commits untracked files,
+  global pathspec modes are ignored by an explicit-path commit,
+  service-landed commits write an empty reflog message,
+  and a stopped service leaves its lock marker.
+  All are briefed.
+  Dismissed as cosmetic:
+  the wrapper's merge omits `Auto-merging <path>`.
+
+The `worktree-lifecycle`,
+`never-stuck`,
+`merge-and-pull-never-fail` and `differential-against-real-git` audits returned early or are still ending under rule `PLQ`,
+with some probes running;
+what each has left is at the end of its `final.md`.
+
+These agents wait for a free Pi slot,
+each with its brief at `~/temp/agent/pi-runs/<name>-prompt.md`,
+highest priority first:
+
+- `commit-survives-a-dead-ref-lock-and-a-moved-branch`,
+  from the audit `commit-kills-and-concurrency`:
+  `git commit -a` fails when the branch moves while it waits,
+  and a killed `git update-ref` leaves `refs/heads/main.lock`,
+  after which every commit fails saying the branch kept changing.
+- `client-reports-landed-commit-after-service-restart`,
+  which also owns that audit's finding of clients told "not known" while a slow recovery lands their commits.
+- `merge-recovers-after-a-dead-gits-lock`
+- `fifo-where-a-file-is-expected-ends-no-command`
+- `merge-carries-unsaved-edits-forward`
+- `commit-pathspecs-and-reflog-match-real-git`
+
 #### Queue after the test-coverage landing (2026-11-09T08:39:00-05:00)
 
 - `421ab69c3e` landed the landing branch,
@@ -6153,6 +6252,72 @@ are in append mode now).
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
   Never rerun to chase one.
+
+- `subvolume::subvolume_migrate::tests::a_rerun_after_a_simulated_kill_at_every_step_completes`
+  was aborted by nextest's 300 s bound in a filtered suite and passed alone in 260.6 s
+  (2026-11-09,
+  a host full-suite run also hit the bound on `subvolume_migrate::` and on
+  `worktree_convert::ownership_tests::`).
+  Cause,
+  measured on this host:
+  the stand-in platform says its writes stay in memory
+  (`Platform::flushes_to_disk`),
+  and the migration's journal,
+  locks and index rewrites already asked that switch,
+  but the claim file's write and its directory flush did not,
+  nor did the index rewrite's install,
+  which runs on a thread of the blocking pool that never inherits the answer.
+  One migration command took 79 s at a load average of 119,
+  of which the claim's take and release were 44 s and the two index installs 7 s
+  (per-step probes,
+  `~/temp/agent/time-limits/`);
+  after the change the claim took 1.0 ms and the index rewrite 5.0 ms.
+  The sweep then fell to 110 s one after another and 25.2 s with its twelve kill points
+  walking side by side (load average 115 and 119),
+  and the whole `ownership_tests` module from 193.1 s to 55.4 s,
+  its slowest control from 144.5 s to 33.0 s (load average 81).
+  Commits:
+  `75d8a46bcb` (the switch reaches the claim and the index rewrites,
+  with `a_claim_kept_in_memory_flushes_nothing_and_asks_the_shared_step_twice` and
+  `a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere` plus a flushing sibling each;
+  both failed before the change with `SyncCounts { made: 0, skipped: 0 }` and `made: 4, skipped: 0`),
+  `a6d7341191` (the sweep walks its points side by side).
+  On the final binary all 37 controls of `push_slow_server_tests`,
+  `subvolume_migrate::tests`,
+  `ownership_tests` and the four new ones passed under the standard bound in 71.9 s,
+  the sweep in 4.5 s at a load average of 36.
+- `push::push_slow_server_tests::a_server_that_holds_the_connection_without_answering_is_waited_for`
+  failed once inside a 5,603-test run,
+  reporting 1.70 s against its own 3 s floor.
+  Cause:
+  the control could not tell a fixture that lost the connection from a wrapper that stopped one.
+  Its server swallowed the answer of `listener.accept` (`if let Ok(..)`) and held exactly one connection,
+  so a refused accept ended that thread and dropped the listener under the push,
+  and its only verdict on earliness was the push's duration against its own 4 s sleep.
+  Measured 2026-11-09:
+  with the listener dropped before the push Git ends in 12.6 ms,
+  with the connection closed at once in 105.1 ms,
+  both exit 128 with no stall line and no wait note,
+  so both would have failed that floor and nothing else.
+  The product's wait itself was right in every run made:
+  4.10 s,
+  4.12 s and 4.19 s against its 4 s hold,
+  each saying the wait,
+  while the disconnected control beside it still stops at the 1 s stall window.
+  The control now lets the connection go only when it says so,
+  accepts every connection the push opens,
+  and fails naming the push's own exit status and output;
+  planted with `push_progress` ignoring an open connection it fails in 4.93 s with
+  "the push ended while the server still held the connection ... after 1.596346729s with 124:
+  ... (limit=stall ...)".
+  Commit `b7c5eeb5a1`.
+  Not measured,
+  and left open:
+  whether a single sample that does not attribute the push's socket to its process tree
+  (`push_progress::Meter::observe_sockets` over `descendants_of`) can stop a connected push;
+  the new control would now name that as `limit=stall` instead of as a clock,
+  which is what a
+  reproduction would need.
 
 ### The fold sweeps pay a filesystem commit for every step (2026-11-08T23:40:00-05:00)
 

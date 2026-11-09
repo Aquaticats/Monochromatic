@@ -5,7 +5,7 @@
  */
 
 import {
-  mkdtemp,
+  mkdtempDisposable,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -367,12 +367,14 @@ await describe({
           name: 'keeps advertising a pruned response and fails its read with ResourceReadError',
           fn: async () => {
             /**
-             Disposable fixture directory holding one full response file.
+             Disposable fixture directory holding one full response file, removed
+             when the test scope ends.
              */
-            const fixtureDir = await mkdtemp(join(
+            await using fixtureDirectory = await mkdtempDisposable(join(
               scratchRoot(),
               'search-fetch-mcp-pruned-',
             ),);
+            const fixtureDir = fixtureDirectory.path;
             /**
              Full response file that retention pruning later removes.
              */

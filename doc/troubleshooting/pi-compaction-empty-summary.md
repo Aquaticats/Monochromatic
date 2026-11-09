@@ -5,6 +5,13 @@ Upstream:
 `src/core/compaction/compaction.ts`.
  Date 2026-04-28.
 
+Note 2026-11-09T16:56:27-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/morph-compact/` is now `package-paused/pi-plugin/morph-compact`,
+moved 2026-10-29 in `64046360d2`.
+`package/pi-plugin/morph-compact` is now `package-paused/pi-plugin/morph-compact`,
+moved 2026-10-29 in `64046360d2`.
+
 ## Symptom
 
 Running `/compact` on a small pi session,

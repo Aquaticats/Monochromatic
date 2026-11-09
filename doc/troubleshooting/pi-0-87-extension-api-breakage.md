@@ -7,6 +7,16 @@ Updating the workspace Pi packages from 0.85.1 to 0.87.1
 broke `package/pi-plugin/auto-mode` in two independent ways,
 and a third defect kept both invisible to type checking.
 
+Note 2026-11-09T16:49:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/src/visible-context.ts` left the tree on 2026-10-19 in `7ac15b19b4`.
+`package/pi-shared/model-selection/src/types.ts` is now
+`package/agent-harness-shared/model-selection/src/types.ts`,
+moved 2026-10-20 in `b710410e81`.
+`package/pi-plugin/advisor/src/advisor-client.ts` is now
+`package/agent-harness-shared/advisor/src/advisor-client.ts`,
+moved 2026-10-20 in `093f32832a`.
+
 ## Symptom
 
 Every guarded tool call in a Pi session returned this tool result instead of running:

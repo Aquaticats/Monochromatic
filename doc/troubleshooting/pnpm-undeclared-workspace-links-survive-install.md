@@ -33,6 +33,15 @@ Related earlier write-up for 12.5.1:
 [pnpm-stale-node-modules-detection](pnpm-stale-node-modules-detection.md)
 (it already records the `dedupeDirectDeps` absence and the prefix-scoped `Already up to date` summary).
 
+Note 2026-11-09T16:38:44-05:00:
+these citations in this record name paths that no longer exist.
+the `package/module/` category folder was eliminated on 2026-10-29 in `592d78b143`;
+every library package sits directly under `package/` now.
+`package/file-enforcer/core` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/package.json` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 User command at the repository root on 2026-10-29:

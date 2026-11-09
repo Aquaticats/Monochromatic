@@ -11,6 +11,11 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/worktree-copy/git-observer.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/worktree-copy.unit.test.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 This command ran in the main worktree:

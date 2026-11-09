@@ -23,8 +23,8 @@
 /// Import the module under test.
 use super::{
     ENGINE_ERROR_MESSAGE, FORBIDDEN_STRING_CODE, LINE_BREAK_MESSAGE, ScannerSettings, ScannerState,
-    check_forbidden_strings, default_scanner_settings, incomplete_scan, match_finding,
-    unloaded_scanner,
+    cache_access, check_forbidden_strings, default_scanner_settings, incomplete_scan, match_finding,
+    service_reads_the_same_rules, unloaded_scanner, CachePublisher,
 };
 use crate::candidate_prediction::CandidateRequest;
 use crate::config_schema::RulesFileEntry;
@@ -34,9 +34,11 @@ use crate::event_path::EventPath;
 use crate::policy_content::{ContentState, LifecycleContent};
 use crate::policy_engine::{PolicyFinding, PolicyOutcome};
 use crate::policy_test_support::{ScriptedFacts, main_worktree, scripted_facts};
+use crate::scanner_adapter::{CandidateScanner, RulesSource, compiled_rules_artifact_exists};
+use crate::scanner_selection::rules_source;
 use crate::scanner_test_support::{needle, run_isolated};
 use crate::test_support::{git, repository};
-use forbidden_strings::{CandidateScan, ScanFinding};
+use forbidden_strings::{CacheAccess, CandidateScan, ScanFinding};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -102,6 +104,15 @@ fn repository_with_needle(work: &Path) -> PathBuf {
     std::fs::write(repo.join("a.txt"), format!("first\n{}\n", needle())).expect("needle");
     std::fs::write(repo.join("clean.txt"), b"clean\n").expect("clean");
     return repo;
+}
+
+/// Load `rules` under `access`,
+///  so a control can name the write the load takes.
+fn loaded_with(rules: &RulesSource, access: CacheAccess) -> CandidateScanner {
+    return match CandidateScanner::load_writing_cache(rules, false, access) {
+        Ok(scanner) => scanner,
+        Err(error) => panic!("the fixture's rules must load: {error}"),
+    };
 }
 
 /// The rules file is the configured one,
@@ -497,3 +508,102 @@ fn unknown_root(work: &Path) {
 /// Content already in a parent commit's tree is not scanned again.
 #[path = "policy_forbidden_strings_known_content_tests.rs"]
 mod known_content;
+
+/// What:
+///  The four answers of the cache-access rule,
+///  one per question it is asked,
+///  because a cache that holds the text needs no publisher,
+///  and a miss needs one.
+/// Why:
+///   The rule is the whole decision the commit path takes about the write that held a measured commit
+///   for 11.2 s of `fsync` and `rename` on this host;
+///  a case read the wrong way either writes on the commit's path again or leaves the cache cold forever.
+#[test]
+fn a_miss_is_published_by_whoever_was_named_beside_it() {
+    // A cache holding the text is read, and a read writes nothing either way.
+    assert_eq!(cache_access(true, true), CacheAccess::ReadWrite);
+    assert_eq!(cache_access(true, false), CacheAccess::ReadWrite);
+    // A miss a service took is the service's write, never this command's.
+    assert_eq!(cache_access(false, true), CacheAccess::ReadOnly);
+    // A miss no service took is written here, as every command did before.
+    assert_eq!(cache_access(false, false), CacheAccess::ReadWrite);
+}
+
+/// What:
+///  A command with no service to ask publishes the compiled rules itself,
+///  and one whose cache already holds them writes nothing.
+/// Why:
+///   This is the fallback that keeps a machine with no service running from compiling the rules on every
+///   command;
+///  the probe has to answer with a miss before it, and with the artifact after it.
+#[test]
+fn a_command_with_no_service_publishes_the_rules_itself() {
+    run_isolated(
+        "policy::policy_forbidden_strings::tests::a_command_with_no_service_publishes_the_rules_itself",
+        "forbidden-cache-publisher",
+        publishes_itself,
+    );
+}
+
+/// The body of `a_command_with_no_service_publishes_the_rules_itself`.
+fn publishes_itself(work: &Path) {
+    let repo: PathBuf = repository_with_needle(work);
+    std::fs::write(repo.join("rules.txt"), format!("{}\n", needle())).expect("rules");
+    let rules: RulesSource = match rules_source(Some(&[RulesFileEntry {
+        path: String::from("rules.txt"),
+        optional: false,
+    }]), None, repo.as_path()) {
+        Ok(found) => found,
+        Err(error) => panic!("the fixture's rules must resolve: {error}"),
+    };
+    let git_dir: PathBuf = repo.join(".git");
+    let publisher: CachePublisher<'_> = CachePublisher::Service {
+        git_dir: git_dir.as_path(),
+        repository: repo.as_path(),
+    };
+    assert!(!compiled_rules_artifact_exists(&rules), "the fixture's cache starts empty");
+    assert_eq!(
+        publisher.access(&rules),
+        CacheAccess::ReadWrite,
+        "no service answers for this fixture, so this command publishes"
+    );
+    // What: this command publishes, and the next load of the same text takes the artifact.
+    // Why:  The second answer must be the hit, not a second write, or every command would pay the write again.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // loadWritingCache(rules, false, CacheAccess::ReadWrite); expect(hasCompiledRules(rules)).toBe(true);
+    // ```
+    let writing: CandidateScanner = loaded_with(&rules, CacheAccess::ReadWrite);
+    assert!(!writing.cache_warnings().is_empty(), "the first load compiles from the text");
+    assert!(compiled_rules_artifact_exists(&rules), "the writing load published the artifact");
+    assert_eq!(publisher.access(&rules), CacheAccess::ReadWrite);
+}
+
+/// What:
+///  Whether the service would compile the very list a command selected,
+///  for the three shapes a selection has.
+/// Why:
+///   The service resolves the configuration's files and its environment carries no
+///   `FORBIDDEN_STRINGS_RULES`, so a list the variable named is another text whose artifact never answers
+///   this command's reads; a repository whose configuration names files keeps the list whatever the
+///   variable says, and that is the usual setup here.
+#[test]
+fn only_a_list_the_configuration_names_is_left_to_the_service() {
+    let root: PathBuf = PathBuf::from("/repo");
+    // A configuration that names files wins over a variable that names another: the service compiles the same list.
+    let named: ScannerSettings = settings(Some("rules.txt"), Some(OsStr::new("elsewhere.txt")), false);
+    let configured: RulesSource = rules_source(
+        Some(&[RulesFileEntry { path: String::from("rules.txt"), optional: false }]),
+        Some(OsStr::new("elsewhere.txt")),
+        root.as_path(),
+    )
+    .expect("the fixture's rules must resolve");
+    assert!(service_reads_the_same_rules(&named, root.as_path(), &configured));
+    // No configuration and a variable that names a list: only this command can publish that text.
+    let from_variable: ScannerSettings = settings(None, Some(OsStr::new("elsewhere.txt")), false);
+    assert!(!service_reads_the_same_rules(&from_variable, root.as_path(), &configured));
+    // No configuration and no variable: both read the default file.
+    let default_list: RulesSource = rules_source(None, None, root.as_path()).expect("the default list must resolve");
+    assert!(service_reads_the_same_rules(&settings(None, None, false), root.as_path(), &default_list));
+}

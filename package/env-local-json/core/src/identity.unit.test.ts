@@ -33,9 +33,13 @@ import {
 const INLINE_KEY = 'AGE-SECRET-KEY-1TESTSYNTHETICINLINEVALUE';
 
 /**
- Disposable fixture root shared by the cases.
+ Disposable fixture root shared by the cases, removed when this module's scope
+ ends.
  */
-const temp = await createTempRoot({ prefix: 'env-local-json-identity-', },);
+await using tempRoot = await createTempRoot({ prefix: 'env-local-json-identity-', },);
+
+/** Fixture root the cases read; `tempRoot` owns its removal. */
+const temp = tempRoot;
 
 /**
  Existing identity file named by the mise variable.

@@ -6,7 +6,8 @@
 
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
+  type DisposableTempDir,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
@@ -56,7 +57,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
 
         /**
          Local value for config.
@@ -80,7 +82,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
 
         /**
          Local value for config.
@@ -109,7 +112,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
         await writeConfig({
           home,
           value: { blocklist: [BLOCKLIST_ENTRY,], },
@@ -135,7 +139,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
         await writeConfig({
           home,
           value: {
@@ -171,7 +176,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
         await writeConfig({
           home,
           value: {
@@ -205,7 +211,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
         await writeLegacyConfig({
           home,
           value: {
@@ -240,7 +247,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
         /**
          Local value for configPath.
          */
@@ -274,7 +282,8 @@ await describe({
         /**
          Local value for home.
          */
-        const home = await tempHome();
+        await using scratchDirectory = await tempHome();
+        const home = scratchDirectory.path;
         await writeConfig({
           home,
           value: { blocklist: [INVALID_BLOCKLIST_ENTRY,], },
@@ -320,12 +329,12 @@ function requireError(value: unknown,): Error {
 }
 
 /**
- Create an isolated home directory.
+ Create an isolated home directory, removed when the caller's scope ends.
  
- @returns temp home path
+ @returns the home directory, which owns its own removal
  */
-async function tempHome(): Promise<string> {
-  return mkdtemp(join(
+async function tempHome(): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(
     scratchRoot(),
     'pi-search-fetch-config-test-',
   ),);

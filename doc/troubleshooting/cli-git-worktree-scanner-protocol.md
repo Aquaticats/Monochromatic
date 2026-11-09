@@ -1,5 +1,9 @@
 # cli-git scanner protocol mismatch after copying an older worktree artifact
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/optional/forbidden-strings/scan-candidates.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+
 ## Symptom
 
 A new owned worktree inherited a forbidden-strings 0.4.0 binary.

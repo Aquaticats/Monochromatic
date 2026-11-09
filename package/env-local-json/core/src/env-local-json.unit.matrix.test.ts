@@ -15,7 +15,7 @@ import { createHash, } from 'node:crypto';
 import {
   chmod,
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
   readFile,
   rm,
   writeFile,
@@ -200,13 +200,14 @@ async function installStoreTools(): Promise<void> {
   },);
   await chmod(sopsPath, 0o755,);
   /**
-   Disposable directory holding the downloaded age archive.
+   Disposable directory holding the downloaded age archive, removed when this
+   function returns.
    */
-  const archiveRoot = await mkdtemp(join(scratchRoot(), 'env-local-json-age-',),);
+  await using archiveRoot = await mkdtempDisposable(join(scratchRoot(), 'env-local-json-age-',),);
   /**
    Where the age archive is written before extraction.
    */
-  const archivePath = join(archiveRoot, 'age.tar.gz',);
+  const archivePath = join(archiveRoot.path, 'age.tar.gz',);
   await downloadVerified({
     artifact: await readLockedArtifact({ tool: 'age', },),
     destination: archivePath,
@@ -226,7 +227,6 @@ async function installStoreTools(): Promise<void> {
     ],
     { stdio: 'inherit', },
   );
-  await rm(archiveRoot, { recursive: true, force: true, },);
   process.env.PATH = `${TOOL_BIN_DIRECTORY}${delimiter}${process.env.PATH ?? ''}`;
 }
 
@@ -239,11 +239,13 @@ async function createFixture(): Promise<{
   readonly root: string;
   readonly identityPath: string;
   readonly storePath: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
 }> {
   /**
-   Local value for root.
+   Fixture root, removed when the caller's scope ends.
    */
-  const root = await mkdtemp(join(scratchRoot(), 'env-local-json-matrix-',),);
+  const directory = await mkdtempDisposable(join(scratchRoot(), 'env-local-json-matrix-',),);
+  const root = directory.path;
   await chmod(root, 0o700,);
   /**
    Local value for identityPath.
@@ -285,7 +287,14 @@ async function createFixture(): Promise<{
     { stdio: 'ignore', },
   );
   await chmod(storePath, 0o600,);
-  return { root, identityPath, storePath, };
+  return {
+    root,
+    identityPath,
+    storePath,
+    [Symbol.asyncDispose]: async function removeFixtureRoot(): Promise<void> {
+      await directory.remove();
+    },
+  };
 }
 
 //endregion Fixtures
@@ -355,7 +364,10 @@ async function captureRejection(
 }
 
 await installStoreTools();
-const fixture = await createFixture();
+await using disposableFixture = await createFixture();
+
+/** Fixture root, identity and store; `disposableFixture` owns their removal. */
+const fixture = disposableFixture;
 
 await describe({
   name: 'env-local-json container reader',

@@ -608,5 +608,6 @@ const scriptedPlan = scriptedPlanFor({ project: scriptedProject });
 listener.close();
 // Fixtures below /tmp and /run live in memory; the results above hold everything the checks read.
 for (const parent of replacedParents) rmSync(parent, { recursive: true });
-console.log('Language confinement ' + (failed ? 'FAILED' : 'passed') + ': ' + join(results, 'results.json'));
-if (failed) process.exitCode = 1;
+const resultsPath = join(results, 'results.json');
+if (failed) throw new Error('Language confinement FAILED: ' + resultsPath);
+console.log('Language confinement passed: ' + resultsPath);
