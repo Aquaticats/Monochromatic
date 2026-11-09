@@ -183,3 +183,30 @@ fn absent_paths_and_hunkless_sections_have_no_spans() {
     assert!(new_spans(hunkless.as_slice(), "m.ts").is_empty());
     remove(parent.as_path());
 }
+
+/// Names Git quotes in its patch header:
+/// a quote it escapes and a non-ASCII byte it escapes,
+/// both of which `core.quotePath` quotes by default.
+const QUOTED_NAMES: [&str; 2] = ["quote\".rs", "caf\u{e9}.rs"];
+
+/// A changed path Git quotes in the patch header is still that file's section:
+/// the spans are the changed lines',
+/// as the zero-context diff names them,
+/// never none.
+#[test]
+fn a_quoted_path_derives_its_changed_lines() {
+    let before: String = numbered(FILE_LINES);
+    let mut lines: Vec<String> = before.lines().map(String::from).collect();
+    lines.insert(FILE_LINES / 2, String::from("inserted"));
+    lines[0] = String::from("first replaced");
+    let after: String = format!("{}\n", lines.join("\n"));
+    for name in QUOTED_NAMES {
+        let (parent, root) = changed_repository("patch-quoted", name, before.as_str(), after.as_str());
+        let patch: String = git_text(root.as_path(), &["show", "--format=", "--patch", "HEAD"]);
+        assert!(patch.contains("diff --git \""), "{name} is quoted in the header: {patch}");
+        let (derived, expected) = both_sides(root.as_path(), name);
+        assert!(!expected.is_empty(), "{name} changed lines: {expected:?}");
+        assert_eq!(derived, expected);
+        remove(parent.as_path());
+    }
+}

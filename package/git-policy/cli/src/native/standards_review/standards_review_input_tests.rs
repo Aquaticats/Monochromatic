@@ -148,3 +148,18 @@ fn input_is_cut_by_utf16_units() {
     let short: ReviewInput = build_input(&commit_with(2, &[]), &[]);
     assert_eq!(short.model_input_units, utf16_length(short.model_input.as_str()));
 }
+
+/// A section whose path Git quotes still anchors its excerpt on the changed line,
+/// so the model reads that line's context and never the head of the file.
+#[test]
+fn a_quoted_path_section_anchors_its_excerpt() {
+    let name: &str = "quote\".rs";
+    let file: String = (1..=200).map(|number| return format!("l{number}")).collect::<Vec<String>>().join("\n");
+    let changed: i64 = 123;
+    let mut commit: LandedCommit = commit_with(0, &[(name, file.as_str())]);
+    // The header Git writes for a quoted path, and a one-line replacement at `changed`.
+    commit.patch = format!("diff --git \"a/quote\\\".rs\" \"b/quote\\\".rs\"\n--- \"a/quote\\\".rs\"\n+++ \"b/quote\\\".rs\"\n@@ -{changed},1 +{changed},1 @@\n-before\n+after\n");
+    let input: ReviewInput = build_input(&commit, &names(&[name]));
+    let (from, to) = (changed - EXCERPT_CONTEXT, changed + EXCERPT_CONTEXT);
+    assert!(input.model_input.contains(&format!("// candidate excerpt of {name}, lines {from} to {to} of 200")), "{}", input.model_input);
+}
