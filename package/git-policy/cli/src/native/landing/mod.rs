@@ -91,6 +91,10 @@ pub mod service_land_copy;
 
 pub mod service_land_follow;
 
+/// The record of an index update a landed batch owes,
+/// and the repair that repeats it for the entries the landing left.
+pub mod owed_index_update;
+
 pub mod service_land_start;
 
 /// The commit service's hold on Git's index lock across a landing.

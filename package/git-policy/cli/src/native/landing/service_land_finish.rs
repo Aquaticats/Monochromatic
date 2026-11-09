@@ -105,6 +105,10 @@ impl Record for RecordIndexed<'_> {
 /// whether or not the conclusion state could be removed.
 /// Whether both are done.
 pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: IndexLock, journal: &Path) -> bool {
+    // The index update is owed from this instant, and the record of it is written in the worktree's own Git directory before
+    //  anything tries to install it, so a kill, a failing step or a restart that declines to replay leaves the obligation where
+    //  the person's next commit reads it (`owed_index_update.rs`).
+    crate::owed_index_update::write(&crate::owed_index_update::of_intent(intent));
     let cleaned: bool = cleanup_done(git, repository, intent);
     if crate::service_fault::fails("build-index") {
         return false;
@@ -123,7 +127,12 @@ pub fn follow_up(git: &GitContext, repository: &Path, intent: &Intent, lock: Ind
         }
     }
     let recorded: RecordIndexed<'_> = RecordIndexed { journal, intent };
-    return lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok() && cleaned;
+    let installed: bool = lock.release_flushed_with_record(built.path(), built.is_flushed(), &recorded).is_ok();
+    if installed {
+        // The index holds the commit now, so nothing is owed any more.
+        crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
+    }
+    return installed && cleaned;
 }
 
 /// What:
@@ -281,8 +290,11 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
         Gate::Leave(reason) => {
             drop(held);
             crate::service_error!(
-                "batch {}: the index entries of its paths were not updated and are left as they are, because {reason}; `git status` shows the commit's paths against the index until they are staged again",
-                intent.seq
+                "batch {}: the index entries of its paths were not updated and are left as they are, because {reason}; the record of what it \
+owes is kept at {}, and the next commit in the worktree sets those entries to the commit before it makes anything of this index, \
+so `git status` shows the commit's paths against the index until then",
+                intent.seq,
+                crate::owed_index_update::path_of(intent.git_dir.as_path(), intent.seq).display()
             );
             settled_of(cleanup_done(git, repository, intent))
         }
@@ -402,7 +414,7 @@ fn keep_what_the_branch_does_not_show(git: &GitContext, intent: &Intent) {
 /// await recover(context)
 /// ```
 pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
-    return recover_selected(context, None, true, JournalOwner::ThisService);
+    return recover_selected(context, None, JournalOwner::ThisService);
 }
 
 /// What:
@@ -430,7 +442,7 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 /// await recoverInstance(context, instance)
 /// ```
 pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
-    return recover_selected(context, Some(instance), false, JournalOwner::ThisService);
+    return recover_selected(context, Some(instance), JournalOwner::ThisService);
 }
 
 /// What:
@@ -460,7 +472,7 @@ pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryRe
 /// await recoverInstanceWithoutDrops(context, instance)
 /// ```
 pub fn recover_instance_without_drops(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
-    return recover_selected(context, Some(instance), false, JournalOwner::EarlierHelper);
+    return recover_selected(context, Some(instance), JournalOwner::EarlierHelper);
 }
 
 /// The exit status `git rev-parse --verify --quiet` gives for a name that is no object:
@@ -556,7 +568,7 @@ fn decision_for(git: &GitContext, intent: &Intent) -> Option<Recovery> {
     return Some(recovery_for(intent, current.as_str(), ancestor));
 }
 
-fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unreadable: bool, owner: JournalOwner) -> Vec<RecoveryReport> {
+fn recover_selected(context: &LandContext, instance: Option<&str>, owner: JournalOwner) -> Vec<RecoveryReport> {
     let mut reports: Vec<RecoveryReport> = Vec::new();
     let listed: Vec<(std::path::PathBuf, Option<Intent>)> = match owner {
         JournalOwner::ThisService => list_intents(context.journal.as_path(), OPEN_EXTENSION),
@@ -564,9 +576,17 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
     };
     for (path, parsed) in listed {
         let Some(intent) = parsed else {
-            if remove_unreadable {
-                let _removed = std::fs::remove_file(&path);
-            }
+            // A record this build cannot read names a batch's branch values, paths, index and cleanup, and is the only thing that
+            //  does: removing it would forget a landed commit's owed index update and leave the person's next commit recording
+            //  the commit's own paths against the index (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+            //  finding 1). It is kept and named instead, and what it owed is settled from its own record in the worktree
+            //  (`owed_index_update.rs`) or by the person.
+            let named: String = path.file_stem().map(|stem| { return stem.to_string_lossy().into_owned(); }).unwrap_or_default();
+            crate::service_error!(
+                "batch {named}: its open record {} cannot be read, so it is kept and nothing of it is settled; its owed index update is \
+settled from the worktree's own record of it, and the file may be removed once that record is gone",
+                path.display()
+            );
             continue;
         };
         // With an instance named, only the batches of that instance's worktree are recovered.
@@ -590,6 +610,8 @@ fn recover_selected(context: &LandContext, instance: Option<&str>, remove_unread
                 // The batch will never land, so the scratch reference its killed landing left is removed here; the commit it
                 //  holds is kept first, on the batch's side reference (`service_scratch_ref_of_a_dropped_batch.rs`).
                 clear_after_dropped_batch(&git, intent.repository.as_path(), intent.seq);
+                // A batch that will never land owes no index update, so any record of one is forgotten with it.
+                crate::owed_index_update::remove(intent.git_dir.as_path(), intent.seq);
                 let _removed = std::fs::remove_file(&path);
                 let _record_removed = std::fs::remove_file(crate::service_journal::batch_path(context.journal.as_path(), intent.seq, INDEXED_EXTENSION));
                 remove_start(context.journal.as_path(), intent.seq);

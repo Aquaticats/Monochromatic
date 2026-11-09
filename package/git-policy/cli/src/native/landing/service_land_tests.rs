@@ -855,14 +855,18 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
     assert!(by_seq.contains(&(1, Recovery::Finish)), "{by_seq:?}");
     assert!(by_seq.contains(&(2, Recovery::Drop)), "{by_seq:?}");
-    // The second batch names a commit that is no object, so its kept ref cannot be written, and Git's own words say why.
+    // The second batch names a commit that is no object, so its kept ref cannot be written, and Git's own words say why; the
+    //  third is a record this build cannot read, which is kept and named rather than destroyed.
     let failures: Vec<&crate::service_timing::capture::Captured> = entries.iter().filter(|entry| { return entry.priority == crate::journald_native::Priority::Error; }).collect();
-    assert_eq!(failures.len(), 1, "{entries:?}");
-    assert!(failures[0].message.contains("refs/cli-git/kept/2"), "{}", failures[0].message);
-    assert!(failures[0].message.contains("fatal:"), "Git's words are logged: {}", failures[0].message);
+    assert_eq!(failures.len(), 2, "{entries:?}");
+    assert!(failures.iter().any(|failure| { return failure.message.contains("refs/cli-git/kept/2") && failure.message.contains("fatal:"); }), "Git's words are logged: {entries:?}");
+    assert!(
+        failures.iter().any(|failure| { return failure.message.contains("batch 3") && failure.message.contains("cannot be read") && failure.message.contains("kept"); }),
+        "the unreadable record is named and kept: {entries:?}"
+    );
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
     assert!(crate::service_journal::landed_commits(world.context.journal.as_path()).contains_key("landed"));
-    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 1, "the record that cannot be read is left for a person, and no other intent is");
     remove(world.root.as_path());
 }
 

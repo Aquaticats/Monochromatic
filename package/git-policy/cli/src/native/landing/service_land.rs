@@ -482,6 +482,11 @@ mod fsync_tests;
 #[path = "service_land_built_tests.rs"]
 mod built_tests;
 
+/// Controls for the index update a landed batch owes stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_owed_index_tests.rs"]
+mod owed_index_tests;
+
 /// Controls for the restart decisions when a Git question about the branch fails stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_finish_git_failure_tests.rs"]

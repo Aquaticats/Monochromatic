@@ -119,7 +119,7 @@ fn literal(path: &[u8]) -> Vec<u8> {
 
 /// The names (bytes,
 /// NUL-separated) of the paths that differ between `old` and `new`.
-fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
+pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
     let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
     if is_zero_object(old) {
         // A branch that did not exist: the commit is a root commit, and `--root` lists everything it holds.
@@ -222,6 +222,29 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     //  in the service's log.
     record_words(&["reset", "<commit>", "--", "<paths>"], &output);
     return Ok(());
+}
+
+/// What:
+///  Resets the index entries of `names` in `index` to the commit `new`,
+///  without waiting and without a refresh.
+/// Why:
+///   The landing's own index update and the repair of an update it left owed are one step
+///   (`owed_index_update.rs`):
+///  a path whose entry the landing left is reset the same way by both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await resetEntries(git, repository, index, newCommit, names);
+/// ```
+///
+/// # Errors
+///
+/// The failure code of the `reset` that was refused.
+pub fn reset_entries(git: &GitContext, repository: &Path, index: Option<&Path>, new: &str, names: &[Vec<u8>]) -> Result<(), FailureCode> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    return reset_once(git, repository, new, IndexPaths::Named(names), index);
 }
 
 /// What:
