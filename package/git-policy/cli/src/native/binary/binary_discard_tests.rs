@@ -22,6 +22,8 @@ use super::support::{
     Fixture, Observed, fixture, git, observe, observe_raw, porcelain, remove, repository, run_direct,
     run_wrapped, stderr_of, stub_manual_viewer, wrapped,
 };
+use git_policy_cli::escape_hatch::WORKTREE_ENFORCEMENT_ESCAPE_HATCH;
+use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::Output;
@@ -89,38 +91,58 @@ fn every_discarding_form_is_rejected_in_the_main_worktree() {
     remove(&fixture);
 }
 
-/// The hatch directly after the subcommand runs each form,
-/// and Git then does what it was asked.
+/// The invocations that carry the hatch for one guarded form,
+/// each written as the caller types it after `git`.
+/// A `match` must name every variant,
+/// so a new form stops compilation here until it has a hatch invocation.
+fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
+    return match command {
+        GuardedCommand::Stash => vec![vec!["stash", WORKTREE_ENFORCEMENT_ESCAPE_HATCH]],
+        GuardedCommand::StashDrop => vec![vec!["stash", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "drop"]],
+        GuardedCommand::Clean => vec![vec!["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-d"]],
+        GuardedCommand::CleanIgnored => vec![vec!["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-d", "-x"]],
+        GuardedCommand::CleanIgnoredOnly => vec![vec!["clean", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-X"]],
+        GuardedCommand::ResetHard => vec![vec!["reset", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--hard"]],
+        GuardedCommand::ResetMixed => vec![vec!["reset", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--quiet"]],
+        GuardedCommand::RestoreStaged => vec![vec!["restore", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--staged", "tracked.txt"]],
+        GuardedCommand::RestoreWorktree => vec![vec!["restore", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--", "tracked.txt"]],
+        GuardedCommand::CheckoutPaths => vec![vec!["checkout", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--", "tracked.txt"]],
+        GuardedCommand::CheckoutMove => vec![vec!["checkout", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "topic"]],
+        GuardedCommand::SwitchForce => vec![vec!["switch", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--discard-changes", "topic"]],
+        GuardedCommand::SwitchMove => vec![vec!["switch", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "topic"]],
+        GuardedCommand::Remove => vec![vec!["rm", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "--quiet", "tracked.txt"]],
+        GuardedCommand::Move => vec![vec!["mv", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "missing.txt", "other.txt"]],
+        GuardedCommand::CheckoutIndex => vec![vec!["checkout-index", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "-a"]],
+        GuardedCommand::ReadTree => vec![vec!["read-tree", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--reset", "HEAD"]],
+        GuardedCommand::AbortMerge => vec![vec!["merge", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::AbortRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::AbortPick => vec![vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"], vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::AbortAm => vec![vec!["am", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+    };
+}
+
+/// The hatch directly after the subcommand runs every guarded form the policy knows:
+/// the wrapper's own rejection is what each of them loses,
+/// and no form's hatch token reaches Git,
+/// which then answers for itself.
 #[test]
 fn the_hatch_after_the_subcommand_runs_each_form() {
     let fixture: Fixture = fixture("discard-hatch");
     let repo: PathBuf = dirty_repository(&fixture);
-    for arguments in [
-        vec!["restore", "--no-enforce-worktree", "--", "tracked.txt"],
-        vec!["checkout", "--no-enforce-worktree", "--", "tracked.txt"],
-        vec!["rm", "--no-enforce-worktree", "-f", "--quiet", "tracked.txt"],
-        vec!["read-tree", "--no-enforce-worktree", "--reset", "HEAD"],
-        vec!["checkout-index", "--no-enforce-worktree", "-f", "-a"],
-        vec!["merge", "--no-enforce-worktree", "--abort"],
-        vec!["rebase", "--no-enforce-worktree", "--abort"],
-        vec!["cherry-pick", "--no-enforce-worktree", "--abort"],
-        vec!["revert", "--no-enforce-worktree", "--abort"],
-        vec!["am", "--no-enforce-worktree", "--abort"],
-        vec!["mv", "--no-enforce-worktree", "-f", "missing.txt", "other.txt"],
-        vec!["switch", "--no-enforce-worktree", "topic"],
-        vec!["reset", "--no-enforce-worktree", "--quiet"],
-    ] {
-        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
-        assert!(
-            !rejected_by_policy(&observed),
-            "{arguments:?}: {}",
-            stderr_of(&observed)
-        );
-        assert!(
-            !stderr_of(&observed).contains("no-enforce-worktree"),
-            "{arguments:?} leaked the hatch to Git: {}",
-            stderr_of(&observed)
-        );
+    for command in GuardedCommand::ALL {
+        for arguments in hatch_invocations(command) {
+            let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+            assert!(
+                !rejected_by_policy(&observed),
+                "{command:?} {arguments:?}: {}",
+                stderr_of(&observed)
+            );
+            assert!(
+                !stderr_of(&observed).contains(WORKTREE_ENFORCEMENT_ESCAPE_HATCH),
+                "{command:?} {arguments:?} leaked the hatch to Git: {}",
+                stderr_of(&observed)
+            );
+        }
     }
     remove(&fixture);
 }
