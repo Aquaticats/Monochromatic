@@ -8078,6 +8078,9 @@ A file the pass does not install moved while it computed the merge
  `git add`ed it,
 or a person edited it),
 and one line names each such path:
+what the worktree held at each of those paths is read the moment the command left them,
+before the merge looks at any stage,
+so an edit made while the merge runs is never the baseline it is compared with;
 the index stages are read again just before the install,
 and the worktree file's device,
 inode,

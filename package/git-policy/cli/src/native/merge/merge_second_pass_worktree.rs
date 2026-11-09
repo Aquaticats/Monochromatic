@@ -245,6 +245,8 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
         return None;
     }
     let conflicts: Vec<Conflict> = conflicts_of_index(entries.as_slice(), &created);
+    // What the worktree held at the moment the command left these conflicts, read before the merge looks at any stage: an edit made while the merge runs must not become the baseline it is compared with.
+    let held: BTreeMap<Vec<u8>, Option<Held>> = held_paths(layout.worktree_root.as_path(), &created);
     let context: GitContext = GitContext {
         real_git: forward.real_git.clone(),
         overlay: forward.overlay.clone(),
@@ -278,8 +280,6 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     if merged.is_empty() {
         return None;
     }
-    // What the worktree held when the stages were read, so a file that moved before the install is left alone.
-    let held: BTreeMap<Vec<u8>, Option<Held>> = held_paths(layout.worktree_root.as_path(), &created);
     let mut oids: Vec<String> = Vec::new();
     for file in &merged {
         match write_blob(&runner, file.bytes.as_slice()) {

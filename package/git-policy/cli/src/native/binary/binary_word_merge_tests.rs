@@ -24,7 +24,7 @@
 //! expect(await readFile('notes.md')).toEqual(expectedMerge); expect(stopped.stderr).toContain('word-level merge');
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, without_hint_fields, wrapped};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -498,5 +498,143 @@ fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merg
     assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
     assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "our file is untouched: {said}");
+    remove(&fixture);
+}
+
+/// How many files a control conflicts,
+/// so the pass lasts long enough for another command to act inside it.
+const CONFLICTS_FOR_A_WINDOW: usize = 40;
+
+/// A repository whose merge of `topic` into `main` stops with every file conflicted and word-resolvable,
+/// with the checked-out branch left on `main`.
+fn many_conflicts(fixture: &Fixture, count: usize) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    // One file the word pass cannot resolve keeps the merge stopped, so the control never waits on a commit.
+    let names: Vec<String> = (0..count).map(|number| { return format!("conflict{number:02}.md"); }).chain([format!("{BOTH_APPEND}.md")]).collect();
+    let write = |extension: &str| {
+        for name in &names {
+            let input: &str = if name.starts_with(BOTH_APPEND) { BOTH_APPEND } else { ADJACENT };
+            std::fs::write(repo.join(name), corpus(input, extension)).expect("an input");
+        }
+    };
+    write("base");
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    write("theirs");
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    write("ours");
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    return repo;
+}
+
+/// The children of a process,
+/// read from the kernel's own list of them.
+fn children_of(pid: u32) -> Vec<u32> {
+    let mut found: Vec<u32> = Vec::new();
+    let tasks: std::fs::ReadDir = match std::fs::read_dir(format!("/proc/{pid}/task")) {
+        Ok(entries) => entries,
+        Err(_) => return found,
+    };
+    for task in tasks.flatten() {
+        let listed: Vec<u8> = match std::fs::read(task.path().join("children")) {
+            Ok(bytes) => bytes,
+            Err(_) => continue,
+        };
+        for word in String::from_utf8_lossy(listed.as_slice()).split_whitespace() {
+            if let Ok(child) = word.parse::<u32>() {
+                found.push(child);
+            }
+        }
+    }
+    return found;
+}
+
+/// Whether a process is the word pass's own attribute query.
+fn is_the_pass_query(pid: u32) -> bool {
+    let arguments: Vec<u8> = match std::fs::read(format!("/proc/{pid}/cmdline")) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+    // The pass's own query, not the one a commit's content policy runs.
+    return arguments.windows(10).any(|part| { return part == b"check-attr"; }) && arguments.windows(8).any(|part| { return part == b"--stdin\0"; });
+}
+
+/// What:
+///  A thread that waits for the word pass's own attribute query under `root` and then runs `when`,
+/// saying whether it got there.
+/// Why:
+///   The window another command has for finding 1 and finding 4 is the pass itself,
+/// so a control must act inside it,
+/// and the first thing the pass starts is `git check-attr` (`second_pass`).
+/// It walks only the command's own children,
+/// which is a handful of processes,
+/// and gives up after five seconds,
+/// so a control never waits for ever.
+fn during_the_pass(root: u32, when: impl FnOnce() + Send + 'static) -> std::thread::JoinHandle<bool> {
+    return std::thread::spawn(move || {
+        let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while std::time::Instant::now() < deadline {
+            let mut waiting: Vec<u32> = vec![root];
+            for _depth in 0..4 {
+                let mut next: Vec<u32> = Vec::new();
+                for pid in waiting.drain(..) {
+                    for child in children_of(pid) {
+                        if is_the_pass_query(child) {
+                            when();
+                            return true;
+                        }
+                        next.push(child);
+                    }
+                }
+                waiting = next;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        return false;
+    });
+}
+
+/// The result of a wrapped run this file started itself,
+/// so a control knows the process to watch.
+fn watched_run(fixture: &Fixture, repo: &Path, arguments: &[&str], watcher: impl FnOnce(u32) -> std::thread::JoinHandle<bool>) -> (Observed, std::thread::JoinHandle<bool>) {
+    use std::process::Stdio;
+    let mut command: std::process::Command = wrapped(fixture);
+    command.current_dir(repo).args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let child = command.spawn().expect("the wrapper starts");
+    let watching = watcher(child.id());
+    let output = child.wait_with_output().expect("the wrapper finishes");
+    let observed = Observed { code: output.status.code(), stdout: without_hint_fields(output.stdout.as_slice()), stderr: without_hint_fields(output.stderr.as_slice()) };
+    return (observed, watching);
+}
+
+/// What:
+///  An edit another command makes while the pass merges its words is never replaced,
+/// and the line names the path the pass left.
+/// Why:
+///   The baseline of a path was read after the merge was computed,
+/// so an edit made during the merge became the baseline and `checkout-index --force` then wrote
+///  the earlier merge over it
+/// (cross-vendor review round 2, finding 1).
+#[test]
+fn an_edit_made_while_the_pass_merges_is_not_replaced() {
+    let fixture: Fixture = fixture("word-merge-edit-during-the-pass");
+    let repo: PathBuf = many_conflicts(&fixture, CONFLICTS_FOR_A_WINDOW);
+    let edited: String = format!("conflict{:02}.md", CONFLICTS_FOR_A_WINDOW / 2);
+    let resolution: &[u8] = b"a resolution another command wrote\n";
+    let target: PathBuf = repo.join(edited.as_str());
+    let (observed, watcher) = watched_run(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice(), move |root: u32| {
+        return during_the_pass(root, move || {
+            std::fs::write(target.as_path(), resolution).expect("the other command's write");
+        });
+    });
+    let said: String = stderr_of(&observed);
+    assert!(watcher.join().expect("the watcher thread"), "the control reached the merge pass: {said}");
+    assert_eq!(std::fs::read(repo.join(edited.as_str())).expect("the file"), resolution.to_vec(), "the other command's bytes survive: {said}");
+    assert!(said.contains("changed while the second merge pass"), "the line names the path the pass left: {said}");
+    assert!(said.contains(edited.as_str()), "and names it by path: {said}");
     remove(&fixture);
 }
