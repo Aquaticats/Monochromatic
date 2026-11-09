@@ -940,9 +940,13 @@ The stage is then proven:
 `git diff-index --cached --quiet <new commit>` (the index equals the commit's tree),
 `git ls-files --others --exclude-standard --directory --no-empty-directory` lists nothing besides the carried
 the listing named (the same name,
-or a file below a carried directory),
+a file below a carried directory,
+or a whole directory Git collapsed into one name whose every path below it is carried,
+which the same query without `--directory` decides),
 and `git diff-files --quiet`
 finds no tracked file different from its entry.
+A collapsed directory holding even one path the restore did not carry is refused,
+and the refusal names that path.
 A failed step or a failed proof ends the rung:
 the stage is destroyed and Git's own checkout makes the worktree,
 with the

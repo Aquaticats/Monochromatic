@@ -541,6 +541,12 @@ Read-only commands,
      and the
      changes stay in the main checkout,
      which is never written.
+     Ignored paths of the source that the new commit does not ignore are carried through the clean and the reset,
+     and the proof accepts them:
+     the same name,
+     a file below a carried directory,
+     or a whole directory Git collapsed into one name whose every path below it is carried.
+     One path the restore did not carry refuses the rung.
      A failed proof falls to Git's own checkout and says why.
      A merge or other operation in progress,
      a held `index.lock`,

@@ -331,3 +331,37 @@ fn the_note_counts_paths() {
     assert!(left_out_note(&many).contains(format!("({} paths)", many.count).as_str()), "{}", left_out_note(&many));
     assert!(left_out_note(&one).ends_with('\n'));
 }
+
+/// What:
+///  A carried path under a directory Git reports as one collapsed name counts as carried,
+/// while a directory holding
+///  one file the restore did not carry is still refused.
+/// Why:
+///   The proof lists untracked names with `--directory`,
+/// so Git answers `cache/` when everything below it is untracked,
+///  while the restore carried `cache/private/token`;
+/// a comparison that only looked below a carried name refused the
+///  correct restore and sent the rung to a full checkout.
+/// The whole content decides the ancestor,
+/// so one file
+///  that was not carried still ends the rung.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(proveRestored({ carried: ['cache/private/token'] })).toEqual({ ok: true });
+/// writeFileSync('cache/other.txt'); expect(proveRestored({ carried: ['cache/private/token'] }).reason).toContain('cache/');
+/// ```
+#[test]
+fn a_collapsed_untracked_directory_is_carried_only_when_all_of_it_is() {
+    let root: PathBuf = crate::test_support::fixture("restore-carried-ancestor");
+    let repo: PathBuf = committed(root.as_path());
+    let target: Target = target_of(repo.as_path());
+    std::fs::create_dir_all(repo.join("cache/private")).expect("the ignored directories");
+    std::fs::write(repo.join("cache/private/token"), b"t").expect("the carried file");
+    let carried: Vec<Vec<u8>> = vec![b"cache/private/token".to_vec()];
+    assert_eq!(prove_restored(&git_context(), &target, repo.as_path(), carried.as_slice()), Ok(()), "Git reports cache/ and everything under it is carried");
+    std::fs::write(repo.join("cache/other.txt"), b"o").expect("a file the restore did not carry");
+    let refused: String = prove_restored(&git_context(), &target, repo.as_path(), carried.as_slice()).expect_err("a directory holding a file that was not carried");
+    assert!(refused.contains("cache/"), "the refusal names the directory Git reported: {refused}");
+    remove(root.as_path());
+}
