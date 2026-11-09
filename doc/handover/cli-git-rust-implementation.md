@@ -125,59 +125,49 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:08:57-05:00)
+#### Reviews and landings in progress (2026-11-09T03:33:37-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
   names a final wake that can be missed so a run waits for ever,
   index preparation that can block the runtime before its first await,
   and refused jobs that later run outside the blocking-job budget.
-  Its agent reports all three fixed.
-  Its tests on top of main and the review `tokio-pure-file-sites-round-4` are running.
-  Some overlap controls now pass without running on a host with too few CPUs for them,
-  naming themselves when they do,
-  and a test seam for the CPU bound would be stronger:
-  ask for that in its next round.
-- `fix/git-policy-cli-push-route-records-and-ceilings`,
-  at `5b0393dbf6`:
-  its agent reports all eleven audit findings fixed,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/push-route-round-1-sol.txt`) names nine more.
+  Its agent reports all three fixed,
+  but on top of main two order controls fail out of the 107 selected tests,
+  one at the 120 s watchdog.
+  The next review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-4-sol.txt`) names a queued job that still runs after its caller timed out,
+  and a path lookup that blocks the runtime before its first await.
   Not ready to merge.
-  Run 2 of its agent is on them.
-- `fix/git-policy-cli-unit-test-watchdog-judges-progress`:
-  landed on main as `8dc110a1fd`,
-  with 30 of 30 selected tests passing on top of main,
-  among them tests that had aborted near 120 seconds.
-  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/unit-test-watchdog-round-3-sol.txt`) names two more defects,
-  both in test code:
-  a failing stderr can end the watchdog without ending the test,
-  and one control passes with its guard removed.
-  Run 4 of its agent is on them.
+  Some overlap controls pass without running on a host with too few CPUs for them,
+  and the next brief asks for a seam so they run at any quota.
+  Run 5 of its agent is on them.
+- `fix/git-policy-cli-push-route-records-and-ceilings`:
+  its agent reports the nine findings of the first review fixed.
+  Its tests on top of main and the review `push-route-round-2` are running.
+- `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
+  with 22 of 22 selected tests passing on top of main.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
-  its agent fixed the seven findings of the fourth review
-  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`),
-  among them a tab in a file name that made the next commit revert another file,
-  and a promotion that published a commit whose gate then blocked it.
-  Not ready to merge:
-  the package lint fails on file length in three files,
-  two tests fail,
-  and one fix has no failing-output control and another no test.
-  Run 6 of its agent is on those.
-- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
-  at `6f11d10f45`:
-  the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
-  names two realistic record defects and three races that need another program to move a worktree inside a small window.
-  Run 7 of its agent is on the two record defects and judges the races.
-  After that round it lands.
-  The fix for a ladder rung that already made its destination has no test of its own,
-  and the two-process race has no failing test,
-  because nothing can hold a wrapper at a named step.
+  its agent reports the lint,
+  the two failing tests and the two missing controls settled.
+  Its tests on top of main and the review `landing-route-round-5` are running.
+  Three tests fail in a suite and pass alone,
+  and `a_landing_over_an_unheld_lock_removes_it_and_goes_on` fails alone against a wall-clock bound of 8 seconds,
+  on plain main as well.
 - `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
-  the cross-vendor review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-1-sol.txt`)
-  names defects in the stop,
-  among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
+  its agent reports the first review's findings fixed,
+  317 of 317 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-2-sol.txt`) names a reused step number that can get an unrelated process killed,
+  and a failed read taken for the step having ended.
   Not ready to merge.
-  Run 2 of its agent is on them.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 3,
+  with `scratch-commit-ceiling-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  One wait stays open for the owner in `questions-for-the-owner.md`:
+  a step the kernel holds in uninterruptible sleep.
+  Two improvements are proposed and not built:
+  reading the branch once before the message that says it is not known whether the commit was made,
+  and making the queue position visible.
   The branch raises the ceiling to 16,332 ms,
   makes the stop keep looking for a step that starts late,
   and logs what ran below each step.
@@ -187,12 +177,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   The cause of 36,651 ms is not established.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
-- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
-  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/merge-route-round-2-sol.txt`)
-  says a branch that advances discards a merge already reported as saved,
-  and that finishing a saved merge can overwrite a staged-only edit.
-  Not ready to merge.
-  Run 3 of its agent is on them.
 - `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
   the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
   among them a FIFO that makes a commit wait forever,
@@ -201,14 +185,20 @@ The old tree kept for the rollback stays until the owner deletes it.
   even run alone.
   Run 3 of its agent is on the three defects and judges the races.
   After that round it lands.
-- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
-  `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`
-  and `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
+- `fix/git-policy-cli-conversion-compares-modes-and-can-finish`
+  and `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
   their agents fix what these audits on main found:
-  `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`,
-  `doc/planning/cli-git-worktree-add-route-findings-on-main.md`
-  and `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md`.
-  The locks audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
+  `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`
+  and `doc/planning/cli-git-worktree-add-route-findings-on-main.md`.
+- `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
+  its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
+  437 of 437 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/locks-and-transactions-round-1-sol.txt`) names a live lock removed on a clock step,
+  a live holder in another namespace taken for a stopped child,
+  and a descriptor lookup that can block past every deadline.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+  The audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
   ("cli-git never deletes a lock") waits for the owner.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
@@ -233,19 +223,27 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `fix/mpm-shadow-open-issues-batch`:
-  695 of 695 tests passed on top of main before the coordinator took one fix back.
-  That fix (`e1ff956920`) replaced `android sdk install` with `sdkmanager` on the claim of issue 2622 that the Android tools archive ships no `android` program,
+  landed on main as `86be4943ae`,
+  with 695 of 695 tests and Clippy passing on top of main.
+  Its issues are closed with evidence comments,
+  except 3743,
+  2623,
+  3511 and 3512,
+  which wait for the follow-up round.
+  The coordinator took one fix back before landing:
+  `e1ff956920` replaced `android sdk install` with `sdkmanager` on the claim of issue 2622 that the Android tools archive ships no `android` program,
   but the locked `commandlinetools-linux-16111833_latest.zip` holds `cmdline-tools/bin/android`,
-  and the installed copy answers `android sdk install --help`.
-  Issue 2622 therefore does not hold for the locked version and gets a comment saying so.
-  695 of 695 tests and Clippy pass on the corrected branch on top of main.
-  Its cross-vendor review is running as `mpm-shadow-open-issues-round-1`,
-  and the issues it fixes are closed only after that.
-  A first attempt attached no source,
-  because `review-branch-with-sol.ts` looked only in the wrapper's folder,
-  so it reviewed nothing and does not count.
-  The script now takes `--source` and `--about`,
-  and stops when it finds no file to attach.
+  and the installed copy answers `android sdk install --help`,
+  so issue 2622 was closed as not holding.
+  The review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-1-sol.txt`) names a race on an explicit `--lock`,
+  which main has worse because it always deletes,
+  and rustup observation and reconciliation looking at different toolchains,
+  which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
+  Run 2 of its agent is on them.
+  That round also checks the fixes resting on claims about real tools against those tools.
+  `review-branch-with-sol.ts` now takes `--source` and `--about` and stops when it finds no file to attach;
+  before that,
+  a branch outside the wrapper got an empty review.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
   landed on main as `512bc52f56`,
   with 319 of 319 selected tests passing on top of main.
@@ -255,15 +253,16 @@ The old tree kept for the rollback stays until the owner deletes it.
   That takes another program changing the mode inside the add,
   and main keeps no such record at all,
   so the branch landed and the fix follows it.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `copy-route-records-before-git` as run 8,
-  with `copy-route-round-8-prompt.md` and the session file named in run 7's `summary.json`.
+  Run 8 of its agent is on it.
   The same review names a non-Linux build break in `other::Ladder::finish`,
   left alone under the owner's "Ignore Win and mac until I say so."
 - `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
   its agent reports the five findings of the last review fixed and a saved merge no longer blocking unrelated commands.
-  Its tests on top of main and the review `merge-route-round-3` are running.
+  249 of 249 selected tests pass on top of main,
+  and the cross-vendor review (`${HOME}/temp/agent/reviews/merge-route-round-3-sol.txt`) names further losses of staged or saved work,
+  among them a read-only command installing a saved merge into a different checked-out branch.
+  Not ready to merge.
+  Run 4 of its agent is on them.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   654 of 654 selected tests pass on top of main,
   and the cross-vendor review (`${HOME}/temp/agent/reviews/commit-checks-round-2-sol.txt`) names further ways a saved file is lost,
