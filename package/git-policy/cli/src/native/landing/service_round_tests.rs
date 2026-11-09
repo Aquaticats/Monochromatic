@@ -311,7 +311,7 @@ fn planned_world(name: &str, count: usize) -> (PathBuf, Vec<Assignment>) {
         };
         enqueue(work_directory(repository.common.as_path()).as_path(), &foreign).expect("enqueue");
         crate::work_item::claim_next_of(work_directory(repository.common.as_path()).as_path(), &ClaimTime::read(), &[WorkKind::Review]).expect("claimed").expect("a claim");
-        assignments.push(Assignment { directory: repository.common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), due: Vec::new() } });
+        assignments.push(Assignment { directory: repository.common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } });
     }
     return (root, assignments);
 }
@@ -441,8 +441,8 @@ fn a_lane_drains_its_directories_in_the_order_they_were_named() {
     enqueue(work_directory(linked.as_path()).as_path(), &pending).expect("enqueue");
     let handlers: CouldPass = CouldPass { began: Mutex::new(Vec::new()) };
     let directories: Vec<Assignment> = vec![
-        Assignment { directory: made[0].common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), due: Vec::new() } },
-        Assignment { directory: linked.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), due: Vec::new() } },
+        Assignment { directory: made[0].common.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } },
+        Assignment { directory: linked.clone(), retrying: Retrying { first: Some(FIRST_PAUSE), ..Retrying::default() } },
     ];
     drain_directories(&RoundDrain { directories: directories.as_slice(), handlers: &handlers, now: &ClaimTime::read(), host: &LARGE_HOST });
     let began: Vec<PathBuf> = handlers.began.lock().expect("the order of the pushes").clone();
