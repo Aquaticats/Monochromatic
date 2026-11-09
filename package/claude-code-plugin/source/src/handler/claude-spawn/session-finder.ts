@@ -15,6 +15,10 @@ import {
 } from '@monochromatic-dev/agent-harness-shared-session-discovery/ts';
 
 import {
+  makeOwnedFileParser,
+  type OwnedFileParser,
+} from '../../runtime/handler-runtime.ts';
+import {
   byPidDir,
   type Environment,
   type PidMapping,
@@ -73,19 +77,12 @@ function claudeDiscoveryOptions(env: Environment = process.env,): ClaudeDiscover
 /**
  Parses Claude spawn PID mapping JSON.
  
- @param raw - PID mapping JSON text
- 
- @returns parsed Claude spawn PID mapping
- 
  @example
  ```ts
  parsePidMapping('{"sessionId":"s","transcriptPath":"/tmp/s.jsonl"}');
  ```
  */
-function parsePidMapping(raw: string,): PidMapping {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON file written by spawn-claude hook.
-  return JSON.parse(raw,) as PidMapping;
-}
+const parsePidMapping: OwnedFileParser<PidMapping> = makeOwnedFileParser<PidMapping>();
 
 //endregion Host mapping parser
 
