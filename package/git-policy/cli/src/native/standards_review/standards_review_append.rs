@@ -77,11 +77,32 @@ fn text_names_commit(text: &str, sha: &str) -> bool {
     return false;
 }
 
+/// What:
+///  The log's text for the once-per-commit test,
+/// with every byte that is not UTF-8 replaced.
+/// Why:
+///   A write the system cut short can stop between the two bytes of one character,
+/// and the log is then not
+///  UTF-8 at its tail.
+/// A replacement character there costs nothing,
+/// because a receipt is ASCII and no
+///  replacement can spell one,
+/// while refusing to read the log would stop every later review of every commit from
+///  being logged until a person repaired it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// new TextDecoder().decode(bytes) // replacement characters, never a throw
+/// ```
+fn log_text(bytes: &[u8]) -> String {
+    return String::from_utf8_lossy(bytes).into_owned();
+}
+
 /// Whether the log names the commit already;
 /// a log that cannot be read names nothing.
 pub fn names_commit(log: &Path, sha: &str) -> bool {
-    return match std::fs::read_to_string(log) {
-        Ok(text) => text_names_commit(text.as_str(), sha),
+    return match std::fs::read(log) {
+        Ok(bytes) => text_names_commit(log_text(bytes.as_slice()).as_str(), sha),
         Err(_) => false,
     };
 }
@@ -134,18 +155,21 @@ fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
 /// A log whose entry for the commit was cut short before its receipt is appended to,
 /// never taken as
 ///  finished and never rewritten.
+/// The log is read as bytes and decoded with replacement,
+/// so a torn character in it never stops a later
+///  entry from being written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await deliver({ log, sha, text })
 /// ```
 pub fn deliver(log: &Path, sha: &str, text: &str) -> Result<Delivery, String> {
-    let current: String = match std::fs::read_to_string(log) {
+    let current: Vec<u8> = match std::fs::read(log) {
         Ok(found) => found,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("reading {} failed: {error}", log.display())),
     };
-    if text_names_commit(current.as_str(), sha) {
+    if text_names_commit(log_text(current.as_slice()).as_str(), sha) {
         return Ok(Delivery::AlreadyThere);
     }
     if let Err(error) = append_whole(log, text) {
