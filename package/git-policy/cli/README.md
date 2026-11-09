@@ -1559,6 +1559,11 @@ The rule is:
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
+- A `git checkout` or `git switch` that changes any file is forwarded with `--no-overwrite-ignore`,
+  so Git itself refuses a switch that would replace an ignored file the target branch tracks,
+  and names the file instead.
+  Nothing is lost when nothing would be replaced,
+  and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
 - A form that only moves `HEAD` also runs where the Git directory has no `index` file,
   the state `git clone --no-checkout` leaves:
    Git sees an initial checkout there (`is_index_unborn` in `read-cache.c`,

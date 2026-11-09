@@ -5172,7 +5172,8 @@ The built-in order is
 then `final-newline`.
 The transform order is atomic push,
 commit only,
-then status hints off.
+status hints off,
+then ignored files kept.
 
 Without `--cli-git-keep-going`,
 the first unpatched error stops the pass.
@@ -8125,6 +8126,19 @@ The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
 A `HEAD`-moving form is rejected only while tracked changes exist.
+A `checkout` or `switch` that changes any file is also forwarded with `--no-overwrite-ignore`,
+directly after the subcommand,
+so Git itself refuses a switch that would replace an ignored file the target tree tracks,
+naming the file.
+Git decides that inside the process that changes the files,
+so no measurement window exists for it.
+The token is not added where the region changes no file,
+where the caller already answered with `--overwrite-ignore` or `--no-overwrite-ignore`,
+or where Git refuses the region;
+a caller's own `--overwrite-ignore` after it still wins,
+because Git applies the last spelling.
+A forced `checkout -f` or `reset --hard` overrides the token,
+so ignored files under those forms stay covered by the worktree measurement alone.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.

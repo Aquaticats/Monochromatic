@@ -127,6 +127,9 @@ pub mod rule_linked_worktree;
 /// The rejection texts of the linked-worktree-only policy.
 pub mod rule_linked_worktree_messages;
 
+/// The transform that stops a `checkout` or `switch` replacing an ignored file.
+pub mod rule_keep_ignored_files;
+
 /// Pure decision of the branch-worktree-only policy and its one-query remote guess.
 pub mod rule_branch_worktree;
 

@@ -464,3 +464,71 @@ fn a_clean_that_deletes_ignored_files_is_rejected_in_a_linked_worktree() {
     assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
     remove(&fixture);
 }
+
+/// Current branch name of a fixture repository.
+fn branch_of(fixture: &Fixture, repo: &std::path::Path) -> String {
+    let output: std::process::Output = git(fixture, repo, &["rev-parse", "--abbrev-ref", "HEAD"]);
+    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+}
+
+/// A `HEAD` move no longer replaces an ignored file that the branch it moves to tracks.
+/// Git refuses the switch itself,
+/// so nothing is replaced and nothing has to be measured.
+#[test]
+fn a_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
+    let fixture: Fixture = fixture("discard-ignored-head-move");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    // A branch that tracks the environment file the person keeps locally.
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    keep_ignored_work(repo.as_path());
+    let person_value: &[u8] = b"SECRET=the person value\n";
+    for arguments in [
+        vec!["checkout", "tracks"],
+        vec!["switch", "tracks"],
+        vec!["checkout", "--no-overwrite-ignore", "tracks"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert!(
+            !rejected_by_policy(&observed),
+            "{arguments:?} was rejected by the policy instead of by Git: {}",
+            stderr_of(&observed)
+        );
+        assert_ne!(observed.code, Some(0), "{arguments:?} replaced the ignored file");
+        assert_eq!(
+            std::fs::read(repo.join(".env")).expect("ignored file"),
+            person_value,
+            "{arguments:?} replaced the ignored file"
+        );
+        assert_eq!(branch_of(&fixture, repo.as_path()), "main", "{arguments:?} switched anyway");
+        assert!(stderr_of(&observed).contains(".env"), "{arguments:?}: {}", stderr_of(&observed));
+    }
+    // A branch that does not track the ignored file switches as it always did.
+    git(&fixture, repo.as_path(), &["branch", "free"]);
+    let free: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "free"]);
+    assert_eq!(free.code, Some(0), "{}", stderr_of(&free));
+    assert_eq!(branch_of(&fixture, repo.as_path()), "free");
+    assert_eq!(std::fs::read(repo.join(".env")).expect("ignored file"), person_value);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    // Nothing would be lost, so the person's own spelling keeps working.
+    std::fs::remove_file(repo.join(".env")).expect("drop the ignored file");
+    for arguments in [vec!["checkout", "tracks"], vec!["switch", "tracks"]] {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
+        assert_eq!(observed.code, Some(0), "{arguments:?}: {}", stderr_of(&observed));
+        assert_eq!(branch_of(&fixture, repo.as_path()), "tracks", "{arguments:?}");
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    }
+    // A person who says out loud that the ignored file may be replaced still replaces it.
+    keep_ignored_work(repo.as_path());
+    let explicit: Observed = run_wrapped(&fixture, repo.as_path(), &["checkout", "--overwrite-ignore", "tracks"]);
+    assert_eq!(explicit.code, Some(0), "{}", stderr_of(&explicit));
+    assert_eq!(branch_of(&fixture, repo.as_path()), "tracks");
+    assert_eq!(
+        std::fs::read(repo.join(".env")).expect("ignored file"),
+        b"the tracked version\n"
+    );
+    remove(&fixture);
+}
