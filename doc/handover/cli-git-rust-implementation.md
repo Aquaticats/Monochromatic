@@ -3613,6 +3613,72 @@ The saving is real where such a fixture appears:
 a create is 4.1 ms against a snapshot's 52 ms here,
 and every one of them forces a commit its neighbours wait for.
 
+### The fold's kill-point sweep walks its kill points side by side (2026-11-08T19:31:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog in a whole-suite run,
+and passed alone in 72.3 s and in 5.4 s in the same tree.
+That swing is the defect the owner named with "Fix flaky tests properly.":
+the measurement below found it in the control's own durability work.
+
+Before any change,
+with the crate's own recorder counting the syncs
+(`~/temp/agent/fold-kill-cost/`,
+per-iteration and per-step timings read through `crate::private_storage::take_directory_syncs`):
+the control walks 21 limits over 20 steps of the whole fold
+(6 for the folder pair,
+7 for each log:
+`before-journal-lock`,
+`before-move-aside`,
+`before-journal-record`,
+`before-append`,
+`after-append`,
+`before-remove-moved-log`,
+`before-remove-journal`),
+and one iteration cost 86 to 204 ms (the whole control 2.44 s at that moment).
+Inside one iteration the fixture cost 0.35 to 0.75 ms,
+`assert_folded` about 60 µs and the fixture's removal 0.25 to 0.4 ms;
+the two folds took the rest and recorded 10 to 13 directory syncs in every iteration,
+each of them a filesystem commit for the fold's own journal record,
+its move aside,
+the appended bytes,
+the moved log's removal and the journal's removal,
+with a file sync inside the journal record and inside the append.
+So the control's cost is the number of kill points times the commits one fold needs,
+and it paid them one after another:
+under this host's usual contention that is the 72.3 s sample and the watchdog stop.
+No iteration was redundant (every limit stops at a different step),
+and the fixture measured under 1 ms,
+so neither fewer kill points nor a cheaper fixture is the fix.
+
+`steps_of_one_fold` and `kill_then_fold` in that control now walk the kill points side by side:
+each has its own fixture,
+its own process table and its own surroundings,
+so a kill point shares nothing with another,
+and concurrent commits serve them all at once instead of one at a time.
+The steps of one fold are recorded first,
+so each limit is checked against the step it must land on and the last limit must stop nowhere,
+which the control did not claim before.
+
+Measured at the test's own cap (`CPUQuota=200%`,
+`MemoryMax=2G`,
+`TasksMax=512`,
+`IOWeight=10`),
+nothing changed between the arms but the build:
+one after another 9.954 s and 5.674 s,
+side by side 0.688 s and 1.699 s,
+over the same 21 kill points.
+With the per-point timings in place the side-by-side control reported `failed=[]`,
+with each limit's stop step equal to the recorded step and every other test of that module green
+(`Summary [1.046s] 8 tests run: 8 passed`).
+
+Its control still bites:
+make an interrupted fold of a log that already moved its log aside never resume
+(`(earlier && current) || leftovers` read as `(earlier && current)`),
+and the sweep fails the four kill points that land there,
+`the kill points that failed: [8, 9, 15, 16]`,
+each with `left: "current-push\n"` against `right: "current-push\nearlier-push\n"`.
+
 ### Verify 0.5.26 against native Git
 
 Measured with 0.5.27 installed (`~/temp/agent/tools/observe-main-commit.ts`,
@@ -4596,6 +4662,20 @@ Two small fixes this section listed are done:
   the other half of this line was already done when it was written:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
+
+The summary's own counts were wrong in two more places,
+found while converting the remaining worktrees and fixed in `23b2ab2540`:
+a worktree that is a subvolume already said it was skipped in the line beside its name and was counted in none of the
+summary's counts (a second run over the same worktrees said "0 skipped"),
+and an undone conversion (`--abandon`) was counted nowhere either.
+`ConversionReport` now counts the first in the summary's skips,
+and the second in a count of its own that the summary says as "undone",
+while a real refusal stays the only thing that ends a run of named worktrees with status 1:
+counting `AlreadySubvolume` as a refusal instead makes
+`a_worktree_named_twice_is_converted_once_and_then_skipped` fail on that status change,
+which was measured before the two counters were written.
+The controls are `a_worktree_that_is_a_subvolume_already_is_counted_as_skipped` and
+`the_undone_conversions_are_counted_in_the_summary` in `worktree_convert_command_tests.rs`.
 
 Converting the remaining worktrees no longer waits on a defect either:
 the conversion compared a registration's text with the real path and refused a worktree spelled
@@ -7009,6 +7089,32 @@ are in append mode now).
   The rebuilt image reports `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`
   (2026-11-08T15:41:28-05:00),
   so the container tasks are on the pin from now on.
+- `foundation::parallel_runner_on_the_runtime::tests::items_run_at_the_same_time` fails whenever the test process is
+  allowed 2 CPUs and passes on the same tree when it is allowed 5.
+  Measured 2026-11-08 on the branch of the conversion-summary and fold kill-point work in the test's own cgroup
+  (`CPUQuota=200%`,
+  `MemoryMax=2G`,
+  `TasksMax=512`,
+  `IOWeight=10`;
+  logs `~/temp/agent/fold-kill-cost/19-items-run-alone.log` and `20-items-run-cpu500.log`):
+  `left: 2` against `right: 4` after 10.010 s at the 200% cap,
+  and a pass in 0.012 s at 500%.
+  `nproc` inside those scopes printed 2 and 5,
+  which is the positive control that the allowance is what moves it.
+  The control asks the run for `ITEMS` workers,
+  but the runtime's worker count is `budgeted_workers` off `available_parallelism`,
+  which the quota lowers,
+  so a point every item must reach can never be met and the two workers that did start wait out `PATIENCE`
+  (10 s in `parallel_test_support.rs`).
+  The gate container runs at 2 CPUs,
+  so this control fails there;
+  it came in with the tokio runtime's first part (`2b1f830568`,
+  linted in `c1e6a78a4c`,
+  merged by `6240b51a7a`) and nothing on this branch touched it.
+  Not fixed here:
+  the choice is between a control that asks for no more items than the plan's workers and a floor the budget may not
+  go below,
+  which is the runtime's design and not this work's.
 - Rule for all of these:
   the owner's "Fix flaky tests properly."
   (recorded 2026-11-02T21:49:28-05:00).
