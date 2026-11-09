@@ -103,10 +103,10 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
 /// a preview takes no claim and must stay read-only,
 /// so it
 ///  runs exactly the refusals the real run computes first.
-/// The refusals a later read of the old tree can add (a file that turns out
-///  unreadable while the carry-back copies it,
-/// and an entry the carry-back keeps because the original tree holds another kind of entry at its path) are not among them,
-/// because finding them writes files.
+/// The refusals a later read of the old tree can add are not among them:
+/// a file that turns out unreadable while the carry-back copies it,
+/// and an entry the carry-back keeps because the original tree holds another kind of entry at its path.
+/// Finding either writes files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
