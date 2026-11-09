@@ -8186,12 +8186,14 @@ and the deliberate override (`--no-enforce-worktree` directly after the subcomma
 
 #### The window between the measurement and the command
 
-The rule above is a statement about the state the wrapper measured, not about the state at the instant Git changes
+The rule above is a statement about the state the wrapper measured,
+not about the state at the instant Git changes
 files.
 The measurement is one `git status` in a child process;
 the wrapper then replaces its own process with real Git,
 which does the discarding.
-Between the status leaving and Git starting there is, on the allowed path,
+Between the status leaving and Git starting there is,
+on the allowed path,
 the audit append (one `write`,
 never synced),
 the notices on standard error,
@@ -8202,16 +8204,20 @@ no sync,
 no wait.
 A write that lands inside that window is not seen,
 and nothing in the wrapper can close it:
-only the process that changes files can decide, against the state it is about to change.
+only the process that changes files can decide,
+against the state it is about to change.
 
-Where Git itself has such a check, the wrapper hands the decision to Git instead of measuring,
+Where Git itself has such a check,
+the wrapper hands the decision to Git instead of measuring,
 and then there is no window:
 a `checkout` or `switch` that changes files is forwarded with `--no-overwrite-ignore`,
 so Git names the ignored file it would replace and refuses
 (see "A `HEAD`-moving form" above).
 Git's own refusal of a switch or checkout that would overwrite a tracked modification covers the same ground for
 tracked files.
-`reset --hard`, `restore`, `clean` and the other forms have no equivalent option,
+`reset --hard`,
+`restore`,
+`clean` and the other forms have no equivalent option,
 so their guard is a measurement and keeps this window.
 
 A person who needs the stronger promise runs the discard in a disposable worktree

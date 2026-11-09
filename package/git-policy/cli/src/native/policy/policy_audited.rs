@@ -29,7 +29,7 @@ use crate::discard_audit::{AuditOutcome, record_audit_with_facts};
 use crate::discard_audit_facts::AuditFact;
 use crate::global_arguments::command_tokens;
 use crate::repository_facts::RepositoryFacts;
-use crate::repository_location::RepositoryLocation;
+use crate::repository_location::{RepositoryLocation, effective_directory};
 use crate::rule_linked_worktree::AuditedCommand;
 use crate::transaction_git::GitContext;
 use crate::worktree_audit::{removal_facts, target_path};
@@ -64,7 +64,12 @@ pub fn record_audited(
             let Some(removal) = removal_of(arguments) else {
                 return;
             };
-            let directory: PathBuf = std::env::current_dir().unwrap_or_default();
+            // The path is relative to the directory Git works in, not to wherever the wrapper was started: `-C dir`
+            //  and a subdirectory of the worktree both change that.
+            let directory: PathBuf = match worktree_root(&location.identity) {
+                Some(root) => effective_directory(root, location.prefix.as_slice()),
+                None => std::env::current_dir().unwrap_or_default(),
+            };
             let target: PathBuf = target_path(removal.target.as_os_str(), directory.as_path());
             let read: Vec<AuditFact> =
                 removal_facts(&context, target.as_path(), removal.target.as_os_str(), removal.force);
