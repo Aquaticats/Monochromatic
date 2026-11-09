@@ -80,9 +80,9 @@
         { "absentPath": ["lints", "rust", "unexpected_cfgs"], "text": { "file": ".config/file-enforcer/cargo-dylint.toml" } },
       ],
     },
-    // One cargo-profile rule per release-profile shape. Every manifest whose `[profile.*]` tables exist is in at
-    // least one preset below, so no crate's profile keys can change without the next run reverting them; a crate that
-    // starts declaring profile tables belongs in the preset matching its keys.
+    // One cargo-profile rule per release-profile shape. Every manifest whose `[profile.*]` tables exist is mapped to
+    // the preset matching its keys, so a change to a key that preset lists is reverted by the next run. A key no preset
+    // lists stays free: ownership is per listed key, never the whole profile table.
     // Release profiles by crate directory. Scanner: full optimization plus fail-closed panic and overflow behavior.
     {
       "kind": "toml-keys",
