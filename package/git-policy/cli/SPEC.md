@@ -2730,6 +2730,30 @@ finding 4).
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
 
+The read of a step that is ended at its ceiling ends with the step,
+not with the last program that holds its pipes open.
+A step's output is read whole through two pipes
+(`src/native/process/step_output_read_whole_through_pipes.rs`),
+and a pipe ends at end of file,
+which needs every write end closed.
+Hooks are off below a watched step,
+so the programs that can hold one are the ones Git runs from configuration:
+a smudge or clean filter,
+a merge driver,
+or a signing program.
+A program that outlives the step keeps the read open for as long as it lives,
+so the command waited past the step's ceiling with its locks and its transaction held
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 2).
+Each read therefore ends `OUTPUT_DRAIN_AFTER_EXIT` (1 second,
+labelled unmeasured) after the step has ended,
+and the step fails with a sentence that names the program still holding the output,
+which the mount and inode of the pipe find (`src/native/process/process_use.rs`),
+and says to check that program with `ps` and to run the command again.
+What the read got before that moment is not returned as the step's answer:
+a step whose output may be incomplete is reported,
+never guessed at.
+
 ##### The quiet windows are labelled unmeasured
 
 No log held a quiet gap before this change:

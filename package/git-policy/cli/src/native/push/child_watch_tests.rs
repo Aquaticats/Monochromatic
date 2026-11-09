@@ -417,6 +417,53 @@ fn a_root_a_look_found_gone_is_not_signalled() {
     assert!(survived, "a root whose record was read as gone was signalled");
 }
 
+/// What:
+///  A step's output that a program the step started still holds open ends the wait one drain after the step,
+///  and the failure names the program.
+/// Why:
+///   A pipe ends at end of file,
+/// which needs every write end closed,
+/// so a program that inherited the step's streams and outlived
+///  it kept the read open for as long as it lived,
+/// past the step's ceiling,
+/// with the command holding its locks and its
+///  transaction meanwhile.
+/// The holder lives longer than the bound of the control (eight seconds against three),
+///  so a wait that outlasts the step shows.
+#[test]
+fn a_pipe_a_program_the_step_started_holds_ends_the_wait_and_is_named() {
+    let root: PathBuf = crate::test_support::fixture("child-watch-held-output");
+    let holder_file: PathBuf = root.join("holder-pid");
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg(format!("sleep 8 & echo $! > '{}'", holder_file.display())).stdin(Stdio::null());
+    let began: Instant = Instant::now();
+    let failure: std::io::Error = output_watched_within(
+        &mut command,
+        "a step with a holder",
+        "a step with a holder",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_secs(60)),
+    )
+    .expect_err("the output a program held open is not the step's answer");
+    let waited: Duration = began.elapsed();
+    let holder: i32 = std::fs::read_to_string(&holder_file).expect("the holder's process ID").trim().parse().expect("a process ID");
+    // The assertions come after the cleanup, so a failure leaves nothing running. Only the helper the step started is signalled.
+    if helper_is_running(holder) && is_the_helper(holder, 8) {
+        // SAFETY: `kill` takes two integers and touches no memory of this process.
+        unsafe { libc::kill(holder, libc::SIGKILL) };
+    }
+    assert!(
+        crate::step_output_read_whole_through_pipes::is_output_held_open(&failure),
+        "the wait names the program that held the output open: {failure}"
+    );
+    assert!(failure.to_string().contains("still holds the step's output open"), "{failure}");
+    assert!(failure.to_string().contains(format!("process {holder}").as_str()), "the holder is named by its number: {failure}");
+    assert!(waited < Duration::from_secs(3), "the wait outlasted the step by {waited:?}, as long as the holder lived");
+    crate::test_support::remove(root.as_path());
+}
+
 /// A command that finishes at once prints nothing;
 /// the grace is an hour,
 /// so no host is slow enough to outlast it.

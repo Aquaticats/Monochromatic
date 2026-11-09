@@ -29,8 +29,10 @@
 
 use crate::child_awaited_through_a_pidfd::adopt;
 use crate::lazy_runtime::run_on_runtime;
-use std::os::fd::OwnedFd;
+use crate::process_use::{ProcessUser, UseScan, UseTarget};
+use std::os::fd::{AsFd as _, OwnedFd};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
+use std::time::{Duration, Instant};
 use tokio::io::AsyncReadExt as _;
 use tokio::net::unix::pipe::Receiver;
 
@@ -106,11 +108,70 @@ pub fn release_write_ends(command: &mut Command) {
     command.stdout(Stdio::null()).stderr(Stdio::null());
 }
 
-/// Reads `pipe` to its end and returns every byte.
-async fn read_whole(mut pipe: Receiver) -> std::io::Result<Vec<u8>> {
-    let mut bytes: Vec<u8> = Vec::new();
-    pipe.read_to_end(&mut bytes).await?;
-    return Ok(bytes);
+/// How long the read of a step's output may go on after the step itself has ended.
+///  A pipe holds at most 64 KiB (`pipe-max-size`'s default),
+/// which this process reads in one go,
+/// so a second is thousands of times what draining a pipe nothing more is written to costs.
+///  A program the step started that still holds the write end a second after the step ended is holding it,
+///  not writing the step's output,
+/// and the wait for the step must not last as long as that program lives.
+/// Labelled unmeasured as a quiet window is (`SPEC.md`,
+/// "The quiet windows are labelled unmeasured"):
+/// no log holds how long a surviving writer takes to close a step's streams.
+pub const OUTPUT_DRAIN_AFTER_EXIT: Duration = Duration::from_secs(1);
+
+/// What:
+///  The sentence for a step whose output a program it started still held open after the step ended.
+/// Why:
+///  The step is over and its output is what was read;
+/// the person has to know that the step is not what holds the command,
+///  and which program does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} ended, but a program it started still holds its output open (${holders}); ...`
+/// ```
+fn output_held_open_text(waiting_for: &str, holders: &[ProcessUser]) -> String {
+    let named: String = match holders.first() {
+        Some(holder) => match holder.command.as_ref() {
+            Some(command) => format!("process {} ({command})", holder.pid),
+            None => format!("process {}", holder.pid),
+        },
+        None => String::from("a program it started, which no longer shows in the process table"),
+    };
+    return format!(
+        "{waiting_for} ended, but {named} still holds the step's output open, so the output this command read may be incomplete and \
+         the wait for it ended after {} seconds of it. Check with `ps` what that program is and whether it is still needed, end it if \
+         it is stuck, and run the command again; the step's own end is what the repository state shows.",
+        OUTPUT_DRAIN_AFTER_EXIT.as_secs()
+    );
+}
+
+/// The error of a wait whose step ended but whose output a program the step started still held open.
+#[derive(Debug)]
+struct OutputHeldOpen(
+    /// The sentence that names the step,
+    /// the program and what to do.
+    String,
+);
+
+impl std::fmt::Display for OutputHeldOpen {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return formatter.write_str(self.0.as_str());
+    }
+}
+
+impl std::error::Error for OutputHeldOpen {}
+
+/// Whether `error` is the error of a step whose output a program it started still held open.
+pub fn is_output_held_open(error: &std::io::Error) -> bool {
+    return error.get_ref().is_some_and(is_the_held_open_error);
+}
+
+/// Whether `inner` is this module's held-open error,
+/// for `is_output_held_open`.
+fn is_the_held_open_error(inner: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+    return inner.is::<OutputHeldOpen>();
 }
 
 impl StepPipes {
@@ -136,17 +197,16 @@ impl StepPipes {
     /// ```ts
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
-    pub fn read_until_the_child_ends(self, child: Child) -> std::io::Result<Output> {
+    pub fn read_until_the_child_ends(self, child: Child, waiting_for: &str, ceiling: Option<Duration>) -> std::io::Result<Output> {
         // Both wait in an `Option`: whichever of the two paths runs takes them, and a refused runtime leaves them here.
         let mut waiting: Option<Child> = Some(child);
         let mut unread: Option<StepPipes> = Some(self);
         let finished = run_on_runtime(async {
             return match (unread.take(), waiting.take()) {
-                (Some(open), Some(started)) => read_until_the_child_ends_awaiting(open, started).await,
+                (Some(open), Some(started)) => read_until_the_child_ends_awaiting(open, started, waiting_for, ceiling).await,
                 _ => Err(std::io::Error::other("the child or its pipes were handed over twice")),
             };
-        });
-        return match finished {
+        });        return match finished {
             Ok(output) => output,
             Err(refusal) => {
                 // The future never ran, so the child is still here; it is ended rather than left to run unwatched.
@@ -172,31 +232,173 @@ impl StepPipes {
     /// ```ts
     /// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
     /// ```
-    pub async fn read_until_the_child_ends_awaiting(self, child: Child) -> std::io::Result<Output> {
-        return read_until_the_child_ends_awaiting(self, child).await;
+    pub async fn read_until_the_child_ends_awaiting(self, child: Child, waiting_for: &str, ceiling: Option<Duration>) -> std::io::Result<Output> {
+        return read_until_the_child_ends_awaiting(self, child, waiting_for, ceiling).await;
     }
 }
 
 /// What:
 ///  Reads both pipes of a started child to their end while its exit is awaited,
-/// on the runtime the caller already runs on.
+/// on the runtime the caller already runs on,
+/// with an end of its own.
 /// Why:
 ///   The one body both faces of this wait share,
 /// so a synchronous caller and a task cannot report differently;
 /// the child's input is closed first,
 ///  as `wait_with_output` closes it.
+/// A pipe ends at end of file,
+/// which needs every write end closed,
+/// so a program the step
+///  started keeps the read from ending though the step has;
+/// each read therefore ends
+///  `OUTPUT_DRAIN_AFTER_EXIT` after the step has ended,
+/// and the wait says which program held it.
+///  `ceiling` is the step's own ceiling when nothing else ends the step (the watch had no task):
+/// the wait then ends the
+///  child itself,
+/// so a step is never waited for past the bound the watch would have given it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [stdout, stderr, status] = await Promise.all([readAll(out), readAll(err), child.exited]);
+/// const [stdout, stderr, status] = await withCeiling(Promise.all([readAll(out), readAll(err), child.exited]), ceiling);
 /// ```
-async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child) -> std::io::Result<Output> {
+async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, waiting_for: &str, ceiling: Option<Duration>) -> std::io::Result<Output> {
     let StepPipes { standard_output, standard_error } = pipes;
     // `mut` lets the wait take the standard input away before the join.
     let mut input_closed: Child = child;
     drop(input_closed.stdin.take());
+    // The read ends of the pipes, which are the same open file as their write ends: a program that holds one holds the
+    //  output open, and the pipe's identity is what finds it.
+    let held: Option<(u64, u64)> = pipe_identity(standard_output.as_fd());
     let mut owned = adopt(input_closed);
-    let (read_output, read_error, waited) = tokio::join!(read_whole(standard_output), read_whole(standard_error), owned.wait());
+    // The moment the child ended, told to both reads so each can end its drain of whatever a program it started still writes.
+    let (ended, ends) = tokio::sync::watch::channel::<Option<Instant>>(None);
+    let reading = async {
+        return tokio::join!(
+            read_until_the_step_has_ended(standard_output, ends.clone(), waiting_for, held),
+            read_until_the_step_has_ended(standard_error, ends, waiting_for, held),
+        );
+    };
+    let waiting = async {
+        let status: std::io::Result<ExitStatus> = owned.wait().await;
+        ended.send_replace(Some(Instant::now()));
+        return status;
+    };
+    let (read, waited): ((std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>), std::io::Result<ExitStatus>) = match ceiling {
+        Some(limit) => match tokio::time::timeout(limit, async { return tokio::join!(reading, waiting); }).await {
+            Ok(both) => both,
+            Err(_elapsed) => {
+                // The watch that would have ended the step never ran, so this wait carries the step's own ceiling.
+                owned.end_and_reap();
+                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, limit)));
+            }
+        },
+        None => tokio::join!(reading, waiting),
+    };
     let status: ExitStatus = waited?;
+    let (read_output, read_error) = read;
     return Ok(Output { status, stdout: read_output?, stderr: read_error? });
+}
+
+/// What:
+///  Reads a pipe to its end,
+/// or gives up `OUTPUT_DRAIN_AFTER_EXIT` after the step ended and says what still holds it.
+/// Why:
+///   A pipe that a program the step started holds open never reaches end of file,
+/// so without this bound the
+///  command waits for as long as that program lives,
+/// past the step's own ceiling
+/// (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 2).
+///  What was read before the drain is returned on the error's way out through the sentence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytes = []; for (;;) { const r = await Promise.race([pipe.read(), drainEnded]); if (drainEnded) throw heldOpen(holders(pipe)); if (r === EOF) return bytes; bytes.push(...); }
+/// ```
+async fn read_until_the_step_has_ended(mut pipe: Receiver, mut ends: tokio::sync::watch::Receiver<Option<Instant>>, waiting_for: &str, held: Option<(u64, u64)>) -> std::io::Result<Vec<u8>> {
+    let mut bytes: Vec<u8> = Vec::new();
+    let drain = async {
+        let ended_at: Instant = wait_for_the_end(&mut ends).await;
+        tokio::time::sleep_until(tokio::time::Instant::from_std(ended_at + OUTPUT_DRAIN_AFTER_EXIT)).await;
+    };
+    tokio::select! {
+        read = pipe.read_to_end(&mut bytes) => {
+            read?;
+            return Ok(bytes);
+        }
+        () = drain => {}
+    }
+    let holders: Vec<ProcessUser> = held.map(holding_processes).unwrap_or_default();
+    return Err(std::io::Error::other(OutputHeldOpen(output_held_open_text(waiting_for, holders.as_slice()))));
+}
+
+/// Awaits the moment the step ended,
+/// which the wait for the child tells;
+/// now when the wait is gone without telling it.
+async fn wait_for_the_end(ends: &mut tokio::sync::watch::Receiver<Option<Instant>>) -> Instant {
+    loop {
+        if let Some(at) = *ends.borrow_and_update() {
+            return at;
+        }
+        if ends.changed().await.is_err() {
+            return Instant::now();
+        }
+    }
+}
+
+/// What:
+///  The mount and inode of the open file `descriptor` names.
+/// Why:
+///   The two together name the pipe,
+/// which is how a process holding its other end is found
+/// (`process_use.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stx_mnt_id, stx_ino } = statx(fd, '', AT_EMPTY_PATH, STATX_MNT_ID);
+/// ```
+#[cfg(target_os = "linux")]
+fn pipe_identity(descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)> {
+    let found = rustix::fs::statx(descriptor, "", rustix::fs::AtFlags::EMPTY_PATH, rustix::fs::StatxFlags::MNT_ID).ok()?;
+    return Some((found.stx_mnt_id, found.stx_ino));
+}
+
+/// Only Linux names a pipe,
+/// so nothing that holds it is found elsewhere.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(not(target_os = "linux"))]
+fn pipe_identity(_descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)> {
+    return None;
+}
+
+/// The processes that have the pipe with this identity open,
+/// this one aside.
+fn holding_processes((mount, inode): (u64, u64)) -> Vec<ProcessUser> {
+    let scan: UseScan = crate::process_use::processes_using(&UseTarget::File { mount, inode });
+    return scan.users;
+}
+
+/// What:
+///  The sentence for a wait that carried the step's own ceiling because no watch could.
+/// Why:
+///   The watch is what ends a step,
+/// and the system refused the thread that would have run it;
+/// this wait then gives the step the
+///  ceiling the watch would have given it and says why,
+/// so nothing waits for a step for ever without a word
+///  (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+/// finding 8).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${waitingFor} ran for ${limit} seconds and was ended; no watch could announce it: ${why}`
+/// ```
+fn waiting_carried_the_ceiling(waiting_for: &str, limit: Duration) -> String {
+    return format!(
+        "{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended, though nothing could watch \
+         it: the system refused a thread for the watcher. Hint: check the process limit (`ulimit -u`) and the control group's \
+         `pids.max`, free some, and run the command again.",
+        limit.as_secs()
+    );
 }

@@ -224,7 +224,7 @@ pub async fn output_watched_within_for_a_stop_awaiting(
             Err(error) => Err(error),
         },
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends_awaiting(child).await,
+            Some(open) => open.read_until_the_child_ends_awaiting(child, waiting_for, None).await,
             None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
         },
         StepBound::Unbounded => {

@@ -584,7 +584,7 @@ pub fn output_watched_within_for_a_stop(
             }
         }
         StepBound::EndAt(_) => match pipes {
-            Some(open) => open.read_until_the_child_ends(child),
+            Some(open) => open.read_until_the_child_ends(child, waiting_for, None),
             None => Err(std::io::Error::other("a step that is ended at its ceiling had no pipes to read: a defect of monochromatic-git-policy-cli")),
         },
         StepBound::Unbounded => {
