@@ -355,3 +355,102 @@ fn settle_held(work_dir: &Path, name: &str) {
 fn work_item_of(text: String) -> Option<WorkItem> {
     return WorkItem::decode(text.as_str()).ok();
 }
+
+/// What:
+///  How long a push record must have waited in `pending` before a command names it as queued.
+/// Why:
+///   A record a service has not taken yet is a queued push,
+/// and the state is the same whether the wrapper was killed between promoting the record and waking the service
+/// or the
+///  service went away before it looked;
+/// the bound only keeps the line from naming a push that is merely in flight.
+/// Measured on this host at 2026-11-09T16:40-05:00 (`measure-claim-stamp.ts` and `measure-landing-to-claim.ts`
+/// in `${HOME}/temp/agent/pi-runs/push-delivery-fix/repro`,
+/// debug build,
+/// local bare remote):
+/// the time from a landing to the claim of its push record was between 15 ms and 3.9 s with the service idle
+///  for 8 s between commits,
+/// and between 14 ms and 10.7 s when 12 commits were made back to back.
+/// The bound is above every in-flight window measured,
+/// so a record it names has outlasted any service that was merely busy.
+/// Exempt from a citation under `LQM` (class:
+/// notice pacing):
+/// it times a line the person reads and nothing waits on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-audit.md`,
+/// "Exempt limits".
+pub const PUSH_QUEUED_AFTER: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// What:
+///  The one line a command says about the pushes this worktree has queued and no service has taken,
+/// and how many more wait the same way.
+/// Why:
+///   A push record in `pending` is a push that has not been made and that the service takes without any further commit.
+/// A wrapper
+///  killed between promoting the record and waking the service leaves one,
+/// and a service that went away before it
+///  looked leaves one;
+/// the command that would have said "the push is queued" died,
+/// so the record is the only place
+///  the statement can come from,
+/// and every later command reads it from there.
+///   One push is named and the rest are counted,
+/// because the person acts on the oldest and the list of a
+///  container's unserved commits has no end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queuedPushNotices(gitDir, now) // the oldest pending push, then a count
+/// ```
+pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<String> {
+    let work_dir: PathBuf = work_directory(git_dir);
+    let mut waiting: Vec<(String, std::time::SystemTime)> = Vec::new();
+    for (name, queued) in crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING) {
+        if !name.starts_with(format!("{}-", WorkKind::Push.name()).as_str()) {
+            continue;
+        }
+        if now.duration_since(queued).unwrap_or(std::time::Duration::ZERO) < PUSH_QUEUED_AFTER {
+            continue;
+        }
+        waiting.push((name, queued));
+    }
+    let Some((oldest, _)) = waiting.first() else { return Vec::new() };
+    // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and its
+    //  branch is unknown.
+    let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(oldest.as_str());
+    let record: Option<WorkItem> = std::fs::read_to_string(path).ok().and_then(work_item_of);
+    let (commit, reference): (String, String) = match record {
+        Some(item) => (item.oid, item.branch_ref),
+        None => match crate::work_item_ids_and_names::object_of_a_record_name(oldest.as_str()) {
+            Some(commit) => (commit.to_string(), String::new()),
+            None => return Vec::new(),
+        },
+    };
+    let mut lines: Vec<String> = vec![queued_push_line(reference.as_str(), commit.as_str())];
+    let more: usize = waiting.len() - 1;
+    if more > 0 {
+        let (subject, possessive): (&str, &str) = if more == 1 { ("commit is", "its") } else { ("commits are", "their") };
+        lines.push(format!("{more} more {subject} queued for {possessive} push the same way"));
+    }
+    return lines;
+}
+
+/// What:
+///  The one sentence the worktree says about a push that is queued and has not been made.
+/// Why:
+///   What is known is that the record is queued and that no service has taken it,
+/// and that the service makes it
+///  without another commit;
+/// the sentence claims exactly that and nothing about why.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// queuedPushLine(branchRef, commit)
+/// ```
+pub fn queued_push_line(reference: &str, commit: &str) -> String {
+    if reference.is_empty() {
+        return format!("the commit {commit} is queued for its push: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit");
+    }
+    return format!(
+        "the commit {commit} is queued for its push from {reference}: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit"
+    );
+}

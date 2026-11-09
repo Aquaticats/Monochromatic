@@ -8456,6 +8456,31 @@ while settling on anything weaker would drop the only word about a commit that i
 A `blocked` record is not asked about at all:
 the question of whether a commit the gate refused should ever be pushed is open with the owner.
 
+A push record in `pending` is a push no service has taken yet.
+When the wrapper is killed between promoting its record and waking the service,
+or a service goes away before it looks,
+the command that would have said "the push is queued" is gone,
+so every command says it from the record:
+the oldest such record is named,
+the rest are counted,
+and the words claim only that the push has not been made and that the service makes it the next time it
+looks at the repository,
+which needs no further commit.
+A record younger than `PUSH_QUEUED_AFTER` (15 seconds) is a push in flight and is not named;
+the wait measured on this host at 2026-11-09T16:40-05:00 from a landing to the claim of its push record
+was 15 ms to 3.9 s with the service idle between commits and up to 10.7 s with commits made back to back
+(debug build,
+local bare remote),
+so a record that outlasts the bound has outlasted any service that was merely busy.
+The line is the record's,
+so it goes when a claim moves the record.
+
+The service writes the repository it lands for into the journal's claim watch before it answers
+(`note_for_the_next_service` in `service_claim_watch.rs`),
+so a service that starts looks at it even though no client ever woke it for that repository,
+and a kill is followed by the work being run with no commit needed
+(`service_server_work_loop.rs`).
+
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
 and the only wait is the service's bounded wait for a foreign holder

@@ -487,6 +487,12 @@ mod service_replay;
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
+/// A landed commit whose wrapper was killed between promoting its held push and waking the service:
+/// the next command says the push is queued,
+/// and a service that starts pushes it with no further commit.
+#[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
+mod push_queued_after_a_killed_wrapper;
+
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,
 /// so no command says the opposite of `git status`.

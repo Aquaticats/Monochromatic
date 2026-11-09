@@ -170,6 +170,12 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
+    // A push record no service has taken is a queued push that no command has said anything about: the one that left it was
+    //  killed before it could, or the service went away before it looked. The record is where that statement lives.
+    for line in crate::service_handoff::queued_push_notices(git_dir.as_path(), std::time::SystemTime::now()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };

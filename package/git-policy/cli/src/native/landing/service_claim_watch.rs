@@ -283,10 +283,7 @@ impl ClaimWatch {
     /// Whether `git_dir` is a directory of another instance,
     /// which this journal does not hold.
     fn is_foreign(&self, git_dir: &Path) -> bool {
-        return match self.instance.as_deref() {
-            Some(mine) => instance_of(git_dir) != mine,
-            None => false,
-        };
+        return of_another_instance(self.instance.as_deref(), git_dir);
     }
 
     /// Writes `git_dir` down unless this process has done so.
@@ -425,6 +422,52 @@ impl ClaimWatch {
             }
         }
         return found;
+    }
+}
+
+/// Whether `git_dir` belongs to an instance other than `instance`.
+/// Why:
+///   A journal belongs to one instance,
+/// and a note that names another repository is removed by `scan` and refused by `remember`;
+/// the landing thread's `note_for_the_next_service` asks the same question,
+/// so a note it writes cannot be one the next service throws away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ofAnotherInstance = (instance, gitDir) => instance !== undefined && instanceOf(gitDir) !== instance;
+/// ```
+fn of_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
+    return match instance {
+        Some(mine) => instance_of(git_dir) != mine,
+        None => false,
+    };
+}
+
+/// What:
+///  Writes `git_dir` down for the next service of `instance`,
+/// from a thread that does not own the watch.
+/// Why:
+///   The landing thread knows the repository before any client wakes anything,
+/// and a wrapper killed between promoting a landed commit's push and waking the service leaves a `pending` record that
+///  nothing would drain.
+/// The promise that a kill is followed by the work being run with no commit needed rests on the journal naming the
+///  repository,
+/// so the note is written where the landing already records what it owes,
+/// before the client is answered.
+///   It is the same exclusive publish the work loop's `remember` uses,
+/// so the two writers cannot disagree:
+/// a note that is already there and holds this directory is left as it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const noteForTheNextService = (store, instance, gitDir) => { if (!ofAnotherInstance(instance, gitDir)) writeDown(store, gitDir); };
+/// ```
+pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: &Path) {
+    if of_another_instance(instance, git_dir) {
+        return;
+    }
+    if let Err(reason) = write_down(store, git_dir) {
+        crate::service_warn!("{} could not be kept for a restart, so a service that starts may not look at it: {reason}", git_dir.display());
     }
 }
 
