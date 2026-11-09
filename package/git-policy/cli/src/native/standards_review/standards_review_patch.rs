@@ -10,6 +10,11 @@
 //! so the same spans follow from the patch the
 //!  review already holds.
 //! The spans are on the new side because the excerpt is cut from the new-side file.
+//! The patch is read and matched as the bytes Git wrote:
+//! with `core.quotePath` off Git prints a path's bytes as
+//!  they are,
+//! so a path that is not UTF-8 reaches the header as those bytes and decoding the patch first would
+//!  lose the section it names.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -17,10 +22,25 @@
 //! ```
 
 /// A diff section's opening line prefix.
-const SECTION_PREFIX: &str = "diff --git ";
+const SECTION_PREFIX: &[u8] = b"diff --git ";
 
 /// A hunk header's opening characters.
-const HUNK_PREFIX: &str = "@@ ";
+const HUNK_PREFIX: &[u8] = b"@@ ";
+
+/// What:
+///  Whether one byte is the line feed that ends a patch line.
+///  `&u8` borrows the byte,
+/// as `split` hands it over.
+/// Why:
+///   `split` takes this function by path where a closure would otherwise stand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isLineFeed = (byte: number) => byte === '\n'.charCodeAt(0);
+/// ```
+pub(crate) fn is_line_feed_byte(byte: &u8) -> bool {
+    return *byte == b'\n';
+}
 
 /// What:
 ///  One run of changed lines on the new side of a file:
@@ -67,11 +87,11 @@ pub struct NewSpan {
 /// ```ts
 /// const printedPath = (text) => text.startsWith('"') ? unquoteCStyle(text) : Buffer.from(text);
 /// ```
-fn printed_path(text: &str) -> Option<Vec<u8>> {
+fn printed_path(text: &[u8]) -> Option<Vec<u8>> {
     return match take_quoted(text) {
         Some((decoded, after)) if after.is_empty() => Some(decoded),
         Some(_unfinished) => None,
-        None => Some(text.as_bytes().to_vec()),
+        None => Some(text.to_vec()),
     };
 }
 
@@ -88,18 +108,17 @@ fn printed_path(text: &str) -> Option<Vec<u8>> {
 /// ```ts
 /// function takeQuoted(text) { /* parse "..." and decode C escapes */ }
 /// ```
-fn take_quoted(text: &str) -> Option<(Vec<u8>, &str)> {
-    let bytes: &[u8] = text.as_bytes();
-    if bytes.first() != Some(&b'"') {
+fn take_quoted(text: &[u8]) -> Option<(Vec<u8>, &[u8])> {
+    if text.first() != Some(&b'"') {
         return None;
     }
     let mut decoded: Vec<u8> = Vec::new();
     let mut index: usize = 1;
-    while index < bytes.len() {
-        match bytes[index] {
+    while index < text.len() {
+        match text[index] {
             b'"' => return Some((decoded, text.get(index + 1..).unwrap_or_default())),
             b'\\' => {
-                let escape: u8 = *bytes.get(index + 1)?;
+                let escape: u8 = *text.get(index + 1)?;
                 let (byte, used): (u8, usize) = match escape {
                     b'a' => (7, 2),
                     b'b' => (8, 2),
@@ -114,8 +133,8 @@ fn take_quoted(text: &str) -> Option<(Vec<u8>, &str)> {
                         let mut value: u32 = 0;
                         let mut digits: usize = 0;
                         while digits < 3 {
-                            let Some(&next) = bytes.get(index + 1 + digits) else { break; };
-                            let Some(digit) = (next as char).to_digit(8) else { break; };
+                            let Some(&next) = text.get(index + 1 + digits) else { break; };
+                            let Some(digit) = char::from(next).to_digit(8) else { break; };
                             value = value * 8 + digit;
                             digits += 1;
                         }
@@ -150,7 +169,7 @@ fn take_quoted(text: &str) -> Option<(Vec<u8>, &str)> {
 /// ```ts
 /// const [from, to] = printedPaths(header); return eq(from, `a/${name}`) && eq(to, `b/${name}`);
 /// ```
-fn header_is_for(header: &str, name: &[u8]) -> bool {
+fn header_is_for(header: &[u8], name: &[u8]) -> bool {
     let Some(rest) = header.strip_prefix(SECTION_PREFIX) else {
         return false;
     };
@@ -159,9 +178,9 @@ fn header_is_for(header: &str, name: &[u8]) -> bool {
         expected.extend_from_slice(name);
         expected.extend_from_slice(b" b/");
         expected.extend_from_slice(name);
-        return rest.as_bytes() == expected;
+        return rest == expected.as_slice();
     };
-    let Some((to, after_to)) = after_from.strip_prefix(' ').and_then(take_quoted) else {
+    let Some((to, after_to)) = after_from.strip_prefix(b" ").and_then(take_quoted) else {
         return false;
     };
     let mut expected_from: Vec<u8> = Vec::from(&b"a/"[..]);
@@ -173,7 +192,7 @@ fn header_is_for(header: &str, name: &[u8]) -> bool {
 
 /// What:
 ///  Whether one of the extended header lines is `rename to` and then `name`.
-///  `&[&str]` borrows a list of borrowed lines.
+///  `&[&[u8]]` borrows a list of borrowed lines.
 /// Why:
 ///   `section_is_for` asks it of the lines after a section header,
 /// and a loop with an early return stands where
@@ -183,9 +202,9 @@ fn header_is_for(header: &str, name: &[u8]) -> bool {
 /// ```ts
 /// const listsRenameTo = (extended: string[], name) => extended.some((line) => printedPath(line.slice('rename to '.length)) == name);
 /// ```
-fn lists_rename_to(extended: &[&str], name: &[u8]) -> bool {
+fn lists_rename_to(extended: &[&[u8]], name: &[u8]) -> bool {
     for line in extended {
-        let Some(printed) = line.strip_prefix("rename to ").and_then(printed_path) else {
+        let Some(printed) = line.strip_prefix(b"rename to ").and_then(printed_path) else {
             continue;
         };
         if printed.as_slice() == name {
@@ -197,7 +216,7 @@ fn lists_rename_to(extended: &[&str], name: &[u8]) -> bool {
 
 /// What:
 ///  Whether a patch line starts a hunk or starts the next file section.
-///  `&&str` is a borrow of an element of a list of borrowed lines,
+///  `&&[u8]` is a borrow of an element of a list of borrowed lines,
 /// as `position` hands it over.
 /// Why:
 ///   The extended header lines of a section end at the first such line,
@@ -208,7 +227,7 @@ fn lists_rename_to(extended: &[&str], name: &[u8]) -> bool {
 /// ```ts
 /// const isHunkOrSectionLine = (line: string) => line.startsWith(HUNK_PREFIX) || line.startsWith(SECTION_PREFIX);
 /// ```
-fn is_hunk_or_section_line(line: &&str) -> bool {
+fn is_hunk_or_section_line(line: &&[u8]) -> bool {
     return line.starts_with(HUNK_PREFIX) || line.starts_with(SECTION_PREFIX);
 }
 
@@ -225,7 +244,7 @@ fn is_hunk_or_section_line(line: &&str) -> bool {
 /// ```ts
 /// headerIsFor(header, name.bytes) || extended.some((line) => renameNames(line, name.bytes))
 /// ```
-fn section_is_for(header: &str, extended: &[&str], name: &[u8]) -> bool {
+fn section_is_for(header: &[u8], extended: &[&[u8]], name: &[u8]) -> bool {
     return header_is_for(header, name) || lists_rename_to(extended, name);
 }
 
@@ -239,8 +258,9 @@ fn section_is_for(header: &str, extended: &[&str], name: &[u8]) -> bool {
 /// ```ts
 /// const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? /.exec(line);
 /// ```
-fn parse_new_start(line: &str) -> Option<u64> {
-    let mut sides = line.strip_prefix("@@ -")?.split(' ');
+fn parse_new_start(line: &[u8]) -> Option<u64> {
+    let text: &str = std::str::from_utf8(line).ok()?;
+    let mut sides = text.strip_prefix("@@ -")?.split(' ');
     let _old = sides.next()?;
     let new: &str = sides.next()?.strip_prefix('+')?;
     let (start_text, length_text) = new.split_once(',').unwrap_or((new, "1"));
@@ -264,11 +284,11 @@ fn parse_new_start(line: &str) -> Option<u64> {
 /// ```ts
 /// function newSpans({ patchLines, name }): { first: number; last: number }[];
 /// ```
-pub fn new_spans(patch_lines: &[&str], name: &[u8]) -> Vec<NewSpan> {
+pub fn new_spans(patch_lines: &[&[u8]], name: &[u8]) -> Vec<NewSpan> {
     let mut spans: Vec<NewSpan> = Vec::new();
     let mut index: usize = 0;
     while index < patch_lines.len() {
-        let header: &str = patch_lines[index];
+        let header: &[u8] = patch_lines[index];
         index += 1;
         if !header.starts_with(SECTION_PREFIX) {
             continue;
@@ -298,11 +318,11 @@ pub fn new_spans(patch_lines: &[&str], name: &[u8]) -> Vec<NewSpan> {
 /// ```ts
 /// function readHunks({ patchLines, index, spans }): void;
 /// ```
-fn read_hunks(patch_lines: &[&str], index: &mut usize, spans: &mut Vec<NewSpan>) {
+fn read_hunks(patch_lines: &[&[u8]], index: &mut usize, spans: &mut Vec<NewSpan>) {
     let mut new_line: u64 = 0;
     let mut open: Option<NewSpan> = None;
     while *index < patch_lines.len() {
-        let line: &str = patch_lines[*index];
+        let line: &[u8] = patch_lines[*index];
         if line.starts_with(SECTION_PREFIX) {
             break;
         }
@@ -312,7 +332,7 @@ fn read_hunks(patch_lines: &[&str], index: &mut usize, spans: &mut Vec<NewSpan>)
             new_line = parse_new_start(line).unwrap_or(new_line);
             continue;
         }
-        match line.as_bytes().first() {
+        match line.first() {
             Some(b'-') => {
                 open = Some(open.unwrap_or(NewSpan { first: new_line, last: new_line }));
             }

@@ -96,8 +96,8 @@ pub fn with_second_pass_report(done: IsolatedMerge, merged: &[Merged]) -> Isolat
 ///  every conflicted file resolved;
 /// otherwise it is refused as before,
 /// naming the paths.
-/// The attributes of the first side's
-///  tip apply,
+/// The attributes of the first side's tip apply to the merge itself,
+/// and the tree the merge produced to the second pass,
 /// because no worktree is read.
 /// A conflict with a clean index is not computed here at all:
 /// native Git writes
@@ -145,7 +145,7 @@ pub fn merge_tree(
             // The second pass runs from the top of the worktree with the person's configuration options only.
             let top_context: GitContext = GitContext { global_prefix: config_options(&session.context.global_prefix), ..session.context.clone() };
             let top_runner: ContextRunner<'_> = ContextRunner { context: &top_context, cwd: root, ..runner };
-            if let Some(resolved) = resolve_tree(&top_runner, common_dir, tree.as_str(), conflicts.as_slice()) {
+            if let Some(resolved) = resolve_tree(&top_runner, common_dir, tree.as_str(), conflicts.as_slice(), &probe) {
                 return Ok((resolved.tree, resolved.merged));
             }
             let mut paths: Vec<String> = Vec::new();
