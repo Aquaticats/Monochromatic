@@ -87,3 +87,31 @@ fn names_and_message_are_read_raw() {
     assert!(read_names(&git_context(), root.as_path(), root_commit.as_str()).expect("root").is_empty(), "a root commit reports no names");
     remove(parent.as_path());
 }
+
+/// A commit that deletes a code file whose name holds a line feed still reads:
+/// Git echoes the whole path in its `missing` reply,
+/// so a request that an earlier name continued into must not be
+/// split at a line feed,
+/// and the deleted file is absent from the texts rather than a read failure.
+#[test]
+fn a_deleted_name_with_a_line_feed_is_absent() {
+    let parent: PathBuf = fixture("source-deleted-newline");
+    let root: PathBuf = repository(parent.as_path(), "repo");
+    let awkward: &str = "gone\nnot-a-revision.ts";
+    std::fs::write(root.join(awkward), "a\n").expect("write the awkward name");
+    std::fs::write(root.join("keep.ts"), "one\n").expect("write keep.ts");
+    git(root.as_path(), &["add", "--", awkward, "keep.ts"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(root.as_path(), &["rm", "--quiet", "--", awkward]);
+    std::fs::write(root.join("keep.ts"), "two\n").expect("change keep.ts");
+    git(root.as_path(), &["add", "--", "keep.ts"]);
+    git(root.as_path(), &["commit", "--quiet", "--message=change"]);
+    let sha: String = git_text(root.as_path(), &["rev-parse", "HEAD"]);
+    let names: Vec<ChangedPath> = read_names(&git_context(), root.as_path(), sha.as_str()).expect("names");
+    assert!(names.iter().any(|name| return name.as_bytes() == awkward.as_bytes()), "the deleted name is reported");
+    let commit: LandedCommit = read_landed_commit(&git_context(), root.as_path(), sha.as_str(), "change", names.as_slice()).expect("a deleted awkward name is not a read failure");
+    let named = |text: &str| return ChangedPath::from_bytes(text.as_bytes().to_vec());
+    assert_eq!(commit.contents.get(&named("keep.ts")).map(String::as_str), Some("two\n"));
+    assert_eq!(commit.contents.len(), 1, "the deleted file has no text: {:?}", commit.contents.keys().map(|name| return name.to_string()).collect::<Vec<String>>());
+    remove(parent.as_path());
+}
