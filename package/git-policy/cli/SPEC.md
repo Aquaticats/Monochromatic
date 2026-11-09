@@ -9258,6 +9258,16 @@ and leave one audit line each
   Untracked and ignored files are deliberately not counted:
   walking them is what would make a removal of a large worktree slow,
   and the record says what it counted rather than claiming the worktree was clean.
+  The target is the path Git resolves before it removes anything:
+  the named path,
+  or the one registered worktree whose path components the name ends,
+  from one `git worktree list --porcelain`,
+  asked first because every read of the target has to happen before Git removes it,
+  so `git worktree remove topic` describes `/r/worktrees/topic`,
+  and not a directory of that name beside the command.
+  A name no worktree answers is the path the command named,
+  and a name that matches several worktrees is one Git refuses,
+  so neither claims a worktree the command will not remove.
   The line is written whether or not `--no-enforce-worktree` was given:
   the hatch skips the policy that writes it,
   and the line is the owner's own requirement,

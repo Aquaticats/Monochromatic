@@ -1276,3 +1276,32 @@ fn a_deletion_of_the_previous_branch_records_the_branch_it_named() {
     }
     remove(&fixture);
 }
+
+/// A removal that names a worktree by its unique suffix counts that worktree,
+/// not a directory of the same
+///  name beside the command.
+#[test]
+fn a_removal_by_suffix_counts_the_worktree_git_resolves() {
+    let fixture: Fixture = fixture("audit-worktree-suffix");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let worktrees: PathBuf = fixture.root.join("worktrees");
+    std::fs::create_dir(&worktrees).expect("worktrees directory");
+    let linked: PathBuf = worktrees.join("topic");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../worktrees/topic"]);
+    std::fs::write(linked.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    // A directory of the same name beside the command, which is not a worktree at all.
+    std::fs::create_dir(repo.join("topic")).expect("a directory of the same name");
+    let removal: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "--force", "topic"]);
+    assert_eq!(removal.code, Some(0), "{}", stderr_of(&removal));
+    assert!(!linked.exists(), "Git removed the worktree the suffix names");
+    let line: String = audit_lines_of(repo.as_path()).last().cloned().expect("one audit line");
+    for field in [
+        "\"form\":\"WorktreeRemove\"",
+        "\"worktree\":\"topic\"",
+        "\"head\":\"refs/heads/side\"",
+        "\"changed\":\"1\"",
+    ] {
+        assert!(line.contains(field), "{field} missing from {line}");
+    }
+    remove(&fixture);
+}
