@@ -28,6 +28,8 @@ use crate::candidate_reader::{ObjectReader, start_object_reader};
 /// Import the listing parser and its records.
 use crate::candidate_record::{CandidateRecord, parse_raw_records};
 /// Import the stage-record parser of `git ls-files --stage`.
+/// The tree record a commit's listing holds.
+use crate::candidate_tree::TreeRecord;
 use crate::candidate_stage::{StageRecord, parse_stage_records};
 /// Import the version types and builder.
 use crate::candidate_version::{Candidate, CandidateSource, CandidateVersion, build_version};
@@ -93,6 +95,12 @@ pub struct CandidateStore {
     /// Versions already listed in this generation,
     ///  by source.
     versions: Vec<(CandidateSource, Rc<CandidateVersion>)>,
+    /// The last commit this store listed with its files,
+    ///  and that listing.
+    ///  One entry keeps the memory to one commit's listing,
+    ///  and a commit's name fixes its tree,
+    ///  so the listing of a commit never changes.
+    listed: Option<(ObjectId, std::sync::Arc<Vec<TreeRecord>>)>,
     /// The commit every "against `HEAD`" listing compares with instead of the live `HEAD`:
     ///  `Some(Some(commit))` for a recorded base,
     /// `Some(None)` for a recorded unborn branch,
@@ -158,6 +166,7 @@ impl CandidateStore {
             reader: None,
             generation: 0,
             versions: Vec::new(),
+            listed: None,
             baseline: None,
         };
     }
@@ -322,6 +331,42 @@ impl CandidateStore {
             ));
         };
         return Ok(tree);
+    }
+
+    /// What:
+    ///  The listing this store kept for `commit`,
+    ///  when it kept one.
+    /// Why:
+    ///   A commit's name fixes its tree,
+    ///  so a listing made by this store answers every later
+    ///       request for the same commit without another Git process.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// keptListing(commit): TreeRecord[] | undefined
+    /// ```
+    pub(crate) fn kept_listing(&self, commit: &ObjectId) -> Option<std::sync::Arc<Vec<TreeRecord>>> {
+        let (listed, records) = self.listed.as_ref()?;
+        if listed != commit {
+            return None;
+        }
+        return Some(std::sync::Arc::clone(records));
+    }
+
+    /// What:
+    ///  Keep `records` as this store's listing of `commit`.
+    /// Why:
+    ///   The store that listed a commit answers the next request for it;
+    ///  no lock and no process-wide
+    ///       state is needed,
+    ///  and the memory stays one commit's listing per store.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// keepListing(commit, records) { this.listed = { commit, records }; }
+    /// ```
+    pub(crate) fn keep_listing(&mut self, commit: &ObjectId, records: &std::sync::Arc<Vec<TreeRecord>>) {
+        self.listed = Some((commit.clone(), std::sync::Arc::clone(records)));
     }
 
     /// What:
