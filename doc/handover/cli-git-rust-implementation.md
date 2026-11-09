@@ -222,15 +222,20 @@ The old tree kept for the rollback stays until the owner deletes it.
   Real Git never writes one,
   main answered it the same way,
   and a small guard is still owed.
-- Fix briefs written and waiting for a free agent slot,
-  in this order:
-  `landing-route-findings-fixed` run 11 with `landing-route-round-11-prompt.md` (one source for the held notice,
-  and path bytes in every field of the owed index record);
-  `locks-and-transactions-findings-fixed` run 3 with `locks-and-transactions-round-3-prompt.md`;
-  `subvolume-conversion-findings-fixed` run 3 with `subvolume-conversion-round-2-prompt.md`.
+- Running on their reviews:
+  `landing-route-findings-fixed` run 11 (one source for the held notice,
+  path bytes in every field of the owed index record,
+  and the landing findings of `merge-route-round-6-sol.txt`),
+  `locks-and-transactions-findings-fixed` run 3,
+  and `subvolume-conversion-findings-fixed` run 3.
   The lock and conversion branches do not land before those runs:
   their reviews (`locks-and-transactions-round-2-sol.txt`,
   `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
+- Waiting for a free agent slot,
+  in this order:
+  `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
+  and a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
+  for the six defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`.
 
 #### Reviews and landings in progress (2026-11-09T06:09:19-05:00)
 
