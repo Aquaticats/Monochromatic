@@ -5158,6 +5158,21 @@ the runner's jobs on the runtime"):
   so a bridge that starts a child (`output_of_blocking`) refuses there;
   `LinuxPlatform::with_its_conversion_environment_settled` is the shape that answers such a
   question before the run instead.
+- After the worktree copy's five thread sites
+  (2026-11-09T14:50:45-05:00,
+  "Step T12,
+  the worktree copy's threads become waits of the runtime"):
+  the final check's two walks,
+  the copy stage's slices,
+  the installation's slices and the split removal's workers are jobs of the blocking pool,
+  and a snapshot's trash and the package repair beside it are two branches of one task of
+  the runtime.
+  `worktree/worktree_copying/` holds no production scoped thread;
+  the one left is a control that runs two adds at once.
+  What is left of item 3 is the two `run_beside_caller` sites of
+  `worktree/worktree_snapshot_source.rs` and the one of `worktree/worktree_clean.rs`,
+  then item 2 (the landing's handlers and `landing/service_round.rs`),
+  then T13's guards.
 
 ### Step T12, the line path and the state of the pure-file sites, 2026-11-08T21:47:00-05:00
 
@@ -7086,6 +7101,163 @@ The wording of a refusal:
 - Not done:
   the container gate (`native:test:container`) was not run,
   and no mutation campaign was started (paused by the owner).
+
+### Step T12, the worktree copy's threads become waits of the runtime, 2026-11-09T14:50:45-05:00
+
+- Branch and worktree:
+  `refactor/git-policy-cli-worktree-copy-threads-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-worktree-copy-thread-sites`,
+  from main at `0c4282dc2c`,
+  with main merged as `9d559d3571`.
+  Not merged into main.
+  Commits:
+  `694b0f7ddf` (the side-by-side runner on the runtime),
+  `5910e490a7` (a removed stage's subtrees),
+  `be158c8607` (a staged copy's slices),
+  `ec0d6d73e9` (an installation's slices),
+  `8bc979be0d` (the final check's source walk),
+  and `da9bba44dc` (the snapshot's trash beside the repair).
+- New foundation module
+  `foundation/side_by_side_on_the_runtime.rs`,
+  the mirror of `side_by_side_threads.rs`:
+  `run_all_side_by_side_on_the_runtime` runs every item as one job of the blocking pool
+  (`run_a_job_or_in_turn`) and answers in the order of the states,
+  and `run_beside_the_caller_on_the_runtime` runs one job beside the calling task's own
+  work.
+  Both take owned state,
+  so `S: Clone + Send + 'static`,
+  and both are awaited faces a task of the runtime can use.
+- The five sites the brief named now run on the runtime,
+  each keeping the synchronous face its callers still call,
+  which enters the runtime once:
+  - `worktree_copying/worktree_copy_compare.rs`:
+    the source's manifest walk is a job of the pool and the stage's walk runs beside it on
+    the calling task,
+    as the thread and the caller did.
+  - `worktree_copying/worktree_copy_stage_leaf_copying.rs`:
+    each slice of leaves is one job of the pool,
+    which owns its share of the manifest and answers with the stamps of its own
+    positions instead of writing into one shared list.
+    `copy_leaves` returns the stamps of its slice,
+    and the caller places them in slice order,
+    so the fan-out writes nothing shared but the early-stop flag
+    (`Arc<AtomicBool>`).
+  - `worktree_copying/worktree_copy_install.rs`:
+    each slice of a batch's leaves is one job of the pool,
+    named by positions in the batch it shares;
+    the batch travels as an `Arc<[WorktreeCopyEntry]>` made once per batch.
+  - `worktree_copying/worktree_copy_journal_removal.rs`:
+    the workers that share the subtrees below the split depth are jobs of the pool;
+    the cursor and the subtrees travel as shares.
+  - `worktree_copying/worktree_copy_after_lock.rs`:
+    the disposal of a snapshot's trash and the package repair are two branches of one task
+    (`tokio::join!`),
+    each of which is a chain of jobs of the pool:
+    the disposal on the new awaited faces of the trash,
+    the repair on `repair_worktree_awaiting`.
+- The trash's removal gained an awaited face rather than a second removal:
+  `worktree_trash_dispose.rs` now holds one `prepare_trash_removal`
+  (the lookups,
+  the association check and the descent),
+  one `EntryRemoval` per face,
+  and one `settle_trash_removal`
+  (the strangers' check,
+  the directory's own removal and the parent's),
+  with `delete_trash` calling them here on the caller's thread and
+  `delete_trash_awaiting` calling them as jobs of the pool.
+  The service's trash handler still calls the synchronous face,
+  because its own wait is not on the runtime yet (item 2).
+- What each site's wait is bounded by is unchanged:
+  the copy's slice count is the host's budget up to eight
+  (`copy_worker_count`),
+  the install's is the same ceiling from `PARALLEL_BREAK_EVEN_ENTRIES` leaves,
+  the removal's is that ceiling with one worker per eight subtrees below the split depth,
+  the final check's two walks end with their trees,
+  the trash's entries end with the manifest's list,
+  and every job of all of them waits for a place of the process's one bound on blocking
+  jobs before it starts.
+- The pattern for a refused thread is the one the earlier sites used:
+  `run_a_job_or_in_turn` does that item's work on the awaiting task where the pool answers
+  `NoThreadToStart`,
+  because `spawn_blocking` queues the job and then panics
+  (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+  `spawn_task`),
+  and the place of the bound is taken again for the work done in turn.
+  The existing children that are refused every thread prove it:
+  `a_split_removal_where_no_thread_can_start_removes_the_whole_tree`,
+  `a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn`,
+  `a_parallel_install_where_no_thread_can_start_is_made_in_turn`,
+  `the_final_check_where_no_thread_can_start_walks_in_turn`,
+  and `where_no_thread_can_start_every_item_runs_in_turn` for the new runner.
+- A trash cannot be emptied in a process with no thread to start,
+  and that is not new to this step:
+  `remove_entries` on either face removes its entries through jobs of the pool,
+  so a refused pool leaves them with their reasons and the add reports what stayed.
+  The synchronous face does the same,
+  which is why `nothing_to_repair` still runs the disposal here with no runtime at all,
+  and why an add whose runtime cannot be built does the disposal and the repair one after
+  the other on its own thread.
+- Controls,
+  each shown to fail before its change by putting the old file back:
+  `the_source_walk_takes_a_place_of_the_processs_bound`,
+  `the_copy_slices_take_places_of_the_processs_bound`,
+  `the_install_slices_take_places_of_the_processs_bound`,
+  `the_removal_workers_take_places_of_the_processs_bound` (all four through
+  `hold_the_only_place`:
+  they read no ask for the one place of the process's bound on the old code),
+  and `a_disposal_beside_a_repair_runs_inside_the_processs_runtime`
+  (the old disposal ran on a scoped thread outside the runtime:
+  a probe in a build of the old code printed
+  `PROBE disposal inside_the_runtime=false thread=ThreadId(4)` against
+  `PROBE caller thread=ThreadId(2)`).
+  Replaced controls:
+  `a_disposal_beside_a_repair_runs_on_a_thread_of_its_own` asserted the thread this step
+  removes,
+  so it became the runtime control,
+  and the lifecycle control
+  `a_snapshot_trash_is_emptied_before_the_add_ends_and_a_failure_of_it_is_not_the_adds`
+  now drives the awaiting body with the shipped disposal,
+  because the test-only `Disposal` stand-in and the `ScopeBody` it filled are gone.
+- Checks:
+  `mise run //package/git-policy/cli:native:test:host -- worktree_copying:: foundation::side_by_side_on_the_runtime worktree::worktree_trash`:
+  370 tests run,
+  370 passed,
+  on the tree with main merged at `9d559d3571`.
+  `native:clippy` is clean on this branch's files;
+  the task itself answers one error on main,
+  `clippy::manual_map` at `foundation/lazy_runtime.rs` line 434,
+  which came in with `fa57b9a574` before this branch merged it,
+  so Clippy was run with `-A clippy::manual_map` to show no other finding.
+  `monochromatic-lint` on the seventeen files this step touched:
+  no finding.
+  Not run:
+  the container gate,
+  `native:perf`,
+  and the mutation campaigns (paused by the owner).
+- What is left in `worktree_copying/`:
+  no production scoped thread.
+  The one left in the folder is `worktree_copy_recovery_tests.rs`'s control that runs two
+  adds at once,
+  which is a control of the concurrent worktree copy and not a site of the copy path.
+- What is left beside it:
+  `worktree/worktree_snapshot_source.rs` (two `run_beside_caller` sites) and
+  `worktree/worktree_clean.rs` (one),
+  which are not part of the copy path this step was given;
+  then item 2 (the landing's handlers and `landing/service_round.rs`),
+  then T13's guards.
+- Measured,
+  and not measured:
+  no timing was taken for this step,
+  because every face it changes is the copy path of `git worktree add`,
+  and the harness for it is `native:perf`,
+  which this step did not run.
+  The one cost the step adds is one copy of the manifest per call:
+  `Arc::from(entries)` in the copy stage and in the install's leaves,
+  and the small selected and excluded root lists of the final check,
+  which is what a job of the pool that owns what it reads needs.
+  A stage of 22,717 entries pays that once,
+  against the 25 to 100 ms its slices already take in the measurements beside
+  `PARALLEL_COPY_MIN_ENTRIES`.
 
 ## Limits
 
