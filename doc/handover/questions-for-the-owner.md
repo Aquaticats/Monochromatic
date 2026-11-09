@@ -26,7 +26,12 @@ Keep working and ask questions async."
 Nothing in this section is holding up running work.
 Write an answer under a question and save.
 
-### Should the Pi limit go above 20?
+### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
+
+The owner,
+on trying more than 20 after this trial:
+"no,
+that's definitely going to blow up."
 
 The owner found that `GET https://api.neuralwatt.com/v1/rate_limits` reports the account's limits.
 At 2026-11-09T06:19:41Z,
@@ -53,7 +58,6 @@ Anything else using this key counts against the same limit,
 and the host may run short before the provider does.
 
 The trial at twenty is still running and decides the raise to 20 by itself.
-Say if you want a further trial above 20 after it.
 
 ### Are the three findings left on the stat-data landing worth another round?
 
