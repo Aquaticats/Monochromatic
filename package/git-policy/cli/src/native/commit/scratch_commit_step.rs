@@ -102,6 +102,10 @@ pub struct ScratchStepFacts {
     pub below: Vec<SeenProgram>,
     /// The processor time everything below the step had used at the last look.
     pub below_cpu: Duration,
+    /// How many looks could not be made at all,
+    /// because `/proc` could not be read
+    /// (a descriptor or memory limit, a `/proc` that is not there).
+    pub blind_looks: u32,
     /// How many looks found a process below the step in uninterruptible sleep.
     pub blocked_looks: u32,
 }
@@ -129,6 +133,7 @@ impl ScratchStepFacts {
             looks_found: 0,
             below: Vec::new(),
             below_cpu: Duration::ZERO,
+            blind_looks: 0,
             blocked_looks: 0,
         };
     }
@@ -226,12 +231,12 @@ fn seen_json(program: &SeenProgram) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, looks, looksFound, below, belowCpuMs, blockedLooks })
+/// JSON.stringify({ ceilingMs, armed, stoppedAfterMs, noticeMs, wroteMs, looks, looksFound, below, belowCpuMs, blindLooks, blockedLooks })
 /// ```
 fn facts_json(facts: &ScratchStepFacts) -> String {
     let names: Vec<String> = facts.below.iter().map(seen_json).collect();
     return format!(
-        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"blockedLooks\":{}}}",
+        "{{\"ceilingMs\":{},\"armed\":{},\"stoppedAfterMs\":{},\"noticeMs\":{},\"wroteMs\":{},\"looks\":{},\"looksFound\":{},\"below\":[{}],\"belowCpuMs\":{},\"blindLooks\":{},\"blockedLooks\":{}}}",
         millis(facts.ceiling),
         facts.armed,
         millis(facts.stopped_after),
@@ -241,6 +246,7 @@ fn facts_json(facts: &ScratchStepFacts) -> String {
         facts.looks_found,
         names.join(","),
         facts.below_cpu.as_millis(),
+        facts.blind_looks,
         facts.blocked_looks,
     );
 }

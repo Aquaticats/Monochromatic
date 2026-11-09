@@ -338,5 +338,110 @@ fn a_look_that_could_not_be_made_keeps_the_ceiling_armed() {
     drop(held);
     crate::test_support::restore_limit(before);
     assert!(look.is_none(), "the look was made with no descriptor left free: {look:?}");
-    assert_ne!(came, CeilingCame::TheStepEnded, "a look that could not be made was read as the step having ended, which takes the ceiling away");
+    assert_eq!(came, CeilingCame::Unknown, "a look that could not be made was read as the step having ended, which takes the ceiling away");
+}
+
+/// What:
+///  A step is still stopped at its ceiling after a look that could not be made.
+/// Why:
+///   This is the harm the review describes:
+/// the ceiling's look fails (a descriptor limit refuses the reads of `/proc`),
+/// and the old notice ended itself there,
+/// so the step ran on with nothing left to stop it while the command still waited.
+///  The limit is dropped after the first look has found the step and held past the ceiling,
+/// and the next look that can be made stops it.
+#[test]
+fn a_step_is_still_stopped_after_a_look_that_could_not_be_made() {
+    let mut step: std::process::Child = sleeping_step();
+    let sink: Buffer = Buffer::default();
+    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: Duration::from_millis(200),
+        sink: Box::new(sink.clone()),
+    });
+    // The first look finds the step, so the ceiling is armed on it.
+    std::thread::sleep(Duration::from_millis(50));
+    let baseline: usize = crate::test_support::open_descriptors();
+    let before: rustix::process::Rlimit = crate::test_support::set_soft_limit(u64::try_from(baseline).expect("a count") + 16);
+    let held: Vec<std::fs::File> = crate::test_support::leave_free(0);
+    // Long enough for two looks, both past the ceiling, to fail.
+    std::thread::sleep(Duration::from_millis(600));
+    let still_running: bool = step.try_wait().expect("status").is_none();
+    drop(held);
+    crate::test_support::restore_limit(before);
+    let ended: Option<i32> = ended_by_signal(&mut step);
+    let seen: ScratchStepFacts = notice.finish();
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert!(still_running, "the step was stopped while `/proc` could not be read at all");
+    assert!(ended.is_some(), "a look that could not be made took the ceiling away: {seen:?}");
+    assert!(seen.stopped_after.is_some(), "the stop is recorded: {seen:?}");
+    assert!(seen.blind_looks >= 1, "the record says a look could not be made: {seen:?}");
+}
+
+/// What:
+///  The signal a process ended with,
+///  or nothing when it was still running at `bound`.
+/// Why:
+///   A control that shows a process was left alone must give a signal on its way the same bound,
+/// so "alive" is an answer and not a race.
+fn ended_within(child: &mut std::process::Child, bound: Duration) -> Option<i32> {
+    use std::os::unix::process::ExitStatusExt;
+    let deadline: Instant = Instant::now() + bound;
+    loop {
+        if let Some(status) = child.try_wait().expect("status") {
+            return Some(status.signal().unwrap_or(0));
+        }
+        if Instant::now() >= deadline {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// How long a control waits before it calls a process it did not signal alive:
+///  longer than a `SIGKILL` on its way takes,
+/// and only a control pays it.
+const STILL_RUNNING_BOUND: Duration = Duration::from_millis(500);
+
+/// A child of this process that is nobody's step.
+fn a_process_beside_the_step() -> std::process::Child {
+    return std::process::Command::new("sleep").arg("600").stdin(std::process::Stdio::null()).spawn().expect("a long-running child");
+}
+
+/// What:
+///  A ceiling ends the step it watches, and no process beside it.
+/// Why:
+///   The landing service runs landings of different repositories on worker threads of one process,
+/// so another landing's Git is a child of this process at the same moment as this step.
+/// The notice read every child of the process and sent `SIGKILL` to all of them,
+/// which cuts the other landing's write in the middle,
+/// and the owner's answer to that finding (2026-11-09, "B: let a branch write finish")
+/// is that a ceiling reaches only its own step.
+#[test]
+fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
+    let mut beside: std::process::Child = a_process_beside_the_step();
+    let mut step: std::process::Child = sleeping_step();
+    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: Duration::from_millis(300),
+        sink: Box::new(Buffer::default()),
+    });
+    let ended: Option<i32> = ended_by_signal(&mut step);
+    let beside_ended: Option<i32> = ended_within(&mut beside, STILL_RUNNING_BOUND);
+    let seen: ScratchStepFacts = notice.finish();
+    if beside_ended.is_none() {
+        beside.kill().expect("cleanup");
+        beside.wait().expect("reaped");
+    }
+    assert!(ended.is_some(), "the ceiling did not end the step it watches: {seen:?}");
+    assert!(beside_ended.is_none(), "the ceiling ended a process beside the step ({beside_ended:?}); only the step it watches may be ended");
 }

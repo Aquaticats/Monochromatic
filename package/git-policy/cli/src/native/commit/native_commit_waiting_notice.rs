@@ -260,7 +260,7 @@ fn look_below() -> Option<Vec<(i32, ProcessUse)>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CeilingCame = 'the-step-ended' | 'stopped';
+/// type CeilingCame = 'the-step-ended' | 'stopped' | 'unknown';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CeilingCame {
@@ -268,6 +268,9 @@ enum CeilingCame {
     TheStepEnded,
     /// The kernel took a signal for the step or a program below it.
     Stopped,
+    /// The processes below this one could not be read at all, so nothing is concluded:
+    /// the ceiling stays armed and the look is made again.
+    Unknown,
 }
 
 /// What:
@@ -276,14 +279,16 @@ enum CeilingCame {
 ///   A stop is recorded only when a signal was really sent:
 /// a step that ended between the look and the signal landed,
 /// and refusing it as stopped would fail a commit that succeeded.
+///  A look that failed is not an empty tree:
+/// answering "the step ended" there takes the ceiling away from a step that is still running.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const came = ceilingCame(look);
+/// const came = ceilingCame(look); // an undefined look: 'unknown'
 /// ```
 fn ceiling_came(look: Option<&[TreeMember]>) -> CeilingCame {
     let Some(members) = look else {
-        return CeilingCame::TheStepEnded;
+        return CeilingCame::Unknown;
     };
     if members.is_empty() {
         return CeilingCame::TheStepEnded;
@@ -495,6 +500,10 @@ impl NativeCommitNotice {
                             return facts;
                         }
                         CeilingCame::TheStepEnded => return facts,
+                        // The look failed: nothing is known about the step, and the ceiling stays armed so a later look can stop it.
+                        CeilingCame::Unknown => {
+                            facts.blind_looks = facts.blind_looks.saturating_add(1);
+                        }
                     }
                 }
                 if ticker.due(waited) {
@@ -512,7 +521,10 @@ impl NativeCommitNotice {
                     Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(LOOK_INTERVAL),
                     None => to_next.min(LOOK_INTERVAL),
                 };
-                match ended.recv_timeout(pause.max(LOOK_PAUSE)) {
+                // A ceiling that came and decided nothing is looked at no sooner than the look's own interval,
+                // so a step whose processes cannot be read costs one look per interval rather than one per pause.
+                let floor: Duration = if since_seen >= ceiling { LOOK_INTERVAL } else { LOOK_PAUSE };
+                match ended.recv_timeout(pause.max(floor)) {
                     Err(RecvTimeoutError::Timeout) => {}
                     Ok(()) | Err(RecvTimeoutError::Disconnected) => return facts,
                 }
