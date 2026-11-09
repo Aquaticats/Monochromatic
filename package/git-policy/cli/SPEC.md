@@ -2879,11 +2879,16 @@ and the read fails with a sentence that names the stream;
 a standard error held that way comes back as what was read of it,
 with a line saying the read stopped there,
 because the answer itself was read whole.
-The thread that writes a batch query's request list is not joined:
-a program the query started can keep the read end of that list open without reading it,
-so the write lasts until the last read end closes (its next write then fails with `EPIPE`) or until
-the command exits.
-Joining it made the command wait past `RANGE_QUERY_CEILING` on a query that had already answered.
+The thread that writes a batch query's request list writes with the query's own ceiling as its
+deadline (`write_within`),
+one pipe buffer at a time,
+and gives up when the pipe takes nothing within it,
+so a program the query started that holds the read end of that list without reading it no longer
+leaves the thread blocked in the kernel for that program's life
+(the third review's finding 6).
+It is not joined either:
+what it writes is the query's request,
+and the answer is taken from the query.
 
 A signal the wrapper catches is relayed to the child or it ends the wrapper;
 it is never swallowed.
