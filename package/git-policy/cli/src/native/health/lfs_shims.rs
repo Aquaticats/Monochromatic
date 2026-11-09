@@ -132,7 +132,7 @@ pub fn render_lfs_shims(shims: &[PathBuf]) -> Vec<u8> {
     );
     for shim in shims {
         text.extend_from_slice(b"  ");
-        // The pathname is bytes, as it is in the list of other hooks (`health/doctor.rs`, `render_hooks`): a text spelling with
+        // The pathname is bytes, as it is in the list of other hooks (`health/doctor_hook_entries.rs`, `render_hooks`): a text spelling with
         //  replacement characters would name a file the report never inspected.
         text.extend_from_slice(crate::path_bytes::path_bytes_of(shim.as_path()));
         text.push(b'\n');

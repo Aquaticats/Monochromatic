@@ -403,7 +403,8 @@ impl Drop for RefusalForTheControl {
 ///  Starts `future` on the runtime a build that missed its deadline left behind,
 /// or answers nothing when that build never arrived.
 /// Why:
-///   A stand-in runtime has no worker, so the work a late build was made for runs on the build's own runtime;
+///   A stand-in runtime has no worker,
+/// so the work a late build was made for runs on the build's own runtime;
 /// the task is taken by a function rather than a closure,
 /// so what is started and what it is started on are both named.
 ///
