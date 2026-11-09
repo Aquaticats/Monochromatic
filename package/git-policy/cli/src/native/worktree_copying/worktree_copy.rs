@@ -461,7 +461,8 @@ fn settle_creation(
 /// await runGitWithWorktreeCopy({ args, gitPath, identity, command, environment });
 /// ```
 ///
-/// The stream is also the one the disposal of a snapshot's trash writes to from a thread of its own, so it is asked
+/// The stream is also the one the disposal of a snapshot's trash writes to from a thread of its own,
+/// so it is asked
 ///  for what a thread may carry.
 pub fn run_with_worktree_copy(
     invocation: &Invocation,

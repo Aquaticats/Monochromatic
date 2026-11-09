@@ -1,6 +1,8 @@
 //! What:
-//!  One stream of a command's notices, written by two threads:
-//!  every line is rendered first, then written whole while the stream's own lock is held,
+//!  One stream of a command's notices,
+//!  written by two threads:
+//!  every line is rendered first,
+//!  then written whole while the stream's own lock is held,
 //!  and the lock is given back before either thread goes on with its work.
 //! Why:
 //!  A command's report belongs on the stream the command was given,
