@@ -265,24 +265,42 @@ fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run
     return Ok(removed);
 }
 
-/// Every crate and version directory under `<toolchain root>/cargo`.
-fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersion>> {
+/// What:
+/// Every crate and version directory under `<toolchain root>/cargo`,
+/// or an error naming the first directory whose contents could not be read.
+/// Why:
+/// The prune deletes the versions no lock names,
+/// and the scan it runs after those deletions decides whether a crate directory still holds one.
+/// A directory this walk cannot read must therefore be reported and not left out:
+/// left out, it reads as "this crate holds nothing" and the whole crate directory goes,
+/// including a version a lock names.
+/// A crate directory that is gone holds nothing, so its absence is not a failed read.
+pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String, Vec<PresentVersion>>, ToolchainError> {
     let mut present: BTreeMap<String, Vec<PresentVersion>> = BTreeMap::new();
-    let Ok(crates) = fs::read_dir(toolchain_root.join(CARGO_NAMESPACE)) else {
-        return present;
+    let crates_dir: PathBuf = toolchain_root.join(CARGO_NAMESPACE);
+    let crates = match fs::read_dir(&crates_dir) {
+        Ok(entries) => entries,
+        // No cargo directory yet: nothing is installed under it, so nothing can be deleted from it.
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(present),
+        Err(error) => return Err(cannot_walk(&crates_dir, &error)),
     };
-    for crate_entry in crates.flatten() {
+    for listed_crate in crates {
+        let crate_entry: fs::DirEntry = listed_crate.map_err(|error| return cannot_walk(&crates_dir, &error))?;
         let crate_name: String = crate_entry.file_name().to_string_lossy().to_string();
-        let Ok(versions) = fs::read_dir(crate_entry.path()) else {
-            continue;
+        let versions = match fs::read_dir(crate_entry.path()) {
+            Ok(entries) => entries,
+            // The crate directory is gone: it holds no version that could be deleted.
+            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) => return Err(cannot_walk(&crate_entry.path(), &error)),
         };
         let mut found: Vec<PresentVersion> = Vec::new();
-        for version_entry in versions.flatten() {
+        for listed_version in versions {
+            let version_entry: fs::DirEntry = listed_version.map_err(|error| return cannot_walk(&crate_entry.path(), &error))?;
             let version: String = version_entry.file_name().to_string_lossy().to_string();
-            let is_plain_directory: bool = match version_entry.file_type() {
-                Ok(kind) => kind.is_dir(),
-                Err(_) => false,
-            };
+            let is_plain_directory: bool = version_entry
+                .file_type()
+                .map_err(|error| return cannot_walk(&version_entry.path(), &error))?
+                .is_dir();
             if is_plain_directory && !version.starts_with('.') && version != CURRENT_LINK_NAME {
                 let finished: bool = recorded_version(&version_entry.path(), &crate_name).is_some();
                 found.push(PresentVersion { version, finished });
@@ -290,7 +308,12 @@ fn present_versions(toolchain_root: &Path) -> BTreeMap<String, Vec<PresentVersio
         }
         present.insert(crate_name, found);
     }
-    return present;
+    return Ok(present);
+}
+
+/// The refusal a scan raises for one directory whose contents it could not read.
+fn cannot_walk(directory: &Path, error: &std::io::Error) -> ToolchainError {
+    return ToolchainError::failure(format!("cannot read {}: {error}; nothing was deleted", directory.display()));
 }
 
 /// What:
@@ -317,7 +340,7 @@ pub fn prune_toolchain(
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
     let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
-    let present = present_versions(&scope.toolchain_root);
+    let present = present_versions(&scope.toolchain_root)?;
     let mut removed: Vec<PathBuf> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
@@ -331,7 +354,7 @@ pub fn prune_toolchain(
         removed.push(directory);
     }
     if !dry_run {
-        let after = present_versions(&scope.toolchain_root);
+        let after = present_versions(&scope.toolchain_root)?;
         for crate_name in present.keys() {
             let crate_dir: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(crate_name);
             let remaining: bool = match after.get(crate_name) {

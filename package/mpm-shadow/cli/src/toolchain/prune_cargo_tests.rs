@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use super::cargo_installs::{current_link, running_version, version_directory};
 use super::fakes::Rig;
 use super::fakes_cargo::finish_install;
-use super::prune_cargo::{PresentVersion, named_by_all, named_versions, plan_prune, prune_toolchain};
+use super::prune_cargo::{PresentVersion, named_by_all, named_versions, plan_prune, present_versions, prune_toolchain};
 use super::worktrees::worktree_lock_files;
 
 fn present(entries: &[(&str, &[&str])]) -> BTreeMap<String, Vec<PresentVersion>> {
@@ -160,6 +160,49 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     let found = present(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]);
     let removals = plan_prune(&found, &named(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]));
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
+}
+
+/// Sets a directory's mode, so a read of it can be made to fail.
+fn set_mode(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("chmod");
+}
+
+/// The scan reports a crate directory it could not read instead of leaving it out:
+/// a caller that reads silence as "no versions are left" would delete the whole directory,
+/// including a version a lock names.
+#[test]
+fn a_crate_directory_the_scan_cannot_read_is_an_error_and_not_an_empty_crate() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.2.0"), "fd-find", "1.2.0", &["fd"]);
+    let crate_dir = root.join("cargo").join("fd-find");
+    set_mode(&crate_dir, 0o000);
+    let scanned = present_versions(&root);
+    set_mode(&crate_dir, 0o755);
+    let error = scanned.expect_err("a directory it cannot read proves nothing");
+    assert!(error.message.contains(&crate_dir.display().to_string()), "the message names the directory: {error}");
+    assert!(error.message.contains("nothing was deleted"), "{error}");
+}
+
+/// A prune that cannot read a crate directory deletes nothing and says so,
+/// rather than reporting that there was nothing to prune.
+#[test]
+fn the_command_refuses_when_it_cannot_read_a_crate_directory() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    finish_install(&version_directory(&root, "fd-find", "1.2.0"), "fd-find", "1.2.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}").expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let crate_dir = root.join("cargo").join("fd-find");
+    set_mode(&crate_dir, 0o000);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&crate_dir, 0o755);
+    let error = pruned.expect_err("a crate directory it cannot read proves nothing");
+    assert!(error.message.contains(&crate_dir.display().to_string()), "the message names the directory: {error}");
+    assert!(version_directory(&root, "fd-find", "1.2.0").is_dir(), "the version the lock names was deleted");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "a version no lock names was deleted");
 }
 
 /// A `cargo-binstall` row with no version is not a lock row this command can judge:
