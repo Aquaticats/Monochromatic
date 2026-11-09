@@ -362,14 +362,14 @@ fn install_finding(work: &Install, run: &ToolRun, remaining: Result<usize, Block
     if !matches!(finding.outcome, Outcome::Repaired { .. }) {
         return Some(finding);
     }
-    let reason: Option<String> = match remaining {
+    let left: Option<String> = match remaining {
         Ok(0) => None,
-        Ok(left) => Some(format!("{left} launcher records still name another lock file")),
+        Ok(count) => Some(format!("{count} launcher records still name another lock file")),
         Err(refusal) => Some(format!("the launcher records could not be read again ({refusal})")),
     };
-    return match reason {
+    return match left {
         None => Some(finding),
-        Some(reason) => Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason, run_instead: String::from(MANUAL_COMMAND) } }),
+        Some(said) => Some(Finding { tool: Tool::Toolchain, outcome: Outcome::Failed { reason: said, run_instead: String::from(MANUAL_COMMAND) } }),
     };
 }
 
