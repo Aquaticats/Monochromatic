@@ -6170,6 +6170,14 @@ which records it once the index and the branch are read together.
 A link is compared by what Git stores for a link,
 the hash of its target text with mode `120000`,
 never by hashing through it.
+That comparison cannot tell a restoration the person staged from one they made without staging it:
+a dangling link whose target text was put back leaves the same index entry either way,
+and nothing is lost in either case,
+because the entry the repair compares is the one the person's own index holds.
+The repair leaves such a path out when the index still holds the text the landing replaced and the
+worktree holds different text,
+and the notice names it,
+so the person's next step is the one the notice gives.
 Two interleavings need a second process inside a few instructions and are not covered:
 settling the last owed record between a commit's copy and its exclusion,
 where the copy can hold a stale entry nothing names and the commit records it as a deletion of the landed

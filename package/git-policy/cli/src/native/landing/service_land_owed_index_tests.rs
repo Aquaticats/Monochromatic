@@ -89,7 +89,7 @@ fn an_open_record_that_cannot_be_read_is_kept_and_its_owed_index_update_stays_in
     let intent: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "D  one.txt\n?? one.txt", "the index describes the branch before the landing");
     assert!(owed_of(&world, 1).exists(), "the landing wrote what it owes in the worktree before it tried to install the index");
-    assert_eq!(record_of(&world).paths, vec![String::from("one.txt")], "the record names the commit's paths");
+    assert_eq!(record_of(&world).paths, vec![b"one.txt".to_vec()], "the record names the commit's paths");
     std::fs::write(&intent, "seq=1\nrepos").expect("the record is replaced by text this build cannot read");
     let mut reports: Vec<RecoveryReport> = Vec::new();
     let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| { reports = recover(&world.context); });
@@ -666,7 +666,7 @@ fn keep_one_record(world: &World) {
         reference: String::from("refs/heads/main"),
         old: commit.clone(),
         new: commit,
-        paths: vec![String::from("elsewhere.txt")],
+        paths: vec![b"elsewhere.txt".to_vec()],
         derived: false,
     };
     crate::owed_index_update::write(&owed).expect("an unrelated record");
@@ -765,7 +765,7 @@ fn a_separate_git_directory_is_repaired_in_the_worktree() {
         reference: String::from("refs/heads/main"),
         old,
         new: landed,
-        paths: vec![String::from("f")],
+        paths: vec![b"f".to_vec()],
         derived: false,
     };
     crate::owed_index_update::write(&owed).expect("the record");
@@ -873,7 +873,7 @@ fn a_landed_mode_change_is_left_out() {
     git(world.repo.as_path(), &["commit", "--quiet", "--message=base"]);
     std::fs::set_permissions(world.repo.join("f"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("mode");
     let mut landed: CommitRequest = request(&world, "landed", "f", "X\n");
-    landed.changes = vec![crate::service_protocol::Change { path: PathBuf::from("f"), mode: 0o100755, blob: Some(git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"])) }];
+    landed.changes = vec![crate::service_protocol::Change { path: std::path::PathBuf::from("f"), mode: 0o100755, blob: Some(git_text(world.repo.as_path(), &["hash-object", "-w", "--", "f"])) }];
     land_with_failed_index(&world, 1, &[landed]);
     let commit_index: PathBuf = commit_index_of(&world);
     assert_eq!(exclude(&world, Some(commit_index.as_path())), vec![String::from("f")], "the stale mode is left out");
@@ -980,7 +980,7 @@ fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
     let target: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]);
     let _ = target;
     landed.changes.push(crate::service_protocol::Change {
-        path: PathBuf::from("link"),
+        path: std::path::PathBuf::from("link"),
         mode: 0o120000,
         blob: Some(crate::test_support::git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]).clone()),
     });
@@ -999,7 +999,7 @@ fn a_staged_symlink_restoration_is_compared_by_its_target_text() {
         let output: std::process::Output = child.wait_with_output().expect("git ends");
         String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()
     };
-    landed.changes = vec![crate::service_protocol::Change { path: PathBuf::from("link"), mode: 0o120000, blob: Some(blob) }];
+    landed.changes = vec![crate::service_protocol::Change { path: std::path::PathBuf::from("link"), mode: 0o120000, blob: Some(blob) }];
     land_with_failed_index(&world, 1, &[landed]);
     // The person deliberately restores the old target text and stages it.
     std::fs::remove_file(link.as_path()).expect("the link goes");
