@@ -266,22 +266,41 @@ The old tree kept for the rollback stays until the owner deletes it.
   a `packageId` requirement on `cargo-git` rows,
   stays as it is:
   no entry uses that route and it goes to the owner as a choice.
+  `7477b4eef0` then makes the rustup observation ask `rustup which --toolchain <channel> rustc`,
+  because a listed name cannot tell a host triple from a channel date
+  and a row naming `nightly` was read as the dated install;
+  `30ca607fe5` makes the prune refuse a `cargo-binstall` row with no `version` text,
+  which it had read as protecting nothing while deleting the crate that row names.
   Items 3511,
   3512 and 2623 were checked against the real service and tool:
-  every release-asset digest GitHub reported across about 11 000 sampled assets is `sha256:` plus 64 lowercase hex,
-  or absent;
-  the service decodes a percent-encoded tag path segment,
+  across 17 406 release assets of `cli/cli`,
+  `jj-vcs/jj` and `astral-sh/uv`,
+  7 301 carry a `sha256:` digest of 64 lowercase hex characters,
+  10 105 carry none,
+  and none carry another algorithm
+  (`rust-lang/rustup` publishes no GitHub release:
+  its releases endpoint answered `[]`);
+  the service decodes a percent-encoded tag path segment (`v2%2E103%2E3` answered 200),
   answers 400 to a raw `%`,
-  and treats a raw `#` as the start of a fragment;
-  `rustup component list --installed --toolchain stable` prints the triple spelling the reconciler reads.
+  and ends the address at a raw `#` (the fragment is never sent,
+  so `v2.103#3` asked for `v2.103` and got 404);
+  `rustup component list --installed --toolchain stable` prints `clippy-x86_64-unknown-linux-gnu`,
+  `rustup which --toolchain nightly-2026-10-30 rustc` prints that toolchain's path,
+  and `RUSTUP_AUTO_INSTALL=0 rustup which --toolchain stable-aarch64-apple-darwin rustc` exits 1.
   Open:
-  a row naming a bare channel (`nightly`) is still read as the dated `nightly-2026-10-30` install
-  when that is the only toolchain present,
-  and the toolchain `1.99.0-x86_64-unknown-linux-gnu`,
-  which no step of this round installed,
-  appeared in the system rustup home during it.
-  Issue comments for 2623,
+  no real release tag holding `+`,
+  `#` or `/` was found to test the encoder against,
+  so a tag with `/` may still not resolve (it did not before either);
+  the `packageId` requirement on `cargo-git` rows waits for the owner;
+  issue comments for 2623,
   3511 and 3512 wait for the merge.
+  One probe side effect:
+  `rustup component list --installed --toolchain 1.79.0` installed that toolchain in the real rustup home
+  before the `RUSTUP_AUTO_INSTALL=0` guard existed,
+  and it was uninstalled again from there;
+  `1.99.0-x86_64-unknown-linux-gnu`,
+  which no step of this round installed,
+  appeared in the same home during it.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
   landed on main as `512bc52f56`,
   with 319 of 319 selected tests passing on top of main.
