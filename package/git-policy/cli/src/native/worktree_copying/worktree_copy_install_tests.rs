@@ -24,7 +24,7 @@ struct CountingRecorder {
 
 impl InstallRecorder for CountingRecorder {
     /// Counts one intent batch.
-    fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
+    fn record_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
         self.intents.push(relative_paths.len());
         return Ok(());
     }
@@ -63,7 +63,7 @@ fn stage_tree(root: &Path) -> (PathBuf, Vec<WorktreeCopyEntry>) {
     std::fs::write(stage.join("cache/deep/data"), b"payload").expect("data");
     std::fs::write(stage.join("cache/top"), b"top").expect("top");
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(stage.as_path(), &[String::from("cache")], &[]).expect("manifest");
+        collect_entry_manifest(stage.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
     return (stage, entries);
 }
 
@@ -76,7 +76,7 @@ fn preflight_accepts_identical_entries_and_lists_absent_ones() {
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir_all(destination.join("cache")).expect("cache");
     std::fs::write(destination.join("cache/top"), b"top").expect("identical");
-    let absent: BTreeSet<String> = preflight_destination(
+    let absent: BTreeSet<Vec<u8>> = preflight_destination(
         stage.as_path(),
         destination.as_path(),
         &entries,
@@ -85,7 +85,7 @@ fn preflight_accepts_identical_entries_and_lists_absent_ones() {
     .expect("preflight");
     assert_eq!(
         absent,
-        BTreeSet::from([String::from("cache/deep"), String::from("cache/deep/data")])
+        BTreeSet::from([b"cache/deep".to_vec(), b"cache/deep/data".to_vec()])
     );
     remove(root.as_path());
 }
@@ -129,13 +129,13 @@ fn claimed_directory_is_accepted_for_resumption() {
     let (stage, entries) = stage_tree(root.as_path());
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir_all(destination.join("cache/deep")).expect("claimed");
-    let claimed: BTreeSet<String> = BTreeSet::from([String::from("cache")]);
-    let absent: BTreeSet<String> =
+    let claimed: BTreeSet<Vec<u8>> = BTreeSet::from([b"cache".to_vec()]);
+    let absent: BTreeSet<Vec<u8>> =
         preflight_destination(stage.as_path(), destination.as_path(), &entries, &claimed)
             .expect("claimed");
     assert_eq!(
         absent,
-        BTreeSet::from([String::from("cache/deep/data"), String::from("cache/top")])
+        BTreeSet::from([b"cache/deep/data".to_vec(), b"cache/top".to_vec()])
     );
     remove(root.as_path());
 }
@@ -156,7 +156,7 @@ fn installation_copies_every_entry_and_applies_modes() {
     )
     .expect("mode");
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(stage.as_path(), &[String::from("cache")], &[]).expect("manifest");
+        collect_entry_manifest(stage.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder::default();
@@ -193,6 +193,37 @@ fn installation_copies_every_entry_and_applies_modes() {
 /// plus one file more so the last batch is a short one.
 const FULL_BATCHES_OF_FILES: usize = 2;
 
+/// The install's slices are jobs of the process's blocking pool:
+/// a slice asks for the one place of the process's bound before its files are created,
+/// which a slice on a thread of its own never does.
+#[test]
+fn the_install_slices_take_places_of_the_processs_bound() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::RecvTimeoutError;
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let root: PathBuf = fixture("install-the-bound");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(stage.join("cache")).expect("stage tree");
+    for index in 0..crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES + 40 {
+        std::fs::write(stage.join(format!("cache/file-{index:05}")), b"payload").expect("file");
+    }
+    let entries: Vec<WorktreeCopyEntry> = collect_entry_manifest(stage.as_path(), &[b"cache".to_vec()], &[]).expect("manifest");
+    let destination: PathBuf = root.join("destination");
+    std::fs::create_dir(destination.as_path()).expect("destination");
+    let mut recorder: CountingRecorder = CountingRecorder::default();
+    install_snapshot(stage.as_path(), destination.as_path(), &entries, &BTreeSet::new(), &[], &mut recorder).expect("installed");
+    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+    //  install's slices reached the process's bound instead of starting at once.
+    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+        Ok(true) => {}
+        Ok(false) => panic!("the job that holds the only place saw no ask, so no slice of the install took a place of the process's bound"),
+        Err(RecvTimeoutError::Timeout) => panic!("no slice of the install asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"),
+        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+    }
+    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a slice of the install");
+    remove(root.as_path());
+}
+
 /// Selected paths are claimed and settled in batches of at most the batch size,
 /// so the record count grows by batch,
 /// not by entry.
@@ -211,7 +242,7 @@ fn records_grow_by_batch_not_by_entry() {
         std::fs::write(stage.join(format!("many/file-{index:05}")), b"x").expect("file");
     }
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(stage.as_path(), &[String::from("many")], &[]).expect("manifest");
+        collect_entry_manifest(stage.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
     assert!(
         entries.len() > INSTALL_BATCH_ENTRIES * FULL_BATCHES_OF_FILES,
         "the tree must span several batches or the control cannot see a missing split"
@@ -261,7 +292,7 @@ fn a_failed_parallel_batch_rolls_back_every_file_its_workers_created() {
         std::fs::write(stage.join(format!("many/file-{index:04}")), b"x").expect("file");
     }
     let entries: Vec<WorktreeCopyEntry> =
-        collect_entry_manifest(stage.as_path(), &[String::from("many")], &[]).expect("manifest");
+        collect_entry_manifest(stage.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
     let destination: PathBuf = root.join("destination");
     std::fs::create_dir(destination.as_path()).expect("destination");
     let mut recorder: CountingRecorder = CountingRecorder {

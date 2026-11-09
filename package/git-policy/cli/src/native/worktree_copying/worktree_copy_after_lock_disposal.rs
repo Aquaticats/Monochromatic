@@ -25,44 +25,55 @@ use crate::shared_notice_stream::{NoticeStream, SharedNoticeStream};
 use crate::transaction_git::GitContext;
 use crate::worktree_copy::Invocation;
 use crate::worktree_copy_after_lock::AfterLock;
-use crate::worktree_trash::{PendingTrash, dispose_pending_trash};
+use crate::worktree_trash::{PendingTrash, dispose_pending_trash, dispose_pending_trash_awaiting};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeCopyAfterLock";
 
-/// The thread the last disposal ran on,
-/// so a control can tell a thread of its own from the calling thread.
-/// Why:
-///  Whether a thread is started where nothing runs beside it is not visible in what the disposal does,
-/// only in the thread
-///  that does it,
-/// and a timing threshold would say nothing on a busy host.
-#[cfg(test)]
-pub(crate) static DISPOSED_ON: std::sync::Mutex<Option<std::thread::ThreadId>> = std::sync::Mutex::new(None);
-
 /// What:
-///  The job that empties a snapshot's trash,
-/// given the stream its notices go to.
+///  Where the last disposal ran,
+/// so a control can tell a wait of the runtime from a thread of its own.
 /// Why:
-///   The shipped job and a control's stand-in are the same shape,
-/// so what the lifecycle does with one is what it
-///  does with the other,
-/// and the stream is the one the command was given either way.
+///  Whether the disposal runs on a thread of its own is not visible in what it does,
+/// only in where it runs,
+///  and a timing threshold would say nothing on a busy host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Disposal = (git: GitContext, pending: PendingTrash, stream: NoticeStream) => string | undefined;
+/// type WhereTheDisposalRan = { thread: ThreadId; insideTheRuntime: boolean };
 /// ```
-pub(crate) type Disposal = for<'run, 'stream> fn((&'run GitContext, &'run PendingTrash, &'run NoticeStream<'stream>)) -> Result<(), String>;
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct WhereTheDisposalRan {
+    /// The thread the disposal's own frame ran on.
+    pub(crate) thread: std::thread::ThreadId,
+    /// Whether it ran inside the process's runtime.
+    pub(crate) inside_the_runtime: bool,
+}
+
+/// The place the last disposal ran,
+/// for the controls that tell a wait of the runtime from a thread of its own.
+#[cfg(test)]
+pub(crate) static DISPOSED_ON: std::sync::Mutex<Option<WhereTheDisposalRan>> = std::sync::Mutex::new(None);
+
+/// Note where this disposal runs,
+/// for the controls of the lifecycle;
+/// nothing outside a control reads it.
+fn note_where_the_disposal_runs() {
+    #[cfg(test)]
+    if let Ok(mut last) = DISPOSED_ON.lock() {
+        *last = Some(WhereTheDisposalRan { thread: std::thread::current().id(), inside_the_runtime: tokio::runtime::Handle::try_current().is_ok() });
+    }
+}
 
 /// What:
 ///  Empty the trash a snapshot left,
 /// or hand it to the commit service,
 /// timed as the work `disposeTrash` because
-///  it runs on a thread of its own;
+///  it is work of its own;
 /// the reason is what the person is told when it cannot be emptied.
 /// Why:
-///   The work is timed per thread,
+///   The work is timed per disposal,
 /// as every repair tool is,
 /// so the record still says how long the emptying took
 ///  beside the step that waited for it.
@@ -70,6 +81,10 @@ pub(crate) type Disposal = for<'run, 'stream> fn((&'run GitContext, &'run Pendin
 /// which is where the add's own notices go,
 /// and `--quiet`
 ///  silences them as it does the rest.
+/// The callers of this face are the ones with no runtime to wait on:
+/// an add that has nothing to repair,
+///  and an add whose runtime could not be built;
+/// a caller that is itself a task of the runtime awaits `dispose_timed_awaiting`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,12 +92,35 @@ pub(crate) type Disposal = for<'run, 'stream> fn((&'run GitContext, &'run Pendin
 /// ```
 pub(crate) fn dispose_timed((context, pending, stream): (&GitContext, &PendingTrash, &NoticeStream<'_>)) -> Result<(), String> {
     let began: std::time::Instant = begin_work();
-    #[cfg(test)]
-    if let Ok(mut last) = DISPOSED_ON.lock() {
-        *last = Some(std::thread::current().id());
-    }
+    note_where_the_disposal_runs();
     let mut notices = SharedNoticeStream { held: stream, quiet: pending.quiet };
     let outcome: Result<(), String> = dispose_pending_trash(context, pending.destination.as_path(), pending.git_dir.as_path(), Some(&pending.manifest), &mut notices);
+    end_work("disposeTrash", began);
+    return outcome;
+}
+
+/// What:
+///  `dispose_timed` on the process's runtime:
+/// the emptying is awaited,
+/// so a caller that is itself a task of the runtime holds no storage wait.
+/// Why:
+///   The add empties a snapshot's trash beside the package repair,
+/// and the two are waits of one task of the runtime
+/// (`worktree_copy_after_lock.rs`);
+/// the emptying's lookups and removals are jobs of the blocking pool,
+///  so the repair's own waits keep running while it works.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function disposeTimedAwaiting([git, pending, stream]): Promise<string | undefined>;
+/// ```
+pub(crate) async fn dispose_timed_awaiting((context, pending, stream): (&GitContext, &PendingTrash, &NoticeStream<'_>)) -> Result<(), String> {
+    let began: std::time::Instant = begin_work();
+    note_where_the_disposal_runs();
+    let outcome: Result<(), String> = {
+        let mut notices = SharedNoticeStream { held: stream, quiet: pending.quiet };
+        dispose_pending_trash_awaiting(context, pending.destination.as_path(), pending.git_dir.as_path(), Some(&pending.manifest), &mut notices).await
+    };
     end_work("disposeTrash", began);
     return outcome;
 }

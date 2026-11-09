@@ -1,5 +1,22 @@
 # Pi 0.87.1 nominal dependency inventory rejects the configured workspace graph
 
+Note 2026-11-09T16:46:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/contract/lifecycle/judgment-budget-error-occurrences/controls-private/candidate.mjs`
+left the tree on 2026-10-15 in `0ae0d3236a`.
+`package/pi-plugin/auto-mode/native/contract/lifecycle/incumbent-tui-group/approval-presentation.mjs`
+left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/contract/integration/native-host/process-network-guard.ts`
+left the tree on 2026-10-19 in `ff55ced353`.
+`package/cli/markdown-lint` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `5db89c1b61`.
+`package/pi-plugin/auto-mode/native/build.ts` left the tree on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/src/native-return-fixture-types.ts` left the tree on 2026-10-19 in `7ac15b19b4`.
+
 ## Pi 1.2.0 native migration loses the Shift+Tab bypass toggle
 
 ### Symptom

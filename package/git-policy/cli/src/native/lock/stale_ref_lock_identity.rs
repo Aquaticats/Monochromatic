@@ -10,8 +10,14 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! type Identity = { device: bigint; inode: bigint; mount: bigint; size: number; bornNs?: bigint; modifiedNs: bigint };
+//! type Identity = { device: bigint; inode: bigint; size: number; bornNs?: bigint; modifiedNs: bigint };
 //! ```
+//!
+//! No mount number is kept:
+//! a descriptor is matched to the lock by device and inode,
+//! which is the pair that names one file under a bind mount and across the subvolumes of a btrfs file system
+//! (audit of 2026-11-09,
+//! finding 4).
 
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -27,10 +33,6 @@ pub struct Identity {
     /// a freed inode may be reused at once,
     /// so it is never compared alone.
     pub inode: u64,
-    /// The mount number the file is reached through,
-    /// which is what a descriptor's `fdinfo` names,
-    /// and zero where the kernel does not report it.
-    pub mount: u64,
     /// Size in bytes.
     pub size: u64,
     /// Birth time in nanoseconds since the epoch,
@@ -52,6 +54,5 @@ pub fn identity_of(path: &Path) -> Option<Identity> {
         Err(_) => None,
     };
     let modified_ns: i128 = i128::from(metadata.mtime()) * 1_000_000_000 + i128::from(metadata.mtime_nsec());
-    let mount: u64 = crate::process_use::mount_of(path);
-    return Some(Identity { device: metadata.dev(), inode: metadata.ino(), mount, size: metadata.len(), born_ns, modified_ns });
+    return Some(Identity { device: metadata.dev(), inode: metadata.ino(), size: metadata.len(), born_ns, modified_ns });
 }

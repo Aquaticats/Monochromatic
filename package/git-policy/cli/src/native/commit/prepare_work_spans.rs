@@ -5,7 +5,8 @@
 //! kept until the commit's timing record takes them.
 //! Why:
 //!  A record that names the `prepareMs` phase leaves a slow preparation unexplained:
-//! the phase holds the reading of the real index,
+//! the phase holds the one reading of the real index,
+//! the walk of those bytes for the seed decision,
 //! two copies of it into private indexes,
 //! the writes of corrected entries,
 //! and every policy by name,
@@ -41,6 +42,7 @@ use std::time::Duration;
 ///
 /// A preparation notes the index's stat check,
 /// the index read,
+/// the seed walk of those bytes,
 /// the index copies,
 /// the entry writes,
 /// and one name per policy the pass evaluates,
@@ -68,8 +70,12 @@ pub const MAX_SPAN_NAMES: usize = 64;
 /// ```
 pub const INDEX_STAT_CHECK: &str = "index stat check";
 
-/// The reading of an index's bytes to decide whether it may seed a private index.
+/// The one reading of an index's bytes that every private copy of it and the seed decision are made from.
+/// What the seed walks those bytes for is stated under `INDEX_SEED`.
 pub const INDEX_READ: &str = "index read";
+
+/// The walk of an index's bytes that decides whether they may seed a private index.
+pub const INDEX_SEED: &str = "index seed";
 
 /// The answer of whether the captured index already holds the base's tree,
 /// read from the index and the tree rather than asked of Git.

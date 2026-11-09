@@ -1,5 +1,11 @@
 # cli-git 0.0.1 declared Node 22.18 support but its built artifact needed Node 24 language and APIs
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/worktree-copy/entry-compare.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/worktree-copy/lifecycle.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/worktree-copy/journal-lock.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Resolution policy
 
 This policy is the pre-native state and no longer holds:
@@ -11,6 +17,16 @@ the root manifest nor the mise configuration declares a `verify:supported-runtim
 The native executable's runtime floor is its own Rust toolchain,
 not a Node line,
 so nothing in the tree carries the policy the paragraphs below describe.
+
+Note 2026-11-09:
+the remaining citations in this record name files of the same deleted wrapper.
+`package/git-policy/cli/src/management.ts` is now
+`package/git-policy/cli/src/native/invocation/management.rs`;
+`package/git-policy/cli/src/worktree-copy/` is now
+`package/git-policy/cli/src/native/worktree_copying/`;
+`package/git-policy/cli/src/bin.ts` is now `package/git-policy/cli/src/native/main.rs`,
+the path `[[bin]]` in `package/git-policy/cli/Cargo.toml` names;
+and `.github/workflows/cli-git-trust.yml` is not in the tree.
 
 Issue #429 aligned cli-git's declared floor with the latest published Node LTS line.
 Issue #475 keeps that exact floor and adds the verified newer Node line.

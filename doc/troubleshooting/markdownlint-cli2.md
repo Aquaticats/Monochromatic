@@ -1,5 +1,10 @@
 # markdownlint-cli2 0.22.1: wrapper args can OOM, and config globs can hang on symlinked workspaces
 
+Note 2026-11-09T16:53:20-05:00:
+`package/cli/markdown-lint` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `5db89c1b61`.
+
 ## Status: replaced by cli-markdown-lint
 
 `markdownlint-cli2` has been retired from this repo in favour of

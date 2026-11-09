@@ -5,6 +5,9 @@ Status:
  upstream issue filed:
 [oven-sh/bun#28021](https://github.com/oven-sh/bun/issues/28021).
 
+Note 2026-11-09T16:36:36-05:00:
+`package/file-enforcer/core/src/io/glob.ts` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 `fs.glob` and `fs.globSync` from `node:fs/promises` / `node:fs`

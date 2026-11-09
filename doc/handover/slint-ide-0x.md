@@ -11317,7 +11317,7 @@ From the code first:
   so no event arrives between the delayed press and its release.
   This was read,
   not proved;
-  the measurement below is what shows that no press is lost there.
+  the measurement recorded under "Two of 210 press events that logged nothing" is what shows that no press is lost there.
 - The compositor's `click` (`package/cli/nested-wayland-session/src/input.rs`) answers `ok` after the seat calls,
   and reaches nobody when no surface is under the point (README,
   "Pointer input").

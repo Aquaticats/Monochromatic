@@ -9,6 +9,14 @@ fixed on branch `fix/cli-git-manual-push-scans-already-published-history`
 The cause was our own code in `package/git-policy/cli`,
 not Git.
 
+Note 2026-11-09T16:47:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/policy-engine/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-13 in `642b6d72cb`.
+`package/git-policy/cli/src/policy-engine/manual-push-scope.unit.test.ts` left the tree on 2026-10-13 in
+`642b6d72cb`.
+
 ## Symptom
 
 Pushing a single tag through the wrapped `git` failed three times in a row on 2026-09-06:

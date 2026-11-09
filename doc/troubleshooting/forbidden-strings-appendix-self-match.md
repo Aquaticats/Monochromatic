@@ -1,5 +1,13 @@
 # forbidden-strings 0.3.0: a literal rule body in the appendix matches itself, failing every later commit that touches the file
 
+Note 2026-11-09T16:55:17-05:00:
+these citations in this record name paths that no longer exist.
+`package/cli/forbidden-strings` is now `package/forbidden-strings/cli`,
+moved 2026-10-29 in `113633b259`.
+`package/git-policy/cli/src/native/scanner_selection.rs` is now
+`package/git-policy/cli/src/native/candidate/scanner_selection.rs`,
+moved 2026-11-03 in `b3be9b1641`.
+
 ## A note on how this document spells things
 
 Every banned identifier below is written with one character bracketed,

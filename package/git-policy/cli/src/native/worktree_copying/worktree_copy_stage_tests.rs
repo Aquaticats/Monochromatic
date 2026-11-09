@@ -101,13 +101,13 @@ fn stage_mirrors_selected_entries_with_modes_and_links() {
         staged
             .selected_roots
             .iter()
-            .all(|path| return !path.starts_with(".cli-git-worktree-copy-"))
+            .all(|path| return !path.starts_with(b".cli-git-worktree-copy-"))
     );
     assert!(
         staged
             .entries
             .iter()
-            .any(|entry| return entry.relative_path == "linked")
+            .any(|entry| return entry.relative_path == b"linked")
     );
     remove(root.as_path());
 }
@@ -148,13 +148,13 @@ fn nested_registered_worktree_is_not_copied() {
         staged
             .entries
             .iter()
-            .all(|entry| return !entry.relative_path.starts_with("nested/wt"))
+            .all(|entry| return !entry.relative_path.starts_with(b"nested/wt"))
     );
     assert!(
         staged
             .entries
             .iter()
-            .any(|entry| return entry.relative_path == "nested/plain")
+            .any(|entry| return entry.relative_path == b"nested/plain")
     );
     remove(root.as_path());
 }
@@ -467,8 +467,8 @@ fn unreadable_entries_and_other_checkouts_are_left_out_of_a_main_stage() {
         &CopySelection::MainCheckout,
     )
     .expect("staged");
-    assert_eq!(staged.unreadable, vec![String::from("cache/hidden")]);
-    assert_eq!(staged.selected_roots, vec![String::from("cache")], "the clone is no root of the stage");
+    assert_eq!(staged.unreadable, vec![b"cache/hidden".to_vec()]);
+    assert_eq!(staged.selected_roots, vec![b"cache".to_vec()], "the clone is no root of the stage");
     assert!(staged.stage_root.join("cache/kept").is_file());
     assert!(!staged.stage_root.join("cache/hidden").exists());
     assert!(!staged.stage_root.join("clone").exists());
@@ -494,6 +494,37 @@ fn the_copy_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_COPY_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
 
+/// The copy's slices are jobs of the process's blocking pool:
+/// a slice asks for the one place of the process's bound before its files are copied,
+/// which a slice on a thread of its own never does.
+#[test]
+fn the_copy_slices_take_places_of_the_processs_bound() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc::RecvTimeoutError;
+    let (given_back, wanted): (std::sync::Arc<AtomicBool>, std::sync::mpsc::Receiver<bool>) = crate::parallel_test_support::hold_the_only_place();
+    let root: PathBuf = fixture("stage-copy-the-bound");
+    let source: PathBuf = root.join("source");
+    let stage: PathBuf = root.join("stage");
+    std::fs::create_dir_all(source.join("many")).expect("many");
+    std::fs::create_dir_all(stage.join("many")).expect("stage many");
+    for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
+        std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
+    }
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
+    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied");
+    assert_eq!(copied.stamps.len(), entries.len());
+    // The holder gives its place back when a job of the work asks for one, so this answer is the proof that the
+    //  copy's slices reached the process's bound instead of starting at once.
+    match wanted.recv_timeout(crate::parallel_test_support::PATIENCE) {
+        Ok(true) => {}
+        Ok(false) => panic!("the job that holds the only place saw no ask, so no slice of the copy took a place of the process's bound"),
+        Err(RecvTimeoutError::Timeout) => panic!("no slice of the copy asked for a place of the process's bound within the patience, so the slices did not run as jobs of the blocking pool"),
+        Err(RecvTimeoutError::Disconnected) => panic!("the job that holds the only place ended without answering"),
+    }
+    assert!(given_back.load(Ordering::SeqCst), "the place of the process's bound was never given back to a slice of the copy");
+    remove(root.as_path());
+}
+
 /// Where the system starts no thread the copy workers' slices are copied in turn and every file arrives with its bytes.
 /// The body runs
 /// in a child that is refused every thread.
@@ -510,9 +541,10 @@ fn a_parallel_stage_copy_where_no_thread_can_start_copies_in_turn() {
     for index in 0..PARALLEL_COPY_MIN_ENTRIES + 100 {
         std::fs::write(source.join(format!("many/file-{index:05}")), format!("{index}")).expect("file");
     }
-    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[String::from("many")], &[]).expect("manifest");
-    let stamps = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
-    assert_eq!(stamps.len(), entries.len());
+    let entries = crate::worktree_copy_manifest::collect_entry_manifest(source.as_path(), &[b"many".to_vec()], &[]).expect("manifest");
+    let copied = copy_manifest_entries(source.as_path(), stage.as_path(), entries.as_slice()).expect("every file is copied here");
+    assert_eq!(copied.stamps.len(), entries.len());
+    assert!(copied.gone.is_empty(), "no entry went away here");
     assert_eq!(std::fs::read(stage.join("many/file-00007")).expect("copied"), b"7");
     remove(&root);
 }

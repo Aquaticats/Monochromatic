@@ -33,6 +33,12 @@ export * from './libvirt-errors.ts';
 export * from './libvirt-tools.ts';
 export * from './list.ts';
 export * from './meta.ts';
+/**
+ The existence probe, exposed for built-artifact verification.
+
+ @internal
+ */
+export * from './path-exists.ts';
 export * from './registry.ts';
 export * from './run.ts';
 export * from './spawn-errors.ts';

@@ -11,6 +11,17 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:38:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/file-enforcer/core/src/toolchain/providers.cargo.ts` left the tree on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/src/toolchain/sync.ts` left the tree on 2026-10-31 in `e7b5130459`.
+`package/git-policy/cli/src/native/config_parse_acceptance_tests.rs` is now
+`package/git-policy/cli/src/native/config/config_parse_acceptance_tests.rs`,
+moved 2026-11-03 in `cb06dfab87`.
+`package/file-enforcer/core/src/toolchain/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-31 in `e7b5130459`.
+
 ## Symptom
 
 On 2026-10-31 (EDT 2026-10-30 23:54),

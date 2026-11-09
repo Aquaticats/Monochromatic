@@ -11,8 +11,8 @@
 //! // expect(unmergedStagingRequest(cwd, index, objects, ['sub/f']).ownPathspecs).toBe(true);
 //! ```
 
-use super::unmerged_staging_request;
 use crate::conflict_side_modes::MODE_VARIABLES;
+use crate::service_prepare_unmerged_staging::unmerged_staging_request;
 use crate::transaction_git::GitRequest;
 use std::ffi::OsString;
 use std::path::Path;

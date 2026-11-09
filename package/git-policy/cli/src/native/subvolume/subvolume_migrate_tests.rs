@@ -175,20 +175,50 @@ fn a_rerun_after_a_simulated_kill_at_every_step_completes() {
         ("after-catchup", 0),
         ("after-indexes", 0),
     ];
-    for (index, (point, after)) in points.iter().enumerate() {
-        let (parent, root) = checkout_with_worktree(format!("migrate-kill-{index}").as_str());
-        let platform: PlainPlatform = PlainPlatform::new();
-        let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, *after));
-        assert_eq!(code, FAILED, "{point}: {lines:#?}");
-        assert!(lines.join("\n").contains("Run the command again to resume"), "{point}");
-        let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
-        assert_eq!(resumed_code, DONE, "{point}: {resumed_lines:#?}");
-        let layout = layout_of(root.as_path()).expect("layout");
-        assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
-        assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(true), "{point}: nested worktree");
-        assert!(!layout.new_path.exists(), "{point}: the new path is renamed away");
-        remove(parent.as_path());
-    }
+    // A kill point shares nothing with another: each has its own fixture, its own platform and its own journal, so the
+    //  points walk side by side and one point's waits for the disk are another point's chance to work.
+    // What decides this control's own time is the tree pass of each point, which is filesystem latency rather than work
+    //  (`AGENTS.md` rule `SUF`):
+    // measured on 2026-11-09: the twelve points one after another took 384 s with the host's load average at 119 and
+    //  110 s once the durability switch of the stand-in reached the claim and the index rewrites, and the same points
+    //  side by side took 25.2 s at a load average of 115.
+    let mut failed: Vec<&str> = Vec::new();
+    std::thread::scope(|scope| {
+        let handles: Vec<(&str, std::thread::ScopedJoinHandle<'_, ()>)> = points
+            .iter()
+            .enumerate()
+            .map(|(index, killed_at)| {
+                let (stop_at, after): (&str, u64) = *killed_at;
+                let name: String = format!("migrate-kill-{index}");
+                return (stop_at, scope.spawn(move || { return kill_point_at(name.as_str(), stop_at, after); }));
+            })
+            .collect();
+        for (point, handle) in handles {
+            if handle.join().is_err() {
+                failed.push(point);
+            }
+        }
+    });
+    assert!(failed.is_empty(), "the kill points that failed: {failed:?}");
+}
+
+/// One kill point:
+/// a fresh checkout,
+/// the run stopped at `point`,
+/// and the rerun that resumes it and ends migrated.
+fn kill_point_at(name: &str, point: &str, after: u64) {
+    let (parent, root) = checkout_with_worktree(name);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at(point, after));
+    assert_eq!(code, FAILED, "{point}: {lines:#?}");
+    assert!(lines.join("\n").contains("Run the command again to resume"), "{point}");
+    let (resumed_code, resumed_lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(resumed_code, DONE, "{point}: {resumed_lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_migrated(&platform, root.as_path(), layout.old_path.as_path());
+    assert_eq!(platform.is_subvolume_root(root.join("wt").as_path()), Ok(true), "{point}: nested worktree");
+    assert!(!layout.new_path.exists(), "{point}: the new path is renamed away");
+    remove(parent.as_path());
 }
 
 /// Files this user may not read are left in the old tree and listed;

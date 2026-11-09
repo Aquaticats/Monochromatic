@@ -62,9 +62,10 @@ fn checkout_with_linked(name: &str) -> (PathBuf, PathBuf) {
 }
 
 /// Rewrite every index of `root` with `rewrite` on `host` and return the count and the lines.
-fn refresh_with(root: &Path, host: &HostResources, rewrite: &Arc<RewriteOne>) -> (usize, Vec<String>) {
+fn refresh_with(root: &Path, host: &HostResources, rewrite: &Arc<RewriteOne>, flushes_to_disk: bool) -> (usize, Vec<String>) {
     let mut lines: Vec<String> = Vec::new();
-    let request: AllIndexes = AllIndexes { root: root.to_path_buf(), lock: IndexLock::Acquire, references: Vec::new(), host: *host, rewrite: Arc::clone(rewrite) };
+    let request: AllIndexes =
+        AllIndexes { root: root.to_path_buf(), lock: IndexLock::Acquire, references: Vec::new(), host: *host, flushes_to_disk, rewrite: Arc::clone(rewrite) };
     let count: usize = refresh_all_indexes_with(&request, &mut |text: &str| { lines.push(text.to_string()); }).expect("the indexes were refreshed");
     return (count, lines);
 }
@@ -85,7 +86,7 @@ fn the_indexes_are_rewritten_side_by_side() {
         }
         return refresh_index_file_with(index, tree, options);
     });
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
     assert_eq!(count, LINKED + 1);
     assert_eq!(met.load(Ordering::SeqCst), LINKED + 1, "{lines:#?}");
     remove(parent.as_path());
@@ -130,7 +131,10 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
     let refreshed = {
         let compared_root: PathBuf = root.clone();
         let held_rewrite: Arc<RewriteOne> = Arc::clone(&rewrite);
-        crate::parallel_test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || { return refresh_with(compared_root.as_path(), &LARGE_HOST, &held_rewrite); })
+        // `false` is the stand-in's flush policy, as in every other control of this file but the one that states it.
+        crate::parallel_test_support::finished_within_at(ORDERING_RUN_ALLOWED, move || {
+            return refresh_with(compared_root.as_path(), &LARGE_HOST, &held_rewrite, false);
+        })
     };
     let Some((_count, lines)) = refreshed else {
         panic!("the checkout's index kept waiting for the worktrees' rewrites for longer than {ORDERING_RUN_ALLOWED:?}, so the report never finished; nothing here says the ordering is wrong, only that the run did not end")
@@ -149,7 +153,7 @@ fn the_report_keeps_the_order_of_the_checkout_then_its_worktrees() {
 fn an_index_that_cannot_be_rewritten_leaves_the_others_rewritten() {
     let (parent, root) = checkout_with_linked("index-parallel-skip");
     std::fs::write(root.join(".git/worktrees/w0/index.lock"), b"another git").expect("lock");
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>));
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>), false);
     assert_eq!(count, LINKED + 1);
     assert_eq!(lines.iter().filter(|line: &&String| { return line.contains("skipped (index.lock exists"); }).count(), 1, "{lines:#?}");
     assert_eq!(lines.iter().filter(|line: &&String| { return line.ends_with("entries refreshed"); }).count(), LINKED, "{lines:#?}");
@@ -179,7 +183,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
         live.fetch_sub(1, Ordering::SeqCst);
         return line;
     });
-    let (_count, lines) = refresh_with(root.as_path(), &host, &rewrite);
+    let (_count, lines) = refresh_with(root.as_path(), &host, &rewrite, false);
     assert_eq!(busiest.load(Ordering::SeqCst), allowed, "{lines:#?}");
     remove(parent.as_path());
 }
@@ -189,7 +193,7 @@ fn the_budget_of_the_host_bounds_the_overlap() {
 #[test]
 fn the_lines_of_a_run_are_the_ones_recorded_before_the_step() {
     let (parent, root) = checkout_with_linked("index-parallel-lines");
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>));
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>), false);
     assert_eq!(count, LINKED + 1);
     let of_the_checkout: String = format!("{CHECKOUT_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed");
     let of_a_worktree: String = format!("{LINKED_ENTRIES_REFRESHED} of {TRACKED_FILES_IN_THE_FIXTURE_CHECKOUT} entries refreshed");
@@ -219,7 +223,7 @@ fn the_rewrites_run_on_the_processs_runtime() {
         inside.lock().expect("lock").push(tokio::runtime::Handle::try_current().is_ok());
         return refresh_index_file_with(index, tree, options);
     });
-    let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
+    let (_count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
     let seen: Vec<bool> = probe.lock().expect("lock").clone();
     assert_eq!(seen, vec![true; LINKED + 1], "a rewrite ran outside the process's runtime: {lines:#?}");
     remove(parent.as_path());
@@ -238,7 +242,7 @@ fn the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs() {
         began.lock().expect("lock").push(given.load(Ordering::SeqCst));
         return refresh_index_file_with(index, tree, options);
     });
-    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite);
+    let (count, lines) = refresh_with(root.as_path(), &LARGE_HOST, &rewrite, false);
     assert_eq!(count, LINKED + 1, "{lines:#?}");
     let seen: Vec<bool> = started_after.lock().expect("lock").clone();
     assert_eq!(seen, vec![true; LINKED + 1], "a rewrite started while another job held the only place of the process's bound, so it did not take one: {lines:#?}");
@@ -275,7 +279,7 @@ fn an_index_whose_rewrite_ended_without_a_result_is_not_promised_to_be_as_it_was
         return report.line;
     });
     let mut lines: Vec<String> = Vec::new();
-    let request: AllIndexes = AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, rewrite };
+    let request: AllIndexes = AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, flushes_to_disk: false, rewrite };
     let outcome: Result<usize, MigrateError> = refresh_all_indexes_with(&request, &mut |text: &str| { lines.push(text.to_string()); });
     assert!(installed.load(Ordering::SeqCst), "the rewrite of the checkout's index installed it before it ended, so a claim that it stays as it was is false");
     let refused: MigrateError = outcome.expect_err("a rewrite that ended without a result fails the call");
@@ -320,7 +324,7 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
         return refresh_index_file_with(index, tree, options);
     });
     let mut lines: Vec<String> = Vec::new();
-    let request: AllIndexes = AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, rewrite };
+    let request: AllIndexes = AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, flushes_to_disk: false, rewrite };
     let refused: MigrateError = refresh_all_indexes_with(&request, &mut |text: &str| { lines.push(text.to_string()); }).expect_err("a thread is refused for every rewrite");
     assert_eq!(ran.load(Ordering::SeqCst), 0, "no rewrite ran before a thread was free");
     let said: String = refused.to_string();
@@ -374,7 +378,7 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
     // SAFETY: `mkfifo` takes a NUL-terminated path and a mode, and touches no memory.
     assert_eq!(unsafe { libc::mkfifo(named.as_ptr(), 0o600) }, 0, "the named pipe at the configuration");
     let request: AllIndexes =
-        AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, rewrite: Arc::new(refresh_index_file_with) };
+        AllIndexes { root: root.clone(), lock: IndexLock::Acquire, references: Vec::new(), host: LARGE_HOST, flushes_to_disk: false, rewrite: Arc::new(refresh_index_file_with) };
     // The process's only place is held by another job, so the preparation this run sends to the pool never starts and no
     //  reader ever opens the pipe: the state a reviewer of this control found the cleanup hanging in.
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(crate::parallel_test_support::ONE_PLACE);
@@ -436,4 +440,51 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
     remove(parent.as_path());
     let said: &'static str = answered.expect("the refresh answered within the control's wait");
     assert_eq!(said, "the refresh gave up", "a preparation read that hangs must be a job of the blocking pool, so the runtime stays free and the refresh's own timeout expires");
+}
+
+/// What:
+///  The syncs a run of the rewrites made and skipped,
+///  read from the shared write step's own count.
+/// Why:
+///   A rewrite installs its index on a job of the blocking pool,
+/// which is not the calling thread,
+/// so whether the run's answer about the disk reached it shows only in that count.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// syncCounts.take(); refreshWith(root, host, flushes); return syncCounts.take();
+/// ```
+fn syncs_of(work: impl FnOnce()) -> crate::subvolume_file_write_steps::SyncCounts {
+    let _taken = crate::subvolume_file_write_steps::take_sync_counts();
+    work();
+    return crate::subvolume_file_write_steps::take_sync_counts();
+}
+
+/// A run told that its writes stay in memory installs its indexes through the shared step and flushes nothing,
+/// though it runs its rewrites on threads of the pool,
+/// which are not the calling thread's.
+#[test]
+fn a_run_kept_in_memory_flushes_no_index_though_its_rewrites_run_elsewhere() {
+    let (parent, root) = checkout_with_linked("index-kept-in-memory");
+    let counts = syncs_of(|| {
+        let (count, _lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>), false);
+        assert_eq!(count, LINKED + 1);
+    });
+    assert_eq!(counts.made, 0, "no flush reached the kernel: {counts:?}");
+    assert!(counts.skipped >= LINKED + 1, "every index's install asked the shared step on its own thread: {counts:?}");
+    remove(parent.as_path());
+}
+
+/// The same run told that its writes reach the disk makes them,
+/// so the count above is a measurement and not a constant.
+#[test]
+fn a_run_that_flushes_reaches_the_disk_for_every_index() {
+    let (parent, root) = checkout_with_linked("index-flushing");
+    let counts = syncs_of(|| {
+        let (count, _lines) = refresh_with(root.as_path(), &LARGE_HOST, &(Arc::new(refresh_index_file_with) as Arc<RewriteOne>), true);
+        assert_eq!(count, LINKED + 1);
+    });
+    assert!(counts.made >= LINKED + 1, "every index's install reached the disk on its own thread: {counts:?}");
+    assert_eq!(counts.skipped, 0, "nothing was skipped where the run flushes: {counts:?}");
+    remove(parent.as_path());
 }

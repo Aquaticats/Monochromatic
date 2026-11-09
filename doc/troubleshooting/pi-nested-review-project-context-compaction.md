@@ -1,5 +1,11 @@
 # Pi 0.84.2 nested reviews can lose AGENTS.md context after compaction
 
+Note 2026-11-09T16:49:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/src/context.ts` left the tree on 2026-10-17 in `a3955898f1`.
+`package/pi-plugin/auto-mode/src/judge.unit.test.ts` left the tree on 2026-10-17 in `a3955898f1`.
+`package/pi-plugin/auto-mode/src/judge-messages.ts` left the tree on 2026-10-17 in `a3955898f1`.
+
 ## Symptom
 
 `@monochromatic-dev/pi-plugin-auto-mode` and

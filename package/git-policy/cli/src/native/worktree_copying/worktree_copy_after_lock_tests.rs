@@ -1,7 +1,7 @@
 //! What happens once the ignored state of a new worktree is in place:
 //! the trash a snapshot left is emptied in the foreground when no commit service can take it,
 //! its notice reaches the stream the command was given,
-//! and the thread that empties it starts only when something runs beside it.
+//! and the emptying is a wait of the process's runtime only when something runs beside it.
 
 use super::*;
 use crate::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_directory_beneath, open_root, plain_components};
@@ -61,9 +61,9 @@ fn creating_invocation() -> Invocation {
     };
 }
 
-/// The thread the last disposal ran on,
+/// Where the last disposal ran,
 /// or nothing when no disposal ran since the control started.
-fn disposed_on() -> Option<std::thread::ThreadId> {
+fn disposed_on() -> Option<crate::worktree_copy_after_lock_disposal::WhereTheDisposalRan> {
     return DISPOSED_ON.lock().expect("the control's own record").take();
 }
 
@@ -111,17 +111,19 @@ fn a_disposal_with_nothing_beside_it_runs_on_the_calling_thread() {
     let invocation: Invocation = creating_invocation();
     let mut stderr: Vec<u8> = Vec::new();
     finish_trash_and_repair(&invocation, &after, &mut stderr);
-    assert_eq!(disposed_on(), Some(std::thread::current().id()), "a thread with nothing to run beside it is a thread of its own for nothing");
+    let ran: crate::worktree_copy_after_lock_disposal::WhereTheDisposalRan = disposed_on().expect("the disposal ran");
+    assert_eq!(ran.thread, std::thread::current().id(), "a wait with nothing to run beside it is a thread of its own for nothing");
+    assert!(!ran.inside_the_runtime, "a disposal with nothing beside it enters no runtime either");
     assert!(!worktree.join(TRASH_PARENT).exists(), "and the trash is emptied all the same");
     remove(root.as_path());
 }
 
 /// The control for the test above:
-/// a disposal beside a real repair runs on a thread of its own,
-/// so the thread the disposal ran on tells the two cases apart.
+/// a disposal beside a real repair is a wait of the process's runtime,
+/// so where the disposal ran tells the two cases apart.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_disposal_beside_a_repair_runs_on_a_thread_of_its_own() {
+fn a_disposal_beside_a_repair_runs_inside_the_processs_runtime() {
     let (root, worktree, git_dir, manifest) = worktree_with_planted_trash("after-lock-beside", "8".repeat(40).as_str(), 1);
     let source: PathBuf = root.join("source");
     std::fs::create_dir_all(&source).expect("source");
@@ -130,10 +132,9 @@ fn a_disposal_beside_a_repair_runs_on_a_thread_of_its_own() {
     let invocation: Invocation = creating_invocation();
     let mut stderr: Vec<u8> = Vec::new();
     finish_trash_and_repair(&invocation, &after, &mut stderr);
-    let ran_on: Option<std::thread::ThreadId> = disposed_on();
-    assert!(ran_on.is_some(), "the disposal ran");
-    assert_ne!(ran_on, Some(std::thread::current().id()), "the repair of the created worktree and the emptying overlap, so one of them runs on a thread");
+    let ran: crate::worktree_copy_after_lock_disposal::WhereTheDisposalRan = disposed_on().expect("the disposal ran");
+    assert!(ran.inside_the_runtime, "the repair of the created worktree and the emptying are two waits of one task of the process's runtime");
     assert!(!worktree.join(TRASH_PARENT).exists(), "the trash is emptied");
-    assert!(String::from_utf8(stderr).expect("utf8").contains(FOREGROUND_DISPOSAL_LINE), "the notice reaches the command's stream from the thread too");
+    assert!(String::from_utf8(stderr).expect("utf8").contains(FOREGROUND_DISPOSAL_LINE), "the notice reaches the command's stream from the runtime too");
     remove(root.as_path());
 }

@@ -1,5 +1,8 @@
 # GitHub Actions at docs revision e1e4aa9 starts unrelated cli-git performance runs on every main push
 
+Note 2026-11-09T16:56:27-05:00:
+`.github/workflows/cli-git-performance.yml` left the tree on 2026-10-13 in `724d70bfa7`.
+
 ## Symptom
 
 The workflow named here,

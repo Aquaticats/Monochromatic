@@ -14,7 +14,7 @@
 //! const copied = await installSnapshot({ snapshot, destinationRoot, journalState, priorCreations });
 //! ```
 
-use crate::side_by_side_threads::run_all_side_by_side;
+use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_compare::{entry_matches, lstat_or_absent};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause};
 use crate::parallel_budget::{HostResources, sliced_workers};
@@ -24,10 +24,11 @@ use crate::worktree_copy_install_entry::{
 };
 use crate::worktree_copy_manifest::{EntryKind, WorktreeCopyEntry, apply_entry_modes};
 use crate::worktree_copy_rollback::rollback_created;
-use crate::worktree_copy_selection::filesystem_path;
+use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use crate::json_record::quote;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// What:
 ///  The number of manifest entries claimed by one durable intent record and settled by one creation record.
@@ -79,7 +80,7 @@ pub const INSTALL_BATCH_ENTRIES: usize = 4096;
 pub trait InstallRecorder {
     /// Records the absent paths one batch is about to create,
     /// before any of them exists.
-    fn record_intents(&mut self, relative_paths: &[String]) -> Result<(), WorktreeCopyError>;
+    fn record_intents(&mut self, relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError>;
 
     /// Records the identities of the paths one batch created.
     fn record_creations(&mut self, entries: &[InstalledPath]) -> Result<(), WorktreeCopyError>;
@@ -101,7 +102,7 @@ pub struct NoRecord;
 
 impl InstallRecorder for NoRecord {
     /// Accepts the intent without storing it.
-    fn record_intents(&mut self, _relative_paths: &[String]) -> Result<(), WorktreeCopyError> {
+    fn record_intents(&mut self, _relative_paths: &[Vec<u8>]) -> Result<(), WorktreeCopyError> {
         return Ok(());
     }
 
@@ -126,12 +127,12 @@ pub fn preflight_destination(
     stage_root: &Path,
     destination_root: &Path,
     entries: &[WorktreeCopyEntry],
-    claimed: &BTreeSet<String>,
-) -> Result<BTreeSet<String>, WorktreeCopyError> {
-    let mut absent: BTreeSet<String> = BTreeSet::new();
+    claimed: &BTreeSet<Vec<u8>>,
+) -> Result<BTreeSet<Vec<u8>>, WorktreeCopyError> {
+    let mut absent: BTreeSet<Vec<u8>> = BTreeSet::new();
     for entry in entries {
         let destination_path: PathBuf =
-            filesystem_path(destination_root, entry.relative_path.as_str())?;
+            filesystem_path(destination_root, entry.relative_path.as_slice())?;
         // `match` on the existing entry: an absent path is recorded, a claimed directory is accepted, anything else must be identical.
         match lstat_or_absent(destination_path.as_path())? {
             None => {
@@ -147,7 +148,7 @@ pub fn preflight_destination(
                 if !entry_matches(stage_root, destination_root, entry)? {
                     let message: String = format!(
                         "monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry {} in {}.",
-                        quote(entry.relative_path.as_str()),
+                        quote(shown_repository_path(entry.relative_path.as_slice()).as_str()),
                         quote(destination_root.to_string_lossy().as_ref())
                     );
                     return Err(failure_with_cause(message.as_str(), None));
@@ -173,12 +174,12 @@ fn install_batch(
     stage_root: &Path,
     destination_root: &Path,
     batch: &[WorktreeCopyEntry],
-    absent: &BTreeSet<String>,
+    absent: &BTreeSet<Vec<u8>>,
     created: &mut Vec<InstalledPath>,
     recorder: &mut dyn InstallRecorder,
-    known: &mut std::collections::HashSet<String>,
+    known: &mut std::collections::HashSet<Vec<u8>>,
 ) -> Result<(), WorktreeCopyError> {
-    let mut claims: Vec<String> = Vec::new();
+    let mut claims: Vec<Vec<u8>> = Vec::new();
     for entry in batch {
         if absent.contains(&entry.relative_path) {
             claims.push(entry.relative_path.clone());
@@ -187,33 +188,33 @@ fn install_batch(
     recorder.record_intents(claims.as_slice())?;
     let batch_start: usize = created.len();
     // Directories and the scaffolding above every entry first, in manifest order, so each leaf finds its parent.
-    let mut leaves: Vec<&WorktreeCopyEntry> = Vec::new();
-    for entry in batch {
+    let mut leaves: Vec<usize> = Vec::new();
+    for (at, entry) in batch.iter().enumerate() {
         ensure_parents_remembering(destination_root, entry, created, known)?;
         if entry.kind != EntryKind::Directory {
-            leaves.push(entry);
+            leaves.push(at);
             continue;
         }
         let destination_path: PathBuf =
-            filesystem_path(destination_root, entry.relative_path.as_str())?;
+            filesystem_path(destination_root, entry.relative_path.as_slice())?;
         // A path that appeared since preflight is never created over; the next settle step decides what it is.
         if lstat_or_absent(destination_path.as_path())?.is_none() {
             create_selected_entry(stage_root, destination_root, entry)?;
             created.push(capture_installed_path(
                 destination_path.as_path(),
-                entry.relative_path.as_str(),
+                entry.relative_path.as_slice(),
                 true,
             )?);
         }
         known.insert(entry.relative_path.clone());
     }
-    install_leaves(stage_root, destination_root, leaves.as_slice(), created)?;
+    install_leaves(stage_root, destination_root, batch, leaves.as_slice(), created)?;
     recorder.record_creations(&created[batch_start..])?;
     return Ok(());
 }
 
 /// What:
-///  The leaves below which a batch's files and links are created on one thread:
+///  The leaves below which a batch's files and links are created by one worker:
 /// `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
 ///   A large batch spends its time in independent link calls;
@@ -256,12 +257,12 @@ const PARALLEL_INSTALL_MIN_LEAVES: usize = crate::parallel_budget::PARALLEL_BREA
 /// if (exists(destination)) return undefined; createSelectedEntry(...); return captureInstalledPath(destination);
 /// ```
 fn install_one(stage_root: &Path, destination_root: &Path, entry: &WorktreeCopyEntry) -> Result<Option<InstalledPath>, WorktreeCopyError> {
-    let destination_path: PathBuf = filesystem_path(destination_root, entry.relative_path.as_str())?;
+    let destination_path: PathBuf = filesystem_path(destination_root, entry.relative_path.as_slice())?;
     if lstat_or_absent(destination_path.as_path())?.is_some() {
         return Ok(None);
     }
     create_selected_entry(stage_root, destination_root, entry)?;
-    return capture_installed_path(destination_path.as_path(), entry.relative_path.as_str(), true).map(Some);
+    return capture_installed_path(destination_path.as_path(), entry.relative_path.as_slice(), true).map(Some);
 }
 
 /// What:
@@ -294,50 +295,137 @@ fn install_slice(
 }
 
 /// What:
+///  One slice of a batch's leaves as the state of one job:
+/// the batch,
+/// the positions of this slice in it,
+/// and the two roots.
+/// Why:
+///   A job of the blocking pool owns what it reads,
+/// so the batch travels as one share of it and each job takes its own positions,
+///  and a job of the pool is a function and its state,
+/// never a closure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ASliceToInstall = [entries: readonly WorktreeCopyEntry[], stage: string, destination: string, positions: number[]];
+/// ```
+type ASliceToInstall = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>);
+
+/// What:
+///  Creates the leaves of one slice,
+/// chosen from the shared batch by their positions.
+/// Why:
+///   The positions are what a job of the pool can own without a copy of the manifest,
+/// and the slice keeps the batch's own order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const installASliceOf = ([entries, stage, destination, positions]) => installSlice([stage, destination, positions.map((at) => entries[at])]);
+/// ```
+fn install_a_slice_of((entries, stage_root, destination_root, positions): ASliceToInstall) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
+    let mut slice: Vec<&WorktreeCopyEntry> = Vec::with_capacity(positions.len());
+    for at in positions {
+        let Some(entry) = entries.get(at) else {
+            continue;
+        };
+        slice.push(entry);
+    }
+    return install_slice((stage_root.as_path(), destination_root.as_path(), slice.as_slice()));
+}
+
+/// What:
 ///  Creates the files and links of one batch,
-/// in parallel slices when the batch is large.
+/// in parallel slices when the batch is large,
+/// every slice a job of the process's blocking pool.
 /// Why:
 ///   Their parents exist already,
 /// so the creations are independent;
 /// every created path is recorded for rollback
 ///  before the first failure is returned.
+/// A creation waits on storage,
+/// so it runs on the blocking pool and never on a worker of the runtime that polls tasks,
+/// and every slice takes a place of the process's one bound on blocking jobs before its work runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function installLeaves({ stageRoot, destinationRoot, leaves, created }): Promise<void>;
+/// async function installLeaves({ stageRoot, destinationRoot, entries, leaves, created }): Promise<void>;
 /// ```
 fn install_leaves(
     stage_root: &Path,
     destination_root: &Path,
-    leaves: &[&WorktreeCopyEntry],
+    entries: &[WorktreeCopyEntry],
+    leaves: &[usize],
     created: &mut Vec<InstalledPath>,
 ) -> Result<(), WorktreeCopyError> {
+    return match crate::lazy_runtime::run_on_runtime(install_leaves_awaiting(stage_root, destination_root, entries, leaves)) {
+        Ok((made, stopped)) => {
+            // Rollback must know every path that exists, including those created before a failure.
+            created.extend(made);
+            match stopped {
+                Some(error) => Err(error),
+                None => Ok(()),
+            }
+        }
+        // Nothing more was created, and the reason the runtime could not run the slices is why.
+        Err(refusal) => Err(failure_with_cause(
+            format!("monochromatic-git-policy-cli: the files and links of one batch were not installed ({refusal}).").as_str(),
+            None,
+        )),
+    };
+}
+
+/// What:
+///  `install_leaves` on the process's runtime:
+/// every slice of the batch's leaves is one job of the blocking pool,
+/// and every path created is returned in slice order with the first failure,
+/// if any.
+/// Why:
+///   A caller that is itself a task of the runtime cannot enter it,
+/// so it awaits this face instead;
+/// the created paths come back even when a slice failed,
+/// because rollback must know them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function installLeavesAwaiting({ stageRoot, destinationRoot, entries, leaves }): Promise<[InstalledPath[], WorktreeCopyError?]>;
+/// ```
+async fn install_leaves_awaiting(
+    stage_root: &Path,
+    destination_root: &Path,
+    entries: &[WorktreeCopyEntry],
+    leaves: &[usize],
+) -> (Vec<InstalledPath>, Option<WorktreeCopyError>) {
     let workers: usize = if leaves.len() < PARALLEL_INSTALL_MIN_LEAVES {
         1
     } else {
         sliced_workers(leaves.len(), PARALLEL_COPY_MAX_WORKERS, &HostResources::read())
     };
     let slice_length: usize = leaves.len().div_ceil(workers).max(1);
-    let mut slices: Vec<(&Path, &Path, &[&WorktreeCopyEntry])> = Vec::new();
+    let shared: Arc<[WorktreeCopyEntry]> = Arc::from(entries);
+    let mut states: Vec<ASliceToInstall> = Vec::new();
     for slice in leaves.chunks(slice_length) {
-        slices.push((stage_root, destination_root, slice));
+        states.push((
+            Arc::clone(&shared),
+            stage_root.to_path_buf(),
+            destination_root.to_path_buf(),
+            slice.to_vec(),
+        ));
     }
     let mut results: Vec<(Vec<InstalledPath>, Option<WorktreeCopyError>)> = Vec::new();
-    for joined in run_all_side_by_side(slices, install_slice) {
-        results.push(match joined {
+    for answer in run_all_side_by_side_on_the_runtime(states, install_a_slice_of).await {
+        results.push(match answer {
             Ok(done) => done,
-            Err(_panic) => (Vec::new(), Some(failure_with_cause("monochromatic-git-policy-cli: an install worker panicked.", None))),
+            Err(crate::blocking_job::BlockingJobError::Panicked) => (Vec::new(), Some(failure_with_cause("monochromatic-git-policy-cli: an install worker panicked.", None))),
+            Err(refused) => (Vec::new(), Some(failure_with_cause(format!("monochromatic-git-policy-cli: an install worker did not run ({refused}).").as_str(), None))),
         });
     }
     let mut failure: Option<WorktreeCopyError> = None;
-    for (made, stopped) in results {
-        created.extend(made);
+    let mut made: Vec<InstalledPath> = Vec::new();
+    for (created, stopped) in results {
+        made.extend(created);
         failure = failure.or(stopped);
     }
-    return match failure {
-        Some(error) => Err(error),
-        None => Ok(()),
-    };
+    return (made, failure);
 }
 
 /// What:
@@ -355,7 +443,7 @@ pub fn install_snapshot(
     stage_root: &Path,
     destination_root: &Path,
     entries: &[WorktreeCopyEntry],
-    claimed: &BTreeSet<String>,
+    claimed: &BTreeSet<Vec<u8>>,
     prior: &[InstalledPath],
     recorder: &mut dyn InstallRecorder,
 ) -> Result<usize, WorktreeCopyError> {
@@ -403,15 +491,15 @@ fn install_all(
     stage_root: &Path,
     destination_root: &Path,
     entries: &[WorktreeCopyEntry],
-    claimed: &BTreeSet<String>,
+    claimed: &BTreeSet<Vec<u8>>,
     created: &mut Vec<InstalledPath>,
     recorder: &mut dyn InstallRecorder,
 ) -> Result<usize, WorktreeCopyError> {
     let started: std::time::Instant = std::time::Instant::now();
-    let absent: BTreeSet<String> =
+    let absent: BTreeSet<Vec<u8>> =
         preflight_destination(stage_root, destination_root, entries, claimed)?;
     let preflighted: std::time::Duration = started.elapsed();
-    let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut known: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
     for batch in entries.chunks(INSTALL_BATCH_ENTRIES) {
         install_batch(
             stage_root,

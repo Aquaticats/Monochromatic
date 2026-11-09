@@ -22,6 +22,7 @@ use super::{LoadRequest, PENDING, protected_request};
 /// Import the existing compiled-rule fixture and owned native filename.
 use crate::frx_load::LoadedRules;
 use crate::rules_list::RulesEntry;
+use crate::runtime_cache::CacheAccess;
 use std::path::PathBuf;
 
 /// What:
@@ -40,6 +41,7 @@ fn request(name: &str) -> LoadRequest {
         entries: vec![RulesEntry { path: PathBuf::from(name), optional: false }],
         builtin: false,
         implicit: false,
+        access: CacheAccess::ReadWrite,
     };
 }
 
@@ -103,6 +105,7 @@ fn occupied_slot_restores_original_arguments() {
         entries: vec![RulesEntry { path: PathBuf::from("original"), optional: true }],
         builtin: true,
         implicit: true,
+        access: CacheAccess::ReadOnly,
     }));
     assert!(protected_request(request("replacement"), inner).is_err());
     // Unwrap only test fixture state; this test must fail if restoration discarded it.
@@ -111,4 +114,5 @@ fn occupied_slot_restores_original_arguments() {
     assert!(restored.entries[0].optional);
     assert!(restored.builtin);
     assert!(restored.implicit);
+    assert!(matches!(restored.access, CacheAccess::ReadOnly));
 }

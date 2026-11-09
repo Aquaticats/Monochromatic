@@ -1,5 +1,9 @@
 # `monochromatic-lint --fix` drops the blockquote marker when it splits a quoted line
 
+Note 2026-11-09T16:56:27-05:00:
+`package/cli/forbidden-strings` is now `package/forbidden-strings/cli`,
+moved 2026-10-29 in `113633b259`.
+
 ## Symptom
 
 Running `mise run //:format:monochromatic-lint -- <path>` over a Markdown file whose blockquote carries

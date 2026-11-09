@@ -44,7 +44,11 @@ fn with_section(
     let action: Action = crate::lazy_runtime::run_on_runtime(doctor_action_with_section(context, cwd, home, section)).expect("the runtime");
     return match action {
         Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
-        Action::ExitBytes { code, stdout, stderr } => (code, String::from_utf8(stdout).expect("a report of text paths"), stderr),
+        Action::ExitBytes { code, stdout, stderr } => (
+            code,
+            String::from_utf8(stdout).expect("a report of text paths"),
+            String::from_utf8(stderr).expect("an explanation of text paths"),
+        ),
         other => panic!("an exit action, not {other:?}"),
     };
 }
@@ -252,7 +256,11 @@ fn the_section_is_informational_and_last() {
     let split = |action: Action| -> (i32, String, String) {
         return match action {
             Action::Exit { code, stdout, stderr } => (code, stdout, stderr),
-            Action::ExitBytes { code, stdout, stderr } => (code, String::from_utf8(stdout).expect("a report of text paths"), stderr),
+            Action::ExitBytes { code, stdout, stderr } => (
+                code,
+                String::from_utf8(stdout).expect("a report of text paths"),
+                String::from_utf8(stderr).expect("an explanation of text paths"),
+            ),
             other => panic!("an exit action, not {other:?}"),
         };
     };

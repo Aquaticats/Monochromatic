@@ -104,11 +104,7 @@ pub(crate) struct JournalRecord {
 /// The hexadecimal text of `bytes`,
 ///  in lower case.
 fn to_hex(bytes: &[u8]) -> String {
-    let mut text: String = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        text.push_str(format!("{byte:02x}").as_str());
-    }
-    return text;
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes);
 }
 
 /// The bytes a hexadecimal text names,

@@ -25,6 +25,8 @@
 
 /// The conclusion state names a shadow keeps privately.
 use crate::conclusion_cleanup::{CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY};
+/// The name prefix of every private copy of an index the wrapper makes beside the real one.
+use crate::candidate_private_index::PRIVATE_INDEX_PREFIX;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -59,6 +61,11 @@ pub const PRIVATE_SHADOW_ENTRIES: [&str; 14] = [
 /// Why:
 ///   A shadow Git that locks the same name as the real owner would collide with it,
 ///  so lock files are never linked.
+///  The wrapper's own private copy of an index is private for a second reason:
+/// its directory sits beside the real index,
+///  a common directory collects one for every command that died before it removed its own,
+///  so the number of names to link grows with no limit the person chose,
+/// and no hook resolves one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -68,6 +75,7 @@ pub fn is_private_shadow_entry(name: &str) -> bool {
     return PRIVATE_SHADOW_ENTRIES.contains(&name)
         || CONCLUSION_STATE_FILES.contains(&name)
         || name == SEQUENCER_DIRECTORY
+        || name.starts_with(PRIVATE_INDEX_PREFIX)
         || name.ends_with(".lock");
 }
 
@@ -116,6 +124,52 @@ fn share_entry(source: &Path, destination: &Path, directory: bool) -> std::io::R
         }
         return std::fs::copy(source, destination).map(|_| ());
     }
+}
+
+/// What:
+///  Shares one real entry with the shadow,
+/// replacing whatever the shadow already holds at that name.
+/// Why:
+///   A fresh shadow holds nothing at a shared entry's name,
+/// and the template entries only exist on the reftable path,
+/// where Git's own `init` makes them;
+/// so the common case is one call,
+///  and a name that is taken is replaced only when the link is refused.
+///  Looking at the name first cost one call per entry on every commit,
+///  for an answer that is almost always "nothing there".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await symlink(source, destination).catch((error) => { if (error.code !== 'EEXIST') throw error; await rm(destination, { recursive: true, force: true }); await symlink(source, destination); });
+/// ```
+#[cfg(unix)]
+fn share_replacing_template(source: &Path, destination: &Path, directory: bool) -> std::io::Result<()> {
+    return match share_entry(source, destination, directory) {
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            remove_entry(destination)?;
+            share_entry(source, destination, directory)
+        }
+        other => other,
+    };
+}
+
+/// What:
+///  The same on Windows,
+/// where a shared file is a copy rather than a link.
+/// Why:
+///   A copy writes over a file and refuses a directory,
+/// so what sits at the name is removed first,
+///  as it always was on that side.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await rm(destination, { recursive: true, force: true }); await copyOrLink(source, destination);
+/// ```
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(windows)]
+fn share_replacing_template(source: &Path, destination: &Path, directory: bool) -> std::io::Result<()> {
+    remove_entry(destination)?;
+    return share_entry(source, destination, directory);
 }
 
 /// What:
@@ -176,12 +230,8 @@ fn link_directory_entries(
         }
         let destination: PathBuf = shadow_directory.join(&name);
         // `git init` may have created a template entry of the same name; the real one replaces it.
-        remove_entry(destination.as_path())?;
-        share_entry(
-            entry.path().as_path(),
-            destination.as_path(),
-            entry.file_type()?.is_dir(),
-        )?;
+        let directory: bool = entry.file_type()?.is_dir();
+        share_replacing_template(entry.path().as_path(), destination.as_path(), directory)?;
     }
     return Ok(());
 }

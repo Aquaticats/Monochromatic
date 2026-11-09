@@ -354,7 +354,13 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool, discard_left_out: b
         let mut lines: Vec<String> = Vec::new();
         // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
         //  stops, because each of them is a fact about an index that was looked at.
-        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines);
+        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(
+            root.as_path(),
+            IndexLock::Acquire,
+            std::slice::from_ref(&new_path),
+            run.platform.flushes_to_disk(),
+            &mut lines,
+        );
         for text in &lines {
             run.line(text.as_str());
         }

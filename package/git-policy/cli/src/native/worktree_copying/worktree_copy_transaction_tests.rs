@@ -8,6 +8,7 @@ use crate::worktree_copy_journal::create_journal;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
 use crate::test_support::{fixture, git, git_context, remove, repository};
+use std::os::unix::ffi::OsStrExt;
 use crate::worktree_copy_install_entry::capture_installed_path;
 use crate::worktree_copy_install_log::{INSTALL_LOG_NAME, open_install_log};
 use crate::worktree_copy_journal::{ensure_journal_root, read_pending_journals};
@@ -40,24 +41,25 @@ fn stage(source: &Path, destination: &Path) -> StagedSnapshot {
 
 /// Entries of the destination with their content,
 /// sorted,
+/// as the bytes each name has,
 /// for comparison.
-fn tree(root: &Path) -> Vec<String> {
-    let mut found: Vec<String> = Vec::new();
+fn tree_names(root: &Path) -> Vec<Vec<u8>> {
+    let mut found: Vec<Vec<u8>> = Vec::new();
     let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
         for listed in std::fs::read_dir(&directory).expect("read") {
             let path: PathBuf = listed.expect("entry").path();
-            let relative: String = path
+            let mut relative: Vec<u8> = path
                 .strip_prefix(root)
                 .expect("prefix")
-                .to_string_lossy()
-                .into_owned();
+                .as_os_str()
+                .as_bytes()
+                .to_vec();
             if path.is_dir() {
-                found.push(format!("{relative}/"));
+                relative.push(b'/');
                 pending.push(path);
-            } else {
-                found.push(relative);
             }
+            found.push(relative);
         }
     }
     found.sort();
@@ -83,16 +85,16 @@ fn recorder_claims_each_path_once() {
         created_paths: BTreeSet::new(),
     };
     state
-        .record_intents(&[String::from("cache"), String::from("cache/top")])
+        .record_intents(&[b"cache".to_vec(), b"cache/top".to_vec()])
         .expect("first");
     state
-        .record_intents(&[String::from("cache")])
+        .record_intents(&[b"cache".to_vec()])
         .expect("repeat");
     state
         .record_creations(&[InstalledPath {
             device: 1,
             inode: 2,
-            relative_path: String::from("cache"),
+            relative_path: b"cache".to_vec(),
             selected: true,
         }])
         .expect("creation");
@@ -162,10 +164,10 @@ fn interrupted_installation_resumes_from_its_log() {
     let mut opened = open_install_log(snapshot.stage_container.as_path()).expect("log");
     opened
         .log
-        .append_intents(&[String::from("cache")])
+        .append_intents(&[b"cache".to_vec()])
         .expect("claim");
     let created_cache: InstalledPath =
-        capture_installed_path(destination.join("cache").as_path(), "cache", true)
+        capture_installed_path(destination.join("cache").as_path(), b"cache", true)
             .expect("identity");
     opened
         .log
@@ -195,12 +197,12 @@ fn interrupted_installation_resumes_from_its_log() {
         Outcome::Ended(failure) => panic!("resumption must finish: {}", failure.0),
     }
     assert_eq!(
-        tree(destination.as_path()),
+        tree_names(destination.as_path()),
         vec![
-            String::from("cache/"),
-            String::from("cache/deep/"),
-            String::from("cache/deep/data"),
-            String::from("cache/top"),
+            b"cache/".to_vec(),
+            b"cache/deep/".to_vec(),
+            b"cache/deep/data".to_vec(),
+            b"cache/top".to_vec(),
         ]
     );
     assert_eq!(
@@ -222,7 +224,7 @@ fn stage_missing_a_claim_cannot_be_recovered() {
     let common: PathBuf = common_of(source.as_path());
     let pending: PendingJournal =
         create_journal(common.as_path(), destination.as_path(), &snapshot).expect("journal");
-    let claims: BTreeSet<String> = BTreeSet::from([String::from("nowhere")]);
+    let claims: BTreeSet<Vec<u8>> = BTreeSet::from([b"nowhere".to_vec()]);
     let failure: WorktreeCopyError =
         snapshot_from_journal(&pending, &claims).expect_err("claim absent");
     assert!(

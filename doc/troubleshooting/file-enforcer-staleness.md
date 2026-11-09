@@ -19,6 +19,16 @@ it silently produces output that a
 full build would not,
 with exit code 0.
 
+Note 2026-11-09T16:38:44-05:00:
+these citations in this record name paths that no longer exist.
+`package/file-enforcer/core/src/tracker.ts` left the tree on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/src/io/write-lazy.ts` left the tree on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/src/io/write.ts` left the tree on 2026-10-31 in `e7b5130459`.
+`package/file-enforcer/core/TODO.md` left the tree on 2026-10-31 in `e7b5130459`.
+
 ## Defect 2: a skip can be unsound
 
 ### Symptom

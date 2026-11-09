@@ -137,7 +137,7 @@ fn a_refused_probe_is_an_error() {
             "a signalable PID 1 is not linux:1"
         ),
         Err(OwnerLivenessError::Identity(error)) => panic!("unexpected identity failure: {error}"),
-        Err(OwnerLivenessError::ExpiredForeign(text)) => panic!("a bare PID is no foreign record: {text}"),
+        Err(OwnerLivenessError::ForeignRecordRefused(text)) => panic!("a bare PID is no foreign record: {text}"),
     }
 }
 
@@ -206,6 +206,28 @@ fn an_owner_of_another_namespace_is_alive_until_its_record_expires() {
     let refused = classify_transaction_owner_record(&owner, old.as_path()).expect_err("an expired foreign record is refused");
     let text: String = format!("{refused:?}");
     assert!(text.contains("pid:[1]") && text.contains(old.to_string_lossy().as_ref()), "{text}");
+}
+
+/// A record of another PID namespace that is gone is a dead owner, not a refusal:
+/// its owner finished and removed the record,
+/// so the recovery that read the parsed copy finds nothing in its way.
+/// Why:
+///  Reading the absence as an unreadable record stopped the command with an instruction to remove a file
+///  that no longer exists,
+///  after a concurrent merge had completed (cross-vendor review of 2026-11-09,
+/// finding 3).
+#[cfg(target_os = "linux")]
+#[test]
+fn an_owner_of_another_namespace_whose_record_is_gone_is_dead_and_not_refused() {
+    let directory: std::path::PathBuf = crate::test_support::fixture("owner-namespace-gone");
+    let mut owner: TransactionOwner = incumbent_owner();
+    owner.owner_pid = i64::from(i32::MAX);
+    owner.owner_pid_namespace = Some(String::from("pid:[1]"));
+    let record: std::path::PathBuf = directory.join("owner.json");
+    assert_eq!(
+        classify_transaction_owner_record(&owner, record.as_path()).expect("a gone record is no refusal"),
+        OwnerLiveness::Dead
+    );
 }
 
 /// A record of this namespace,

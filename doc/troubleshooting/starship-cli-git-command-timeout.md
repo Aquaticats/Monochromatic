@@ -1,5 +1,8 @@
 # Starship 1.26.0: cli-git `for-each-ref` startup exceeds prompt command timeout
 
+Note 2026-11-09T16:47:44-05:00:
+`package/git-policy/cli/src/read-only-forwarding.unit.test.ts` left the tree on 2026-10-13 in `642b6d72cb`.
+
 ## Symptom
 
 After an interactive command returns in the Monochromatic repository,

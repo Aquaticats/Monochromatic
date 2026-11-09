@@ -44,6 +44,7 @@ fn the_start_notice_names_the_traffic_and_the_absence_of_a_switch() {
         "reported loudly as not in force every time the watcher starts",
         "Update entry points",
         "mpm-shadow install, update and outdated",
+        "the TypeScript mpm-shadow launcher",
         "install roots",
         "monochromatic-dev data directory",
         "update-host list",

@@ -10,11 +10,14 @@ runWorkspaceNode('package/css/cli', 'cli', ['./src/client/styles.css', './dist/c
 """
 
 [tasks."build:js"]
-description = "Build CSS then bundle client JS"
-run = ["mise run build:css", "mise run build:js:client"]
+description = "Build CSS, bundle client JS, then build the server library the unit tests load"
+run = ["mise run build:css", "mise run build:js:client", "mise run build:js:node"]
 
 [tasks."build:js:client"]
 extends = "build:js:client"
+
+[tasks."build:js:node"]
+extends = "build:js:node"
 
 [tasks."watch:build"]
 extends = "watch:build"
@@ -24,6 +27,9 @@ extends = "watch:build:js"
 
 [tasks."watch:build:js:client"]
 extends = "watch:build:js:client"
+
+[tasks."watch:build:js:node"]
+extends = "watch:build:js:node"
 
 [tasks."serve:site"]
 hide = true
