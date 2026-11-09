@@ -5495,6 +5495,9 @@ so a replacement that dropped it would delete its only copy.
 A namespace the system does not let this process list,
 such as another user's `trusted.*`,
 is invisible to the fix and is neither carried nor counted.
+A journal record written before the attributes were recorded names none,
+so the sweep keeps and names such a journal whose bytes carry one,
+rather than removing a copy it cannot prove is only a correction.
 
 What a replacement does not carry is its inode number and birth time,
 and its share of a hard link,

@@ -201,7 +201,8 @@ const NOTICE_THREAD_NAME: &str = "cli-git-markdown-notice";
 ///   The waiting thread must not be the one that blocks,
 ///  and the sink must come back for the next notice,
 ///  so the thread returns it over a channel the wait polls.
-///  A thread the system will not start costs the notice and nothing else:
+///  A thread the system will not start costs that notice and every later one,
+///  because the sink went with it:
 ///  a notice is advisory,
 ///  and the wait itself goes on.
 ///

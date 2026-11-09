@@ -54,8 +54,9 @@ fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
 }
 
 /// What:
-///  A file in a fresh fixture,
-///  saying whether the filesystem can hold an attribute at all.
+///  A fresh fixture and the one file in it,
+///  carrying the attribute the control planted,
+///  or nothing when the filesystem refuses that attribute.
 /// Why:
 ///  Every control here plants one,
 ///  and a filesystem without them has nothing to check;
@@ -63,7 +64,8 @@ fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // const file = plant('xattr-module', 'user.draft');
+/// // const planted = plant('xattr-read', 'user.draft', 'only-copy-of-draft');
+/// // if (planted === undefined) return; // XATTR CONTROL NOT RUN
 /// ```
 fn plant(name: &str, attribute: &[u8], value: &[u8]) -> Option<(PathBuf, PathBuf)> {
     let root: PathBuf = fixture(name);

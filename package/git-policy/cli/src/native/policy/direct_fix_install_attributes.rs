@@ -44,6 +44,11 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 /// How many times a list or a value is asked for before a changing file is refused.
+///  Exempt from a citation under `LQM` (class:
+/// poll):
+/// it sets how often a condition is looked at again,
+/// so it adds at
+///  most one retry to a read that already exists.
 /// Why:
 ///   The kernel answers a list that grew between the size question and the answer with `ERANGE`,
 ///  and a
