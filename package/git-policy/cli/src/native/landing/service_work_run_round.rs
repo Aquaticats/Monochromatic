@@ -21,7 +21,7 @@ use crate::push_retry::{PushRetries, RetryChange, Retrying};
 use crate::parallel_budget::HostResources;
 use crate::service_review_key::ReviewKey;
 use crate::service_round::{Assignment, RoundAnswer, RoundDrain, drain_directories};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 /// What:
 ///  Runs one round of wakes:
@@ -100,7 +100,10 @@ pub fn run_planned_round<H: WorkHandlers + Sync>(host: &HostResources, directori
     let first: Duration = retries.first();
     let mut assignments: Vec<Assignment> = Vec::new();
     for directory in directories {
-        assignments.push(Assignment { directory: directory.clone(), retrying: Retrying { first: Some(first), due: retries.take_due(directory.as_path(), taken_at) } });
+        assignments.push(Assignment {
+            directory: directory.clone(),
+            retrying: Retrying { first: Some(first), due: retries.take_due(directory.as_path(), taken_at), plans: retries.plans().map(Path::to_path_buf) },
+        });
     }
     let answered: RoundAnswer = drain_directories(&RoundDrain { directories: assignments.as_slice(), handlers, now, host });
     let mut named: Vec<PathBuf> = directories.to_vec();

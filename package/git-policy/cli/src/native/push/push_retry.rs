@@ -290,6 +290,10 @@ pub struct Retrying {
     /// The pushes due again,
     /// each naming the directory it belongs to.
     pub due: Vec<Due>,
+    /// The directory a plan is kept in,
+    /// so that a drain can keep one on disk before it tells the person a retry is coming;
+    /// nothing for a plan kept in memory only.
+    pub plans: Option<PathBuf>,
 }
 
 /// Methods over a request.
@@ -298,7 +302,7 @@ impl Retrying {
     /// a push that could pass is reported as failed,
     /// as it is for handlers that do not retry.
     pub fn none() -> Self {
-        return Self { first: None, due: Vec::new() };
+        return Self { first: None, due: Vec::new(), plans: None };
     }
 }
 
@@ -416,6 +420,12 @@ impl PushRetries {
     /// The pause before the first new try.
     pub fn first(&self) -> Duration {
         return self.first;
+    }
+
+    /// The directory the plan is kept in,
+    /// or nothing for a list kept in memory only.
+    pub fn plans(&self) -> Option<&Path> {
+        return self.store.as_deref();
     }
 
     /// Plan try number `attempt` of the branch of `item`,

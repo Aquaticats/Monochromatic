@@ -149,7 +149,7 @@ pub fn drain_planned_with(git_dir: &Path, handlers: &dyn WorkHandlers, now: &Cla
         return keep_plans_while_unreachable(git_dir, retrying, &unreachable);
     }
     let work_dir: PathBuf = work_directory(git_dir);
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     tell_about_given_up(git_dir, requeue_expired_reporting(work_dir.as_path(), now, lease, MAX_TRIES).given_up.as_slice());
     run_due_push_retries(git_dir, handlers, retrying.due.as_slice(), &mut replanning);
     drain_pending(git_dir, handlers, lease, renewal, &mut replanning);
@@ -189,7 +189,7 @@ pub fn drain_common_records(git_dir: &Path, handlers: &dyn WorkHandlers, now: &C
 /// `drain_common_records` with the lease given,
 /// so a test can use a short one.
 pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration) -> Option<Duration> {
-    return drain_common_records_planned(git_dir, handlers, now, lease, None).wait;
+    return drain_common_records_planned(git_dir, handlers, now, lease, &Retrying::none()).wait;
 }
 
 /// `drain_common_records` for a service round:
@@ -200,14 +200,14 @@ pub fn drain_common_records_with_lease(git_dir: &Path, handlers: &dyn WorkHandle
 /// when one is due;
 /// that wake drains the common directory as a directory of its own,
 /// which has no `commondir`.
-pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, first: Option<Duration>) -> Drained {
+pub fn drain_common_records_planned(git_dir: &Path, handlers: &dyn WorkHandlers, now: &ClaimTime, lease: Duration, retrying: &Retrying) -> Drained {
     let Some(common) = common_directory_of(git_dir) else {
         return Drained::default();
     };
     if common == git_dir || !is_bare_common_directory(common.as_path()) || !work_directory(common.as_path()).is_dir() {
         return Drained::default();
     }
-    let mut replanning: Replanning = Replanning { first, changes: Vec::new() };
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     tell_about_given_up(common.as_path(), requeue_expired_reporting(work_directory(common.as_path()).as_path(), now, lease, MAX_TRIES).given_up.as_slice());
     drain_pending(common.as_path(), handlers, lease, Renewal::Timed, &mut replanning);
     let wait: Option<Duration> = next_claim_expiry(work_directory(common.as_path()).as_path(), &ClaimTime::read(), lease);

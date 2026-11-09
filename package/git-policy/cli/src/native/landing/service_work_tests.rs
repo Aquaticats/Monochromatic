@@ -15,7 +15,7 @@ use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
 use std::cell::RefCell;
 use std::ffi::OsString;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
 const OTHER_OID: &str = "89abcdef0123456789abcdef0123456789abcdef";
@@ -986,4 +986,26 @@ fn a_drain_of_many_claims_lists_the_state_directories_once() {
     for (_count, listings) in &measured {
         assert_eq!(*listings, first, "the listings of a drain do not grow with its claims: {measured:?}");
     }
+}
+
+/// A push the service will try again says so only once the plan that keeps the promise is on disk:
+/// a notice written before the plan is a promise a service that restarts cannot keep,
+/// and a service killed before the loop applies the worker's changes leaves exactly that.
+#[test]
+fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
+    let repo: Repo = repo("work-retry-plan-first");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let recorder: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    // The worker's changes are never applied, as a kill before the loop applies them leaves them.
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) };
+    let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+    assert_eq!(drained.changes.len(), 1, "the worker asked for one plan");
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown.len(), 1, "the person is told about the push");
+    assert!(shown[0].contains("tries this push again by itself"), "{shown:?}");
+    // A service started in its place knows the branch by itself: the promise the notice made is the plan's.
+    let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the retry the notice promised is on disk before the notice was written");
+    remove(repo.root.as_path());
 }

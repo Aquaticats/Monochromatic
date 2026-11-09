@@ -281,6 +281,9 @@ pub(crate) struct Replanning {
     pub(crate) first: Option<Duration>,
     /// What was asked of the plan.
     pub(crate) changes: Vec<RetryChange>,
+    /// The directory a plan is kept in,
+    /// or nothing for a plan kept in memory only.
+    pub(crate) plans: Option<PathBuf>,
 }
 
 /// Methods over the state.
@@ -290,6 +293,28 @@ impl Replanning {
     /// or the person must act.
     pub(crate) fn forget(&mut self, git_dir: &Path, branch_ref: &str) {
         self.changes.push(RetryChange::Forget { git_dir: git_dir.to_path_buf(), branch_ref: branch_ref.to_string() });
+    }
+
+    /// What:
+    ///  Keep the plan of the try `attempt` of the branch of `item` on disk now,
+    /// before any words that promise it reach the person.
+    /// Why:
+    ///   The loop applies the changes a worker asks only once every repository of the round is drained,
+    /// so a kill before it applies them would take the plan,
+    /// and a notice that says the service keeps trying would be the only statement left and it would be false.
+    /// A worker writes only its own branch's plan,
+    /// whose file name the branch key and the try number make,
+    /// and the loop writes the same file again when it applies the change.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// savePlans(this.plans, { gitDir, item, attempt });
+    /// ```
+    pub(crate) fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) {
+        let Some(directory) = self.plans.as_deref() else { return };
+        if let Err(reason) = crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
+            crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+        }
     }
 }
 
@@ -315,6 +340,8 @@ impl Replanning {
 pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> String {
     let pause: Duration = pause_before(attempt, first);
     replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
+    // The notice below says the service keeps trying, so the plan that keeps it is written first.
+    replanning.keep_the_plan(git_dir, item, attempt);
     let plan: String = format!(
         "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
         pause.as_secs(),
@@ -352,7 +379,7 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
 /// ```
 pub(crate) fn keep_plans_while_unreachable(git_dir: &Path, retrying: &Retrying, unreachable: &GitDirUnreachable) -> Drained {
     crate::service_warn!("{unreachable}; its work stays where it is for the next command, nothing runs, and its push plans keep their pauses");
-    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new() };
+    let mut replanning: Replanning = Replanning { first: retrying.first, changes: Vec::new(), plans: retrying.plans.clone() };
     let Some(first) = retrying.first else {
         return Drained { wait: None, changes: replanning.changes };
     };
