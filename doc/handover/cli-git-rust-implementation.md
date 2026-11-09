@@ -4877,6 +4877,35 @@ The waits that no ceiling ends,
 the one move that can advance a branch the reconcile never checked,
 and the notice deleted before it is shown are there with `path:line` and suggested fixes.
 
+No review covers the discarding route either:
+the reading of `reset`,
+`checkout`,
+`switch`,
+`restore`,
+`clean`,
+`stash`,
+`rm`,
+`mv`,
+`checkout-index`,
+`read-tree`
+and the abort forms,
+the rule for the main worktree and for a dirty one,
+the audit log,
+and the saved copies under `discarded`.
+Its audit,
+with seven findings ranked by what they risk losing,
+six of them reproduced,
+is `doc/planning/cli-git-discarding-commands-route-findings-on-main.md`
+(2026-11-09;
+main at `9d4e5a9970`).
+The first two lose uncommitted work with the wrapper's approval:
+`git worktree remove` is not in the guard at all,
+and the dirtiness measurement cannot see ignored files,
+so `git clean -fdx` deletes them and a plain `git checkout <branch>` can replace them.
+An alias reaches no guard,
+`git stash drop` in a clean linked worktree discards the repository's stash,
+and `git branch -D` is unguarded.
+
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
 merges and pushes that never fail").
