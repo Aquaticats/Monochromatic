@@ -1,8 +1,7 @@
 //! What:
 //!  The restore of a snapshot of a main checkout that had uncommitted changes:
 //! make the copy's index and files equal the
-//!  tree of the new worktree's `HEAD` with `git read-tree --reset -u` and `git clean -f -d`,
-//! then prove it in the stage.
+//!  tree of the new worktree's `HEAD` and prove it in the stage.
 //! Why:
 //!  `git worktree add` from a checkout with changes makes a worktree that holds the committed files and nothing of the changes.
 //!  The snapshot carries the changes,
@@ -14,7 +13,19 @@
 //!  edited,
 //! deleted and staged paths and leaves the rest.
 //! Untracked files that no ignore rule covers go,
-//! ignored files stay.
+//! ignored files stay:
+//! the `clean` runs
+//!  before the reset,
+//! while the stage still carries the source's ignore rules,
+//! so a commit that ignores
+//!  less than the source does cannot put the person's cache,
+//! local configuration or environment file in the
+//!  way of the rule that decides what goes.
+//! The stage then holds what the ignored-state copy hands over on
+//!  every other filesystem (`SPEC.md`,
+//! "Linked-worktree ignored-state synchronization"),
+//! and the proof
+//!  counts those paths as carried instead of as untracked.
 //!  Both Git runs are the ladder's own steps on the new worktree (its Git directory and its stage),
 //! started as real Git
 //!  children by the lifecycle's runner,
@@ -84,7 +95,7 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
 /// What:
 ///  Whether a byte is the NUL that ends each name in Git's `-z` output.
 /// Why:
-///   The untracked names are split on it,
+///   The untracked and the ignored names are split on it,
 /// and a path may hold any other byte.
 ///
 /// In TS you'd write (pseudocode):
@@ -94,6 +105,22 @@ pub fn record_left_out(destination: &Path, changed: &ChangedPaths) {
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
+
+/// What:
+///  The words of the query that lists the stage's ignored paths under the stage's own rules,
+/// which are the source's until the
+///  reset brings the new commit's.
+/// Why:
+///   `--directory` collapses a whole ignored directory into one name,
+/// so a carried `node_modules` costs one
+///  entry rather than every file in it,
+/// and every name ends with `/` when it is a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const IGNORED_WORDS = ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z']
+/// ```
+const IGNORED_WORDS: [&str; 7] = ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory", "-z"];
 
 /// What:
 ///  Whether a name split out of `-z` output holds anything.
@@ -152,23 +179,98 @@ fn ask(context: &GitContext, target: &Target, work_tree: &Path, arguments: &[&st
 }
 
 /// What:
-///  Prove that the stage equals what Git's checkout of the target commit makes:
+///  Whether a name Git lists as untracked is one the restore carried through:
+/// the same name,
+/// or a file below a
+///  carried directory.
+/// Why:
+///   A carried directory is one name ending in `/`,
+/// while a path inside it is listed whole when a tracked file
+///  of the new tree also lives there,
+/// so the prefix decides for the rest of one directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// carried.some((kept) => name.equals(kept) || (kept.endsWith('/') && name.startsWith(kept)))
+/// ```
+fn is_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
+    for kept in carried {
+        if name == kept.as_slice() || (kept.ends_with(b"/") && name.starts_with(kept.as_slice())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether a name Git lists as untracked is a whole directory that holds a path the restore carried.
+/// Why:
+///   `--directory` collapses a directory whose every path is untracked into that one name,
+/// so
+///  `cache/private/token` carried by the restore is reported as `cache/`;
+/// the name matches no carried
+///  path and its content decides,
+/// which needs the same query without the collapse.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// name.endsWith('/') && carried.some((kept) => kept.startsWith(name))
+/// ```
+fn holds_carried(name: &[u8], carried: &[Vec<u8>]) -> bool {
+    if !name.ends_with(b"/") {
+        return false;
+    }
+    for kept in carried {
+        if kept.starts_with(name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Whether a name lies below one of the directories Git reported as one collapsed name.
+/// Why:
+///   Only the paths inside such a directory are judged when the collapse is opened;
+/// every other name was
+///  carried already.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// directories.some((directory) => name.startsWith(directory))
+/// ```
+fn lies_below(name: &[u8], directories: &[Vec<u8>]) -> bool {
+    for directory in directories {
+        if name.starts_with(directory.as_slice()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// What:
+///  Prove that the stage equals what Git's checkout of the target commit makes,
+/// plus the ignored paths the
+///  restore carried:
 /// the index equals the commit's tree,
-/// Git shows
-///  no untracked file,
-/// and no tracked file differs from the index.
+/// Git shows no untracked file besides those,
+/// and no tracked file
+///  differs from the index.
 /// Why:
 ///   The restore trusts Git's reset and clean;
 /// the proof asks Git again from the other side,
 /// so a state either of them left
 ///  (a path the reset skipped,
 /// a directory the clean could not remove) ends the rung instead of reaching the person.
+/// A carried path is what the source ignored and the new commit does not,
+/// which the person keeps and the
+///  ignored-state copy hands over on every other filesystem.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await proveRestored({ context, target, workTree }); // throws the first thing that is not as Git's checkout leaves it
+/// await proveRestored({ context, target, workTree, carried }); // throws the first thing that is not as Git's checkout leaves it
 /// ```
-pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -> Result<(), String> {
+pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path, carried: &[Vec<u8>]) -> Result<(), String> {
     let cached: Option<i32> = ask(context, target, work_tree, &["diff-index", "--cached", "--quiet", target.commit.as_str()])?.0;
     if cached != Some(0) {
         return Err(String::from("the restored index does not equal the tree of the new HEAD"));
@@ -177,14 +279,67 @@ pub fn prove_restored(context: &GitContext, target: &Target, work_tree: &Path) -
     if listed != Some(0) {
         return Err(String::from("Git could not list the untracked files of the restored worktree"));
     }
-    if let Some(name) = untracked.split(is_nul_byte).find(is_nonempty_name) {
-        return Err(format!("{} is still untracked in the restored worktree", crate::worktree_snapshot_source::plain(String::from_utf8_lossy(name).as_ref())));
+    let names: Vec<Vec<u8>> = untracked.split(is_nul_byte).filter(is_nonempty_name).map(<[u8]>::to_vec).collect();
+    // The first untracked name the restore did not carry; the loop stops there, as `find` did.
+    let mut first_untracked: Option<Vec<u8>> = None;
+    let mut collapsed: Vec<Vec<u8>> = Vec::new();
+    for name in &names {
+        if is_carried(name.as_slice(), carried) {
+            continue;
+        }
+        if holds_carried(name.as_slice(), carried) {
+            collapsed.push(name.clone());
+            continue;
+        }
+        first_untracked = Some(name.clone());
+        break;
+    }
+    // A whole directory that holds carried paths is decided by its content, which the collapsed listing does not carry:
+    //  the same query without `--directory` names every path below it.
+    if first_untracked.is_none() && !collapsed.is_empty() {
+        let (expanded_code, expanded) = ask(context, target, work_tree, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+        if expanded_code != Some(0) {
+            return Err(String::from("Git could not list the untracked files below the carried directories of the restored worktree"));
+        }
+        // Inside a reported directory only its own paths are judged; every other name was carried already.
+        for name in expanded.split(is_nul_byte).filter(is_nonempty_name) {
+            if lies_below(name, collapsed.as_slice()) && !is_carried(name, carried) {
+                first_untracked = Some(name.to_vec());
+                break;
+            }
+        }
+    }
+    if let Some(name) = first_untracked {
+        return Err(format!("{} is still untracked in the restored worktree", crate::worktree_snapshot_source::plain(String::from_utf8_lossy(name.as_slice()).as_ref())));
     }
     let files: Option<i32> = ask(context, target, work_tree, &["diff-files", "--quiet"])?.0;
     if files != Some(0) {
         return Err(String::from("a tracked file of the restored worktree differs from its index entry"));
     }
     return Ok(());
+}
+
+/// What:
+///  The ignored paths of the stage,
+/// listed under the rules the stage has now,
+/// as the boundaries of a whole ignored
+///  directory collapse them.
+/// Why:
+///   The restore carries them through the clean and the reset,
+/// so it must know them before either
+///  runs;
+/// a query that fails ends the rung instead of guessing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const carried = listedIgnored({ context, target, stage }); // throws the reason
+/// ```
+fn listed_ignored(context: &GitContext, target: &Target, stage: &Path) -> Result<Vec<Vec<u8>>, String> {
+    let (listed, names) = ask(context, target, stage, IGNORED_WORDS.as_slice())?;
+    if listed != Some(0) {
+        return Err(String::from("Git could not list the ignored files of the snapshot"));
+    }
+    return Ok(names.split(is_nul_byte).filter(is_nonempty_name).map(<[u8]>::to_vec).collect());
 }
 
 /// What:
@@ -208,11 +363,10 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
     }
     let began: std::time::Instant = std::time::Instant::now();
     let environment = checkout_environment(target.admin.as_path(), stage);
-    let reset = run_step(run_git_step, arguments_in_stage(stage, &["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
-    if !reset.succeeded() {
-        return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
-    }
-    let reset_ms: u128 = began.elapsed().as_millis();
+    // The ignored paths are listed, and the clean runs, while the stage still carries the source's ignore rules: an
+    //  untracked file the source ignores is the person's, and a rule the new commit removed must not turn it into one the
+    //  clean removes.
+    let carried: Vec<Vec<u8>> = listed_ignored(context, target, stage)?;
     // The `clean` carries no `--quiet`, and what it says ("Removing notes.txt" for each untracked file of the stage) is about
     //  the stage, which the person's command never names, so Git's words are kept in the journal and not printed. It is run
     //  captured, like the proof that follows, in the same stage under the same Git directory.
@@ -232,10 +386,22 @@ pub fn restore_dirty(source: &SnapshotSource, target: &Target, stage: &Path, run
     }
     record_words(&["clean", "--force", "-d"], &clean);
     let clean_ms: u128 = began.elapsed().as_millis();
-    prove_restored(context, target, stage)?;
+    let reset = run_step(run_git_step, arguments_in_stage(stage, &["read-tree", "--reset", "-u", target.commit.as_str()]).as_slice(), environment.as_slice())?;
+    if !reset.succeeded() {
+        return Err(format!("`git read-tree --reset -u` ended with {:?}", reset.code));
+    }
+    let reset_ms: u128 = began.elapsed().as_millis();
+    prove_restored(context, target, stage, carried.as_slice())?;
     crate::diagnostic_log::debug(
         TAG,
-        format!("restored {} to {} and proved it: reset done at {reset_ms} ms, clean at {clean_ms} ms, proof at {} ms", stage.display(), target.commit, began.elapsed().as_millis()).as_str(),
+        format!(
+            "restored {} to {}, carried {} ignored paths and proved it: clean done at {clean_ms} ms, reset at {reset_ms} ms, proof at {} ms",
+            stage.display(),
+            target.commit,
+            carried.len(),
+            began.elapsed().as_millis()
+        )
+        .as_str(),
     );
     return Ok(());
 }

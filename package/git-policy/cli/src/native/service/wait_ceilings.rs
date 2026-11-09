@@ -474,6 +474,53 @@ pub const NEVER_ENDED_STEP_SLOW_AFTER: Duration = Duration::from_secs(60);
 /// no cold `pnpm install` of a large dependency graph.
 pub const REPAIR_TOOL_CEILING: Duration = Duration::from_secs(18 * 60);
 
+/// The longest one step of the cheap-worktree ladder that owns the checkout's conversion filters (`git read-tree`)
+/// runs before the wrapper ends it with a `SIGKILL` to Git,
+/// which leaves the filters Git started to run,
+/// as a Git the person kills does.
+/// It is `OBJECT_STEP_CEILING`,
+/// the class of a bulk Git step that can be run twice,
+/// because such a step writes only the wrapper's own stage:
+/// a stop leaves the snapshot partly updated,
+/// the rung ends,
+/// and Git's own checkout or the next add does the work again.
+/// Measured:
+/// the add timing log of this repository
+/// (`.git/monochromatic-git-policy-cli-worktree-add-timing.jsonl`,
+/// 338 records):
+/// the step that holds `git read-tree -m -u` (`applyDifference`) took at most 2,560 ms over 81 adds,
+/// and the one that holds `git read-tree --reset -u`,
+/// the `clean` and the proof (`restoreDirty`),
+/// at most 24,989 ms over 229.
+/// Ten minutes is 24 times the longer of the two,
+/// and it is the ceiling of every other bulk step of the wrapper.
+pub const LADDER_READ_TREE_CEILING: Duration = OBJECT_STEP_CEILING;
+
+/// The longest a whole checkout the wrapper runs itself (the fallback `git reset --hard` of a refused rung)
+/// runs before the
+///  wrapper ends it with a `SIGKILL` to Git,
+/// which leaves the helpers Git started to run,
+/// as a Git the person kills does.
+/// Measured:
+/// the add timing log of this repository (338 records):
+/// the longest whole `git worktree add`,
+/// which writes a whole checkout,
+/// took 229,386 ms.
+/// Margin:
+/// the smallest whole number of minutes that is at least five times that (1,146,930 ms),
+/// the factor the ceilings above use,
+/// so 20 minutes.
+/// A stopped checkout loses nothing of the person's:
+/// it writes the new
+///  worktree,
+/// whose files are the ones Git's own checkout had just written,
+/// and the source is never written.
+/// The report of an interrupted `git worktree add` then names the worktree,
+/// the index lock a stopped
+///  Git leaves (when it stands),
+/// and the two commands that finish or remove it.
+pub const LADDER_CHECKOUT_CEILING: Duration = whole_minutes_at_least(Duration::from_millis(229_386 * CEILING_MARGIN as u64));
+
 /// The longest the Markdown linter checks one file,
 /// whatever it shows,
 /// before the wrapper stops waiting for it (owner,
