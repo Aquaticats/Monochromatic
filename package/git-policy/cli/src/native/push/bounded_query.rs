@@ -405,7 +405,8 @@ pub(crate) struct InputWriter {
 /// What a writer has written of its request,
 /// and why it stopped short when it did,
 /// shared with the thread that writes it.
-/// A cell behind a mutex is enough: one thread writes it and one reads it.
+/// A cell behind a mutex is enough:
+/// one thread writes it and one reads it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

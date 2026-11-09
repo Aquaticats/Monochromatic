@@ -319,7 +319,8 @@ fn a_request_that_could_not_be_written_whole_is_a_failure() {
 }
 
 /// What:
-///  A command that reads a prefix of its input, closes its standard input and answers with status zero is not an answer
+///  A command that reads a prefix of its input,
+/// closes its standard input and answers with status zero is not an answer
 ///  to the whole request.
 /// Why:
 ///   The answer was made from the part of the request that arrived.
