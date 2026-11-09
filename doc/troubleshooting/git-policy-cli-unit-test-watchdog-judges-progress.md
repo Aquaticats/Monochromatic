@@ -169,15 +169,23 @@ processes it waits for (`package/git-policy/cli/src/native/push/push_progress.rs
 A run that shows none of them for `QUIET_WINDOW` ends the process;
 a run that is moving is left alone however long it takes.
 
+A look that cannot be read (a task that ended while it was read,
+or a process out of file descriptors)
+is neither a sign of work nor proof that the run stopped:
+the quiet clock keeps running through it,
+so a run whose counters never come back ends and does not wait for a reading that never comes,
+and a later look that reads the run counts again.
+The judge says which of the three endings it reached:
+`Quiet` (signs read, nothing moved),
+`Unreadable` (no counters could be read for the window, though earlier looks read them),
+and `Unmeasurable` (no look ever read them, so the wall clock is the bound).
+
 ```rust
 pub(crate) fn observe(&mut self, elapsed: Duration, look: Option<Look>) -> Option<Ending> {
-    if self.measured.is_none() {
-        self.measured = Some(look.is_some());
-    }
-    if self.measured == Some(false) {
-        return if elapsed >= self.window { Some(Ending::Unmeasurable(elapsed)) } else { None };
-    }
-    let current: Look = look?;
+    let Some(current): Option<Look> = look else {
+        return self.ending_without_a_look(elapsed);
+    };
+    self.last_read = Some(elapsed);
     let moved: bool = self.previous.is_none_or(|before: Look| {
         return before.bytes != current.bytes || before.ticks != current.ticks || before.members != current.members;
     });
@@ -185,8 +193,7 @@ pub(crate) fn observe(&mut self, elapsed: Duration, look: Option<Look>) -> Optio
         self.last_change = elapsed;
     }
     self.previous = Some(current);
-    let quiet: Duration = elapsed.saturating_sub(self.last_change);
-    return if quiet >= self.window { Some(Ending::Quiet(quiet)) } else { None };
+    return self.ending_after_the_quiet_stretch(elapsed);
 }
 ```
 
@@ -234,9 +241,14 @@ So 94 percent of the test was the flushes.
 `Platform::flushes_to_disk` now answers whether a platform's writes are flushed:
 `LinuxPlatform` flushes,
 and a stand-in platform says no.
-`subvolume_command::execute` and `worktree_convert::convert_worktree` keep the calling thread's writes in the page cache
-for the run when their platform says no (`subvolume_file_write_steps::without_flushing_for_this_thread`),
-which is a thread-local switch that goes back however the run ends.
+`subvolume_command::execute` and `worktree_convert::convert_worktree` install the answer of the platform whose call is
+running for that call's whole extent (`subvolume_file_write_steps::WritesKeptInMemory`,
+whose first name, `without_flushing_for_this_thread`, this record keeps as its original text and which the code renamed
+on 2026-11-09):
+a stand-in that keeps its writes in the page cache turns the flushes off,
+and a platform that flushes turns them back on,
+which is what keeps a real-platform call nested inside a control's simulated run durable.
+The switch is a thread-local value that goes back however the run ends.
 The same control then took 15.4 s.
 The rest of its flushes are the claim publishes of
 `package/git-policy/cli/src/native/foundation/private_storage.rs`,
@@ -261,10 +273,14 @@ and they are left as they are.
   one stuck (the process really ends with `SIGABRT` and the message) and one moving three windows past a one-second
   window (it ends on its own).
   `10 tests run: 10 passed`.
+  (The controls of the 2026-11-09 review named below add three;
+  the set now runs 13.)
 - Controls for the flush switch (`subvolume/subvolume_file_write_steps_tests.rs`,
   4 tests) and for the platform answer
   (`subvolume/subvolume_platform_tests.rs`,
   `the_real_platform_flushes_its_writes_and_a_stand_in_does_not`).
+  (The controls of the 2026-11-09 review named below add three;
+  the set now runs 7.)
 - The guard was shown to fail before it was kept,
   by planting the wall clock back at the top of `Judge::observe`,
   rebuilding and running the controls:
@@ -342,6 +358,63 @@ and they are left as they are.
   `monochromatic-lint` 0 warnings and 0 errors,
   Oxlint 0 warnings and 0 errors.
 
+## The cross-vendor review of 2026-11-09 and what it found
+
+A reviewer of another vendor read this branch and found five defects.
+All five held, each was shown by a control that failed before its fix, and each is fixed or guarded here.
+
+- `Judge::observe` returned before any deadline when a look could not be read
+  (`let current: Look = look?`),
+  so a test that exhausted its file descriptors and then blocked was never ended.
+  It now keeps the clock running through a look that reads nothing,
+  and ends as `Unreadable` when the window passes without a reading.
+- the first look decided whether the system counts work at all,
+  so one unreadable first sample made every later readable look irrelevant and the wall clock ended a working run.
+  Whether a look has ever read the system is now `last_read`,
+  and a look that reads again counts again.
+- a nested call on the real platform inherited a stand-in's skipped flushes,
+  because the entry points installed the switch only for a platform that does not flush.
+  Both entry points now install the platform's answer for every call,
+  so a call that flushes turns the flushes back on for its own extent.
+- two watchers of one process kept each other alive:
+  `look` left out only the reading thread, so the other watcher's `/proc` reads moved the run's byte counter.
+  Every watcher now lists its own thread in `WATCHING_THREADS` when it starts,
+  and `look` leaves out every thread in it.
+- the file-write control proved only that the bytes arrived,
+  and a read of a page-cached file does not flush,
+  so it stayed green with the durable flush removed.
+  `the_switch_decides_whether_a_write_is_flushed` writes to `/dev/null`,
+  whose flush the kernel refuses with `EINVAL`,
+  so the branch that skips the flush and the branch that makes it give different answers.
+
+The controls fail as the reviewer predicted when their fix is planted out.
+Measured on this host on 2026-11-09:
+
+- with the pre-fix judgment:
+  `a_run_whose_counters_stop_being_readable_is_ended` panicked with
+  `the run ends rather than wait for a reading that never comes`,
+  and `a_first_look_that_cannot_be_read_leaves_the_later_ones_to_judge` failed with
+  `assertion left == right failed: step 4 moved`, `left: Some(Unmeasurable(2s))`, `right: None`;
+- with the entry points installing the switch only when the platform says no,
+  both flush-scope controls failed with `left: Some(false)`, `right: Some(true)`;
+- with `look` leaving out the reading thread alone,
+  `two_watchers_do_not_keep_each_other_alive` failed with
+  `assertion left == right failed: a watcher ended the process:`, `left: None`, `right: Some(6)`,
+  after the child ran its whole five seconds;
+- with the durable file flush removed,
+  `the_switch_decides_whether_a_write_is_flushed` failed with
+  `the write made the flush and the kernel refused it: Ok(())`,
+  and with the skip branch removed it failed with
+  `the switch skipped the flush, so the refusal was never met: Err(Os { code: 22, kind: InvalidInput, message: "Invalid argument" })`.
+
+The judge and flush controls after the fixes:
+`20 tests run: 20 passed`
+(`run_progress` 13, `subvolume_file_write_steps` 7).
+
+What the review did not measure:
+no test in this crate was run with an exhausted descriptor table,
+so both judge findings are shown by made-up looks and times, not by a real stuck process without descriptors.
+
 ## What does not work
 
 - Raising the wall clock:
@@ -356,7 +429,9 @@ and they are left as they are.
   The judge counts the processes the test started.
 - Counting the reading thread's own reads:
   they grow the process's `rchar` by about 855 bytes per look,
-  so the reading thread is left out (`Look` never includes it).
+  so the reading thread is left out (`Look` never includes it),
+  and so is every other watcher of the same process (`WATCHING_THREADS`),
+  because two watchers would otherwise keep each other alive.
 - A per-run processor budget:
   a suite legitimately uses minutes of processor time,
   and a budget no loop could exceed would end working tests.
