@@ -714,3 +714,34 @@ fn a_directory_identity_that_never_answers_keeps_the_configured_directory() {
         "the configured directory is scanned when its identity is unknown"
     );
 }
+
+/// What:
+///  The doctor's report carries the saved copies of both data folders,
+/// including when the current folder holds none.
+/// Why:
+///  The report reads without moving anything,
+/// so a repository that holds both folder names keeps the earlier one's
+///  copies where they are;
+/// a report that named only the current folder hid a person's recoverable data from
+///  the person who asked what is there.
+#[test]
+fn the_doctor_reports_the_saved_copies_of_both_folders() {
+    let root: PathBuf = fixture("doctor-discarded-both");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let save: PathBuf = repo.join(".git/cli-git/discarded/2026-11-02T19-33-20");
+    std::fs::create_dir_all(save.as_path()).expect("the earlier save");
+    std::fs::write(save.join("copy.txt"), b"saved-content\n").expect("the kept copy");
+    // The current folder exists and holds no saved copy, which is the state that hid the older one.
+    std::fs::create_dir_all(repo.join(".git/monochromatic-git-policy-cli").as_path()).expect("the current folder");
+    let (code, _stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stderr.contains("discarded copies:"), "the saved copies are reported: {stderr}");
+    // The block names the folder it read and the oldest save inside it by its name.
+    assert!(stderr.contains(save.parent().expect("folder").display().to_string().as_str()), "the earlier folder is named: {stderr}");
+    assert!(
+        stderr.contains(save.file_name().expect("save name").to_string_lossy().as_ref()),
+        "the kept save is named: {stderr}"
+    );
+    assert!(save.join("copy.txt").exists(), "the copy stays where it is");
+    remove(root.as_path());
+}

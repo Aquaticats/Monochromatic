@@ -92,3 +92,33 @@ fn the_report_names_the_folder_and_what_it_holds() {
     assert!(text.contains(common.join(SAVED_DIRECTORY).display().to_string().as_str()), "{text}");
     remove(common.as_path());
 }
+
+/// What:
+///  Saved copies under both data-folder names are both reported,
+/// including when the current folder exists and holds none.
+/// Why:
+///  The read-only report chose one folder,
+/// and a repository that holds both names is a supported state:
+/// the
+///  earlier folder's copies are a person's recoverable data,
+/// so a report that named only the current folder hid them from
+///  the person who asked what is there.
+#[test]
+fn saved_copies_under_both_folder_names_are_both_reported() {
+    use crate::wrapper_names_old_and_new::DATA_FOLDER;
+    let common: PathBuf = fixture("discarded-report-both");
+    let current: PathBuf = common.join(SAVED_DIRECTORY);
+    let earlier: PathBuf = common.join(DATA_FOLDER.earlier).join("discarded");
+    let kept: PathBuf = make_save_at(earlier.as_path(), 9 * DAY);
+    // The current folder exists and holds no saved copy, which is the state that hid the older one.
+    std::fs::create_dir_all(current.as_path()).expect("the current folder");
+    let text: String = doctor_section(common.as_path(), Limits::default());
+    assert!(text.contains(earlier.display().to_string().as_str()), "the earlier folder is named: {text}");
+    assert!(text.contains("1 copies"), "the copies are counted: {text}");
+    assert!(text.contains("1 saves"), "the save is counted: {text}");
+    assert!(text.contains(kept.file_name().expect("name").to_string_lossy().as_ref()), "the kept save is named: {text}");
+    assert!(!text.contains("could not be read"), "{text}");
+    let merged: Report = report(common.as_path()).expect("a report of both folders");
+    assert_eq!((merged.copies, merged.saves), (1, 1), "the copies of both folders are counted");
+    remove(common.as_path());
+}

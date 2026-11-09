@@ -551,6 +551,13 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   so a mount that stops answering cannot hold the command:
   a read that gives no answer makes the command say which read it was and carries on,
   with status `2` for a hooks directory and one line of standard error for the host facts and for the folder of saved copies.
+- The saved copies are read under every data folder the repository holds,
+  the current `monochromatic-git-policy-cli` and the earlier `cli-git`,
+  and each folder that holds a copy gets its own block with its size,
+  count and oldest save.
+  A repository can hold both names at once,
+  and the earlier folder can hold the only copy,
+  so a report that named only one folder would hide a person's recoverable data from the person who asked what is there.
   The filesystem section describes the checkout Git reports for where the command runs
   (`git rev-parse --path-format=absolute --show-toplevel`),
   and says nothing about a file system when Git reports none,

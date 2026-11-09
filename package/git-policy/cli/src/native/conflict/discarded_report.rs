@@ -25,7 +25,7 @@ use crate::discarded_prune::{Limits, list_stamped_below};
 /// which are the pruning pass's.
 use crate::discarded_prune_problems::{Listing, Problem};
 /// The relative spelling a reader uses for the folder that exists.
-use crate::kept_names_in_the_git_directories::relative_path_for_reading;
+use crate::kept_names_in_the_git_directories::relative_paths_for_reading;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// `Duration` is how long the survey of the folders may take.
@@ -58,7 +58,22 @@ pub struct Report {
 /// or nothing when it holds no copy and nothing
 /// went wrong.
 pub fn report(common_dir: &Path) -> Option<Report> {
-    return report_below(common_dir, relative_path_for_reading(common_dir, SAVED_DIRECTORY).as_str());
+    let folders: SavedCopies = the_folders_that_exist(common_dir);
+    if folders.is_empty() {
+        return None;
+    }
+    let mut merged: Report = Report { bytes: 0, copies: 0, saves: 0, oldest: String::new(), problems: Vec::new() };
+    for (_, found) in folders {
+        merged.bytes += found.bytes;
+        merged.copies += found.copies;
+        merged.saves += found.saves;
+        // The names are ISO timestamps, so the smallest is the oldest save of every folder.
+        if !found.oldest.is_empty() && (merged.oldest.is_empty() || found.oldest < merged.oldest) {
+            merged.oldest = found.oldest;
+        }
+        merged.problems.extend(found.problems);
+    }
+    return Some(merged);
 }
 
 /// What:
@@ -127,23 +142,29 @@ pub type SavedCopies = Vec<(String, Report)>;
 pub type SavedCopiesRead = fn(&Path) -> SavedCopies;
 
 /// What:
-///  The folder of saved copies that exists,
+///  Every folder of saved copies that exists,
 /// with what it holds.
 /// Why:
 ///   The report changes nothing,
-/// so it reads the folder under the name it has now,
-/// else under the earlier one.
+/// so it reads each folder under the name it has,
+/// and a repository can hold
+///  both names at once:
+/// the earlier folder's copies are a person's recoverable data,
+/// so neither folder is skipped
+///  because the other one exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const folderThatExists = (commonDir) => [[relativePathForReading(commonDir, SAVED_DIRECTORY), report]];
+/// const foldersThatExist = (commonDir) => relativePathsForReading(commonDir, SAVED_DIRECTORY).flatMap((relative) => ...);
 /// ```
-fn the_folder_that_exists(common_dir: &Path) -> SavedCopies {
-    let relative: String = relative_path_for_reading(common_dir, SAVED_DIRECTORY);
-    return match report_below(common_dir, relative.as_str()) {
-        Some(found) => vec![(relative, found)],
-        None => Vec::new(),
-    };
+fn the_folders_that_exist(common_dir: &Path) -> SavedCopies {
+    let mut folders: SavedCopies = Vec::new();
+    for relative in relative_paths_for_reading(common_dir, SAVED_DIRECTORY) {
+        if let Some(found) = report_below(common_dir, relative.as_str()) {
+            folders.push((relative, found));
+        }
+    }
+    return folders;
 }
 
 /// What:
@@ -167,7 +188,7 @@ fn the_folder_that_exists(common_dir: &Path) -> SavedCopies {
 /// const text = doctorSection(commonDir, limits);
 /// ```
 pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
-    return doctor_section_with(the_folder_that_exists, REPORT_SCAN_CEILING, common_dir, limits);
+    return doctor_section_with(the_folders_that_exist, REPORT_SCAN_CEILING, common_dir, limits);
 }
 
 /// What:
