@@ -71,13 +71,53 @@ pub struct PinnedMember {
     descriptor: Option<std::os::fd::OwnedFd>,
 }
 
+// What:
+//  A control that refuses the descriptors `pidfd_open` would make,
+// as a descriptor or memory limit does with `EMFILE` and `ENFILE`.
+// Why:
+//   The refusal cannot be produced on demand here:
+//   a limit that refuses `pidfd_open` refuses the reads of `/proc` too,
+//   so the kernel's answer is injected instead
+//   (`child_awaited_through_a_pidfd.rs` injects the same failure the same way).
+#[cfg(all(test, target_os = "linux"))]
+thread_local! {
+    /// How many descriptors the next opens are refused.
+    static DESCRIPTOR_REFUSALS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Refuse the next `count` descriptors the kernel would make.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) fn refuse_the_next_descriptors(count: usize) {
+    DESCRIPTOR_REFUSALS.with(|left| { left.set(count); });
+}
+
+/// Take one refusal, when one is armed.
+#[cfg(all(test, target_os = "linux"))]
+fn a_descriptor_is_refused() -> bool {
+    let left: usize = DESCRIPTOR_REFUSALS.with(std::cell::Cell::get);
+    if left == 0 {
+        return false;
+    }
+    DESCRIPTOR_REFUSALS.with(|left| { left.set(left.get().saturating_sub(1)); });
+    return true;
+}
+
 /// The descriptor the kernel makes for `pid`,
-/// or nothing where it has no pidfds or refuses one at a limit.
+/// or nothing where it refuses one at a limit or under a sandbox.
 #[cfg(target_os = "linux")]
 fn pidfd_of(pid: i32) -> Option<std::os::fd::OwnedFd> {
+    #[cfg(test)]
+    if a_descriptor_is_refused() {
+        return None;
+    }
     let process: rustix::process::Pid = rustix::process::Pid::from_raw(pid)?;
     return rustix::process::pidfd_open(process, rustix::process::PidfdFlags::empty()).ok();
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "member_signalled_through_its_pidfd_tests.rs"]
+mod tests;
 
 #[cfg(target_os = "linux")]
 impl PinnedMember {
