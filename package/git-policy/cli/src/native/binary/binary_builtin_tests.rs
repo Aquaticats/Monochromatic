@@ -463,6 +463,29 @@ fn literal_pathspec_mode_stages_the_file_its_pathspec_names() {
     }
 }
 
+/// A global option's value is that option's value and no mode of the caller's:
+/// `git -C --literal-pathspecs add -- '**'` changes into the directory of that name,
+/// and Git expands the pattern over the whole worktree,
+/// so the rejection stands and nothing is staged.
+#[test]
+fn a_global_option_value_cannot_disable_the_bulk_rejection() {
+    let fixture: Fixture = fixture("builtin-add-global-value");
+    let repo: PathBuf = repository(&fixture, OsStr::new("--literal-pathspecs"));
+    std::fs::write(repo.join("a.txt"), b"a\n").expect("first file");
+    std::fs::write(repo.join("b.txt"), b"b\n").expect("second file");
+    let arguments: [&str; 5] = ["-C", "--literal-pathspecs", "add", "--", "**"];
+    assert_rejected_by(
+        &run_wrapped(&fixture, fixture.root.as_path(), &arguments),
+        "add-explicit",
+        arguments.join(" ").as_str(),
+    );
+    assert_eq!(porcelain(&fixture, repo.as_path()), "?? a.txt\n?? b.txt\n", "the rejection stages nothing");
+    // Real Git stages both, so the rejection is the policy's and not a refusal of Git's own.
+    assert_eq!(run_direct(&fixture, fixture.root.as_path(), &arguments).code, Some(0));
+    assert_eq!(porcelain(&fixture, repo.as_path()), "A  a.txt\nA  b.txt\n", "Git reads the word as -C's directory");
+    remove(&fixture);
+}
+
 /// The first error stops the pass;
 ///  keep-going reports every finding,
 ///  numbered in order,
