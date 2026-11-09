@@ -59,6 +59,26 @@ Each record is cited so the context is one read away.
   Both values are kept as they were;
   lowering the patience changes when another namespace's record counts as abandoned,
   so that stays open.
+- Should `AGENTS.md` gain this rule?
+  "A control's verdict comes from the order of events:
+  release its fixture from the wait's own line,
+  never from a sleep whose passing only the host's speed decides."
+  The same defect was fixed twice in the wrapper's index-lock tests (`2b33c7bd32` and `35cd5ae7e5`).
+  The code the proposing agent suggested,
+  `TSX`,
+  reads as the file extension,
+  so the rule needs a different one.
+- May `cargo-shadow lean` remove a run record that a process of another user could be holding,
+  when that process cannot be inspected?
+  Refusing stops the sweep on this host.
+  Do the `container-`,
+  `windows-` and `test-` record prefixes belong in its list?
+  And what should happen to the eighteen logs redirected by hand,
+  and the one renamed 17.9 MB record,
+  in the linter's verification folder?
+- Fuzzing the wrapper:
+  is a cheap native control over the checked-in seeds wanted,
+  and may the artifact reference stand without a landed evidence file?
 - The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
   Should a systemd timer run it,
   and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?

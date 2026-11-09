@@ -38,11 +38,13 @@
 
 use i_slint_backend_testing::ElementHandle;
 use music_player::command::Update;
+use slint::LogicalPosition;
+use slint::platform::{PointerEventButton, WindowEvent};
 use slint::{ComponentHandle, LogicalSize};
 
 use crate::AppWindow;
 use crate::FolderLayout;
-use crate::ui_test_support::{advance, chord, fresh_window_at, settle};
+use crate::ui_test_support::{advance, chord, fresh_window_at, logged_by, settle};
 
 /// What:
 /// `Where` is how the test opens the picker.
@@ -242,5 +244,82 @@ fn the_picker_keys_do_not_open_an_empty_picker_before_the_library_has_arrived() 
         chord(&app, &[modifier], key);
         advance(300);
         assert_not_blank(&app, &format!("{modifier}+{key} after the library arrived"));
+    }
+}
+
+/// What:
+/// `click_center` presses and releases the left pointer button at the center of an element.
+/// Why:
+/// the click has to go through the window's own input handling,
+/// so the state line it writes is the one a person's
+/// click writes,
+/// and not one a test made up.
+fn click_center(app: &AppWindow, element: &ElementHandle) {
+    let position = {
+        let corner = element.absolute_position();
+        let size = element.size();
+        LogicalPosition::new(corner.x + size.width / 2.0, corner.y + size.height / 2.0)
+    };
+    app.window().dispatch_event(WindowEvent::PointerMoved { position });
+    app.window().dispatch_event(WindowEvent::PointerPressed { position, button: PointerEventButton::Left });
+    app.window().dispatch_event(WindowEvent::PointerReleased { position, button: PointerEventButton::Left });
+}
+
+/// What:
+/// `name_row` finds the name row of a folder in the picker on screen.
+/// Why:
+/// the test clicks the row the way a person does,
+/// through its touch area.
+fn name_row(app: &AppWindow, folder: &str) -> Option<ElementHandle> {
+    return ElementHandle::find_by_element_id(app, "FolderPickerPane::name-touch")
+        .find(|row| return row.accessible_label().as_deref() == Some(folder));
+}
+
+/// What:
+/// A click on a folder name writes one `ui_state` line naming the folder it opened.
+/// Why:
+/// the end-to-end run waits for that line to know the click was handled.
+/// Without it the run waits for whatever line comes next,
+/// which under a CPU quota took seconds:
+/// a folder click measured on 2026-11-08 reached the app's name row in 0.15 ms,
+/// and the run read the opened folder 2.4 s later,
+/// and in one run 14.5 s later.
+/// The line must come from the click's own dispatch,
+/// so the log is captured for that dispatch alone and the settling happens after it.
+#[test]
+fn a_click_on_a_folder_name_writes_a_state_line_naming_the_folder_it_opened() {
+    // The folded picker is an overlay and the unfolded one sits in the two-pane layout, and the run clicks both.
+    for (width, height, folded) in [(443.0, 900.0, true), (1000.0, 800.0, false)] {
+        let layout = if folded { "folded" } else { "unfolded" };
+        let names = library(40);
+        let app = restored_window(width, height, &names, 0);
+        if folded {
+            open_picker(&app, Where::AltOne);
+        } else {
+            advance(300);
+        }
+        let before = app.get_current_folder().to_string();
+        let target = visible_names(&app)
+            .into_iter()
+            .find(|name| return *name != before)
+            .unwrap_or_else(|| panic!("the {layout} picker shows a folder other than the current one ({before})"));
+        let row = name_row(&app, &target).expect("the name row of the folder to open is built");
+        let log = logged_by(|| click_center(&app, &row));
+        settle();
+        assert_eq!(
+            app.get_current_folder(),
+            target,
+            "the click opened the folder whose name it landed on, {layout} picker"
+        );
+        let written = log
+            .lines()
+            .find(|line| return line.contains("\"reason\":\"folder-select\""))
+            .unwrap_or_else(|| {
+                panic!("a folder-select ui_state line is written while the click is handled, {layout} picker: {log}")
+            });
+        assert!(
+            written.contains(&format!("\"folder\":{target:?}")),
+            "the folder-select line names the folder the click opened ({target}), {layout} picker: {written}"
+        );
     }
 }
