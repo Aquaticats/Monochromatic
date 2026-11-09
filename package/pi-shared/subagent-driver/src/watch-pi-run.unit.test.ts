@@ -109,6 +109,8 @@ function optionsOf({ runFolder, }: { readonly runFolder: string; },): DriverOpti
     wallSeconds: RUN_WALL_SECONDS,
     idleSeconds: IDLE_SECONDS,
     turnCap: Number.MAX_SAFE_INTEGER,
+    retryCap: 0,
+    retryBaseSeconds: 1,
   };
 }
 

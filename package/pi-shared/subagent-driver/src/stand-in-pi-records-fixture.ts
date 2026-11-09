@@ -1,0 +1,211 @@
+/**
+ The records the stand-in Pi writes: one JSON line each, the runs a scenario makes of a prompt, and the texts those runs carry.
+ Kept apart from what each scenario does with a prompt, so both files stay within the code budget a file is allowed.
+
+ @module
+ */
+
+import { stdout, } from 'node:process';
+import {
+  FEED_PREVIEW_CHARACTERS,
+  type PiRecord,
+} from '../dist/final/node/index.mjs';
+import { seen, } from './stand-in-pi-log-fixture.ts';
+
+/**
+ The error text the model-error scenarios end with.
+ */
+export const MODEL_ERROR_TEXT = 'no key for this provider';
+
+/**
+ The reply of the retry that recovers from a model error.
+ */
+export const RECOVERED_REPLY = 'recovered';
+
+/**
+ A provider failure a retry can fix, shaped as one real run's feed recorded it on 2026-11-09
+ (`pi-runs/repo-read-and-index-route-findings-on-main-1/summary.json`).
+ */
+export const TRANSIENT_ERROR_TEXT = 'Request timed out.';
+
+/**
+ A failure no retry can fix, shaped as three real runs' feeds recorded it on 2026-11-09
+ (`pi-runs/toml-edit-wrapped-values-validated-1/summary.json`): the provider is not configured, so another attempt cannot
+ reach a different answer.
+ */
+export const PERMANENT_ERROR_TEXT = 'Provider is not configured: neuralwatt';
+
+/**
+ A rate limit, which the coordinator measures apart from other failures.
+ */
+export const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
+
+/**
+ The text the standard-error scenario writes, so a test can see the copy reach its file.
+ */
+export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard error';
+
+/**
+ One sentence of the long reply.
+ */
+const LONG_REPLY_SENTENCE = 'a reply long enough to need cutting.';
+
+/**
+ A reply longer than a feed line keeps, so a summary that held only the preview would show.
+ */
+export const LONG_REPLY: string = `${LONG_REPLY_SENTENCE} `.repeat(
+  Math.ceil((FEED_PREVIEW_CHARACTERS.assistantText * 2) / (LONG_REPLY_SENTENCE.length + 1),),
+);
+
+/**
+ Writes one record.
+
+ @param record - fields of the record
+
+ @example
+ ```ts
+ emit({ type: 'agent_settled', },);
+ ```
+ */
+export function emit(record: PiRecord,): void {
+  stdout.write(`${JSON.stringify(record,)}\n`,);
+}
+
+/**
+ Answers a command successfully.
+
+ @param id - command's identifier
+
+ @param data - answer's data
+
+ @example
+ ```ts
+ answer({ id: 'c1', },);
+ ```
+ */
+export function answer({
+  id,
+  data = {},
+}: {
+  readonly id: unknown;
+  readonly data?: PiRecord
+},): void {
+  emit({
+    type: 'response',
+    id,
+    success: true,
+    data,
+  },);
+}
+
+/**
+ Writes a finished run.
+
+ @param text - assistant's reply
+
+ @example
+ ```ts
+ finishRun('done',);
+ ```
+ */
+export function finishRun(text: string,): void {
+  emit({ type: 'agent_start', },);
+  emit({ type: 'turn_start', },);
+  emit({
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [{
+        type: 'text',
+        text,
+      },],
+      stopReason: 'stop',
+      usage: {
+        input: 1,
+        output: 1,
+        cost: { total: 0, },
+      },
+    },
+  },);
+  emit({ type: 'agent_end', },);
+  emit({ type: 'agent_settled', },);
+}
+
+/**
+ Writes an assistant message that ended in a model error, with no settle after it, so a retry that answers it can follow in the
+ same burst. Only a settle takes the error as the run's own; a reply that succeeds after one clears it
+ (`record-of-pi-run.unit.test.ts`, "a later reply that succeeded clears a model error Pi settled on"), and a retry after a
+ settle is a new run rather than this one recovering.
+
+ @param error - what the model said
+
+ @example
+ ```ts
+ emitErrorWithoutSettling('Request timed out.',);
+ ```
+ */
+export function emitErrorWithoutSettling(error: string,): void {
+  emit({ type: 'agent_start', },);
+  emit({ type: 'turn_start', },);
+  emit({
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [],
+      stopReason: 'error',
+      errorMessage: error,
+      usage: {
+        input: 1,
+        output: 0,
+        cost: { total: 0, },
+      },
+    },
+  },);
+  emit({ type: 'agent_end', },);
+}
+
+/**
+ Writes a whole run that ended in a model error, which Pi settles on.
+
+ @param error - what the model said
+
+ @example
+ ```ts
+ finishRunInError('Request timed out.',);
+ ```
+ */
+export function finishRunInError(error: string,): void {
+  emitErrorWithoutSettling(error,);
+  emit({ type: 'agent_settled', },);
+}
+
+/**
+ Plays a prompt as a run that ended in an error, and as a run that ends well after it when the scenario recovers.
+
+ @param error - what the model said when the attempt failed
+
+ @param recovers - whether the attempt after the first one ends well
+
+ @returns what the scenario does with a prompt or a steer
+
+ @example
+ ```ts
+ const play = modelErrorPlay({ error: 'Request timed out.', recovers: true, },);
+ ```
+ */
+export function modelErrorPlay({
+  error,
+  recovers,
+}: {
+  readonly error: string;
+  readonly recovers: boolean
+},): (id: unknown,) => void {
+  return function playModelError(id,) {
+    answer({ id, },);
+    if (recovers && (seen.prompts > 1)) {
+      finishRun(RECOVERED_REPLY,);
+      return;
+    }
+    finishRunInError(error,);
+  };
+}

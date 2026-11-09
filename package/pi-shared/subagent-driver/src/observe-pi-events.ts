@@ -52,6 +52,12 @@ export type ObservedPiRun = {
    Counts a prompt Pi handled without starting a run, for which no `agent_settled` will come.
    */
   readonly countPromptHandled: () => void;
+
+  /**
+   Takes the model error Pi settled on as answered by another attempt, so a later settle neither reports it again nor counts it
+   again. It is cleared here rather than in the driver's watch so that one error is answered once.
+   */
+  readonly answerModelError: () => void;
 };
 
 /**
@@ -61,19 +67,23 @@ export type ObservedPiRun = {
 
  @param millisecondsSoFar - how long the run has lasted, for the records kept in the summary
 
+ @param countModelError - told once for each assistant message that ended in an error, before anything recovers it
+
  @returns what the run has seen, and where its events go
 
  @example
  ```ts
- const observed = startObservingPiRun({ note, millisecondsSoFar: () => 0, },);
+ const observed = startObservingPiRun({ note, millisecondsSoFar: () => 0, countModelError: () => {}, },);
  ```
  */
 export function startObservingPiRun({
   note,
   millisecondsSoFar,
+  countModelError,
 }: {
   readonly note: (entry: PiRecord,) => void;
-  readonly millisecondsSoFar: () => number
+  readonly millisecondsSoFar: () => number;
+  readonly countModelError: (problem: string,) => void
 },): ObservedPiRun {
   /**
    What the run counts about its tools and dialogs.
@@ -129,6 +139,7 @@ export function startObservingPiRun({
     const endedInError = message.stop === 'error';
     if (endedInError) {
       state.pendingModelError = message.error === '' ? MODEL_ERROR_WITHOUT_TEXT : message.error;
+      countModelError(state.pendingModelError,);
     }
     else {
       delete state.pendingModelError;
@@ -271,6 +282,10 @@ export function startObservingPiRun({
     observe,
     countPromptHandled: function countPromptHandled() {
       state.settled += 1;
+    },
+    answerModelError: function answerModelError() {
+      delete state.pendingModelError;
+      delete state.unrecoveredModelError;
     },
   };
 }

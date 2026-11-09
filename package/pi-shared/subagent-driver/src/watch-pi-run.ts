@@ -13,7 +13,6 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
-import type { ConnectionToPi, } from './connection-to-pi.ts';
 import {
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
@@ -21,25 +20,17 @@ import {
   STOP_FILE_NAME,
 } from './driver-constants.ts';
 import type {
-  DriverOptions,
   EndReason,
-  RecordOfPiRun,
   RunProgress,
 } from './driver-types.ts';
+import {
+  answerModelError,
+  type RetryWaiting,
+} from './answer-a-model-error.ts';
 import { answerMillisecondsBefore, } from './deadline.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
-
-/**
- What watching a run needs.
- */
-export type WatchRequest = {
-  readonly connection: ConnectionToPi;
-  readonly record: RecordOfPiRun;
-  readonly options: DriverOptions;
-  readonly inbox: string;
-  readonly deadline: number;
-};
+import type { WatchRequest, } from './watch-request.ts';
 
 /**
  The code the operating system gave a failure, when it gave one.
@@ -340,11 +331,6 @@ async function progressAgainstLimits(
   if (Date.now() >= wallDeadline) {
     return 'wall-clock';
   }
-  if (watch.record
-    .unrecoveredModelError()
-    .failed) {
-    return 'model-error';
-  }
   if ((await readdir(watch.options
     .runFolder,)).includes(STOP_FILE_NAME,)) {
     return 'stop-file';
@@ -404,6 +390,10 @@ function idleLongEnough(watch: WatchRequest,): boolean {
  ```
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
+  /**
+   Where the watch stands with the model error it last answered, so one error is answered by one attempt.
+   */
+  const retry: RetryWaiting = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -420,6 +410,16 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       return progress;
     }
     /**
+     Where the run stands with the model error Pi settled on, if it settled on one.
+     */
+    const afterModelError = await answerModelError({
+      watch,
+      retry,
+    },);
+    if (afterModelError !== 'still-running') {
+      return afterModelError;
+    }
+    /**
      The next message to deliver, if any.
      */
     const [nextMessage,] = await readyMessages(watch.inbox,);
@@ -429,7 +429,8 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         name: nextMessage,
       },);
     }
-    else if (idleLongEnough(watch,)) {
+    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
+    else if ((retry.at === undefined) && idleLongEnough(watch,)) {
       return 'idle';
     }
   }

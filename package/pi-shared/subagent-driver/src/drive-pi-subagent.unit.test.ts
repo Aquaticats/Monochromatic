@@ -49,7 +49,7 @@ import {
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
   TRANSIENT_ERROR_TEXT,
-} from './stand-in-pi-prompt-plays-fixture.ts';
+} from './stand-in-pi-records-fixture.ts';
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -159,6 +159,8 @@ const ABSENT_SUMMARY: RunSummary = {
   dialogs: [],
   sessionStats: null,
   lastAssistantText: '',
+  retries: 0,
+  rateLimitErrors: 0,
 };
 
 type Finished = {
@@ -830,11 +832,14 @@ await describe({
         expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
         expect(run.summary.modelError,).toBeUndefined();
         expect(run.summary.retries,).toBe(1,);
-        expect(run.feed.filter((entry,) => entry.kind === 'retry',),).toMatchObject([{
-          attempt: 1,
-          of: 3,
-          errorKind: 'transient',
-        },],);
+        /**
+         The retries this run recorded, which are the attempts after its one model error.
+         */
+        const retries = run.feed.filter((entry,) => entry.kind === 'retry',);
+        expect(retries.length,).toBe(1,);
+        expect(retries[0]?.attempt,).toBe(1,);
+        expect(retries[0]?.of,).toBe(3,);
+        expect(retries[0]?.errorKind,).toBe('transient',);
         expect(String(run.feed.find((entry,) => entry.kind === 'retry')?.error,),).toContain(TRANSIENT_ERROR_TEXT,);
         expect(run.feed.find((entry,) => entry.kind === 'retry_prompt')?.success,).toBe(true,);
         expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(2,);
