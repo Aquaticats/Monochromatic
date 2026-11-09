@@ -58,7 +58,7 @@ fn unique_tmp(label: &str) -> PathBuf {
 //   execSync(`git ${args.join(" ")}`, { cwd: dir });
 // }
 // ```
-fn run_git(dir: &PathBuf, args: &[&str]) {
+fn run_git(dir: &Path, args: &[&str]) {
     // What:     Resolve the git binary. The dev environment in this
     //           repo wraps `git` with a CLI policy enforcer that
     //           rejects bulk-add `.` and commit-without-pathspec
@@ -359,4 +359,312 @@ fn list_files_handles_sha256_repo_force_added_gitignored() {
     );
 
     let _ = fs::remove_dir_all(&dir);
+}
+
+// What:     `fn seed_repository(repository, ignored)` creates a Git
+//           repository whose `.gitignore` hides `*.ignored`, commits one
+//           plain file, and force-adds the named ignored files so they are
+//           tracked while the ignore rule still matches them.
+// Why:      Every regression test below needs that one shape: a tracked file
+//           the walker cannot see, so only the index union can report it.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function seedRepository(repository: string, ignored: string[]) { ... }
+// ```
+fn seed_repository(repository: &Path, ignored: &[&str]) {
+    fs::create_dir_all(repository).expect("create repository dir");
+    run_git(repository, &["init", "-q"]);
+    run_git(repository, &["config", "user.email", "t@t"]);
+    run_git(repository, &["config", "user.name", "t"]);
+    fs::write(repository.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
+    fs::write(repository.join("plain.txt"), "ordinary content").expect("write plain.txt");
+    let mut paths: Vec<&str> = vec![".gitignore", "plain.txt"];
+    for relative in ignored {
+        let absolute: PathBuf = repository.join(relative);
+        if let Some(parent) = absolute.parent() {
+            fs::create_dir_all(parent).expect("create the ignored file's parent");
+        }
+        fs::write(&absolute, "secret content").expect("write the ignored tracked file");
+        paths.push(relative);
+    }
+    let mut add: Vec<&str> = vec!["add", "-f"];
+    add.extend(&paths);
+    run_git(repository, &add);
+    let mut commit: Vec<&str> = vec!["commit", "-q", "-m", "initial"];
+    commit.extend(&paths);
+    run_git(repository, &commit);
+}
+
+// What:     `fn listed(root)` lists one directory through `list_files`.
+// Why:      One call site keeps every test below on the same entry point.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function listed(root: string): string[] { return listFiles(root); }
+// ```
+fn listed(root: &Path) -> Vec<String> {
+    return list_files(root.to_str().expect("root utf8")).expect("list_files")
+}
+
+// What:     `fn relative_listing(root)` reports each listed path relative to
+//           `root`, with `/` separators.
+// Why:      A scan of a nested directory must report paths under that
+//           directory; an index-derived path that still carries the
+//           repository-relative prefix, or an absolute one, fails here.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function relativeListing(root: string): string[] { ... }
+// ```
+fn relative_listing(root: &Path) -> Vec<String> {
+    return listed(root)
+        .iter()
+        .map(|path| return relative_to(root, path))
+        .collect()
+}
+
+// What:     `fn relative_to` expresses one listed path relative to the
+//           directory the scan started in.
+// Why:      The walker reports absolute paths for an absolute root and
+//           `./`-prefixed ones for `.`; the index reports
+//           repository-relative paths. One conversion compares all three.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function relativeTo(root: string, path: string): string { ... }
+// ```
+fn relative_to(root: &Path, path: &str) -> String {
+    let entry: &Path = Path::new(path);
+    let relative: &Path = entry.strip_prefix(root).unwrap_or(entry);
+    return relative
+        .to_str()
+        .expect("utf8 relative path")
+        .trim_start_matches("./")
+        .replace('\\', "/")
+}
+
+// What:     `fn git_says_ignored(repository, relative)` asks Git whether the
+//           named working-tree file matches an ignore rule.
+// Why:      These tests claim the walker cannot see the force-added file;
+//           that claim rests on Git itself calling the file ignored, not on
+//           this test assuming what `*.ignored` matches. `--no-index` is
+//           required because `git check-ignore` reports a tracked path as
+//           not ignored without it, which would make the precondition test
+//           the opposite of the fixture's intent.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function gitSaysIgnored(repository: string, relative: string): boolean { ... }
+// ```
+fn git_says_ignored(repository: &Path, relative: &str) -> bool {
+    let status = Command::new("/usr/bin/git")
+        .args(["check-ignore", "--quiet", "--no-index", "--", relative])
+        .current_dir(repository)
+        .status()
+        .expect("git check-ignore failed to spawn");
+    return status.success()
+}
+
+// What:     `fn add_linked_worktree(main, worktree)` asks Git to check the
+//           main repository's current commit out into a linked worktree.
+// Why:      A linked worktree is the shape issue 1232 names: its `.git` is a
+//           file holding a `gitdir:` line, so `<worktree>/.git/index` does
+//           not exist.
+//
+// In TS you'd write (pseudocode):
+// ```ts
+// function addLinkedWorktree(main: string, worktree: string) { ... }
+// ```
+fn add_linked_worktree(main: &Path, worktree: &Path) {
+    run_git(
+        main,
+        &["worktree", "add", "-q", worktree.to_str().expect("worktree utf8"), "-b", "wt-branch"],
+    );
+    assert!(
+        worktree.join(".git").is_file(),
+        "fixture precondition: a linked worktree's .git is a file"
+    );
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_in_a_linked_worktree() {
+    let base = unique_tmp("worktree-root");
+    let main = base.join("main");
+    seed_repository(&main, &["tracked.ignored"]);
+    let worktree = base.join("wt");
+    add_linked_worktree(&main, &worktree);
+    assert!(
+        git_says_ignored(&worktree, "tracked.ignored"),
+        "fixture precondition: git ignores the force-added file"
+    );
+
+    let paths = relative_listing(&worktree);
+    assert!(
+        paths.iter().any(|path| return path == "plain.txt"),
+        "the plain tracked file must be listed; got {:?}",
+        paths
+    );
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "issue 1232: a linked worktree's tracked, ignored file must be listed; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_from_a_repository_subfolder() {
+    let repository = unique_tmp("main-subfolder");
+    seed_repository(&repository, &["sub/tracked.ignored"]);
+    assert!(
+        git_says_ignored(&repository, "sub/tracked.ignored"),
+        "fixture precondition: git ignores the force-added file"
+    );
+
+    let paths = relative_listing(&repository.join("sub"));
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "issue 1232: a subfolder scan must report the repository's tracked, \
+         ignored file under that subfolder; got {:?}",
+        paths
+    );
+    assert!(
+        !paths.iter().any(|path| return path == "plain.txt"),
+        "a subfolder scan must not add files outside the walked directory; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&repository);
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_from_a_linked_worktree_subfolder() {
+    let base = unique_tmp("worktree-subfolder");
+    let main = base.join("main");
+    seed_repository(&main, &["sub/tracked.ignored"]);
+    let worktree = base.join("wt");
+    add_linked_worktree(&main, &worktree);
+
+    let paths = relative_listing(&worktree.join("sub"));
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "issue 1232: a linked worktree subfolder scan must report the \
+         tracked, ignored file under that subfolder; got {:?}",
+        paths
+    );
+    assert!(
+        !paths.iter().any(|path| return path == "plain.txt"),
+        "a linked worktree subfolder scan must not add files outside the walked directory; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_in_a_worktree_path_with_spaces() {
+    let base = unique_tmp("worktree-space");
+    let main = base.join("main");
+    seed_repository(&main, &["tracked.ignored"]);
+    let worktree = base.join("wt with space");
+    add_linked_worktree(&main, &worktree);
+
+    let paths = relative_listing(&worktree);
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "a gitdir line naming a path with a space must resolve; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_in_a_submodule_with_a_relative_gitdir() {
+    let base = unique_tmp("submodule-relative-gitdir");
+    let other = base.join("other");
+    seed_repository(&other, &["tracked.ignored"]);
+    let host = base.join("host");
+    fs::create_dir_all(&host).expect("create host dir");
+    run_git(&host, &["init", "-q"]);
+    run_git(&host, &["config", "user.email", "t@t"]);
+    run_git(&host, &["config", "user.name", "t"]);
+    run_git(
+        &host,
+        &[
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-q",
+            "../other",
+            "vendor/sub",
+        ],
+    );
+    let submodule = host.join("vendor/sub");
+    let dot_git: String = fs::read_to_string(submodule.join(".git")).expect("read the submodule's .git file");
+    assert!(
+        dot_git.starts_with("gitdir: ../"),
+        "fixture precondition: a submodule's gitdir line is relative; got {:?}",
+        dot_git
+    );
+
+    let paths = relative_listing(&submodule);
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "a relative gitdir line must resolve against the working tree; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_reports_a_tracked_ignored_file_in_a_sha256_linked_worktree() {
+    let base = unique_tmp("worktree-sha256");
+    let main = base.join("main");
+    fs::create_dir_all(&main).expect("create main dir");
+    run_git(&main, &["init", "-q", "--object-format=sha256"]);
+    run_git(&main, &["config", "user.email", "t@t"]);
+    run_git(&main, &["config", "user.name", "t"]);
+    fs::write(main.join(".gitignore"), "*.ignored\n").expect("write .gitignore");
+    fs::write(main.join("plain.txt"), "ordinary content").expect("write plain.txt");
+    fs::write(main.join("tracked.ignored"), "secret content").expect("write tracked.ignored");
+    run_git(&main, &["add", "-f", ".gitignore", "plain.txt", "tracked.ignored"]);
+    run_git(
+        &main,
+        &["commit", "-q", "-m", "initial", ".gitignore", "plain.txt", "tracked.ignored"],
+    );
+    let worktree = base.join("wt");
+    add_linked_worktree(&main, &worktree);
+
+    let paths = relative_listing(&worktree);
+    assert!(
+        paths.iter().any(|path| return path == "tracked.ignored"),
+        "a SHA-256 worktree index must parse; got {:?}",
+        paths
+    );
+
+    let _ = fs::remove_dir_all(&base);
+}
+
+#[test]
+fn list_files_scans_a_directory_without_a_repository_of_its_own() {
+    let directory = unique_tmp("no-repository");
+    fs::write(directory.join("only.txt"), "ordinary content").expect("write only.txt");
+    assert!(
+        !directory.join(".git").exists(),
+        "fixture precondition: the directory holds no .git entry"
+    );
+
+    let paths = relative_listing(&directory);
+    assert_eq!(
+        paths,
+        vec!["only.txt".to_string()],
+        "a directory without a repository of its own must scan exactly what the walker sees"
+    );
+
+    let _ = fs::remove_dir_all(&directory);
 }
