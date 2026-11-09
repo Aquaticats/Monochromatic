@@ -689,3 +689,39 @@ fn a_repeated_handoff_ends_at_the_ceiling() {
     assert!(answered.is_ok() || answered == Err(crate::service_protocol::FailureCode::IndexInUse), "{answered:?}");
     remove(root.as_path());
 }
+
+/// A hold that ends is waited for with the time that is left,
+/// not with a fresh ceiling:
+/// the whole update ends at its one ceiling however many handoffs it meets.
+#[test]
+fn a_handoff_is_waited_for_with_the_time_that_is_left() {
+    let (root, repo, _first, second) = index_behind("service-follow-handoff-left", &[b"new.txt".to_vec()]);
+    let lock: PathBuf = repo.join(".git/index.lock");
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let holder_stop = std::sync::Arc::clone(&stop);
+    let held: PathBuf = lock.clone();
+    let holder = std::thread::spawn(move || {
+        // Hold for 150 ms, let go for a moment, then hold longer than the ceiling: the update meets one release and then a holder.
+        if std::fs::write(&held, b"").is_ok() {
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let _gone = std::fs::remove_file(&held);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        while !holder_stop.load(std::sync::atomic::Ordering::SeqCst) && std::fs::write(&held, b"").is_err() {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        let _gone = std::fs::remove_file(&held);
+    });
+    let index: PathBuf = repo.join(".git/index");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(300);
+    let began: std::time::Instant = std::time::Instant::now();
+    let answered = update_index_within(&git_context(), repo.as_path(), index.as_path(), ceiling, second.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()]));
+    let took: std::time::Duration = began.elapsed();
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    holder.join().expect("the holder ends");
+    assert_eq!(answered, Err(crate::service_protocol::FailureCode::IndexInUse), "it ended with the lock's code");
+    // One ceiling, with the slack the watch's own cadence adds: a second full wait would be 300 ms more than this.
+    assert!(took < ceiling + std::time::Duration::from_millis(450), "the update ended at its one ceiling: {took:?}");
+    remove(root.as_path());
+}

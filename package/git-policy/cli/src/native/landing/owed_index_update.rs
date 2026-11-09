@@ -37,7 +37,7 @@ use crate::private_index_request::CaptureIndexes;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
-pub use crate::owed_index_repair::{exclude_what_a_landed_commit_left, excluded_notice};
+pub use crate::owed_index_repair::{exclude_what_a_landed_commit_left, excluded_notice, exclude_with_note, unreadable_notice};
 use crate::service_journal::Intent;
 use crate::work_item::WORK_DIRECTORY;
 use serde_json::{Map, Value};
@@ -401,8 +401,9 @@ pub fn exclude_or_stop(
     indexes: &CaptureIndexes,
     mode: TransactionMode,
     captured: &crate::service_land_start::IndexWitness,
-) -> Result<Vec<String>, TransactionStop> {
-    let repair: Result<Vec<String>, String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+) -> Result<(Vec<String>, Option<String>), TransactionStop> {
+    let mut note: Option<String> = None;
+    let repair: Result<Vec<String>, String> = crate::owed_index_update::exclude_with_note(
         context,
         capture.layout.repository_root.as_path(),
         capture.layout.git_dir.as_path(),
@@ -413,9 +414,10 @@ pub fn exclude_or_stop(
         },
         Some(indexes.captured_index.as_path()),
         captured,
+        &mut note,
     );
     return match repair {
-        Ok(excluded) => Ok(excluded),
+        Ok(excluded) => Ok((excluded, note)),
         Err(reason) => Err(crate::commit_transaction::failed(reason)),
     };
 }

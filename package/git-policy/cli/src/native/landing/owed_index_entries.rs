@@ -25,6 +25,9 @@ use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
+/// The exit status `git rev-parse --verify --quiet` gives for a name that is no object: the one answer that means "not there".
+const NAME_IS_NO_OBJECT: i32 = 1;
+
 /// One entry of a tree or an index:
 /// its mode and its object.
 pub type Entry = (String, String);
@@ -51,7 +54,7 @@ pub(crate) fn names_in(listing: &[u8]) -> Vec<Vec<u8>> {
 }
 
 /// Whether a byte is the NUL that ends one record of a `-z` listing.
-fn is_zero_byte(byte: &u8) -> bool {
+pub(crate) fn is_zero_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
 
@@ -223,10 +226,13 @@ pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -
 /// ```
 pub(crate) fn head_entries(git: &GitContext, repository: &Path, paths: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     // An unborn branch has no head to hold an entry: nothing is there, and a commit that owes an index update must not stop for it.
+    // Only `rev-parse --verify --quiet`'s own answer for a name that is no object means that (exit 1 with nothing on the standard
+    //  error); a probe that failed for any other reason is a failure to know the head, and the caller restores what it had.
     let unborn: GitRequest = GitRequest::new(repository, &["rev-parse", "--verify", "--quiet", "HEAD"]);
     match run_git(git, &unborn) {
         Ok(answer) if answer.succeeded() => {}
-        Ok(_) | Err(_) => return Ok(BTreeMap::new()),
+        Ok(answer) if answer.code == Some(NAME_IS_NO_OBJECT) && answer.stderr.is_empty() => return Ok(BTreeMap::new()),
+        _ => return Err(FailureCode::Unavailable),
     }
     let output = with_specs(git, repository, None, &["ls-tree", "-z", "--full-tree", "HEAD"], paths)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
