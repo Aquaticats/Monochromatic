@@ -5227,7 +5227,14 @@ readable:
   given before the bits,
   because changing a file's owner clears those bits even when the owner
   and group stay the same;
-  an owner this process may not give is refused rather than handed over;
+  an owner this process may not give is refused rather than handed over,
+  and the comparison is against what the
+  replacement actually carries,
+  read from its own descriptor,
+  never against the process's credentials:
+  a directory with its set-group-ID bit gives every new file that directory's group,
+  so a
+  `0640` file would otherwise change which group may read it;
 - the bytes the swap displaced are read after the swap,
   when nothing can overwrite them any more,
   and compared with what the fix read,
@@ -5241,13 +5248,26 @@ readable:
   a device - is refused
   instead of replaced,
   and a path that is gone is refused rather than created;
-- rollback swaps back only while the destination still holds this fix's bytes.
-  A file someone wrote
-  to after its swap is never touched again:
-  the journal stays and the person is told where those bytes are;
+- rollback swaps first and then judges what the swap took out of the file,
+  which is now at a name this
+  command owns:
+  bytes,
+  permission bits,
+  owner and file kind,
+  never through a symbolic link.
+  Only bytes that are
+  this fix's replacement let the journal go;
+  anything else - a save that landed beside the swap,
+  a file the
+  person narrowed,
+  a link they put at the path - stays in the journal and is named,
+  and the file is left
+  holding the bytes the fix displaced;
 - a site whose displaced file no longer holds what the fix read is read once more before its
   journal is removed,
-  so a write that arrived through an already-open descriptor is kept and named.
+  so a write that arrived through an already-open descriptor is kept and named,
+  and a journal the fix
+  cannot remove is named rather than reported as a success that says nothing.
 
 What a replacement does not carry is its extended attributes and access-control list,
 its inode number and birth time,
@@ -5267,8 +5287,10 @@ loses that one write and nothing of the file's earlier state;
 when a write is caught before that reading,
 it is on
 disk in the journal the message names.
+A rollback has no such window of its own:
+it decides nothing by reading the destination.
 
-#### The journal, and the command that finishes a killed fix
+#### The journal, and what a later fix does with it
 
 One journal directory per corrected file,
 `<git dir>/cli-git-direct-fix-<suffix>/`,
@@ -5282,32 +5304,47 @@ the writer's owner token,
 and the
 digest of the corrected bytes).
 The record is written before the file is touched.
-Nothing of a fix lives in the
-worktree,
-so no `gitignore` rule can expose a leftover and no `git add` can stage one;
-a worktree
-whose Git directory is on another file system is refused before anything is written,
-because the
-swap needs both names on one file system.
+The Git directory is the
+worktree's own,
+from `known_git_dir`,
+never the parent of an alternate index a caller named:
+`GIT_INDEX_FILE`
+can point inside the worktree,
+and its parent is then a directory a later `git add --all` stages.
+A fix that
+cannot learn that directory refuses with `NO_GIT_DIR_MESSAGE` instead of guessing,
+and a worktree whose
+Git directory is on another file system is refused before anything is written,
+because the swap needs
+both names on one file system.
+Nothing of a fix lives in the worktree,
+so no `gitignore` rule can
+expose a leftover and no `git add` can stage one.
 
-Every `fix` first sweeps the journals of that Git directory and acts only on a proof that the
-writer is gone,
-using the crate's existing owner proof:
-a journal holding the correction itself is removed (the
-file was never touched),
-one whose file still holds the correction is swapped back and removed (the
-correction never verified its index),
-and everything else - a file written since,
-an unreadable record,
-a writer in another PID namespace,
-a platform that will not report - stays and is named.
+Every settled `fix` sweeps the journals of that Git directory,
+before it decides whether anything
+needs correcting,
+and acts only on a proof that the writer is gone
+(the crate's existing owner proof).
+The
+sweep never exchanges two files:
+a recovery that swapped would need a proof that the exchange it is undoing
+happened,
+and the destination's bytes are not that proof,
+a reading of the destination is not a licence
+to swap,
+and two recoveries can exchange one journal twice.
+So the one removal is the one the record
+proves:
+a `content` that hashes to the recorded replacement holds none of the person's bytes,
+because a
+fix writes exactly those bytes and nothing else there.
+Everything else stays and is named on every later
+`fix`:
+the person's bytes wait in the named journal until they act on it,
+and no command decides for them
+which of two versions belongs at the path.
 
-No lock stands in this route:
-the lock inventory guard covers `candidate/`,
-`policy/`,
-`markdown/`,
-`standards_review/` and `commit/`,
-and a lock there must be listed with its reason beside it.
 No lock stands in this route:
 the lock inventory guard covers `candidate/`,
 `policy/`,
