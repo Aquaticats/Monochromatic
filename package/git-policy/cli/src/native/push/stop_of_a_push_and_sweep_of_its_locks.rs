@@ -120,11 +120,17 @@ async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 ///  The child is handed over as the standard library's value and adopted inside the task,
 /// so a task that never runs
 ///  leaves it as it was and never waits for it.
+/// The wait for the child has the ceiling every stop has:
+/// past it the child is left to the
+///  kernel and said here,
+/// never waited for,
+/// because a task nobody waits for must not be held by a process the
+///  kernel may never release.
 /// Returns nothing where the runtime has no worker to run the task.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// void child.exited.then(() => locks.sweep(tree));
+/// void Promise.race([child.exited, delay(ceiling)]).then(() => locks.sweep(tree));
 /// ```
 pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
     return sweep_task(Some(child), tree, locks);
@@ -137,7 +143,16 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         if let Some(uncollected) = child {
             let mut owned: OwnedChild = adopt(uncollected);
             // The exit status is not reported: the push was reported at its deadline.
-            let _status = owned.wait().await;
+            let ceiling: Duration = ceiling_for_a_child(owned.id());
+            match tokio::time::timeout(ceiling, owned.wait()).await {
+                Ok(_collected) => {}
+                Err(_late) => {
+                    // The handle is dropped without waiting: a `Child` does not wait when it is dropped, and the process is left
+                    //  to the kernel, as one it has not released yet must be.
+                    let _left = owned.into_std_when_unreaped();
+                    debug(TAG, "the child of the stopped push was not collected within the ceiling of a stop; it is left to the kernel, and its locks to the stale-lock judgement");
+                }
+            }
         }
         // Nothing waits for this task, so it waits for the rest of the tree no longer than every other wait of a stop:
         //  a descendant wedged in a dead file system, or one that left the process group the signal reached, is left to the
@@ -155,6 +170,56 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
     }
     return started;
+}
+
+/// What:
+///  The ceiling the sweep gives the child it was handed:
+/// the stop's own,
+/// or a control's for one child.
+/// Why:
+///   A control must see a child the kernel does not release without waiting the stop's whole ceiling,
+///  which is three
+///  times the longest delay measured on this host;
+/// and one child's ceiling belongs to that child alone,
+/// so no other
+///  sweep of the run is shortened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// controlCeilingFor(pid) ?? STOP_CEILING
+/// ```
+fn ceiling_for_a_child(id: u32) -> Duration {
+    #[cfg(test)]
+    if let Some(ceiling) = control_ceiling_for(id) {
+        return ceiling;
+    }
+    let _ = id;
+    return STOP_CEILING;
+}
+
+/// The ceiling a control gives one child,
+/// and the child's number;
+/// nothing outside a control.
+#[cfg(test)]
+static CONTROL_CEILING: std::sync::Mutex<Option<(u32, Duration)>> = std::sync::Mutex::new(None);
+
+/// Gives the child `id` a ceiling of its own for a control.
+#[cfg(test)]
+pub(crate) fn ceiling_for_a_child_in_a_control(id: u32, ceiling: Duration) {
+    if let Ok(mut slot) = CONTROL_CEILING.lock() {
+        *slot = Some((id, ceiling));
+    }
+}
+
+/// The ceiling a control gave the child `id`,
+/// or nothing.
+#[cfg(test)]
+fn control_ceiling_for(id: u32) -> Option<Duration> {
+    let slot = CONTROL_CEILING.lock().ok()?;
+    return match *slot {
+        Some((control_id, ceiling)) if control_id == id => Some(ceiling),
+        _ => None,
+    };
 }
 
 /// What:

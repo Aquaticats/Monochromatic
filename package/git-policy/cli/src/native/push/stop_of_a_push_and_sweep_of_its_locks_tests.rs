@@ -15,3 +15,35 @@ fn the_sweep_waits_for_the_tree_no_longer_than_the_ceiling_of_a_stop() {
     let at_once: bool = crate::lazy_runtime::run_on_runtime(wait_until_gone(&[], Duration::ZERO)).expect("the runtime runs the wait");
     assert!(at_once, "a tree that is already gone ends the wait");
 }
+
+/// What:
+///  The sweep's wait for the child it was handed ends at the ceiling of a stop too,
+/// and the child is left to the kernel
+///  instead of holding the task.
+/// Why:
+///   A killed push in uninterruptible I/O is never reaped by the kernel until it is released,
+/// so a task that
+///  awaited it for as long as that takes is a task that may never end,
+/// and the locks of the stopped push would never be
+///  swept.
+/// The fixture ignores the polite stop and sleeps far past the control's ceiling.
+#[test]
+fn the_sweep_gives_up_on_a_child_the_kernel_does_not_release() {
+    let child: std::process::Child = std::process::Command::new("sh").arg("-c").arg("exec sleep 20").spawn().expect("a child to hand over");
+    let id: u32 = child.id();
+    let ceiling: Duration = Duration::from_millis(300);
+    ceiling_for_a_child_in_a_control(id, ceiling);
+    let locks: LockLedger = LockLedger::before_start(&std::process::Command::new("true"));
+    let sweeping: tokio::task::JoinHandle<()> = sweep_after_exit(child, Vec::new(), locks).expect("the runtime has a worker to sweep with");
+    let began: std::time::Instant = std::time::Instant::now();
+    let ended: Result<(), tokio::time::error::Elapsed> = crate::lazy_runtime::run_on_runtime(async move {
+        return tokio::time::timeout(Duration::from_secs(10), sweeping).await.map(|_joined| {});
+    })
+    .expect("the runtime runs the wait");
+    let waited: Duration = began.elapsed();
+    assert!(ended.is_ok(), "the sweep ended instead of waiting for a child the kernel holds: {waited:?}");
+    assert!(waited >= ceiling, "it gave the child its ceiling: {waited:?}");
+    // The child the sweep left is this test's own and is ended here; a failure means it already ended.
+    // SAFETY: `kill` takes no pointers, and the number is this test's own child, which this test has not reaped.
+    unsafe { libc::kill(i32::try_from(id).unwrap_or(0), libc::SIGKILL) };
+}
