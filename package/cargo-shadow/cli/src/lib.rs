@@ -99,6 +99,9 @@ pub mod journal_unready;
 /// The verdict on a journal that has no ready record (split out of the journal unready module).
 pub mod journal_unready_verdict;
 
+/// The assessment of one journal's containment records (split out of the journal unready module).
+pub mod journal_unready_assessment;
+
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
