@@ -51,7 +51,7 @@ fn code_names() -> Vec<ChangedPath> {
 
 /// A reader that returns a small commit with the code file's text.
 fn reader(names: &[ChangedPath]) -> Result<LandedCommit, String> {
-    let mut commit: LandedCommit = LandedCommit { sha: String::from("sha"), subject: String::from("s"), patch: String::from("patch\n"), ..LandedCommit::default() };
+    let mut commit: LandedCommit = LandedCommit { sha: String::from("sha"), subject: String::from("s"), patch: b"patch\n".to_vec(), ..LandedCommit::default() };
     commit.contents.insert(names[0].clone(), String::from("code\n"));
     return Ok(commit);
 }
@@ -138,7 +138,7 @@ fn silent_and_skipped_commits_read_nothing() {
     );
     assert!(!opts.log_path.exists(), "no entry creates no log");
     assert_eq!(review_landed(&[code_free], "sha", "s", &forbidden, &opts, &clock()), ReviewOutcome::Skipped);
-    assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").starts_with("- Skipped:\n"));
+    assert!(std::fs::read_to_string(opts.log_path.as_path()).expect("log").starts_with("\n- Skipped:\n"), "the skip entry's write begins with its line feed");
     remove(directory.as_path());
 }
 
@@ -477,17 +477,19 @@ fn a_review_whose_append_was_cut_short_is_reviewed_again() {
     let first: ReviewOutcome = review_landed(&names, sha.as_str(), "s", &|files: &[ChangedPath]| return reader(files), &options(directory.as_path(), mock_first.url.as_str(), Some("k")), &clock());
     assert!(matches!(first, ReviewOutcome::Reviewed(_)), "{first:?}");
     mock_first.finish();
-    let whole: String = std::fs::read_to_string(log_path.as_path()).expect("the first review wrote one entry");
+    let written: String = std::fs::read_to_string(log_path.as_path()).expect("the first review wrote one entry");
+    // The write began with a line feed and carried the rendered entry after it.
+    let entry: &str = written.strip_prefix('\n').expect("the first entry's write begins with a line feed");
     // A short append can stop anywhere; the reported state stops right after the commit name in the subject block.
     let short: &str = &sha[..SHORT_SHA_LENGTH];
-    let cut: usize = whole.find(short).expect("the entry names the commit") + SHORT_SHA_LENGTH;
-    let fragment: &str = &whole[..cut];
+    let cut: usize = written.find(short).expect("the entry names the commit") + SHORT_SHA_LENGTH;
+    let fragment: &str = &written[..cut];
     std::fs::write(log_path.as_path(), fragment).expect("seed the fragment");
     let mock_second: Mock = Mock::start(Answer::Bytes(http_reply("200 OK", answer)));
     let retried: ReviewOutcome = review_landed(&names, sha.as_str(), "s", &|files: &[ChangedPath]| return reader(files), &options(directory.as_path(), mock_second.url.as_str(), Some("k")), &clock());
     assert!(matches!(retried, ReviewOutcome::Reviewed(_)), "the fragment's name is not a receipt: {retried:?}");
     mock_second.finish();
     let after: String = std::fs::read_to_string(log_path.as_path()).expect("log");
-    assert_eq!(after, format!("{fragment}{whole}"), "the fragment is kept and the whole entry follows it");
+    assert_eq!(after, format!("{fragment}\n{entry}"), "the fragment keeps its line and the whole entry follows it on the next one");
     remove(directory.as_path());
 }

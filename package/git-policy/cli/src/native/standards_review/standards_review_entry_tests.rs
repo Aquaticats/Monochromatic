@@ -46,9 +46,9 @@ fn review_entry_lines_follow_the_log_layout() {
         String::from("    `````"),
         receipt_line(entry.sha.as_str()),
         String::new(),
-        String::new(),
     ];
     assert_eq!(lines, expected.iter().map(String::as_str).collect::<Vec<&str>>());
+    assert_eq!(text.lines().count(), expected.len() - 1, "one line feed ends the last line and no blank line follows it");
 }
 
 /// A truncated patch says so with the cap,
