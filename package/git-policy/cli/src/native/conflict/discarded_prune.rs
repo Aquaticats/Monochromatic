@@ -45,9 +45,7 @@
 use crate::conflict_sides::SAVED_DIRECTORY;
 use crate::diagnostic_log::debug;
 use crate::discard_audit::{AUDIT_FILE, append_line, check_appendable};
-use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};
-use crate::kept_names_in_the_git_directories::relative_path_for_reading;
-use std::ffi::OsStr;
+use crate::discarded_store::{Interrupted, OpenFailure, Store, Tally};use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 pub use crate::discarded_prune_audit_line::{Removed, audit_line, prune_line};
@@ -71,28 +69,6 @@ pub struct PruneOutcome {
 }
 
 /// What:
-///  The folder of saved copies as a reader that moves nothing finds it:
-/// the current data folder,
-/// or the
-///  earlier one when only that exists.
-/// Why:
-///  A report reads the names an earlier release kept without moving them (`SPEC.md`,
-/// section Doctor),
-/// so
-///  the folder it lists is the one that is there.
-///  `Store::open` walks the relative path below the Git directory without following a link on the way,
-/// so the path a report
-///  names is the path it read.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const relative = relativePathForReading(commonDir, SAVED_DIRECTORY);
-/// ```
-fn saved_folder_for_reading(common_dir: &Path) -> String {
-    return relative_path_for_reading(common_dir, SAVED_DIRECTORY);
-}
-
-/// What:
 ///  Every directory of the folder at `relative` below a Git directory,
 /// oldest first,
 /// with its size and what it was when
@@ -111,7 +87,7 @@ fn saved_folder_for_reading(common_dir: &Path) -> String {
 /// ```ts
 /// const { entries, problems } = await listStampedBelow(commonDir, SAVED_DIRECTORY);
 /// ```
-fn list_stamped_below(common_dir: &Path, relative: &str) -> Listing {
+pub(crate) fn list_stamped_below(common_dir: &Path, relative: &str) -> Listing {
     return match Store::open(common_dir, relative) {
         Ok(Some(store)) => list_in(&store, common_dir.join(relative).as_path()),
         Ok(None) => Listing::default(),
@@ -468,94 +444,10 @@ pub fn directory_name_of(saved_root: &Path, copy: &Path) -> Option<String> {
     return Some(first.as_os_str().to_string_lossy().into_owned());
 }
 
-/// What the folder holds,
-/// for `git monochromatic-git-policy-cli doctor`.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Report {
-    /// Bytes of every copy.
-    pub bytes: u128,
-    /// How many files the copies are.
-    pub copies: usize,
-    /// How many saves (directories) they came from.
-    pub saves: usize,
-    /// The name of the oldest save,
-    /// empty when no save could be read.
-    pub oldest: String,
-    /// What could not be read.
-    pub problems: Vec<Problem>,
-}
-
-/// The folder's size,
-/// copy count and oldest save and what could not be read,
-/// or nothing when it holds no copy and nothing
-/// went wrong.
-pub fn report(common_dir: &Path) -> Option<Report> {
-    return report_below(common_dir, saved_folder_for_reading(common_dir).as_str());
-}
-
-/// What:
-///  `report` for the folder at `relative` below the Git directory.
-/// Why:
-///  A report reads the folder that exists,
-/// under whichever of its two names it has.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// reportBelow(commonDir, relative);
-/// ```
-fn report_below(common_dir: &Path, relative: &str) -> Option<Report> {
-    let listing: Listing = list_stamped_below(common_dir, relative);
-    if listing.entries.is_empty() && listing.problems.is_empty() {
-        return None;
-    }
-    let mut total_bytes: u128 = 0;
-    for entry in &listing.entries {
-        total_bytes += entry.bytes;
-    }
-    return Some(Report {
-        bytes: total_bytes,
-        copies: listing.files,
-        saves: listing.entries.len(),
-        oldest: match listing.entries.first() {
-            Some(entry) => entry.name.clone(),
-            None => String::new(),
-        },
-        problems: listing.problems,
-    });
-}
-
-/// The doctor's text for the folder:
-/// empty when it holds no copy and nothing went wrong,
-/// otherwise one block with the size,
-/// the count,
-/// the oldest save and the limits that apply,
-/// then a sentence for each thing that could not be read.
-pub fn doctor_section(common_dir: &Path, limits: Limits) -> String {
-    // The report changes nothing, so it reads the folder under the name it has now, else under the earlier one.
-    let relative: String = saved_folder_for_reading(common_dir);
-    let Some(found) = report_below(common_dir, relative.as_str()) else {
-        return String::new();
-    };
-    let mut text: String = String::new();
-    if found.saves > 0 {
-        text = format!(
-            "git monochromatic-git-policy-cli doctor: discarded copies: {} holds {} bytes in {} copies from {} saves; the oldest save is {}. Copies older than {} days \
-             are removed, and the oldest are removed past {} bytes, never one younger than a day (`discardedCopies.maxAgeDays` and \
-             `discardedCopies.maxSize` in monochromatic-git-policy-cli.config.jsonc change the limits).\n",
-            common_dir.join(relative.as_str()).display(),
-            found.bytes,
-            found.copies,
-            found.saves,
-            found.oldest,
-            limits.max_age_days,
-            limits.max_bytes,
-        );
-    }
-    for problem in &found.problems {
-        text.push_str(problem.message().replacen("monochromatic-git-policy-cli: ", "git monochromatic-git-policy-cli doctor: discarded copies: ", 1).as_str());
-    }
-    return text;
-}
+/// What the folder of saved copies holds,
+/// for `git monochromatic-git-policy-cli doctor`,
+/// and the report's own text.
+pub use crate::discarded_report::{Report, doctor_section, report};
 
 /// Pruning is controlled in the test module.
 #[cfg(test)]

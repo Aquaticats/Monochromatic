@@ -162,6 +162,7 @@ pub mod name_held_while_one_thread_publishes_it;
 /// which the held-name wait and the wait before a forced stop use.
 pub mod worst_delay_seen_on_this_host;
 
-/// A blocking job on a thread of its own, awaited no longer than a ceiling,
+/// A blocking job on a thread of its own,
+/// awaited no longer than a ceiling,
 /// because a file system call can wait in the kernel with no end.
 pub mod work_awaited_within_a_ceiling;

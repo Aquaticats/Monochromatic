@@ -40,7 +40,8 @@ use crate::fs_mount_options::read_mount_facts;
 use crate::shell_quote::shell_quote;
 /// The ceiling of a read of the host's facts.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
-/// The job of such a read, run on a thread of its own.
+/// The job of such a read,
+/// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};

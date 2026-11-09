@@ -188,6 +188,22 @@ fn boolean_word(text: &str) -> Option<bool> {
 }
 
 /// What:
+///  One byte as a digit of `radix`,
+/// or nothing when it is not one.
+/// Why:
+///   `strtoimax` stops at the first byte that is not a digit of the radix it chose,
+/// and the loop that walks the
+///  digits needs that answer as a value.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// parseInt(String.fromCharCode(byte), radix); // NaN when it is not a digit
+/// ```
+fn digit_of(byte: u8, radix: u32) -> Option<u32> {
+    return (byte as char).to_digit(radix);
+}
+
+/// What:
 ///  One integer as Git's own reader spells it:
 /// `strtoimax` with base 0,
 /// then an optional `k`,
@@ -237,7 +253,9 @@ fn git_integer(text: &str) -> Option<i64> {
     let mut magnitude: i64 = 0;
     let mut digits: usize = 0;
     let mut cursor: usize = first_digit;
-    while let Some(digit) = bytes.get(cursor).and_then(|byte| { return (*byte as char).to_digit(radix); }) {
+    loop {
+        let Some(byte) = bytes.get(cursor) else { break };
+        let Some(digit) = digit_of(*byte, radix) else { break };
         magnitude = magnitude.checked_mul(i64::from(radix))?.checked_add(i64::from(digit))?;
         digits += 1;
         cursor += 1;

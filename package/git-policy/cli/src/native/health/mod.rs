@@ -30,6 +30,11 @@ pub mod checkout_layout;
 /// decided from the configuration snapshot alone.
 pub mod traditional_hook_warning;
 
+/// The Git LFS shims a repository may hold,
+/// recognized byte for byte,
+/// and the explanation the report gives for them.
+pub mod lfs_shims;
+
 /// `git monochromatic-git-policy-cli doctor`:
 /// the traditional hooks a repository holds,
 /// which are unsupported.

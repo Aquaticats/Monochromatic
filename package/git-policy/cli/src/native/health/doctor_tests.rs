@@ -452,12 +452,15 @@ fn each_of_the_four_shims_is_recognized() {
 }
 
 /// What:
-///  A newline inside a path is part of that path, never the end of one answer;
+///  A newline inside a path is part of that path,
+/// never the end of one answer;
 /// the repository Git selected is the one examined.
 /// Why:
 ///  The answers were read as lines,
 /// so a newline in the selected repository's own name ended the answer early and
-///  the doctor scanned, and renamed state in, an unrelated directory beside it (`STB`).
+///  the doctor scanned,
+/// and renamed state in,
+/// an unrelated directory beside it (`STB`).
 #[cfg(unix)]
 #[test]
 fn a_newline_in_a_path_is_no_separator() {
@@ -507,7 +510,8 @@ fn a_hooks_path_that_is_not_utf8_is_read_as_bytes() {
 }
 
 /// What:
-///  A report reads the names an earlier release kept, and moves none of them.
+///  A report reads the names an earlier release kept,
+/// and moves none of them.
 /// Why:
 ///  The command's contract says it changes nothing (`SPEC.md`,
 /// section Doctor),
@@ -536,7 +540,10 @@ fn the_report_moves_none_of_the_names_it_reads() {
 /// A listing that never answers,
 /// as a directory on a mount whose server stopped answering does not.
 ///
-/// The thread parks, so it spends no processor time while it waits: this is a stall, not a load.
+/// The thread parks,
+/// so it spends no processor time while it waits:
+/// this is a stall,
+/// not a load.
 fn stalled_listing(_directory: &Path) -> std::io::Result<Vec<PathBuf>> {
     loop {
         std::thread::park();

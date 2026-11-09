@@ -54,7 +54,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 /// The ceiling of each file system read of the report.
 use crate::wait_ceilings::REPORT_SCAN_CEILING;
-/// The job of such a read, run on a thread of its own.
+/// The job of such a read,
+/// run on a thread of its own.
 use crate::work_awaited_within_a_ceiling::work_within;
 /// How the checkout the section describes is laid out.
 use crate::checkout_layout::CheckoutLayout;
@@ -175,6 +176,22 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 }
 
 /// What:
+///  Whether one entry's name ends the way a sample Git installs ends.
+/// Why:
+///   A sample is never a hook,
+/// and the check is one condition of the scan,
+/// so it is a named rule rather than a closure
+///  inside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isASample = (name: string) => name.endsWith('.sample');
+/// ```
+fn is_a_sample(name: &std::ffi::OsStr) -> bool {
+    return name.as_encoded_bytes().ends_with(SAMPLE_SUFFIX);
+}
+
+/// What:
 ///  The names in one directory,
 /// as one read of it.
 ///  `fn(&Path) -> std::io::Result<Vec<PathBuf>>` is a function pointer,
@@ -260,7 +277,7 @@ pub fn scan_hooks_directory_with(listing: EntryListing, ceiling: Duration, direc
         };
         let mut hooks: Vec<PathBuf> = Vec::new();
         for path in entries {
-            if path.file_name().is_some_and(|name| { return name.as_encoded_bytes().ends_with(SAMPLE_SUFFIX); }) {
+            if path.file_name().is_some_and(is_a_sample) {
                 continue;
             }
             let metadata: std::fs::Metadata = std::fs::symlink_metadata(path.as_path())?;
@@ -339,7 +356,8 @@ or express what it checked as a policy under policies in monochromatic-git-polic
 ///   Locating the repository takes a few small questions,
 /// and each failure is reported with Git's own words.
 /// A path answer is
-///  bytes, not text:
+///  bytes,
+/// not text:
 /// a pathname is a byte string,
 /// and one that is not UTF-8 is a directory Git runs hooks in.
 ///
@@ -487,116 +505,9 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     });
 }
 
-/// The four hooks `git lfs install` writes.
-const LFS_SHIM_NAMES: [&str; 4] = ["pre-push", "post-checkout", "post-commit", "post-merge"];
-
-/// The longest shim file the comparison reads,
-/// in bytes;
-/// a longer file is not a shim.
-const LFS_SHIM_LIMIT: u64 = 1024;
-
-/// The text git-lfs 3.8.0 writes (`lfs/hook.go`,
-/// `hookBaseContent` and its `write`,
-/// which appends a line feed),
-///  with the hook's own name where `{{Command}}` stands.
-const LFS_SHIM_TEMPLATE: &str = r##"#!/bin/sh
-command -v git-lfs >/dev/null 2>&1 || { printf >&2 "\n%s\n\n" "This repository is configured for Git LFS but 'git-lfs' was not found on your path. If you no longer wish to use Git LFS, remove this hook by deleting the '{{Command}}' file in the hooks directory (set by 'core.hookspath'; usually '.git/hooks')."; exit 2; }
-git lfs {{Command}} "$@"
-"##;
-
-/// What:
-///  The text git-lfs writes for the hook called `name`.
-/// Why:
-///   Recognition is by these exact bytes,
-/// so an edited or foreign file is never taken for a shim.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// template.replaceAll('{{Command}}', name)
-/// ```
-pub fn lfs_shim_text(name: &str) -> String {
-    return LFS_SHIM_TEMPLATE.replace("{{Command}}", name);
-}
-
-/// What:
-///  Whether a hook file is exactly the git-lfs shim for its own name.
-/// Why:
-///   Only a regular file whose name is one of the four hooks and whose bytes equal that hook's shim counts;
-/// a link,
-///  a file that differs by one byte,
-/// and a shim under another hook's name are ordinary unsupported hooks.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// isFile(path) && readFileSync(path).equals(lfsShimText(basename(path)))
-/// ```
-pub fn is_lfs_shim(path: &Path) -> std::io::Result<bool> {
-    use std::io::Read;
-    let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
-        return Ok(false);
-    };
-    if !LFS_SHIM_NAMES.contains(&name) {
-        return Ok(false);
-    }
-    let named: PathBuf = path.to_path_buf();
-    let wanted: String = name.to_string();
-    // The type check, the open and the read of the file all wait on the file system, so they run under the ceiling.
-    let compared: Option<std::io::Result<bool>> = work_within(REPORT_SCAN_CEILING, move || {
-        let Ok(metadata) = std::fs::symlink_metadata(named.as_path()) else {
-            return Ok(false);
-        };
-        if !metadata.file_type().is_file() {
-            return Ok(false);
-        }
-        let Ok(file) = std::fs::File::open(named.as_path()) else {
-            return Ok(false);
-        };
-        let mut content: Vec<u8> = Vec::new();
-        if file.take(LFS_SHIM_LIMIT).read_to_end(&mut content).is_err() {
-            return Ok(false);
-        }
-        return Ok(content == lfs_shim_text(wanted.as_str()).as_bytes());
-    });
-    return match compared {
-        Some(answer) => answer,
-        None => Err(std::io::Error::new(
-            ErrorKind::TimedOut,
-            format!("the read of {} gave no answer within {REPORT_SCAN_CEILING:?}", path.display()),
-        )),
-    };
-}
-
-/// What:
-///  The explanation of the Git LFS shims a repository holds.
-/// Why:
-///   They are listed apart from the unsupported hooks and say what is going on,
-/// because the person who finds them
-///  after deleting them needs to know they come back,
-/// that this is normal,
-/// and that nothing needs doing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const explanation = (shims: string[]) => '...';
-/// ```
-pub fn render_lfs_shims(shims: &[PathBuf]) -> String {
-    let mut text: String = String::from(
-        "git monochromatic-git-policy-cli doctor: the hook files below are the Git LFS shims, byte for byte, and nothing needs doing:\n",
-    );
-    for shim in shims {
-        text.push_str("  ");
-        text.push_str(shim.display().to_string().as_str());
-        text.push('\n');
-    }
-    text.push_str(
-        "git-lfs writes these files again whenever it cleans a file in a Git that monochromatic-git-policy-cli did not start (for example \
-`git add` of an LFS file run as `/usr/bin/git` directly), so they can come back after you delete them; this is \
-normal. monochromatic-git-policy-cli uploads the LFS objects itself before every push and starts Git with traditional hooks off, so these \
-files never run through monochromatic-git-policy-cli. You may delete them or leave them. Only a script that starts Git without monochromatic-git-policy-cli, \
-such as `/usr/bin/git` directly, would run them.\n",
-    );
-    return text;
-}
+/// The Git LFS shims a repository holds,
+/// recognized by name and by the exact bytes git-lfs writes.
+pub use crate::lfs_shims::{is_lfs_shim, lfs_shim_text, render_lfs_shims};
 
 /// What:
 ///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with,
@@ -652,7 +563,9 @@ pub struct CheckoutViewpoint<'a> {
 }
 
 /// What:
-///  The checkout this command reports on, and its layout, as Git answers them.
+///  The checkout this command reports on,
+/// and its layout,
+/// as Git answers them.
 /// Why:
 ///   `git rev-parse --show-toplevel` names a worktree root and fails where there is none (a bare repository),
 /// so

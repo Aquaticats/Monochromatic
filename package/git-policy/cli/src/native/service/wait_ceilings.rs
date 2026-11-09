@@ -581,7 +581,8 @@ pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 /// 2026-11-03:
 /// "nothing should ever wait forever or indefinitely",
 /// with the commit delta the
-///  owner allows at 5,000 ms (`native:perf`, "commits vs native git should not take 5s longer"),
+///  owner allows at 5,000 ms (`native:perf`,
+/// "commits vs native git should not take 5s longer"),
 /// so this value leaves
 ///  4,750 ms of that slack untouched.
 ///  Measured on this host,

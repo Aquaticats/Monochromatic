@@ -333,7 +333,10 @@ fn the_kernel_command_line_is_split_at_unquoted_spaces() {
 /// A read of the host's facts that never answers,
 /// as one on a mount whose server stopped answering does not.
 ///
-/// The thread parks, so it spends no processor time while it waits: this is a stall, not a load.
+/// The thread parks,
+/// so it spends no processor time while it waits:
+/// this is a stall,
+/// not a load.
 fn stalled_host_facts(_checkout: &Path, _layout: CheckoutLayout) -> String {
     loop {
         std::thread::park();
@@ -346,7 +349,8 @@ fn stalled_host_facts(_checkout: &Path, _layout: CheckoutLayout) -> String {
 ///  `statfs` and the mount table wait in the kernel on a mount whose server stopped answering,
 /// and the owner's rule is
 ///  "nothing should ever wait forever or indefinitely".
-/// The line matters as much as the bound: a section silently
+/// The line matters as much as the bound:
+/// a section silently
 ///  left out would read as "nothing to say about this file system".
 #[test]
 fn a_stalled_host_facts_read_gives_up_at_its_ceiling() {

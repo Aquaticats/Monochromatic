@@ -16,7 +16,8 @@
 //! only work on another thread can be left behind,
 //! which is what `landing/scan_awaited_under_a_ceiling.rs` does
 //!  for the process look.
-//!  The job is abandoned, never cancelled:
+//!  The job is abandoned,
+//! never cancelled:
 //! it ends when the kernel lets the call go,
 //! and the thread it holds is gone only then.
 //!
