@@ -26,6 +26,10 @@ use git_policy_cli::commit_timing::SubmitTrace;
 use git_policy_cli::scratch_location::{SCRATCH_STALE_AFTER, sweep_stale};
 use git_policy_cli::service_client::{Activation, ClientConfig, FreshScratch, ManagerWatch, Submitted, submit, submit_traced};
 use git_policy_cli::service_messages::{ClientFailure, NOT_STARTED_NOTICE, SILENT_NOTICE, position_notice};
+
+/// The words a commit the service named no place for is told, as the person reads them,
+/// without the seconds it waited.
+const UNPLACED_SAID: &str = "has not said where this commit stands";
 use git_policy_cli::service_protocol::{
     ALLOWED_MODES, Change, ClientMessage, CommitRequest, PROTOCOL_VERSION, RELEASE, ServiceMessage, decode_client, encode_service,
 };
@@ -155,14 +159,17 @@ fn a_service_that_keeps_sending_heartbeats_through_a_long_batch_is_waited_for() 
     assert!(!notices.contains(SILENT_NOTICE), "a service that beats is never called silent: {notices:?}");
 }
 
-/// A commit the service has read and not begun on says so once,
-/// in words a person who knows only `git commit` understands,
-/// however many beats the service sends:
-/// the service naming no place is the only evidence there is,
-/// and it is said once,
-/// not on every beat.
+/// What:
+///  A commit the service named no place for is told once that the service has not said where it stands,
+/// and told nothing about
+///  whether the landing has begun.
+/// Why:
+///   The client knows only that no answer has come and that no place was named:
+/// the landing may be waiting behind
+///  another program's `index.lock`,
+/// so words that say the service has not started on the commit would be false.
 #[test]
-fn a_commit_the_service_has_not_placed_is_told_that_the_service_has_not_started_on_it() {
+fn a_commit_the_service_named_no_place_for_is_told_the_service_has_not_said_where_it_stands() {
     let name: String = address("unplaced");
     let service: UnixListener = listen(name.as_str());
     let waiting = client(config(name.as_str()));
@@ -178,7 +185,8 @@ fn a_commit_the_service_has_not_placed_is_told_that_the_service_has_not_started_
     (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
     let (answered, notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }), "{notices}");
-    assert_eq!(notices.matches(NOT_STARTED_NOTICE).count(), 1, "said once, and only once: {notices:?}");
+    assert_eq!(notices.matches(UNPLACED_SAID).count(), 1, "said once, and only once: {notices:?}");
+    assert!(!notices.contains("has not started on this commit") && !notices.contains("still reading it"), "the client cannot know that the landing has not begun: {notices:?}");
     assert!(!notices.contains(SILENT_NOTICE), "the service was never silent: {notices:?}");
 }
 
@@ -278,7 +286,7 @@ fn a_commit_whose_notice_stream_stopped_taking_lines_still_lands() {
     assert_eq!(end, Ok(Submitted::Landed { commit, already: false }));
     drop(release_sender);
     let said: String = kept_within(&kept);
-    assert!(said.contains("has not started on this commit yet"), "the line the client said reached the stream: {said:?}");
+    assert!(said.contains(UNPLACED_SAID), "the line the client said reached the stream: {said:?}");
 }
 
 /// A commit that lands at once prints nothing at all,
@@ -348,7 +356,7 @@ fn a_commit_the_service_places_after_a_wait_says_how_many_go_before_it() {
     let placed: String = position_notice(place.0, place.1);
     assert!(notices.contains(placed.as_str()), "the place the service named is said: {notices:?}");
     assert_eq!(notices.matches(placed.as_str()).count(), 1, "said once: {notices:?}");
-    assert!(notices.find(NOT_STARTED_NOTICE) < notices.find(placed.as_str()), "the service not having started on it is said first: {notices:?}");
+    assert!(notices.contains(UNPLACED_SAID) && notices.find(UNPLACED_SAID) < notices.find(placed.as_str()), "the service not having said where it stands is said first: {notices:?}");
     assert_eq!(trace.positions, vec![place.0], "the record holds the place the service named");
 }
 

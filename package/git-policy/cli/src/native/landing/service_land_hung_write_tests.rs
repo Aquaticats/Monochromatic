@@ -270,8 +270,10 @@ fn a_commit_the_service_takes_is_told_its_place_on_the_wire() {
     let (answer, notices) = submit_on_a_thread(config, request(&world, "placed", "placed.txt", "placed\n")).join().expect("client");
     assert!(matches!(answer, Ok(Submitted::Landed { .. })), "{answer:?} {notices}");
     let place: String = crate::service_messages::position_notice(1, 1);
-    let not_started: &str = crate::service_messages::NOT_STARTED_NOTICE;
-    assert_eq!(notices, format!("{not_started}\n{place}\n"), "the service not having started first, then the place it sent");
+    let lines: Vec<&str> = notices.lines().collect();
+    assert_eq!(lines.len(), 2, "two lines: {notices:?}");
+    assert!(lines[0].contains("has not said where this commit stands"), "the service not having said where it stands first: {notices:?}");
+    assert_eq!(lines[1], place, "then the place it sent: {notices:?}");
     wait_until_settled(&world);
     remove(serving.directory.as_path());
     remove(world.root.as_path());
