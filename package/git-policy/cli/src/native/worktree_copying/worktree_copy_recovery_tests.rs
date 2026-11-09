@@ -124,6 +124,39 @@ fn a_pointer_that_cannot_be_followed_keeps_the_pending_copy() {
     remove(root.as_path());
 }
 
+/// A `.git` file that claims a pointer and names no directory is not an absence of the registration,
+/// while a pointer to a directory outside the repository's administrative directories is one,
+/// and so is any pointer when the common directory has no linked worktree at all.
+#[test]
+fn registration_answers_a_pointer_that_names_nothing_and_one_that_names_elsewhere() {
+    let root: PathBuf = fixture("recovery-registration-pointers");
+    let (source, _topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let naming_nothing: PathBuf = root.join("naming-nothing");
+    std::fs::create_dir(naming_nothing.as_path()).expect("destination");
+    std::fs::write(naming_nothing.join(".git"), b"gitdir: \r\n").expect("a pointer with no directory");
+    assert_eq!(
+        destination_registration(common.as_path(), naming_nothing.as_path()).expect("names nothing"),
+        Registration::PointerUnfollowable
+    );
+    let elsewhere: PathBuf = root.join("admin");
+    std::fs::create_dir(elsewhere.as_path()).expect("a directory that is no administrative directory");
+    let foreign: PathBuf = root.join("foreign");
+    std::fs::create_dir(foreign.as_path()).expect("destination");
+    std::fs::write(foreign.join(".git"), format!("gitdir: {}\n", elsewhere.display()).as_bytes()).expect("a pointer outside the repository");
+    assert_eq!(
+        destination_registration(common.as_path(), foreign.as_path()).expect("elsewhere"),
+        Registration::Unregistered
+    );
+    let without_worktrees: PathBuf = root.join("common-without-worktrees");
+    std::fs::create_dir(without_worktrees.as_path()).expect("a common directory with no worktrees");
+    assert_eq!(
+        destination_registration(without_worktrees.as_path(), foreign.as_path()).expect("no worktrees directory"),
+        Registration::Unregistered
+    );
+    remove(root.as_path());
+}
+
 /// A journal whose destination is no longer registered is discarded with the notice,
 /// and its stage goes too.
 #[cfg(unix)]
