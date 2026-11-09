@@ -6,11 +6,10 @@
 //!  This repository keeps no context files;
 //!  agents read the source on every probe
 //!      (`doc/agent/domain.md`).
-//!  The rule and its finding are the installed wrapper's
-//!      (`package/git-policy/repository/src/index.ts`):
-//!  only the top-level pathname
-//!      counts,
-//!  and removing the file is always allowed.
+//!  Only the top-level pathname counts,
+//!  because that is the pathname a context file would be read from,
+//!  and removing the file is always allowed,
+//!  because that removal is the fix the finding asks for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

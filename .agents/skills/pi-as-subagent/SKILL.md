@@ -86,6 +86,10 @@ and a trial at 20 agents on 2026-11-09 met no rate-limit error.
 On going higher the owner said:
 "no,
 that's definitely going to blow up."
+Audits and reviews sit outside that limit and use another model.
+The owner on 2026-11-09:
+"Please use gpt-6.1-sol with the openai provider for audits and reviews.
+Those don't count within the 20 limit."
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
@@ -170,8 +174,34 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
       "$PWD/package/pi-shared/subagent-driver/src/drive-pi-subagent.ts" \
       --run-folder=<run> --working-folder=<its worktree, or "$PWD"> --prompt-file=<prompt-file> \
       --provider=neuralwatt --model=deepseek-v4.1-flash \
-      --wall-seconds=2400 --idle-seconds=60 --turn-cap=80
+      --wall-seconds=2400 --idle-seconds=60 --turn-cap=<sized from past runs>
     ```
+
+    Size `--turn-cap` to the task from past runs at every launch.
+    The owner,
+    2026-11-09:
+    "Always Size turn limits to the task based on past data."
+    Read what the finished runs of the same kind used,
+    narrowing by the run folders' names:
+
+    ```sh
+    # run from anywhere; <runs> holds the run folders, and the pattern picks the runs like this one
+    jq --slurp '[.[] | select(.endReason == "idle" and (.turns | type == "number")) | .turns] | sort
+      | {runs: length, median: .[length / 2 | floor], p95: .[length * 0.95 | floor], highest: .[-1]}' \
+      <runs>/*-findings-fixed-*/summary.json
+    ```
+
+    Set the cap a quarter above `highest`,
+    so a run as long as the longest that finished still has room.
+    When too few runs of that kind have finished to say anything,
+    read every run instead.
+    A cap exists to end a run that stopped getting anywhere;
+    one that fires on a working run costs a resume and leaves its work uncommitted.
+    Measured at 2026-11-09T07:42:00-05:00 over 254 runs:
+    finished fix rounds from a review or audit used a median of 126 turns,
+    a 95th percentile of 329 and at most 358,
+    every finished run at most 377,
+    and a fixed cap of 400 ended a run with uncommitted work after 154 of its 180 minutes.
 
 5.  Read progress from `<run>/feed.jsonl` when asked.
     To steer,
@@ -209,7 +239,21 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     `lastAssistantText` holds the whole final report,
     `sessionStats` holds the cost and names the session file,
     `modelError` holds what the model said when it settled on an error nothing recovered from,
+    `modelErrorAttempts` says how many attempts that took,
+    `retries` counts the attempts after a model error,
+    `rateLimitErrors` counts the model errors that named a rate limit or a quota,
     and `feedProblem` names why the feed is incomplete when it is.
+    The driver answers a transient model error with another attempt on its own:
+    a provider server error,
+    a request timeout,
+    a dropped connection,
+    or a rate limit is retried up to `--retry-cap` times with a growing wait,
+    and anything else ends the run on its first error as before.
+    Each attempt is a `retry` line on `feed.jsonl`,
+    and `summary.json` says what they were,
+    so a run that needed them reads apart from one that did not.
+    A run that used up its attempts still ends `model-error`,
+    which is when to start it again from the same session file as step 7 says.
 7.  For a follow-up after the driver has exited,
     start the same unit under a new name,
     with a new run folder,

@@ -33,13 +33,8 @@
 /// ```ts
 /// import { decideRequireRoot, resolveRequireRoot } from './rule_require_root.ts';
 /// ```
-use crate::diagnostics::EngineFailureCode;
-use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
-use crate::discarded_prune::Limits;
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
-/// Which worktree a command targets,
-///  for the linked-worktree rule.
-use crate::effective_target::{EffectiveTarget, classify_effective_target};
+/// The tool-cache entries exempt from the linked-worktree enforcement.
+use crate::effective_target::ToolCacheDirectory;
 /// The Markdown autofix check,
 ///  its state and the linter the executable gives it.
 use crate::markdown_linter::embedded_linter;
@@ -51,6 +46,8 @@ use crate::policy_dependent_version::check_dependent_version;
 /// The engine's check interface,
 ///  findings and outcomes.
 use crate::policy_engine::{PolicyChecks, PolicyFinding, PolicyOutcome};
+/// The code a check reports when a repository fact could not be read.
+use crate::diagnostics::EngineFailureCode;
 /// The built-in final-newline check over candidates.
 use crate::policy_final_newline::check_final_newline;
 /// The forbidden-strings check,
@@ -75,17 +72,12 @@ use crate::repository_facts::RepositoryFacts;
 use crate::repository_location::{RepositoryLocation, effective_directory};
 /// The add-explicit rule core.
 use crate::rule_add_explicit::{BULK_ADD_CODE, decide_add_explicit};
-/// The branch-worktree rule core.
-use crate::rule_branch_worktree::{
-    BRANCH_CREATION_CODE, BranchWorktreeDecision, branch_creation_message, decide_branch_worktree,
-};
-/// The linked-worktree rule core.
-use crate::rule_linked_worktree::{
-    GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
-    dirty_scope, dirty_worktree_message, resolve_linked_worktree,
-};
-/// Whether a Git directory has no index file yet.
-use crate::rule_worktree_dirty::index_file_is_absent;
+/// The branch-worktree-only check,
+/// one policy of its own file.
+use crate::policy_branch_worktree::check_branch_worktree;
+/// The guarded decision about the command Git will really run,
+/// alias expansion included.
+use crate::guarded_forwarded_command::{GuardedForwarded, decide_guarded_forwarded};
 /// The require-root rule core.
 use crate::rule_require_root::{
     NOT_AT_ROOT_CODE, RequireRootDecision, RequireRootFacts, RequireRootVerdict,
@@ -107,8 +99,6 @@ use crate::worktree_identity::worktree_root;
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-/// `PathBuf` is an owned filesystem path of raw bytes.
-use std::path::PathBuf;
 
 /// What:
 ///  The shipped policies over one invocation.
@@ -141,10 +131,10 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// What the lifecycle offers content policies.
     pub candidates: LifecycleContent,
     /// Tool-cache directories exempt from linked-worktree enforcement.
-    pub allowed_worktree_dirs: Vec<PathBuf>,
+    pub allowed_worktree_dirs: Vec<ToolCacheDirectory>,
     /// The limits of the folder of saved copies of conflicted files,
     /// from `discardedCopies` in `monochromatic-git-policy-cli.config.jsonc`.
-    pub discarded_limits: Limits,
+    pub discarded_limits: crate::discarded_prune::Limits,
     /// The candidates once a content policy prepared them,
     ///  shared by every later one.
     pub content: ContentState,
@@ -160,6 +150,13 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// Plain notices the checks produced for the person (a saved copy of a conflicted file),
     /// shown before Git runs.
     pub notices: Vec<String>,
+    /// The guarded decision about the command Git will run,
+    ///  once it has been asked for;
+    ///  the guard,
+    ///  the escape record and the fixed transforms read this one answer,
+    /// so the
+    ///  expansion an alias names is the command all three see.
+    pub forwarded: Option<GuardedForwarded>,
 }
 
 /// What:
@@ -179,7 +176,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
     facts: F,
     arguments: Vec<OsString>,
     candidates: LifecycleContent,
-    allowed_worktree_dirs: Vec<PathBuf>,
+    allowed_worktree_dirs: Vec<ToolCacheDirectory>,
 ) -> ShippedChecks<F> {
     return ShippedChecks {
         can_apply_patches: false,
@@ -187,14 +184,47 @@ pub fn shipped_checks<F: RepositoryFacts>(
         arguments,
         candidates,
         allowed_worktree_dirs,
-        discarded_limits: Limits::default(),
+        discarded_limits: crate::discarded_prune::Limits::default(),
         content: ContentState::new(),
         scanner_settings: default_scanner_settings(),
         scanner: unloaded_scanner(),
         // The linter is linked in, so it needs nothing from the invocation's environment and is ready at once.
         markdown: markdown_state(Box::new(embedded_linter())),
         notices: Vec::new(),
+        forwarded: None,
     };
+}
+
+/// What:
+///  The guarded decision about the command Git will run,
+///  asked once per invocation.
+///  `<F: RepositoryFacts>` accepts any facts provider.
+/// Why:
+///   An alias makes the word on the command line differ from the command Git runs;
+///  the guard refuses
+///  on the expansion,
+///  the fixed transforms add their tokens to the same expansion,
+///  and that expansion is what
+///  the wrapper forwards.
+///  Resolving once keeps one reading of the alias for all three,
+///  and a built-in
+///  word needs no configuration read and no process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function guardedForwarded(checks): { decision; args } {
+///   return checks.forwarded ??= decideGuardedForwarded(checks.facts.transactionContext(), checks.arguments);
+/// }
+/// ```
+pub fn guarded_forwarded<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) -> GuardedForwarded {
+    // `if let Some(known) = &checks.forwarded` borrows the remembered answer when there is one.
+    if let Some(known) = &checks.forwarded {
+        return known.clone();
+    }
+    let decided: GuardedForwarded =
+        decide_guarded_forwarded(&checks.facts.transaction_context(), checks.arguments.as_slice());
+    checks.forwarded = Some(decided.clone());
+    return decided;
 }
 
 /// What:
@@ -210,7 +240,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
 /// ```ts
 /// const factUnavailable = (message: string): PolicyOutcome => ({ kind: 'failed', code: 'content-unavailable', message });
 /// ```
-fn fact_unavailable(message: String) -> PolicyOutcome {
+pub(crate) fn fact_unavailable(message: String) -> PolicyOutcome {
     return PolicyOutcome::Failed {
         code: EngineFailureCode::ContentUnavailable,
         message,
@@ -230,7 +260,7 @@ fn fact_unavailable(message: String) -> PolicyOutcome {
 /// ```ts
 /// const clean = (): PolicyOutcome => ({ kind: 'findings', findings: [] });
 /// ```
-fn clean() -> PolicyOutcome {
+pub(crate) fn clean() -> PolicyOutcome {
     return PolicyOutcome::Findings(Vec::<PolicyFinding>::new());
 }
 
@@ -247,7 +277,7 @@ fn clean() -> PolicyOutcome {
 /// ```ts
 /// const rejected = (code: string, message: string): PolicyOutcome => ({ kind: 'findings', findings: [{ code, message }] });
 /// ```
-fn rejected(code: &'static str, message: String) -> PolicyOutcome {
+pub(crate) fn rejected(code: &'static str, message: String) -> PolicyOutcome {
     // `vec![...]` is a macro building an owned list from literal items.
     return PolicyOutcome::Findings(vec![PolicyFinding {
         code,
@@ -312,140 +342,6 @@ fn check_require_root(
     }
 }
 
-/// The clock reading the conflict copies are named with,
-/// in milliseconds since the Unix epoch.
-fn now_milliseconds() -> i64 {
-    let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-}
-
-/// What:
-///  The linked-worktree-only check.
-///  `&[PathBuf]` borrows the exempt tool caches.
-/// Why:
-///   A guarded form that overwrites is rejected at once in the main worktree and outside any worktree,
-/// and in a
-///  linked worktree only while uncommitted state exists;
-/// a form that only moves `HEAD` is rejected in the main or
-///  a linked worktree only while uncommitted state exists.
-/// Only these need the worktree kind or the status.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function checkLinkedWorktree(facts, args, allowedDirs): Promise<PolicyOutcome>;
-/// ```
-fn check_linked_worktree(
-    facts: &mut dyn RepositoryFacts,
-    arguments: &[OsString],
-    allowed_worktree_dirs: &[PathBuf],
-    discarded_limits: Limits,
-    notices: &mut Vec<String>,
-) -> PolicyOutcome {
-    // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
-    let (command, moves_head_only): (GuardedCommand, bool) = match decide_linked_worktree(arguments) {
-        LinkedWorktreeDecision::Pass => return clean(),
-        LinkedWorktreeDecision::NeedsEffectiveTarget(command) => (command, false),
-        LinkedWorktreeDecision::WhenDirty(command) => (command, true),
-    };
-    let location: RepositoryLocation = match facts.location() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
-    let target: EffectiveTarget =
-        classify_effective_target(&location.identity, allowed_worktree_dirs);
-    // During a merge, rebase, cherry-pick or revert, taking a side of conflicted files is let through after the files
-    // are saved; the verdict also carries the sentence a rejection of the same line gets.
-    let mut conflict_note: String = String::new();
-    if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
-        && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
-    {
-        match judge_conflict_sides(&facts.transaction_context(), arguments, now_milliseconds(), discarded_limits) {
-            SideVerdict::NotApplicable => {}
-            SideVerdict::Refused(note) => conflict_note = note,
-            SideVerdict::Allowed { notice, copies } => {
-                let mut places: Vec<String> = Vec::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
-                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, arguments, None, places.as_slice());
-                notices.push(notice);
-                return clean();
-            }
-            SideVerdict::CopyFailed(message) => {
-                record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, None);
-                return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
-            }
-        }
-    }
-    if moves_head_only {
-        // A `HEAD` move outside a worktree or in an exempt cache is not this policy's concern.
-        if target != EffectiveTarget::MainWorktree && target != EffectiveTarget::LinkedWorktree {
-            return clean();
-        }
-    } else if let Some(message) = resolve_linked_worktree(command, target) {
-        record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, None);
-        return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
-    }
-    if target == EffectiveTarget::Allowlisted {
-        record_audit(&location.identity, command, AuditOutcome::Exempt, arguments, None);
-        return clean();
-    }
-    // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
-    // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
-    if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
-        record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
-        return clean();
-    }
-    match facts.worktree_dirty(dirty_scope(command)) {
-        Ok(true) => {
-            record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, Some(true));
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{}{conflict_note}", dirty_worktree_message(command)));
-        }
-        Ok(false) => {
-            record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
-            return clean();
-        }
-        Err(message) => return fact_unavailable(message),
-    }
-}
-
-/// What:
-///  The branch-worktree-only check.
-/// Why:
-///   Explicit creation is rejected from the arguments;
-///  a bare name is rejected only
-///       when Git would create a branch for it from the one remote that has it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function checkBranchWorktree(facts, args): Promise<PolicyOutcome>;
-/// ```
-fn check_branch_worktree(facts: &mut dyn RepositoryFacts, arguments: &[OsString]) -> PolicyOutcome {
-    match decide_branch_worktree(arguments) {
-        BranchWorktreeDecision::Pass => return clean(),
-        BranchWorktreeDecision::Creates(command) => {
-            return rejected(BRANCH_CREATION_CODE, branch_creation_message(command, None));
-        }
-        BranchWorktreeDecision::NeedsRemoteGuess { command, target } => {
-            // `.as_os_str()` lends the owned name as a borrowed one.
-            match facts.remote_guess_creates_branch(target.as_os_str()) {
-                Err(message) => return fact_unavailable(message),
-                Ok(false) => return clean(),
-                Ok(true) => {
-                    return rejected(
-                        BRANCH_CREATION_CODE,
-                        branch_creation_message(command, Some(target.as_os_str())),
-                    );
-                }
-            }
-        }
-    }
-}
-
 /// What:
 ///  The add-explicit check.
 /// Why:
@@ -491,9 +387,10 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                 return check_require_root(&mut self.facts, self.arguments.as_slice(), trigger);
             }
             PolicyId::LinkedWorktreeOnly => {
-                return check_linked_worktree(
+                let forwarded: GuardedForwarded = guarded_forwarded(self);
+                return crate::policy_linked_worktree::check_linked_worktree(
                     &mut self.facts,
-                    self.arguments.as_slice(),
+                    &forwarded,
                     self.allowed_worktree_dirs.as_slice(),
                     self.discarded_limits,
                     &mut self.notices,

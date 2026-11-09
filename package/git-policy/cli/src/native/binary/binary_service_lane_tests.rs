@@ -119,7 +119,7 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
         address: Bind::Path(socket_for(runtime, git_dir)),
         activation: Activation::Managed,
         start_wait: PATIENCE,
-        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING,
+        heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None,
     };
 }
 
@@ -137,7 +137,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         git_dir: git_dir.to_path_buf(),
         reference: format!("refs/heads/{branch}"),
         base: query(&["rev-parse", "HEAD"]),
-        changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
         author: None,
         committer: COMMITTER.to_string(),

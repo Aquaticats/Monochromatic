@@ -28,6 +28,8 @@
 pub enum CandidateFailure {
     /// The real Git program could not be started at all.
     GitNotStarted,
+    /// A read-only Git query of the check was ended at the bound the wrapper gives every read.
+    GitStopped,
     /// A listing command ran and exited unsuccessfully.
     GitFailed,
     /// Listing output is not the NUL-delimited record format Git 2.56.0 prints.
@@ -51,6 +53,8 @@ pub enum CandidateFailure {
     ObjectMissing,
     /// The requested object exists with a type the caller cannot use.
     ObjectKindUnexpected,
+    /// An object is larger than a content check reads whole.
+    ObjectTooLarge,
     /// A candidate belongs to a version that was invalidated.
     StaleCandidate,
     /// The private index copy a prediction stages into could not be created or copied.

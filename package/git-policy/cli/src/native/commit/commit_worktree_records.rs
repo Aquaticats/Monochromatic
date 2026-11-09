@@ -5,8 +5,7 @@
 //!  The commit keeps what the private index holds,
 //! so the real worktree still holds the bytes the user wrote.
 //!  After the landing,
-//! each recorded file takes the committed bytes only while it still holds its earlier bytes
-//!  (`src/policy-engine/commit-transaction-selected-worktree.ts`).
+//! each recorded file takes the committed bytes only while it still holds its earlier bytes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -118,6 +117,12 @@ pub fn settled_entry(
         let Some(tab) = record.iter().position(is_tab_byte) else {
             continue;
         };
+        // This asks about one path, so a record naming another is not its settled entry: under
+        // `GIT_ICASE_PATHSPECS=1` Git lists every entry whose name differs only in case, and the first one is
+        // not necessarily the path asked about.
+        if record.get(tab + 1..) != Some(path) {
+            continue;
+        }
         let metadata: String = String::from_utf8_lossy(&record[..tab]).into_owned();
         let fields: Vec<&str> = metadata.split(' ').collect();
         if fields.len() == 3 && fields[2] == "0" {

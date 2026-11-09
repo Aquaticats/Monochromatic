@@ -83,7 +83,9 @@ pub enum IndexPaths<'a> {
 }
 
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, arguments);
+    // Every pathspec this module writes is its own, so the caller's pathspec mode must not reach it
+    // (`GitRequest::without_pathspec_modes`).
+    let mut request: GitRequest = GitRequest::new(repository, arguments).without_pathspec_modes();
     request.input = input;
     request.index = index.map(Path::to_path_buf);
     return match run_git(git, &request) {
@@ -119,7 +121,7 @@ fn literal(path: &[u8]) -> Vec<u8> {
 
 /// The names (bytes,
 /// NUL-separated) of the paths that differ between `old` and `new`.
-fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
+pub(crate) fn derived_names(git: &GitContext, repository: &Path, old: &str, new: &str) -> Result<Vec<u8>, FailureCode> {
     let mut arguments: Vec<&str> = vec!["diff-tree", "-r", "--name-only", "-z", "--no-renames"];
     if is_zero_object(old) {
         // A branch that did not exist: the commit is a root commit, and `--root` lists everything it holds.
@@ -185,12 +187,33 @@ fn pathspec_input(names: &[u8]) -> Vec<u8> {
     return input;
 }
 
+/// The global option that turns the caller's literal pathspec mode off for the `reset` below.
+/// Why:
+///   Every spec this module hands `reset` is `:(top,literal)<path>`,
+/// which literal pathspec mode,
+/// from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
+/// turns into a name that matches nothing;
+/// `reset` accepts such a spec without a word and updates nothing,
+/// so the service would lose the index update it owes while reporting success.
+/// The service inherits the environment of the command that first started it,
+/// so a person with the variable in their shell reaches this step.
+///  The mode variables are removed from every Git this module starts (see `run`),
+/// so this option answers the caller's own global option in the prefix,
+/// which no removal can reach;
+///  a mode that only a variable set is gone with the variable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MAGIC_ENABLED = '--no-literal-pathspecs';
+/// ```
+const MAGIC_ENABLED: &str = "--no-literal-pathspecs";
+
 /// One try of the index update.
 fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
-            let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
+            let mut arguments: Vec<&str> = vec![MAGIC_ENABLED, "reset", "--no-refresh", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None, index)?
         }
@@ -205,14 +228,14 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &[MAGIC_ENABLED, "reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &[MAGIC_ENABLED, "reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
     };
     if !output.succeeded() {
@@ -222,6 +245,29 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     //  in the service's log.
     record_words(&["reset", "<commit>", "--", "<paths>"], &output);
     return Ok(());
+}
+
+/// What:
+///  Resets the index entries of `names` in `index` to the commit `new`,
+///  without waiting and without a refresh.
+/// Why:
+///   The landing's own index update and the repair of an update it left owed are one step
+///   (`owed_index_update.rs`):
+///  a path whose entry the landing left is reset the same way by both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await resetEntries(git, repository, index, newCommit, names);
+/// ```
+///
+/// # Errors
+///
+/// The failure code of the `reset` that was refused.
+pub fn reset_entries(git: &GitContext, repository: &Path, index: Option<&Path>, new: &str, names: &[Vec<u8>]) -> Result<(), FailureCode> {
+    if names.is_empty() {
+        return Ok(());
+    }
+    return reset_once(git, repository, new, IndexPaths::Named(names), index);
 }
 
 /// What:
@@ -258,17 +304,31 @@ pub fn update_index_within(git: &GitContext, repository: &Path, index: &Path, ce
     }
     // Tries that met no holder to wait for: a refusal with the lock already gone, or a failure that is not the lock's.
     let mut tries: usize = 0;
+    // One ceiling for the whole update, not one per hold: a hold that ends and is taken again is waited for under this deadline, so
+    //  no schedule of handoffs keeps the command waiting.
+    let deadline: std::time::Instant = std::time::Instant::now() + ceiling;
     loop {
         let code: FailureCode = match reset_once(git, repository, new, paths, None) {
             Ok(()) => return Ok(()),
             Err(code) => code,
         };
         if code == FailureCode::IndexInUse {
-            match wait_for_index_release_within(index, "commit", ceiling, Cadence::from_environment(), &mut std::io::stderr()) {
+            // The wait gets what is left of the one ceiling, so a hold that ends and is taken again cannot add a full wait.
+            let left: std::time::Duration = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(code);
+            }
+            match wait_for_index_release_within(index, "commit", left, Cadence::from_environment(), &mut std::io::stderr()) {
                 // The diagnostic of a wait that ended on a dead owner is already written.
                 IndexWait::OwnerGone(_) | IndexWait::GaveUp(_) => return Err(code),
-                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well.
-                IndexWait::Released(_) => continue,
+                // A holder let go: the index is tried again at once, and a holder that comes next is waited for as well, under the
+                //  same deadline.
+                IndexWait::Released(_) => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(code);
+                    }
+                    continue;
+                }
                 IndexWait::NotHeld => {}
             }
         }
@@ -331,6 +391,16 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
     };
 }
 
+pub(crate) fn cleanup_done(git: &GitContext, repository: &Path, intent: &crate::service_journal::Intent, journal: &Path) -> bool {
+    let Some(cleanup) = intent.cleanup.as_ref() else { return true };
+    // The client's own scratch directory is the service's to remove when that client is gone, so the copy the landing kept in
+    //  the journal is what the comparison reads once it is: a cleanup that failed once would otherwise remove nothing and answer
+    //  success, and the next commit would conclude the same merge again.
+    let kept: std::path::PathBuf = crate::conclusion_state_copy::path_of(journal, intent.seq);
+    let surviving: Option<&Path> = kept.exists().then_some(kept.as_path());
+    return remove_conclusion_state(git, repository, cleanup, surviving);
+}
+
 /// What:
 ///  Removes the conclusion state real Git removed in the scratch repository,
 /// from the worktree's Git directory.
@@ -345,19 +415,36 @@ pub fn storage_failure(error: &std::io::Error) -> FailureCode {
 /// ```ts
 /// await removeConclusionState(git, repository, cleanup)
 /// ```
-pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cleanup) -> bool {
-    // The scratch directory is the client's; once the client is gone and its directory with it there is nothing left to compare.
-    if !cleanup.scratch.exists() {
-        return true;
-    }
+pub fn remove_conclusion_state(git: &GitContext, repository: &Path, cleanup: &Cleanup, surviving: Option<&Path>) -> bool {
+    // The scratch directory is the client's, and the service removes it when that client is gone; the copy the landing kept in its
+    //  journal is what the comparison reads then, and without either nothing can be compared, so nothing is removed.
+    let compared: &Path = if cleanup.scratch.exists() {
+        cleanup.scratch.as_path()
+    } else {
+        match surviving {
+            Some(kept) if kept.exists() => kept,
+            _ => {
+                warn(
+                    "serviceLandFollow",
+                    format!(
+                        "the conclusion state of {} was left as it is: the directory it was compared against, {}, is gone and no copy of it was kept",
+                        cleanup.git_dir.display(),
+                        cleanup.scratch.display()
+                    )
+                    .as_str(),
+                );
+                return false;
+            }
+        }
+    };
     let format: RefFormat = if cleanup.reftable { RefFormat::Reftable } else { RefFormat::Files };
-    let shadow = cleanup.scratch.join("shadow");
+    let shadow: std::path::PathBuf = compared.join("shadow");
     // The stash Git stored in the scratch repository when its apply conflicted is stored in the repository before the cleanup
     //  removes the pseudoref that named it; if that fails the state stays, so the cleanup runs again.
     if !carry_stash(git, repository, cleanup) {
         return false;
     }
-    return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), cleanup.scratch.as_path(), format) {
+    return match reproduce_conclusion_cleanup(git, repository, cleanup.git_dir.as_path(), shadow.as_path(), compared, format) {
         Ok(()) => true,
         Err(error) => {
             warn("serviceLandFollow", format!("removing the conclusion state failed: {}", error.0).as_str());

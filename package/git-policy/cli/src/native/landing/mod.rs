@@ -41,6 +41,9 @@ pub mod work_item_state_directories_and_claim_names;
 
 pub mod work_item_recovery;
 
+/// The steps of a work item that waits for its producer's approval.
+pub mod work_item_holding;
+
 /// The clocks a claim's lease is judged by.
 pub mod claim_time;
 
@@ -90,6 +93,19 @@ pub mod service_land_objects_of_batch;
 pub mod service_land_copy;
 
 pub mod service_land_follow;
+
+/// The copy the service keeps of the conclusion state a landed commit removes.
+pub mod conclusion_state_copy;
+
+/// The record of an index update a landed batch owes.
+pub mod owed_index_update;
+
+/// The repair that repeats a landed batch's owed index update for the entries the landing left.
+pub mod owed_index_repair;
+
+/// How the repair reads one entry of a tree or an index,
+/// and the listings it compares.
+pub mod owed_index_entries;
 
 pub mod service_land_start;
 
@@ -178,8 +194,18 @@ pub mod service_hold_retry;
 /// The commit command's path through the commit service.
 pub mod service_commit;
 
+/// What the branch shows once the commit service went silent after a commit was prepared.
+pub mod service_branch_shows;
+
+/// What a landed commit leaves the command to do:
+/// its result and the work after it.
+pub mod service_landed_aftermath;
+
 /// The small steps of a service commit and the commit the service builds itself.
 pub mod service_commit_input_notes_and_embedded_commit;
+
+/// Whether the request the embedded route would send fits the one line the service reads.
+pub mod service_commit_fitting_request;
 
 /// The requests of a service commit and what a landed commit leaves for the person.
 pub mod service_commit_requests_and_landing_report;

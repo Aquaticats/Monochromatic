@@ -14,8 +14,7 @@
 //!  and only an index that no longer describes the worktree is refreshed at all.
 //!  A copy keeps the real index's timestamps,
 //! because Git re-reads a stat entry
-//!  whose time is not older than the index file (`index-file-timestamps.ts`,
-//! issue #544).
+//!  whose time is not older than the index file (issue #544).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

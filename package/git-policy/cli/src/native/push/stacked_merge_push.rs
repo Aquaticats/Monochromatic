@@ -77,6 +77,9 @@ fn write_to_standard_error(text: &str) {
 fn status_of_forwarded(run: ForwardedRun) -> i32 {
     return match run {
         ForwardedRun::Ran(code) => code,
+        // A push the person's Git was killed in keeps a status of its own here: what the stacked run needs is whether the
+        //  push failed, and a shell's report of the death is 128 + the signal.
+        ForwardedRun::Killed(signal) => crate::forwarding::SIGNAL_EXIT_BASE + signal,
         ForwardedRun::Failed { stderr, code } => {
             write_to_standard_error(stderr.as_str());
             code

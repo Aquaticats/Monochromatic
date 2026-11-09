@@ -288,6 +288,7 @@ pub(crate) fn managed_client_config(address: Bind, provisioning: Option<&Provisi
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: provisioning.map(manager_watch_for),
         keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
+        units_record_dir: provisioning.map(crate::service_provision_host_and_manager::units_record_dir_of),
     };
 }
 

@@ -141,7 +141,7 @@ fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatu
 }
 
 fn config(name: &str) -> ClientConfig {
-    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
+    return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, units_record_dir: None };
 }
 
 /// The client of a control whose service is killed and started again:
@@ -178,7 +178,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         git_dir: repo.join(".git"),
         reference: String::from("refs/heads/main"),
         base: query(fixture, repo, &["rev-parse", "HEAD"]),
-        changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
         author: None,
         committer: COMMITTER.to_string(),
@@ -798,7 +798,7 @@ fn hostile_input_is_refused_and_the_service_keeps_serving() {
         "x".repeat(git_policy_cli::service_protocol::MAX_LINE_BYTES + 10),
         encode_client(&ClientMessage::Commit(Box::new({
             let mut escaping: CommitRequest = request(&fixture, &repo, "evil-1", "e.txt", "e\n");
-            escaping.changes[0].path = String::from("../outside.txt");
+            escaping.changes[0].path = PathBuf::from("../outside.txt");
             escaping
         }))),
     ];
@@ -960,6 +960,78 @@ fn a_service_of_another_release_that_will_not_retire_is_reported_plainly() {
     // The connection the client gave up on says nothing; every other line is the request to retire.
     let spoken: Vec<&String> = asked.iter().filter(|line| { return !line.is_empty(); }).collect();
     assert!(!spoken.is_empty() && spoken.iter().all(|line| { return **line == encode_client(&ClientMessage::Retire); }), "{asked:?}");
+    git(&fixture, &repo, &["status", "--short"]);
+    remove_settled(&fixture);
+}
+
+/// The protocol version of the build before a changed path carried its bytes.
+/// The release text cannot name that build apart from this one,
+/// because both name one crate version.
+const PROTOCOL_BEFORE_CHANGED_PATH_BYTES: u32 = 7;
+
+/// What:
+///  A service of the protocol that ignores `pathHex`,
+/// even one that names this release,
+/// is asked to retire and is never
+///  given a commit.
+/// Why:
+///   Such a service takes the readable spelling of a name that is not text and commits it,
+/// and reports success,
+/// which is another file from the one the person staged;
+/// the version both sides compare is the only thing that keeps the request from being handed to it.
+#[test]
+fn a_service_that_ignores_changed_path_bytes_is_retired_and_never_given_a_commit() {
+    let fixture: Fixture = fixture("service-same-release-old-protocol");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let name: String = address(&fixture, "same-release");
+    let sent: CommitRequest = request(&fixture, &repo, "same-release-1", "c.txt", "c\n");
+    let socket = SocketAddr::from_abstract_name(name.as_bytes()).expect("name");
+    let stubborn: UnixListener = UnixListener::bind_addr(&socket).expect("bind");
+    stubborn.set_nonblocking(true).expect("non-blocking");
+    let finished: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let acceptor = std::thread::spawn({
+        let stop: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&finished);
+        move || {
+            let mut asked: Vec<String> = Vec::new();
+            let mut held: Vec<UnixStream> = Vec::new();
+            while !stop.load(std::sync::atomic::Ordering::SeqCst) {
+                let Ok((stream, _)) = stubborn.accept() else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                stream.set_nonblocking(false).expect("blocking");
+                let mut greeting: String = encode_service(&ServiceMessage::Welcome {
+                    version: PROTOCOL_BEFORE_CHANGED_PATH_BYTES,
+                    release: Some(String::from(git_policy_cli::service_protocol::RELEASE)),
+                });
+                greeting.push('\n');
+                let _sent = (&stream).write_all(greeting.as_bytes());
+                let mut line: String = String::new();
+                let _read = BufReader::new(&stream).read_line(&mut line);
+                // A service that ignored the bytes would answer the commit: that answer is the success this control denies.
+                if line.contains("\"type\":\"commit\"") {
+                    let mut answer: String = encode_service(&ServiceMessage::Landed {
+                        id: String::from("same-release-1"),
+                        commit: String::from("0123456789abcdef0123456789abcdef01234567"),
+                        already: false,
+                    });
+                    answer.push('\n');
+                    let _answered = (&stream).write_all(answer.as_bytes());
+                }
+                asked.push(line.trim_end().to_string());
+                held.push(stream);
+            }
+            return asked;
+        }
+    });
+    let impatient: ClientConfig = ClientConfig { start_wait: Duration::from_millis(400), ..config(name.as_str()) };
+    let answered = submit_quietly(&impatient, &sent);
+    finished.store(true, std::sync::atomic::Ordering::SeqCst);
+    let asked: Vec<String> = acceptor.join().expect("acceptor");
+    let spoken: Vec<&String> = asked.iter().filter(|line| { return !line.is_empty(); }).collect();
+    assert_eq!(answered, Err(ClientFailure::OtherRelease), "a service that ignores the bytes is retired, not served");
+    assert!(!spoken.is_empty(), "the client asked it to retire: {asked:?}");
+    assert!(spoken.iter().all(|line| { return line.contains("\"type\":\"retire\""); }), "no commit line is handed to it: {asked:?}");
     git(&fixture, &repo, &["status", "--short"]);
     remove_settled(&fixture);
 }

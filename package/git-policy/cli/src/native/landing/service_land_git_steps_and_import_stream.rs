@@ -125,24 +125,65 @@ pub(crate) fn checked(git: &GitContext, repository: &Path, arguments: &[&str], i
     return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
 }
 
+/// What:
+///  The standard output of one Git step that must succeed,
+/// as the bytes Git wrote.
+/// Why:
+///   `checked` answers with trimmed text,
+/// which is right for an object name and wrong for a listing of paths:
+/// a listing with a name that is not text has to reach the caller as the name Git wrote.
+pub(crate) fn checked_bytes(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8>, FailureCode> {
+    let output: GitOutput = run(git, repository, arguments, input)?;
+    if !output.succeeded() {
+        return Err(classify(&output));
+    }
+    return Ok(output.stdout);
+}
+
 /// A path in the quoted form `fast-import` reads,
 /// so no byte of a name can end the line or the field.
-pub(crate) fn quoted(path: &str) -> String {
-    let mut text: String = String::from("\"");
-    for character in path.chars() {
-        match character {
-            '"' => text.push_str("\\\""),
-            '\\' => text.push_str("\\\\"),
-            other => text.push(other),
+/// Why:
+///   A name is bytes,
+/// so the quoted form is built as bytes:
+/// `fast-import` reads a byte outside the printable range as the octal escape `\\ooo`,
+/// and a byte that is text may be written as itself.
+/// Writing the name as a Rust string would encode every byte above 0x7f as two,
+/// which is another name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const quoted = (path: Uint8Array) => '"' + [...path].map((b) => b === 0x22 || b === 0x5c || b < 0x20 || b === 0x7f ? '\\' + b.toString(8).padStart(3, '0') : String.fromCharCode(b)).join('') + '"'
+/// ```
+pub(crate) fn quoted(path: &[u8]) -> Vec<u8> {
+    let mut text: Vec<u8> = vec![b'"'];
+    for byte in path {
+        if *byte == b'"' || *byte == b'\\' || *byte < b' ' || *byte == 0x7f {
+            text.extend(format!("\\{byte:03o}").as_bytes());
+        } else {
+            text.push(*byte);
         }
     }
-    text.push('"');
+    text.push(b'"');
     return text;
 }
 
+/// Whether a byte ends a field of Git's `-z` output.
+fn ends_a_field(byte: &u8) -> bool {
+    return *byte == b'\0';
+}
+
 /// Whether two repository paths touch the same file or one contains the other.
-pub(crate) fn overlaps(path: &str, changed: &str) -> bool {
-    return path == changed || path.starts_with(&format!("{changed}/")) || changed.starts_with(&format!("{path}/"));
+/// Why:
+///   Both are the bytes Git listed,
+/// so a name that is not text is compared as itself and never as a spelling that two names can share.
+pub(crate) fn overlaps(path: &[u8], changed: &[u8]) -> bool {
+    return path == changed || is_below(path, changed) || is_below(changed, path);
+}
+
+/// Whether `directory` holds `path`,
+/// which is the same test as `path.startsWith(directory + '/')` on the bytes.
+fn is_below(path: &[u8], directory: &[u8]) -> bool {
+    return path.len() > directory.len() && path.starts_with(directory) && path[directory.len()] == b'/';
 }
 
 /// The stream that makes one commit per request on a scratch branch that starts at `old`,
@@ -175,10 +216,13 @@ pub(crate) fn import_stream(scratch: &str, old: &str, requests: &[&CommitRequest
             bytes.extend(format!("from {old}\n").as_bytes());
         }
         for change in &request.changes {
+            let path: Vec<u8> = quoted(crate::path_bytes::path_bytes_of(change.path.as_path()));
             match &change.blob {
-                Some(blob) => bytes.extend(format!("M {:o} {blob} {}\n", change.mode, quoted(change.path.as_str())).as_bytes()),
-                None => bytes.extend(format!("D {}\n", quoted(change.path.as_str())).as_bytes()),
+                Some(blob) => bytes.extend(format!("M {:o} {blob} ", change.mode).as_bytes()),
+                None => bytes.extend(b"D "),
             }
+            bytes.extend(path);
+            bytes.push(b'\n');
         }
         bytes.push(b'\n');
     }
@@ -227,13 +271,13 @@ pub(crate) fn ids_of(batch: &[&CommitRequest]) -> Vec<String> {
 /// ```ts
 /// request.changes.some((change) => changedSince?.some((name) => overlaps(change.path, name)))
 /// ```
-pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTreeSet<String>>) -> bool {
+pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTreeSet<Vec<u8>>>) -> bool {
     let Some(changed) = names else {
         return false;
     };
     for change in &request.changes {
         for name in changed {
-            if overlaps(change.path.as_str(), name.as_str()) {
+            if overlaps(crate::path_bytes::path_bytes_of(change.path.as_path()), name.as_slice()) {
                 return true;
             }
         }
@@ -254,7 +298,7 @@ pub(crate) fn changes_overlap_names(request: &CommitRequest, names: Option<&BTre
 pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitRequest) -> bool {
     for change in &request.changes {
         for member in &earlier.changes {
-            if overlaps(change.path.as_str(), member.path.as_str()) {
+            if overlaps(crate::path_bytes::path_bytes_of(change.path.as_path()), crate::path_bytes::path_bytes_of(member.path.as_path())) {
                 return true;
             }
         }
@@ -276,15 +320,15 @@ pub(crate) fn changes_overlap_members(request: &CommitRequest, earlier: &CommitR
 /// requests.map((r, i) => [i, r]).filter(([, r]) => !conflictsSince(r, old) && !shadowedByEarlier(r))
 /// ```
 pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, requests: &'a [CommitRequest], old: &str) -> Result<Vec<(usize, &'a CommitRequest)>, FailureCode> {
-    let mut changed_since: HashMap<&str, BTreeSet<String>> = HashMap::new();
+    let mut changed_since: HashMap<&str, BTreeSet<Vec<u8>>> = HashMap::new();
     let mut landing: Vec<(usize, &CommitRequest)> = Vec::new();
     for (index, request) in requests.iter().enumerate() {
         if request.base != old && !changed_since.contains_key(request.base.as_str()) {
-            let listing: String = checked(git, repository, &["diff-tree", "-r", "--name-only", "-z", request.base.as_str(), old], None)?;
-            let mut names: BTreeSet<String> = BTreeSet::new();
-            for name in listing.split('\0') {
+            let listing: Vec<u8> = checked_bytes(git, repository, &["diff-tree", "-r", "--name-only", "-z", request.base.as_str(), old], None)?;
+            let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
+            for name in listing.split(ends_a_field) {
                 if !name.is_empty() {
-                    names.insert(name.to_string());
+                    names.insert(name.to_vec());
                 }
             }
             changed_since.insert(request.base.as_str(), names);
@@ -306,4 +350,32 @@ pub(crate) fn requests_that_land<'a>(git: &GitContext, repository: &Path, reques
         }
     }
     return Ok(landing);
+}
+
+/// What:
+///  Tells the clients of a batch which step was ended at its ceiling,
+/// and keeps the commit the batch built on a side ref
+///  before the landing gives its scratch branch up.
+/// Why:
+///   A landing that ends at a ceiling lands nothing,
+/// so the commit its import built is on the scratch branch
+///  and no intent will finish it;
+/// the marker names why the commit was not made,
+/// and the message names the ref the commit is kept
+///  at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepWhatAnEndedStepBuilt(context, announce, requests, seq)
+/// ```
+pub fn keep_what_an_ended_step_built(context: &crate::service_land_context::LandContext, announce: &dyn crate::service_index_lock::Announcer, requests: &[CommitRequest], seq: u64) {
+    let Some(step) = take_ceiling_step() else { return };
+    let Some(first) = requests.first() else { return };
+    announce.announce(crate::service_index_lock::Announce::Waiting(format!("monochromatic-git-policy-cli: {step}, so this commit was not made.\n")));
+    let git: GitContext = GitContext { common_dir: Some(first.common_dir.clone()), ..context.git.clone() };
+    let scratch: String = crate::service_scratch_ref_of_a_dropped_batch::scratch_ref(seq);
+    if let Ok(tip) = checked(&git, first.repository.as_path(), &["rev-parse", "--verify", "--quiet", scratch.as_str()], None) {
+        announce.announce(crate::service_index_lock::Announce::Waiting(keep_unlanded(&git, first.repository.as_path(), seq, tip.as_str())));
+        let _deleted = run(&git, first.repository.as_path(), &["-c", NO_REFLOG_SETTING, "update-ref", "-d", "--no-deref", scratch.as_str()], None);
+    }
 }

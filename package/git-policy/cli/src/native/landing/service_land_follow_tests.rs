@@ -121,13 +121,213 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     remove(root.as_path());
 }
 
-/// A removal request whose scratch directory is gone has nothing left to compare and is done.
+/// The service's context when the command that first started it came from a shell that turned pathspec magic off,
+/// which every Git the service then starts inherits.
+fn inherited_literal_pathspec_context() -> GitContext {
+    let mut context = git_context();
+    context.overlay.push((std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"), std::ffi::OsString::from("1")));
+    return context;
+}
+
+/// The follow-up's `reset` reads its own `:(top,literal)` pathspecs whatever pathspec mode the service inherited,
+/// so a listed path's index entry is still installed when that environment turned pathspec magic off.
 #[test]
-fn a_cleanup_without_its_scratch_directory_is_done() {
+fn the_index_update_of_listed_paths_survives_an_inherited_literal_pathspec_mode() {
+    let (root, repo, _first, second) = index_behind("service-follow-listed-literal-mode", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Listed(&[String::from("new.txt")])).expect("the listed path is installed under the inherited mode");
+    assert!(!differs(repo.as_path(), second.as_str()), "the commit's index entry must be installed");
+    remove(root.as_path());
+}
+
+/// The same for a list of names handed over as bytes,
+/// which `reset` reads from its standard input.
+#[test]
+fn the_index_update_of_named_paths_survives_an_inherited_literal_pathspec_mode() {
+    let (root, repo, _first, second) = index_behind("service-follow-named-literal-mode", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()])).expect("the named path is installed under the inherited mode");
+    assert!(!differs(repo.as_path(), second.as_str()), "the commit's index entry must be installed");
+    remove(root.as_path());
+}
+
+/// The same for the paths derived from the branch and the commit,
+/// which take the same standard-input route.
+#[test]
+fn the_index_update_of_derived_paths_survives_an_inherited_literal_pathspec_mode() {
+    let (root, repo, first, second) = index_behind("service-follow-derived-literal-mode", &[b"new.txt".to_vec()]);
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Derived { old: first.as_str() }).expect("the derived paths are installed under the inherited mode");
+    assert!(!differs(repo.as_path(), second.as_str()), "the commit's index entries must be installed");
+    remove(root.as_path());
+}
+
+/// A repository holding two names that differ only in case,
+/// where the commit asked about changes only `a.txt`,
+/// the index and the worktree stand at the commit before it,
+/// and `A.txt` holds staged contents that exist in the index and the object store alone.
+fn index_with_a_staged_case_twin(name: &str) -> (PathBuf, PathBuf, String) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("A.txt"), b"upper\n").expect("write A.txt");
+    std::fs::write(repo.join("a.txt"), b"lower\n").expect("write a.txt");
+    git(repo.as_path(), &["add", "--", "A.txt", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "A.txt", "a.txt"]);
+    let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("a.txt"), b"lower changed\n").expect("change a.txt");
+    git(repo.as_path(), &["commit", "--quiet", "--message=change", "--", "a.txt"]);
+    let second: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    // `-u` has no long form: it is the only spelling that also updates the worktree.
+    git(repo.as_path(), &["read-tree", "--reset", "-u", first.as_str()]);
+    std::fs::write(repo.join("A.txt"), b"staged only\n").expect("stage other contents");
+    git(repo.as_path(), &["add", "--", "A.txt"]);
+    std::fs::write(repo.join("A.txt"), b"worktree again\n").expect("overwrite the worktree copy");
+    return (root, repo, second);
+}
+
+/// The contents the index holds for one path.
+fn staged_contents(repo: &Path, path: &str) -> String {
+    return git_text(repo, &["show", format!(":{path}").as_str()]);
+}
+
+/// A pathspec mode that turns magic off and leaves matching case-insensitive,
+/// as a shell holding both variables hands the service.
+fn inherited_literal_and_case_insensitive_pathspec_context() -> GitContext {
+    let mut context = git_context();
+    context.overlay.push((std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"), std::ffi::OsString::from("1")));
+    context.overlay.push((std::ffi::OsString::from("GIT_ICASE_PATHSPECS"), std::ffi::OsString::from("1")));
+    return context;
+}
+
+/// A case-insensitive reading of the module's own `:(top,literal)a.txt` must not reach `A.txt`:
+/// the index entry the batch selected takes the commit's version,
+/// and the staged entry it never selected stays as it was,
+/// whether the paths come as text,
+/// as bytes,
+/// or from the branch the landing replaced.
+#[test]
+fn the_index_update_of_listed_paths_leaves_an_unselected_case_twin_alone() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-listed-icase-mode");
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_and_case_insensitive_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Listed(&[String::from("a.txt")])).expect("the listed path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// The same for a list of names handed over as bytes,
+/// which `reset` reads from its standard input.
+#[test]
+fn the_index_update_of_named_paths_leaves_an_unselected_case_twin_alone() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-named-icase-mode");
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_and_case_insensitive_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"a.txt".to_vec()])).expect("the named path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// The same for the paths derived from the branch and the commit,
+/// which take the same standard-input route.
+#[test]
+fn the_index_update_of_derived_paths_leaves_an_unselected_case_twin_alone() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-derived-icase-mode");
+    let index: PathBuf = repo.join(".git/index");
+    let old: String = git_text(repo.as_path(), &["rev-parse", format!("{second}^").as_str()]);
+    update_index(&inherited_literal_and_case_insensitive_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Derived { old: old.as_str() }).expect("the derived paths are installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// A removal request whose scratch directory is gone and whose copy was never kept compares nothing,
+/// so it removes nothing and says so:
+/// answering success left the worktree's `MERGE_HEAD` behind,
+/// and the next commit concluded the merge again.
+#[test]
+fn a_cleanup_whose_comparison_is_gone_removes_nothing_and_answers_so() {
     let root: PathBuf = fixture("service-follow-gone");
     let repo: PathBuf = repository(root.as_path(), "repo");
     let cleanup: Cleanup = Cleanup { git_dir: repo.join(".git"), scratch: repo.join(".git").join("gone"), reftable: false };
-    assert!(remove_conclusion_state(&git_context(), repo.as_path(), &cleanup));
+    std::fs::write(repo.join(".git").join("MERGE_HEAD"), "kept\n").expect("state");
+    assert!(!remove_conclusion_state(&git_context(), repo.as_path(), &cleanup, None), "nothing can be compared, so nothing is done");
+    assert_eq!(std::fs::read_to_string(repo.join(".git").join("MERGE_HEAD")).expect("read"), "kept\n", "the state is not touched");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree with the state a concluded merge leaves,
+/// the copies a preparation makes of it in the client's scratch directory,
+/// and the copy the
+///  landing keeps in its journal.
+/// Why:
+///   The finding is about the instant between the two:
+/// the client is gone and its scratch directory with it,
+/// and the
+///  state it would have removed is still there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, cleanup, kept } = concludedMergeWithTheScratchGone('service-follow-kept');
+/// ```
+fn concluded_merge_with_the_scratch_gone(name: &str) -> (PathBuf, PathBuf, Cleanup, PathBuf) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    std::fs::write(git_dir.join("MERGE_HEAD"), "0123456789012345678901234567890123456789\n").expect("state");
+    std::fs::write(git_dir.join("MERGE_MSG"), "Merge branch 'other'\n").expect("state");
+    let scratch: PathBuf = root.join("scratch");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("copies");
+    std::fs::create_dir_all(scratch.join("shadow").as_path()).expect("shadow");
+    for state in ["MERGE_HEAD", "MERGE_MSG"] {
+        std::fs::copy(git_dir.join(state), copies.join(state)).expect("copy");
+    }
+    // The record of the pseudorefs the store holds, which the files backend holds none of.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), "{}\n").expect("store record");
+    // The shadow repository removed them as native Git's own commit does, which the copy keeps by holding none.
+    let cleanup: Cleanup = Cleanup { git_dir, scratch: scratch.clone(), reftable: false };
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    let kept: PathBuf = crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 7).expect("the landing keeps what the cleanup compares");
+    std::fs::remove_dir_all(scratch.as_path()).expect("the service removes the client's scratch directory");
+    return (root, repo, cleanup, kept);
+}
+
+/// A copy of the comparison that cannot be made publishes nothing:
+/// the name the cleanup reads is never taken by a partial copy,
+/// so a landing that could not keep everything is one that kept nothing.
+#[test]
+fn a_copy_of_the_conclusion_state_that_fails_half_way_publishes_nothing() {
+    let root: PathBuf = fixture("service-follow-partial-copy");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let git_dir: PathBuf = repo.join(".git");
+    let scratch: PathBuf = root.join("scratch");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("copies");
+    std::fs::write(copies.join("MERGE_HEAD"), "0123456789012345678901234567890123456789\n").expect("copy");
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), "{}\n").expect("store record");
+    // The shadow's entry cannot be copied: a directory stands where its file belongs.
+    std::fs::create_dir_all(scratch.join("shadow").join("MERGE_HEAD")).expect("a directory in the way");
+    let cleanup: Cleanup = Cleanup { git_dir, scratch, reftable: false };
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("journal");
+    assert!(crate::conclusion_state_copy::keep(&cleanup, journal.as_path(), 9).is_none(), "a copy that cannot be made keeps nothing");
+    assert!(!crate::conclusion_state_copy::path_of(&journal, 9).exists(), "the name the cleanup reads is never taken by a partial copy");
+    assert!(!journal.join("9.cleanup.tmp").exists(), "the staging copy goes with the failure");
+    remove(root.as_path());
+}
+
+/// A cleanup that failed once is finished after the client's scratch directory is gone:
+/// the copy the landing kept in its journal is what the comparison reads,
+/// so the concluded merge's state goes and the next
+///  commit does not conclude the merge again.
+#[test]
+fn a_conclusions_state_goes_when_the_clients_scratch_directory_is_gone_and_its_copy_was_kept() {
+    let (root, repo, cleanup, kept) = concluded_merge_with_the_scratch_gone("service-follow-kept");
+    assert!(remove_conclusion_state(&git_context(), repo.as_path(), &cleanup, Some(kept.as_path())), "the state the commit concluded is removed");
+    assert!(!repo.join(".git").join("MERGE_HEAD").exists(), "the merge is not in progress any more");
+    assert!(!repo.join(".git").join("MERGE_MSG").exists(), "the concluded merge's message goes with it");
     remove(root.as_path());
 }
 
@@ -160,8 +360,8 @@ fn the_index_update_starts_reset_without_quiet_in_every_form() {
         update_index(&context, repo.as_path(), repo.join(".git/index").as_path(), second.as_str(), paths).expect("updated");
         assert!(!differs(repo.as_path(), second.as_str()), "{paths:?} brings the index to the commit");
     }
-    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("reset "); }).collect();
-    assert_eq!(resets.len(), 3, "one reset for each of the three forms: {resets:?}");
+    let resets: Vec<String> = crate::recording_git::recorded_starts(log.as_path()).into_iter().filter(|start| { return start.starts_with("--no-literal-pathspecs reset "); }).collect();
+    assert_eq!(resets.len(), 3, "one guarded reset for each of the three forms: {resets:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(root.as_path());
 }
@@ -309,7 +509,7 @@ fn a_racily_clean_entry_sends_the_follow_up_to_git_with_the_same_result() {
     let held = try_acquire(index.as_path(), 6).expect("the lock is free");
     let built = build_index(&context, repo.as_path(), second.as_str(), IndexPaths::Named(&files), &held, 6).expect("built");
     let starts: Vec<String> = recorded_starts(log.as_path());
-    assert!(starts.iter().any(|start| { return start.starts_with("reset --no-refresh "); }), "Git was not asked: {starts:?}");
+    assert!(starts.iter().any(|start| { return start.starts_with("--no-literal-pathspecs reset --no-refresh "); }), "Git was not asked: {starts:?}");
     held.release_with(built.path()).expect("installed");
     assert_eq!(staged_against(repo.as_path(), second.as_str()), vec![String::from("racy.txt")]);
     remove(root.as_path());
@@ -570,4 +770,41 @@ fn a_read_only_filesystem_is_kept_apart_from_a_permission_error() {
     assert_eq!(said("error: could not write config file: Read-only file system"), FailureCode::RepositoryReadOnly);
     assert_eq!(said("fatal: Unable to create '/r/.git/index.lock': Permission denied"), FailureCode::PermissionDenied);
     assert_eq!(said("fatal: something else"), FailureCode::Unavailable);
+}
+
+/// A schedule of handoffs does not outlast the ceiling:
+/// a holder that lets go and a new one that takes the lock again and again is waited for once,
+/// under one deadline.
+#[test]
+fn a_repeated_handoff_ends_at_the_ceiling() {
+    let (root, repo, _first, second) = index_behind("service-follow-handoff", &[b"new.txt".to_vec()]);
+    let lock: PathBuf = repo.join(".git/index.lock");
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let holder_stop = std::sync::Arc::clone(&stop);
+    let held: PathBuf = lock.clone();
+    let holder = std::thread::spawn(move || {
+        // Take the lock, let it go, and take it again: every wait the update makes is short, and the run of them is not.
+        while !holder_stop.load(std::sync::atomic::Ordering::SeqCst) {
+            if std::fs::write(&held, b"").is_ok() {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                let _gone = std::fs::remove_file(&held);
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+    });
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let index: PathBuf = repo.join(".git/index");
+    let second_oid: String = second.clone();
+    let waiting = std::thread::spawn(move || {
+        let answered = update_index_within(&git_context(), repo.as_path(), index.as_path(), std::time::Duration::from_millis(300), second_oid.as_str(), IndexPaths::Named(&[b"new.txt".to_vec()]));
+        let _sent = sender.send(answered);
+    });
+    let ended: Result<Result<(), crate::service_protocol::FailureCode>, _> = receiver.recv_timeout(std::time::Duration::from_secs(20));
+    stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    holder.join().expect("the holder ends");
+    let _ = waiting.join();
+    // Whether it took the index between two holds or ended at the ceiling, it ended: one deadline covers the whole run of handoffs.
+    let answered = ended.expect("the update ended rather than waiting through every handoff");
+    assert!(answered.is_ok() || answered == Err(crate::service_protocol::FailureCode::IndexInUse), "{answered:?}");
+    remove(root.as_path());
 }

@@ -5137,6 +5137,808 @@ the runner's jobs on the runtime"):
   the borrowed state each pure-file site lends the blocking runner,
   and the live lines an item says,
   which a `'static` blocking job cannot carry.
+- After the three pure-file sites
+  (2026-11-08T21:47:00-05:00,
+  "Step T12,
+  the line path and the state of the pure-file sites"):
+  an item of an awaited run owns its line sink (`LinesToTheConsumer<R>`,
+  which it may move into a `'static` job),
+  and the three sites that lend the blocking runner borrowed state are on
+  `run_ordered_awaiting_on_the_runtime`
+  (`worktree/worktree_trash_entries.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `worktree/worktree_convert_command.rs`),
+  each with the synchronous face its callers still use.
+  What is left of item 3 is `worktree/worktree_copying/` and the copy and repair sites of
+  `foundation/side_by_side_threads.rs`,
+  then item 2 (the landing's handlers and `landing/service_round.rs`),
+  then T13's guards.
+  One thing a later conversion must copy:
+  a job of the blocking pool is inside the runtime,
+  so a bridge that starts a child (`output_of_blocking`) refuses there;
+  `LinuxPlatform::with_its_conversion_environment_settled` is the shape that answers such a
+  question before the run instead.
+
+### Step T12, the line path and the state of the pure-file sites, 2026-11-08T21:47:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` in
+  `.claude/worktrees/pi-tokio-pure-file-sites-on-the-awaited-runner`,
+  from main at `3db3002750`.
+  Not merged into main.
+- This section decides the two things the previous section left open for item 3
+  before any of its code moves:
+  the line path of an item whose work runs in a `'static` job,
+  and the owning of the state each site lends the runner.
+  Both decisions are
+  this agent's under the owner's delegation,
+  and both are open to the owner's veto.
+
+#### What each site really lends, and which of them says lines while it works
+
+The record above says the three pure-file sites "all say lines while they work".
+Read again,
+only one of them does:
+
+- `worktree/worktree_trash_entries.rs`:
+  `RemoveEachEntry::run` takes `_say` and says nothing;
+  the reasons are said at `Event::End` by `KeepReasonsOfEntriesThatStay`,
+  on the consumer.
+- `subvolume/subvolume_index_refresh_of_every_worktree.rs`:
+  `RewriteEachIndex::run` takes `_say` and says nothing;
+  one line per index is said at `Event::End` by `SayEachIndex`,
+  on the consumer.
+- `worktree/worktree_convert_command.rs`:
+  `ConvertEachWorktree::run` hands `say` to `convert_worktree`,
+  which says its progress as it goes,
+  and `ConversionReport` relays each `Event::Line`.
+  This is the only site of the three that needs a line path at all.
+
+So the line path is one decision,
+but only its third site exercises it;
+the first two say their lines where every runner already says them.
+
+#### Owning the borrowed state
+
+- A.
+  Share it:
+  `Arc` the state the job reads.
+  Pros:
+  it is what both runtime runners already take (`Arc<[T]>` items,
+  `Arc<dyn ... + Send + Sync>` work),
+  one copy for the whole run,
+  no lock,
+  and no file descriptor per item.
+  Cons:
+  the sites' own signatures change
+  (`EntryRemoval` owns its fields,
+  `IndexLock` owns its token,
+  `ConvertRun` takes `Arc<dyn Platform + Send + Sync>` and `Arc<Interrupt>`),
+  and the controls that lend a closure over a
+  `Rendezvous` or an `AtomicUsize` must own it in an `Arc` first.
+- B.
+  Clone it per item.
+  Pros:
+  the sites keep their borrowed signatures.
+  Cons:
+  a clone of the manifest or the target list per item,
+  a duplicated descriptor per entry (`File::try_clone`),
+  and memory that grows with the item count for state that never changes.
+- C.
+  Leave these three on the blocking runner of scoped threads.
+  Pros:
+  nothing changes and the controls stay as they are.
+  Cons:
+  the scoped threads stay,
+  so T13's guard against `std::thread` cannot be tightened,
+  and the folder carries two runners for longer.
+- D.
+  Leak the state (`Box::leak`) so it is `'static`.
+  Pros:
+  no signature change and no clone.
+  Cons:
+  memory that no caller can size or free lives for the life of the process,
+  and the ownership the type system would have shown is hidden in a comment.
+
+Ranking:
+A > B > C > D.
+A beats B because it keeps one copy of state that never changes and adds no descriptor.
+B beats C because it reaches the runtime runner the plan already requires for item 3.
+C beats D because leaking state to avoid a signature change is the one option that hides a cost
+from the person who will later read the code.
+
+#### The line path
+
+- A.
+  Hand each item an owned line handle.
+  The runner gives an item a sink it owns
+  (a clone of the consumer's sending end and the item's index)
+  instead of a sink borrowed for the length of the run,
+  so the item may move it into a `'static` blocking job.
+  The lines travel the one channel the consumer already reads.
+  Pros:
+  lines appear as they happen and in input order,
+  no lock is added,
+  no second channel and no per-item loop,
+  and the shape is the one the blocking runner of
+  `parallel_runner_on_the_runtime.rs` already gives its own jobs
+  (`LinesToTheConsumer` is built inside the job from an owned sender).
+  Cons:
+  `OrderedAwaitingWork::run` changes its third parameter,
+  so every implementation of it changes,
+  including the ones the landing's handlers will add.
+- B.
+  A forwarding channel inside the item.
+  The item's future owns an unbounded channel,
+  the job is given its sending end,
+  and the future selects between the job's end and each arriving line,
+  saying each through the borrowed sink.
+  Pros:
+  the same liveness and order as A,
+  no lock,
+  and no change to the trait.
+  Cons:
+  a second channel and a select loop in every site that says lines,
+  and each line makes one hop through the worker that awaits the job.
+- C.
+  Buffer the lines and return them with the result.
+  Pros:
+  the least code;
+  the job owns a `Vec<String>` and nothing else changes.
+  Cons:
+  an item's lines appear only when it ends,
+  so the first unfinished worktree,
+  whose lines are the only live ones today,
+  loses its progress;
+  this is the behaviour `parallel_runner.rs` exists to keep.
+- D.
+  Run the item's work on the worker instead of the blocking pool.
+  Pros:
+  the borrowed sink keeps working with no change at all.
+  Cons:
+  a worker that polls tasks is blocked for the length of a conversion,
+  which is the case the plan's own rule forbids
+  ("Blocking files,
+  fsync and the runtime's own shutdown").
+
+Ranking:
+A > B > C > D.
+A beats B because it adds neither a hop nor a loop and reuses the one channel of the run.
+B beats C because it keeps the progress of the first worktree live.
+C beats D because a buffered report still keeps every item on the blocking pool.
+
+#### The choices, as this agent's, open to the owner's veto
+
+- The state each site lends is shared with `Arc` (option A),
+  and its synchronous face keeps its signature by owning what it needs
+  (`EntryRemoval` with owned fields,
+  `IndexLock` with an owned token,
+  `ConvertRun` and `execute` taking an `Arc`).
+- The line path is the owned line handle of option A:
+  `parallel_runner_on_the_runtime_awaiting.rs` hands each item an
+  owned `LinesToTheConsumer<R>`,
+  which the item moves into its `'static` job,
+  and the consumer keeps the input order it already keeps.
+  No lock,
+  no buffering and no runtime on the forwarded-command path
+  (nothing of the three sites is reached by a forwarded command).
+
+#### What changed, per site
+
+- `foundation/parallel_runner_on_the_runtime.rs`:
+  `LinesToTheConsumer<R>` owns a clone of the run's one sending end instead of borrowing it,
+  and both runtime runners hand it to their items
+  (the blocking form builds it inside its own job,
+  as it already did).
+  `OrderedAwaitingWork::run` therefore takes the sink by value.
+- `worktree/worktree_trash_entries.rs`:
+  each entry is an item of the awaited runner and each removal one job of the pool.
+  `EntryRemoval` owns a `PathBuf`,
+  an `Arc<File>`,
+  an `Arc<TrashManifest>` and an `Arc<RemoveOne>`;
+  `RemoveOne` gains `Send` and loses its lifetime;
+  `delete_trash` holds its trash handle in an `Arc`.
+  `remove_entries` keeps its signature and enters the runtime once;
+  `remove_entries_awaiting` is the face an asynchronous caller uses.
+- `subvolume/subvolume_index_refresh_of_every_worktree.rs`:
+  each index is an item of the awaited runner and each rewrite one job of the pool.
+  `AllIndexes` owns its root,
+  its references and an `Arc<RewriteOne>`;
+  `IndexLock::Held` shares its token in an `Arc<str>`;
+  `RewriteOne` gains `Send` and loses its lifetime.
+  `refresh_all_indexes` and `refresh_all_indexes_with` return `Result<usize, MigrateError>`
+  and enter the runtime once,
+  `MigrateError` gains `Runtime`,
+  and `refresh_all_indexes_awaiting` is the asynchronous face.
+- `worktree/worktree_convert_command.rs`:
+  each worktree is an item of the awaited runner and each conversion one job of the pool,
+  which is where the owned line sink is needed:
+  `convert_worktree` says its progress through it while the job works.
+  `ConvertRun` takes an `Arc<dyn Platform + Send + Sync>` and an `Arc<Interrupt>`;
+  `execute` takes both by value and `convert_action` builds them.
+  `execute_run` keeps its signature and enters the runtime once,
+  `execute_run_awaiting` is the asynchronous face,
+  and a run the runtime ends early says so before the summary and exits 2.
+- `testing/parallel_test_support.rs`:
+  `hold_the_only_place` holds the process's one place on blocking jobs on a task of the
+  runtime,
+  so a control can show that its work waits for a place,
+  which only a job of the pool does.
+
+What stayed as it is,
+and why:
+
+- The waits:
+  none of the three sites waits without a bound it already had.
+  The runner's consumer ends when every lane has returned (`finish_the_run`),
+  and a lane that a refused `spawn_blocking` swallowed is counted out by `CountedOut`.
+- The two measured rules of the previous step:
+  nothing of this step has a synchronous `Drop` that waits for a task,
+  and no job of the pool awaits anything,
+  so nothing waits on a job from inside a job.
+- `worktree/worktree_copying/` and the copy and repair sites of
+  `foundation/side_by_side_threads.rs` are not part of this step.
+  The handover's item 3 lists them with these three sites;
+  the brief this work follows reserved that folder,
+  so they stay on the blocking runner for the next agent.
+
+#### Controls
+
+Every site has a control that fails on the code before it,
+and the third site has two,
+planted separately,
+because they catch different defects:
+
+- The runtime control:
+  `the_removals_run_on_the_processs_runtime`,
+  `the_rewrites_run_on_the_processs_runtime`,
+  `the_conversions_run_on_the_processs_runtime`.
+  Each records `tokio::runtime::Handle::try_current().is_ok()` at the site's own work:
+  `[false, false, false, false]` before the conversion,
+  where a scoped thread is in no runtime,
+  and `[true, true, true, true]` after it.
+  Measured rather than assumed:
+  a probe in `blocking_jobs_within_the_budget_tests.rs` printed
+  `PROBE inside a job: current=true thread=Some("git-policy-worker")`
+  and `PROBE outside: current=false`,
+  so a job of the pool is in the runtime and a scoped thread is not.
+- The place control:
+  `the_removals_take_places_of_the_processs_bound_on_blocking_jobs`,
+  `the_rewrites_take_places_of_the_processs_bound_on_blocking_jobs`,
+  `the_conversions_take_places_of_the_processs_bound_on_blocking_jobs`.
+  With the bound held to one place by another job of the pool,
+  no item's work starts until that job gives the place back.
+  The holder gives it back because a job of the work under test is waiting for a place
+  (`blocking_jobs_within_the_budget::jobs_waiting_for_a_place`,
+  test-only),
+  and it reports that ask,
+  which each control asserts,
+  so a work path that never takes a place fails the control.
+  A review of the first version of these controls found the holder giving the place back after a fixed
+  second instead,
+  and it is right:
+  with that helper and a conversion run on the worker after a 1,500 ms wait,
+  the conversion control passed although no place was ever taken.
+  With the ask it fails,
+  and the plant is recorded in the commit that changed it.
+  Planted for the third site by running the conversion on the worker instead of as a job,
+  the place control fails with
+  "a conversion started while another job held the only place of the process's bound,
+  so it did
+  not take one",
+  while the runtime control still passes,
+  which is the reason both exist.
+  The plant was reverted and the folder passes again.
+- The line path:
+  `a_line_said_inside_a_blocking_job_reaches_the_consumer_as_it_happens` in
+  `parallel_runner_on_the_runtime_awaiting_tests.rs`.
+  It does not compile before the owned sink
+  (`error[E0521]: borrowed data escapes outside of method`,
+  "argument requires that `'a` must outlive `'static`"),
+  and with the sink holding its lines until it is dropped it fails after its patience with
+  "the consumer saw the line only after the job ended".
+- The output:
+  one control per site pins the whole report the code gave before the step,
+  and each was written and passed on the tree before its conversion,
+  then again after it.
+  `the_lines_of_a_run_are_the_ones_recorded_before_the_step` exists twice
+  (`subvolume/subvolume_index_parallel_tests.rs` and
+  `worktree/worktree_convert_parallel_tests.rs`):
+  the checkout's index first and then each linked worktree's by path,
+  and for a conversion the risk notice,
+  each worktree's name,
+  its copy line,
+  its index line,
+  its verdict,
+  and the summary.
+  The counts they pin are named constants of the fixture
+  (`CHECKOUT_ENTRIES_REFRESHED`,
+  `LINKED_ENTRIES_REFRESHED`,
+  `COPIED_ENTRIES`,
+  `INDEX_ENTRIES_REFRESHED`),
+  so a legitimate change to the fixture breaks them on purpose.
+  The trash site's own output is the reasons of the entries that stay,
+  in entry order,
+  and its three existing controls compare that list exactly;
+  they pass unchanged.
+
+#### Latency
+
+Nine `native:perf` arms over two windows on 2026-11-08 (22:53 to 22:57 and 23:45 to 23:47),
+with two binaries:
+this tree,
+and main's tree at the base commit `3db3002750`
+(the files of this step restored with `git restore --source=3db3002750`,
+built,
+measured,
+and restored,
+whose rebuild produced a binary byte for byte the one the arms of this tree measured).
+The host carried a load average between 60 and 91 on 12 CPUs throughout,
+with another agent's whole host suite running in the second window,
+so the arms alternate and each binary has arms on both sides of the other's.
+
+The arms in the order they ran,
+commit through the service and signed commit through the service,
+each the paired delta against native Git:
+
+- 22:53,
+  this tree:
+  commit median 146.8 ms,
+  maximum 4,486.9 ms;
+  signed median 167.8 ms,
+  maximum 5,108.5 ms.
+- 22:54,
+  this tree:
+  commit median 111.1 ms,
+  maximum 2,277.4 ms;
+  signed median 99.5 ms,
+  maximum 457.2 ms.
+- 22:55,
+  main's tree:
+  commit median 45.5 ms,
+  maximum 284.4 ms;
+  signed median 108.5 ms,
+  maximum 7,658.5 ms.
+- 22:56,
+  this tree:
+  commit median 119.2 ms,
+  maximum 999.0 ms;
+  signed median 95.2 ms,
+  maximum 2,386.7 ms.
+- 22:57,
+  main's tree:
+  commit median 56.7 ms,
+  maximum 2,842.3 ms;
+  signed median 93.6 ms,
+  maximum 296.3 ms.
+- 23:45,
+  main's tree:
+  commit median 171.4 ms,
+  maximum 8,028.0 ms;
+  signed median 123.3 ms,
+  maximum 380.0 ms.
+- 23:46,
+  this tree:
+  commit median 39.5 ms,
+  maximum 1,228.1 ms;
+  signed median 161.5 ms,
+  maximum 9,664.7 ms.
+- 23:46,
+  main's tree:
+  commit median 58.5 ms,
+  maximum 3,533.3 ms;
+  signed median 111.9 ms,
+  maximum 1,039.8 ms.
+- 23:47,
+  this tree:
+  commit median 60.5 ms,
+  maximum 2,769.2 ms;
+  signed median 89.4 ms,
+  maximum 221.0 ms.
+
+Forwarded commands,
+the added medians of `rev-parse`,
+`status`,
+`log` and `diff-stat`,
+stayed between 1.4 and 2.2 ms in every arm,
+three orders of magnitude under the 2,000 ms bound.
+One arm of main's tree (23:45) reported `status` at a p95 of 3,843.1 ms with a median of 2.2 ms,
+a stall in one sample;
+no arm of this tree did.
+
+What that says,
+and what it does not:
+
+- The first window looked like a separation on the commit median
+  (this tree 111.1 to 146.8 ms,
+  main's 45.5 to 56.7 ms),
+  and that reading does not survive the second:
+  the first window's arms were this tree,
+  this tree,
+  main's,
+  this tree,
+  main's,
+  so a slow half hour for one binary can look like an effect of the other.
+  The second window interleaves the two (main's,
+  this tree,
+  main's,
+  this tree),
+  and there this tree's commit medians are 39.5 and 60.5 ms against main's 171.4 and 58.5 ms,
+  the same order reversed.
+- The same-binary spread covers the whole difference:
+  this tree's five commit medians run from 39.5 to 146.8 ms (3.7 times),
+  main's four from 45.5 to 171.4 ms (3.8 times),
+  and each binary's signed medians run 89.4 to 167.8 and 93.6 to 123.3 ms.
+- The 5,000 ms bar was broken in this window by this tree (signed 5,108.5 and 9,664.7 ms) and by
+  main's tree (signed 7,658.5 ms and commit 8,028.0 ms),
+  and met by the other arms of both.
+  The bar is broken by both binaries under this load,
+  and no arm attributes that to this step.
+- Nothing here is evidence that this step made the commit path slower or faster,
+  and there is a reason to expect it cannot:
+  none of the files this step touches runs in a commit.
+  The trash entry removal is reached from the copy path of a new worktree
+  (`worktree_copying/worktree_copy_after_lock_disposal.rs`)
+  and from the service's work loop for a trash item,
+  the index refresh of every worktree is reached from the subvolume migration,
+  and the conversion command and the runner's trait are reached from neither.
+  A commit in these fixtures has no trash item and no migration.
+- What would settle the commit bar is the earlier sections' advice with more arms than this:
+  interleave the two binaries one arm each,
+  many times,
+  under whatever load the host carries then.
+
+#### What a review of the branch found, and what changed
+
+Two findings,
+both about what the code promises rather than about the move,
+both read from the committed code and both right:
+
+- A rewrite that panicked after it installed its index was counted with the rewrites that never
+  started,
+  and the error said "the indexes stay as they were".
+  The kinds of end are counted apart now (`RewritesThatGaveNoResult`),
+  and the message keeps the uncertainty:
+  "1 of 4 index file(s) ended without a known result,
+  so whether those were rewritten is not known;
+  run the command again to rewrite them",
+  with the line of that index saying that it "may have been written or may be as it was".
+  The control installs the checkout's index and then panics,
+  and fails on the old message.
+- The place controls gave their place back after a fixed second instead of on an attempt,
+  so a work path that bypasses the bound could start after that second and pass.
+  The holder now waits for the ask and reports it (see the controls above),
+  and the review's own scenario was reproduced as a false pass before the change.
+
+A third finding came from a second reviewer,
+on the branch after those two,
+and it holds as well:
+
+- `NoThreadToStart` was read as proof that a job never ran,
+  and `subvolume/subvolume_index_refresh_of_every_worktree.rs` promised "those stay as they were" on it.
+  Tokio queues the job first:
+  in the locked version (`Cargo.lock`,
+  `tokio-1.54.1`),
+  `runtime/blocking/pool.rs` pushes the task at line 624 and asks for a thread only at line 628,
+  returns `SpawnError::NoThreads` at line 499,
+  and panics with "OS can't spawn worker thread" at line 386,
+  so the job stays queued and the pool's next thread runs it (`run_worker`,
+  line 657).
+  This plan's own note in `blocking_jobs_within_the_budget.rs` already said so for the place,
+  and `blocking_job.rs`'s comment that "the closure it consumed is gone,
+  so nothing ran" was wrong.
+  Measured,
+  in a child whose process limit is one:
+  the report said "4 of 4 index file(s) were not rewritten,
+  because the work of each one could not be
+  started,
+  so those stay as they were",
+  a thread was allowed again,
+  and **all four rewrites ran** afterwards.
+  The fix is `foundation/the_claim_a_job_takes_before_running_it.rs`:
+  one atomic exchange decides,
+  between the job taking the claim before its first effect and the
+  reporter taking it after the refusal,
+  so a job the report gave up on does nothing and the promise is a fact,
+  and a job that took the claim first makes the report say the result is not known.
+  The control is
+  `a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`,
+  which counts the runs of its own rewrite after the drain,
+  and it fails with the plant that removes the job's side of the claim.
+
+Every other place that read the refusal as proof,
+and what was decided for each:
+
+- `foundation/blocking_job.rs`,
+  the error itself and its text:
+  reworded,
+  because the type cannot know:
+  "it had not started when that was reported;
+  the pool had already queued it,
+  so it may still run
+  later".
+- `foundation/parallel_runner_on_the_runtime.rs`,
+  `OrderedRunError`:
+  reworded the same way,
+  and it now says that the item the step held may still run later.
+- `worktree/worktree_trash_entries.rs`:
+  no claim.
+  Its reason list says an entry was not removed now,
+  and a removal that runs later is identity-checked and is what the person asked for,
+  so no data can be lost by it.
+- `worktree/worktree_convert_command.rs`:
+  no claim.
+  A conversion that runs later is journaled and resumable,
+  the report says the reason rather than any
+  state of the worktree,
+  and the claim would buy nothing the journal does not already give.
+- The two controls that measured a job had not run (`blocking_jobs_within_the_budget_tests`,
+  `parallel_runner_on_the_runtime_tests`) now say that they measure it at that moment.
+
+#### A third review: three waits and bounds, and two controls that failed in a suite
+
+All three findings held;
+each has a control that failed first,
+and each
+control fails again with the fix removed.
+
+- The completion loop could miss its final wake
+  (`foundation/parallel_runner_on_the_runtime.rs`).
+  The notification branch was guarded by `still_running.running > 0`,
+  so a lane that returned between the count the consumer read and the wait it built left the consumer with a
+  switched-off branch,
+  a stored wake it could not use (`Notify::notify_one` stores one permit;
+  `tokio-1.54.1/src/sync/notify.rs`),
+  and a channel kept open by a sending end a refused job holds for the life of the process:
+  a wait for ever.
+  The wait is now one function,
+  `wait_for_a_message_or_a_return`,
+  whose wake branch is never switched off,
+  the count is read at the top of each turn,
+  and a closed channel leaves the count as the only thing to wait for (no spinning).
+  The control,
+  `a_wake_that_arrived_before_the_wait_still_ends_it_although_the_channel_stays_open`,
+  builds the state the race leaves,
+  since the two-instruction window itself cannot be forced from a test:
+  it failed with
+  "the wait was not ended by a wake that had already arrived,
+  because the branch that reads wakes was switched
+  off while the channel stayed open".
+- The refresh could block the runtime before its first await.
+  `subvolume_index_files::repository_hash_length` opens the repository's configuration with a synchronous
+  `std::fs::read` (line 485),
+  and a named pipe there blocks that open until a writer comes,
+  on the thread that polls the runtime:
+  no timeout could expire.
+  What a run reads before its first rewrite is now `prepare_the_run`,
+  one job of the blocking pool,
+  with what it reads owned.
+  The control,
+  `a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires`,
+  failed with "the refresh answered within the control's wait:
+  Timeout".
+- Refused jobs could run outside the blocking-job bound.
+  The frame gave the place back as soon as it stopped waiting,
+  so a job the pool had queued at that moment ran later on no place at all — measured in a child whose process
+  limit is one,
+  with the bound held to two:
+  the job the report gave up on ran.
+  The place and the claim now travel together
+  (`foundation/the_place_of_one_blocking_job.rs`):
+  the job takes the claim before its first effect and holds the place until its work ends (or unwinds),
+  the frame gives the place back only when it takes the claim,
+  which proves the job will do nothing,
+  and the slot is taken once so the second give-back is a no-op.
+  The claim a site puts on its own report stays as it is:
+  it is what lets a site say "given up on before it could start" rather than "not known".
+  The control,
+  `a_job_the_pool_queued_after_a_refusal_does_not_run`,
+  failed with "the job the report gave up on ran afterwards with no place of the bound held for it".
+  The version of this control that measured how many jobs run at once passed on the first attempt,
+  because the process's own pool may allow fewer blocking threads than the bound,
+  and the queue then runs one job at a time (measured:
+  `peak=1`);
+  its own runtime with a deeper pool is what makes the state reachable.
+
+Two controls that failed in a filtered suite of 122 tests and passed alone were measured in one scope of their
+two modules at CPU quotas of 100% and 200%:
+
+- `the_indexes_are_rewritten_side_by_side` (10.09 s),
+  `worktrees_are_converted_side_by_side` (11.38 s) and
+  `the_report_keeps_input_order_whichever_worktree_finishes_first` (22.17 s) failed at 200%,
+  every one of them a rendezvous that needs its items in flight at once;
+- the review's `the_report_keeps_the_order_of_the_checkout_then_its_worktrees` needs two places (the checkout's
+  rewrite holds one and waits for the others),
+  so it fails at 100%,
+  where the process allows one.
+
+The cause is the process's bound on blocking jobs,
+which comes from the CPUs the process may use,
+not from the host a control states for its own budget request.
+Measured with `budgeted_blocking_jobs()` against `worker_budget` on the same fixture:
+the request asks 4 and the bound is 1,
+2 and 3 at quotas of 100%,
+200% and 400%.
+`parallel_test_support::may_run_all_at_once` now states each control's need and passes without running where the
+machine cannot allow it,
+naming the control,
+the places it needs and the bound it saw:
+68 of 68 pass at both quotas.
+The `SIGABRT at 125 s` the review saw for
+`the_conversions_take_places_of_the_processs_bound_on_blocking_jobs` was not reproduced:
+it passed in 1.1 to 9.0 s at both quotas,
+and 125 s is nextest's watchdog,
+which means the test never returned.
+The only unbounded wait on that path was the completion loop's,
+which the first finding of this round removed;
+a refused job on the path cannot be ruled out under the load the review's run carried.
+
+#### A fourth review: a revoked claim, a pool-side target search, two controls' cleanups, and a truthful refusal
+
+- Cancelling a queued job did not revoke its claim.
+  The claim was taken only on the returned error,
+  so a future dropped at its `.await` left it free and the
+  closure the pool still held queued ran afterwards:
+  a conversion could change a worktree after its caller
+  reported a timeout,
+  with no reader left for its progress or its result.
+  `TheCallOnAJob` holds the claim and the place of one job and acts when the call is dropped before it
+  settles.
+  The control,
+  `a_job_whose_caller_stopped_waiting_does_not_run_afterwards`,
+  kept the pool's only thread inside another job so the measured closure was queued at the moment the timeout
+  dropped it,
+  and failed with "the job whose caller stopped waiting ran afterwards,
+  so a step can act after its
+  caller reported a timeout".
+- Worktree path resolution blocked the runtime before its first await:
+  `execute_run_awaiting` ran `targets` (Git for `--all`,
+  a scan of the linked worktrees) and `lanes_of`
+  (a synchronous `std::fs::canonicalize` of each target) on the polling thread.
+  `find_the_targets_and_lanes` is one job of the blocking pool now,
+  like the index refresh's
+  `prepare_the_run`.
+  The control keeps the process's only place inside another job,
+  registers a linked worktree while the run
+  waits,
+  and shows the run converts it;
+  planted (the finding done on the awaiting task) it fails with "the
+  worktree registered while the run waited was not converted,
+  so the run had decided what it covers before it
+  first waited".
+- The preparation control's cleanup could wait for ever on its named pipe,
+  and its first rewrite also joined
+  the blocked thread before its assertion (which the plant caught as a 310 s timeout).
+  The cleanup opens the pipe with `O_NONBLOCK`,
+  runs on its own thread,
+  and is waited for with a bound;
+  the
+  control now fails in five seconds with "the control's cleanup did not end within 5000 ms:
+  opening the named
+  pipe for a reader that can never come waits for ever" (planted) instead of holding the test process to the
+  watchdog.
+- The refusal diagnostic said a step "had not started",
+  which is false when the job lost the claim race and
+  the pool ran it on another thread.
+  `a_refused_thread_start` decides in the one place that takes the claim:
+  `NoThreadToStart` now says the step will not run and changed nothing,
+  and the new
+  `StartedAfterItsThreadWasRefused` says it has started and that whether it finished is not known.
+  `OrderedRunError` carries the same pair,
+  and the index report counts such a job as one whose result is not
+  known.
+  The control drives both orders and failed to compile before the fix (no decision,
+  no variant).
+
+#### The two controls the coordinator saw fail, measured
+
+Both are controls that put their items in flight at once,
+and the measured cause was the same in each:
+the
+process's room for blocking jobs,
+and a control that had the item which *waits* hold the last place its peers
+need.
+
+- `the_report_keeps_the_order_of_the_checkout_then_its_worktrees` needs the checkout's rewrite to hold a place
+  while it waits for the other three,
+  so with room for exactly four the waiting item could take the last place
+  its peers needed and the wait then ended only at its 10 s patience:
+  measured at 14.7 s inside an 88-test
+  selection and 0.05 s alone,
+  and 33.9 s in the coordinator's run.
+- `the_report_keeps_input_order_whichever_worktree_finishes_first` took 105 s (once past the 120 s watchdog)
+  inside a 19-test selection and 1.1 s alone;
+  with the host's own bound of two it failed at 3.8 s on its 3 s
+  patience.
+  What grew was not a wait but the storage work:
+  it held the process to one place,
+  so four worktrees
+  were four conversions one after another,
+  and one conversion takes about 28 s at a 2-CPU allowance while the
+  host's disk is busy.
+
+The seam is `room_for_blocking_jobs_in_a_control`:
+the room a control asks for is what `budgeted_workers`
+answers while it runs,
+and that one derivation feeds both the runtime's blocking pool and the bound,
+so a
+control runs at any CPU quota instead of passing without running.
+The two order controls ask for one place more
+than their items (the waiting item never holds the last place its peers need),
+the conversion controls convert
+as little as their report needs (`WORKTREES` is two,
+the bound controls make one worktree more than the overlap
+they expect),
+and the slowest conversion control measured 16.1 s at a 2-CPU allowance,
+leaving the watchdog a
+margin of seven.
+The whole selection passes 218 of 218 at 100% and at 200%.
+
+#### Checks
+
+The folders this step touches,
+each run on its own while it was written:
+
+- `worktree::worktree_trash_entries` 7 of 7,
+  `worktree::worktree_convert` 86 of 86,
+  `subvolume::subvolume_index_files` 43 of 43 and its parallel controls 7 of 7,
+  `subvolume::` 268 of 268 (one slow),
+  `foundation::parallel_runner` 20 of 20 (the three runner forms).
+- `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors
+  (it found four line breaks and one avoidable closure,
+  which the commits fix).
+- The whole suites at the tip,
+  `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own control group at
+  `TasksMax=4000`:
+  `native:test:host` 4826 run,
+  4826 passed (1 slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  730 passed (3 slow),
+  3 failed,
+  3 skipped;
+  the same suite once more at the same tip,
+  after the review's corrections landed:
+  733 run,
+  733 passed (3 slow),
+  3 skipped.
+- The three binary failures of the first run are one group,
+  `service::the_settle_command_*`:
+  `the_settle_command_finishes_a_batch_the_earlier_helper_left_open`,
+  `the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` and
+  `the_settle_command_is_not_held_by_a_service_another_control_is_starting`.
+  All four controls of that group pass when they are asked alone
+  (`native:test:binary:host -- service::the_settle_command`:
+  4 run,
+  4 passed),
+  and the reason the command printed is a deadline,
+  not a wrong answer:
+  "the sockets and processes of the earlier helper could not be looked at in time",
+  so it is not known whether one runs.
+  The host carried a load average of 60 to 91 on 12 CPUs through the run,
+  with another agent's whole host suite running beside it,
+  and the same control is already recorded twice as a suite-only failure that passed alone and in
+  the next full runs (`doc/handover/cli-git-rust-implementation.md`,
+  and this plan's T4 section).
+  No cause is measured here either,
+  and the second run of the same suite at the same tip passed all 733,
+  so the shape is the recorded one:
+  a full run under heavy load fails that group and a full run
+  does not.
+  The path it exercises (the settle command's scan of `/proc`) is not one this step changes.
+
+One defect this step did carry,
+and the binary suite caught it rather than a control of its own:
+with the conversion as a job of the blocking pool,
+the content decision could no longer learn where the system configuration and attributes files are,
+because the bridge that starts a child refuses to start one from inside the runtime.
+`convert::the_system_attributes_file_is_located_through_the_real_git_too` and
+`convert::a_worktree_the_stat_data_cannot_vouch_for_is_judged_by_content_not_refused_for_not_knowing_git`
+failed with "the location of the system attributes file cannot be established without running Git",
+and the fix is `LinuxPlatform::with_its_conversion_environment_settled`,
+with the control `a_platform_settled_early_reads_the_facts_the_late_answer_gives`
+(the plan's next section says what it pins).
 
 ## Open choices for the owner
 
@@ -5726,6 +6528,318 @@ Not taken as written:
 
 The list in the section "Cross-vendor review" is the record.
 Nothing the reviewer raised was left without a change or a stated reason.
+
+## Step T12, the landing round: what blocks it and what now pins it
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-landing-round-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-landing-round-on-the-runtime`,
+  from main at `baf3d03fe6`,
+  and main merged into it again at `5ffe9b2dcc` when it had moved to
+  `6232f281d7`.
+  Commits `02601dbb76`,
+  `8af808f1c0`,
+  `ba49929c1c` and the merge `5ffe9b2dcc`.
+  Not merged into main.
+- Done:
+  the wording of the raw runner's refusal (the finding of
+  `${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`),
+  and the controls the move of `landing/service_round.rs` has to keep.
+- Not done:
+  the move itself.
+  It is not a contained change and the reasons are below,
+  measured.
+
+### Why the round did not go onto the blocking runner
+
+The brief for this step named `run_ordered_on_the_runtime`
+(`foundation/parallel_runner_on_the_runtime.rs`).
+Its items are jobs of the blocking pool,
+and a job of the pool is inside the
+runtime:
+`tokio::runtime::Handle::try_current()` is `Ok` on a thread named
+`git-policy-worker`,
+which the three controls named `..._run_on_the_processs_runtime` record
+(`subvolume/subvolume_index_parallel_tests.rs:199`,
+`worktree/worktree_trash_entries_tests.rs:145` and
+`worktree/worktree_convert_parallel_tests.rs:454`),
+against `false` on a scoped thread.
+Every Git step the round runs reads its child through the runtime:
+
+- a step ended at a ceiling reads its pipes through
+  `read_until_the_child_ends`
+  (`process/step_output_read_whole_through_pipes.rs:145`:
+  `run_on_runtime`),
+  and
+- a push goes through `run_bounded_push_once`
+  (`push/bounded_push.rs:388`:
+  `run_on_runtime`),
+  which the auto-push,
+  the reconcile and `git-lfs`'s upload all use.
+
+Both refuse from inside the runtime with `RuntimeError::Nested`,
+so a round
+whose items were jobs would fail every push and every maintenance run,
+and
+`drain_pending`'s verdicts would requeue them for ever.
+The control that measures this:
+`landing::service_round::tests::a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused`.
+
+The form the round can use is
+`run_ordered_awaiting_on_the_runtime`
+(`foundation/parallel_runner_on_the_runtime_awaiting.rs`),
+whose module comment already says the round cannot use the blocking form.
+That form needs four things that do not exist yet:
+
+1. An awaited push chain.
+   `WorkHandlers::push` reaches `push_once` (`push/auto_push.rs:262`),
+   which reaches `run_query` (`push/auto_push_single_flight.rs:230`),
+   `plan_named_push` (`:216`,
+   through `read_destination` and `named_push` of
+   `push/auto_push_destination.rs`),
+   `run_push` (`lfs/lfs_bounded_push.rs:98`,
+   whose `GitQuery` trait and `read_settings`/`plan_upload` are synchronous)
+   and `reconcile_divergent_push` (`push/auto_push_reconcile.rs:75`,
+   with the `MergePusher` trait).
+   Awaiting twins must keep the synchronous faces,
+   because `manual_push_probe`
+   and `push_stacking` call the same functions from plain threads.
+   About a dozen functions in six files,
+   plus the two traits and their doubles.
+2. An awaited maintenance.
+   `read_maintenance_config` and `run_auto_maintenance_with`
+   (`landing/maintenance_run.rs:156` and `:227`)
+   run `git config` and `git maintenance run`,
+   both ended at a ceiling.
+   Two functions.
+3. A claim renewal whose stop does not wait for a task.
+   `drain_pending` starts one (`ClaimRenewal::start`,
+   `landing/service_claim_renewal_running.rs:275`)
+   and its `Drop` waits for the task up to `stop_ceiling`.
+   That is allowed on the service's work thread and forbidden on a worker:
+   the measured rule of the earlier step says a synchronous `Drop` that waits
+   for a task holds a worker,
+   and a drain that is a task would hold one.
+4. The claims,
+   the settles and the notices put on the blocking pool.
+   `drain_pending` (`landing/service_work_drain_pending_claims.rs`) interleaves
+   `claim_all_of`,
+   `settle_all`,
+   `record_push_failure`,
+   `clear_push_failures_before` and
+   `next_claim_expiry` with the handler calls,
+   and the plan's item 2 asks for each item's storage work inside
+   `run_blocking_job_within_the_budget`,
+   which needs the held claims owned by the job.
+
+Items 1 and 2 are the leaf-first conversion's own next folders.
+Items 3 and 4 are the landing loop's (T11's remainder).
+A step that did any one of them alone would leave the round where it is,
+and a
+step that did all four is the largest piece left in T12,
+on the path that
+pushes the person's backup.
+
+### What the controls pin, and the defects they catch
+
+`landing/service_round_tests.rs`:
+
+- `the_answer_of_a_round_is_the_one_a_drain_of_one_directory_after_another_gives`
+  compares the round's `RoundAnswer` with an oracle that runs the same item
+  work (`DrainEachDirectory::run`) serially on the calling thread,
+  over two fixtures with one claim another instance holds and one push that
+  could pass each.
+  The waits are compared by directory and within five seconds (two readings of
+  one lease),
+  the plan changes exactly.
+  Planted,
+  the consumer attributing a wait to the last directory instead of its own:
+  `left: ["wait 3", "wait 2", "wait 1", "wait 0", ...]`
+  against
+  `right: ["wait 0", "wait 1", "wait 2", "wait 3", ...]`.
+- `a_lane_drains_its_directories_in_the_order_they_were_named`
+  gives one repository a linked worktree and shows the lane drains the common
+  directory and then the linked one.
+  Planted,
+  the lane taking its items last first:
+  `left: [.../linked, .../common]` against `right: [.../common, .../linked]`.
+- `a_refused_thread_partway_through_a_round_leaves_no_directory_undrained`
+  refuses every scoped start on the calling thread
+  (`scoped_start::RefusedStarts`) and shows the answer and the order of the
+  pushes are the ones a round with every thread gives:
+  every lane runs on the
+  calling thread,
+  no directory is lost,
+  and the caller is told nothing.
+  Planted,
+  the runner dropping the lanes a refused thread would have run:
+  `left: []` against the whole answer.
+  What the converted round must say instead is `OrderedRunError`:
+  the items after the refused one in its lane do not run,
+  their claims are left
+  to the lease of their holder
+  (`service_work::CLAIM_LEASE`),
+  and the next round of the work loop finds them
+  again.
+  Nothing is lost,
+  and the caller is told the refresh did not finish.
+
+`a_git_read_asked_inside_a_blocking_job_of_the_pool_is_refused` has no plant:
+it measures a state of the code rather than guarding a behaviour,
+and the same read as a task of the runtime answers,
+which is the state its refutation would be.
+
+The wording of a refusal:
+
+- `a_refusal_from_this_runner_says_the_step_may_still_run_and_claims_no_state_of_it`
+  fails on the old sentence (quoted in the commit) and passes on
+  `MayStillRunAfterItsThreadWasRefused`.
+- `the_refusal_that_promises_no_change_names_the_claim_that_makes_it_sure`
+  pins the answer `run_blocking_job_within_the_budget` gives,
+  and that it names
+  the claim as what makes it sure.
+
+### Checks
+
+- `foundation::blocking_job`,
+  `foundation::blocking_jobs_within_the_budget`,
+  `foundation::parallel_runner` (the three runner forms) and
+  `foundation::scoped_start`:
+  35 of 35 and 3 of 3.
+- `landing::service_round`:
+  10 of 10.
+- `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings,
+  after `format:monochromatic-lint` wrote four line breaks it asked for.
+- The whole suites at the tip,
+  `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own
+  control group at `TasksMax=4000`:
+  `native:test:host` 5087 run,
+  5087 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 744 run,
+  736 passed (four slow),
+  8 failed,
+  3 skipped.
+  At the merged tip (`5ffe9b2dcc`) the same two suites were run again:
+  `native:test:host` 5164 run,
+  5164 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 757 run,
+  748 passed (three slow),
+  9 failed,
+  3 skipped,
+  the nine being the eight below and
+  `client_service::an_index_writer_waits_for_the_service_to_finish_landing_and_says_so`,
+  which fails alone and fails the same way with this branch's four production
+  files taken from `origin/main`,
+  so it came with the merge and not with the step.
+- The eight binary failures are not this branch's,
+  measured:
+  `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`,
+  `package_repair::pnpm_runs_after_the_snapshot_rung`,
+  `service_provision::the_service_pushes_after_the_commit_returned`,
+  `version_cache::a_commit_records_and_then_trusts_the_version_text`,
+  `worktree_copy::a_filter_that_creates_a_worktree_through_the_wrapper_settles_it_itself`,
+  `worktree_dirty_snapshot::quiet_silences_the_note_about_left_out_changes`,
+  `worktree_snapshot::a_clean_main_checkout_is_snapshotted_and_equals_gits_own_checkout`
+  and `worktree_snapshot::a_snapshot_of_main_sets_aside_what_the_rule_leaves_out`.
+  All eight fail alone as well as in the suite (8 run,
+  8 failed),
+  and all eight fail the same way with this branch's four production files
+  restored to `baf3d03fe6` (8 run,
+  8 failed),
+  which is the measurement that they predate the step.
+  The folders are `worktree_copying/`,
+  `version_cache`,
+  `package_repair`,
+  `service_provision` and `worktree_copy`,
+  none of which this branch reaches.
+  Two shapes are worth the next agent's look,
+  and neither is diagnosed here:
+  three of them fail on a sentence that says
+  "received no ignored-state copy:
+  the worktree this command registered is no
+  longer at that path",
+  and `version_cache::a_commit_records_and_then_trusts_the_version_text` found
+  two cache files where it expects one,
+  the second being `git-system-attributes-<hash>`,
+  which `LinuxPlatform::with_its_conversion_environment_settled` writes.
+- `native:perf`,
+  five arms on 2026-11-09 between 07:50 and 08:00,
+  with two binaries:
+  this tree at the tip,
+  and main's tree at `baf3d03fe6` (its four production files restored,
+  built,
+  and the tree restored,
+  whose rebuild produced a binary byte for byte the one this tree's arms
+  measured).
+  The arms alternate (main's,
+  this tree,
+  main's,
+  this tree,
+  this tree),
+  so the last two are the same-binary control for the spread.
+  The host carried a load average of 53 to 121 on six CPUs throughout.
+  Paired deltas against native Git,
+  commit and signed commit through the service:
+
+  - 07:50 main's:
+    commit median 2,568.8 ms,
+    maximum 27,094.7 ms;
+    signed median 1,503.8 ms,
+    maximum 16,886.2 ms.
+  - 07:52 this tree:
+    commit median 853.9 ms,
+    maximum 13,714.4 ms;
+    signed median 404.9 ms,
+    maximum 10,262.4 ms.
+  - 07:55 main's:
+    commit median 508.5 ms,
+    maximum 25,570.1 ms;
+    signed median 499.9 ms,
+    maximum 12,497.2 ms.
+  - 07:58 this tree:
+    commit median 57.6 ms,
+    maximum 480.7 ms;
+    signed median 189.1 ms,
+    maximum 17,658.5 ms.
+  - 07:59 this tree:
+    commit median 90.3 ms,
+    maximum 3,857.3 ms;
+    signed median 57.3 ms,
+    maximum 5,897.3 ms.
+
+  What that says:
+  the same binary's own commit medians ran from 57.6 to 853.9 ms (14.8 times)
+  and its signed medians from 57.3 to 404.9 ms (7.1 times),
+  which covers every difference between the two binaries,
+  and main's own arms ran 508.5 to 2,568.8 ms,
+  so the order of the arms is the load's,
+  not the binaries'.
+  Both binaries broke the 5,000 ms bar under this load:
+  main's at 25.6 s and 27.1 s (commit) and 12.5 s and 16.9 s (signed),
+  this tree's at 13.7 s (commit) and 10.3 s and 17.7 s (signed),
+  with the last arm's 5.9 s signed the only one near it,
+  and no file this step touches runs in a commit.
+  Forwarded commands,
+  the added medians of `rev-parse`,
+  `status`,
+  `log` and `diff-stat`,
+  stayed between 1.4 and 3.6 ms in every arm,
+  three orders of magnitude under the 2,000 ms bound.
+- Two controls of `landing::service_work::push_retry_tests` failed inside one
+  folder selection
+  (`a_push_plan_due_later_does_not_hide_the_startup_look` and
+  `a_stopped_push_is_still_tried_again_after_the_service_restarts`) and pass
+  alone:
+  measured with both arms of the change,
+  two runs each,
+  2 of 2 in four runs,
+  under a load average of 62 to 73 on six CPUs,
+  and the failing run's own push took 10.2 s against a patience of about 10 s.
+  Their shape is the recorded one:
+  a witness with a time window that a loaded host reaches.
 
 ## Limits
 

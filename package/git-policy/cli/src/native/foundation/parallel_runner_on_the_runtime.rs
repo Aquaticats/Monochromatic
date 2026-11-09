@@ -92,8 +92,22 @@ pub struct OrderedRunOfOwned<'run, T, R> {
 #[derive(Debug)]
 pub enum OrderedRunError {
     /// The system refused a thread for a job,
-    /// so the items that job had not reached were not run.
+    ///  so the items after it in its lane were not run,
+    /// and the item it held will not run either.
+    ///  This is what a job that takes the claim on the item's work before
+    /// it answers can say (`blocking_jobs_within_the_budget.rs`).
     NoThreadToStart,
+    /// The system refused a thread for a job,
+    ///  and the pool then ran it on another thread,
+    /// so the items after it in its lane were not run,
+    ///  and whether the item it held finished is not known from here.
+    StartedAfterItsThreadWasRefused,
+    /// The system refused a thread for a job,
+    ///  and the pool had already queued it,
+    /// so it may still run later;
+    /// the items after it in its lane were not run,
+    ///  and whether it ran is not known from here.
+    MayStillRunAfterItsThreadWasRefused,
     /// A job panicked,
     /// so the items after it in its lane were not run.
     Panicked,
@@ -109,8 +123,23 @@ impl std::fmt::Display for OrderedRunError {
         return match self {
             OrderedRunError::NoThreadToStart => write!(
                 formatter,
-                "the system refused a thread for a step of this run, so the items it had not reached were not run. Hint: check the \
-                 process limit (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
+                "the system refused a thread for a step of this run, so the items after it in its lane were not run and the \
+                 item it held will not run. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, \
+                 free some, and run the command again"
+            ),
+            OrderedRunError::StartedAfterItsThreadWasRefused => write!(
+                formatter,
+                "the system refused a thread for a step of this run, and the pool then ran that step on another thread: the \
+                 items after it in its lane were not run, and whether the item it held finished is not known from here. Hint: \
+                 check the process limit (`ulimit -u`) and the control group's `pids.max`, and check what that worktree looks \
+                 like before running the command again"
+            ),
+            OrderedRunError::MayStillRunAfterItsThreadWasRefused => write!(
+                formatter,
+                "the system refused a thread for a step of this run, and the pool had already queued that step before it asked for one, \
+                 so the step may still run later; the items after it in its lane were not run, and whether it ran is not known from \
+                 here. Hint: check the process limit (`ulimit -u`) and the control group's `pids.max`, and check what that worktree \
+                 looks like before running the command again"
             ),
             OrderedRunError::Panicked => write!(formatter, "a step of this run panicked, so the items after it in its lane were not run"),
             OrderedRunError::Cancelled => write!(formatter, "a step of this run was cancelled because the runtime was ending"),
@@ -123,6 +152,8 @@ impl From<BlockingJobError> for OrderedRunError {
     fn from(error: BlockingJobError) -> Self {
         return match error {
             BlockingJobError::NoThreadToStart => OrderedRunError::NoThreadToStart,
+            BlockingJobError::MayStillRunAfterItsThreadWasRefused => OrderedRunError::MayStillRunAfterItsThreadWasRefused,
+            BlockingJobError::StartedAfterItsThreadWasRefused => OrderedRunError::StartedAfterItsThreadWasRefused,
             BlockingJobError::Panicked => OrderedRunError::Panicked,
             BlockingJobError::Cancelled => OrderedRunError::Cancelled,
         };
@@ -151,22 +182,46 @@ impl<T: Send + Sync + 'static, R: Send + 'static> OneItem<T, R> {
     fn run(self) {
         let OneItem { items, work, sender, index } = self;
         let Some(item) = items.get(index) else { return };
-        let mut say: LinesToTheConsumer<'_, R> = LinesToTheConsumer { sender: &sender, index };
+        let mut say: LinesToTheConsumer<R> = LinesToTheConsumer::new(&sender, index);
         let result: R = work.run(index, item, &mut say);
         let _sent = sender.send(Message::Done(index, result));
     }
 }
 
-/// The lines of one item,
-/// sent to the consumer of the calling task with the item's index.
-pub(crate) struct LinesToTheConsumer<'sender, R> {
+/// What:
+///  The lines of one item,
+/// sent to the consumer of the calling task with the item's index,
+/// as a value the item owns.
+/// Why:
+///   A job of the blocking pool must own what it reads
+/// (`run_blocking_job_within_the_budget`),
+/// and the items of an awaited ordered run are just such jobs,
+///  so an item that says its lines while it works
+/// (`parallel_runner_on_the_runtime_awaiting.rs`)
+///  carries a clone of the one sending end the run already uses
+/// instead of a borrow of it.
+/// No lock is taken:
+/// the channel is the whole of the sharing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class LinesToTheConsumer { constructor(readonly sender: Sender, readonly index: number) {} say(text: string) { this.sender.send({ line: [this.index, text] }) } }
+/// ```
+pub struct LinesToTheConsumer<R> {
     /// Where the lines go.
-    pub(crate) sender: &'sender UnboundedSender<Message<R>>,
+    sender: UnboundedSender<Message<R>>,
     /// The item that says them.
-    pub(crate) index: usize,
+    index: usize,
 }
 
-impl<R> LineSink for LinesToTheConsumer<'_, R> {
+impl<R> LinesToTheConsumer<R> {
+    /// The lines of the item at `index` of the run whose consumer reads `sender`.
+    pub(crate) fn new(sender: &UnboundedSender<Message<R>>, index: usize) -> Self {
+        return LinesToTheConsumer { sender: sender.clone(), index };
+    }
+}
+
+impl<R> LineSink for LinesToTheConsumer<R> {
     fn say(&mut self, text: &str) {
         // The consumer is gone only when the calling task was ended, and that end is the answer of the run.
         let _sent = self.sender.send(Message::Line(self.index, text.to_string()));
@@ -356,16 +411,16 @@ pub(crate) async fn finish_the_run<R>(
     // The first item begins before any job says anything, as in the scoped form.
     cursor.advance(on_event);
     loop {
-        tokio::select! {
-            arrived = receiver.recv() => {
-                if let Some(said) = arrived {
-                    cursor.tell(said, on_event);
-                }
-            }
-            () = still_running.changed.notified(), if still_running.running.load(Ordering::SeqCst) > 0 => {}
-        }
         if still_running.running.load(Ordering::SeqCst) == 0 {
             break;
+        }
+        if receiver.is_closed() {
+            // No job can say anything more, so the count is the only thing left to wait for.
+            still_running.changed.notified().await;
+            continue;
+        }
+        if let Some(said) = wait_for_a_message_or_a_return(&mut receiver, still_running).await {
+            cursor.tell(said, on_event);
         }
     }
     // A job that returned said everything it had to say before it returned.
@@ -387,6 +442,35 @@ pub(crate) async fn finish_the_run<R>(
     return match failure {
         Some(error) => Err(error),
         None => Ok(()),
+    };
+}
+
+/// What:
+///  Waits for one message from the jobs of one run,
+///  or for one job of it to return.
+/// Why:
+///  The consumer of a run has nothing else to do,
+/// and the count of the jobs still running is the only thing that ends it
+/// (`finish_the_run`),
+///  so this is the one place where that wait is written.
+/// A wake this call has already missed is not lost:
+/// `Notify::notify_one` stores one permit while no task waits
+/// (`tokio-1.54.1/src/sync/notify.rs`),
+///  and this branch must therefore never be switched off.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const said = await Promise.race([receiver.recv(), oneReturned()]); // undefined: a job returned
+/// ```
+pub(crate) async fn wait_for_a_message_or_a_return<R>(
+    receiver: &mut UnboundedReceiver<Message<R>>,
+    still_running: &SlotsStillRunning,
+) -> Option<Message<R>> {
+    // The wake branch is never switched off: a wake stored while nothing waited is consumed here, and a branch
+    //  disabled by the count cannot consume it (`tokio-1.54.1/src/sync/notify.rs`: at most one permit is stored).
+    return tokio::select! {
+        arrived = receiver.recv() => arrived,
+        () = still_running.changed.notified() => None,
     };
 }
 

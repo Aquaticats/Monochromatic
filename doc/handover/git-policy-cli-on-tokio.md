@@ -715,6 +715,373 @@
   the container gate of this branch (no gate image was made) and the mutation
   campaign (paused by the owner).
 
+## Step T12, the line path and the three pure-file sites, 2026-11-08T23:05:00-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` in
+  `.claude/worktrees/pi-tokio-pure-file-sites-on-the-awaited-runner`,
+  from main's tree at `3db3002750` (origin/main has moved since;
+  this branch is not merged).
+  Commits `6718083e03`,
+  `1a7a356e46`,
+  `f91efa791b`,
+  `f1da73cd9f`,
+  `4712446a7c`,
+  `a5bf18702f`,
+  `19c78736dc`,
+  `e96655c92e`,
+  `2b0b47c964` and `c7ad6b145a`.
+- Done,
+  and the whole of what item 3 could be from this tree:
+  the line path for an item whose work runs in a `'static` job,
+  and the three pure-file sites on `run_ordered_awaiting_on_the_runtime`:
+  `worktree/worktree_trash_entries.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs` and
+  `worktree/worktree_convert_command.rs`.
+  No site of the blocking runner's scoped threads is left in those three files.
+- The decisions,
+  this agent's under the owner's delegation and open to the owner's veto
+  (the plan,
+  "Step T12,
+  the line path and the state of the pure-file sites"):
+  the state each site lends the runner is shared with `Arc`,
+  and an item's lines are an owned `LinesToTheConsumer<R>` it moves into its job.
+  Neither adds a lock,
+  both keep the lines in input order and as they happen,
+  and nothing of the three sites is reached by a forwarded command.
+- Corrected record:
+  the previous section says the three sites "all say lines while they work".
+  Read again,
+  only `worktree/worktree_convert_command.rs` does;
+  the other two say theirs at `Event::End`,
+  on the consumer,
+  so the line path had one user and not three.
+- One fact for any later helper,
+  measured:
+  `tokio::runtime::Handle::try_current()` is `Ok` on a thread of the blocking pool
+  (thread name `git-policy-worker`) and `Err` on a scoped thread of `parallel_runner.rs`,
+  so a control can tell "this work is in the process's runtime" from "this work is on a thread of
+  its own".
+  What it cannot tell is a worker of the runtime from a job of its pool;
+  the place control does that
+  (`hold_the_only_place` in `testing/parallel_test_support.rs`:
+  with the bound held to one place,
+  work that takes a place waits and work that runs on a worker does not).
+- Exact next steps,
+  in order:
+  1. Item 2:
+     the landing's handlers and `landing/service_round.rs` (`drain_directories`)
+     onto `run_ordered_awaiting_on_the_runtime`,
+     with each item's storage work inside `run_blocking_job_within_the_budget`.
+     The landing's items say lines while they work,
+     so they take the owned sink by moving it into the job,
+     as `worktree_convert_command.rs` does.
+     Another agent has an unmerged branch in the landing's index handling;
+     read it before touching `landing/service_index_*` or `commit/native_commit*`.
+  2. Then the sites still on `parallel_runner.rs`:
+     `worktree/worktree_copying/`,
+     the copy and repair sites of `foundation/side_by_side_threads.rs`,
+     and the rest of the seven `run_ordered` sites the plan lists.
+  3. Then item 4 (T13's guards),
+     unchanged.
+- Checks,
+  the whole suites once at the tip,
+  with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own control group at
+  `TasksMax=4000`:
+  `native:test:host` 4826 run,
+  4826 passed (one slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  730 passed (three slow),
+  3 failed,
+  3 skipped,
+  and the same suite once more at the same tip,
+  after the review's corrections:
+  733 run,
+  733 passed (three slow),
+  3 skipped.
+  The three failures of the first run are the `service::the_settle_command_*` group,
+  which passes 4 of 4 when asked alone and whose own reason is a deadline
+  ("the sockets and processes of the earlier helper could not be looked at in time"),
+  under a load average of 60 to 91 with another agent's whole suite running beside it;
+  the same control is already recorded twice as a suite-only failure that passed alone and in the
+  next full runs (`doc/handover/cli-git-rust-implementation.md`,
+  and the plan's T4 section).
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- `native:perf`,
+  nine arms with two binaries over two windows,
+  the second interleaved (main's,
+  this tree,
+  main's,
+  this tree),
+  so each binary has arms on both sides of the other's:
+  every arm inside the 2,000 ms forwarded bound by three orders of magnitude
+  (added medians 1.4 to 2.2 ms);
+  commit through the service paired delta medians 146.8,
+  111.1,
+  119.2,
+  39.5 and 60.5 ms for this tree and 45.5,
+  56.7,
+  171.4 and 58.5 ms for main's,
+  and signed commit 167.8,
+  99.5,
+  95.2,
+  161.5 and 89.4 ms against 108.5,
+  93.6,
+  123.3 and 111.9 ms.
+  Each binary's own spread covers the whole difference (3.7 times on this tree's commit medians,
+  3.8 times on main's),
+  the first window's apparent separation reversed in the interleaved one,
+  and the 5,000 ms bar was broken by both binaries under this load.
+  So no arm here attributes anything to this step,
+  and no file this step touches runs in a commit.
+  The plan,
+  "Step T12,
+  the line path and the state of the pure-file sites",
+  "Latency".
+- One defect this step carried and the binary suite caught:
+  a conversion,
+  now a job of the blocking pool,
+  could no longer learn where the system configuration and attributes files are,
+  because the bridge that starts a child refuses from inside the runtime.
+  Fixed by `LinuxPlatform::with_its_conversion_environment_settled`
+  (the plan says what it pins).
+- Not run,
+  for the next agent:
+  the container gate of this branch (no gate image was made) and the mutation campaign
+  (paused by the owner).
+- A review of this branch by another vendor (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-sol.txt`)
+  found two defects in what the code promises,
+  both right,
+  and both fixed in `c316f98b42` and `51e5958ff6`
+  (the plan,
+  "What a review of the branch found,
+  and what changed"):
+  a rewrite that panicked after installing its index was promised as unchanged
+  (the kinds of end are counted apart now,
+  and only a job that never started is promised that),
+  and
+  the place controls gave their place back on a clock instead of on an attempt
+  (`jobs_waiting_for_a_place` in `blocking_jobs_within_the_budget.rs`,
+  test-only,
+  and the holder reports the ask each control asserts).
+  Measured for the second:
+  with the old helper and a conversion run on the worker after a 1,500 ms
+  wait,
+  the conversion control passed although no place was taken;
+  with the ask it fails.
+- Round 2's checks,
+  only the folders a fix touches plus Clippy and the package lint,
+  and no whole-suite run:
+  `worktree_trash_entries` 7 of 7,
+  `worktree_convert` 86 of 86,
+  `subvolume_index` 45 of 45,
+  `parallel_runner` 20 of 20,
+  `native:clippy` clean,
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- A second review (the same file,
+  a third finding) held as well:
+  the pool queues a blocking job before it asks for a thread
+  (`tokio-1.54.1`,
+  the version in `Cargo.lock`:
+  `runtime/blocking/pool.rs:624` pushes,
+  `:628` asks,
+  `:499` returns `NoThreads`,
+  `:386` panics,
+  `run_worker` at `:657` drains),
+  so "no thread" never proved a job would not run,
+  and the index report's "those stay as they were" was measured to be false (4 of 4 rewrites ran
+  after the report,
+  in a child whose process limit is one).
+  Fixed by `foundation/the_claim_a_job_takes_before_running_it.rs`:
+  a job takes the claim before its first effect and the reporter takes it after the refusal,
+  and one atomic exchange decides,
+  so the promise holds and a job the report gave up on does nothing.
+  The error texts of `BlockingJobError` and `OrderedRunError`,
+  the trash disposal's sentence and two
+  control frames were reworded,
+  and no other site promises a file
+  (the plan,
+  "What a review of the branch found,
+  and what changed").
+  Round 3's checks:
+  122 controls of the folders touched
+  (`blocking_job`,
+  `the_claim_a_job`,
+  `subvolume_index`,
+  `parallel_runner`,
+  `worktree_trash`) 122 of 122,
+  `native:clippy` clean,
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- A third review (the same file) found three waits and bounds,
+  all three right,
+  fixed in `8a8ffaeea7` and `8881e8bc83` after `0bee2a3825` made the consumer's wait one function:
+  the completion loop's wake branch could be switched off and then miss its final wake,
+  the refresh read `.git/config` synchronously before its first await,
+  and a refused job's place went back while the pool still held the job queued.
+  The place and the claim travel together now
+  (`foundation/the_place_of_one_blocking_job.rs`),
+  a run reads what it needs on the blocking pool (`prepare_the_run`),
+  and the wake branch is never switched off.
+  `SPEC.md` records all three rules under "Every wait has a bound".
+- Two controls that failed in a filtered suite and passed alone were the process's blocking bound against controls
+  that ask for every item in flight at once:
+  measured,
+  the bound is 1,
+  2 and 3 at CPU quotas of 100%,
+  200% and
+  400% while the request asks 4.
+  `may_run_all_at_once` states each control's need now,
+  and the two modules pass 68 of 68 at both quotas (`a3a924b37b`).
+  The `SIGABRT at 125 s` was not reproduced;
+  that control passed in 1.1 to 9.0 s,
+  and the unbounded wait on its
+  path is the one the first finding of this round removed.
+- Round 4's checks:
+  `blocking_job`,
+  `the_place_of_one`,
+  `the_claim_a_job`,
+  `subvolume_index`,
+  `parallel_runner` and `worktree_convert_command` 107 of 107;
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- A fourth review found four things,
+  all right,
+  fixed in `37c5ac28ec` (a dropped caller revokes the claim),
+  `e35cb2da53` (a conversion finds what it covers on the blocking pool),
+  `9d73b723bc` (a preparation control's cleanup cannot wait for a reader that cannot come) and `6f032b9cc6`
+  (a refused start says whether the step will run or already has),
+  with the room seam of `a180366183`.
+  The two controls the coordinator saw fail were measured:
+  the index order control's waiting item could take
+  the last place its peers needed (14.7 s in an 88-test selection,
+  0.05 s alone,
+  33.9 s in their run),
+  and the
+  conversion order control converted four worktrees at one place,
+  which is four real conversions one after
+  another at about 28 s each on a busy disk (105 s in a 19-test selection,
+  1.1 s alone).
+  A control now takes the room it needs (`room_for_blocking_jobs_in_a_control`),
+  and the conversion controls
+  convert only what their report needs.
+  The plan,
+  "A fourth review",
+  and "The two controls the coordinator saw fail,
+  measured".
+- Round 5's checks,
+  the whole selection at CPU quotas of 100% and 200%:
+  218 run,
+  218 passed.
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- Main was merged into this branch at `69a0e7f75c` (the coordinator);
+  the commits of this step are its own.
+
+## Step T12, the landing round's controls, and the four things its move needs first
+
+- Written:
+  2026-11-09T11:40:00-05:00.
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-landing-round-on-the-runtime` in
+  `.claude/worktrees/pi-tokio-landing-round-on-the-runtime`,
+  from main at `baf3d03fe6`,
+  with main merged again at `5ffe9b2dcc` (it had moved to `6232f281d7`).
+  Not merged into main.
+  Commits `02601dbb76`,
+  `8af808f1c0`,
+  `ba49929c1c` and the merge `5ffe9b2dcc`.
+- Done:
+  the raw blocking runner's refusal claims only what it knows
+  (the finding of `${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`),
+  and `landing/service_round.rs` has the controls its move must keep:
+  the answer a drain of one directory after another gives,
+  a lane's order,
+  what a refused thread does partway through a round,
+  and the measurement that says why the round cannot run its items as
+  blocking jobs.
+- Not done,
+  and measured as not contained:
+  the move of `drain_directories` onto the runtime.
+  It needs four things first,
+  and the plan's section
+  "Step T12,
+  the landing round:
+  what blocks it and what now pins it"
+  names each with its file and lines:
+  an awaited push chain (about a dozen functions in six files,
+  with the synchronous faces kept for `manual_push_probe` and `push_stacking`),
+  an awaited maintenance (two functions),
+  a claim renewal whose stop does not wait for a task,
+  and the claims,
+  the settles and the notices inside
+  `run_blocking_job_within_the_budget`.
+- The next agent starts with the awaited push chain,
+  then the awaited maintenance,
+  then the renewal's stop,
+  then the round itself onto `run_ordered_awaiting_on_the_runtime`:
+  `landing/service_round.rs` first,
+  and `landing/service_work_run_round.rs` keeps a synchronous face that enters
+  the runtime once.
+- The refusal's three states are now separate values,
+  which is what the review asked for:
+  `MayStillRunAfterItsThreadWasRefused` (the runner that takes no claim),
+  `NoThreadToStart` (a caller that took the claim before it answered),
+  and `StartedAfterItsThreadWasRefused` (the job took the claim first).
+  `OrderedRunError` carries the same three,
+  and the index refresh counts the first with the ends whose result is not
+  known.
+- Checks at the tip,
+  `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own
+  control group at `TasksMax=4000`:
+  `native:test:host` 5087 run,
+  5087 passed (one slow),
+  12 skipped;
+  `native:test:binary:host` 744 run,
+  736 passed (four slow),
+  8 failed,
+  3 skipped,
+  all eight failures pre-existing and measured as such (the plan's section for
+  this step names them and the base-arm run that failed the same way);
+  at the merged tip `native:test:host` 5164 run,
+  5164 passed (one slow),
+  12 skipped,
+  and `native:test:binary:host` 757 run,
+  748 passed (three slow),
+  9 failed,
+  3 skipped,
+  the ninth (`client_service::an_index_writer_waits_for_the_service_to_finish_landing_and_says_so`)
+  being main's,
+  measured the same way;
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+- Open failure to read before trusting a green binary run,
+  measured and not this branch's:
+  `fault_trace::a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository`
+  fails 2 of 2 alone and once inside a full run,
+  "6 of 47 kills left the repository unrecovered",
+  each with "a staging directory stays after the next commands:
+  `.cli-git-worktree-copy-<id>`",
+  and it fails the same way with this branch's four production files restored
+  to `baf3d03fe6`,
+  which is the measurement that it predates this step.
+  The folder is `worktree_copying/`,
+  which another agent is changing.
+- `native:perf`,
+  five arms between 07:50 and 08:00 with this tree's binary and main's at
+  `baf3d03fe6`,
+  alternating and with two arms of one binary as the control:
+  the same binary's commit medians ran 57.6 to 853.9 ms (14.8 times) and its
+  signed medians 57.3 to 404.9 ms,
+  which covers every difference between the two binaries;
+  forwarded commands stayed 1.4 to 3.6 ms added;
+  both binaries broke the 5,000 ms commit bar under a load average of 53 to 121
+  on six CPUs.
+  So no arm attributes anything to this step,
+  and none of its files runs in a commit.
+  The plan's section for this step has every arm.
+
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
 Nothing of T13 is done and nothing of it can be done first:

@@ -29,6 +29,7 @@ use crate::command_commit::CommitRegion;
 use crate::commit_facts::PrivateIndexFacts;
 use crate::config_schema::CliGitConfig;
 use crate::diagnostics::EngineFailureCode;
+use crate::effective_target::ToolCacheDirectory;
 use crate::path_bytes::os_from_path_bytes;
 use crate::markdown_linter::embedded_linter;
 use crate::policy_checks::{ShippedChecks, shipped_checks};
@@ -43,7 +44,7 @@ use crate::transaction_journal::{Base, Conclusion, TransactionMode};
 use crate::transaction_phase::PhaseMarkerError;
 use crate::wrapper_controls::Controls;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 
 /// What:
@@ -259,7 +260,7 @@ pub fn private_checks<'a, F: RepositoryFacts>(
     let scanner_settings = std::mem::replace(&mut checks.scanner_settings, default_scanner_settings());
     let markdown = std::mem::replace(&mut checks.markdown, markdown_state(Box::new(embedded_linter())));
     let arguments: Vec<OsString> = checks.arguments.clone();
-    let allowed_worktree_dirs: Vec<PathBuf> = checks.allowed_worktree_dirs.clone();
+    let allowed_worktree_dirs: Vec<ToolCacheDirectory> = checks.allowed_worktree_dirs.clone();
     let mut rebuilt: ShippedChecks<PrivateIndexFacts<&'a mut F>> = shipped_checks(
         PrivateIndexFacts::new(&mut checks.facts, index, object_directory),
         arguments,
