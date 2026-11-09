@@ -757,41 +757,65 @@ fn recovery_waits_for_another_programs_index_lock() {
 }
 
 /// What:
-///  A wait that ends with the index still held writes nothing,
-///  and only a wait that ends with the lock free lets the merge go on.
+///  A wait that ends with the index still held by a program that lives writes nothing,
+/// a free or released lock lets the merge go on,
+///  and a lock a gone process left is removed and then lets it go on.
 /// Why:
 ///  The decision is the whole of recovery's behaviour on a held lock,
-/// and both halves of it are checked:
-///  a recovery that wrote the index after giving up would put Git's own sentence in place of the record.
+/// and every half of it is checked:
+///  a recovery that wrote the index after giving up would put Git's own sentence in place of the record,
+/// while one that
+///  treated a dead Git's lock as a live holder's left every command in the worktree exiting 2
+///  (finding 4 of the merge-and-pull audit of 2026-11-09).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(mayInstall({ kind: 'not-held' })).toBe(true); expect(mayInstall({ kind: 'owner-gone' })).toBe(false);
+/// expect(mayInstall(place, { kind: 'not-held' })).toBe(true);
+/// expect(mayInstall(place, { kind: 'gave-up' })).toBe(false);
+/// expect(mayInstall(place, { kind: 'owner-gone' })).toBe(true); expect(exists(lock)).toBe(false);
 /// ```
 #[test]
-fn only_a_lock_that_is_free_lets_the_merge_be_written() {
+fn only_a_lock_that_is_free_or_left_by_a_gone_process_lets_the_merge_be_written() {
     let second: std::time::Duration = std::time::Duration::from_secs(1);
-    assert!(may_install(IndexWait::NotHeld));
-    assert!(may_install(IndexWait::Released(second)));
-    assert!(!may_install(IndexWait::GaveUp(second)));
-    assert!(!may_install(IndexWait::OwnerGone(second)));
+    let world: World = world("merge-recovery-may-install");
+    assert!(may_install(&place(&world), IndexWait::NotHeld));
+    assert!(may_install(&place(&world), IndexWait::Released(second)));
+    assert!(!may_install(&place(&world), IndexWait::GaveUp(second)));
+
+    // A lock whose PID file names a process that no longer runs is nobody's to release, so it is removed.
+    let dead: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(dead.as_path(), b"").expect("a killed Git left its empty lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
+        .expect("the PID file of a process that is gone");
+    assert!(may_install(&place(&world), IndexWait::OwnerGone(second)), "a dead Git's lock is cleared and the merge goes on");
+    assert!(!dead.exists(), "the lock of a Git nothing runs was removed");
+
+    // A lock a program that lives holds is not the recovery's to remove.
+    std::fs::write(dead.as_path(), b"").expect("a program holds the index");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), format!("pid {}\n", std::process::id()))
+        .expect("the PID file names this process, which runs");
+    assert!(!may_install(&place(&world), IndexWait::OwnerGone(second)), "a live holder's lock stays");
+    assert!(dead.exists(), "the live holder's lock is not removed");
+    remove(world.parent.as_path());
 }
 
 /// What:
-/// What:
-///  A held index defers a merge that installed nothing and stops one that is already installed.
-/// Why:
-///  This ends at once,
-/// without a ceiling,
-/// so the control proves both ends of the rule:
-/// a merge whose files and entries are
-///  installed must not be read as another session's staged work,
-/// while one that installed nothing is left for the next
+///  A held index stops a merge that is already installed and leaves a merge that installed nothing for the next
 ///  command.
+/// Why:
+///  The control proves both ends of the rule:
+/// a merge whose files and entries are installed must not be read
+///  as another session's staged work,
+/// while one that installed nothing is left for the next command.
+///  The holder lives here,
+/// because a lock a gone process left is cleared and the merge finished
+///  (`recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merge`),
+/// and the ceiling is shortened so the
+///  control ends in a moment.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePidFile(index, gonePid); await expect(settleFailedMerge(installed)).rejects; await expect(settleFailedMerge(saved)).resolves.toBe('discarded');
+/// shortCeiling(ms(100)); await expect(settleFailedMerge(installed)).rejects; await expect(settleFailedMerge(saved)).resolves.toBe('discarded');
 /// ```
 #[test]
 fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one() {
@@ -802,10 +826,19 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     let installed_intent: MergeIntent =
         parse_merge_intent(std::fs::read(installed_record.as_path()).expect("read").as_slice()).expect("intent");
     std::fs::write(installed.git_dir.join("index.lock"), b"").expect("a Git left the index lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(installed.git_dir.join("index").as_path()), b"pid 4294967\n").expect("the PID file of a process that is gone");
+    // The holder is this process, which runs, so nothing may remove the lock and the wait ends at its ceiling.
+    std::fs::write(
+        crate::recovery_files::lock_pid_path(installed.git_dir.join("index").as_path()),
+        format!("pid {}\n", std::process::id()),
+    )
+    .expect("the PID file of a process that runs");
     let mut installed_said: Vec<u8> = Vec::new();
-    let refused = settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said)
-        .expect_err("an installed merge behind a held index stops the command");
+    let refused = crate::index_holder_wait::RECOVERY_LOCK_CEILING_FOR_THIS_THREAD
+        .with(|shortened| {
+            shortened.set(Some(std::time::Duration::from_millis(100)));
+            settle_failed_merge(&place(&installed), installed_record.as_path(), &installed_intent, &mut installed_said)
+        });
+    let refused = refused.expect_err("an installed merge behind a held index stops the command");
     assert!(refused.began, "it reports that the merge is installed");
     assert!(installed_record.exists(), "the record stays");
     remove(installed.parent.as_path());
@@ -825,6 +858,48 @@ fn a_held_index_defers_a_merge_that_installed_nothing_and_stops_an_installed_one
     assert!(lock.exists(), "the lock is not the recovery's to remove");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.old_oid, "the branch did not move");
     assert_eq!(snapshot(&world), before, "the index and the worktree are exactly as they were");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A lock a Git that no longer runs left over a merge it had partly installed is cleared on the same proof the
+///  merge's own path acts on,
+///  and the command finishes the merge instead of exiting 2.
+/// Why:
+///  An out-of-memory kill of the cgroup,
+///  or `kill -9` of the process group,
+///  leaves the merge's record,
+///  its installed checkout and the dead Git's `index.lock`:
+/// `git status`,
+///  `git log`,
+/// `git rev-parse HEAD`,
+/// `git merge` and `git commit` all exited 2 until the person deleted the lock by hand,
+///  where real Git answers `git status` with 0 in the same state
+///  (finding 4 of the merge-and-pull audit).
+/// The merge's own path already removes such a lock (`merge_isolation_apply.rs`),
+/// and recovery is the same
+///  decision from the same evidence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeLock(index, { pid: gonePid }); await expect(recoverInterruptedMerges(place, dir)).resolves.toMatchObject([{ action: 'completed' }]); expect(exists(lock)).toBe(false);
+/// ```
+#[test]
+fn recovery_clears_the_index_lock_of_a_git_that_was_killed_and_finishes_the_merge() {
+    let world: World = world("merge-recovery-dead-git-lock");
+    // Git had updated the checkout and had not moved the branch when it was killed with the lock.
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = record_of(&world, dead_owner("15151515-0000-4000-8000-000000000015"), Some("refs/heads/main"));
+    let lock: PathBuf = world.git_dir.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("a killed Git left its empty lock");
+    std::fs::write(crate::recovery_files::lock_pid_path(world.git_dir.join("index").as_path()), b"pid 4294967\n")
+        .expect("the PID file of a process that is gone");
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes =
+        recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the merge is finished, not refused");
+    assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::Completed));
+    assert!(!lock.exists(), "the lock of a Git nothing runs was removed");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), world.new_oid, "the branch moved onto the merge");
     remove(world.parent.as_path());
 }
 

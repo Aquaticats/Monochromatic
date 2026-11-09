@@ -19,12 +19,19 @@
 //! ```
 
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_while_finishing_a_merge};
+use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::inner_git_words::record_words;
 use crate::merge_isolation_changes::{
     Change, FileIdentity, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state,
 };
 use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use crate::recovery_error::{RecoveryError, io_failure};
+/// Removing an index lock a gone process left,
+/// on the commit service's proof of disuse,
+/// and what came of it.
+use crate::service_index_unheld_removal::{Unheld, remove_if_the_owner_is_gone};
+/// The platform whose unlink removes the lock.
+use crate::service_index_placement::SYSTEM;
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
 /// re-exported so a caller of the recovery keeps one path.
@@ -378,22 +385,40 @@ pub enum Installed {
 }
 
 /// What:
-///  Whether the merge may be written after this wait for the index lock.
+///  Whether the merge may be written after this wait for the index lock,
+///  clearing a lock a gone process left on the proof the merge's own path acts on.
 /// Why:
-///  A wait that ended with the lock still held means the index cannot be written,
+///  A wait that ended with the lock still held by a program that lives means the index cannot be written,
 /// and trying would fail with Git's
 ///  own sentence in place of the record;
 /// leaving the record and writing nothing is safe,
 /// because the recovery is idempotent.
+///  A lock whose PID file names a process that no longer runs is released by nobody,
+/// so recovery removes it on the commit
+///  service's proof of disuse and goes on,
+/// exactly as the merge's own path does (`merge_isolation_apply.rs`):
+/// without that,
+///  every command in the worktree exited 2 until the person deleted the lock by hand,
+/// where real Git answers `git status`
+///  with 0 in the same state (finding 4 of the merge-and-pull audit of 2026-11-09).
+///  A lock that proof does not cover (it holds content,
+/// it stands behind a service's marker,
+/// a process has it open)
+///  stays where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const mayInstall = (waited: IndexWait) => waited !== 'gave-up' && waited !== 'owner-gone';
+/// const mayInstall = (place, waited) => waited.kind === 'not-held' || waited.kind === 'released'
+///   || (waited.kind === 'owner-gone' && removeIfTheOwnerIsGone(place.gitDir));
 /// ```
-pub fn may_install(waited: IndexWait) -> bool {
+pub fn may_install(place: &RecoveryPlace, waited: IndexWait) -> bool {
     return match waited {
         IndexWait::NotHeld | IndexWait::Released(_) => true,
-        IndexWait::GaveUp(_) | IndexWait::OwnerGone(_) => false,
+        IndexWait::GaveUp(_) => false,
+        IndexWait::OwnerGone(_) => matches!(
+            remove_if_the_owner_is_gone(&SYSTEM, place.git_dir.join("index").as_path(), &scan_platform_holders_bounded),
+            Unheld::Removed(_)
+        ),
     };
 }
 
@@ -467,7 +492,12 @@ fn everything_taken(written: &[TakenOnDisk], deleted: &[TakenOnDisk]) -> Vec<Tak
 ///  a holder first,
 /// bounded and naming it (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
 /// finding 2);
-///  a lock that outlasts the bound leaves everything as it was and the record for the next command.
+///  a lock that outlasts the bound leaves everything as it was and the record for the next command,
+/// and a lock whose PID file
+///  names a process that no longer runs is cleared on the commit service's proof of disuse,
+/// so the merge happens
+///  instead of every command exiting 2 until the person deletes the file (finding 4 of the merge-and-pull audit
+///  of 2026-11-09).
 ///   Every path that is not already at the state the change ends in is taken aside before anything is written,
 /// and
 ///  the taken file is checked against what was judged,
@@ -492,7 +522,7 @@ pub fn install_entries(
     out: &mut dyn Write,
 ) -> Result<Installed, MergeRefusal> {
     let waited: IndexWait = wait_for_index_release_while_finishing_a_merge(place.git_dir.join("index").as_path(), out);
-    if !may_install(waited) {
+    if !may_install(place, waited) {
         return Ok(Installed::IndexHeld);
     }
     // The take comes first: nothing of the merge is written while a file that was judged may already have changed.
