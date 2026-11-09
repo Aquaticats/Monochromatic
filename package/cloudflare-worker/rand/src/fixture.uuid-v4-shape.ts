@@ -8,6 +8,52 @@
  @module
  */
 
+//region Constants
+
+/**
+ Characters a hexadecimal position may hold.
+ */
+const HEX_CHARACTERS = '0123456789abcdef';
+
+/**
+ Length of a canonical UUID string: 32 hexadecimal characters and 4 dashes.
+ */
+const UUID_LENGTH = 36;
+
+/**
+ Positions carrying a dash in a canonical UUID.
+ */
+const UUID_DASH_POSITIONS: ReadonlySet<number> = new Set([
+  8,
+  13,
+  18,
+  23,
+],);
+
+/**
+ Position of the version nibble.
+ */
+const UUID_VERSION_POSITION = 14;
+
+/**
+ Version nibble a version 4 UUID carries.
+ */
+const UUID_VERSION = '4';
+
+/**
+ Position of the variant nibble.
+ */
+const UUID_VARIANT_POSITION = 19;
+
+/**
+ Variant nibbles RFC 9562 allows for a version 4 UUID.
+ */
+const UUID_VARIANT_CHARACTERS = '89ab';
+
+//endregion Constants
+
+//region Predicate
+
 /**
  Whether `text` is a lowercase canonical version 4 UUID.
 
@@ -25,30 +71,26 @@
  ```
  */
 export function isUuidV4(text: string,): boolean {
-  if (text.length !== 36) {
+  if (text.length !== UUID_LENGTH) {
     return false;
   }
-  /**
-   Characters a hexadecimal position may hold.
-   */
-  const hex = '0123456789abcdef';
-  for (let index = 0; index < 36; index += 1) {
+  for (let index = 0; index < UUID_LENGTH; index += 1) {
     /**
      Character at this position.
      */
     const character = text.charAt(index,);
-    if ((index === 8) || (index === 13)
-      || (index === 18)
-      || (index === 23)) {
+    if (UUID_DASH_POSITIONS.has(index,)) {
       if (character !== '-') {
         return false;
       }
       continue;
     }
-    if (!hex.includes(character,)) {
+    if (!HEX_CHARACTERS.includes(character,)) {
       return false;
     }
   }
-  // Position 14 is the version nibble and position 19 the variant nibble.
-  return (text.charAt(14,) === '4') && '89ab'.includes(text.charAt(19,),);
+  return (text.charAt(UUID_VERSION_POSITION,) === UUID_VERSION)
+    && UUID_VARIANT_CHARACTERS.includes(text.charAt(UUID_VARIANT_POSITION,),);
 }
+
+//endregion Predicate

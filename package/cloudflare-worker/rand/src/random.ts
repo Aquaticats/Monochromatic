@@ -55,6 +55,12 @@ const WORD_BITS = 32;
  */
 const EXACT_POWER_LIMIT = 53;
 
+/**
+ Bytes drawn beyond the count still needed, because roughly one byte in 32 is
+ discarded as biased and a single pass should still usually suffice.
+ */
+const DRAW_BATCH_OVERALLOCATION = 16;
+
 //endregion Constants
 
 //region Helpers
@@ -178,10 +184,10 @@ export function randomAlphanumeric({ length, }: RandomAlphanumericParams,): stri
   const characters: string[] = [];
   while (characters.length < length) {
     /**
-     Fresh bytes to reduce, oversized because roughly one byte in 32 is
-     discarded as biased and a single pass should still usually suffice.
+     Fresh bytes to reduce, oversized so a single pass usually fills the length
+     even after the biased bytes are discarded.
      */
-    const bytes = new Uint8Array((length - characters.length) + 16,);
+    const bytes = new Uint8Array((length - characters.length) + DRAW_BATCH_OVERALLOCATION,);
     crypto.getRandomValues(bytes,);
     for (const byte of bytes) {
       if (byte >= UNBIASED_BYTE_LIMIT) {
