@@ -231,7 +231,7 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     };
     let intent: MergeIntent = MergeIntent {
         owner,
-        repository_root: root.to_string_lossy().into_owned(),
+        repository_root: root.to_path_buf(),
         target_ref,
         old_oid: String::from(old_oid),
         new_oid: String::from(new_oid),

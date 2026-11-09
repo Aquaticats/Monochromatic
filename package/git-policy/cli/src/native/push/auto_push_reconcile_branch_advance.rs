@@ -219,7 +219,7 @@ pub(crate) fn record_merge_intent(dir: &Path, git: &PushGit, branch_ref: &str, l
     let owner = current_transaction_owner(random_uuid().ok()?.as_str(), now_iso().as_str()).ok()?;
     let intent: MergeIntent = MergeIntent {
         owner,
-        repository_root: git.cwd.to_string_lossy().into_owned(),
+        repository_root: git.cwd.to_path_buf(),
         target_ref: Some(branch_ref.to_owned()),
         old_oid: local.to_owned(),
         new_oid: merge_oid.to_owned(),
