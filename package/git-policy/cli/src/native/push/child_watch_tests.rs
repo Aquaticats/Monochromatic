@@ -999,3 +999,51 @@ fn a_step_the_watch_cannot_end_is_ended_at_its_ceiling() {
     assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "{failure}");
     assert!(waited < Duration::from_secs(10), "the step outlasted its ceiling by {waited:?}");
 }
+
+/// What:
+///  A member in uninterruptible I/O cannot keep the stop waiting past its ceiling,
+/// and one that can act on its signal is not waited for after the grace at all.
+/// Why:
+///  After the escalation ceiling and the kill,
+/// a loop with no elapsed-time check of its own waited for as long as a
+///  member sat in uninterruptible I/O,
+/// which is the third review's finding 2 in one place and the locks-and-transactions
+///  review's finding in another:
+/// the stop waited without a bound after the last signal it could send.
+/// The state cannot be
+///  produced on this host,
+/// so the control says which members count as uninterruptible and how long the
+///  ceiling is (`stop_waits_while_a_member_cannot_be_interrupted`).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a sleeper");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    let member: crate::process_tree::TreeMember = match crate::process_tree::member_read(pid) {
+        crate::process_tree::MemberRead::Found { member, .. } => member,
+        other => panic!("the control's process is found: {other:?}"),
+    };
+    let tree: [crate::process_tree::TreeMember; 1] = [member];
+    // The stop's ceiling is a multiple of the longest delay measured, so it sits above the grace; a control keeps that order.
+    let ceiling: Duration = crate::bounded_push::STOP_GRACE * 2;
+    let inside_grace: bool;
+    let after_the_grace: bool;
+    let past_the_ceiling: bool;
+    {
+        let _rules = crate::stop_waits_while_a_member_cannot_be_interrupted::rules_for_this_thread(
+            crate::stop_waits_while_a_member_cannot_be_interrupted::ControlRules {
+                blocked: |_member| { return true; },
+                ceiling,
+            },
+        );
+        inside_grace = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(Duration::ZERO, tree.as_slice());
+        after_the_grace =
+            crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(crate::bounded_push::STOP_GRACE, tree.as_slice());
+        past_the_ceiling = crate::child_watch_clock_marks_and_stopping::the_wait_after_the_kill(ceiling + Duration::from_millis(1), tree.as_slice());
+    }
+    sleeper.kill().expect("the control ends its sleeper");
+    sleeper.wait().expect("the sleeper is collected");
+    assert!(inside_grace, "the stop did not wait at all after the kill");
+    assert!(after_the_grace, "a member in uninterruptible I/O was given up at the grace rather than at the ceiling");
+    assert!(!past_the_ceiling, "a member in uninterruptible I/O held the stop past its ceiling");
+}
