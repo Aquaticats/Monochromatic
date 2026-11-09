@@ -1580,8 +1580,8 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
 /// a landing that never says the word stopped before its wait,
 /// and a control that waited without one would be held until the test watchdog ends the process
 /// (`testing/test_support.rs`,
-/// `RUN_LIMIT`,
-/// two minutes).
+/// `QUIET_WINDOW`,
+/// two minutes with no sign of work).
 /// It is the ceiling the shipped landing gives a foreign holder
 /// (`wait_ceilings.rs`,
 /// `LANDING_LOCK_CEILING`),

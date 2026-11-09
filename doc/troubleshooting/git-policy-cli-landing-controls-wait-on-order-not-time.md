@@ -70,6 +70,11 @@ either of which alone is enough to fail this control on a loaded host:
   `LOCK_CEILING` (600 s),
   and `arm_watchdog` (`testing/test_support.rs`,
   `RUN_LIMIT`) aborted the process at 120 s.
+  Note 2026-11-08T23:43:41-05:00 (`21961de4da`):
+  the constant is `QUIET_WINDOW`,
+  the same 120 s,
+  and the watchdog now ends a run that shows no sign of work for it instead of one that outlives it
+  (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
 
 ## Reproduction
 
