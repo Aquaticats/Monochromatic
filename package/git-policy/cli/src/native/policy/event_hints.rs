@@ -9,11 +9,10 @@
 //! Every block and every divergence from real
 //!  Git's behavior names the likely intent and a way forward,
 //! so a rejected command is a step toward the goal.
-//!  Messages built with their own hint (the discard,
-//! branch,
-//! add,
-//! root and commit-only rejections) are listed as
-//!  self-hinted,
+//!  Messages built with their own hint (the root,
+//! linked-worktree and branch-creation rejections) are listed as
+//!  self-hinted in `SELF_HINTED`,
+//! every other finding code's hint is the arm of `finding_hint` that names it,
 //! and a guard test fails when a code has neither.
 //!
 //! In TS you'd write (pseudocode):
