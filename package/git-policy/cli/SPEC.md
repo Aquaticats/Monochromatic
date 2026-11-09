@@ -446,15 +446,24 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 
 - It asks real Git,
   with the caller's global options,
-  for the common Git directory
-  (`git rev-parse --path-format=absolute --git-common-dir`) and for `core.hooksPath`
+  for the common Git directory,
+  for the Git directory itself
+  (`git rev-parse --path-format=absolute --git-common-dir` and `--absolute-git-dir`),
+  and for `core.hooksPath`
   (`git config --type=path --get core.hooksPath`).
+  Each pathname is asked for on its own,
+  and each answer is read as bytes with only its one terminating line feed removed,
+  so a pathname that holds a line feed or bytes that are not UTF-8 is read exactly as Git printed it.
 - It scans `<git-common-dir>/hooks` and,
   when `core.hooksPath` is set,
   the directory it names.
   A relative value resolves against the worktree root,
   or against the Git directory of a repository without a worktree.
-  A directory that two spellings name is scanned once.
+  Each directory is scanned under the spelling Git was given,
+  and a directory that two spellings name is scanned once,
+  judged by the identity the file system gives it:
+  a symbol link in the way decides what `..` means,
+  so a lexical rewrite of the path would scan a directory Git runs no hook in.
 - A hook is any entry of a scanned directory that is an executable regular file or a symbolic link
   (a dangling link included),
   except names ending in `.sample`.
@@ -502,7 +511,12 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
   When it is false (`false`,
   `no`,
   `off`,
-  `0` or empty) or there is no entry,
+  empty,
+  or any text Git's own boolean reader reads as zero,
+  which it does as a word or as an integer in `strtoimax` spellings such as `0`,
+  `00`,
+  `0x0`,
+  `-0` or `0k`) or there is no entry,
   one line says that Git's fsmonitor is off by the owner's decision of 2026-11-03,
   with the file and scope of the deciding entry (or "not set"),
   the reason in one sentence,
@@ -527,6 +541,20 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 - It does not load configuration,
   recover transactions or take a lock,
   and it changes nothing.
+  Each file system read of it (the hook directories,
+  the shim files and the host facts of the filesystem section)
+  is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
+  so a mount that stops answering cannot hold the command:
+  a read that gives no answer makes the command say which read it was and carries on,
+  with status `2` for a hooks directory and one line of standard error for the host facts.
+  The filesystem section describes the checkout Git reports for where the command runs
+  (`git rev-parse --path-format=absolute --show-toplevel`),
+  and says nothing about a file system when Git reports none,
+  which is the case in a bare repository.
+  A directory name is not a layout proof:
+  the directory above the common Git directory is a metadata directory when the Git directory lives elsewhere.
+  The conversion command it prints follows the layout Git reports:
+  `migrate-to-subvolume` in the repository's main worktree and `convert-worktree-to-subvolume` in a linked one.
 
 ## Lifecycle
 
@@ -6347,9 +6375,18 @@ The trigger is the configuration snapshot the commit reads once for its other ne
 the commit starts no process and makes no file system call for this warning,
 so a repository without the setting pays nothing,
 and the hooks directory is not scanned on the commit path.
+The line is delivered on a thread of its own and awaited for at most the `WARNING_WRITE_CEILING` of
+`service/wait_ceilings.rs`,
+so a standard error whose reader has stopped draining cannot hold the commit:
+a line still waiting at that ceiling is abandoned and logged.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
+An override is recognized only as a `command` scope value
+(the only place the wrapper's overrides come from)
+that names `<git-common-dir>/<data folder>/shadow/<transaction>/no-hooks`,
+where the data folder is `monochromatic-git-policy-cli` or its earlier spelling:
+a path that merely ends the same way belongs to whoever made it and still warns.
 
 ### Core finding event
 
