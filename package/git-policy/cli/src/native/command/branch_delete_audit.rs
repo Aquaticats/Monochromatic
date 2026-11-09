@@ -240,8 +240,8 @@ fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr,
 ///  The name a remote-tracking deletion operand expands to,
 ///  or nothing when Git's remote-tracking expansion reads none.
 /// Why:
-///   `git check-ref-format --branch` performs the local kind, which refuses every mark a
-///  remote-tracking deletion does read,
+///   `git check-ref-format --branch` performs the local kind,
+///  which refuses every mark that a remote-tracking deletion reads,
 ///  so this namespace asks `rev-parse --symbolic-full-name`,
 ///  which reads the marks of both kinds.
 ///  Only a reference in the remote-tracking namespace is an answer there,
@@ -259,7 +259,7 @@ fn expanded_branch_name(context: &GitContext, root: Option<&Path>, name: &OsStr,
 /// ```
 fn expanded_remote_tracking_name(context: &GitContext, root: Option<&Path>, name: &OsStr) -> Option<OsString> {
     let bytes: &[u8] = name.as_encoded_bytes();
-    let mark: bool = bytes.windows(2).any(|pair: &[u8]| pair == b"@{".as_slice());
+    let mark: bool = bytes.windows(2).any(is_branch_mark_start);
     if !mark {
         return None;
     }
@@ -275,6 +275,21 @@ fn expanded_remote_tracking_name(context: &GitContext, root: Option<&Path>, name
         return None;
     }
     return Some(os_string_of(short));
+}
+
+/// What:
+///  Whether two bytes of an operand open a branch mark,
+///  which Git's own mark reading always spells `@{`.
+/// Why:
+///   A named function keeps the reading of one operand free of a closure that captures
+///  nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (pair: Buffer) => pair.equals(Buffer.from('@{'))
+/// ```
+fn is_branch_mark_start(pair: &[u8]) -> bool {
+    return pair == b"@{".as_slice();
 }
 
 /// What:

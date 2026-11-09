@@ -167,7 +167,8 @@ fn real_git_records_no_branch_for_a_revision_that_is_no_branch_name() {
 /// Why:
 ///  Git expands a deletion operand with `copy_branchname` under the namespace's own kind,
 ///  and the remote-tracking kind interprets a branch mark only:
-///  `@{-1}` is a local branch, which that deletion never expands,
+///  `@{-1}` is a local branch,
+///  which that deletion never expands,
 ///  and a fully qualified operand is no mark at all.
 #[test]
 fn real_git_records_only_the_remote_tracking_mark_a_deletion_expands() {

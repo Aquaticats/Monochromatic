@@ -1132,7 +1132,9 @@ fn a_remote_tracking_deletion_records_the_reference_it_deleted() {
 
 /// A remote-tracking deletion of the upstream mark records the reference Git expanded it to,
 /// and a fully
-///  qualified operand, which Git refuses, leaves no line.
+///  qualified operand,
+///  which Git refuses,
+///  leaves no line.
 #[test]
 fn a_remote_tracking_deletion_of_the_upstream_mark_records_what_git_deleted() {
     let fixture: Fixture = fixture("audit-branch-delete-upstream");
