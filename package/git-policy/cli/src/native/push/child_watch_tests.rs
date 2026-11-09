@@ -1421,8 +1421,7 @@ fn a_step_left_running_whose_waiter_is_refused_names_the_limit() {
     let script: PathBuf = directory.join("step.sh");
     std::fs::write(
         &script,
-        format!("echo $$ > '{pid}'
-while [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
     )
     .expect("the step");
     crate::child_watch::refuse_the_next_left_running_waiter(1);
