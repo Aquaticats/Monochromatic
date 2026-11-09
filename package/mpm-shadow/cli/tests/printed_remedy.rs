@@ -1,7 +1,8 @@
 //! What:
 //! An end-to-end test of the command the older-lock warning prints:
 //! the sentence in the warning names a program and the verb that moves one row of the lock,
-//! and that command, run exactly as printed in a disposable home,
+//! and that command,
+//! run exactly as printed in a disposable home,
 //! must reach mpm-shadow and move that home's machine-global lock.
 //! Why:
 //! Measured on 2026-11-08:
@@ -53,13 +54,16 @@ const PLAN: &str = r#"{
 "#;
 
 /// The machine-global lock as the fixture starts with it:
-/// the same pin, without the bin the plan adds.
+/// the same pin,
+/// without the bin the plan adds.
 const LOCK: &str = r#"{"schemaVersion":1,"tools":{"cargo:monochromatic-demo-tool":{"request":"cargo:monochromatic-demo-tool@0.0.1","version":"0.0.1","route":"cargo-binstall","bins":["tool"],"env":{},"options":{},"artifacts":{}}}}"#;
 
-/// The real `mpm` a shell finds on this machine, as measured on 2026-11-08:
+/// The real `mpm` a shell finds on this machine,
+/// as measured on 2026-11-08:
 /// `meta-package-manager` installed by `uv tool install`,
 /// which reads `update` as its own `upgrade` verb and refuses `-g`.
-/// PATH candidates are tried in order; this name must lose to the shadow.
+/// PATH candidates are tried in order;
+/// this name must lose to the shadow.
 const REAL_MPM: &str = "#!/bin/sh\necho 'Usage: mpm upgrade [OPTIONS] [PACKAGES_SPECS]...' >&2\necho \"Error: No such option '-g'.\" >&2\nexit 2\n";
 
 /// What:
