@@ -1220,6 +1220,12 @@ and `journalctl --identifier=monochromatic-git-policy-cli` lists the entries.
 The debug line with the reasons of every step stays (`MONOCHROMATIC_VERBOSE=true`).
 
 Converting a nested worktree:
+What a run of it covers is found on the blocking pool and never on the thread that polls the runtime:
+`--all` starts Git and scans the linked worktrees,
+and grouping the targets into lanes resolves each of them with a synchronous path lookup,
+which a filesystem whose lookup stalls would hold before the future's first await,
+where no timeout can expire.
+
 `git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] [--jobs <count>] (--all | <worktree>...)` converts a registered
 linked worktree that is an ordinary directory into a subvolume at the same path,
 several worktrees side by side.
@@ -1419,6 +1425,18 @@ worktree's;
 each is its own file under its own lock describing its own tree,
 so they are rewritten side by side within the host
 budget and reported in the order of the checkout's index first and then each worktree's by path.
+What the run reads before its first rewrite (the repository's configuration with a synchronous read,
+the linked worktrees and the size of each index) is one job of the blocking pool,
+never a read on the thread that polls the runtime:
+a named pipe where that configuration file is would otherwise block that thread before the future reaches
+an await,
+where no timeout can expire and every other task of the runtime stops with it.
+An index whose rewrite was given up on before it could start is reported as unchanged,
+and that is a fact rather than a hope:
+the job takes a one-shot claim on its work before its first effect and the report takes the same claim
+when it gives up,
+so a job the report gave up on does nothing,
+while one that took the claim first makes the report say the result is not known.
 Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
 with the installed one without changing either:
 every entry of the old tree must be in the installed tree in the same kind,
@@ -2760,6 +2778,29 @@ no margin is chosen here.
 
 #### Every wait has a bound
 
+A bound is only a bound where the wait can be reached by the timer that is meant to end it,
+so:
+
+- no synchronous storage read runs on the thread that polls the runtime
+  (a named pipe would block it before the future's first await,
+  and no timeout could expire);
+- a wait that races a wake it has already missed never switches off the branch that reads wakes:
+  the count of jobs still running ends it,
+  and a sending end a refused job keeps open must not be waited for;
+- the process's bound on blocking jobs covers every job that runs,
+  so a job the pool queued before its frame stopped waiting either gives up its work or keeps its place
+  until the work ends,
+  and one of the two is decided once by a claim rather than guessed;
+- a caller that stops waiting revokes that claim as its future is dropped,
+  so a step the pool still holds queued does nothing:
+  no conversion changes a worktree after its caller reported a timeout,
+  and no result is produced for a reader that is gone;
+- a refused thread start says which of the two happened,
+  because the claim decides it:
+  either the step will not run and changed nothing,
+  or the pool ran it on another thread and whether it finished is not known.
+
+
 The owner,
 said in the session at about 2026-11-03T12:37-05:00 (quoted):
 "nothing should ever wait forever or indefinitely".
@@ -2913,6 +2954,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   a push whose connection is open and that shows no sign of work for this long is ended as a stall.
 - `PHASE_PATIENCE` 5 minutes:
   the test marker compiled into the executable ends its pause at the limit of any test.
+- `READ_CEILING` 120 seconds:
+  every read-only Git query of the check path ends at this bound:
+  the candidate listings,
+  the `git add` replay,
+  the real-index query and the rule facts run through the same watch as the service's steps
+  (`repo_read/git_metadata.rs`).
+  It is `PLUMBING_STEP_CEILING`:
+  the longest read step of the service's landings over 1,651 landings was
+  9,663 ms,
+  so two minutes is twelve times it,
+  and the longest client preparation of the commit timing log was 250,280 ms,
+  which is the whole of every read inside it.
+  It is below `ANSWER_CEILING`,
+  so the person hears what blocked the check before the service's own bound.
 - `PLUMBING_STEP_CEILING` 120 seconds and `OBJECT_STEP_CEILING` 10 minutes:
   the longest one Git
   step runs,
@@ -2973,6 +3028,23 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 
 What happens at the bound,
 on the commit path:
+
+- A check-path Git read that reaches `READ_CEILING` is ended,
+  and the check that needed it fails with `content-unavailable`,
+  naming the read (the Git program and its subcommand,
+  never a pathname),
+  the bound it reached (the quiet window before the ceiling,
+  or the ceiling itself) and that the index,
+  the worktree and the staged changes are as they were,
+  with the hint of a stopped read rather than the hint of content that is missing from the clone
+  (`STOPPED_READ_HINT`,
+  `policy/policy_events.rs`):
+  the bound's "Return with an error",
+  not a rejected commit,
+  and the person runs the command again.
+  A read that answers is untouched:
+  the watch ends nothing that shows work,
+  and it ends nothing before the ceiling.
 
 - The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
   At the bound the batch is withdrawn before the branch
@@ -5166,6 +5238,32 @@ the input and the origin's branch at the moment it ran)
 and `src/native/binary/binary_lfs_server_tests.rs`
 (the real `git-lfs` against an LFS server written inline in the test).
 
+### Candidate content
+
+A policy reads a candidate's bytes from the object the index names,
+never from the worktree,
+so an edit after staging cannot change what it checks.
+One object is read whole only up to 32 MiB (`CONTENT_CEILING`,
+with its measurement beside it in
+`candidate/candidate_batch.rs`):
+above that the reply is consumed through a 64 KiB buffer and thrown away,
+the object is never held,
+and the reader stays in step for the next request.
+The check then reports `policy-incomplete`,
+an engine failure naming the file,
+the object and both sizes,
+and the pass goes on:
+such a finding never blocks the command,
+so a large asset costs a skipped check that names itself,
+never a commit that fails.
+The ceiling is 1.57 times the largest file this repository tracks (20,453,084 bytes),
+so no content committed here is skipped.
+It bounds the bytes a check reads whole,
+never a reply's type field:
+a `HEAD` commit larger than
+the ceiling still names its commit,
+so a staged listing compares against the real `HEAD` and not the empty tree.
+
 ### Direct check
 
 Use worktree bytes selected by explicit pathspecs or `--all`.
@@ -5186,6 +5284,193 @@ Run the fix again.
 Emit final findings and one fix summary to stdout.
 A patch targeting an unselected tracked file adds it under the "Added paths" precondition;
 its original worktree bytes for the concurrent-change check are the verified `HEAD` blob.
+
+#### What an install keeps
+
+Each corrected file is written into a journal inside the Git directory and then swapped with the
+file through `renameat2(RENAME_EXCHANGE)`,
+so the corrected bytes go in while the file they displaced stays
+readable:
+
+- the corrected bytes are created with the destination's own permission bits and owner,
+  so a file kept at `0600` stays private and the set-user-id,
+  set-group-id and sticky bits survive;
+  the owner is
+  given before the bits,
+  because changing a file's owner clears those bits even when the owner
+  and group stay the same;
+  an owner this process may not give is refused rather than handed over,
+  and the comparison is against what the
+  replacement actually carries,
+  read from its own descriptor,
+  never against the process's credentials:
+  a directory with its set-group-ID bit gives every new file that directory's group,
+  so a
+  `0640` file would otherwise change which group may read it;
+- the bytes the swap displaced are read after the swap,
+  when nothing can overwrite them any more,
+  and compared with what the fix read,
+  permission bits and owner included;
+  a difference swaps them
+  back and fails the fix,
+  so a write or a permission change that arrived while the fix ran is kept
+  rather than replaced;
+- a selected path that is not a regular file - a symbolic link,
+  a directory,
+  a device - is refused
+  instead of replaced,
+  and a path that is gone is refused rather than created;
+- rollback swaps first and then judges what the swap took out of the file,
+  which is now at a name this
+  command owns:
+  bytes,
+  permission bits,
+  owner and file kind,
+  never through a symbolic link.
+  Only bytes that are
+  this fix's replacement let the journal go;
+  anything else - a save that landed beside the swap,
+  a file the
+  person narrowed,
+  a link they put at the path - stays in the journal and is named,
+  and the file is left
+  holding the bytes the fix displaced;
+- a site whose displaced file no longer holds what the fix read is read once more before its
+  journal is removed,
+  so a write that arrived through an already-open descriptor is kept and named,
+  and a journal the fix
+  cannot remove is named rather than reported as a success that says nothing.
+
+What a replacement does not carry is its extended attributes and access-control list,
+its inode number and birth time,
+and its share of a hard link,
+whose other name keeps the bytes it had.
+
+The window that remains is two file system calls wide,
+not the length of a pass:
+a descriptor write that arrives after the last reading of the displaced file and
+before its journal is removed is lost,
+which every atomic replacement has,
+and a write to the path after the swap
+replaces the corrected bytes,
+which is the newest state the person asked for.
+When the first is hit the person
+loses that one write and nothing of the file's earlier state;
+when a write is caught before that reading,
+it is on
+disk in the journal the message names.
+A rollback has no such window of its own:
+it decides nothing by reading the destination.
+
+Git loses that same write on its own file replacement,
+so this is not a cost the wrapper adds.
+Read in `git/git` at `master` on 2026-11-09:
+`entry.c`'s `checkout_entry_ca()` takes
+`changed = ie_match_stat(...)` of the file it would write,
+and with `state->force` set - which
+`git checkout -- <path>` and `git checkout <commit> -- <path>` use to discard local changes - it
+runs `unlink(path.buf)` under the comment "We unlink the old file,
+to get the new one with the right
+permissions (including umask,
+...)";
+`write_entry()` then opens the name with `create_file()`,
+which is
+`open(path, O_WRONLY | O_CREAT | O_EXCL, mode)`.
+A writer holding the old inode therefore writes
+into an unlinked file there too,
+and loses that write when its descriptor closes.
+The path that takes
+an explicit output name (`to_tempfile`,
+as `git checkout-index --temp` uses) writes `mkstemp` and
+renames,
+which orphans the old inode in the same way.
+
+#### The journal, and what a later fix does with it
+
+One journal directory per corrected file,
+`<git dir>/cli-git-direct-fix-<suffix>/`,
+`0700`,
+holding the corrected bytes (`content`) and
+a record of the file (`record`:
+its pathname,
+permission bits,
+owner,
+the writer's owner token,
+and the
+digest of the corrected bytes).
+The record is written before the file is touched.
+The Git directory is the
+worktree's own,
+from `known_git_dir`,
+never the parent of an alternate index a caller named:
+`GIT_INDEX_FILE`
+can point inside the worktree,
+and its parent is then a directory a later `git add --all` stages.
+A fix that
+cannot learn that directory refuses with `NO_GIT_DIR_MESSAGE` instead of guessing,
+and a worktree whose
+Git directory is on another file system is refused before anything is written,
+because the swap needs
+both names on one file system.
+Nothing of a fix lives in the worktree,
+so no `gitignore` rule can
+expose a leftover and no `git add` can stage one.
+
+Every settled `fix` sweeps the journals of that Git directory,
+before it decides whether anything
+needs correcting,
+and acts only on a proof that the writer is gone
+(the crate's existing owner proof).
+The
+sweep never exchanges two files:
+a recovery that swapped would need a proof that the exchange it is undoing
+happened,
+and the destination's bytes are not that proof,
+a reading of the destination is not a licence
+to swap,
+and two recoveries can exchange one journal twice.
+So the one removal is the one the record
+proves,
+by the same judgement the rollback makes of a file it took out of a swap:
+`content` is a regular file,
+read without following a symbolic link,
+whose bytes hash to the recorded replacement and whose permission bits and owner are the ones the
+record names.
+A digest alone would take a file the person saved with the correction's own bytes,
+or the same
+bytes narrowed to `0600`,
+for the fix's own and discard what they chose.
+A name that is not a regular
+file is never opened at all:
+the swap moves whatever stood at the destination into the journal,
+and opening a
+FIFO that no process writes to waits for ever,
+so the type is read first - here,
+in `read_record`,
+and in the
+judgement every other read of this route goes through.
+Everything else stays and is named on every later
+`fix`:
+the person's bytes wait in the named journal until they act on it,
+and no command decides for them
+which of two versions belongs at the path.
+
+What the sweep found reaches the person on every path out of a settled fix,
+not only on the one that
+installs:
+a fix whose installation fails,
+and one that cannot find the worktree or the Git directory,
+report the
+notices beside their own failure,
+because the path in a notice is the only place the person finds the edit an
+interrupted fix displaced.
+
+No lock stands in this route:
+the lock inventory guard covers `candidate/`,
+`policy/`,
+`markdown/`,
+`standards_review/` and `commit/`,
+and a lock there must be listed with its reason beside it.
 
 ## Policy order and stopping
 
@@ -6873,6 +7158,32 @@ It uses:
   the service then answers that the content is unavailable,
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
+
+The `git add` prediction copies the real index into
+`<git-dir>/cli-git-add-policy-<pid>-<nanoseconds>-<count>`,
+`0700`,
+on the same file system as the real index,
+with the real index's access and modification times.
+The copy is built under a staging name,
+`cli-git-add-policy-<suffix>.making`,
+with its `owner` record already inside it - the writer's process id,
+the platform's identity of its birth
+and its PID namespace - and one `rename` publishes it under the name a sweep visits,
+so a copy this
+release publishes always names its writer.
+The command removes the directory on every path it ends by;
+every copy made later sweeps the directory it is created in and removes a copy only when its
+record proves the owner gone
+(a dead process id in this PID namespace,
+a reused id kept,
+an owner of another namespace alive until its record outlives the foreign-owner patience).
+A copy with no record is kept,
+whatever its name says,
+because a process id means something only inside its own PID namespace:
+another namespace's live command looks exactly like a dead one from here,
+and removing its copy makes it fail while it copies or reads the index.
+No lock protects the sweep:
+a copy has one writer and only a proven-dead writer's copy is removed.
 
 #### Maintenance that may run while a commit is made
 
@@ -8778,6 +9089,80 @@ After an explicit-path landing computes its post-index,
 the wrapper lists the stage entries of the pre-landing and post indexes,
 and warns with the differing paths outside the committed and guarded paths.
 The warning never changes the landing.
+
+### Dependent version bump
+
+`mono/dependent-version-bump` reads the publish set from the generated registry configuration
+(`package/config/pnpr/config.yaml`) as the document format it is,
+never as a line of text (`dependent_version_publishable.rs`).
+Every `packages:` list under an `auth.oidc[]` workload is the set,
+because a package any trusted CI identity may publish is published;
+the names are read in document order without repeats,
+so a narrower workload list above the publish set cannot hide it.
+The `packages` mapping under `registries` grants a permission pattern to a scope and lists no
+publishable name,
+and is never read as one.
+The executable links no YAML parser.
+`package/config/pnpr/src/generated-config-render.ts` writes the file,
+so that template is the reader's whole specification:
+`dependent_version_yaml` and `dependent_version_yaml_lines` accept exactly the
+line forms it writes and refuse every other line by name and number,
+never keeping text they would have to guess at.
+The accepted forms are a blank line,
+a comment line beginning `#`,
+`key: value`,
+`key:` with its block below,
+and a sequence item whose dash is followed by exactly one space.
+Indentation counts spaces,
+never a tab,
+and reaches fourteen spaces at most,
+the depth of the template's `claims` children.
+A line beginning `---` that is not exactly `---` is refused,
+because a document marker belongs alone on its line and this reader reads one document.
+A tag,
+anchor,
+alias,
+block scalar,
+directive,
+reserved character,
+flow collection,
+comment or quote indicator,
+the `-`,
+`?` and `:` that open an item or an explicit key,
+an empty key,
+a colon a space or tab follows inside a value,
+text a closing quote does not separate,
+and an interior carriage return are refused too.
+A space or a tab separates a key from its value and starts a comment,
+so `- app` with a tab and `# published` after it lists the package `app`,
+and an interior tab stays part of a plain scalar as it does to a YAML parser.
+Because no line sits deeper than twelve spaces,
+the block recursion is bounded by that indentation and the reader runs on constant stack;
+a configuration nested deeper is refused at its first over-deep line
+instead of exhausting the stack.
+Every line is read once,
+and a repeated key is refused in constant time,
+so a configuration of any length is one pass.
+A general YAML parser is not a dependency of this executable:
+it would accept every YAML document while the publish-set traversal would still
+have to map a shape set wider than the generator writes,
+which is the silent miss this reader refuses instead.
+
+A publish set that cannot be read is a `policy-incomplete` engine failure,
+which stops `check` and `fix` with exit `2`:
+the file is not tracked,
+no `auth.oidc` workload lists a package name,
+or the text is not block YAML this executable reads.
+That is the status every input these commands cannot use already has,
+and an unjudged ripple therefore never reads as a clean workspace.
+The diagnostic names the file,
+the cause,
+and the escape hatch.
+No commit,
+push or landed commit reads the publish set:
+the policy plans only on `direct-check` and `direct-fix`,
+so no publish configuration can fail a commit,
+and an unreadable one is reported by `check` and `fix` alone.
 
 ### Forbidden root context
 

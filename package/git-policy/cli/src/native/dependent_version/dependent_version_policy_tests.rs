@@ -21,7 +21,7 @@ use super::{
     Candidate, CandidateChange, DEPENDENT_VERSION_STALE_CODE, DEPENDENT_VERSION_UNSUPPORTED_CODE,
     DependentFinding, DependentRequest, find_dependent_bumps, should_plan,
 };
-use crate::dependent_version_content::{PlanError, TrackedMode};
+use crate::dependent_version_content::{PlanError, PolicyIncomplete, TrackedMode};
 use crate::dependent_version_test_support::{
     MemoryFile, MemoryWorkspace, changed, config, manifest_text, unchanged, workspace,
 };
@@ -268,13 +268,22 @@ fn reports_an_unsupported_dependent_without_a_patch() {
     );
 }
 
-/// Ported:
-/// without the registry configuration nothing is reported.
+/// A commit whose publish set the planner cannot read is reported,
+/// not silently approved.
 #[test]
-fn reports_nothing_without_the_configuration() {
+fn reports_a_publish_set_it_cannot_judge() {
     assert_eq!(
-        commit_findings(vec![raised_base(), runtime("2.0.0")]),
-        Vec::new()
+        find(
+            vec![raised_base(), runtime("2.0.0")],
+            Trigger::PreForward,
+            true
+        ),
+        Err(PlanError::PolicyIncomplete(
+            PolicyIncomplete::PublishSetUnknown {
+                path: b"package/config/pnpr/config.yaml".to_vec(),
+                problem: String::from("it is not tracked in this repository"),
+            }
+        ))
     );
 }
 

@@ -153,6 +153,10 @@ fn a_long_line_is_masked_in_linear_time() {
     let line: String = "https://a@h ".repeat(200_000);
     let started = std::time::Instant::now();
     let result: String = masked(&line);
+    // The claim is that the scan is linear and not quadratic, and the only witness of a work rate is the time it took; a
+    //  count of the bytes the scan looked at would need a seam in the mask. Measured on this host at a load average of 47: this
+    //  line was masked in 0.08 s, so the 30 s ceiling carries 375 times the figure it was measured at and a quadratic scan is
+    //  still minutes away from it.
     assert!(started.elapsed() < std::time::Duration::from_secs(30), "a quadratic scan of this line takes minutes: {:?}", started.elapsed());
     assert!(!result.contains("//a@"), "every userinfo is hidden");
     let unterminated: String = format!("https://{}", "@".repeat(1_000_000));
