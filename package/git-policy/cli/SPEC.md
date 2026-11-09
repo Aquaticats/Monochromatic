@@ -338,6 +338,14 @@ and the value is checked and ignored.
   a memory or device file,
   a file under `/proc` or `/sys`) is skipped.
   A descriptor that ended while it was being counted names nothing.
+  A descriptor of this process on a file no repository could hold is skipped,
+  and a memory file is one of them:
+  the kernel writes its link as `/memfd:<name> (deleted)`,
+  with the leading slash its other pseudo names do not have,
+  so that slash is dropped before those names are matched,
+  and an open capture no longer keeps an abandoned lock
+  (cross-vendor review of 2026-11-09,
+  finding 4).
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:
@@ -4722,7 +4730,11 @@ on the commit path:
   nothing in the wrapper ends it.
 - A merge waits for a foreign `index.lock` until `MERGE_LOCK_CEILING`,
   naming the holder while it waits.
-  A lock a process that no longer runs left (an empty lock beside a Git lock PID file naming a process that is gone)
+  A lock whose Git lock PID file holds a number this process table does not have
+  (an empty lock beside it,
+  which is what a killed Git leaves and also what a live Git of another PID namespace leaves,
+  cross-vendor review of 2026-11-09,
+  finding 2)
   is removed on the commit service's proof of disuse (`service_index_unheld_removal.rs`,
   `remove_if_the_owner_is_gone`:
   the file is opened and judged through that descriptor,
@@ -4915,12 +4927,17 @@ now inside these bounds:
 
 - A holder proven alive and an owner nothing proves alive are waited for the same way until the ceiling,
   with a line that names
-  what is known (the person's own `git commit` with its editor open holds the lock with no proof);
-  a dead owner (a PID file naming
-  a process that is gone) ends the wait at once with a diagnostic naming it,
-  and a merge then removes that lock on the same proof of disuse the service acts on
-  (`remove_if_the_owner_is_gone`) and lands;
-  a command that does not remove it says so in the same line.
+  what is known (the person's own `git commit` with its editor open holds the lock with no proof).
+  A PID file holding a number this process table does not have is waited for the same way by a commit,
+  and its line says which number it read and that a Git of another PID namespace writes one this table has
+  never had:
+  the number proves no death, so no commit ends early on it
+  (cross-vendor review of 2026-11-09,
+  finding 2).
+  A merge is the command that acts on that evidence:
+  it removes such a lock on its own proof of disuse (`remove_if_the_owner_is_gone`) and lands,
+  and a lock that proof does not cover is saved for a later finish instead,
+  with the line saying which number was read and what a person can do.
 - An empty `index.lock` with no service marker and no Git lock PID file,
   that no process of a complete scan (Linux,
   every readable process,
@@ -4929,6 +4946,11 @@ now inside these bounds:
   2026-11-07,
   "Service removes it").
   The file is opened first and judged through that descriptor,
+  it is judged empty again after the scan and immediately before the unlink
+  (a Git that writes its index into the lock and closes its descriptor during the scan is the editor-phase
+  holder the module measured,
+  cross-vendor review of 2026-11-09,
+  finding 1),
   the name is looked at again before the unlink,
   and a lock replaced meanwhile is never removed.
   The journal keeps the lock's device,
@@ -5034,6 +5056,13 @@ and the record is never taken for a live owner's.
 Taking it for one is what keeps a dead owner's record in the way for as long as its time stays ahead of the clock,
 with no age and no `rm` (audit of 2026-11-09,
 finding 2).
+A record that is not there any more is finished and not unreadable:
+its owner did the work and removed it,
+so nothing holds,
+nothing is refused,
+and no command stops over a file that no longer exists with an `rm` for it
+(cross-vendor review of 2026-11-09,
+finding 3).
 A measured age is this host's reading of the record,
 so a clock that was set forward here,
 or one that is behind where the record was written,
@@ -5046,7 +5075,10 @@ each red first:
 `an_owner_of_another_namespace_with_an_old_item_is_refused_and_named`,
 `a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`,
 `a_foreign_record_whose_time_is_later_than_the_clock_is_refused_and_named`,
-`a_foreign_record_whose_time_cannot_be_read_is_refused_and_named`,
+`a_foreign_record_whose_time_cannot_be_read_is_refused_and_a_gone_one_is_finished`,
+`a_record_with_no_measurable_time_says_which_case_it_is_and_a_gone_record_is_gone`,
+`a_foreign_record_that_is_gone_is_finished_and_not_refused`,
+`an_owner_of_another_namespace_whose_record_is_gone_is_dead_and_not_refused`,
 and
 `a_claim_of_another_namespace_whose_time_is_ahead_is_refused_and_named_and_nothing_changes`.
 
@@ -6160,7 +6192,15 @@ and the first answer wins:
    which this kernel offers only through the descriptor copy above,
    whose refusals and whose close are the two reasons it is not used;
    the coordinator's decision of 2026-11-09 is to keep this gate and document the window,
-   because closing it needs a second process to act inside an instruction-sized gap.
+   because closing it needs a second process to act inside an instruction-sized gap:
+   the holder of the descriptor calls `dup2` (or offers the new file through a `SCM_RIGHTS` message and `recvmsg`) on
+   that very number,
+   which is a few instructions of the holder's own code (`src/native/process/open_file_of_a_descriptor.rs`,
+   the gate and the read of one descriptor),
+   while this scan runs between its record read and its `statx(2)`.
+   Nobody in this repository has done that,
+   and no program the wrapper starts does it,
+   so the window is a defect of this gate and not a case the wrapper meets.
    A lock that reads as not held for that reason is the case the words of every notice name:
    nothing here proves the holder gone,
    and the person is given the command that clears the file.
@@ -8149,9 +8189,14 @@ Each commit passes through three phases:
     a number that is reused therefore reads as an owner nothing proves alive,
     which the ceiling ends,
     and a running Git is the holder whatever the clock says.
-    A holder proven alive and an owner nothing proves alive are waited for until `LANDING_LOCK_CEILING`,
-    and a dead one (a Git lock PID file naming a process that no longer runs) not at all;
-    either ends the commit before the branch moved,
+    A holder proven alive,
+    an owner nothing proves alive,
+    and a PID file naming a number this process table does not have are all waited for until
+    `LANDING_LOCK_CEILING`,
+    because such a number may be a live Git's of another PID namespace
+    (cross-vendor review of 2026-11-09,
+    finding 2);
+    the wait ends the commit before the branch moved,
     removing the batch's intent,
     keeping the built commit on a side ref,
     and naming the blocker
