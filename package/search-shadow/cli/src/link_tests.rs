@@ -187,3 +187,26 @@ fn leaves_a_link_to_another_program_alone() {
     assert_eq!(report.left_alone, vec![links_directory.join("find")]);
     assert!(report.linked.is_empty());
 }
+
+/// A link to an older release whose own file a prune removed still points at `search-shadow`,
+/// so it is a shadow link by its target's name and the upgrade takes it over.
+#[test]
+fn takes_over_a_dangling_link_that_points_at_a_search_shadow_program() {
+    let world = crate::test_scratch::scratch();
+    let tools = world.path().join("tools");
+    fs::create_dir(&tools).expect("make the tools directory");
+    write_tool(&tools, "rg");
+    let executable = world.path().join("search-shadow");
+    write_tool(world.path(), "search-shadow");
+    let links_directory = world.path().join("bin");
+    fs::create_dir(&links_directory).expect("make the links directory");
+    // The version directory the older link named is gone, as a prune leaves it.
+    std::os::unix::fs::symlink(world.path().join("gone/search-shadow"), links_directory.join("rg")).expect("write the dangling link");
+    let path_variable = format!("{}:{}", links_directory.display(), tools.display());
+
+    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+
+    assert_eq!(fs::read_link(links_directory.join("rg")).expect("read the link"), executable);
+    assert_eq!(report.linked, vec![links_directory.join("rg")]);
+    assert!(report.left_alone.is_empty());
+}

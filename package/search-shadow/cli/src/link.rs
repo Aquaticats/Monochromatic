@@ -25,6 +25,11 @@
 /// (create directories / remove files / resolve symlinks).
 use std::fs;
 
+/// Imports the borrowed operating-system text type,
+/// which names a file whose bytes need not be valid UTF-8
+/// (its sibling `String` only holds valid UTF-8).
+use std::ffi::OsStr;
+
 /// What:
 /// `use std::io;` imports the standard input/output module for `io::Result`.
 /// Why:
@@ -119,7 +124,23 @@ fn is_a_shadow_link(link_path: &Path, own_real_path: &Path) -> bool {
     {
         return true;
     }
-    // A link to a shadow of another version is the link an upgrade replaces; any other target is somebody else's.
+    // What:     `fs::read_link` gives the target as it is spelled in the link, which answers even when the target
+    // itself no longer exists; the comparison asks whether that target is named `search-shadow`.
+    // Why:      A prune removes the version directory an older release's link named, leaving a dangling link that no
+    // file check can recognize, and the upgrade still has to take it over rather than leave it behind.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const target = readlinkSync(linkPath);
+    // if (path.basename(target) === 'search-shadow') return true;
+    // ```
+    if let Ok(target) = fs::read_link(link_path)
+        && target.file_name() == Some(OsStr::new("search-shadow"))
+    {
+        return true;
+    }
+    // A link to a shadow of another version is the link an upgrade replaces, and a launcher record is followed to
+    // the shadow it leads to; any other target is somebody else's.
     return shadow_behind(link_path).is_some();
 }
 
