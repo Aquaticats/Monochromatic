@@ -304,13 +304,19 @@ pub fn give_service_environment(fixture: &Fixture, name: &str, value: &str) {
     }
 }
 
-/// The words that say a backup push failed:
-/// the command's own line when the wrapper pushes,
-/// the notice the service leaves
-///  for the next commit when the service does.
-pub fn push_failed_words() -> &'static str {
-    // The notice the service leaves ends with the line the wrapper prints itself after a push it ran.
-    return git_policy_cli::auto_push::PUSH_FAILED_NOTE;
+/// The words a notice of a backup push that did not finish carries.
+///  A push the network,
+/// the LFS server,
+/// a stall or a held lock stopped can pass by itself,
+/// so the service
+///  keeps it in its retry plan and the person is told that the remote may or may not have the commit;
+/// only a conflict,
+/// a login
+///  the service does not have or a hook on the server that declined it stops the retry,
+/// and only that wording says the push
+///  failed for good.
+pub fn push_unfinished_words() -> &'static str {
+    return git_policy_cli::push::push_failure_notice_words::PUSH_UNFINISHED_NOTE;
 }
 
 /// What a person is told about the push of the commit that `stderr` belongs to:

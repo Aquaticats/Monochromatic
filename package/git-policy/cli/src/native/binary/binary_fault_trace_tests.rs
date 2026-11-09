@@ -898,8 +898,9 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
         return Err(format!("the next command must succeed, exit {:?}: {} (the killed run: {:?})", status.code, String::from_utf8_lossy(status.stderr.as_slice()), killed.status));
     }
     let worktree: PathBuf = fixture.root.join("one");
-    // What a recovery pass told the person: a linked worktree runs one before it forwards, and so does a creating command.
-    let mut told: String = String::new();
+    // What a recovery pass told the person: the first command in the repository settles a dead add's records and says
+    // which worktree it left unfilled, and a linked worktree runs such a pass before it forwards too.
+    let mut told: String = String::from_utf8_lossy(status.stderr.as_slice()).into_owned();
     if worktree.join(".git").exists() {
         let inside = run_unsettled(fixture, worktree.as_path(), &["rev-parse", "--is-inside-work-tree"]);
         if inside.code != Some(0) {

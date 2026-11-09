@@ -53,6 +53,9 @@ use crate::start_retry::RetryStart;
 use std::ffi::OsString;
 /// The real Git whose directory leads `PATH`.
 use std::path::Path;
+/// One job of the process's bound on blocking work,
+/// for the filesystem lookups a task may not make.
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// The child and its standard error.
 use std::process::{Command, Stdio};
 /// Reading the captured standard error back.
@@ -316,12 +319,78 @@ pub fn submodule_notice() -> String {
 /// const attempt = await runBoundedPush({ command: gitLfs(plan), deadlineMs }); return attempt.exitCode ? withExplanation(attempt) : undefined;
 /// ```
 pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
-    let Some(program) = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str())
-    else {
-        return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
+    let Some(commands) = upload_commands(git, plan) else {
+        return Ok(Some(missing_program_attempt()));
     };
-    // A server error is not run again here, for the reason given in `run_upload_interactive`: the service's push retry plan
-    //  tries the push again by itself.
+    for command in commands {
+        let attempt: PushAttempt =
+            match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
+                Ok(finished) => finished,
+                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
+                Err(other) => return Err(other),
+            };
+        if let Some(failed) = failed_upload(&attempt) {
+            return Ok(Some(failed));
+        }
+    }
+    return Ok(None);
+}
+
+/// What:
+///  The same upload,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's push uploads the objects of its commits as a task,
+/// and the synchronous run enters the runtime for the child's wait and is refused from there.
+/// The programs,
+/// their arguments and what a failure says are the synchronous face's,
+/// so the two cannot
+///  upload different objects or report differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const command of uploadCommands(git, plan)) { const attempt = await runBoundedPushAwaiting(command); if (attempt.exitCode) return explained(attempt); }
+/// ```
+pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
+    // The lookup of `git-lfs` on the caller's `PATH` asks the filesystem, so it is a job of the blocking pool and never the
+    //  task that other work of the round shares (`run_blocking_job_within_the_budget`).
+    let looked_up: PushGit = git.clone();
+    let planned: UploadPlan = plan.clone();
+    let Some(commands) = run_blocking_job_within_the_budget(move || { return upload_commands(&looked_up, &planned); })
+        .await
+        .map_err(refused_job)?
+    else {
+        return Ok(Some(missing_program_attempt()));
+    };
+    for command in commands {
+        let attempt: PushAttempt =
+            match crate::bounded_push::run_bounded_push_awaiting(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()).await {
+                Ok(finished) => finished,
+                Err(SingleFlightError::Start(_)) => return Ok(Some(missing_program_attempt())),
+                Err(other) => return Err(other),
+            };
+        if let Some(failed) = failed_upload(&attempt) {
+            return Ok(Some(failed));
+        }
+    }
+    return Ok(None);
+}
+
+/// What:
+///  The commands of one upload:
+/// one `git-lfs push` per remote and per run of it,
+/// or nothing when no `git-lfs` is on the caller's `PATH`.
+/// Why:
+///   Both faces run the same programs with the same arguments,
+/// so a value either face reads of the plan reaches the same child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const program = findProgram(env.PATH); if (!program) return undefined; return plan.remotes.flatMap((remote) => plan.runs(remote).map((args) => command(program, args)));
+/// ```
+fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<Command>> {
+    let program = find_program(environment_value(git.environment.as_slice(), "PATH").unwrap_or_default().as_os_str())?;
+    let mut commands: Vec<Command> = Vec::new();
     for remote in &plan.remotes {
         for arguments in plan.runs(remote.as_os_str()) {
             let mut command: Command = Command::new(&program);
@@ -334,22 +403,64 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
             command
                 .env("PATH", path_with_real_git_first(git.environment.as_slice(), git.real_git.as_path()))
                 .args(arguments.as_slice());
-            let attempt: PushAttempt =
-                match run_bounded_push(command, push_patience(git.environment.as_slice()), STOP_GRACE, git.environment.as_slice()) {
-                    Ok(finished) => finished,
-                    Err(SingleFlightError::Start(_)) => {
-                        return Ok(Some(PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() }));
-                    }
-                    Err(other) => return Err(other),
-                };
-            if attempt.exit_code == 0 {
-                continue;
-            }
-            let shown: String = mask_userinfo_text(attempt.output.as_str());
-            return Ok(Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown })));
+            commands.push(command);
         }
     }
-    return Ok(None);
+    return Some(commands);
+}
+
+/// What:
+///  The failure of an upload whose job of the blocking pool the system refused.
+/// Why:
+///   The awaited face of the upload starts its program lookup as a job,
+/// and a job the system refused a thread for never ran,
+/// so the upload could not be
+///  planned and the push must not be started in its place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// SingleFlightError.Start(new Error(refusal.message));
+/// ```
+pub(crate) fn refused_job(refusal: crate::blocking_job::BlockingJobError) -> SingleFlightError {
+    return SingleFlightError::Start(std::io::Error::other(refusal.to_string()));
+}
+
+/// What:
+///  What a person is told when no `git-lfs` is on the caller's `PATH`.
+/// Why:
+///   Both faces refuse the upload with the same words,
+/// and the push that would have followed it is never started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ({ exitCode: 1, output: missingProgramMessage().trimEnd() })
+/// ```
+fn missing_program_attempt() -> PushAttempt {
+    return PushAttempt { exit_code: 1, output: missing_program_message().trim_end().to_owned() };
+}
+
+/// What:
+///  The failed attempt of one finished upload,
+/// with the credentials in its output hidden,
+/// or nothing when it succeeded.
+/// Why:
+///  A server error is not run again here,
+/// for the reason given in `run_upload_interactive`:
+/// the service's push retry plan
+///  tries the push again by itself.
+/// Both faces read one finished attempt here,
+/// so the two cannot report a failure differently.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// attempt.exitCode === 0 ? undefined : explained({ exitCode, output: maskUserinfoText(attempt.output) });
+/// ```
+fn failed_upload(attempt: &PushAttempt) -> Option<PushAttempt> {
+    if attempt.exit_code == 0 {
+        return None;
+    }
+    let shown: String = mask_userinfo_text(attempt.output.as_str());
+    return Some(explained(PushAttempt { exit_code: attempt.exit_code, output: shown }));
 }
 
 /// The failed attempt with the explanation after the program's own output;
