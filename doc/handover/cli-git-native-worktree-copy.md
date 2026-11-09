@@ -364,3 +364,32 @@ the corrected hexadecimal comparison),
 the path vocabulary's own module and the list writer's loops).
 `monochromatic-lint --max-warnings 0` over the changed paths reports nothing,
 and `cargo nextest run --lib -E 'test(worktree_copying)'` on this branch is 320 of 320 in 169 s.
+
+### The settling names its entries by bytes (2026-11-09T21:44:36-05:00)
+
+Merged from main:
+a live checkout's ignored churn no longer fails an add.
+The final check answers `Differences` (gone,
+changed,
+appeared) by relative path instead of failing on the first difference,
+each stage-copy slice answers `SliceCopy { stamps, gone }`,
+a vanished entry is a skip,
+and a file that will not settle is left in its source and named.
+
+Every one of those paths is the bytes the filesystem reported,
+so the two walks,
+the settling loop and the unsettled notice compare and report the real name of a file that is
+not text,
+never a replacement spelling.
+The lane's three bound controls and main's five settling controls name their roots and their
+entry lists as bytes;
+none of them asserts anything different from before.
+
+Measured on the built binary,
+with `heavy/bad\xff.bin` rewritten once 36.4 s into a 3,004-entry copy:
+the add exited 0,
+copied 3,003 entries,
+installed the name under its own bytes with the bytes written during the copy,
+left no replacement spelling and no journal.
+`cargo nextest run --lib -E 'test(worktree_copy) or test(path_bytes)'` is 344 of 344 in 181 s,
+and `cargo nextest run --test native_binary --no-run` builds.
