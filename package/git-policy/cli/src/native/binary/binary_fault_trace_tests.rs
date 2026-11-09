@@ -204,6 +204,34 @@ fn took_effect(trace: &str) -> bool {
     return trace.contains("(INJECTED)") || trace.contains("(DELAYED)") || trace.contains("+++ killed by SIGKILL +++");
 }
 
+/// What:
+///  Wait until the trace shows the fault,
+///  for as long as the tracer may still be writing the calls' endings.
+/// Why:
+///   A traced call that is held is written in two lines:
+/// `fsync(13 <unfinished ...>` while it is held,
+/// and `... fsync resumed>) = 0 (DELAYED)` when it returns.
+/// A trace read as soon as the commit is answered,
+/// or as soon as the service is stopped,
+/// can hold every held call unfinished and no mark at all,
+/// which is what this control reported on 2026-11-09 in a run of the nine `fault_trace` controls
+/// (`no flush was delayed, so nothing was tested: 114642 +++ exited with 0 +++`,
+/// with the only flush lines reading `fsync(13 <unfinished ...>`) while a run of the control alone passed.
+/// The fault is its own clock:
+/// a held call returns after `SLOW_FLUSH_MICROSECONDS`,
+/// and this waits a hundred of those before it calls the trace broken.
+fn wait_for_the_fault(trace: &Path) -> String {
+    let mut tracing: String = std::fs::read_to_string(trace).unwrap_or_default();
+    let mut looked: u32 = 0;
+    while !took_effect(tracing.as_str()) && looked < 100 {
+        std::thread::sleep(std::time::Duration::from_micros(SLOW_FLUSH_MICROSECONDS));
+        looked += 1;
+        let now: String = std::fs::read_to_string(trace).unwrap_or_default();
+        tracing = now;
+    }
+    return tracing;
+}
+
 /// One commit with the service under a tracer that injects `fault`,
 /// then the fault ends (the service is stopped,
 /// the next one
@@ -326,7 +354,7 @@ fn slow_flushes_delay_a_commit_and_change_nothing_else() {
     let said: String = String::from_utf8_lossy(&[output.stdout.as_slice(), output.stderr.as_slice()].concat()).into_owned();
     assert_eq!(output.status.code(), Some(0), "a slow flush only delays the commit: {said}");
     end_the_pressure(&fixture);
-    let traced: String = std::fs::read_to_string(&trace).unwrap_or_default();
+    let traced: String = wait_for_the_fault(trace.as_path());
     assert!(took_effect(traced.as_str()), "no flush was delayed, so nothing was tested: {traced}");
     assert_eq!(verify_recovery_with(&fixture, repo.as_path(), "slow-flush", said.as_str(), run_unsettled), Ok(()));
     remove_settled(&fixture);

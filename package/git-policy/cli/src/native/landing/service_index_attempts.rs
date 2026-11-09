@@ -24,7 +24,6 @@ use crate::index_lock_evidence::{
     Verdict, WaitEnd, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
     ceiling_line, blocker_words, unproven_removal_advice, holder_way_out,
 };
-use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
@@ -108,8 +107,11 @@ struct Looked {
 /// its notice line for the person,
 /// its words,
 /// and the diagnostic for a look that ends the wait.
-fn look_at_holder(index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
-    let gathered = gather_with(index, resolve_process_start, scan_platform_holders_bounded);
+/// The scan is the platform's,
+/// the same one the removal is decided on,
+/// so one acquisition reads one host.
+fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
+    let gathered = gather_with(index, resolve_process_start, platform.scan);
     let evidence = match gathered {
         Ok(Some(found)) => found,
         // The lock was released between the placement and this look.
@@ -154,12 +156,55 @@ fn look_at_holder(index: &Path, waited: Duration, first: bool, ceiling: Duration
     };
 }
 
+#[cfg(test)]
+std::thread_local! {
+    /// The waits `until_next_wake` chose on this thread,
+    /// in the order they were chosen.
+    static WAITS_CHOSEN: std::cell::RefCell<Vec<Duration>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  The waits `until_next_wake` has chosen on the calling thread since `forget_waits_chosen`.
+/// Why:
+///   A control that says how soon a wait looks again cannot read the clock:
+/// a thread the scheduler holds makes
+///  a wait that asked for the poll pace look slow,
+/// and one held just after a sleep makes a wait that asked for the notice
+///  interval look quick.
+/// The chosen span is the event.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function waitsChosenByThisThread(): number[];
+/// ```
+#[cfg(test)]
+pub(crate) fn waits_chosen_by_this_thread() -> Vec<Duration> {
+    return WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { return chosen.borrow().clone(); });
+}
+
+/// Forget the waits chosen on the calling thread so far;
+/// nothing in the release executable.
+#[cfg(test)]
+pub(crate) fn forget_waits_chosen() {
+    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { chosen.borrow_mut().clear() });
+}
+
+/// Note for the controls the wait `wake` is about to be taken;
+/// nothing in the release executable.
+#[cfg(test)]
+fn note_the_wait_chosen(wake: Duration) {
+    WAITS_CHOSEN.with(|chosen: &std::cell::RefCell<Vec<Duration>>| { chosen.borrow_mut().push(wake) });
+}
+
 /// How long the wait blocks before it looks again:
 /// the time to the next repetition of the holder's line,
 /// and where no watch can be set no longer than the poll pause.
-fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> Duration {
+pub(crate) fn until_next_wake(to_notice: Duration, to_ceiling: Duration, watched: bool) -> Duration {
     let wake: Duration = if watched { to_notice.min(to_ceiling) } else { to_notice.min(POLL_PAUSE).min(to_ceiling) };
-    return wake.max(Duration::from_millis(1));
+    let chosen: Duration = wake.max(Duration::from_millis(1));
+    #[cfg(test)]
+    note_the_wait_chosen(chosen);
+    return chosen;
 }
 
 /// What one acquisition places and waits for.
@@ -217,7 +262,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                         // A lock that nothing holds and no Git lock PID file stands behind is removed (owner, 2026-11-07, "Service removes it"):
                         //  the check is made at the first look and at each repeat of the notice, as the evidence is, not at every wake.
                         if first || last_notice.elapsed() >= notice_every() {
-                            match remove_if_unheld(platform, index, &scan_platform_holders_bounded) {
+                            match remove_if_unheld(platform, index, &platform.scan) {
                                 Unheld::Removed(removed) => {
                                     announce.announce(Announce::Waiting(told_words(&removed)));
                                     continue;
@@ -248,7 +293,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
         let at_ceiling: bool = already_waited.is_some() || waited >= ceiling;
-        let mut looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
+        let mut looked: Looked = if due || at_ceiling { look_at_holder(platform, index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
         if let Some((words, who)) = left_stale {
             // The notice is the person's way to the lock; the holder is named from the marker, not from a process scan.
             looked.line = Some(words);
@@ -306,9 +351,16 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
             }));
             return Err(LockFailure { code: FailureCode::IndexInUse });
         }
+        // A claim on the stale lock ends without an event on the lock's name, so the wait looks again at the poll pace while
+        //  one is held, and says so for the landing's log and for the controls.
+        let watched: bool = !busy;
+        let next_wake: Duration = until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), watched);
+        if !watched {
+            notes.polled = true;
+        }
         match watch.as_ref() {
             Some(active) => {
-                if !active.wait(until_next_wake(notice_every().saturating_sub(last_notice.elapsed()), ceiling.saturating_sub(waited), !busy), lock_name) {
+                if !active.wait(next_wake, lock_name) {
                     // The watch ended with its directory or by the directory being moved: the ended watch is dropped first, because a
                     //  new one may need the descriptor and the quota it holds, then the lock is looked at again with a new watch set.
                     drop(watch.take());

@@ -24,7 +24,7 @@
 //! expect(await readFile('notes.md')).toEqual(expectedMerge); expect(stopped.stderr).toContain('word-level merge');
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapped};
+use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, run_direct, run_wrapped, stderr_of, without_hint_fields, wrapped};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
@@ -146,6 +146,21 @@ pub(super) fn unmerged(fixture: &Fixture, repo: &Path) -> Vec<String> {
 /// The lines of standard error about merged parts.
 pub(super) fn merge_lines(observed: &Observed) -> Vec<String> {
     return stderr_of(observed).lines().filter(|line| { return line.contains(MERGE_LINE_MARK); }).map(String::from).collect();
+}
+
+/// The blob names a part line gives,
+/// in the order it gives them.
+fn blobs_named(line: &str) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut words = line.split_whitespace();
+    while let Some(word) = words.next() {
+        if word == "blob"
+            && let Some(oid) = words.next()
+        {
+            found.push(oid.trim_end_matches(',').to_owned());
+        }
+    }
+    return found;
 }
 
 /// The entries that reached a journal stand-in,
@@ -292,8 +307,71 @@ fn an_isolated_merge_with_an_adjacent_edit_is_completed_and_listed() {
     assert_eq!(String::from_utf8_lossy(&parents.stdout).split_whitespace().count(), 3, "a merge commit with two parents");
     assert!(std::fs::read(repo.join(tracked(ADJACENT))).expect("the file") == corpus(ADJACENT, "word.out"), "{said}");
     assert!(merge_lines(&observed).iter().any(|line| { return line.contains(tracked(ADJACENT).as_str()); }), "{said}");
+    assert!(said.contains("git cat-file blob"), "a merge from objects says how to read an input after the fact: {said}");
     let status = git(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert!(String::from_utf8_lossy(&status.stdout).contains("A  staged.txt"), "the staged work stays staged");
+    remove(&fixture);
+}
+
+/// The `merge=binary` line arrives in the side being merged,
+/// so only the merge's own tree holds it:
+/// the word pass must leave `data.lock` conflicted,
+/// and the isolated merge is refused naming it,
+/// never committing a text merge of a file its rule excludes.
+#[test]
+fn a_merge_rule_the_merge_itself_introduces_keeps_the_isolated_merge_from_merging_the_file() {
+    let fixture: Fixture = fixture("word-merge-introduced-rule");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let guarded = |value: &str| -> Vec<u8> { return format!("data.lock merge={value}\n").into_bytes(); };
+    std::fs::write(repo.join("data.lock"), b"port=1 host=a zone=z\n").expect("the base file");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join(".gitattributes"), guarded("binary")).expect("the rule");
+    std::fs::write(repo.join("data.lock"), b"port=1 host=b zone=z\n").expect("their edit");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("data.lock"), b"port=9 host=a zone=z\n").expect("our edit");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    // Another session's staged work, which is what makes the wrapper merge from objects.
+    std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
+    git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "{said}");
+    assert!(said.contains("data.lock"), "{said}");
+    assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
+    assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "{said}");
+    remove(&fixture);
+}
+
+/// A part line names its three inputs as blobs,
+/// which is what a person can still read once the pass has replaced the stages:
+/// `git show :2:<path>` no longer answers,
+/// and `git cat-file blob <oid>` answers each side's bytes.
+#[test]
+fn a_part_line_names_each_input_as_a_blob_that_survives_the_resolution() {
+    let fixture: Fixture = fixture("word-merge-part-blobs");
+    let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice());
+    let said: String = stderr_of(&observed);
+    let lines: Vec<String> = merge_lines(&observed);
+    let line: &String = lines.first().expect("the one merged file is listed");
+    let named: Vec<String> = blobs_named(line);
+    assert_eq!(named.len(), 3, "base, ours and theirs are named: {line}");
+    assert!(said.contains("git cat-file blob"), "the output says how to read an input: {said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), Vec::<String>::new(), "{said}");
+    let staged: Observed = run_direct(&fixture, repo.as_path(), &["show", format!(":2:{}", tracked(ADJACENT)).as_str()]);
+    assert_ne!(staged.code, Some(0), "the stage the list used to point at is gone");
+    let sides: [Vec<u8>; 3] = [corpus(ADJACENT, "base"), corpus(ADJACENT, "ours"), corpus(ADJACENT, "theirs")];
+    for (oid, bytes) in named.iter().zip(sides.iter()) {
+        let blob: Vec<u8> = git(&fixture, repo.as_path(), &["cat-file", "blob", oid.as_str()]).stdout;
+        assert_eq!(blob, *bytes, "the blob {oid} is one input of the part");
+    }
     remove(&fixture);
 }
 
@@ -330,5 +408,303 @@ fn an_isolated_merge_with_one_unresolvable_file_among_resolvable_ones_is_refused
     assert!(said.contains(tracked(BOTH_APPEND).as_str()) && said.contains(tracked(ADJACENT).as_str()), "both conflicted paths are named: {said}");
     assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head);
     assert!(merge_lines(&observed).is_empty(), "{said}");
+    remove(&fixture);
+}
+
+/// What:
+///  A `.gitattributes` the merge itself left conflicted names no rule,
+/// so a file whose rule is inside that conflict keeps its conflict.
+/// Why:
+///   The worktree copy is Git's marker file,
+/// and its last matching line is the second side's rule;
+/// reading it would let a
+///  rule the resolved file does not carry decide the merge
+/// (cross-vendor review of this branch,
+/// finding 2).
+/// A rule file that conflicts is the same unknown as the one a merge from objects refuses,
+/// so nothing is merged.
+#[test]
+fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass() {
+    let fixture: Fixture = fixture("word-merge-worktree-conflicted-attributes");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let rule = |ours: &str| -> Vec<u8> { return format!("data.txt {ours}\n").into_bytes(); };
+    std::fs::write(repo.join(".gitattributes"), rule("merge=text flag=old")).expect("the base rule");
+    std::fs::write(repo.join("data.txt"), b"alpha = 0\nbeta = 0\n").expect("the base file");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join(".gitattributes"), rule("merge=text flag=new")).expect("their rule");
+    std::fs::write(repo.join("data.txt"), b"alpha = 0\nbeta = 2\n").expect("their edit");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join(".gitattributes"), rule("merge=binary flag=old")).expect("our rule");
+    std::fs::write(repo.join("data.txt"), b"alpha = 1\nbeta = 0\n").expect("our edit");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    // What Git leaves in the file when it does not merge it by text: our side's bytes, with the stages kept.
+    let by_git: Vec<u8> = std::fs::read(repo.join("data.txt")).expect("the file");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(1), "the merge stays stopped: {said}");
+    let mut conflicted: Vec<String> = unmerged(&fixture, repo.as_path());
+    conflicted.sort();
+    assert_eq!(conflicted, vec![String::from(".gitattributes"), String::from("data.txt")], "both conflicts stay as Git left them: {said}");
+    assert_eq!(std::fs::read(repo.join("data.txt")).expect("the file"), by_git, "the file Git would not merge by text keeps Git's bytes: {said}");
+    assert!(merge_lines(&observed).is_empty(), "nothing is merged from a rule file that conflicts: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no commit is made");
+    remove(&fixture);
+}
+
+/// What:
+///  `git -c <key>=<tree> merge` reads the `merge` attribute from the tree the person named on the command line,
+/// in any letter case the key allows.
+/// Why:
+///   Git puts a command-line configuration above every file,
+/// so a tree that excludes the file must govern the pass
+/// (cross-vendor review of this branch,
+/// finding 3;
+/// cross-vendor review round 2,
+/// finding 2 for the letters).
+/// The pass named the merge's own tree over it,
+/// and the merge was committed although a rule the
+///  person asked for forbids it.
+fn a_command_line_tree_governs_the_isolated_merge(key: &str, name: &str) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("data.lock"), b"port=1 host=a zone=z\n").expect("the base file");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "rules"]);
+    std::fs::write(repo.join(".gitattributes"), b"data.lock merge=binary\n").expect("the rules of the tree the person names");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitattributes"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=the rules"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(repo.join("data.lock"), b"port=1 host=b zone=z\n").expect("their edit");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("data.lock"), b"port=9 host=a zone=z\n").expect("our edit");
+    git(&fixture, repo.as_path(), &["add", "--", "data.lock"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    // Another session's staged work, which is what makes the wrapper merge from objects.
+    std::fs::write(repo.join("staged.txt"), b"another session's work\n").expect("staged file");
+    git(&fixture, repo.as_path(), &["add", "--", "staged.txt"]);
+    let head: Vec<u8> = git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout;
+    let setting: String = format!("{key}=rules");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["-c", setting.as_str(), "merge", "--no-edit", "topic"]);
+    let said: String = stderr_of(&observed);
+    assert_eq!(observed.code, Some(2), "the tree the person named forbids the merge ({key}): {said}");
+    assert!(said.contains("data.lock"), "the refused path is named: {said}");
+    assert!(merge_lines(&observed).is_empty(), "nothing was merged by word: {said}");
+    assert_eq!(git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout, head, "no merge commit is made");
+    assert_eq!(std::fs::read(repo.join("data.lock")).expect("the file"), b"port=9 host=a zone=z\n".to_vec(), "our file is untouched: {said}");
+    remove(&fixture);
+}
+
+/// The tree the person names on the command line governs the isolated merge.
+#[test]
+fn a_configuration_option_on_the_command_line_names_the_tree_of_an_isolated_merge() {
+    a_command_line_tree_governs_the_isolated_merge("attr.tree", "word-merge-command-line-tree");
+}
+
+/// The same key in the letters the person typed,
+/// which Git reads as the same configuration key.
+#[test]
+fn a_configuration_option_in_any_letter_case_names_the_tree_of_an_isolated_merge() {
+    a_command_line_tree_governs_the_isolated_merge("Attr.Tree", "word-merge-command-line-tree-case");
+}
+
+/// How many files a control conflicts,
+/// so the pass lasts long enough for another command to act inside it.
+const CONFLICTS_FOR_A_WINDOW: usize = 40;
+
+/// A repository whose merge of `topic` into `main` stops with every file conflicted and word-resolvable,
+/// with the checked-out branch left on `main`.
+fn many_conflicts(fixture: &Fixture, count: usize) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    // One file the word pass cannot resolve keeps the merge stopped, so the control never waits on a commit.
+    let names: Vec<String> = (0..count).map(|number| { return format!("conflict{number:02}.md"); }).chain([format!("{BOTH_APPEND}.md")]).collect();
+    let write = |extension: &str| {
+        for name in &names {
+            let input: &str = if name.starts_with(BOTH_APPEND) { BOTH_APPEND } else { ADJACENT };
+            std::fs::write(repo.join(name), corpus(input, extension)).expect("an input");
+        }
+    };
+    write("base");
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic"]);
+    write("theirs");
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=theirs"]);
+    git(fixture, repo.as_path(), &["switch", "--quiet", "main"]);
+    write("ours");
+    git(fixture, repo.as_path(), &["add", "--all"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=ours"]);
+    return repo;
+}
+
+/// The children of a process,
+/// read from the kernel's own list of them.
+fn children_of(pid: u32) -> Vec<u32> {
+    let mut found: Vec<u32> = Vec::new();
+    let tasks: std::fs::ReadDir = match std::fs::read_dir(format!("/proc/{pid}/task")) {
+        Ok(entries) => entries,
+        Err(_) => return found,
+    };
+    for task in tasks.flatten() {
+        let listed: Vec<u8> = match std::fs::read(task.path().join("children")) {
+            Ok(bytes) => bytes,
+            Err(_) => continue,
+        };
+        for word in String::from_utf8_lossy(listed.as_slice()).split_whitespace() {
+            if let Ok(child) = word.parse::<u32>() {
+                found.push(child);
+            }
+        }
+    }
+    return found;
+}
+
+/// Whether a process is one the word pass itself starts,
+/// which it does before it computes a merge and before it looks at the index again.
+/// Why:
+///   The pass's own `check-attr` and its `cat-file --batch` both run inside it,
+/// and a commit's content policy starts a `check-attr` too,
+/// which the `--stdin` of the pass's invocation tells apart.
+fn is_the_pass_query(pid: u32, repo: &Path) -> bool {
+    let arguments: Vec<u8> = match std::fs::read(format!("/proc/{pid}/cmdline")) {
+        Ok(bytes) => bytes,
+        Err(_) => return false,
+    };
+    // Another fixture's Git, or one the wrapper starts for its own readers, is not this pass.
+    let Ok(cwd) = std::fs::read_link(format!("/proc/{pid}/cwd")) else { return false };
+    if cwd != repo {
+        return false;
+    }
+    let has = |word: &[u8]| -> bool { return arguments.windows(word.len()).any(|part| { return part == word; }); };
+    if has(b"cat-file") && has(b"--batch") {
+        return true;
+    }
+    return has(b"check-attr") && has(b"--stdin\0");
+}
+
+/// What:
+///  A thread that waits for the word pass's own attribute query under `root` and then runs `when`,
+/// saying whether it got there.
+/// Why:
+///   The window another command has for finding 1 and finding 4 is the pass itself,
+/// so a control must act inside it,
+/// and the first thing the pass starts is `git check-attr` (`second_pass`).
+/// It walks only the command's own children,
+/// which is a handful of processes,
+/// and gives up after five seconds,
+/// so a control never waits for ever.
+fn during_the_pass(root: u32, repo: &Path, when: impl FnOnce() + Send + 'static) -> std::thread::JoinHandle<bool> {
+    let watched: PathBuf = repo.to_path_buf();
+    return std::thread::spawn(move || {
+        let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while std::time::Instant::now() < deadline {
+            let mut waiting: Vec<u32> = vec![root];
+            for _depth in 0..4 {
+                let mut next: Vec<u32> = Vec::new();
+                for pid in waiting.drain(..) {
+                    for child in children_of(pid) {
+                        if is_the_pass_query(child, watched.as_path()) {
+                            when();
+                            return true;
+                        }
+                        next.push(child);
+                    }
+                }
+                waiting = next;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        return false;
+    });
+}
+
+/// The result of a wrapped run this file started itself,
+/// so a control knows the process to watch.
+fn watched_run(fixture: &Fixture, repo: &Path, arguments: &[&str], watcher: impl FnOnce(u32) -> std::thread::JoinHandle<bool>) -> (Observed, std::thread::JoinHandle<bool>) {
+    use std::process::Stdio;
+    let mut command: std::process::Command = wrapped(fixture);
+    command.current_dir(repo).args(arguments).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let child = command.spawn().expect("the wrapper starts");
+    let watching = watcher(child.id());
+    let output = child.wait_with_output().expect("the wrapper finishes");
+    let observed = Observed { code: output.status.code(), stdout: without_hint_fields(output.stdout.as_slice()), stderr: without_hint_fields(output.stderr.as_slice()) };
+    return (observed, watching);
+}
+
+/// What:
+///  An edit another command makes while the pass merges its words is never replaced,
+/// and the line names the path the pass left.
+/// Why:
+///   The baseline of a path was read after the merge was computed,
+/// so an edit made during the merge became the baseline and `checkout-index --force` then wrote
+///  the earlier merge over it
+/// (cross-vendor review round 2,
+/// finding 1).
+#[test]
+fn an_edit_made_while_the_pass_merges_is_not_replaced() {
+    let fixture: Fixture = fixture("word-merge-edit-during-the-pass");
+    let repo: PathBuf = many_conflicts(&fixture, CONFLICTS_FOR_A_WINDOW);
+    let edited: String = format!("conflict{:02}.md", CONFLICTS_FOR_A_WINDOW / 2);
+    let resolution: &[u8] = b"a resolution another command wrote\n";
+    let target: PathBuf = repo.join(edited.as_str());
+    let watched_repo: PathBuf = repo.clone();
+    let (observed, watcher) = watched_run(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice(), move |root: u32| {
+        return during_the_pass(root, watched_repo.as_path(), move || {
+            std::fs::write(target.as_path(), resolution).expect("the other command's write");
+        });
+    });
+    let said: String = stderr_of(&observed);
+    assert!(watcher.join().expect("the watcher thread"), "the control reached the merge pass: {said}");
+    assert_eq!(std::fs::read(repo.join(edited.as_str())).expect("the file"), resolution.to_vec(), "the other command's bytes survive: {said}");
+    assert!(said.contains("changed while the second merge pass"), "the line names the path the pass left: {said}");
+    assert!(said.contains(edited.as_str()), "and names it by path: {said}");
+    remove(&fixture);
+}
+
+/// What:
+///  A resolution of the same length whose modification time was put back is still not replaced.
+/// Why:
+///   The check compared the file's device,
+/// inode,
+/// length and modification time,
+/// and a writer can restore the time it saved,
+/// so different bytes passed it and `checkout-index --force` then wrote the merge over them
+/// (cross-vendor review round 2,
+/// finding 3).
+/// These are conflicted files the pass has already read,
+/// so the bytes are what it compares.
+#[test]
+fn a_same_length_resolution_with_a_restored_time_is_not_replaced() {
+    use std::time::SystemTime;
+    let fixture: Fixture = fixture("word-merge-same-length");
+    let repo: PathBuf = many_conflicts(&fixture, CONFLICTS_FOR_A_WINDOW);
+    let edited: String = format!("conflict{:02}.md", CONFLICTS_FOR_A_WINDOW / 2);
+    let target: PathBuf = repo.join(edited.as_str());
+    let watched_repo: PathBuf = repo.clone();
+    let (observed, watcher) = watched_run(&fixture, repo.as_path(), arguments_of(Stop::Merge).as_slice(), move |root: u32| {
+        return during_the_pass(root, watched_repo.as_path(), move || {
+            let before: std::fs::Metadata = std::fs::metadata(target.as_path()).expect("the file Git left");
+            let saved: SystemTime = before.modified().expect("its modification time");
+            let replacement: Vec<u8> = vec![b'R'; before.len() as usize];
+            std::fs::write(target.as_path(), replacement.as_slice()).expect("the other command's write");
+            let file: std::fs::File = std::fs::File::options().write(true).open(target.as_path()).expect("the file");
+            file.set_times(std::fs::FileTimes::new().set_modified(saved)).expect("the time put back");
+        });
+    });
+    let said: String = stderr_of(&observed);
+    assert!(watcher.join().expect("the watcher thread"), "the control reached the merge pass: {said}");
+    let held: Vec<u8> = std::fs::read(repo.join(edited.as_str())).expect("the file");
+    assert!(held.iter().all(|byte| { return *byte == b'R'; }), "the other command's bytes survive: {said}");
+    assert!(said.contains("changed while the second merge pass"), "the line names the path the pass left: {said}");
     remove(&fixture);
 }

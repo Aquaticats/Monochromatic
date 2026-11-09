@@ -144,7 +144,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   `3149b8baae` the literal-pathspec branch,
   `82dff2e79a` the intent-to-add branch,
   `f6716da242` the commit-ceiling branch,
-  and `78ca211085` the worktree-copy branch's follow-up.
+  `78ca211085` the worktree-copy branch's follow-up,
+  `6e098552e2` the discarding-commands branch,
+  and `fc85e075d8` the suite-failures branch.
   The first clause of that merge's message names a change it does not contain;
   commit comment 209008614 on it says so.
 - Finding 1 of `doc/planning/cli-git-push-route-findings-on-main.md` is open on main,
@@ -188,17 +190,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `literal-pathspec-round-4-prompt.md` for `literal-pathspec-remaining-starts` as run 4
-  (a commit from a nested directory can leave out staged content,
-  and inherited pathspec modes can fail a commit's completion step),
-  `intent-to-add-round-4-prompt.md` for `intent-to-add-keeps-stat-data` as run 6
-  (a hook restaging an unrelated file can make a retry delete a tracked file nobody named),
-  `commit-ceiling-follow-ups-round-4-prompt.md` for `commit-ceiling-and-private-index-follow-ups` as run 4
-  (a successful exit reported as a ceiling kill,
-  and a signing program it could not stop going unrecorded),
-  and `worktree-copy-round-5-prompt.md` for `worktree-copy-records-keep-path-bytes` as run 5
-  (recovery reads the `.git` pointer and not the registration,
-  so a pointer cut short or missing during a rewrite can discard a pending copy).
+  `discarding-commands-round-5-prompt.md` for `discarding-commands-findings-fixed` as run 5
+  (an audit line can name a non-UTF-8 branch wrongly,
+  and `git branch -D HEAD` can record a branch nothing deleted),
+  and `wrapper-tests-suite-round-4-prompt.md` for `wrapper-tests-that-fail-only-in-a-suite` as run 4
+  (a late runtime can be lost between a timeout and dropping its receiver,
+  and a control lost its ability to fail).
   Issue 6007 stays open until `wrapper-issue-defects-and-linear-scans` run 3 reports.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
@@ -659,23 +656,44 @@ The old tree kept for the rollback stays until the owner deletes it.
   The session aborted that one connection and detached the mount,
   and `shared-rules-for-pi-briefs.md` now requires a private mount namespace for any probe that mounts.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
-  its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
-  On top of main 661 of 664 selected tests pass:
-  two snapshot tests fail in about 0.2 seconds beside what it changed,
-  and the third is the tokio branch's order control.
-  The review (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`) names a snapshot of a linked worktree that still carries another command's credentials,
-  and a ceiling that also kills the person's own command.
-  By its own report,
-  the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
-  Run 2 of its agent reports six findings handled,
-  674 of 674 selected tests pass on top of main,
-  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) names another command's stage carried into the new worktree as unignored trash,
-  a lock-removal instruction quoted for JSON and not for a shell,
-  a helper reported as ended when only Git was reaped,
-  and a checkout filter that reads the terminal stopped by the new process group.
-  Not ready to merge.
-  Run 3 of its agent is on them.
-  The container gate has not run.
+  run 4 settled all five findings of the third review (`${HOME}/temp/agent/reviews/worktree-add-round-3-sol.txt`),
+  after merging main `421ab69c3e`
+  (conflicts in `forwarding.rs`,
+  `forwarding_tests.rs` and `worktree_trash_dispose.rs`):
+  an earlier add's trash is moved into this add's and emptied with it,
+  a stage container is removed before the worktree is installed (measured:
+  460 ms to remove 20,000 one-kilobyte files against 0.1 ms to rename),
+  the `gitdir:` pointer is read on bytes as Git's `read_gitfile_gently` does,
+  the ceiling's line says a helper keeps a caller's stream open,
+  and the partially restored checkout the finished-check cannot judge is written into `SPEC.md` with no mechanism added.
+  985 of 985 selected tests pass (`worktree::`,
+  `worktree_copying::`,
+  `invocation::`),
+  clippy passes,
+  and `monochromatic-lint` passes on every file this branch changed;
+  the package-wide run stops on `src/native/testing/test_support.rs`,
+  which is 315 code lines against the limit of 300 in main itself (`0b6f191324`),
+  a file this branch never touched.
+  The merge resolution removed the trash hand-over (`hand_over`,
+  `Reach`,
+  `Router`,
+  `Provisioner` and the `units_record_dir` line main added inside it),
+  which this branch had already deleted on purpose in `285267a6f2` for the second review's finding 2;
+  `units_record_dir_of` itself and its two other uses are untouched.
+  Open:
+  the interrupted-add remedy the report prints still cannot run as printed,
+  because `git -C <destination> reset --hard` is refused by the `linked-worktree-only` policy
+  ("this worktree has uncommitted changes to tracked files",
+  exit 1),
+  so the report and the policy need the owner's choice between allowing it for a destination the wrapper recorded
+  and printing `--no-enforce-worktree` with the reason;
+  a linked worktree's snapshot sets another command's stage aside silently,
+  while the main checkout's snapshot names the categories it left out;
+  and `worktree_copy_recovery.rs:108` still reads the same pointer as text,
+  so its fix can point at `worktree_add_binding::pointer_target` when it lands.
+  The container gate has not run on this round.
+  Not ready to merge;
+  merge after the gate run and the owner's answer on the remedy.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,

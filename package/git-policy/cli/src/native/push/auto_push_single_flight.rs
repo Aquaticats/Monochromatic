@@ -64,6 +64,15 @@ pub enum SingleFlightError {
         /// in whole seconds.
         seconds: u64,
     },
+    /// A command of a merge step was still running at its total ceiling and was stopped.
+    Ceiling {
+        /// Arguments of the command,
+        /// for the diagnostic.
+        arguments: String,
+        /// The ceiling it passed,
+        /// in whole seconds.
+        seconds: u64,
+    },
 }
 
 impl std::fmt::Display for SingleFlightError {
@@ -85,6 +94,14 @@ impl std::fmt::Display for SingleFlightError {
                 formatter,
                 "git {arguments} showed no sign of work for {seconds} seconds and was stopped; {}",
                 limit_clause()
+            ),
+            Self::Ceiling { arguments, seconds } => write!(
+                formatter,
+                "git {arguments} was still running at its {seconds}-second ceiling and was stopped: one command of a merge step may \
+                 not run for ever, so the merge it was computing is not made. Nothing was changed: the commit is kept, no reference \
+                 moved and the worktree was not touched. Hint: a merge driver that keeps working without returning does this; make \
+                 it return, or set {} higher",
+                crate::push_deadline_and_patience_settings::MERGE_CEILING_VARIABLE
             ),
         };
     }

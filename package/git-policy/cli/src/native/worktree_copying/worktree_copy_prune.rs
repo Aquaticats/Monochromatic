@@ -2,12 +2,15 @@
 //!  What a copy from a main checkout leaves out of the ignored state it hands over:
 //!  caches,
 //! optionally the records of earlier runs,
+//! the stage container of another command,
 //! and every directory that is another checkout.
 //! Why:
 //!  A worktree added from the main checkout should work at once,
 //! so builds and installed dependencies are copied,
 //!  but a cache is rebuilt by its tool,
 //! a log of an earlier run is no input,
+//! another command's stage container holds
+//!  another worktree's ignored state (credentials included),
 //! and another checkout's files would make the
 //!  new worktree a second claimant of that checkout's administrative state.
 //!  The rule is a handful of directory names rather than a list of paths,
@@ -18,7 +21,11 @@
 //! ```ts
 //! const prune = { kind: 'main-checkout', runRecords: COPY_RUN_RECORDS };
 //! if (skipsPath(prune, 'package/x/.cache/typescript')) continue;
+//! const STAGE_PREFIX = '.cli-git-worktree-copy-';
 //! ```
+
+/// The prefix of every stage container any rung makes beside its destination.
+use crate::worktree_copy_selection::STAGE_PREFIX;
 
 /// What:
 ///  Whether the records of earlier runs (logs,
@@ -149,16 +156,27 @@ impl Prune {
     /// Why:
     ///   The decision uses directory names only,
     /// so it is the same for a root Git listed and a child the walk found.
+    /// A stage container is left out by every rule,
+    /// because it belongs to the one add or copy that is
+    ///  filling it and holds another worktree's ignored state.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// skipsPath(prune, 'package/x/target/debug/incremental') // true
+    /// skipsPath(prune, '.claude/worktrees/.cli-git-worktree-copy-8f14e45fceea167a5a36dedd4bea2543') // true
     /// ```
     pub fn skips_path(self, relative_path: &str) -> bool {
+        let components: Vec<&str> = relative_path.split('/').collect();
+        // Another command's stage container is no state of the source, whatever the rule: its payload is a full copy of
+        //  another worktree's ignored state, made while its own copy runs, and nothing names it in the new worktree.
+        for component in &components {
+            if component.starts_with(STAGE_PREFIX) {
+                return true;
+            }
+        }
         let Prune::MainCheckout { run_records } = self else {
             return false;
         };
-        let components: Vec<&str> = relative_path.split('/').collect();
         for (index, component) in components.iter().enumerate() {
             let parent: Option<&str> = match index.checked_sub(1) {
                 Some(before) => Some(components[before]),
