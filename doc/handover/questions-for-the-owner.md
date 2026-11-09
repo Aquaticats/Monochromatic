@@ -18,6 +18,160 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
+
+The owner:
+"I'm going to be away for 5 to 8h.
+Keep working and ask questions async."
+Nothing in this section is holding up running work.
+Write an answer under a question and save.
+
+### The Pi limit stays at 20 at most, answered 2026-11-09T01:22:05-05:00
+
+The owner,
+on trying more than 20 after this trial:
+"no,
+that's definitely going to blow up."
+
+The owner found that `GET https://api.neuralwatt.com/v1/rate_limits` reports the account's limits.
+At 2026-11-09T06:19:41Z,
+`deepseek-ai/DeepSeek-V4.1-Flash` read `effective_concurrency` 20,
+`floor` 15,
+`flex_floor` 22,
+`burst_ceiling` 20 and `burst_active` true,
+on tier `max`.
+No published description of those fields was found,
+so what they mean is read from their names.
+
+That limit is on requests in flight,
+and an agent spends much of its time running tools.
+Over the first 28 minutes of the trial,
+with up to twenty agents running,
+the open model calls were a median of 7,
+a 99th percentile of 13 and a highest of 15.
+They reached 15 for 0.12% of that time and never reached 20
+(`${HOME}/temp/agent/pi-runs/measure-model-calls-in-flight.ts`).
+Scaling those figures,
+which is an estimate,
+about 26 to 30 agents would reach 20 open calls.
+Anything else using this key counts against the same limit,
+and the host may run short before the provider does.
+
+The trial at twenty is still running and decides the raise to 20 by itself.
+
+### May a moved-path note be added to records in `doc/decision/`?
+
+Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
+Agents may not edit `doc/decision/` without your approval,
+so these open issues are stuck on that alone:
+4365,
+5929,
+6201,
+3279,
+5926,
+5788,
+3191,
+3275,
+5765,
+5766,
+6101 and 4357.
+The note would add a line beside each stale path and change no decision.
+
+Recommended:
+yes,
+for notes of that one kind only,
+because the original words stay and the records stop pointing nowhere.
+The alternative is to leave those issues open,
+and each stays a dead reference.
+
+### Which build profile should the uncovered crates follow? (issue 1641)
+
+22 tracked `Cargo.toml` files declare a build profile,
+and the rules that keep those profiles the same name 11 folders.
+The other crates are uncovered,
+and several say "Enforced by file-enforcer" in their own comments,
+which is not true of them.
+They are `cargo-shadow/cli`,
+`codex-plugin/bash-limit`,
+`git-policy/cli`,
+`git-policy/cli.fuzz`,
+`ide/app`,
+`jsonc-edit/core-rust.fuzz`,
+`linter/monochromatic-lint.fuzz`,
+`mpm-shadow/cli`,
+`pnpm-shadow/cli`,
+`search-shadow/cli`,
+`wg/cli-quicker-exempt` and `xml-edit/core-rust.fuzz`.
+
+Recommended:
+add one rule for the shape the shadow crates share (`panic = "abort"`) and cover the rest with the existing rules,
+so the comments become true.
+The alternative is to delete the claims and leave these crates free to drift,
+which is less work and protects nothing.
+
+### Should upstream forks keep their own MIT text? (issue 1645)
+
+The rule that writes license files knows no MIT text,
+so the MIT files of the packages under `upstream-fork/` are neither written nor removed by it.
+All carry the same copyright line,
+naming Sindre Sorhus.
+
+Recommended:
+keep one text per package and teach the rule to seed it,
+because a shared text would put that copyright on any other MIT project added later.
+The alternative,
+one shared root `LICENSES/MIT.txt`,
+is simpler and is only correct while every MIT fork has the same author.
+
+### Should 30 packages declare a license? (issue 2994)
+
+30 `package/*/*/package.json` files have no `license` field,
+so no license text is due for them and none ships.
+This is a legal choice about your code,
+and nothing about it can be measured.
+Name a license,
+or say these packages stay undeclared.
+
+### Who owns the repository links in `package.json`? (issue 1124)
+
+221 `package.json` files still link to `github.com/Aquaticat/Monochromatic`,
+and 3 link to the current organization.
+No rule owns those fields since the TypeScript tool went away,
+so they drift.
+
+Recommended:
+add a file-enforcer rule for `repository` and `homepage`,
+matching what it already does for `Cargo.toml`,
+so one run corrects them all and they stay correct.
+The alternative is a single rewrite with nothing to keep it true.
+
+### Are the three findings left on the stat-data landing worth another round?
+
+The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
+The sixth review (`${HOME}/temp/agent/reviews/landing-stat-data-round-6-sol.txt`) named three more cases,
+and the coordinator landed it with them open because each needs something unusual:
+
+- Another process swaps two directories by rename in the instant between opening one and reading its `.gitattributes`.
+- Another process holds `.gitattributes` in a shared memory mapping and changes it during the read,
+  which moves no timestamp.
+- A FUSE filesystem leaves a read of a regular file unanswered.
+  That one is the open question about a stalled regular-file read in this file,
+  which also covers every other read of a regular file.
+
+In the first two,
+a file can be recorded as clean when its contents differ.
+Each is reachable only by another process acting in a window of microseconds.
+Say if any of them should get another round.
+
+### Conversion: is a late change of mode or owner a defect or accepted risk?
+
+An audit (`doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`) found that a `chmod` made in a conversion's last window is lost,
+because the comparison that decides the old tree can be deleted does not look at mode,
+owner or extended attributes.
+The coordinator read this as a defect and queued a fix,
+since that comparison exists to catch a late change.
+Say if you would rather accept the risk than pay for the wider comparison.
+
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
 None of these has been asked yet,
@@ -202,6 +356,81 @@ because you have already answered them:
 deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
+
+## Answered in the question tool, recorded 2026-11-09T01:14:41-05:00
+
+An audit (`doc/planning/cli-git-discarding-commands-route-findings-on-main.md`) reproduced two discarding commands outside the wrapper's recorded rule.
+
+- `git worktree remove`:
+  "Log only",
+  with the note
+  "This one is pretty intentional because agents are just as likely to run a rm rf,
+  so preventing git worktree remove buys us nothing."
+  Git runs as it does today,
+  and the wrapper adds an audit line naming the worktree and what the removal took.
+- `git branch -D` from the main worktree:
+  "Allow,
+  add audit line (Recommended)".
+  Git runs as it does today,
+  and the wrapper records the branch and its commit so the branch can be restored.
+
+## Answered in a plain message, recorded 2026-11-09T00:52:14-05:00
+
+- How many Pi agents run at once:
+  "I said 16 is practical,
+  based on a rough estimation.
+  Try 20,
+  and if it doesn't blow up (in terms of api rate limits),
+  we're permanently raising the practical limit to 20."
+  The trial is running.
+  A provider error reaches a run's `feed.jsonl` as an `assistant` record with `"stop":"error"`,
+  and Pi's own retry as an `auto_retry_start` record.
+  Before the trial,
+  at up to sixteen agents,
+  158 feeds held 25,631 model turns,
+  no retry and no error shaped like a rate limit.
+  The eight errors they did hold (five aborted operations,
+  three unconfigured providers) show the count can see an error.
+  Coordinator's pick,
+  veto open:
+  the trial passes after sixty minutes with twenty running and no error shaped like a rate limit.
+  The first such error ends it.
+  A provider that throttles by answering slowly reports no error,
+  so the watcher also prints the median model turn before and during the trial.
+  The count is `${HOME}/temp/agent/pi-runs/watch-trial-of-twenty-pi-agents.ts`.
+  On a pass,
+  `.agents/skills/pi-as-subagent/SKILL.md` gets these words in place of "In practice it's 16."
+  and `file-enforcer write` regenerates its copies.
+
+## Answered in a plain message, recorded 2026-11-09T00:07:24-05:00
+
+- Kopia and this repository:
+  "Make kopia exclude the entire Monochromatic dir."
+  Applied as `kopia policy set user@bazzite:/home/user/Monochromatic --manual '--add-ignore=*'`.
+  The hourly `kopia snapshot create --all` skips a source set to manual,
+  and an explicit snapshot of it stores nothing,
+  dot-folders included;
+  both were tried on a throwaway repository with an unchanged source as the control.
+  Existing snapshots stay.
+  The last full one is `kf33ae88159bbdf201f5735e37d21d1c8`,
+  taken 2026-11-08T23:57:49-05:00.
+  To undo:
+  `kopia policy set user@bazzite:/home/user/Monochromatic --no-manual '--remove-ignore=*'`.
+
+## Answered in plain messages, recorded 2026-11-08T23:47:13-05:00
+
+- Stale folders and the handover:
+  "Delete dirs that shouldn't be there anymore and update handover now."
+- Cleanup from now on:
+  "Cleanup whenever it makes sense on your own."
+  and then,
+  about the detached worktrees the handover held for the owner's word:
+  "It covers deleting stale detached worktrees."
+  The coordinator now removes worktrees and leftovers without asking when nothing would be lost:
+  a worktree goes only if its commits are on a branch and it has no uncommitted work.
+  Branches stay,
+  because branch deletion was not part of these messages,
+  and the old tree kept for the 860 rollback stays for the owner.
 
 ## Answered in the question tool, recorded 2026-11-08T23:24:03-05:00
 
@@ -870,6 +1099,16 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-08T23:47:13-05:00,
+  conclusion record on repositories using the files backend:
+  a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),
+  and the new reader accepts its absence.
+  A cross-vendor review found one consequence:
+  if a commit is killed before its cleanup finishes and a wrapper from before that change recovers it,
+  that older wrapper's cleanup fails instead of completing.
+  The review established no data loss,
+  and the case needs an older wrapper recovering a newer one's transaction.
+  Say "undo" to keep writing the empty record.
 - 2026-11-08T22:14:46-05:00,
   secret scanner:
   when `forbidden-strings --all` cannot read a repository's index,

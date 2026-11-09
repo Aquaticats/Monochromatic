@@ -32,6 +32,12 @@ const repositoryInputs: readonly string[] = [
 
 /**
  Entries of the scanner that enter Cargo's artifact or its tests.
+
+ `bin` and `mise.toml` are copied into every snapshot as the harness that produced its evidence,
+ so the manifests record their digests,
+ but they stay outside this set and outside the comparison:
+ the evidence is about the compiled artifact.
+ A changed `bin` fixture still shows as the derived `tests/panic_contract.rs` the guard injection writes.
  */
 const scannerInputs: readonly string[] = [
   'Cargo.toml',
