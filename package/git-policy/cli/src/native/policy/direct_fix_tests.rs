@@ -66,6 +66,7 @@ fn fix_request(config: PolicyConfig) -> StageRequest {
 fn fix_checks(repo: &Path) -> ShippedChecks<ScriptedFacts> {
     let mut facts: ScriptedFacts = scripted_facts();
     facts.candidates_repository = Some(repo.to_path_buf());
+    facts.git_dir = Some(repo.join(".git"));
     return shipped_checks(
         facts,
         os_arguments(&[]),

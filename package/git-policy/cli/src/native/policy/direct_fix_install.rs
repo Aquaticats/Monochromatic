@@ -52,7 +52,7 @@
 
 /// The journal a correction is installed through,
 ///  and the sweep that finishes what a kill interrupted.
-use crate::direct_fix_install_journal::{content_of, open_journal, reap_interrupted_installs, remove};
+use crate::direct_fix_install_journal::{content_of, open_journal, remove};
 /// The sentences the install reports.
 use crate::direct_fix_install_messages::{
     could_not_remove, install_failure, journal_refusal, kept_notice, unchanged_failure,
@@ -718,16 +718,11 @@ pub fn install_prepared(
 /// ```
 pub fn install_corrections(
     root: &Path,
+    git_dir: &Path,
     real_index: &Path,
     changes: &[InstallChange],
 ) -> Result<InstallOutcome, String> {
-    let Some(git_dir) = real_index.parent() else {
-        return Err(install_failure(
-            "the index has no directory, so no journal can be kept beside it and no file was changed.",
-        ));
-    };
     let mut notices: Vec<String> = Vec::new();
-    reap_interrupted_installs(git_dir, &mut notices);
     let index_before: Option<Vec<u8>> = match read_index(real_index) {
         Ok(found) => found,
         Err(error) => {

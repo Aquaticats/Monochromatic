@@ -31,6 +31,8 @@ use crate::diagnostics::EngineFailureCode;
 /// Import the change list a converged fix installs,
 ///  and the installer.
 use crate::direct_fix_install::{InstallChange, InstallOutcome, install_corrections};
+/// The sweep of the journals a killed fix left.
+use crate::direct_fix_install_journal::reap_interrupted_installs;
 /// Import the event form of a pathname.
 use crate::event_path::EventPath;
 /// Import the shipped checks,
@@ -55,8 +57,8 @@ use crate::policy_trigger::Trigger;
 use crate::repository_facts::RepositoryFacts;
 /// `BTreeMap<K, V>` is a map kept sorted by key.
 use std::collections::BTreeMap;
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
+/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
+use std::path::{Path, PathBuf};
 
 /// The message of a fix whose corrections returned to an earlier state,
 ///  as the installed
@@ -67,6 +69,20 @@ pub const DIRECT_FIX_CYCLE_MESSAGE: &str =
 /// The message of a fix that has no worktree to install into.
 pub const NO_WORKTREE_MESSAGE: &str =
     "monochromatic-git-policy-cli fix could not install its corrections: the repository has no worktree.";
+
+/// The message of a fix that cannot learn this worktree's own Git directory.
+/// Why:
+///   A journal belongs in that directory and nowhere else:
+///  the parent of an alternate index can be inside
+///       the worktree,
+///  where a later `git add` could stage it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NO_GIT_DIR_MESSAGE = '... could not find this worktree's Git directory ...';
+/// ```
+pub const NO_GIT_DIR_MESSAGE: &str =
+    "monochromatic-git-policy-cli fix could not install its corrections: this worktree's own Git directory cannot be found, so no journal can be kept there and no file was changed.";
 
 /// What:
 ///  The passes of one direct fix,
@@ -284,17 +300,41 @@ pub fn settled_fix<F: RepositoryFacts>(
         return pass;
     }
     let changes: Vec<InstallChange> = checks.content.install_changes();
-    if changes.is_empty() {
-        return pass;
+    // What: The sweep runs on every settled fix, before the question of whether anything needs correcting.
+    // Why:  An interrupted fix can leave the file looking canonical, so this fix proposes nothing and would return
+    //       here; the journal holding the person's only copy of an edit would then never be named.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const notices = gitDir ? reapInterruptedInstalls(gitDir) : [];
+    // if (changes.length === 0) return withNotices(pass, notices);
+    // ```
+    let git_dir: Option<PathBuf> = checks.facts.known_git_dir();
+    let mut notices: Vec<String> = Vec::new();
+    if let Some(directory) = git_dir.as_ref() {
+        reap_interrupted_installs(directory.as_path(), &mut notices);
     }
-    let (Some(top_level), Some(real_index)) = (root, checks.content.real_index()) else {
+    if changes.is_empty() {
+        return with_notices(pass, notices);
+    }
+    let (Some(top_level), Some(real_index), Some(git_dir)) = (root, checks.content.real_index(), git_dir)
+    else {
         return fix_failure(
             pass.arguments.as_slice(),
             EngineFailureCode::TransactionFailed,
-            NO_WORKTREE_MESSAGE,
+            if root.is_none() || checks.content.real_index().is_none() {
+                NO_WORKTREE_MESSAGE
+            } else {
+                NO_GIT_DIR_MESSAGE
+            },
         );
     };
-    let outcome: InstallOutcome = match install_corrections(top_level, real_index, changes.as_slice()) {
+    let outcome: InstallOutcome = match install_corrections(
+        top_level,
+        git_dir.as_path(),
+        real_index,
+        changes.as_slice(),
+    ) {
         Ok(installed) => installed,
         Err(message) => {
             return fix_failure(
@@ -308,20 +348,8 @@ pub fn settled_fix<F: RepositoryFacts>(
     for change in &changes {
         changed_paths.push(EventPath::from_git_bytes(change.path.as_slice()));
     }
-    let mut events: Vec<PolicyEvent> = pass.events;
-    // What: A byte a fix keeps for the person is reported as an engine failure, which neither blocks nor ends the pass.
-    // Why:  The corrections went in, so the command must not fail; the person still has to know where the bytes of a
-    //       file someone wrote during the fix are.
-    for notice in outcome.notices {
-        events.push(PolicyEvent::EngineFailure {
-            code: EngineFailureCode::PolicyIncomplete,
-            hint: crate::policy_events::EngineFailureHint::OfCode,
-            message: notice,
-            trigger: Some(Trigger::DirectFix),
-            policy: None,
-            path: None,
-        });
-    }
+    notices.extend(outcome.notices);
+    let mut events: Vec<PolicyEvent> = with_notices(pass.clone(), notices).events;
     events.push(PolicyEvent::FixSummary {
         trigger: Trigger::DirectFix,
         // `as u64` widens the count to the event's number type.
@@ -332,6 +360,38 @@ pub fn settled_fix<F: RepositoryFacts>(
         arguments: pass.arguments,
         events,
         end: pass.end,
+    };
+}
+
+/// What:
+///  `pass` with one engine failure per notice after its own events.
+/// Why:
+///   A byte a fix keeps for the person, and a journal a sweep found, are reported as engine failures, which
+///       neither block nor end the pass: the corrections went in, so the command must not fail, and the person
+///       still has to know where those bytes are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withNotices = (pass, notices) => ({ ...pass, events: [...pass.events, ...notices.map(engineFailure)] });
+/// ```
+fn with_notices(pass: PassResult, notices: Vec<String>) -> PassResult {
+    if notices.is_empty() {
+        return pass;
+    }
+    let mut events: Vec<PolicyEvent> = pass.events;
+    for notice in notices {
+        events.push(PolicyEvent::EngineFailure {
+            code: EngineFailureCode::PolicyIncomplete,
+            hint: crate::policy_events::EngineFailureHint::OfCode,
+            message: notice,
+            trigger: Some(Trigger::DirectFix),
+            policy: None,
+            path: None,
+        });
+    }
+    return PassResult {
+        events,
+        ..pass
     };
 }
 

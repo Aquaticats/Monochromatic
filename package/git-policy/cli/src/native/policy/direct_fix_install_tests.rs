@@ -23,8 +23,8 @@
 /// Import the module under test.
 use super::{
     InstallChange, Prepared, content_of, install_corrections, install_prepared, read_index,
-    reap_interrupted_installs,
 };
+use crate::direct_fix_install_journal::reap_interrupted_installs;
 use crate::candidate_object::CandidateMode;
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
 use crate::direct_fix_install_writes::{Kept, write_new};
@@ -164,7 +164,7 @@ fn journals(git_dir: &Path) -> Vec<PathBuf> {
 fn corrections_are_installed_with_their_modes() {
     let fixture_tree: Tree = tree("install-ok");
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice()),
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
         Ok(super::InstallOutcome::default())
     );
     assert_eq!(
@@ -191,7 +191,7 @@ fn corrections_are_installed_with_their_modes() {
     std::fs::remove_file(&fixture_tree.index).expect("no index");
     assert_eq!(read_index(&fixture_tree.index).expect("absent"), None);
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.index, &[]),
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, &[]),
         Ok(super::InstallOutcome::default())
     );
     let again: Vec<InstallChange> = vec![InstallChange {
@@ -201,7 +201,7 @@ fn corrections_are_installed_with_their_modes() {
         replacement: Rc::from(&b"b\n"[..]),
     }];
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.index, again.as_slice()),
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, again.as_slice()),
         Ok(super::InstallOutcome::default())
     );
     assert_eq!(
@@ -236,7 +236,7 @@ fn the_mode_owner_and_kind_of_a_file_survive_a_fix() {
     let before: std::fs::Metadata = std::fs::metadata(&private).expect("a");
     let (owner_before, group_before): (u32, u32) = (before.uid(), before.gid());
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice()),
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
         Ok(super::InstallOutcome::default())
     );
     let kept: u32 = std::fs::metadata(&private).expect("a").permissions().mode() & 0o7777;
@@ -256,7 +256,7 @@ fn a_file_that_is_not_a_regular_file_stops_before_any_change() {
     std::fs::remove_file(&linked).expect("remove");
     std::os::unix::fs::symlink("../a.txt", &linked).expect("link");
     let refused: String =
-        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice())
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice())
             .expect_err("a symbolic link");
     assert_eq!(
         refused,
@@ -282,7 +282,7 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     let fixture_tree: Tree = tree("install-stale");
     std::fs::write(fixture_tree.top.join("sub/run.sh"), b"edited").expect("edit");
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice()),
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
         Err(String::from(
             "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran, so no file was changed. Run monochromatic-git-policy-cli fix again."
         ))
@@ -294,7 +294,7 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     std::fs::remove_file(fixture_tree.top.join("sub/run.sh")).expect("remove");
     let missing: String =
-        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice())
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice())
             .expect_err("missing file");
     assert_eq!(
         missing,
@@ -306,7 +306,7 @@ fn a_file_that_is_not_as_read_stops_before_any_change() {
     let mut nameless: Vec<InstallChange> = changes();
     nameless[1].path = Vec::new();
     assert_eq!(
-        install_corrections(&fixture_tree.top, &fixture_tree.index, nameless.as_slice()),
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, nameless.as_slice()),
         Err(String::from(
             "monochromatic-git-policy-cli fix could not install its corrections: Git named a corrected file this system cannot represent, so no file was changed."
         ))
@@ -720,7 +720,7 @@ fn an_index_that_is_not_as_read_restores_every_file() {
     assert_eq!(contents(&fixture_tree.top), untouched());
     // The first read failing changes nothing at all.
     let first: String =
-        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice())
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice())
             .expect_err("unreadable index");
     assert!(
         first.starts_with(
@@ -761,7 +761,8 @@ fn a_git_directory_that_cannot_hold_a_journal_stops_before_any_change() {
     }
     let index: PathBuf = read_only.join("index");
     let refused: String =
-        install_corrections(&fixture_tree.top, &index, changes().as_slice()).expect_err("unwritable");
+        install_corrections(&fixture_tree.top, &read_only, &index, changes().as_slice())
+            .expect_err("unwritable");
     std::fs::set_permissions(&read_only, std::fs::Permissions::from_mode(0o755)).expect("restore");
     assert!(
         refused.starts_with(
@@ -827,7 +828,7 @@ fn a_fix_leaves_nothing_in_the_worktree_that_git_could_stage() {
         }));
     });
     let outcome: super::InstallOutcome =
-        install_corrections(repo.as_path(), &index, changes.as_slice()).expect("the correction goes in");
+        install_corrections(repo.as_path(), repo.join(".git").as_path(), &index, changes.as_slice()).expect("the correction goes in");
     super::AFTER_SWAP.with(|hook| { *hook.borrow_mut() = None });
     assert_eq!(outcome.notices.len(), 1, "{outcome:?}");
     assert_eq!(
@@ -841,6 +842,60 @@ fn a_fix_leaves_nothing_in_the_worktree_that_git_could_stage() {
     assert_eq!(
         String::from_utf8_lossy(staged.stdout.as_slice()).into_owned(),
         String::from(".gitignore\nkeep.txt\n")
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal lands in the worktree's own Git directory,
+///  never beside an alternate index a caller named.
+/// Why:
+///  `GIT_INDEX_FILE` can point inside the worktree,
+///  and the parent of that index is then an ordinary
+///       directory a later `git add --all` stages:
+///  the journal's `content` is displaced user content, so
+///       it would enter the index.
+///  The Git directory is the only place Git never stages.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const alt = join(worktree, 'alt-index'); writeIndex(alt); installCorrections(root, gitDir, alt, changes); expect(readdir(worktree)).not.toContain('cli-git-direct-fix-*')
+/// ```
+#[test]
+fn a_journal_never_lands_beside_an_alternate_index() {
+    let root: PathBuf = fixture("install-alternate-index");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"a").expect("a");
+    // An alternate index inside the worktree, as `GIT_INDEX_FILE` allows.
+    let alternate: PathBuf = repo.join("alt-index");
+    std::fs::write(&alternate, b"index bytes").expect("the alternate index");
+    let changes: Vec<InstallChange> = vec![InstallChange {
+        path: b"a.txt".to_vec(),
+        mode: CandidateMode::Regular,
+        original: Rc::from(&b"a"[..]),
+        replacement: Rc::from(&b"a\n"[..]),
+    }];
+    let outcome: super::InstallOutcome = install_corrections(
+        repo.as_path(),
+        repo.join(".git").as_path(),
+        alternate.as_path(),
+        changes.as_slice(),
+    )
+    .expect("the correction goes in");
+    assert_eq!(outcome.notices, Vec::<String>::new());
+    assert_eq!(
+        std::fs::read(repo.join("a.txt")).expect("a"),
+        b"a\n".to_vec()
+    );
+    // Nothing of the fix is beside the alternate index or anywhere else in the worktree.
+    assert_eq!(
+        leftovers(repo.as_path()),
+        Vec::<String>::new(),
+        "the worktree holds no journal"
+    );
+    assert!(
+        journals(repo.join(".git").as_path()).is_empty(),
+        "a successful fix removes what it kept"
     );
     remove(root.as_path());
 }
