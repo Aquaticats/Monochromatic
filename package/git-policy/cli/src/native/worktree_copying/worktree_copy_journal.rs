@@ -213,6 +213,8 @@ pub fn temporary_path(path: &Path, owner: &CopyOwner, unique: &str) -> PathBuf {
 /// or nothing for a name of another shape.
 /// Why:
 ///   It is the inverse of [`temporary_path`] that the sweep of dead writers' temporaries reads.
+///  A name of that shape has a token field,
+///  so a stranger's name whose token field is empty names no writer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -222,6 +224,10 @@ pub fn temporary_writer_token(file_name: &str) -> Option<&str> {
     let stem: &str = file_name.strip_suffix(TEMPORARY_SUFFIX)?;
     let (rest, _unique) = stem.rsplit_once('.')?;
     let (_item, token) = rest.rsplit_once('.')?;
+    // The writer fills each field, so an empty token field is a stranger's file that must name no writer.
+    if token.is_empty() {
+        return None;
+    }
     return Some(token);
 }
 

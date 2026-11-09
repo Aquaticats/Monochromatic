@@ -62,13 +62,32 @@ export default {
   'generate:rules': {
     description: 'Regenerate the embedded data/builtin-rules.txt baseline from the vendored betterleaks config',
     run: [
-      'node src/mise.port-betterleaks.ts',
+      'node bin/port-betterleaks.ts',
       'cargo run --release --manifest-path ../../forbidden-strings/core.bench/Cargo.toml --bin dialectport',
     ],
   },
   'lint': {
-    description: 'Check the scanner without building it',
-    run: 'cargo check',
+    description: 'Check the scanner without building it, then type-check and lint its TypeScript in src and bin',
+    run: [
+      'cargo check',
+      async function runScriptLints({ runChildren, }) { await runChildren('lint:scripts',); },
+    ],
+  },
+  'lint:scripts:types': { extends: 'lint:types', },
+  // mise.toml defaults the same task to both source roots, so `lint` enforces the
+  // bans on every package TypeScript file; an explicit path still narrows a one-off run.
+  'lint:scripts:oxlint': {
+    description: 'Lint the scanner TypeScript in src and bin with Oxlint',
+    usage: 'arg "[paths]" var=#true help="Package-relative files or directories to lint (default: src and bin)"',
+    run: {
+      shell: 'node --input-type=module-typescript -e',
+      run: `
+const files = parseUsageArgs(process.env.usage_paths ?? '')
+const paths = files.length > 0 ? files : ['src', 'bin']
+ensureOxlintConfig()
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', paths)
+`,
+    },
   },
   'lint:fuzzing': {
     description: 'Check the fuzzing feature set',

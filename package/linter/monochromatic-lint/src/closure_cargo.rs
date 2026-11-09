@@ -365,7 +365,9 @@ fn directory_text(directory: &Path) -> String {
 ///  so tests,
 /// examples and benchmarks are not.
 ///  The run is offline;
-///  `DYLINT_RUSTFLAGS` is set here and replaces any inherited value.
+///  `DYLINT_RUSTFLAGS` is set here and replaces any inherited value,
+///  and every other variable is inherited,
+///  so the caller's toolchain and build-directory settings reach the child cargo.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

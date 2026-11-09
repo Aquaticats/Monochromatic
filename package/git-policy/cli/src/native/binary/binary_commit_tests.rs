@@ -287,7 +287,8 @@ fn a_correction_that_restores_the_base_is_a_no_change_normalization() {
 }
 
 /// An amend replaces the head commit,
-/// and an empty commit lands only with `--allow-empty`.
+/// and an empty commit lands only with `--allow-empty`:
+/// without the flag both the wrapper and real Git refuse it and nothing lands.
 #[test]
 fn an_amend_replaces_the_head_and_an_empty_commit_needs_its_flag() {
     let fixture: Fixture = fixture("commit-amend");
@@ -300,6 +301,11 @@ fn an_amend_replaces_the_head_and_an_empty_commit_needs_its_flag() {
     assert_eq!(amended.code, Some(0), "{}", stderr_of(&amended));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2");
     assert_eq!(git_text(&fixture, repo.as_path(), &["log", "-1", "--format=%s"]).trim(), "amended");
+    let refused: Observed = run_commit(&fixture, repo.as_path(), &["commit", "--no-only", "--message=empty"]);
+    let refused_directly: Observed = run_direct(&fixture, repo.as_path(), &["commit", "--no-only", "--message=empty"]);
+    assert_ne!(refused.code, Some(0), "{}", stderr_of(&refused));
+    assert_eq!(refused.code, refused_directly.code, "{}", stderr_of(&refused));
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "HEAD"]).trim(), "2");
     let empty: Observed = run_commit(
         &fixture,
         repo.as_path(),

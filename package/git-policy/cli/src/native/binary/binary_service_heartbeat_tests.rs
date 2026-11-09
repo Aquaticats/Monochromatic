@@ -345,6 +345,11 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
     let service: UnixListener = listen(name.as_str());
     let mut fresh_config: ClientConfig = config(name.as_str());
     fresh_config.keep_fresh = Some(FreshScratch { path: waiting_dir.clone(), every: FAKE_BEAT });
+    // This control does its own work between two beats (the aging of two directories, the sweep), so the silence bound that
+    //  ends its wait is this control's patience and not the `QUICK_SILENCE` the other controls give a service they watch: a beat
+    //  cadence is not what it checks, and the sweep once took longer than `QUICK_SILENCE` under host load, which made the client
+    //  call the service stopped and close its connection, and the answer then failed with `Broken pipe` (2026-11-08).
+    fresh_config.heartbeat_silence = PATIENCE;
     let waiting = client(fresh_config);
     let (stream, _) = service.accept().expect("the client connects");
     greet(&stream);
@@ -357,7 +362,11 @@ fn a_waiting_command_keeps_its_scratch_directory_from_being_swept() {
     // The sweep runs while the command still waits.
     let removed: usize = sweep_stale(root.as_path(), std::time::SystemTime::now(), SCRATCH_STALE_AFTER);
     let commit: String = "f".repeat(40);
-    (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })).expect("answer");
+    if let Err(error) = (&stream).write_all(&line(&ServiceMessage::Landed { id: String::from("heartbeat-control"), commit: commit.clone(), already: false })) {
+        // The client is the one that closed the connection, so what it ended with says why the answer had nowhere to go.
+        let (answered, notices) = waiting.join().expect("client thread");
+        panic!("the answer could not be written ({error}); the client ended with {answered:?}: {notices}");
+    }
     let (answered, _notices) = waiting.join().expect("client thread");
     assert_eq!(answered, Ok(Submitted::Landed { commit, already: false }));
     assert!(waiting_dir.exists(), "the waiting command's directory was swept");
@@ -572,7 +581,9 @@ fn trace_after(label: &str, notices: Vec<ServiceMessage>) -> git_policy_cli::com
 
 /// The notice that names a holder proven alive.
 fn proven_notice() -> ServiceMessage {
-    return ServiceMessage::Waiting { text: git_policy_cli::index_lock_evidence::proven_holder_line(4242, true, Some("git commit"), Path::new("/r/.git/index.lock")) };
+    let end: git_policy_cli::index_lock_evidence::WaitEnd<'_> =
+        git_policy_cli::index_lock_evidence::WaitEnd { within: git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING, ending: git_policy_cli::service_index_attempts::COMMIT_WITHDRAWN };
+    return ServiceMessage::Waiting { text: git_policy_cli::index_lock_evidence::proven_holder_line(4242, true, Some("git commit"), Path::new("/r/.git/index.lock"), end) };
 }
 
 /// What the service says when its landing is inside a write,
@@ -604,7 +615,9 @@ fn a_holder_proven_alive_stays_proven_when_a_later_notice_names_no_proof() {
 /// the proof counts when it comes.
 #[test]
 fn an_unproven_wait_that_a_later_notice_proves_is_recorded_as_proven() {
-    let unproven: ServiceMessage = ServiceMessage::Waiting { text: git_policy_cli::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None) };
+    let end: git_policy_cli::index_lock_evidence::WaitEnd<'_> =
+        git_policy_cli::index_lock_evidence::WaitEnd { within: git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING, ending: git_policy_cli::service_index_attempts::COMMIT_WITHDRAWN };
+    let unproven: ServiceMessage = ServiceMessage::Waiting { text: git_policy_cli::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end) };
     let trace = trace_after("kind-unproven-then-proven", vec![unproven, proven_notice()]);
     assert_eq!(trace.holder_kind, Some("proven-alive"));
 }

@@ -566,6 +566,15 @@ Each job the settlement lock used to do is done without one:
   and its registration is found by following the pointer in its `.git` file to the administrative directory that names
   the destination back,
   so a worktree another add registers at the same time is never taken for this one's.
+- A command that may copy records the destination and the stage name before real Git runs,
+  in the claim the cheap-worktree rungs reuse,
+  so a process killed after Git registered the worktree leaves a record the next command reports by name,
+  with the commands that finish or remove it.
+- The registration real Git made is bound when Git returns,
+  carried beside the staged payload before the journal names the stage,
+  and checked before staging and again before the first entry is written,
+  by the creating command and by a recovery alike,
+  so a worktree removed and replaced at the same path receives nothing.
   The administrative directory of no other worktree is read for this.
 - Every item of a copy transaction (journal,
   stage claim,
@@ -584,6 +593,28 @@ Each job the settlement lock used to do is done without one:
   so none can go stale.
 - A command that creates a worktree and every other forwarded command in a linked worktree or bare repository recover
   dead owners' items first and never wait for a live owner's.
+- Two windows stay open,
+  and neither is closed without a lock or a wider change.
+  A destination created by Git after a reservation that could not be made (its parent did not exist) has no identity
+  recorded before real Git runs,
+  so a command that registers a worktree there and one that replaces it in the same instant cannot be told apart:
+  the copy can be written into the replacement worktree.
+  A destination that is replaced after the identity check and before the installation opens it can receive the copy
+  the same way:
+  the installer resolves every entry by path,
+  so a check closer to the call narrows that window without
+  closing it,
+  and closing it needs the destination held open and every entry created through that handle.
+  Both need a second program to move or replace a worktree inside a window measured in microseconds while this command
+  runs,
+  and the person sees a copy written into a worktree the notice does not name;
+  `git worktree list` shows which worktree stands where.
+  A destination this command reserved is never removed again:
+  its identity was read one call after the creation,
+  so
+  another command may own the directory at that name by then,
+  and an empty directory left after a refused add is
+  harmless because Git accepts it and a later add fills it.
 - Every other forwarded command,
 including every commit preparation,
 runs without any of this,
@@ -6596,6 +6627,73 @@ private file,
 so Git's `core.fsync` governs only that fallback;
 the in-process write always flushes the file,
 as Git's default does.
+The entries the update makes from the tree record the worktree's stat data where the file provably holds the tree's bytes
+(`index_reset_worktree_stat.rs`),
+and the all-zero value `git reset --no-refresh` writes everywhere else.
+A path's file proves it when all of these hold:
+
+- It is a regular file whose every directory on the way is a real one on the worktree's device,
+  reached below a root held open without following a link.
+  A symbolic link is left to Git:
+  it is rare,
+  and a link read across a swap of its parent directory cannot be proven to be the one examined.
+- Its raw bytes hash to the entry's object name read as a blob.
+- No attribute Git applies converts these bytes,
+  and the bytes hold no carriage return.
+  A clean filter,
+  `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another blob,
+  and a line-ending rule may strip a carriage return on the way into the index.
+  The attributes are read in process,
+  from the same files Git would read (`ContentJudge::conversion_is_the_identity`),
+  and a fact that cannot be established refuses the record.
+- The state of the one inode read is the same before,
+  during and after the read and the path still names it,
+  and the file is older than the index file being written,
+  compared to the nanosecond as Git's `is_racy_stat` compares them.
+
+An entry that is as new as the index is racily clean to Git,
+so it keeps the zero value and both Git and the wrapper's own staleness question hash it;
+a path of another kind,
+a file above `CONTENT_LIMIT`,
+a file that changed while it was read,
+and a path no file holds keep the zero value too.
+The proof never waits:
+ the open does not block (`O_NONBLOCK`),
+so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
+One landing reads at most `CONTENT_LIMIT` bytes in all,
+and every byte read is charged,
+including a read the stability checks later refuse,
+so a commit that lands a whole worktree never reads it again inside the landing's index lock.
+The attribute facts cost one `git var GIT_ATTR_SYSTEM` the first time a given real Git has no cache entry for them,
+and nothing after that;
+the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
+and the whole proof 2.9 to 3.1 ms,
+on the release build of 2026-11-09.
+The attribute files the proof reads are charged to the same bound,
+each at most `ATTRIBUTES_LIMIT` and never more than the room that is left,
+so a path whose attributes do not fit keeps the zero stat data and costs a refresh.
+A directory whose `.gitattributes` the index holds while the worktree's copy is missing refuses the record:
+Git reads the index's copy there (`attr.c`,
+measured on Git 2.56.0),
+and a sparse checkout leaves the file outside its cone the same way.
+A read has no time bound,
+which is native Git's own behaviour for the same files under `index.lock`;
+what bounds the person is the client's answer ceiling,
+after which it withdraws the request and the commit is reported as not landed.
+The 4,000 newest non-merge commits of this repository change a median of 27 KB
+(p90 209 KB,
+p99 3.3 MB,
+largest 23.1 MB,
+`package/git-policy/cli/e2e/commit-shape-trace.json`),
+so no commit there spends the bound,
+and 32 MiB of SHA-1 costs 10 to 20 ms on this host.
+The next commit's staleness question finds the recorded entries clean and starts no Git for them,
+where the zero value cost one Git start and one hash of each file the previous commit landed.
+That question reads the index's bytes and `lstat`s each entry in contiguous slices on several threads above
+`STAT_WALK_BREAK_EVEN_ENTRIES` (`commit_index_stat_staleness.rs`),
+with the worker count of `parallel_budget.rs`,
+and it takes no lock:
+it asks about the file the index names and never writes the index.
 The rename that installs the copy has the durability native Git's has,
 by default and when the user opts in.
 The index can be rebuilt from `HEAD`,
@@ -7276,6 +7374,15 @@ which holds a copy of the conclusion state of the worktree
 `REVERT_HEAD`,
 `MERGE_RR`,
 and the `sequencer/` directory).
+The copies also name the conclusion values a reftable repository keeps in its ref store
+(`conclusion/store-held.json`,
+`store_names_conclusions` in `conclusion_cleanup.rs`):
+a backend whose store can hold such a value writes the record and flushes it,
+a files-backend repository can hold none,
+so its copy writes no record,
+an absent record names nothing there,
+and no commit waits for the flush of bytes that would say nothing
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`).
 The landing removes the same state from the worktree exactly as native Git removed it in the scratch repository,
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.

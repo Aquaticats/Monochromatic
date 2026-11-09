@@ -76,8 +76,16 @@ I said "be okay with pi committing directly to main",
 not that they have to."
 
 The owner on how many can run at once:
-"Pi doesn't have a limit to number of concurrent subagents.
-In practice it's 16."
+"Pi doesn't have a limit to number of concurrent subagents."
+The practical limit is 20:
+the owner said
+"Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20,"
+and a trial at 20 agents on 2026-11-09 met no rate-limit error.
+On going higher the owner said:
+"no,
+that's definitely going to blow up."
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
@@ -86,6 +94,26 @@ Start a run for every independent queued item up to that number.
 Resource limits that add up to more than the host has are ceilings,
 not usage,
 and are no reason to hold work back.
+
+The owner on runs that do not come back:
+"Regularly,
+check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+`watch-overdue-pi-runs` is that check,
+and it is one command in the shape rule `MWK` asks for:
+it ends when a run is past the 90th percentile of the finished runs in `--runs-folder`,
+or when its `--deadline-seconds` pass,
+and prints one line per run to act on and nothing else.
+It computes the limit itself from those runs,
+so nothing here needs to be remembered.
+When a line names a unit,
+`check-in-on-pi-runs --runs-folder=<folder> --unit=<that unit>` prints its open tool call and the processes under the agent
+with their age,
+state and kernel wait.
+Both commands and their options are in `package/pi-shared/subagent-driver/README.md`.
+A quiet feed is usually a long test run.
+A message in `inbox/` reaches Pi only between tool calls,
+so a tool call that will never return gets the message first,
+and then has its hung process ended by process number.
 
 ## Start a run
 

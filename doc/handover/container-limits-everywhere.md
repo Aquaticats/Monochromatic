@@ -549,11 +549,15 @@ and every Windows and macOS leg.
   after peaking at 3,007,496,192 bytes (2.8 GiB) of 4 GiB while compiling dependencies.
   Neither failed nor warm run makes 4 GiB look loose.
 - `package/test-harness/core-matrix` `CELL_LIMITS`:
-  not measured,
-  because the only `*:test:container` task that reaches the matrix here cannot run its workload on this host.
-  `mise run //package/env-local-json/core:test:container` of 2026-11-08T19:18:31-05:00 failed in both of its
-  combinations (`container:ubuntu` as `root` and as `user`,
-  runtime `node`) after 42 s:
+  the workload ran on 2026-11-09T01:32:39Z once the cell mounted the shared pnpm store read-only
+  (`mise run //package/env-local-json/core:test:container`,
+  exit 0 in 23 s,
+  both combinations passing);
+  a cell's own peak was not sampled on that run.
+  Before the mount the same task failed in both combinations
+  (`container:ubuntu` as `root` and as `user`,
+  runtime `node`) after 42 s
+  on 2026-11-08T19:18:31-05:00:
   the container's node could not resolve `p-limit`,
   imported by `/workspace/package/test-harness/core/src/describe.ts`,
   with `ERR_MODULE_NOT_FOUND`,
@@ -566,19 +570,316 @@ and every Windows and macOS leg.
   those are set-up figures,
   not the workload's.
   A hand-built copy of the `root` cell with the same options reproduced the same error at 439,230,464 bytes.
+  Section "The shared pnpm store inside a container" records the fix and what it measured.
 - The root `mise.toml` `runPlaywright` browser run:
-  not measured.
+  it ran on 2026-11-09T01:37:35Z and completed all 84 tests,
+  with 31 passed and 53 failed,
+  and a second run on the final revision died with SIGKILL at the same bound;
+  the failures sit in the worker fan-out inside the 2 GiB and 2 CPU bound,
+  not in the store or the image
+  (section "The shared pnpm store inside a container" holds the per-project measurements).
+  Before that,
   `mise run test:browser` of 2026-11-08T19:40:29-05:00 failed after 7 s before any browser started,
   with the same `ERR_MODULE_NOT_FOUND` into the pnpm store,
   raised by `npx playwright`.
-  Repeating the container with the store mounted read-only let Playwright start and fail all 84 tests with
+  Repeating the container with the store mounted read-only by hand let Playwright start and fail all 84 tests with
   `browserType.launch: Executable doesn't exist at /ms-playwright/chromium_headless_shell-1254/...`:
-  the local `monochromatic-playwright` image carries Playwright 1.63.0 while the workspace pins 1.65.0,
-  and `prepare:playwright` cannot replace the image for the same store reason.
+  the local `monochromatic-playwright` image carried Playwright 1.63.0 while the workspace pinned 1.65.0.
   That run peaked at 1,833,377,792 bytes (1.7 GiB) of 2 GiB with 183 threads of 2048 and 182 throttled periods of
   268,
   and it measured node and the harness,
   not a browser.
+  Correction,
+  2026-11-09:
+  `prepare:playwright` was never blocked by the store.
+  It runs on the host,
+  and it replaced the image in 205 s once `playwright.Dockerfile` named the pinned browser build.
+
+## The shared pnpm store inside a container (2026-11-09)
+
+Branch `fix/container-test-runs-reach-the-shared-pnpm-store`.
+
+Every container run that mounted this checkout and executed a JavaScript tool resolved nothing.
+`node_modules` holds only links into the one shared store at `${HOME}/.local/share/pnpm/store`
+(`storeDir` and `virtualStoreType: global` in `pnpm-workspace.yaml`),
+and that store sits outside every mount,
+so importing any installed package failed with `ERR_MODULE_NOT_FOUND`.
+The `container` job of `.github/workflows/env-local-json.yml` runs the same task from a checkout that installs with the
+same `pnpm-workspace.yaml`,
+so it links into the runner's own `$HOME/.local/share/pnpm/store` and hits the same wall;
+the mount names that path from `$HOME`,
+which is expected to reach a runner store as it does here (inference from the
+workflow and `.github/actions/task-cli-setup`;
+no CI run of this branch was observed).
+
+### Sites found
+
+Sites that mount the checkout and run a JavaScript tool against it,
+all broken before this branch:
+
+- `package/test-harness/core-matrix/src/container.ts`:
+  every `*:test:container` matrix cell.
+  The one task in the tree that reaches the matrix today is
+  `mise run //package/env-local-json/core:test:container`.
+- `mise.toml` `run_playwright`:
+  `test:browser`,
+  `test:e2e`,
+  `test:browser:chromium`,
+  `test:browser:firefox` and
+  `test:browser:webkit`.
+- `package/test-harness/core/mise.toml` `test:browser`.
+- `package/upstream-fork/conf/mise.toml` `test:container`.
+- `package/upstream-fork/deepmerge-ts.fuzz/mise.toml`:
+  fourteen starts,
+  namely `fuzz`,
+  `fuzz:declared-types`,
+  `generate:declared-type-cases`,
+  `fuzz:declared-types:control`,
+  `mutation`,
+  `mutation:sweep`,
+  `mutation:differential`,
+  `recall:runtime`,
+  `recall:types`,
+  `recall:packaging`,
+  `surface:install`,
+  `surface:types`,
+  `surface:cost` and `surface:runtime`.
+
+Container starts that already carry their own dependencies,
+and were therefore never broken:
+
+- `package/mutation-test/cli/runtime/Containerfile`:
+  `pnpm install --frozen-lockfile` while the image is built,
+  and the container executes the baked copy under `/baked`,
+  so its imports resolve from the image.
+- `package/browserslist/core-rust/bin/regenerate-conformance.ts`:
+  an npm install of the pinned browserslist into
+  the container's own `/work/npm`,
+  and a mount of one workspace package at its repository path.
+- `package/dependency-catalog/cli-tighten.matrix/src/matrix.unit.matrix.test.ts`:
+  a fixture that installs pnpm into a
+  tmpfs and works from a read-only copy of the checkout.
+
+Container starts that mount the checkout but run only `cargo`,
+`rustc`,
+nextest or a repository binary,
+so no
+`node_modules` is resolved inside them:
+`package/ide/app`,
+`package/terminal/app`,
+`package/linter/monochromatic-lint`,
+`package/music-player/desktop-app`,
+`package/nested-wayland-session/cli`,
+`package/mutation-test/cli-cargo-mutants`,
+`package/git-policy/cli`,
+`package/search-shadow/cli`,
+`package/config/pnpr`,
+`package/vm-builder/cli` and
+`package/forbidden-strings/cli` (its images install the built CLI).
+
+### Option chosen: mount the store read-only at the path the links name
+
+`pnpmStoreMountArguments()` in `package/test-harness/core-matrix/src/pnpm-store-mount.ts` returns one
+`['--volume', '<store>:<store>:ro']` pair per spelling of the store the checkout's links can name.
+Each pair spells source and destination the same absolute path,
+because a symbolic link is interpreted against its own directory,
+so any other mount point leaves the link dangling.
+The spellings differ because pnpm writes each link as a path relative to the link,
+whose length depends on how deep the checkout sits on the host.
+This checkout is 13 folders deep,
+its links climb 11 levels and land on `/var/home/user/.local/share/pnpm/store`;
+mounting it at `/workspace` or `/work` makes the same links climb past the filesystem root and land on
+`/home/user/.local/share/pnpm/store`.
+On this host `/home/user` is a symbolic link to `/var/home/user`
+(`doc/troubleshooting/pnpm-symlinked-store-path.md`),
+so both spellings are mounted,
+the physical one taken from `PNPM_CONFIG_STORE_DIR`,
+which mise supplies,
+and the home-relative one from `$HOME`.
+A host whose home directory is not reached through a symbolic link gets one mount.
+Every site also passes `--security-opt label=disable`,
+and the matrix cells drop their `:Z` mount:
+relabelling the store would rewrite a directory every worktree shares,
+and a plain read-only store mount is denied
+under an enforcing SELinux.
+The store is mounted read-only because pnpm,
+not the container,
+writes there,
+and a writable mount would let one
+cell rewrite a tree that every other cell,
+worktree and session reads.
+
+What it costs:
+one `--volume` argument per container,
+no download,
+no lockfile change,
+and exactly the dependency
+tree the lock resolved.
+What it does not fix:
+the Playwright image still has to carry the browser build that matches the workspace version,
+which is a separate edit (`playwright.Dockerfile` to `v1.65.0-noble`),
+now guarded by
+`package/monorepo-task/core-exec/src/playwright-image-version.unit.test.ts`.
+
+### Alternative that lost: give each container its own install
+
+The option needs no host path at all,
+and the repository already runs it for other package sets:
+the mutation-test
+image installs the workspace lock during the build,
+and the browserslist oracle runs its own npm install.
+It lost for this workspace on four counts:
+
+1. Offline is impossible for the same reason the mount exists:
+   an install inside the container cannot read the
+   store either,
+   so it needs the network on every start.
+2. The download repeats per start.
+   The shared store measures 62 GB on this host,
+   and the lock resolves the whole
+   dependency set,
+   so each of the matrix cells and each browser run would fetch it before running milliseconds of
+   tests.
+3. It writes.
+   A network install writes `node_modules` into the mounted checkout,
+   which every other cell,
+   worktree
+   and session reads,
+   or into an image layer that must be rebuilt on every lock change.
+4. It would not have fixed the browser run on its own:
+   `npx playwright` prefers the checkout's own Playwright over
+   the image's,
+   so the version in the mounted tree still decides which browsers are needed.
+
+Not measured:
+the wall time of a network install per cell.
+Running one would download the full dependency set and rewrite a shared tree,
+so the option was rejected on the
+counts above rather than on a stopwatch.
+
+### Measured runs
+
+- `mise run //package/env-local-json/core:test:container`,
+  before the change,
+  2026-11-09T01:17:21Z:
+  exit 1 after 37 s,
+  both combinations failing with
+  `Cannot find package 'p-limit' imported from /workspace/package/test-harness/core/src/describe.ts`
+  (`ERR_MODULE_NOT_FOUND`).
+- The same task,
+  after the change,
+  2026-11-09T01:32:39Z:
+  exit 0 in 23 s,
+  `[PASS] container:ubuntu / root / node, container:ubuntu / user / node (21.6s)`,
+  with the reader
+  test itself at 26 ms (root) and 32 ms (user).
+  The `user` cell first failed with
+  `EACCES: permission denied, open '/workspace/package/test-harness/core/src/async-failure-runtime-key.ts'`:
+  216 files under `package/` are mode 0600 in this worktree,
+  git records only the executable bit,
+  so nothing in
+  `git status` showed it,
+  and `testuser` could not read them.
+  `chmod --recursive go+rX` over the worktree repaired the checkout and changed no repository file.
+- Store probe of 2026-11-09T01:46Z in `docker.io/library/node:26.12.0-trixie-slim`:
+  with the checkout at `/workspace` and the store mounted read-only,
+  `import.meta.resolve('p-limit')` returned
+  `file:///home/user/.local/share/pnpm/store/v11/links/@/p-limit/7.3.3/.../node_modules/p-limit/index.js` and
+  `import('p-limit')` returned a function;
+  `touch` inside the store printed `Read-only file system`.
+  Without the store mount the same probe printed `Cannot find package 'p-limit'`.
+  With the store mounted but labels enabled it printed
+  `Cannot read package config /workspace/package/test-harness/core/node_modules/p-limit/package.json: permission denied`
+  (`ERR_INVALID_PACKAGE_CONFIG`),
+  which `--security-opt label=disable` fixes.
+- `mise run prepare:playwright`,
+  2026-11-09T01:33:44Z:
+  the registry has no image for the new tag `39387e683f75dc41`,
+  so the task built `playwright.Dockerfile` locally in
+  205 s into `monochromatic-playwright:39387e683f75dc41` (2.69 GB) from
+  `mcr.microsoft.com/playwright:v1.65.0-noble`,
+  and named it `monochromatic-playwright:latest`.
+- `mise run test:browser`,
+  2026-11-09T01:37:35Z,
+  default worker count:
+  exit 1 after 21.4 min with `53 failed` and `31 passed`.
+  Every failure belongs to firefox (25) or webkit (28) and reads `page.goto: Test timeout of 30000ms exceeded` or
+  `page.goto: Page crashed`;
+  all 28 chromium tests passed.
+  One sample taken during the run put the container at 2.121 GB of its 2.147 GB memory cap and 158 percent of its
+  200 percent CPU quota,
+  with the host load average at 30.
+- `mise run test:browser -- --workers=2`,
+  2026-11-09T02:02:30Z:
+  `82 passed`,
+  `1 skipped`,
+  `1 failed` in 30.4 s.
+  The failure is webkit's `OPFS sink, verify detects OPFS availability`;
+  the neighbouring test logged
+  `origin-private file system refused: The operation failed for an unknown transient reason (e.g. out of memory)`.
+  Chromium and firefox pass the same file.
+- `mise run test:browser -- --project=firefox --workers=2`,
+  2026-11-09T02:00:16Z:
+  `28 passed` in 28.1 s.
+- `mise run test:browser` again on the final revision,
+  2026-11-09T02:15:15Z,
+  default worker count:
+  exit 1 after 16 min with `Killed` (podman status 137),
+  after chromium and firefox had passed;
+  one sample put the container at 2.123 GB of its 2.147 GB cap.
+  The earlier run of the same command at the same bound finished instead,
+  with 53 failures,
+  so the two disagree in how the bound bites,
+  not in whether it does.
+- `mise run test:browser -- --workers=2` on the final revision,
+  2026-11-09T02:34:41Z:
+  `82 passed`,
+  `1 skipped`,
+  `1 failed` in 50.7 s,
+  the same single webkit OPFS failure as at 2026-11-09T02:02:30Z.
+- `mise run //package/test-harness/core:test:browser`,
+  2026-11-09T02:36:06Z:
+  `6 passed` in 8.0 s,
+  exit 0.
+- `mise run //package/upstream-fork/deepmerge-ts.fuzz:fuzz:declared-types:control`,
+  2026-11-09T02:15:56Z:
+  exit 0 in 13 s with `positive control: 65 clean cases pass: true; tampered caught 42/45`,
+  which is the fuzz package's container shape against the store.
+- Both required tasks once more on the exact final revision,
+  whose only change since the runs above is a docblock:
+  `mise run //package/env-local-json/core:test:container` passed both combinations in 415.6 s
+  (`[PASS] container:ubuntu / root / node, container:ubuntu / user / node`),
+  the extra 6 min being `apt-get` retries inside the cell (`Ign:` lines while archive.ubuntu.com stalled),
+  and `mise run test:browser -- --workers=2` gave `82 passed`,
+  `1 skipped` and `1 failed` in 57.2 s at 2026-11-09T02:50:24Z.
+- `mise run //package/upstream-fork/conf:test:container src/bytes.unit.test.ts`,
+  2026-11-09T02:13:27Z:
+  exit 0 in 3 s with `byte conversions` passing,
+  which is the site that mounts the checkout at its host path.
+  Before the physical spelling was mounted it failed with `Cannot find package 'p-limit' imported from
+  /var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-containers-reach-the-shared-pnpm-store/package/test-harness/core/src/describe.ts`.
+
+What the browser runs show:
+the store mount and the rebuilt image removed both blockers,
+since Playwright starts,
+launches all three browsers and runs all 84 tests.
+What still fails,
+and why:
+
+- The default fan-out of 16 workers runs three browsers inside a 2 GiB,
+  2 CPU bound,
+  and under this host's load that
+  ends in page crashes and 30 s timeouts in firefox and webkit while chromium passes,
+  or in the whole container being killed.
+  The same suite at `--workers=2` finished twice with one failure (30.4 s and 50.7 s),
+  so the bound and the worker count own these
+  failures,
+  not the mount.
+  `CELL_LIMITS` and the two Playwright bounds were not re-sized by this branch.
+- Webkit's `OPFS sink, verify detects OPFS availability` fails with an origin-private file system refusal inside this
+  container.
+  It is a browser-level finding,
+  reported rather than skipped.
 
 ## Workflow decisions
 

@@ -112,12 +112,74 @@ pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), Work
 ///   Filesystem timestamps have a granularity;
 /// a write that lands in the same tick as the stamp would leave it equal,
 ///  so a file changed this recently is compared byte for byte instead of trusted.
+///  A control states it as well,
+/// so it can ask for a settled stamp without waiting for the clock to move.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const RECENT_CHANGE_NANOS = 20_000_000n;
 /// ```
-const RECENT_CHANGE_NANOS: i128 = 20_000_000;
+pub(crate) const RECENT_CHANGE_NANOS: i128 = 20_000_000;
+
+/// A time of the file system's stamping in nanoseconds since the epoch,
+/// from its seconds and nanoseconds.
+/// One conversion for the clock and the stamp,
+/// so a control can compare the same two figures.
+pub(crate) fn stamp_nanos(parts: (i64, i64)) -> i128 {
+    return i128::from(parts.0) * 1_000_000_000 + i128::from(parts.1);
+}
+
+/// What:
+///  The clock that says whether a change time is old enough to prove that no write follows it unseen,
+/// in
+///  nanoseconds since the epoch.
+/// Why:
+///   A control has to ask the question about a stated instant,
+/// not about how long the host took between
+///  the write and the look:
+/// a control of this repository failed once in a whole-suite run because a 7-byte write
+///  and the look after its copy were more than the 20 ms granularity apart
+/// (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
+/// Nothing of
+///  the pinning is in the release executable.
+fn clock_nanos() -> Option<i128> {
+    #[cfg(test)]
+    if let Some(pinned) = PINNED_CLOCK_NANOS.with(std::cell::Cell::get) {
+        return Some(pinned);
+    }
+    let now: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?;
+    return Some(i128::from(now.as_secs()) * 1_000_000_000 + i128::from(now.subsec_nanos()));
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The reading a control on this thread gave the clock;
+    /// nothing outside a control.
+    static PINNED_CLOCK_NANOS: std::cell::Cell<Option<i128>> = const { std::cell::Cell::new(None) };
+}
+
+/// What:
+///  Make the clock read `nanos` on this thread until the returned guard drops.
+/// Why:
+///   The control decides the question by the file's own change time against a stated instant,
+/// so it never waits
+///  for a clock to move and never fails because the host was slow.
+#[cfg(test)]
+pub(crate) fn clock_reads(nanos: i128) -> ClockPin {
+    PINNED_CLOCK_NANOS.with(|slot| { slot.set(Some(nanos)); });
+    return ClockPin;
+}
+
+/// Ends the pinned reading of this thread's clock when dropped.
+#[cfg(test)]
+pub(crate) struct ClockPin;
+
+#[cfg(test)]
+impl Drop for ClockPin {
+    fn drop(&mut self) {
+        PINNED_CLOCK_NANOS.with(|slot| { slot.set(None); });
+    }
+}
 
 /// What:
 ///  Whether a stamp is old enough,
@@ -130,13 +192,11 @@ const RECENT_CHANGE_NANOS: i128 = 20_000_000;
 /// ```ts
 /// now - ctime >= RECENT_CHANGE_NANOS
 /// ```
-fn stamp_is_settled(stamp: &FileStamp) -> bool {
-    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+pub(crate) fn stamp_is_settled(changed: (i64, i64)) -> bool {
+    let Some(now_nanos) = clock_nanos() else {
         return false;
     };
-    let now_nanos: i128 = i128::from(now.as_secs()) * 1_000_000_000 + i128::from(now.subsec_nanos());
-    let changed_nanos: i128 = i128::from(stamp.changed.0) * 1_000_000_000 + i128::from(stamp.changed.1);
-    return now_nanos - changed_nanos >= RECENT_CHANGE_NANOS;
+    return now_nanos - stamp_nanos(changed) >= RECENT_CHANGE_NANOS;
 }
 
 /// What:
@@ -176,7 +236,7 @@ pub fn copy_file_exclusive_with(
     }
     let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     return Ok(match (before, after) {
-        (Some(first), Some(second)) if first == second && stamp_is_settled(&second) => Some(second),
+        (Some(first), Some(second)) if first == second && stamp_is_settled(second.changed) => Some(second),
         _ => None,
     });
 }

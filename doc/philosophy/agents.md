@@ -799,7 +799,7 @@ Post-mortem of this exact misapplication:
 
 #### Simplification: the `.rs` max-lines budget
 
-The Rust `max-lines` rule (`monochromatic-rust-linter`) counts only code lines:
+The `rust/max-lines` rule (`monochromatic-lint`) counts only code lines:
  blanks and comments are excluded via the real lexer,
  so the dum-dum-non-ts comment style does not consume the budget.
 

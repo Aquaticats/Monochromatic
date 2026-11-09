@@ -306,6 +306,26 @@ fn a_claim_left_by_an_earlier_service_is_run_again_when_its_lease_is_over() {
     remove(repo.root.as_path());
 }
 
+/// The bound on a push the controls below hold open:
+/// a failing run's way out of the wait,
+/// and never how long a passing one waits.
+const GATE_CEILING: Duration = Duration::from_secs(30);
+
+/// What:
+///  Lets the held push go however the control ends.
+/// Why:
+///   A control that fails before it lets the push go otherwise leaves the scope joining a holder that waits out
+/// `GATE_CEILING`,
+/// so the failure would take thirty seconds to report.
+struct LetGo<'gate>(&'gate std::sync::mpsc::Sender<()>);
+
+impl Drop for LetGo<'_> {
+    /// Let the push go.
+    fn drop(&mut self) {
+        let _sent = self.0.send(());
+    }
+}
+
 /// A handler that holds its push open until the test lets it go,
 /// and says when the push began;
 /// the other handler of a pair
@@ -321,7 +341,7 @@ impl WorkHandlers for Gate {
         self.pushes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.began.send(()).expect("the test is listening");
         // The bound only ends a failing run.
-        let _released = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner).recv_timeout(Duration::from_secs(30));
+        let _released = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner).recv_timeout(GATE_CEILING);
         return Verdict::Done;
     }
 
@@ -355,6 +375,7 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     let driver: DrivenRenewal = DrivenRenewal::default();
     let wait: Option<Duration> = std::thread::scope(|scope| {
         let holder = scope.spawn(|| { drain_with_renewal(repo.common.as_path(), &dying, &ClaimTime::read(), lease, Renewal::Driven(&driver)); });
+        let letting_go: LetGo<'_> = LetGo(&release);
         began_receiver.recv_timeout(Duration::from_secs(60)).expect("the push began");
         // Four leases pass while the push runs; only a renewing holder keeps its claim through them.
         for third in 1..=(4 * RENEWALS_PER_LEASE) {
@@ -363,6 +384,7 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
         let later: ClaimTime = ClaimTime::read().advanced(lease * 4);
         let wait: Option<Duration> = drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
         release.send(()).expect("the push is waiting");
+        drop(letting_go);
         holder.join().expect("the first instance finished");
         return wait;
     });
@@ -871,7 +893,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
     run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
-    let seen: String = mock.finish().to_ascii_lowercase();
+    let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
             .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })

@@ -18,12 +18,28 @@ use std::process::{Command, Output};
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 
-/// How long the whole unit-test run may last before the watchdog ends it.
-/// The run takes under a minute,
-/// so a run past this limit has a test stuck behind something that never happens.
-const RUN_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+/// How long the run may show no sign of work before the watchdog ends it.
+/// A run that is moving is left alone,
+/// however long it takes:
+/// the slowest test of this crate's families spends most of its time waiting for the disk
+/// (measured 2026-11-08 on this host:
+/// 43 of 47 s of one test alone,
+/// and 64 of 69 s of another while its family ran,
+/// in the btrfs transaction and log commit waits),
+/// so a wall clock ended tests that were working.
+/// The longest stretch any process of those families showed nothing was 8.0 s of a test and the `git` it ran together,
+/// and 0.0 s for every test that the disk made slow,
+/// so this window is 15 times the longest quiet stretch measured
+/// (`doc/troubleshooting/git-policy-cli-unit-test-watchdog-judges-progress.md`).
+const QUIET_WINDOW: std::time::Duration = std::time::Duration::from_secs(120);
 
-/// Ends the test process with a message once the run has lasted `RUN_LIMIT`.
+/// Ends the test process once the run has shown no sign of work for `QUIET_WINDOW`.
+/// A run that is stuck shows nothing:
+/// no task able to run,
+/// none waiting for the disk,
+/// no processor time,
+/// no bytes moved,
+/// and no process or task started or ended (`run_progress.rs`).
 /// Without it a mutant that leaves a lock held or ignores a deadline hangs the run until an outside timeout,
 /// which the mutation tool records as a timeout instead of a failed test.
 /// The first fixture of the run arms it;
@@ -32,11 +48,7 @@ pub(crate) fn arm_watchdog() {
     static ARMED: std::sync::Once = std::sync::Once::new();
     ARMED.call_once(|| {
         // A process that is given no thread (a control of a site that starts threads) runs without the watchdog; its parent has its own.
-        let _armed = std::thread::Builder::new().spawn(|| {
-            std::thread::sleep(RUN_LIMIT);
-            eprintln!("the unit-test run exceeded {RUN_LIMIT:?}: a test is stuck");
-            std::process::abort();
-        });
+        let _armed: Option<std::thread::JoinHandle<()>> = crate::run_progress::watch(QUIET_WINDOW);
     });
 }
 

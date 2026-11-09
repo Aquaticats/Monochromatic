@@ -3,7 +3,14 @@
 Status:
  the replacement is chosen,
  its design is complete,
- and no code exists yet.
+ and its first piece is released:
+ `package/file-enforcer/core-rust` and `package/file-enforcer/cli` are tracked,
+ and releases publish them as
+ `monochromatic-file-enforcer` 0.1.2 (`f86710023d`) and
+ `monochromatic-file-enforcer-cli` 0.1.3 (`9d94aab55c`).
+ The rest of the replacement,
+the Mise removal itself,
+has no code yet.
 Full removal is the endpoint,
 and it happens only when meow supports the full platform matrix,
 at which point Mise is removed entirely rather than kept for provisioning.

@@ -68,7 +68,7 @@ forbidden-strings = { path = "../../forbidden-strings/cli", version = "=0.6.2" }
 # `monochromatic_lint::run_embedded::fix_source`, the executable's own `--stdin --fix` code, on a guarded thread.
 # Without its default `semantic` feature: the rust-analyzer backend is not used by Markdown, and linking it made
 # every start of this executable slower (doc/planning/cli-git-rust-implementation.md, "Markdown policy in process").
-monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.7", default-features = false }
+monochromatic-lint = { path = "../../linter/monochromatic-lint", version = "=0.5.2-alpha.8", default-features = false }
 # Lock, journal and work records are JSON read and written with `serde_json`.
 # The scanner already links this exact version, so it adds no package to the lockfile.
 serde_json = { workspace = true }
@@ -181,7 +181,7 @@ hyper = { version = ">=1.12.0", default-features = false }
 hyper-rustls = { version = ">=0.27.10", default-features = false }
 hyper-util = { version = ">=0.1.21", default-features = false }
 ignore = ">=0.4.34"
-jiff = { version = ">=0.2.39", default-features = false }
+jiff = { version = ">=0.2.40", default-features = false }
 libc = ">=0.2.191"
 miniz_oxide = { version = ">=0.9.1", default-features = false }
 rustix = ">=1.1.6"

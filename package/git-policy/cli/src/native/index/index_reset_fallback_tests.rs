@@ -111,12 +111,24 @@ fn a_racily_clean_entry_is_left_to_git() {
 }
 
 /// Configuration the update does not reproduce:
-/// sparse checkout,
+/// a sparse checkout or a sparse index,
+/// a split index,
 /// index threads,
 /// and an untracked cache Git would add.
+/// The sparse and split cases matter twice over here:
+/// the proof reads worktree files named by index paths,
+/// and neither an index of sparse directories nor a split index's shared file is one it could trust.
 #[test]
 fn configuration_the_update_does_not_reproduce_is_left_to_git() {
-    for (key, value) in [("core.sparseCheckout", "true"), ("index.threads", "2"), ("core.untrackedCache", "true"), ("index.skipHash", "true"), ("core.hooksPath", "hooks-elsewhere")] {
+    for (key, value) in [
+        ("core.sparseCheckout", "true"),
+        ("index.sparse", "true"),
+        ("core.splitIndex", "true"),
+        ("index.threads", "2"),
+        ("core.untrackedCache", "true"),
+        ("index.skipHash", "true"),
+        ("core.hooksPath", "hooks-elsewhere"),
+    ] {
         let scene: Scene = changed_a(format!("index-fallback-{}", key.to_lowercase().replace('.', "-")).as_str());
         git(scene.repo.as_path(), &["config", key, value]);
         declines(&scene, format!("{key}={value}").as_str());

@@ -464,10 +464,10 @@
     },
     "rust": {
       "request": "rust@nightly",
-      "version": "nightly-2026-11-08",
+      "version": "nightly-2026-11-09",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-11-08",
+      "packageId": "nightly-2026-11-09",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -482,7 +482,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-11-08"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-09"
       },
       "options": {
         "rustComponents": [
@@ -583,7 +583,7 @@
     },
     "cargo:monochromatic-lint": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.5.2-alpha.7",
+      "version": "0.5.2-alpha.8",
       "route": "archive",
       "bins": [
         "monochromatic-lint"
@@ -594,20 +594,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.7/monochromatic-lint-0.5.2-alpha.7-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "1c632ab40a830e18e129abb4657048334330115d59bba7e77e05a69ac4698f7f"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.8/monochromatic-lint-0.5.2-alpha.8-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "d4127ce4695d95e4c3c4fa476540a756303c964a47c27dd86ca34b86094bf9ab"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.7/monochromatic-lint-0.5.2-alpha.7-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "a432086724fe78ce4505d3f9eea061fc7fe8643c7faf6af17a8453991994cf14"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.8/monochromatic-lint-0.5.2-alpha.8-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "8a17efe0e78c9f7dcc868e78a79250def4ece6aa340fb4b217113e67f15af56e"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.7/monochromatic-lint-0.5.2-alpha.7-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "fcecd57fc9d1387b02664ccbc66ce1246826fac21875ced07302ab09bbe7e09e"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.8/monochromatic-lint-0.5.2-alpha.8-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "d955db3228ef523cbd52a53a3416a42d27fa74f5da6af6b5cd24b6f6bdfdd8bf"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.7/monochromatic-lint-0.5.2-alpha.7-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "0cf06f7053a2adde3ebf436ad934429586e254fae42576c72923584eb2d6c28c"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-lint-v0.5.2-alpha.8/monochromatic-lint-0.5.2-alpha.8-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "8b27c1902ba58db968d90896b8c015f4227462e403b2b99d05c554047e439c90"
         }
       }
     },
@@ -1040,7 +1040,7 @@
     },
     "tombi": {
       "request": "github:tombi-toml/tombi@latest",
-      "version": "1.10.0",
+      "version": "1.11.1",
       "route": "bin-sourced",
       "bins": [
         "tombi"
@@ -1051,20 +1051,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "90950a01c67c061a0bc1d8180ef93bf9e741ba8d22a575c3efa0b943d4676516"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.1/tombi-cli-1.11.1-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "df98bd2067cc97f12e1c92b9a916ed0a6515cda643b31785887c78612fcd15e0"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "90950a01c67c061a0bc1d8180ef93bf9e741ba8d22a575c3efa0b943d4676516"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.1/tombi-cli-1.11.1-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "df98bd2067cc97f12e1c92b9a916ed0a6515cda643b31785887c78612fcd15e0"
         },
         "linux-x64": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "47c80f210c2abc54f9a4c433b768378a321a0c53fcb907cb2563fe16f277f402"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.1/tombi-cli-1.11.1-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "20ad530e4878c8214e40e14e92623fd2ef244254a397a5cab29137f9076c156e"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.10.0/tombi-cli-1.10.0-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "47c80f210c2abc54f9a4c433b768378a321a0c53fcb907cb2563fe16f277f402"
+          "url": "https://github.com/tombi-toml/tombi/releases/download/v1.11.1/tombi-cli-1.11.1-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "20ad530e4878c8214e40e14e92623fd2ef244254a397a5cab29137f9076c156e"
         }
       }
     },
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:08661493d7f4856a10ffcd212060ac3c55902462c603580ff34dce0118cd13d5"
+  "digest": "sha256:358b5becfb294b368bf43f7e22033e248178ae096de96a4337776f8b7b79e1f7"
 }
