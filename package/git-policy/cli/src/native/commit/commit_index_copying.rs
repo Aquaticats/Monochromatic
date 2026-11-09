@@ -17,8 +17,10 @@
 
 /// What marks the captured index carries.
 use crate::index_flags::{IndexFlags, read_index_flags};
+/// The request built against a private index.
+use crate::private_index_request::indexed_request;
 /// The failure a step of the commit reports.
-use crate::transaction_git::GitFailure;
+use crate::transaction_git::{GitContext, GitFailure, GitRequest, run_git_checked};
 /// `FileTimes` carries the copied timestamps.
 use std::fs::FileTimes;
 /// `Path` is a borrowed filesystem path.
@@ -57,13 +59,14 @@ pub fn copy_index_with_timestamps(source: &Path, destination: &Path) -> std::io:
 ///  an assume-unchanged or skip-worktree entry makes `git add --all` skip or refuse a file the commit named,
 ///  where native Git stages it,
 ///  while an intent-to-add entry carries no stat data and copies as it is.
-///  The copy is then reset to the base as native Git's own partial commit does:
-/// the reset leaves a mark whose mode and object name match the base's entry,
+///  The copy is then reset to the tree the commit starts from,
+/// as native Git's own partial commit does:
+/// the reset leaves a mark whose mode and object name match the tree's entry,
 ///  replaces one that differs,
-///  and drops one the base does not hold,
-/// so the marks decide nothing here,
-///  the commit keeps the real index's cached stat data,
-///  and the reset and the staging that follow it produce Git's tree
+///  and drops one the tree does not hold,
+///  and the copy's marked paths are cleared before it (`copy_index_for_reset`),
+///  so the commit keeps the real index's cached stat data
+///  and the tree it writes holds every path the tree holds
 /// (`commit_index.rs`).
 ///
 /// In TS you'd write (pseudocode):
@@ -77,8 +80,10 @@ pub enum PrivateIndexSeed {
     /// Copy the real index as it is,
     /// marks included:
     /// its intent-to-add entries are selections a later step stages,
-    /// so no early return may skip them.
-    CopyWithIntentToAdd,
+    /// so no early return may skip them,
+    /// and these are the paths they name,
+    /// which the copy a reset follows clears before it (`copy_index_for_reset`).
+    CopyWithIntentToAdd(Vec<Vec<u8>>),
     /// Build the private index from the base alone.
     Base,
 }
@@ -108,7 +113,8 @@ impl PrivateIndexSeed {
 ///  An index whose only marks are intent-to-add entries seeds it too,
 ///  and is copied as it is:
 /// its marks carry no stat data to lose,
-///  and the reset and staging that follow produce native Git's tree for them.
+///  and the copy a reset follows clears them,
+/// so the reset puts the tree's own entry back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -120,9 +126,85 @@ pub fn private_index_seed(captured_index: &Path) -> PrivateIndexSeed {
     };
     return match read_index_flags(bytes.as_slice()) {
         IndexFlags::Plain => PrivateIndexSeed::Copy,
-        IndexFlags::IntentToAdd(_paths) => PrivateIndexSeed::CopyWithIntentToAdd,
+        IndexFlags::IntentToAdd(paths) => PrivateIndexSeed::CopyWithIntentToAdd(paths),
         IndexFlags::Marked | IndexFlags::Unreadable => PrivateIndexSeed::Base,
     };
+}
+
+/// What:
+///  Copies the real index into a private index that a reset to a tree follows,
+///  clearing the intent-to-add marks that reset would keep.
+/// Why:
+///   A reset leaves an intent-to-add mark whose mode and object name match the tree's own entry,
+/// and a tree built from an index holding such a mark leaves that path out once anything invalidates the cached tree:
+///  staging a selected path does,
+///  and a tracked file nobody named then becomes a deletion in the tree the commit writes.
+///  Every way of building the private index from a copy resets it,
+///  the first preparation and a rebuild after the branch moved,
+///  so both copy here and neither keeps a rule of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await copyIndexFile(realIndex, commitIndex); if (seed.paths) await dropIntentToAdd(seed.paths);
+/// ```
+pub fn copy_index_for_reset(
+    context: &GitContext,
+    cwd: &Path,
+    real_index: &Path,
+    destination: &Path,
+    object_directory: &Path,
+    seed: &PrivateIndexSeed,
+    oid_length: usize,
+) -> Result<(), GitFailure> {
+    copy_index_with_timestamps(real_index, destination).map_err(copy_index_failure)?;
+    let PrivateIndexSeed::CopyWithIntentToAdd(paths) = seed else {
+        return Ok(());
+    };
+    return drop_intent_to_add(context, cwd, destination, object_directory, paths.as_slice(), oid_length);
+}
+
+/// What:
+///  Writes the requested tree's own entry over each given intent-to-add entry,
+///  so the index holds that tree and not a mark that leaves the path out.
+/// Why:
+///   A reset leaves an intent-to-add mark whose mode and object name match the tree's entry,
+/// and a tree built from an index holding such a mark leaves that path out:
+///  staging a selected path or a scratch-commit hook invalidates the cached tree,
+///  and a tracked file nobody named would then become a deletion in the tree the index writes.
+///  `update-index --index-info` reads these names as index paths,
+///  so a name relative to the repository root keeps that meaning under an invocation started in a subdirectory,
+///  and the record names the object with the repository's own hash length.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git update-index -z --index-info <<< paths.map((path) => `0 ${'0'.repeat(oidLength)} 0\t${path}\0`).join('')
+/// ```
+fn drop_intent_to_add(
+    context: &GitContext,
+    cwd: &Path,
+    private_index: &Path,
+    object_directory: &Path,
+    paths: &[Vec<u8>],
+    oid_length: usize,
+) -> Result<(), GitFailure> {
+    let zero: Vec<u8> = vec![b'0'; oid_length];
+    let mut input: Vec<u8> = Vec::new();
+    for path in paths {
+        input.extend_from_slice(b"0 ");
+        input.extend_from_slice(zero.as_slice());
+        input.extend_from_slice(b" 0\t");
+        input.extend_from_slice(path.as_slice());
+        input.push(0);
+    }
+    let mut request: GitRequest = indexed_request(
+        cwd,
+        &["update-index", "-z", "--index-info"],
+        Some(private_index),
+        Some(object_directory),
+    );
+    request.input = Some(input);
+    run_git_checked(context, &request)?;
+    return Ok(());
 }
 
 /// What:

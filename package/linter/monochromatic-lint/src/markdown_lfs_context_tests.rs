@@ -38,6 +38,7 @@ const BASE: &str = "https://lfs.example";
 ///  plain file,
 ///  and a nested Markdown file.
 fn write_tree(root: &Path) {
+    std::fs::create_dir_all(root).expect("the tree's top");
     std::fs::write(
         root.join(".gitattributes"),
         "*.png filter=lfs diff=lfs merge=lfs -text\n",
@@ -111,6 +112,71 @@ fn the_nearest_regular_configuration_file_marks_the_root() {
     assert_eq!(
         find_lfs_repo_root(&root.join("r/sub/blocker/deeper")).expect("search past a file"),
         Some(root.join("r/sub"))
+    );
+}
+
+/// What:
+///  A linked worktree never inherits the endpoint and tracked patterns of the checkout that encloses it.
+/// Why:
+///  Git gives a file in the nested worktree no filter at all,
+///  and the nested checkout may belong to another repository entirely;
+///  rewriting its Markdown with the parent's endpoint and attributes writes a URL that
+///  names another checkout's server and path.
+///  The boundary is the nested checkout's own top,
+///  which `git worktree add` marks with a `.git` file instead of a `.git` directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await git(['worktree', 'add', '--detach', 'nested', 'HEAD']); expect(findLfsRepoRoot(nestedPkg)).toBeUndefined();
+/// ```
+#[test]
+fn a_linked_worktree_does_not_inherit_the_enclosing_checkout() {
+    let fixture: Fixture = Fixture::new();
+    let checkout: PathBuf = fixture.path.join("parent");
+    // The enclosing checkout: its own repository marker, an endpoint and tracked patterns at its top.
+    std::fs::create_dir_all(checkout.join(".git")).expect("the enclosing repository's marker");
+    std::fs::write(
+        checkout.join(".lfsconfig"),
+        "[lfs]\n\turl = https://lfs.example.invalid/org/repo\n",
+    )
+    .expect("the enclosing endpoint");
+    std::fs::write(checkout.join("base.txt"), "base\n").expect("a committed file");
+    write_tree(checkout.as_path());
+    // The nested checkout is a linked worktree: `git worktree add` writes `.git` as a file naming the
+    // metadata directory of that worktree.
+    std::fs::create_dir(checkout.join("nested")).expect("the nested checkout");
+    std::fs::write(
+        checkout.join("nested/.git"),
+        "gitdir: /elsewhere/parent/.git/worktrees/nested\n",
+    )
+    .expect("the linked worktree's marker");
+    write_tree(&checkout.join("nested"));
+    assert_eq!(
+        find_lfs_repo_root(&checkout.join("nested/pkg")).expect("search"),
+        None,
+        "a different checkout's endpoint must not govern this candidate"
+    );
+    assert!(
+        discover_lfs_image_repo(&checkout.join("nested"))
+            .expect("discovery")
+            .is_none(),
+        "the rule is inert in a checkout that declares no endpoint"
+    );
+    // Positive controls: the enclosing checkout still finds its own endpoint, and a directory below the
+    // worktree's top still reaches that top.
+    assert_eq!(
+        find_lfs_repo_root(&checkout.join("pkg")).expect("search"),
+        Some(checkout.clone())
+    );
+    assert_eq!(
+        find_lfs_repo_root(&checkout.join("nested/pkg/asset")).expect("search"),
+        None
+    );
+    // A repository whose top holds no endpoint stops there too, instead of reaching a home-directory file.
+    std::fs::remove_file(checkout.join(".lfsconfig")).expect("no endpoint at the top");
+    assert_eq!(
+        find_lfs_repo_root(&checkout.join("pkg")).expect("search"),
+        None
     );
 }
 
