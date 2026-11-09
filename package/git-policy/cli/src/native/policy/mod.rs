@@ -73,6 +73,9 @@ pub mod policy_forbidden_strings;
 ///  all or none.
 pub mod direct_fix_install;
 
+/// The swap and the replacement write an install uses.
+pub mod direct_fix_install_writes;
+
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.

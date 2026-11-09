@@ -219,7 +219,8 @@ fn the_check_route_is_covered() {
 /// What:
 ///  A lock declared under `#[cfg(test)]` ships nothing and needs no inventory entry.
 /// Why:
-///  The service and the check route hold test-only locks (a handoff gate, a mock server);
+///  The service and the check route hold test-only locks (a handoff gate,
+/// a mock server);
 ///  an
 ///       inventory entry for one would say it ships,
 ///  which is wrong,

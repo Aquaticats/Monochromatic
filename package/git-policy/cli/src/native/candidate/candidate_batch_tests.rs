@@ -343,10 +343,12 @@ fn header_length_bound_is_exact() {
 
 /// What:
 ///  An object larger than the ceiling a check reads whole is consumed and refused as too
-///  large, and the stream then answers the next request normally.
+///  large,
+/// and the stream then answers the next request normally.
 /// Why:
 ///   Reading a staged 256 MiB asset whole cost 534 MiB of memory (the audit's
-///  `fixture-big-blob`), so the read is bounded;
+///  `fixture-big-blob`),
+/// so the read is bounded;
 ///  the reply must still be consumed whole or every
 ///  later reply is misread,
 ///  and the refusal must name the sizes,

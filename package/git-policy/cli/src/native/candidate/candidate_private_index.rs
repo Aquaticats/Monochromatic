@@ -17,7 +17,8 @@
 //!      `index-file-timestamps.ts`,
 //!  issue #544).
 //!
-//! What a kill leaves, and what removes it:
+//! What a kill leaves,
+//! and what removes it:
 //!  the directory and its copy,
 //!  whose name carries the process that made it and
 //!  whose `owner` file carries that process's identity and PID namespace;

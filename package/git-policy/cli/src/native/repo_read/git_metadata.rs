@@ -75,7 +75,8 @@ pub struct MetadataOutput {
 ///       wrapper ends it.
 ///  It is `PLUMBING_STEP_CEILING` (two minutes):
 ///  the longest read step of the service's
-///       landings over 1,651 landings was 9,663 ms, so two minutes is twelve times it,
+///       landings over 1,651 landings was 9,663 ms,
+/// so two minutes is twelve times it,
 ///  and the longest
 ///       client preparation of the commit timing log was 250,280 ms,
 ///  which is the whole of every read
