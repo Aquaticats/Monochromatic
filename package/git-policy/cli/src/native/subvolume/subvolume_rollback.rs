@@ -197,16 +197,36 @@ fn unreadable_only_in_the_old_tree(run: &Run<'_>, discard_unreadable: bool) -> O
 /// ```
 fn stage_is_not_a_subvolume(run: &Run<'_>) -> Option<Refusal> {
     let new_path: &Path = run.layout.new_path.as_path();
-    if !new_path.exists() || run.platform.is_subvolume_root(new_path).unwrap_or(false) {
+    if !new_path.exists() {
+        return None;
+    }
+    if !run.platform.is_subvolume_root(new_path).unwrap_or(false) {
+        return Some(Refusal {
+            cause: format!(
+                "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
+                new_path.display()
+            ),
+            remedy: String::from(
+                "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
+            ),
+        });
+    }
+    // The journal names the subvolume this migration made; a subvolume another process put at the same name is not it, and
+    // an identity that cannot be read is treated the same way rather than deleting what it cannot name.
+    let recorded: crate::fs_beneath::ObjectId = run.journal.stage_identity()?;
+    let found: Option<crate::fs_beneath::ObjectId> = crate::worktree_convert_phases::identity_of_path(new_path);
+    if found.as_ref().is_some_and(|identity: &crate::fs_beneath::ObjectId| {
+        return identity.device == recorded.device && identity.inode == recorded.inode && (recorded.birth.is_none() || recorded.birth == identity.birth);
+    }) {
         return None;
     }
     return Some(Refusal {
         cause: format!(
-            "{} is not a subvolume, and this rollback deletes only the subvolume the migration created; nothing was deleted",
+            "{} is not the subvolume the migration created (the journal records another identity), and this rollback deletes only that one; nothing was deleted",
             new_path.display()
         ),
         remedy: String::from(
-            "If the directory is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
+            "If the subvolume is yours, move it away and run the command again; if it is the migration's own stage, delete it yourself and run the command again.",
         ),
     });
 }

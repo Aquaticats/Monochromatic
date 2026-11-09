@@ -126,7 +126,7 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
     let (parent, path) = journal_path("journal-undeletable");
     std::fs::create_dir(path.as_path()).expect("directory");
     std::fs::write(path.join("inside"), b"x").expect("file");
-    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), persisted: true };
+    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), stage_identity: None, persisted: true };
     let error: MigrateError = journal.delete().expect_err("a directory is not a file");
     assert!(error.to_string().contains("cannot delete the journal"), "{error}");
     remove(parent.as_path());

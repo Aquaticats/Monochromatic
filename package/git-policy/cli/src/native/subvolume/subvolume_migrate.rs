@@ -144,6 +144,13 @@ fn create_subvolumes(run: &mut Run<'_>, options: MigrateOptions) -> Result<(), M
             run.platform.create_subvolume(run.layout.new_path.as_path())?;
         }
         run.journal.mark("create", "done")?;
+        // The stage the rollback may destroy is the one this step made or adopted; its identity is recorded before anything
+        // is copied into it, so a subvolume another process puts at that name later is not mistaken for it.
+        if run.journal.stage_identity().is_none()
+            && let Some(identity) = crate::worktree_convert_phases::identity_of_path(run.layout.new_path.as_path())
+        {
+            run.journal.record_stage_identity(identity)?;
+        }
     }
     run.checkpoint("after-create")?;
     if options.nested_worktrees && !run.journal.is_done("nested") {

@@ -1635,13 +1635,20 @@ A rollback deletes the new subvolume only while the name holds a subvolume root,
 which is what the migration created there:
 a directory that replaced it is refused with both paths and nothing is deleted,
 because the removal's fallback would otherwise delete it and whatever it holds.
-One window stays open and is written here rather than closed:
-the journal records no identity for the stage,
-so another process that creates a subvolume at that name in the moment between the check and the
-destruction has that subvolume destroyed;
-a person sees the rollback finish and the directory they made gone,
-and nothing names it,
-because the name is one only this command may hold while it runs.
+The journal also records the identity of the stage the migration made there (device,
+inode and,
+where the filesystem gives one,
+birth time),
+before anything is copied into it,
+and the rollback deletes the stage only while that identity still answers for the name:
+a subvolume another process put at that name in the meantime is refused with the path and the
+two identities,
+and nothing is deleted.
+A journal written by an earlier release records no stage identity,
+and then only the stage's type is judged;
+such a journal is the one state in which a subvolume placed at the name in the moment between
+the check and the destruction is destroyed,
+and a person sees the rollback finish and the subvolume they made gone.
 The migration's list of files this user may not read is published the same way:
 staged in a sibling created exclusively and mode owner-only,
 synchronized,

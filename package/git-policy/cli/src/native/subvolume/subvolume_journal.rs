@@ -161,6 +161,14 @@ pub struct Journal {
     states: BTreeMap<String, String>,
     /// Step name to the time in milliseconds after the epoch at which it got its current state.
     times: BTreeMap<String, i64>,
+    /// The identity (device,
+    /// inode and,
+    /// where the filesystem gives one,
+    /// birth time) of the subvolume this migration
+    ///  made at the stage's name;
+    /// absent in a journal written by an earlier release,
+    /// which recorded none.
+    stage_identity: Option<crate::fs_beneath::ObjectId>,
     /// Whether the file exists on disk.
     persisted: bool,
 }
@@ -182,7 +190,7 @@ impl Journal {
         let text: String = match read_plain_text(path) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), persisted: false });
+                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), stage_identity: None, persisted: false });
             }
             Err(error) => return Err(MigrateError::io("read the journal", path, &error)),
         };
@@ -200,6 +208,12 @@ impl Journal {
         let Some(steps) = value.get("steps").and_then(Value::as_object) else {
             return Err(broken_journal(path, "has no steps"));
         };
+        // A journal this release wrote names the stage it made; one an earlier release wrote names none, and the rollback
+        // then has only the stage's type to judge it by.
+        let stage_identity: Option<crate::fs_beneath::ObjectId> = match value.get("stage_identity").and_then(Value::as_str) {
+            None => None,
+            Some(encoded) => Some(crate::fs_beneath::ObjectId::decode(encoded).ok_or_else(|| { return broken_journal(path, "has a stage identity that is not one"); })?),
+        };
         let mut states: BTreeMap<String, String> = BTreeMap::new();
         let mut times: BTreeMap<String, i64> = BTreeMap::new();
         for (name, record) in steps {
@@ -211,7 +225,7 @@ impl Journal {
                 times.insert(name.clone(), milliseconds);
             }
         }
-        return Ok(Journal { path: path.to_path_buf(), started, states, times, persisted: true });
+        return Ok(Journal { path: path.to_path_buf(), started, states, times, stage_identity, persisted: true });
     }
 
     /// When the migration began,
@@ -278,6 +292,35 @@ impl Journal {
             Err(_) => 0,
         };
         self.times.insert(step.to_string(), now);
+        return self.persist();
+    }
+
+    /// What:
+    ///  Record the identity of the subvolume this migration made at the stage's name,
+    /// and write the journal.
+    /// Why:
+    ///   The rollback deletes the stage,
+    /// and a subvolume another process puts at that name is not the one this
+    ///  migration made;
+    /// the identity recorded before anything is copied into the stage is what tells them apart.
+    pub fn record_stage_identity(&mut self, identity: crate::fs_beneath::ObjectId) -> Result<(), MigrateError> {
+        self.stage_identity = Some(identity);
+        return self.persist();
+    }
+
+    /// The identity this migration recorded for the stage,
+    /// if any.
+    pub fn stage_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
+        return self.stage_identity;
+    }
+
+    /// Write the journal as it stands,
+    /// through a sibling created exclusively and renamed over it.
+    fn persist(&mut self) -> Result<(), MigrateError> {
+        let now: i64 = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+            Err(_) => 0,
+        };
         let mut steps: Map<String, Value> = Map::new();
         for (name, recorded) in &self.states {
             let milliseconds: i64 = self.times.get(name).copied().unwrap_or(now);
@@ -291,6 +334,9 @@ impl Journal {
         document.insert(String::from("schema"), Value::from(SCHEMA));
         document.insert(String::from("started"), Value::String(self.started.clone()));
         document.insert(String::from("steps"), Value::Object(steps));
+        if let Some(identity) = &self.stage_identity {
+            document.insert(String::from("stage_identity"), Value::String(identity.encode()));
+        }
         let text: String = serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
         let sibling_path: PathBuf = self.temporary_path();
         let written: std::io::Result<()> = write_and_rename(sibling_path.as_path(), self.path.as_path(), text.as_bytes());
