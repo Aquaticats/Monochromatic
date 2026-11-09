@@ -8163,7 +8163,9 @@ The private name is removed only on a proof that nothing can write into the file
 asked in this order:
 a scan of every process this command can read finds none with the file open,
 which is the proof the commit service's lock removal acts on,
-and then the file's bytes still hash to the object it held when it was judged.
+and then,
+as the last steps before the unlink,
+the file's identity is the one the take checked and its bytes still hash to the object it held when it was judged.
 A writer that still holds the file is seen by the scan,
 and a writer that let go has already written,
 so the bytes then show it;

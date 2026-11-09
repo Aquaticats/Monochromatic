@@ -1748,3 +1748,59 @@ fn a_taken_file_whose_appended_bytes_a_filter_drops_is_kept_and_named() {
     assert!(std::fs::read(aside.as_path()).expect("the aside").ends_with(b"NOTE: locally saved data\n"), "the appended bytes are kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A write that arrives after the holder scan is seen by the last look,
+///  so the file that holds it is kept.
+/// Why:
+///  The identity was read before the scan,
+/// so a program that kept its descriptor open could append a line the clean filter drops
+///  after that read and close it,
+/// and the scan then found no holder while the filtered bytes still matched
+///  (a cross-vendor review of the fifth round,
+/// its first finding).
+/// The seam is the point a control reaches after the scan and before the last looks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const take = takeAside(file); hooks.set('aside-scanned', () => append(take.aside, 'NOTE: kept\n')); finishAsides([take], sink); expect(exists(take.aside)).toBe(true);
+/// ```
+#[test]
+fn a_write_that_arrives_after_the_holder_scan_is_seen_by_the_last_look() {
+    let world: World = world("merge-recovery-write-after-scan");
+    // A clean filter that drops the line the writer appends, so only the identity can see the change.
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n").expect("the attribute file");
+    git(world.repo.as_path(), &["config", "filter.strip.clean", "sed /^NOTE:/d"]);
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
+    let expected: String = judged.content.clone().expect("the object the judgement read");
+    let location: PathBuf = world.repo.join("f.txt");
+    let aside: PathBuf = stranded_name(location.as_path());
+    std::fs::rename(location.as_path(), aside.as_path()).expect("a take");
+    let taken = file_identity(aside.as_path()).expect("the identity the take checked");
+    let entries: Vec<TakenOnDisk> = vec![TakenOnDisk {
+        location: location.clone(),
+        path: b"f.txt".to_vec(),
+        aside: aside.clone(),
+        taken,
+        expected,
+    }];
+    // The program that kept its descriptor writes at the instant the scan has just finished.
+    let written: PathBuf = aside.clone();
+    crate::service_fault::hooks::set(
+        "aside-scanned",
+        std::rc::Rc::new(move || {
+            use std::io::Write;
+            let mut file: std::fs::File = std::fs::File::options().append(true).open(written.as_path()).expect("the writer's descriptor");
+            file.write_all(b"NOTE: locally saved data\n").expect("the appended line");
+        }),
+    );
+    let mut said: Vec<u8> = Vec::new();
+    let outcome = finish_asides(&place(&world), world.repo.as_path(), &entries, &mut said);
+    crate::service_fault::hooks::clear();
+    outcome.expect("the asides are finished");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(aside.exists(), "a file written after the scan is kept");
+    assert!(text.contains(aside.to_string_lossy().as_ref()), "the private name is said: {text}");
+    remove(world.parent.as_path());
+}

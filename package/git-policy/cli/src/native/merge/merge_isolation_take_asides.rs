@@ -504,13 +504,10 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// function mayRemove(entry): boolean; // identity unchanged && no readable process has it open && the scan finished
 /// ```
 fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
-    // The scan comes first and the bytes second, and that order is the guarantee: a writer that still holds the file is
-    //  seen by the scan, and a writer that let go has already written, so the bytes then show it. The identity is read
-    //  beside the bytes because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
+    // The scan comes first, and the two looks come after it, as the last steps before the unlink: a writer that still holds
+    //  the file is seen by the scan, a writer that let go has already written so the bytes and the identity then show it, and
+    //  the identity is read because a clean filter can hide changed bytes: an appended line that the filter drops leaves the
     //  object as it was and the size changed.
-    if file_identity(entry.aside.as_path()) != Some(entry.taken) {
-        return false;
-    }
     let scanned: HolderEvidence = scan_platform_holders_bounded(entry.aside.as_path(), entry.taken.device, entry.taken.inode);
     if !scanned.holders.is_empty() {
         return false;
@@ -519,6 +516,11 @@ fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
         if !reason.starts_with(UNREADABLE_PROCESS_REASON) {
             return false;
         }
+    }
+    // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last looks.
+    crate::service_fault::reach("aside-scanned");
+    if file_identity(entry.aside.as_path()) != Some(entry.taken) {
+        return false;
     }
     let bytes: WorktreeState = match state_of_file(&place.git, root, entry.path.as_slice(), entry.aside.as_path()) {
         Ok(found) => found,
