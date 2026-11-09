@@ -9,6 +9,8 @@ import {
   PHRASE_NOT_FOUND,
 } from '@monochromatic-dev/agent-harness-shared-text-scan/ts';
 
+import { normaliseApostrophes, } from './normalise-apostrophes.ts';
+
 //region Patterns
 
 /**
@@ -79,45 +81,6 @@ const CORRECTION_PHRASES: readonly string[] = [
 //endregion
 
 //region Detection
-
-/**
- Unicode left single quotation mark (`U+2018`).
- */
-const LEFT_SINGLE_QUOTE = '‘';
-
-/**
- Unicode right single quotation mark (`U+2019`).
- */
-const RIGHT_SINGLE_QUOTE = '’';
-
-/**
- Normalises curly quotation marks (`U+2018`, `U+2019`) to ASCII apostrophes
- so phrase lookups stay simple.
- 
- Replaces the original regexes' `['']?` optional marker (which accepted
- either apostrophe shape); after normalisation the phrase list only needs
- the straight-apostrophe form for each variant.
- 
- @param prompt - raw user input
- 
- @returns prompt with curly single quotes replaced by `'`
- 
- @example
- ```ts
- normaliseApostrophes('that’s wrong'); // => "that's wrong"
- ```
- */
-function normaliseApostrophes(prompt: string,): string {
-  return prompt
-    .replaceAll(
-    LEFT_SINGLE_QUOTE,
-    "'",
-    )
-    .replaceAll(
-    RIGHT_SINGLE_QUOTE,
-    "'",
-    );
-}
 
 /**
  Tests whether a user prompt matches any correction-phrase pattern.
