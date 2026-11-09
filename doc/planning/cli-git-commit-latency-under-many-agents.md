@@ -723,10 +723,13 @@ all of them landed (exit 0):
   The record's resolution is a whole millisecond,
   so what the change spends is under it.
 - `prepareMs`,
-  median:
-  4,482 and 2,655 ms on the two arms with the work,
-  1,085 and 6,239 ms on the two without it.
-  The same-binary spread is 1.7 times between the first pair and 5.8 times between the second,
+  every sample:
+  488 to 6,409 ms on the first arm with the work and 561 to 3,954 ms on the second,
+  545 to 5,923 ms on the first arm without it and 3,090 to 16,469 ms on the second,
+  with medians of 4,482,
+  2,655,
+  1,085 and 6,239 ms.
+  The medians of the same binary differ by 1.7 times in the first pair and 5.8 times in the second,
   and whole-commit wall clock spans 1,446 to 22,335 ms,
   so these records cannot tell the two builds apart:
   the change buys a rule,
