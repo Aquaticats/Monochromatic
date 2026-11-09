@@ -35,6 +35,21 @@ use std::path::{Path, PathBuf};
 use support::OWNER_ONLY_MODE;
 
 /// What:
+/// `const GROUP_READABLE_MODE: u32 = 0o755;` is the mode `create_dir_all` leaves under the usual `0022` umask:
+/// owner read,
+/// write and search,
+/// group and other read and search.
+/// Why:
+/// A case that starts from a known loose directory needs a name for it,
+/// and the group and other bits are the whole difference the fix removes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GROUP_READABLE_MODE = 0o755;
+/// ```
+const GROUP_READABLE_MODE: u32 = 0o755;
+
+/// What:
 /// `fn fresh_home() -> io::Result<PathBuf>` declares a helper that makes an empty,
 /// unused home directory under
 /// Cargo's per-target temporary directory.
@@ -92,6 +107,31 @@ fn a_fresh_home_gets_an_owner_only_scratch_root() -> io::Result<()> {
     assert!(initialized.status.success(), "{initialized:?}");
     let allowed = support::invoke(&["--hook", path], &support::event("true")?)?;
     assert!(allowed.status.success(), "{allowed:?}");
+
+    fs::remove_dir_all(&home)?;
+    return Ok(());
+}
+
+/// A scratch root an earlier run left readable by the group and by anyone else
+/// is made owner-only before the fixture builds in it.
+///
+/// Unlike the fresh-home case this does not depend on the process umask:
+/// the directory exists with a known loose mode before the fixture touches it,
+/// so the case fails whenever the fix stops correcting a directory that is already there.
+#[test]
+fn the_fixture_tightens_a_scratch_root_left_loose() -> io::Result<()> {
+    let home = fresh_home()?;
+    let scratch = home
+        .join("temp")
+        .join("agent");
+    fs::create_dir_all(&scratch)?;
+    fs::set_permissions(&scratch, fs::Permissions::from_mode(GROUP_READABLE_MODE))?;
+    // Prove the fixture starts from the loose mode it is meant to correct.
+    assert_eq!(mode_of(&scratch)?, GROUP_READABLE_MODE, "the loose fixture setup did not take");
+
+    support::fixture_in(&home)?;
+
+    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} stayed loose", scratch.display());
 
     fs::remove_dir_all(&home)?;
     return Ok(());
