@@ -66,7 +66,8 @@ either of which alone is enough to fail this control on a loaded host:
   so the control could not tell "the landing is inside its wait" from "the landing is still making its objects".
 - The failure path gave nothing back:
   the foreign lock stayed on disk,
-  so the scope's join ran into the landing's `LANDING_LOCK_CEILING` (600 s),
+  so the scope's join ran into the ceiling this control's own context names,
+  `LOCK_CEILING` (600 s),
   and `arm_watchdog` (`testing/test_support.rs`,
   `RUN_LIMIT`) aborted the process at 120 s.
 
@@ -95,7 +96,12 @@ SIGABRT [ 120.139s] (1/1) ... a_branch_switched_while_the_lock_is_awaited_stops_
 - The channel goes with the landing,
   so a landing that ends before its wait closes it and is reported at once
   (`the landing ended without waiting for the index lock`),
-  and a landing that says nothing inside `LANDING_LOCK_CEILING` is reported as never reaching the wait.
+  and a landing that says nothing inside `WAIT_WORD_CEILING` is reported as never reaching the wait.
+  That ceiling is the one the shipped landing gives a foreign holder,
+  `LANDING_LOCK_CEILING` (1 min),
+  which is above the longest measured phase before the wait and below the watchdog,
+  while this control's own landing is given `LOCK_CEILING` (600 s),
+  the ceiling the failure above used to reach.
 - The switch is made on that word,
   so it is made while the landing is inside its wait,
   and the lock is given up on every path:
@@ -141,6 +147,6 @@ when it was killed.
 - `service_index_lock_tests.rs` and `service_index_wait_tests.rs` carry the same two shapes and were not read here:
   they belong to other sessions at the time of this record.
 - A landing that hangs before its wait is reported at `WAIT_WORD_CEILING`,
-  which is the landing's own `LANDING_LOCK_CEILING`;
+  which is the ceiling the shipped landing gives a foreign holder;
   the control cannot end a landing that is stuck inside a Git step,
   so such a run still ends at the watchdog.

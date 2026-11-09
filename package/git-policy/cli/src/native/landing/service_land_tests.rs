@@ -1579,10 +1579,10 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
 /// (`testing/test_support.rs`,
 /// `RUN_LIMIT`,
 /// two minutes).
-/// It is the ceiling the landing itself gives a foreign holder
+/// It is the ceiling the shipped landing gives a foreign holder
 /// (`wait_ceilings.rs`,
 /// `LANDING_LOCK_CEILING`),
-/// which is above the longest measured landing phase before the wait.
+/// which is above the longest measured landing phase before the wait and below the watchdog.
 const WAIT_WORD_CEILING: std::time::Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
 
 /// What:
