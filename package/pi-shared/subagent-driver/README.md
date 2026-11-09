@@ -220,7 +220,8 @@ A resumed run of 905 483 tokens on a model with a 524 288-token window reported 
 and a driver that gave every prompt thirty seconds recorded `prompt-rejected` with `no answer in 30000 ms`
 while Pi was still compacting.
 
-So the thirty seconds measure Pi's silence, not the clock.
+So the thirty seconds measure Pi's silence,
+not the clock.
 `compaction_start` stops the count and `compaction_end` starts it again,
 which means a compaction Pi is running never spends the silence a prompt is allowed.
 The run's own deadline is the outer bound of every wait,
@@ -301,7 +302,8 @@ a prompt Pi consumes without starting a run and without replying recovers nothin
 so the run ends on the failure it began with rather than as a run that came back.
 
 A wait is kept only while the failure it was scheduled for is the one standing:
-a reply that recovers it, or a different failure in its place,
+a reply that recovers it,
+or a different failure in its place,
 drops the wait and whatever stands then is read afresh.
 One case is left as it is:
 a failure that is recovered and comes back word for word inside the same wait
@@ -323,7 +325,8 @@ which is zero for a run that never needed one.
 The `retry` line is written when the attempt goes,
 immediately before its `retry_prompt` line,
 so an attempt is counted only once it was sent.
-A wait the stop file, the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
+A wait the stop file,
+the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
 the run ends for that reason,
 and `modelError` still names what the model said.
 That standing failure is why a run the stop file ends reports `model-error` and exits non-zero rather than `stop-file`:
