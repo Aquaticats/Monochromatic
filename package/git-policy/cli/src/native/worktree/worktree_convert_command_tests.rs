@@ -63,6 +63,38 @@ fn all_worktrees_are_listed_then_converted() {
     remove(parent.as_path());
 }
 
+/// A worktree that is a subvolume already costs nothing and the summary counts it as skipped,
+/// because the line beside its name says "already a subvolume, skipped";
+/// a named one still ends with status 0,
+/// because nothing stood in the way.
+#[test]
+fn a_worktree_that_is_a_subvolume_already_is_counted_as_skipped() {
+    let (parent, root) = two_worktrees("convert-command-already");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let real: ConvertArguments = ConvertArguments { all: true, ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &real, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    let (again_code, again_lines) = run(&platform, &real, root.as_path());
+    assert_eq!(again_code, 0, "{again_lines:#?}");
+    let already: usize = again_lines.iter().filter(|line: &&String| { return line.contains("already a subvolume"); }).count();
+    assert_eq!(already, 2, "{again_lines:#?}");
+    let summary: &str = again_lines.last().expect("a summary line").as_str();
+    assert!(summary.contains(format!("{already} skipped").as_str()), "{already} line(s) said 'already a subvolume, skipped': {again_lines:#?}");
+    assert!(summary.contains("0 converted or completed"), "nothing was converted: {again_lines:#?}");
+    // A dry run over the same pair counts them the same way.
+    let dry: ConvertArguments = ConvertArguments { dry_run: true, all: true, ..ConvertArguments::default() };
+    let (dry_code, dry_lines) = run(&platform, &dry, root.as_path());
+    assert_eq!(dry_code, 0, "{dry_lines:#?}");
+    let dry_summary: &str = dry_lines.last().expect("a summary line").as_str();
+    assert!(dry_summary.contains(format!("{already} skipped").as_str()), "a dry run: {dry_lines:#?}");
+    // A named worktree that is a subvolume already is no refusal: status 0, and the summary says it too.
+    let named: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from("wt")], ..ConvertArguments::default() };
+    let (named_code, named_lines) = run(&platform, &named, root.as_path());
+    assert_eq!(named_code, 0, "nothing stood in the way: {named_lines:#?}");
+    assert!(named_lines.last().is_some_and(|line: &String| { return line.contains("1 skipped"); }), "{named_lines:#?}");
+    remove(parent.as_path());
+}
+
 /// A named worktree that is refused ends the command with status 1 and a reason;
 /// a path that is no worktree is refused too.
 #[test]
