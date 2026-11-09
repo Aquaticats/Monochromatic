@@ -1,5 +1,24 @@
 # cli-git native candidates and scanner adapter
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli.fuzz/bin/container.mjs` is now
+> `package/git-policy/cli.fuzz/bin/container.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/cli.fuzz/bin/planted-controls.mjs` is now
+> `package/git-policy/cli.fuzz/bin/planted-controls.ts` (2026-10-29 `418c4dcc54`).
+> `package/cli/forbidden-strings/src/process_boundary.rs` is now
+> `package/forbidden-strings/cli/src/process_boundary.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/Cargo.lock` is now
+> `package/forbidden-strings/cli/Cargo.lock` (2026-10-29 `113633b259`).
+> `package/git-policy/cli/bin/test-native-container.mjs` is now
+> `package/git-policy/cli/bin/test-native-container.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/cli/bin/native-scanner-snapshot.mjs` is now
+> `package/git-policy/cli/bin/native-scanner-snapshot.ts` (2026-10-29 `418c4dcc54`).
+> `package/git-policy/cli/native-interop` is deleted (2026-11-01 `cd67a90f6c`) and the
+> old-format interop harness has no replacement.
+> `package/cli/forbidden-strings.fuzz/Cargo.toml` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.toml` (2026-10-29 `113633b259`).
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.

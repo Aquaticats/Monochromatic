@@ -30,7 +30,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const result = await ladder.finish({ git, runGit, context, out });
+//! const result = await ladder.finish({ git, runGit, context, out, note });
 //! ```
 
 use crate::add_timing::{begin_step, end_step};
@@ -450,7 +450,7 @@ fn finish_clones(source: &SnapshotSource, plan: &AddPlan, git: GitStatus, claim:
 /// ```ts
 /// async function finishSnapshot(args): Promise<LadderResult>;
 /// ```
-fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: &StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
+fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim: &StageClaim, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write, slow: &mut Option<SlowRoute>) -> LadderResult {
     let bound: Bound = match bind(claim, source, plan) {
         Ok(found) => found,
         Err(reason) => {
@@ -466,11 +466,11 @@ fn finish_snapshot(source: &SnapshotSource, plan: &AddPlan, stage: &Path, claim:
             mark_complete(claim, true);
             // A closed standard output leaves nowhere to print Git's line; the exit status still carries the result.
             let _written = out.write_all(served.line.as_bytes());
-            // A snapshot of the main checkout prints no copy summary, so it says what it did, on standard error; `--quiet` stays silent.
+            // A snapshot of the main checkout prints no copy summary, so it says what it did, on the stream the command was given for its notes; `--quiet` stays silent.
             if source.git_dir == source.common_dir && !plan.quiet {
-                let _noted = std::io::stderr().write_all(crate::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
+                let _noted = note.write_all(crate::worktree_trash::MAIN_SNAPSHOT_NOTE.as_bytes());
                 if let Some(changed) = changes_left_out(source) {
-                    let _left_out = std::io::stderr().write_all(left_out_note(changed).as_bytes());
+                    let _left_out = note.write_all(left_out_note(changed).as_bytes());
                 }
             }
             if let Some(changed) = changes_left_out(source) {
@@ -516,12 +516,20 @@ impl Ladder {
     ///  claim is always released:
     /// what an add left is reported when it happens,
     /// once.
+    /// The two streams are the ones the command was given:
+    /// `out` takes the line Git's own checkout prints,
+    /// and `note`
+    ///  takes the notes about what the add did instead,
+    /// because a caller that hands in its own report reads the whole of it.
+    /// `note` is one plain writer and not a shared one:
+    /// every note here is written before any thread
+    ///  this command starts exists.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const result = await ladder.finish({ git, runGit, context, out });
+    /// const result = await ladder.finish({ git, runGit, context, out, note });
     /// ```
-    pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write) -> LadderResult {
+    pub fn finish(self, git: GitStatus, run_git: &mut dyn GitRunner, context: &GitContext, out: &mut dyn Write, note: &mut dyn Write) -> LadderResult {
         let mut slow: Option<SlowRoute> = self.slow;
         let result: LadderResult = match (self.rung, self.plan.as_ref()) {
             (Rung::Snapshot(source, claim), Some(plan)) => {
@@ -530,7 +538,7 @@ impl Ladder {
                     return LadderResult { git, carried: None, trash: None };
                 }
                 let stage: PathBuf = claim.container().to_path_buf();
-                let result: LadderResult = finish_snapshot(&source, plan, stage.as_path(), &claim, run_git, context, out, &mut slow);
+                let result: LadderResult = finish_snapshot(&source, plan, stage.as_path(), &claim, run_git, context, out, note, &mut slow);
                 // A snapshot that served the add carried its ignored state: only then was a subvolume swapped into place.
                 release_claim(claim, result.carried.is_some());
                 result

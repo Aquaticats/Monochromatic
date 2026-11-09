@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-23 to 2026-08-24: checker width measured and the wide arm deleted
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair` is now split across the 36 packages under
+> `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 The switch that relaxed checker independence and the floor of three checkers,
 the instrument that reads both arms off one run,
 the four wide runs that answered that width changes nothing,

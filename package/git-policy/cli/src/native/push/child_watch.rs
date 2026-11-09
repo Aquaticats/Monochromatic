@@ -50,7 +50,7 @@
 
 /// The bound variable shared by every class of step,
 /// and the classes themselves.
-use crate::child_class::{CHILD_WAIT_VARIABLE, ChildClass};
+use crate::child_class::ChildClass;
 /// The longest one step runs.
 use crate::wait_ceilings::OBJECT_STEP_CEILING;
 /// The captured output of a step that is never ended,
@@ -87,6 +87,10 @@ pub use crate::child_watch_clock_marks_and_stopping::{WatchTerms, grace_for};
 use crate::child_watch_clock_marks_and_stopping::{Mark, WatchFlags};
 use crate::child_watch_task_loop_and_notice::watch_loop;
 pub use crate::child_watch_step_bounds_and_errors::{CeilingReached, EndedByStop, NotKnown, StepBound, ended_by_the_stop, is_ceiling, is_ended_by_stop, is_not_known, not_known_text, refused_while_stopping};
+/// The sentence a quiet step is reported with,
+/// kept beside the other wordings of a watch's ending.
+pub use crate::child_watch_step_bounds_and_errors::watched_timeout_text;
+pub(crate) use crate::child_watch_step_bounds_and_errors::{Outlived, ending_of_a_watched_step};
 use crate::child_watch_step_bounds_and_errors::{output_of};
 
 /// The running watcher for a task that started,
@@ -286,6 +290,62 @@ impl Drop for ChildWatch {
                 running.handle.abort();
             }
         }
+        self.keep_the_longest_gap();
+    }
+}
+
+impl ChildWatch {
+    /// What:
+    ///  End the watch from a caller inside the runtime:
+    /// the task is awaited,
+    /// not waited for on this thread,
+    /// and the longest quiet gap is kept as a drop keeps it.
+    /// Why:
+    ///   Dropping a watch waits for its task on the calling thread,
+    /// which is the right wait for a synchronous caller and a wrong one for
+    ///  a task:
+    /// a worker that waits there for the bound of `WATCHER_END_BOUND` (nineteen seconds) is a worker no
+    ///  other task of the process can use,
+    /// and while the workers of a small runtime are all inside such a wait,
+    /// the very task that
+    ///  would end them cannot run,
+    /// so every watch of a round pays the whole bound.
+    /// Measured on 2026-11-08 (`foundation/parallel_runner_on_the_runtime_awaiting_tests.rs`,
+    /// `an_item_may_await_a_git_child`):
+    /// four awaited Git steps took 38.2 s with the drop and 10.8 ms with this call,
+    /// and one awaited step alone took 19.1 s
+    ///  with the drop,
+    /// which is the whole of `WATCHER_END_BOUND`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// await watch.close(); // the synchronous face's `drop` waits on the calling thread instead
+    /// ```
+    pub async fn close_awaiting(&mut self) {
+        drop(self.marks.take());
+        if let Some(running) = self.task.take() {
+            // The task ends as soon as it reads that the marks are gone; a task that does not end by the bound is stopped, so that
+            // nothing waits for it for good.
+            let abort: tokio::task::AbortHandle = running.handle.abort_handle();
+            if tokio::time::timeout(WATCHER_END_BOUND, running.handle).await.is_err() {
+                abort.abort();
+            }
+        }
+        self.keep_the_longest_gap();
+    }
+
+    /// What:
+    ///  Keep the longest quiet gap of the waits this watch saw for the timing records,
+    /// once.
+    /// Why:
+    ///   Both endings of a watch (its drop and `close_awaiting`) hand the figure to the ledger,
+    /// and only one of them ever runs.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (ledgerStep) note(ledgerStep, longest, expired);
+    /// ```
+    fn keep_the_longest_gap(&mut self) {
         if let Some(step) = self.ledger_step.take() {
             let gap: Duration = Duration::from_micros(self.longest.load(Ordering::Acquire));
             quiet_ledger::note(step.as_str(), gap, self.expired());
@@ -347,27 +407,6 @@ struct RunningWatcher {
 /// ```
 pub fn reader_subject() -> String {
     return format!("git cat-file --batch, {}", ChildClass::Object.label());
-}
-
-/// What:
-///  The sentence for a watched wait that showed no sign of work for the quiet window.
-/// Why:
-///   It names what was waited for,
-/// the window,
-/// where to change it and what to do next.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `${waitingFor} showed no sign of work for ${limit} seconds and was stopped ...`
-/// ```
-pub fn watched_timeout_text(waiting_for: &str, limit: Duration) -> String {
-    return format!(
-        "{waiting_for} showed no sign of work for {} seconds and was stopped ({CHILD_WAIT_VARIABLE} changes this). \
-         If the step belonged to a commit, the next Git command of this wrapper finishes or undoes that commit, so \
-         run the command again. If the step is quiet while it works, raise the window with {CHILD_WAIT_VARIABLE}=<seconds>; \
-         if it stalls again, check with `ps` what that process waits for.",
-        limit.as_secs()
-    );
 }
 
 /// What:
@@ -558,24 +597,17 @@ pub fn output_watched_within_for_a_stop(
     };
     watch.end();
     // The stop ended the step: the caller is told so, whatever the step's own end looked like.
-    if watch.ended_by_the_stop() {
-        return Err(ended_by_the_stop(waiting_for));
-    }
-    if let Some(limit) = ceiling
-        && watch.ceiling_hit()
-    {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::TimedOut,
-            CeilingReached(format!("{waiting_for} ran for {} seconds, the longest the wrapper lets one step run, and was ended", limit.as_secs())),
-        ));
-    }
-    if watch.expired() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::TimedOut,
-            watched_timeout_text(waiting_for, watch.limit()),
-        ));
-    }
-    return output;
+    let outlived: Outlived = Outlived {
+        ended_by_the_stop: watch.ended_by_the_stop(),
+        ceiling,
+        ceiling_hit: watch.ceiling_hit(),
+        expired: watch.expired(),
+        limit: watch.limit(),
+    };
+    return match ending_of_a_watched_step(waiting_for, outlived) {
+        Some(error) => Err(error),
+        None => output,
+    };
 }
 
 /// Watch controls stay out of the release executable.

@@ -1,5 +1,10 @@
 # Translation repair handover 2026-09-06: the queue, TianqiChen666 reads and the audit, 2026-09-26 to 2026-09-29
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/doc/audit-ledger.md` is now
+> `package/translation-repair/doc/audit-ledger.md` (2026-10-18 `5cd4ae3ec6`).
+
 The newest part of the numbered queue of the section What to do next:
 the TianqiChen666 passes 6663 to 66621 with classes one hundred sixty to one hundred eighty-seven,
 the glossary audit,

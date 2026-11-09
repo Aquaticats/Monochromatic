@@ -334,7 +334,11 @@ export function resolveImage({
  2048 processes is what `podman run --help` prints as the default, so the cell's effective cap does not change and
  becomes explicit; cells install packages and start runtimes, which start many threads, and threads count against the
  limit.
- It is adopted, not measured.
+ No bounded run of this workload has been measured.
+ The one matrix cell reachable from a task today, `env-local-json`'s `test:container`, could not start its workload on
+ 2026-11-08T19:18:31-05:00: the container's node could not resolve a dependency because this checkout's `node_modules`
+ links into `${HOME}/.local/share/pnpm/store`, which the cell's mount does not contain
+ (`doc/handover/container-limits-everywhere.md`, section Measured runs on this host).
  */
 export const CELL_LIMITS: ContainerLimits = {
   memory: '2g',

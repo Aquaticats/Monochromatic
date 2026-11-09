@@ -1,5 +1,10 @@
 # Issue #498 bash-poke promotion handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/file-enforcer/README.md` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/cli/README.md` is the README today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

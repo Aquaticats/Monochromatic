@@ -1,7 +1,7 @@
 {
   "license": "LGPL-3.0-or-later",
   "name": "@monochromatic-dev/pnpm-override-shim-readable-stream",
-  "description": "API-compatible shim for readable-stream@3 and readable-stream@4; re-exports node:stream so consumers (winston, winston-transport, isomorphic-git) keep working after the upstream package is overridden out via pnpm-workspace.yaml.",
+  "description": "API-compatible shim for readable-stream@3 and readable-stream@4; re-exports node:stream so any transitive readable-stream request keeps resolving after the upstream package is overridden out via pnpm-workspace.yaml. No workspace package requests readable-stream today (its winston, winston-transport, and isomorphic-git consumers left the workspace), so the override is dormant defense in depth.",
   "private": true,
   "type": "commonjs",
   "main": "./index.cjs",

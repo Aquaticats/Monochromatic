@@ -45,6 +45,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure, raw_failure_of};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_source_still_being_filled::{source_is_still_being_filled, source_still_being_filled_notice};
 use crate::worktree_copy_registry::{
     CreatedWorktrees, WorktreeCopyObservation, destination_is_registered, find_created_worktree, observe_copy_source,
 };
@@ -356,6 +357,15 @@ fn synchronize_after(
     match observation.source_root.as_ref() {
         None => {}
         Some(source) => {
+            // A source that is itself receiving a copy holds only part of its ignored files, so nothing is staged from it;
+            // the new worktree is made whole by the same add once that copy has finished, and the person is told so.
+            if source_is_still_being_filled(observation.common_dir.as_path(), source.as_path())? {
+                let line: String = source_still_being_filled_notice(destination, source.as_path());
+                stderr
+                    .write_all(line.as_bytes())
+                    .map_err(raw_failure_of)?;
+                return Ok(Vec::new());
+            }
             for created in &found.created {
                 copied += synchronize_created_worktree_noting(
                     &invocation.context,
@@ -414,13 +424,14 @@ fn settle_creation(
     let settled: Result<LadderResult, WorktreeCopyError> = match ran {
         Ok(status) => {
             let finish_rung_entered: bool = begin_step("finishRung");
-            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout());
+            // The line Git's checkout prints goes to the standard output, and every note about what the add did instead goes to the stream this command was given, so a caller that hands in its own report reads the whole of it.
+            let finished = ladder.finish(status, run_git, &invocation.context, &mut std::io::stdout(), stderr);
             end_step(finish_rung_entered);
             Ok(finished)
         }
         Err(error) => {
             // Git did not start: the ladder only has its empty subvolume to remove, whatever status it is given.
-            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink());
+            ladder.finish(GitStatus { code: None }, run_git, &invocation.context, &mut std::io::sink(), stderr);
             Err(error)
         }
     };

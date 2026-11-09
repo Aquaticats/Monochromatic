@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-07 to 2026-08-12: what the draw estimates and how sheets are joined to verdicts
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/sample-draw.ts` is now
+> `package/translation-repair/house-rule/src/sample-draw.ts` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:test:unit` is now
+> `//package/translation-repair/*:test:unit` carried by each of the packages the split made
+> (2026-10-18 `4bd1aea8d5`).
+
 Why round-robin across entries protects the draw,
 the probe join that attached the wrong record's verdict,
 the smaller draw-integrity fixes,

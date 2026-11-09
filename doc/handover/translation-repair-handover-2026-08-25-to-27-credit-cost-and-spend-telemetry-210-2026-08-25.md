@@ -1,5 +1,14 @@
 # Translation repair handover snapshots: what the run costs in credits and the spend telemetry built for it, 2026-08-25
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src` is now split across the `src/` folders of the 36
+> packages under `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+> `package/module/translation-repair/src/corpus-run/hyper-price.ts` is now
+> `package/translation-repair/run/src/corpus-run/hyper-price.ts` (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:spend-report` is now
+> `//package/translation-repair/run:spend-report` (2026-10-18 `4bd1aea8d5`).
+
 The credit estimate and its fourfold correction,
 the finding that no run ever recorded its token spend (210),
 the two defects only the consumer could find,

@@ -1,5 +1,16 @@
 # Native suite flakes: state after the third flake session
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/ide/mise.toml` is now `package/ide/app/mise.toml`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:test:native:stress` is now
+> `//package/ide/app:test:native:stress` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/bin/runtime-publish.ts` is now
+> `package/ide/app/bin/runtime-publish.ts` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:runtime` is now `//package/ide/app:runtime`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

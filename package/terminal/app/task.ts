@@ -40,9 +40,12 @@ containerImageBuild({ image: 'localhost/monochromatic/terminal-release', contain
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -63,7 +66,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -77,9 +80,12 @@ execFileSync('task-run', ['//package/terminal/app:stage:runtime-libs:release'], 
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -100,7 +106,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -202,9 +208,12 @@ stageLibghosttyRuntimeLibs('debug')
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -225,7 +234,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -238,9 +247,12 @@ runCargo(['check'])
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -261,7 +273,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -274,9 +286,12 @@ runCargo(['clippy', '--release', '--all-targets', '--', '--deny', 'warnings'])
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -297,7 +312,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -310,9 +325,12 @@ runCargo(['clippy', '--fix', '--allow-dirty', '--allow-staged', '--allow-no-vcs'
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -333,7 +351,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -346,9 +364,12 @@ runCargo(['nextest', 'run', '--release'])
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -369,7 +390,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -451,9 +472,12 @@ console.error('rendered ui/app.slint -> target/app.slint.png')
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -474,7 +498,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -488,9 +512,12 @@ execFileSync('task-run', ['//package/terminal/app:stage:runtime-libs:release'], 
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -511,7 +538,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -524,9 +551,12 @@ containerCargo(['clippy', '--release', '--', '--deny', 'warnings'])
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -547,7 +577,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -560,9 +590,12 @@ containerCargo(['nextest', 'run', '--release'])
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -583,7 +616,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 
@@ -599,9 +632,12 @@ containerCargo(['nextest', 'run', '--release'])
     run: { shell: "node --input-type=module-typescript -e", run: `const { execFileSync } = await import('node:child_process')
 const { globSync } = await import('node:fs')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
+// The repository-root clippy.toml, mounted read-only outside /work and named by CLIPPY_CONF_DIR, is the only home of
+// the fleet-wide disallowed-methods ban that [lints.clippy] only activates; clippy reads the nearest clippy.toml up
+// from the crate directory, and the container mounts only the package directory at /work.
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), '../../container-limit/core/src/index.ts')).href)
 // 4 GiB and 4 CPUs bound the Ghostty plus Slint compile (this package's own bound before the weight); 1024 processes is the IDE's
-// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts): adopted, not measured.
+// bound for 4 CPUs (package/ide/app/bin/container-bounds.ts). Measured 2026-11-08T19:53:09-05:00 on a build that\n// reused a warm target directory: peak 3,188,219,904 bytes (2.97 GiB) of 4 GiB, 235 threads of 1024, 207 throttled\n// CPU periods of 2260, no kill. 4 GiB is 74 percent used, so it is not loose (doc/handover/container-limits-everywhere.md).
 const containerBound = { memory: '4g', cpus: 4, pidsLimit: 1024 }
 const onPath = (command) => { try { execFileSync('which', [command], { stdio: 'ignore' }); return true } catch { return false } }
 const pkgConfigOk = () => { try { execFileSync('pkg-config', ['--exists', 'fontconfig', 'freetype2'], { stdio: 'ignore' }); return true } catch { return false } }
@@ -622,7 +658,7 @@ const zigArchiveBuildArguments = () => execFileSync('node', [process.getBuiltinM
 const containerImageBuild = ({ image, containerfile, buildArguments, force = false, baseImages = [], boundingFlags = [] }) => execFileSync('node', [process.getBuiltinModule('node:path').resolve(process.cwd(), '../../test-harness/core-matrix/src/bin/container-image-build-if-inputs-changed.ts'), '--image', image, '--containerfile', containerfile, ...(force ? ['--force'] : []), ...baseImages.flatMap((baseImage) => ['--base-image', baseImage]), ...boundingFlags.map((flag) => '--bounding-flag=' + flag), '--', ...buildArguments], { stdio: 'inherit' })
 const containerCargo = (cargoArgs) => {
   containerImageBuild({ image: 'localhost/monochromatic/terminal', containerfile: 'Containerfile', buildArguments: [...cachyosBuildArguments('terminal'), ...rustToolchainBuildArguments(), ...zigArchiveBuildArguments()] })
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(containerBound), '--security-opt', 'label=disable', '--volume', \`\${process.cwd()}:/work\`, '--volume', \`\${process.cwd()}/../../../clippy.toml:/clippy-conf/clippy.toml:ro\`, '--env', 'CLIPPY_CONF_DIR=/clippy-conf', '--volume', 'terminal-cargo:/cargo', '--workdir', '/work', 'localhost/monochromatic/terminal', 'cargo', ...cargoArgs], { stdio: 'inherit' })
 }
 const runCargo = (cargoArgs) => { if (hostOk) { execFileSync('cargo', cargoArgs, { stdio: 'inherit', env: hostEnv() }) } else { containerCargo(cargoArgs) } }
 

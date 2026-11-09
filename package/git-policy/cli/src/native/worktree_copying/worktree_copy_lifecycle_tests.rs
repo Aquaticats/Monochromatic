@@ -397,6 +397,37 @@ fn add_arguments(name: &str, destination: &Path) -> Vec<String> {
     return ["worktree", "add", "--quiet", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
 }
 
+/// The arguments of a quiet `git worktree add --no-checkout -b <name> <destination>`.
+fn add_without_checkout(name: &str, destination: &Path) -> Vec<String> {
+    return ["worktree", "add", "--quiet", "--no-checkout", "-b", name].iter().map(|word| { return (*word).to_string(); }).chain([destination.to_string_lossy().into_owned()]).collect();
+}
+
+/// The note a snapshot of the main checkout writes reaches the stream the caller handed in,
+/// where the rest of the add's report goes.
+/// Why:
+///   A caller that hands in its own stream reads the whole report;
+/// a line written to the process's standard error beside it is one that caller never sees.
+#[test]
+fn btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in() {
+    let Some(root) = crate::fs_btrfs_test_support::btrfs_fixture("lifecycle-main-note") else { return };
+    let main: PathBuf = crate::worktree_ladder_test_support::subvolume_repository(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    let topic: PathBuf = root.join("topic");
+    let mut invocation: Invocation = creation_from(main.as_path(), common.as_path(), Some(topic.as_path()));
+    invocation.add_plan = Some(crate::worktree_ladder_test_support::plan_to(topic.clone()));
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &invocation,
+        &mut |_step: &GitStep<'_>| return Ok(run_real(main.as_path(), add_without_checkout("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
+    let said: String = String::from_utf8(stderr).expect("utf8");
+    assert!(said.contains(crate::worktree_trash::MAIN_SNAPSHOT_NOTE), "the note reaches the stream the caller handed in: {said:?}");
+    remove(root.as_path());
+}
+
 /// Another command registers a worktree while this one's Git runs:
 /// only the destination this command named is copied into,
 /// so two concurrent adds each get exactly their own copy.
@@ -451,6 +482,65 @@ fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
     assert!(Path::new(live.journal.stage_container.as_str()).exists(), "its stage is whole");
     assert!(!older.join("cache").exists(), "its copy is not installed by anyone else");
     assert!(!String::from_utf8(stderr).expect("utf8").contains("recovered"));
+    remove(root.as_path());
+}
+
+/// A source whose own ignored-state copy still runs is no source:
+/// the worktree is made,
+/// nothing is staged from the half-filled source,
+/// and the person is told why and how to have the copy made later.
+#[cfg(unix)]
+#[test]
+fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
+    let root: PathBuf = fixture("lifecycle-source-still-filling");
+    let (main, common) = source(root.as_path());
+    // The repository's own exclusion file, so every worktree of it ignores `cache` whether or not it holds the .gitignore file.
+    std::fs::write(common.join("info/exclude"), b"cache/\n").expect("exclude");
+    let older: PathBuf = root.join("older");
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "older", older.to_str().expect("utf8")]);
+    let older_canonical: PathBuf = std::fs::canonicalize(older.as_path()).expect("canonical older");
+    // The state a copy in progress leaves: one of the source's ignored entries is there and the rest are not.
+    std::fs::create_dir_all(older_canonical.join("cache")).expect("half-filled cache");
+    std::fs::write(older_canonical.join("cache/half"), b"partial").expect("half");
+    let live = journal_for(main.as_path(), common.as_path(), older_canonical.as_path(), &crate::worktree_copy_owner::current_copy_owner().expect("owner"));
+    let topic: PathBuf = root.join("topic");
+    let identity: WorktreeIdentity = WorktreeIdentity::LinkedWorktree {
+        common_dir: common.clone(),
+        git_dir: common.join("worktrees").join("older"),
+        worktree_root: older_canonical.clone(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let settlement: Settlement = run_with_worktree_copy(
+        &Invocation {
+            identity: identity.clone(),
+            effective_cwd: older_canonical.clone(),
+            creates: true,
+            destination: Some(topic.clone()),
+            opted_out: false,
+            short_circuit: false,
+            context: git_context(),
+            add_plan: None,
+            repair: crate::package_repair::RepairSwitch::default(),
+        },
+        &mut |_step: &GitStep<'_>| return Ok(run_real(older_canonical.as_path(), add_arguments("topic", topic.as_path()).as_slice())),
+        &mut stderr,
+    )
+    .expect("settled");
+    assert_eq!(exit_code(&settlement), 0, "the add itself still succeeds: {:?}", settlement.copy_failure);
+    assert!(settlement.copy_failure.is_none(), "a source that is busy is not the add's failure");
+    assert!(topic.join(".git").exists(), "the worktree is made");
+    assert!(!topic.join("cache").exists(), "the half-filled ignored state is not copied");
+    assert_eq!(
+        String::from_utf8(stderr).expect("utf8"),
+        format!(
+            "monochromatic-git-policy-cli: {} was made, but it received no ignored-state copy, because {} is itself being filled by another `git worktree add`, so its ignored files are only partly there. Once that add has finished, `git worktree remove {}` and run this `git worktree add` line again to have the ignored state copied; `git worktree remove` leaves a worktree that holds changes alone, so save them first.\n",
+            quote(topic.to_string_lossy().as_ref()),
+            quote(older_canonical.to_string_lossy().as_ref()),
+            quote(topic.to_string_lossy().as_ref())
+        )
+    );
+    assert!(live.path.exists(), "the running copy's journal is whole");
+    assert!(read_pending_journals(common.as_path()).expect("pending").len() == 1, "nothing of this command's own stays pending");
     remove(root.as_path());
 }
 

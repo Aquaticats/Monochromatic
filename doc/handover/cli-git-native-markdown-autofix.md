@@ -1,5 +1,13 @@
 # cli-git native Markdown autofix
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint/src/cli.ts` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/git-policy/markdown-lint/src/rewrite-candidates.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.

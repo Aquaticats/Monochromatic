@@ -1,5 +1,12 @@
 # Rust file-enforcer rewrite handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/file-enforcer/core/src/toolchain` is deleted (2026-10-31 `8423cf1922`) and the
+> toolchain code is `package/mpm-shadow/cli/src/toolchain` today.
+> `package/file-enforcer/core/src/toolchain/sync.ts` is deleted (2026-10-31 `e7b5130459`)
+> and the toolchain code is `package/mpm-shadow/cli/src/toolchain` today.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

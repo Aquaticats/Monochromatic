@@ -21,6 +21,18 @@
 //! the live
 //!  lines of the head item) is the one of `parallel_runner.rs`,
 //! so the two runners cannot report differently.
+//! The jobs inside their work at once are never more than the workers,
+//! the lanes and
+//!  the process's bound on blocking jobs allow,
+//! whichever
+//!  is the fewest:
+//! the bound is a ceiling every job of the process shares,
+//!  never a reservation one run keeps for itself.
+//! That bound comes from the CPUs this process may use
+//! (`available_parallelism`,
+//!  so a container's quota counts),
+//! the limits on threads and address space,
+//! and any cap the process asked for.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -34,7 +46,7 @@ use crate::line_sink::LineSink;
 use crate::parallel_runner::{Cursor, Message, OrderedEvents, OrderedWork, refuse_lanes_that_do_not_cover_every_item};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 /// What:
 ///  Everything one ordered run on the runtime needs.
@@ -59,9 +71,13 @@ pub struct OrderedRunOfOwned<'run, T, R> {
     /// lanes run side by side.
     ///  Every index appears in exactly one lane.
     pub lanes: Arc<[Vec<usize>]>,
-    /// How many jobs run at once,
+    /// How many jobs the run is asked to keep in flight at once,
     /// at least one,
     /// and never more than there are lanes.
+    /// The jobs really inside their work at once are never more than the fewest of this,
+    /// the lanes and the process's bound on blocking jobs
+    /// (`blocking_jobs_within_the_budget.rs`),
+    /// because every job takes a place of that bound before it starts.
     pub workers: usize,
     /// What one item does,
     /// given its index,
@@ -143,11 +159,11 @@ impl<T: Send + Sync + 'static, R: Send + 'static> OneItem<T, R> {
 
 /// The lines of one item,
 /// sent to the consumer of the calling task with the item's index.
-struct LinesToTheConsumer<'sender, R> {
+pub(crate) struct LinesToTheConsumer<'sender, R> {
     /// Where the lines go.
-    sender: &'sender UnboundedSender<Message<R>>,
+    pub(crate) sender: &'sender UnboundedSender<Message<R>>,
     /// The item that says them.
-    index: usize,
+    pub(crate) index: usize,
 }
 
 impl<R> LineSink for LinesToTheConsumer<'_, R> {
@@ -212,16 +228,16 @@ where
 
 /// How many jobs of one run are still running,
 /// and a wake for the consumer when their number falls.
-struct SlotsStillRunning {
+pub(crate) struct SlotsStillRunning {
     /// The jobs that have not returned.
-    running: AtomicUsize,
+    pub(crate) running: AtomicUsize,
     /// Woken whenever one returns.
-    changed: tokio::sync::Notify,
+    pub(crate) changed: tokio::sync::Notify,
 }
 
 impl SlotsStillRunning {
     /// A count of `count` jobs that have not returned.
-    fn counting(count: usize) -> Arc<Self> {
+    pub(crate) fn counting(count: usize) -> Arc<Self> {
         return Arc::new(SlotsStillRunning { running: AtomicUsize::new(count), changed: tokio::sync::Notify::new() });
     }
 }
@@ -232,7 +248,7 @@ impl SlotsStillRunning {
 /// Why:
 ///  The consumer reads until every job of the run has returned,
 /// and a job that panicked must end that wait too.
-struct CountedOut(Arc<SlotsStillRunning>);
+pub(crate) struct CountedOut(pub(crate) Arc<SlotsStillRunning>);
 
 impl Drop for CountedOut {
     fn drop(&mut self) {
@@ -289,7 +305,7 @@ where
     let OrderedRunOfOwned { items, lanes, workers, work, on_event } = run;
     refuse_lanes_that_do_not_cover_every_item(items.len(), lanes.as_ref());
     let next_lane: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
-    let (sender, mut receiver) = unbounded_channel::<Message<R>>();
+    let (sender, receiver) = unbounded_channel::<Message<R>>();
     let at_once: usize = workers.max(1).min(lanes.len().max(1));
     let still_running: Arc<SlotsStillRunning> = SlotsStillRunning::counting(at_once);
     let mut slots: tokio::task::JoinSet<Result<(), BlockingJobError>> = tokio::task::JoinSet::new();
@@ -305,7 +321,38 @@ where
     }
     // The consumer's own sending end goes, so a run every job returned from closes its channel.
     drop(sender);
-    let mut cursor: Cursor<R> = Cursor::new(items.len());
+    return finish_the_run(receiver, &still_running, items.len(), on_event, &mut slots).await;
+}
+
+/// What:
+///  Reports every line and result the jobs of one run sent,
+/// in input order,
+/// ends when every job has returned,
+///  and gives the first failure of the run.
+/// Why:
+///   Two forms run lanes of items (`run_ordered_on_the_runtime` as blocking jobs,
+/// `run_ordered_awaiting_on_the_runtime`
+///  as tasks),
+/// and their reporting must be one code:
+/// the consumer reads until every job of the run has *returned*
+///  (a job the system refused a thread for keeps its sending end for the life of the process,
+/// so a channel that waits for its
+///  sending ends would never close),
+/// then drains what the jobs already sent,
+/// and only then joins them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (stillRunning()) { await either(message(), oneReturned()); } drain(); return firstFailure(joinAll());
+/// ```
+pub(crate) async fn finish_the_run<R>(
+    mut receiver: UnboundedReceiver<Message<R>>,
+    still_running: &SlotsStillRunning,
+    item_count: usize,
+    on_event: &mut dyn OrderedEvents<R>,
+    slots: &mut tokio::task::JoinSet<Result<(), BlockingJobError>>,
+) -> Result<(), OrderedRunError> {
+    let mut cursor: Cursor<R> = Cursor::new(item_count);
     // The first item begins before any job says anything, as in the scoped form.
     cursor.advance(on_event);
     loop {
