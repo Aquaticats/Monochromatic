@@ -19,66 +19,74 @@
 //! would otherwise report a changed file as unchanged,
 //! and the person's
 //!  edit would reach neither the next commit nor `git status`.
-//!  So the stat data here is recorded only when all three hold:
+//!  So the stat data here is recorded only when all four hold:
 //!
+//! - The path is a regular file,
+//! and every directory on the way is a real one on the worktree's device,
+//! reached below a held root without following a link.
+//!   A symbolic link is left to Git:
+//! it is rare,
+//! the
+//!  zero value only costs a refresh,
+//! and a link read across a swap of its parent directory cannot be proven to be the one examined.
 //! - The file's raw bytes hash to the entry's object name,
 //! read as a blob.
-//!   A file whose bytes Git converts on the way into the index
-//!  (a clean filter,
-//! `ident`,
-//! `working-tree-encoding`,
-//! a line-ending conversion)
-//! hashes to something else and keeps the
-//!  all-zero stat data,
-//! so a conversion can only cost a refresh,
-//! never a wrong record.
+//! - No attribute Git applies converts these bytes,
+//! and the bytes hold no carriage return.
+//!   A clean filter,
+//! `ident`
+//!  or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another blob,
+//! and a
+//!  line-ending rule may strip a carriage return on the way into the index,
+//! so such a path keeps the zero stat data and costs a refresh.
+//!   The attributes are read in
+//!  process (`worktree_clean_content.rs`,
+//! `conversion_is_the_identity`),
+//! from the files Git itself would read,
+//! and where their location cannot be established the
+//!  path keeps the zero value.
 //! - The state of the one inode that was read is the same before,
-//! during and after the read,
-//! and the path still names it,
-//!  so the bytes that were hashed are the bytes the recorded stat data describes.
-//! - The file is older than the index file this entry is written into,
+//! during and after the read and the path still names it,
+//! and the
+//!  file is older than the index file this entry is written into,
 //! compared to the nanosecond as Git's `is_racy_stat` compares them.
-//!   An
-//!  entry that is not is what Git calls racily clean:
-//! Git hashes such a file because its stat data proves nothing,
-//! and the next
-//!  commit's staleness question asks for a refresh for it as well,
-//! so recording it would buy nothing and could hide a same-size edit made
-//!  in that same instant on a file system whose times are coarse.
-//!   Such an entry keeps the all-zero stat data,
-//! and both readers
-//!  hash the file as they do today.
-//! A file written earlier in the index file's own second is older than the index on a file system that stores
-//!  nanoseconds,
-//! so the entries a person's edit just made record their stat data and the next commit starts no Git for them.
+//!   An entry as
+//!  new as the index is what Git calls racily clean,
+//! so it keeps the zero value and both readers hash the file;
+//! a file written
+//!  earlier in the index file's own second is older than the index on a file system that stores nanoseconds,
+//! so the entries a
+//!  person's edit just made record their stat data and the next commit starts no Git for them.
 //!
-//! A path that is not a regular file or a symbolic link,
-//! a file larger than `CONTENT_LIMIT`,
-//! and a file that cannot
-//!  be read keep the all-zero stat data too,
-//! and Git's own refresh decides their stat data as it does today.
-//! One landing hashes at most `CONTENT_LIMIT` bytes in all,
-//! so a commit that lands a whole worktree never reads it again inside the landing's index lock;
-//! the 4,000 newest
-//!  non-merge commits of this repository change a median of 27 KB
-//! (p99 3.3 MB,
-//! largest 23.1 MB,
-//! `package/git-policy/cli/e2e/commit-shape-trace.json`),
-//!  so no commit there spends the bound.
+//! The read never waits and never passes a bound:
+//! a path that is not a regular file is refused by its type,
+//! the open does
+//!  not block (a fifo renamed over the path is opened without waiting for a writer and refused by its type),
+//! and the bytes are
+//!  read at most up to what is left of `CONTENT_LIMIT` for the whole landing.
+//! Every byte that reaches the disk is charged,
+//! including a
+//!  read the stability checks later refuse,
+//! so a landing that lands a whole worktree reads at most `CONTENT_LIMIT` bytes of it inside the
+//!  landing's index lock.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const stat: StatData | undefined = recordedStat({ worktreeRoot, path, blob, mode, format, stamp });
+//! const stat: StatData | undefined = recordedStat({ worktreeRoot, path, blob, mode, format, stamp, hashed });
 //! ```
 
+use crate::fs_beneath::{entry_metadata_at, open_directory_beneath, open_file_at, plain_components};
 use crate::index_reset_worktree_stat_source::WorktreeStatSource;
 use crate::index_stat::{IndexStamp, StatData};
 use crate::repo_read_layout::ObjectFormat;
 use crate::subvolume_sha::{sha1, sha256};
-use crate::worktree_clean_content::{CONTENT_LIMIT, read_at_most};
-use std::os::unix::ffi::{OsStrExt, OsStringExt as _};
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use crate::worktree_clean_content::{CONTENT_LIMIT, ContentJudge, read_at_most};
+use crate::worktree_clean_tree_walk::ContentTarget;
+use std::cell::{Cell, RefCell};
+use std::ffi::{OsStr, OsString};
+use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 
 /// The file-type bits of an entry's mode.
 const TYPE_BITS: u32 = 0o170_000;
@@ -86,11 +94,28 @@ const TYPE_BITS: u32 = 0o170_000;
 /// The file-type bits of a regular file.
 const REGULAR_FILE: u32 = 0o100_000;
 
-/// The file-type bits of a symbolic link.
-const SYMBOLIC_LINK: u32 = 0o120_000;
-
 /// The one permission bit of a file's mode that an index entry records.
 const EXECUTABLE_BIT: u32 = 0o100;
+
+/// The moments of the proof at which a control changes the file under it.
+pub struct ProofSeams<'a> {
+    /// Called after the file's state was first read and before it is opened.
+    pub before_open: &'a mut dyn FnMut(),
+    /// Called after the bytes were read and before the state is read again.
+    pub after_read: &'a mut dyn FnMut(),
+}
+
+/// What:
+///  Do nothing;
+/// the seams of the proof run this unless a control puts work there.
+/// Why:
+///   The release executable has nothing to do between those steps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const doNothing = () => {};
+/// ```
+fn do_nothing() {}
 
 /// What:
 ///  One path whose entry a reset writes,
@@ -98,17 +123,23 @@ const EXECUTABLE_BIT: u32 = 0o100;
 /// Why:
 ///   The proof reads the file and needs the value it must hash to,
 /// the kind of file the entry names,
-/// the repository's object hash and
-///  the second the index file is dated with.
+/// the repository's object hash,
+///  the date of the index file and the bytes this landing has hashed so far.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WorktreeStatRequest = { worktreeRoot: string; path: Uint8Array; blob: Uint8Array; mode: number; format: ObjectFormat; stamp: IndexStamp; hashed: { bytes: number } };
+/// type WorktreeStatRequest = { worktreeRoot: string; gitDir: string; commonDir: string; environment: ConversionEnvironment; path: Uint8Array; blob: Uint8Array; mode: number; format: ObjectFormat; stamp: IndexStamp; hashed: { bytes: number } };
 /// ```
 pub struct WorktreeStatRequest<'a> {
     /// The worktree's top level,
     /// which index paths are relative to.
     pub worktree_root: &'a Path,
+    /// The worktree's own Git directory.
+    pub git_dir: &'a Path,
+    /// The shared Git directory.
+    pub common_dir: &'a Path,
+    /// The attribute files Git would read.
+    pub environment: &'a crate::worktree_clean_content_attribute_sources::ConversionEnvironment,
     /// The path as the index spells it,
     /// `/` separated.
     pub path: &'a [u8],
@@ -121,9 +152,9 @@ pub struct WorktreeStatRequest<'a> {
     pub format: ObjectFormat,
     /// The date of the index file this entry is written into.
     pub stamp: IndexStamp,
-    /// The bytes this landing has hashed so far,
+    /// The bytes this landing has read so far,
     /// which bound what one landing reads (`CONTENT_LIMIT`).
-    pub hashed: &'a std::cell::Cell<u64>,
+    pub hashed: &'a Cell<u64>,
 }
 
 /// What:
@@ -134,7 +165,7 @@ pub struct WorktreeStatRequest<'a> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const name = hash(`${'blob '}${data.length}\0`, data); // sha1 or sha256
+/// const name = hash(`blob ${data.length}\0`, data); // sha1 or sha256
 /// ```
 fn blob_name(data: &[u8], format: ObjectFormat) -> Vec<u8> {
     let mut framed: Vec<u8> = format!("blob {}\0", data.len()).into_bytes();
@@ -202,202 +233,241 @@ fn stat_of(metadata: &std::fs::Metadata) -> StatData {
 }
 
 /// What:
-///  Whether the metadata describes the kind of file and the permission bit the entry records.
+///  Whether the metadata describes the one kind of file this records stat data for,
+/// with the permission bit the entry records.
 /// Why:
-///   A path that became a link,
-/// a file or an executable of what the entry says has changed whatever its bytes are,
-/// and recording
-///  its stat data would describe a file the entry no longer names.
+///   A symbolic link is left to Git (`a_symbolic_link_records_nothing`),
+/// a gitlink holds no file,
+/// and a path that became a
+///  directory,
+/// a fifo or a device has changed whatever its bytes are.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const agrees = entry.mode === 0o120000 ? m.isSymbolicLink() : m.isFile() && (entry.mode & 0o100) === (m.mode & 0o100);
+/// const agrees = entry.mode === 0o100644 || entry.mode === 0o100755
+///   ? m.isFile() && (entry.mode & 0o100) === (m.mode & 0o100) : false;
 /// ```
 fn mode_agrees(entry_mode: u32, metadata: &std::fs::Metadata) -> bool {
-    return match entry_mode & TYPE_BITS {
-        SYMBOLIC_LINK => metadata.file_type().is_symlink(),
-        REGULAR_FILE => metadata.file_type().is_file() && (entry_mode & EXECUTABLE_BIT != 0) == (metadata.mode() & EXECUTABLE_BIT != 0),
-        _ => false,
-    };
+    if entry_mode & TYPE_BITS != REGULAR_FILE {
+        return false;
+    }
+    return metadata.file_type().is_file() && (entry_mode & EXECUTABLE_BIT != 0) == (metadata.mode() & EXECUTABLE_BIT != 0);
 }
 
 /// What:
-///  The bytes of the symbolic link at `path`,
-/// with the link's state the same before and after.
+///  The held directory out of the cached entry.
 /// Why:
-///   A link's content is the bytes of its target,
-/// which is what its blob holds,
-/// and a link replaced while it is read proves nothing.
+///   The cache holds the names it was opened for beside the handle,
+/// and only the handle is borrowed for the look-up.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bytes = readlink(path); // with the same lstat before and after
+/// const theDirectory = (held) => held?.opened;
 /// ```
-fn link_bytes(path: &Path, before: &std::fs::Metadata) -> Option<Vec<u8>> {
-    let target: PathBuf = std::fs::read_link(path).ok()?;
-    let after: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
-    if !same_state(before, &after) {
-        return None;
-    }
-    return Some(target.into_os_string().into_vec());
+fn the_directory(held: &Option<(Vec<OsString>, std::fs::File)>) -> Option<&std::fs::File> {
+    let (_names, opened) = held.as_ref()?;
+    return Some(opened);
 }
-
-/// The moments of the proof at which a control changes the file under it.
-pub struct ProofSeams<'a> {
-    /// Called after the file's state was first read and before it is opened.
-    pub before_open: &'a mut dyn FnMut(),
-    /// Called after the bytes were read and before the state is read again.
-    pub after_read: &'a mut dyn FnMut(),
-}
-
-/// What:
-///  The bytes of the regular file at `path`,
-/// or nothing when the file is larger than `CONTENT_LIMIT`,
-/// cannot be opened without following a link,
-/// or changed while it
-///  was read.
-/// Why:
-///   The read is bounded and holds the one inode that is judged,
-/// so a swap or a write during it refuses instead of hashing bytes
-///  no stat data describes;
-/// `O_NOFOLLOW` keeps a path swapped for a link from being read through it.
-///  `after_read` runs between the read and the second look at the file's state,
-/// which is where a control writes to it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const bytes = readStable(path, before, afterRead); // open O_NOFOLLOW, read at most CONTENT_LIMIT, compare state before and after
-/// ```
-fn file_bytes(path: &Path, before: &std::fs::Metadata, seams: &mut ProofSeams<'_>) -> Option<(Vec<u8>, std::fs::Metadata)> {
-    (seams.before_open)();
-    if before.len() > CONTENT_LIMIT {
-        return None;
-    }
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path).ok()?;
-    let held: std::fs::Metadata = file.metadata().ok()?;
-    if held.dev() != before.dev() || held.ino() != before.ino() {
-        return None;
-    }
-    let data: Vec<u8> = read_at_most(&file, CONTENT_LIMIT).ok()??;
-    (seams.after_read)();
-    let after: std::fs::Metadata = file.metadata().ok()?;
-    let by_name: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
-    if !same_state(&held, &after) || !same_state(&held, &by_name) {
-        return None;
-    }
-    return Some((data, held));
-}
-
-/// What:
-///  Do nothing;
-/// the seam of the read runs this unless a control puts work there.
-/// Why:
-///   The release executable has nothing to do between the read and the second look at the file's state.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const doNothing = () => {};
-/// ```
-fn do_nothing() {}
 
 /// What:
 ///  The source a landing names:
-/// the worktree whose files are read,
-/// the object hash of the repository and the date of the index file the entry goes into.
+/// the worktree held open,
+/// the content decision's own attributes,
+/// the object hash and the date of the index file.
 /// Why:
-///   Every `recorded` call needs those three and nothing else,
-/// so the landing builds this once and the reset asks it per path.
+///   A landing proves many paths against one worktree,
+/// so the held root,
+/// the attribute files of each directory and the read
+///  budget are kept here,
+/// and no closure carries either side's state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const source = new LandingStat({ worktreeRoot, format, stamp });
+/// const source = new LandingStat({ root, target, stamp });
 /// ```
 pub struct LandingStat<'a> {
     /// The worktree's top level,
-    /// which index paths are relative to.
-    worktree_root: &'a Path,
+    /// held open.
+    root: &'a std::fs::File,
+    /// The attributes Git would apply to a path,
+    /// which decide whether a conversion may change its bytes.
+    judge: RefCell<ContentJudge<'a>>,
+    /// The directories opened so far:
+    /// the names below the root and the held directory,
+    /// because the entries come in path order and most share one.
+    directory: RefCell<Option<(Vec<OsString>, std::fs::File)>>,
     /// The object hash of the repository.
     format: ObjectFormat,
     /// The date of the index file the entry is written into.
     stamp: IndexStamp,
-    /// The bytes this landing has hashed so far.
-    hashed: std::cell::Cell<u64>,
+    /// The bytes this landing has read so far.
+    hashed: &'a Cell<u64>,
 }
 
 impl<'a> LandingStat<'a> {
-    /// The source of `worktree_root`'s files for an index file dated `stamp` in a repository of `format`.
-    pub fn new(worktree_root: &'a Path, format: ObjectFormat, stamp: IndexStamp) -> LandingStat<'a> {
-        return LandingStat { worktree_root, format, stamp, hashed: std::cell::Cell::new(0) };
+    /// The source of the worktree held open as `root`,
+    /// whose index file is dated `stamp`.
+    pub fn new(root: &'a std::fs::File, target: &ContentTarget<'a>, stamp: IndexStamp, hashed: &'a Cell<u64>) -> LandingStat<'a> {
+        return LandingStat {
+            root,
+            judge: RefCell::new(ContentJudge::new(root, target.git_dir, target.common_dir, target.environment, target.format)),
+            directory: RefCell::new(None),
+            format: target.format,
+            stamp,
+            hashed,
+        };
+    }
+
+    /// What:
+    ///  The directory holding the entry at `parents`,
+    /// opened below the held root without following a link and kept for the next entry.
+    /// Why:
+    ///   A held directory makes every look-up below it immune to a swap of an ancestor,
+    /// which a path built from the
+    ///  worktree root is not.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const directory = cache.get(parents) ?? openBelow(heldRoot, parents);
+    /// ```
+    fn directory(&self, parents: &[OsString]) -> Option<std::cell::Ref<'_, std::fs::File>> {
+        let missed: bool = match self.directory.borrow().as_ref() {
+            Some((known, _opened)) => known.as_slice() != parents,
+            None => true,
+        };
+        if missed {
+            self.directory.replace(Some((parents.to_vec(), open_directory_beneath(self.root, parents).ok()?)));
+        }
+        return std::cell::Ref::filter_map(self.directory.borrow(), the_directory).ok();
+    }
+
+    /// What:
+    ///  The bytes of the regular file the entry names,
+    /// read at most up to `room`,
+    /// with what was read charged to the landing whatever becomes of it.
+    /// Why:
+    ///   A read that is later refused still reached the disk,
+    /// so the bound is on the reading;
+    /// the file is opened without waiting (`O_NONBLOCK`,
+    /// `fs_beneath::open_file_at`),
+    /// so a fifo
+    ///  renamed over the path cannot hold the landing's index lock;
+    /// the handle is judged by its type and by the inode the first look saw,
+    /// so a swap
+    ///  between the two is refused.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function readCharged(directory, name, before, room) {
+    ///   seams.beforeOpen(); const file = openFileAt(directory, name); const held = fstat(file);
+    ///   if (!held.isFile() || held.ino !== before.ino) return; const data = readAtMost(file, room);
+    ///   hashed += data === undefined ? room : data.length; if (data === undefined) return;
+    ///   seams.afterRead(); ... stability checks ...; return data;
+    /// }
+    /// ```
+    fn read_charged(&self, directory: &std::fs::File, name: &OsStr, before: &std::fs::Metadata, room: u64, seams: &mut ProofSeams<'_>) -> Option<(Vec<u8>, std::fs::Metadata)> {
+        (seams.before_open)();
+        let file: std::fs::File = open_file_at(directory, name).ok()?;
+        let held: std::fs::Metadata = file.metadata().ok()?;
+        if !held.file_type().is_file() || held.dev() != before.dev() || held.ino() != before.ino() {
+            return None;
+        }
+        let spent: u64 = self.hashed.get();
+        let data: Vec<u8> = match read_at_most(&file, room) {
+            Ok(Some(bytes)) => {
+                self.hashed.set(spent + bytes.len() as u64);
+                bytes
+            }
+            // The file grew past the room the landing had: the read stops at the probe byte, and the room is charged.
+            Ok(None) => {
+                self.hashed.set(spent + room);
+                return None;
+            }
+            Err(_) => return None,
+        };
+        (seams.after_read)();
+        let after: std::fs::Metadata = file.metadata().ok()?;
+        let by_name: std::fs::Metadata = entry_metadata_at(directory, name).ok()?;
+        if !same_state(&held, &after) || !same_state(&held, &by_name) {
+            return None;
+        }
+        return Some((data, after));
+    }
+
+    /// What:
+    ///  The stat data the landing may record for one path,
+    /// or nothing when the file cannot prove it holds the committed bytes.
+    /// Why:
+    ///  `index_reset.rs` calls this for every entry it writes,
+    /// and the answer decides between the file's stat data and the all-zero
+    ///  value `git reset --no-refresh` writes,
+    /// so every doubt keeps the zero value.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const stat = source.recorded(path, blob, mode);
+    /// ```
+    fn record(&self, path: &[u8], blob: &[u8], mode: u32, seams: &mut ProofSeams<'_>) -> Option<StatData> {
+        let names: Vec<OsString> = plain_components(Path::new(OsStr::from_bytes(path))).ok()?;
+        let (name, parents): (&OsString, &[OsString]) = names.split_last()?;
+        let directory: std::cell::Ref<'_, std::fs::File> = self.directory(parents)?;
+        let before: std::fs::Metadata = entry_metadata_at(&directory, name.as_os_str()).ok()?;
+        if !mode_agrees(mode, &before) || self.stamp.is_racy(&stat_of(&before)) {
+            return None;
+        }
+        // A conversion Git may apply can leave these bytes looking equal to the blob while Git's view of the file is not.
+        if self.judge.borrow_mut().conversion_is_the_identity(path, parents).is_err() {
+            return None;
+        }
+        let room: u64 = CONTENT_LIMIT.saturating_sub(self.hashed.get());
+        if before.len() > room {
+            return None;
+        }
+        let (data, examined): (Vec<u8>, std::fs::Metadata) = self.read_charged(&directory, name.as_os_str(), &before, room, seams)?;
+        // A line-ending rule Git applies whatever the attributes say may strip a carriage return on the way into the index.
+        if data.contains(&b'\r') || blob_name(data.as_slice(), self.format) != blob {
+            return None;
+        }
+        return Some(stat_of(&examined));
     }
 }
 
 impl WorktreeStatSource for LandingStat<'_> {
     fn recorded(&self, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
-        return recorded_stat(&WorktreeStatRequest { worktree_root: self.worktree_root, path, blob, mode, format: self.format, stamp: self.stamp, hashed: &self.hashed });
+        return self.record(path, blob, mode, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing });
     }
 }
 
 /// What:
-///  The stat data the landing may record for one path,
-/// or nothing when the file cannot prove it holds the committed bytes.
+///  The stat data one path's file provably has,
+/// asked with the seams a control changes the file at.
 /// Why:
-///  `index_reset.rs` calls this for every entry it writes,
-/// and the answer decides between the file's stat data and the all-zero
-///  value `git reset --no-refresh` writes,
-/// so every doubt keeps the zero value.
+///   The source a landing uses keeps the held root and the attribute files across paths,
+/// and a caller that proves one path has nothing to keep,
+///  so this reads the one file from the worktree root itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const stat = recordedStat({ worktreeRoot, path, blob, mode, format, stamp });
+/// const stat = recordedStatSeamed(request, seams);
+/// ```
+pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut ProofSeams<'_>) -> Option<StatData> {
+    let root: std::fs::File = crate::fs_beneath::open_root(request.worktree_root).ok()?;
+    let target: ContentTarget<'_> = ContentTarget { root: request.worktree_root, git_dir: request.git_dir, common_dir: request.common_dir, environment: request.environment, format: request.format };
+    let source: LandingStat<'_> = LandingStat::new(&root, &target, request.stamp, request.hashed);
+    return source.record(request.path, request.blob, request.mode, seams);
+}
+
+/// What:
+///  `recorded_stat_seamed` with the seams that change nothing.
+/// Why:
+///  The release executable has no control under the read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stat = recordedStat(request);
 /// ```
 pub fn recorded_stat(request: &WorktreeStatRequest<'_>) -> Option<StatData> {
     return recorded_stat_seamed(request, &mut ProofSeams { before_open: &mut do_nothing, after_read: &mut do_nothing });
-}
-
-/// What:
-///  `recorded_stat` with the moment at which a control changes the file under the read.
-/// Why:
-///   A control can only show that a file written while it is read records nothing if it can write at that moment,
-/// and the
-///  release executable's seam does nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const stat = recordedStatSeamed(request, afterRead);
-/// ```
-pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut ProofSeams<'_>) -> Option<StatData> {
-    let path: PathBuf = request.worktree_root.join(std::ffi::OsStr::from_bytes(request.path));
-    let before: std::fs::Metadata = std::fs::symlink_metadata(path.as_path()).ok()?;
-    if !mode_agrees(request.mode, &before) || request.stamp.is_racy(&stat_of(&before)) {
-        return None;
-    }
-    // What:
-    //  The bytes one landing may still hash,
-    //  the bound `CONTENT_LIMIT` set beside the file it was measured for.
-    // Why:
-    //  Without the bound a commit that lands a whole worktree would read every byte of it again inside the landing's
-    // index
-    //  lock,
-    //  where an ordinary commit lands a median of 27 KB in the 4,000 newest commits of this repository.
-    //
-    // In TS you'd write (pseudocode):
-    // ```ts
-    // const room = CONTENT_LIMIT - request.hashed.bytes;
-    // if (before.size > room) return undefined;
-    // ```
-    let spent: u64 = request.hashed.get();
-    if before.len() > CONTENT_LIMIT.saturating_sub(spent) {
-        return None;
-    }
-    let (data, examined): (Vec<u8>, std::fs::Metadata) = match request.mode & TYPE_BITS {
-        SYMBOLIC_LINK => (link_bytes(path.as_path(), &before)?, before),
-        _ => file_bytes(path.as_path(), &before, seams)?,
-    };
-    request.hashed.set(spent + data.len() as u64);
-    if blob_name(data.as_slice(), request.format) != request.blob {
-        return None;
-    }
-    return Some(stat_of(&examined));
 }
 
 /// Controls for the recorded stat data stay out of the release executable.

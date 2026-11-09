@@ -390,6 +390,36 @@ impl<'a> ContentJudge<'a> {
     }
 
     /// What:
+    ///  Whether Git's conversion of the file at `path` is the identity on its bytes:
+    /// no attribute that converts anything applies,
+    /// and the attributes files could be read.
+    /// Why:
+    ///   A caller that records a file's stat data must be sure a later reader's trust in that data cannot hide a
+    /// difference between the file and the committed bytes;
+    /// a clean filter,
+    /// `ident` or a `working-tree-encoding` can make
+    ///  those differ while the raw bytes look equal,
+    /// so such a path is refused here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// judge.conversionIsTheIdentity(path, parents); // throws the reason the conversion may change the bytes
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// The reason a conversion may change these bytes,
+    /// or the files it would be read from could not be.
+    pub fn conversion_is_the_identity(&mut self, path: &[u8], parents: &[OsString]) -> Result<(), String> {
+        let shown: String = String::from_utf8_lossy(path).into_owned();
+        return match self.converting_attribute(path, parents)? {
+            None => Ok(()),
+            Some((token, label)) if token == "a quoted line" => Err(format!("{shown} cannot be proven unconverted: {label} has a quoted line, whose pattern and attributes are not modelled")),
+            Some((token, label)) => Err(format!("{shown} cannot be proven unconverted: the attribute {token} from {label} may change its bytes on the way into the index")),
+        };
+    }
+
+    /// What:
     ///  The bytes of the file at `place`,
     /// judged to be the one file its entry describes:
     /// opened below the held directory

@@ -9,6 +9,7 @@
 
 use super::{ProofSeams, WorktreeStatRequest, recorded_stat, recorded_stat_seamed};
 use crate::index_stat::{IndexStamp, StatData};
+use crate::worktree_clean_content_attribute_sources::ConversionEnvironment;
 use std::os::unix::ffi::OsStrExt as _;
 use crate::repo_read_layout::ObjectFormat;
 use crate::test_support::{age, fixture, git, remove};
@@ -50,10 +51,32 @@ fn recorded(root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData
     return recorded_at(now_stamp(), root, path, blob, mode);
 }
 
+/// What:
+///  A request for `path` in `root`,
+///  whose entry records `blob`,
+/// against the attributes of the fixture's own Git directory.
+/// Why:
+///   A control that names a converting attribute writes the fixture's `.gitattributes` and its configuration,
+/// and the
+///  decision reads the same files Git would,
+/// with no system or global file of the machine in the way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const request = (stamp, root, path, blob, mode, hashed) => ({ worktreeRoot: root, gitDir: `${root}/.git`, commonDir: `${root}/.git`, environment: fixtureEnvironment, path, blob, mode, format: 'sha1', stamp, hashed });
+/// ```
+fn request_at_stamp<'a>(stamp: IndexStamp, root: &'a Path, path: &'a [u8], blob: &'a [u8], mode: u32, hashed: &'a StdCell<u64>) -> WorktreeStatRequest<'a> {
+    let fixture: ConversionEnvironment = crate::fixture_content_decision::content_environment();
+    let git_dir: &'a Path = Box::leak(root.join(".git").into_boxed_path());
+    let environment: &'a ConversionEnvironment = Box::leak(Box::new(fixture));
+    let request: WorktreeStatRequest<'a> = WorktreeStatRequest { worktree_root: root, git_dir, common_dir: git_dir, environment, path, blob, mode, format: ObjectFormat::Sha1, stamp, hashed };
+    return request;
+}
+
 /// `recorded` for an index file dated `stamp`.
 fn recorded_at(stamp: IndexStamp, root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
     let hashed: StdCell<u64> = StdCell::new(0);
-    return recorded_stat(&WorktreeStatRequest { worktree_root: root, path, blob, mode, format: ObjectFormat::Sha1, stamp, hashed: &hashed });
+    return recorded_stat(&request_at_stamp(stamp, root, path, blob, mode, &hashed));
 }
 
 /// A repository fixture with no commit,
@@ -157,7 +180,7 @@ fn a_file_that_changed_while_it_was_read_records_nothing() {
         writes += 1;
         std::fs::write(&written, b"a TWO\n").expect("rewrite");
     };
-    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
     let mut before_open = || {};
     assert_eq!(recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut seam }), None);
     assert_eq!(writes, 1, "the control wrote during the read");
@@ -188,7 +211,7 @@ fn the_bytes_one_landing_hashes_are_bounded() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let spent: StdCell<u64> = StdCell::new(crate::worktree_clean_content::CONTENT_LIMIT);
-    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &spent };
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &spent);
     assert_eq!(recorded_stat(&request), None, "a landing that has spent the bound records nothing more");
     assert_eq!(spent.get(), crate::worktree_clean_content::CONTENT_LIMIT, "and spends nothing");
     remove(root.as_path());
@@ -272,7 +295,8 @@ fn a_file_with_a_carriage_return_records_nothing() {
 }
 
 /// A read the proof rejects is charged to the landing all the same:
-/// the bytes reached the disk and the bound is on the reading, not on the accepting.
+/// the bytes reached the disk and the bound is on the reading,
+/// not on the accepting.
 #[test]
 fn a_read_that_is_rejected_is_still_charged() {
     let root: PathBuf = fixture_root("index-worktree-stat-charged");
@@ -281,7 +305,7 @@ fn a_read_that_is_rejected_is_still_charged() {
     age(file.as_path());
     let blob: Vec<u8> = blob_in(root.as_path(), b"a one\n");
     let hashed: StdCell<u64> = StdCell::new(0);
-    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
     let written: PathBuf = file.clone();
     let mut before_open = || {};
     let mut after_read = move || {
@@ -304,7 +328,7 @@ fn one_read_takes_at_most_what_is_left_of_the_bound() {
     let blob: Vec<u8> = blob_in(root.as_path(), b"abcd");
     let spent: u64 = crate::worktree_clean_content::CONTENT_LIMIT - 4;
     let hashed: StdCell<u64> = StdCell::new(spent);
-    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root.as_path(), path: b"a", blob: blob.as_slice(), mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+    let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), root.as_path(), b"a", blob.as_slice(), 0o100_644, &hashed);
     let grown: PathBuf = file.clone();
     let mut before_open = move || {
         std::fs::write(&grown, b"abcdefghijklmnop").expect("grow");
@@ -340,8 +364,8 @@ fn a_fifo_swapped_over_the_path_is_not_opened() {
     let mut after_read = || {};
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let hashed: StdCell<u64> = StdCell::new(0);
-        let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: held_root, path: held_path, blob: held_blob, mode: 0o100_644, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed };
+        let hashed: &'static StdCell<u64> = Box::leak(Box::new(StdCell::new(0)));
+        let request: WorktreeStatRequest<'_> = request_at_stamp(now_stamp(), held_root, held_path, held_blob, 0o100_644, hashed);
         let answer: Option<StatData> = recorded_stat_seamed(&request, &mut ProofSeams { before_open: &mut before_open, after_read: &mut after_read });
         let _sent = sender.send(answer);
     });

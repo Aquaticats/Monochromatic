@@ -3,7 +3,7 @@
 //! a path edited after
 //!  its capture records none,
 //! a path as new as the index records none,
-//! and a path written earlier in the index file's own second records its stat data,
+//! and a path older than the index records its stat data,
 //! and the commit that follows a landing asks for no refresh for the paths
 //!  the previous commit landed.
 
@@ -116,31 +116,29 @@ fn a_path_the_worktree_holds_records_the_files_stat_data_and_one_edited_after_it
     finish(scene);
 }
 
-/// A file written earlier in the index file's own second is older than the index,
-/// so its entry records the file's stat data.
+/// A file older than the index file records its stat data.
 #[test]
-fn a_file_written_earlier_in_the_indexs_own_second_records_its_stat_data() {
-    let scene: Scene = captures_a_two("index-reset-recorded-stat-same-second");
-    // The worktree holds the committed bytes, written early in the second the landing's index is dated with.
+fn a_file_older_than_the_index_records_its_stat_data() {
+    let scene: Scene = captures_a_two("index-reset-recorded-stat-older");
     std::fs::write(scene.repo.join("a"), b"a two\n").expect("a");
-    let second: u64 = settle_into_a_second();
-    set_times(scene.repo.join("a").as_path(), second, 1);
+    // Two minutes older than any index file the landing writes.
+    age(scene.repo.join("a").as_path());
     assert!(landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))), "the reset is the plain case");
-    assert_eq!(entry_of(scene.repo.as_path(), "a").stat, stat_of_file(scene.repo.join("a").as_path()), "the file is older than the index by nanoseconds, so its stat data is recorded");
+    assert_eq!(entry_of(scene.repo.as_path(), "a").stat, stat_of_file(scene.repo.join("a").as_path()), "the file is older than the index, so its stat data is recorded");
     finish(scene);
 }
 
-/// A file as new as the index the entry goes into records nothing,
-/// so a same-size edit in that instant is still seen,
-/// while the same
-///  file two minutes older records its stat data.
+/// A file newer than the index file records nothing,
+/// so a same-size edit is still seen,
+/// while the same file two minutes older records
+///  its stat data.
 #[test]
-fn a_file_as_new_as_the_index_records_nothing() {
-    let scene: Scene = captures_a_two("index-reset-recorded-stat-racy");
-    // The worktree holds the committed bytes, and its time is the last nanosecond of the second the index is dated with.
+fn a_file_newer_than_the_index_records_nothing() {
+    let scene: Scene = captures_a_two("index-reset-recorded-stat-newer");
+    // The worktree holds the committed bytes, and its time is in the second after the one the landing runs in.
     std::fs::write(scene.repo.join("a"), b"a two\n").expect("a");
     let second: u64 = settle_into_a_second();
-    set_times(scene.repo.join("a").as_path(), second, 999_999_999);
+    set_times(scene.repo.join("a").as_path(), second + 1, 0);
     let copy: PathBuf = copy_of(&scene);
     assert!(landing_reset(&git_context(), copy.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))), "the reset is the plain case");
     assert_eq!(entry_of(copy.as_path(), "a").stat, StatData::default(), "an entry as new as the index records nothing");

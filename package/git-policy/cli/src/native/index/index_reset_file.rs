@@ -206,7 +206,33 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
     // ```ts
     // const source = new LandingStat({ worktreeRoot, format, stamp }); resetPaths(index, names, tree, settings, stamp, { recorded: source });
     // ```
-    let source: LandingStat<'_> = LandingStat::new(around.layout.worktree_root.as_path(), around.layout.object_format, stamp);
+    // What:
+    //  The worktree held open and the attribute files Git would apply,
+    //  which decide what stat data the reset may record.
+    // Why:
+    //  The proof reads the worktree below a held root,
+    //  so a directory swapped for a link on the way is refused instead of read through,
+    // and it refuses every path a
+    //   conversion could change,
+    // which it learns from the same attributes files the worktree's clean check reads.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const root = openRoot(layout.worktreeRoot); const environment = forContext(git);
+    // const target = { root, gitDir: layout.gitDir, commonDir: layout.commonDir, environment, format };
+    // const source = new LandingStat(root, target, stamp, new Cell(0));
+    // ```
+    let root: std::fs::File = crate::fs_beneath::open_root(around.layout.worktree_root.as_path()).ok()?;
+    let environment: crate::worktree_clean_content_attribute_sources::ConversionEnvironment = crate::worktree_clean_content_attribute_sources::for_context(git);
+    let target: crate::worktree_clean_tree_walk::ContentTarget<'_> = crate::worktree_clean_tree_walk::ContentTarget {
+        root: around.layout.worktree_root.as_path(),
+        git_dir: around.layout.git_dir.as_path(),
+        common_dir: around.layout.common_dir.as_path(),
+        environment: &environment,
+        format: around.layout.object_format,
+    };
+    let hashed: std::cell::Cell<u64> = std::cell::Cell::new(0);
+    let source: LandingStat<'_> = LandingStat::new(&root, &target, stamp, &hashed);
     reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, stamp, WorktreeStat::Recorded(&source))?;
     let format: ObjectFormat = around.layout.object_format;
     let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };
