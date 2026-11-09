@@ -612,7 +612,8 @@ fn a_failure_before_the_copy_keeps_the_record_of_the_worktree_that_was_never_fil
 }
 
 /// A refused add leaves the registration to the command whose own Git is still running:
-/// that command's record names the destination from before its Git, and its proof is not written yet.
+/// that command's record names the destination from before its Git,
+/// and its proof is not written yet.
 #[cfg(unix)]
 #[test]
 fn a_refused_add_leaves_a_registration_to_the_command_still_running_its_git() {

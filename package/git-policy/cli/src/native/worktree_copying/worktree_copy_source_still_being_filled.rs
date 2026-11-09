@@ -213,7 +213,8 @@ pub fn another_command_is_filling(common_dir: &Path, destination: &Path, mine: &
     let own: &str = mine.split('\n').next().unwrap_or_default();
     let root: PathBuf = journal_root(common_dir);
     for name in claim_names(root.as_path())? {
-        if name.strip_suffix(".stage").is_some_and(|identifier| return identifier == own) {
+        let identifier: &str = name.strip_suffix(".stage").unwrap_or(name.as_str());
+        if identifier == own {
             continue;
         }
         let claim: PathBuf = root.join(name.as_str());
@@ -223,7 +224,10 @@ pub fn another_command_is_filling(common_dir: &Path, destination: &Path, mine: &
         if !names_root(recorded.as_path(), destination) {
             continue;
         }
-        let owner: Option<String> = read_claim(claim.as_path())?.and_then(|(_container, token)| return token);
+        let owner: Option<String> = match read_claim(claim.as_path())? {
+            Some((_container, token)) => token,
+            None => None,
+        };
         debug(
             "worktreeCopySource",
             format!(

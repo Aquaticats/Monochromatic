@@ -40,7 +40,9 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  Ends a copy that failed after its stage was made and before any journal named it:
-/// the stage is removed and the claim, its record and its marker are settled.
+/// the stage is removed,
+/// and the claim,
+/// its record and its marker are settled.
 /// Why:
 ///   Nothing else names these objects yet,
 /// and the caller that made the claim has already given it up,
@@ -404,7 +406,14 @@ pub(crate) fn synchronize_after(
     // process, so the person's line can name which process made a worktree this command did not.
     let mine: String = command_token(recorded.as_ref(), destination)?;
     let mut found: CreatedWorktrees =
-        find_created_worktree(&invocation.context, observation, destination, registered_before, mine.as_str())?;
+        find_created_worktree(
+            &invocation.context,
+            observation,
+            destination,
+            registered_before,
+            git_succeeded,
+            mine.as_str(),
+        )?;
     // The registration at the destination proves it was made by another command, so this command's own worktree is not
     // there and nothing is written into that one: its ignored state is that command's to copy.
     if let Some(other) = found.other_commands.as_deref() {
