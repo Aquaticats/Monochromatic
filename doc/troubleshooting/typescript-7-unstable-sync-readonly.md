@@ -304,6 +304,14 @@ node-not-found: Effect summary index omitted owned callable declaration
 /var/home/user/Monochromatic/package/git-policy/cli/src/bin.ts:3407:12786:263.
 ```
 
+`package/git-policy/cli/src/bin.ts` was removed on 2026-10-13 in `642b6d72cb` (refactor(*):
+delete
+the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow);
+no file in the working tree
+carries it now.
+
 A package-local run indexed the same `runCliGit` function declaration.
 The workspace process had already crossed many project snapshots.
 Its current source remained available through `Project.program.getSourceFile`,

@@ -1,5 +1,12 @@
 # cli-git implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+> is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+> `package/file-enforcer/core/src/watch/notify.ts` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/core-rust` serves its job today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.
@@ -3613,6 +3620,72 @@ The saving is real where such a fixture appears:
 a create is 4.1 ms against a snapshot's 52 ms here,
 and every one of them forces a commit its neighbours wait for.
 
+### The fold's kill-point sweep walks its kill points side by side (2026-11-08T19:31:00-05:00)
+
+`foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+was aborted once by the run's own 120 s watchdog in a whole-suite run,
+and passed alone in 72.3 s and in 5.4 s in the same tree.
+That swing is the defect the owner named with "Fix flaky tests properly.":
+the measurement below found it in the control's own durability work.
+
+Before any change,
+with the crate's own recorder counting the syncs
+(`~/temp/agent/fold-kill-cost/`,
+per-iteration and per-step timings read through `crate::private_storage::take_directory_syncs`):
+the control walks 21 limits over 20 steps of the whole fold
+(6 for the folder pair,
+7 for each log:
+`before-journal-lock`,
+`before-move-aside`,
+`before-journal-record`,
+`before-append`,
+`after-append`,
+`before-remove-moved-log`,
+`before-remove-journal`),
+and one iteration cost 86 to 204 ms (the whole control 2.44 s at that moment).
+Inside one iteration the fixture cost 0.35 to 0.75 ms,
+`assert_folded` about 60 µs and the fixture's removal 0.25 to 0.4 ms;
+the two folds took the rest and recorded 10 to 13 directory syncs in every iteration,
+each of them a filesystem commit for the fold's own journal record,
+its move aside,
+the appended bytes,
+the moved log's removal and the journal's removal,
+with a file sync inside the journal record and inside the append.
+So the control's cost is the number of kill points times the commits one fold needs,
+and it paid them one after another:
+under this host's usual contention that is the 72.3 s sample and the watchdog stop.
+No iteration was redundant (every limit stops at a different step),
+and the fixture measured under 1 ms,
+so neither fewer kill points nor a cheaper fixture is the fix.
+
+`steps_of_one_fold` and `kill_then_fold` in that control now walk the kill points side by side:
+each has its own fixture,
+its own process table and its own surroundings,
+so a kill point shares nothing with another,
+and concurrent commits serve them all at once instead of one at a time.
+The steps of one fold are recorded first,
+so each limit is checked against the step it must land on and the last limit must stop nowhere,
+which the control did not claim before.
+
+Measured at the test's own cap (`CPUQuota=200%`,
+`MemoryMax=2G`,
+`TasksMax=512`,
+`IOWeight=10`),
+nothing changed between the arms but the build:
+one after another 9.954 s and 5.674 s,
+side by side 0.688 s and 1.699 s,
+over the same 21 kill points.
+With the per-point timings in place the side-by-side control reported `failed=[]`,
+with each limit's stop step equal to the recorded step and every other test of that module green
+(`Summary [1.046s] 8 tests run: 8 passed`).
+
+Its control still bites:
+make an interrupted fold of a log that already moved its log aside never resume
+(`(earlier && current) || leftovers` read as `(earlier && current)`),
+and the sweep fails the four kill points that land there,
+`the kill points that failed: [8, 9, 15, 16]`,
+each with `left: "current-push\n"` against `right: "current-push\nearlier-push\n"`.
+
 ### Verify 0.5.26 against native Git
 
 Measured with 0.5.27 installed (`~/temp/agent/tools/observe-main-commit.ts`,
@@ -4597,6 +4670,20 @@ Two small fixes this section listed are done:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
 
+The summary's own counts were wrong in two more places,
+found while converting the remaining worktrees and fixed in `23b2ab2540`:
+a worktree that is a subvolume already said it was skipped in the line beside its name and was counted in none of the
+summary's counts (a second run over the same worktrees said "0 skipped"),
+and an undone conversion (`--abandon`) was counted nowhere either.
+`ConversionReport` now counts the first in the summary's skips,
+and the second in a count of its own that the summary says as "undone",
+while a real refusal stays the only thing that ends a run of named worktrees with status 1:
+counting `AlreadySubvolume` as a refusal instead makes
+`a_worktree_named_twice_is_converted_once_and_then_skipped` fail on that status change,
+which was measured before the two counters were written.
+The controls are `a_worktree_that_is_a_subvolume_already_is_counted_as_skipped` and
+`the_undone_conversions_are_counted_in_the_summary` in `worktree_convert_command_tests.rs`.
+
 Converting the remaining worktrees no longer waits on a defect either:
 the conversion compared a registration's text with the real path and refused a worktree spelled
 through the repository link,
@@ -4824,7 +4911,8 @@ What was not changed is the second place that writes a report line beside the wr
 `finish_snapshot` writes the main-checkout note to `std::io::stderr()` because the ladder's `out` is the standard
 output Git's checkout line goes to,
 so that note needs a second writer plumbed through the ladder,
-which is a change of its own.
+which is a change of its own,
+since made ("The snapshot note's stream and the index-lock wake control" in this file).
 
 The second question was whether a background thread starts where nothing overlaps it,
 and what that costs.
@@ -4906,6 +4994,59 @@ On the built binary at a disposable btrfs checkout:
 a dry run printed none,
 a real run and a `--remove-old` each printed it once as the first line of standard error,
 and a refused `--rollback` printed none.
+
+### The snapshot note's stream and the index-lock wake control (2026-11-08T19:45:57-05:00)
+
+Two follow-ups of the branch `fix/git-policy-cli-snapshot-note-on-the-commands-stream-and-wake-control`.
+
+The first closes the item "The disposal's notice stream and the thread it did not need" left open.
+`finish_snapshot` wrote the note a snapshot of the main checkout publishes to `std::io::stderr()`,
+because the ladder's `out` is the standard output Git's checkout line goes to.
+The ladder now takes the command's note stream beside `out` (`Ladder::finish`),
+and both lines of that block go there:
+the snapshot note and the one naming the uncommitted changes left out.
+`settle_creation` hands in the stream the command was given (`worktree_copy.rs`).
+It is one plain writer and no lock:
+those lines are written before `finish_trash_and_repair` starts the disposal thread,
+so no second thread exists while either is written,
+and the lock the disposal's stream needs would buy nothing here.
+The control is `btrfs_a_main_checkout_snapshot_notes_on_the_stream_the_caller_handed_in`
+(`worktree_copy_lifecycle_tests.rs`):
+with the note put back on the process's standard error the control fails,
+its own stream empty and the line on the harness's standard error.
+
+The control `a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself`
+claimed two things from one stopwatch over a 400 ms hold.
+The count of placement attempts is now the order of the placements:
+the `rename` stand-in records whether the foreign lock stood at each of them,
+so the verdict is that only the first met the holder.
+A wait woken by a file of its own meets the holder over and over;
+no clock enters that claim.
+With the wait made to block for one millisecond instead of for the removal,
+the control fails naming every placement that met the holder,
+one for each millisecond of the hold.
+
+How soon the wake came is the one claim no order can show,
+so it stays one clock reading,
+taken from the wait's own line instead of from before the staging a slow flush can stretch
+(10.2 s against a 400 ms hold,
+measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
+The bound is half of the interval that repeats the holder's line:
+over ten runs the wake came 400.35 to 400.51 ms after the line,
+and 10.0018 to 10.0090 s over three runs with the watch blinded to the lock's removal.
+The old bound sat at the whole interval,
+which is where the blinded arm lands,
+so it was a knife edge of about a millisecond rather than a separation.
+A fifth of that interval was tried first and failed once,
+in a run of the thirty-six controls beside it with other agents building on this host,
+and that failure's message carried no reading of the interval,
+so the bound sits at the half,
+which reads a stall of up to 4.6 s as an event and still refuses the timer.
+
+A witness that the line did not repeat cannot replace that reading:
+the line was said once in both arms,
+because a wake from the interval's timer places the lock before it repeats anything,
+which the blinded arm measured three times.
 
 ### Service follow-ups
 

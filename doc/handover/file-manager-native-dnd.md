@@ -1,5 +1,19 @@
 # Handover: file-manager native drag-and-drop
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/file-manager/src/dnd_native.rs` is not a path this repository held;
+> the drag-and-drop code is `package/file-manager/app/src/dnd.rs` today
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/file-manager/src/dnd_wayland.rs` is not a path this repository held;
+> the drag-and-drop code is `package/file-manager/app/src/dnd.rs` today
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/file-manager/src/app.rs` is not a path this repository held;
+> the file manager's Rust entry is `package/file-manager/app/src/main.rs` today
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/file-manager:run` is now `//package/file-manager/app:run`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

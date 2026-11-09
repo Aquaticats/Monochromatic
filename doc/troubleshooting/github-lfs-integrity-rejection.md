@@ -36,6 +36,10 @@ The local commit-preservation behavior is explicit in
 ///  so a failed push or a failed coordination is printed and returned as `Failed`, and never fails the commit.
 ```
 
+`package/git-policy/cli/src/native/auto_push.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/push/auto_push.rs` in `d88fd7ab2a` (refactor(git-policy-cli):
+move the push modules into a push folder).
+
 The failure note is declared separately in
 `package/git-policy/cli/src/native/auto_push.rs:45`:
 

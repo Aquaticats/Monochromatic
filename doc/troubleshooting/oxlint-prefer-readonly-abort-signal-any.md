@@ -63,6 +63,11 @@ names.
 `package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/intrinsic-effect-owner.ts`
 therefore recovers only named type aliases and ambient `var` declarations.
 
+`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/intrinsic-effect-owner.ts`
+was removed on 2026-07-23 in `2bf5f6bc5d` (refactor(oxlint-plugin-prefer-readonly-parameter-type):
+remove handwritten effect catalogs);
+no file in the working tree carries it now.
+
 The WHATWG DOM Standard commit `5796f716c857f0a563d11d32e0ca6b49232191be` defines
 `AbortSignal.any` in `dom.bs:2053` to `2056`:
 

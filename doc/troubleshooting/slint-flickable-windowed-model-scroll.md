@@ -208,6 +208,9 @@ The implementation is `package/file-manager/app/src/model_sync.rs`
  and `refresh_column` methods),
 driven from `src/controller.rs`.
 
+`package/file-manager/app/src/model_sync.rs` is not in the working tree and no commit in this
+repository carries it.
+
 Tradeoffs:
 
 - The controller must diff the desired window against the current one and emit

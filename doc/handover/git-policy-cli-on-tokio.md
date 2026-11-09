@@ -483,6 +483,96 @@
   `native:perf`,
   and the mutation campaign.
 
+## Step T12, the leaf-first asynchronous Git and the awaited runner, 2026-11-08T19:29:56-05:00
+
+- Branch and worktree:
+  `feat/git-policy-cli-tokio-steps-12-and-13` in
+  `.claude/worktrees/pi-tokio-async-git-leaf`,
+  from `6240b51a7a`.
+  Not merged into main.
+- Done:
+  a Git step can now be awaited by a task of the runtime
+  (`transaction/transaction_git_awaiting.rs`:
+  `run_git_awaiting`,
+  `run_git_checked_awaiting`,
+  `push/child_watch_output_watched_on_the_runtime.rs`,
+  `push/start_retry.rs`'s `RefusableAwaitingStart`),
+  and an ordered round can run items that await one
+  (`foundation/parallel_runner_on_the_runtime_awaiting.rs`:
+  each lane as a task,
+  a lane's items one after another,
+  storage work on the blocking pool inside the item,
+  the reporting shared with the blocking form through `finish_the_run`).
+  Commits `e0359dc84c` and `a2f901dd92`.
+  Details,
+  controls,
+  the measurement and the checks:
+  the plan,
+  "Step T12,
+  the leaf-first asynchronous Git and the ordered runner that awaits".
+- The synchronous faces are unchanged and stay that way until their last
+  caller goes:
+  a step with an `Unbounded` or `LeaveRunning` bound makes no pipes,
+  so the synchronous `run_git` works today from inside the runtime for a
+  branch write,
+  and a bridge around the whole runner would take that from every pool job
+  that moves a branch.
+- The one rule this step measured,
+  for any later helper:
+  a synchronous `Drop` that waits for a task holds a worker,
+  and while the workers of a small runtime are all inside such waits the tasks
+  that would end them cannot run.
+  Four awaited Git steps took 38.2 s that way and 10.8 ms through
+  `ChildWatch::close_awaiting`,
+  and one awaited step alone took the whole 19.1 s of `WATCHER_END_BOUND`.
+- Not done:
+  every production call site.
+  None was converted,
+  so no command changed behaviour.
+  Converting one makes its function `async`,
+  which makes its callers `async` or a bridge that enters the runtime,
+  and that chain runs to the command or to the service loop.
+  The 67 production files that call `run_git` are converted one folder at a
+  time from the top of each chain.
+- Exact next steps,
+  in order:
+  1. Convert one folder whose chain to a boundary is short,
+     keeping the package's tests green at each commit.
+     The leaf files are `transaction/`,
+     `push/` and `foundation/`,
+     and a converted step calls `run_git_awaiting` where it called `run_git`.
+  2. Convert the landing's handlers and then `landing/service_round.rs`
+     (`drain_directories`) onto `run_ordered_awaiting_on_the_runtime`,
+     with each item's storage work inside
+     `run_blocking_job_within_the_budget`.
+  3. Then the pure-file sites of the blocking runner
+     (`worktree/worktree_trash_entries.rs`,
+     `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+     `worktree/worktree_convert_command.rs`)
+     and the `run_all_side_by_side`/`run_beside_caller` sites.
+  4. Then T13's removals and lint.
+- Checks,
+  the whole suites once at the end:
+  `native:test:host` 4794 run,
+  4794 passed (one slow),
+  8 skipped;
+  `native:test:binary:host` 733 run,
+  733 passed (two slow),
+  3 skipped;
+  `//package/git-policy/cli:lint` 0 errors and 0 warnings.
+  Both suites ran with `CLI_GIT_TEST_ROOT` under a short path,
+  without which `service_mode::the_same_start_with_the_real_git_listens` fails
+  on this host for the `SUN_LEN` reason
+  `doc/handover/cli-git-rust-implementation.md` already records,
+  and both with the run's own control group at `TasksMax=4000`,
+  because a smaller one refused `git-lfs`'s filter process to two LFS
+  controls.
+- Not run,
+  for the next agent:
+  the container gate of this branch,
+  `native:perf`,
+  and the mutation campaign (paused).
+
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 
 Nothing of T13 is done and nothing of it can be done first:
@@ -497,7 +587,10 @@ target `dbus_reply`,
 the thread helpers,
 the poll constants) wait for their last caller to go.
 The `format:monochromatic-lint` fixer and the package lint are clean on this branch,
-so the tree is ready for whoever takes the guards after step 2 above.
+so the tree is ready for whoever takes the guards once the call sites are converted
+("Step T12,
+the leaf-first asynchronous Git and the awaited runner",
+"Exact next steps").
 
 ## Rules that bit during this work
 

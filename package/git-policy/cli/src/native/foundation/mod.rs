@@ -63,6 +63,11 @@ pub mod parallel_runner;
 /// reported in the same input order.
 pub mod parallel_runner_on_the_runtime;
 
+/// Independent items as tasks of the process's runtime,
+/// for work that awaits a Git child rather than blocking on it,
+/// reported in the same input order.
+pub mod parallel_runner_on_the_runtime_awaiting;
+
 /// A call turned into a value when it panics,
 /// for the places that guard a function and its state.
 pub mod call_catching_panics;

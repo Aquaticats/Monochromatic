@@ -1,5 +1,34 @@
 # `wg-quicker` completion handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/wg-allowedips:buildAndTest` is now
+> `//package/wg/core-allowedips:buildAndTest` (2026-10-29 `113633b259`).
+> `//package/module/wg-allowedips:lint:types` is now
+> `//package/wg/core-allowedips:lint:types` (2026-10-29 `113633b259`).
+> `//package/module/wg-allowedips:lint:oxlint` is now
+> `//package/wg/core-allowedips:lint:oxlint` (2026-10-29 `113633b259`).
+> `//package/cli/wg-allowedips:buildAndTest` is now
+> `//package/wg/cli-allowedips:buildAndTest` (2026-10-29 `113633b259`).
+> `//package/cli/wg-allowedips:lint:types` is now `//package/wg/cli-allowedips:lint:types`
+> (2026-10-29 `113633b259`).
+> `//package/cli/wg-allowedips:lint:oxlint` is now `//package/wg/cli-allowedips:lint:oxlint`
+> (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker:buildAndTest` is now `//package/wg/cli-quicker:buildAndTest`
+> (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker:lint:types` is now `//package/wg/cli-quicker:lint:types`
+> (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker:lint:oxlint` is now `//package/wg/cli-quicker:lint:oxlint`
+> (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker:test:integration:bypass` is now
+> `//package/wg/cli-quicker:test:integration:bypass` (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker:test:integration:route` is now
+> `//package/wg/cli-quicker:test:integration:route` (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker-exempt:buildAndTest` is now
+> `//package/wg/cli-quicker-exempt:buildAndTest` (2026-10-29 `113633b259`).
+> `//package/cli/wg-quicker-exempt:test:functional` is now
+> `//package/wg/cli-quicker-exempt:test:functional` (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

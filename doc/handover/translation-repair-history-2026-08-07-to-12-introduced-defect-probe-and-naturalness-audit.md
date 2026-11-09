@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-07 to 2026-08-12: the introduced-defect probe and the naturalness audit
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:score-probe` is now
+> `//package/translation-repair/probe:score-probe` (2026-10-18 `4bd1aea8d5`).
+
 The probe's trigger rate and where its canonical figures live,
 the probe judging wording the naturalness lane can replace,
 the audit of the naturalness lane validated live against injected damage,

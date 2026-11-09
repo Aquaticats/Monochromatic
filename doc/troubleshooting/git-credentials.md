@@ -222,6 +222,23 @@ not a standalone Rust program:
 539: };
 ```
 
+`package/git-policy/cli/src/native/wrapped_command.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/invocation/wrapped_command.rs` in `a0d60dc29a`
+(refactor(git-policy-cli):
+move the invocation and forwarding modules into an invocation folder).
+`package/git-policy/cli/src/native/child_environment.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/invocation/child_environment.rs` in `a0d60dc29a`
+(refactor(git-policy-cli):
+move the invocation and forwarding modules into an invocation folder).
+`package/git-policy/cli/src/native/commit_command.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/commit/commit_command.rs` in `a004a6ab2c`
+(refactor(git-policy-cli):
+move the commit path modules into a commit folder).
+`package/git-policy/cli/src/native/auto_push_single_flight.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/push/auto_push_single_flight.rs` in `d88fd7ab2a`
+(refactor(git-policy-cli):
+move the push modules into a push folder).
+
 The post-commit path does the same at
 `package/git-policy/cli/src/native/commit_command.rs:223`.
 `package/git-policy/cli/src/native/auto_push_single_flight.rs:202`

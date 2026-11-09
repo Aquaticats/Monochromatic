@@ -1,5 +1,22 @@
 # Handover: Rust fuzzing for monochromatic-jsonc-edit
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/fuzz/forbidden-strings` is now split across `package/cli/forbidden-strings.fuzz`
+> (2026-09-26 `b9c0e6e483`).
+> `package/module/jsonc-edit/src/emit-comment.ts` is now
+> `package/jsonc-edit/core-ts/src/emit-comment.ts` (2026-10-29 `592d78b143`).
+> `package/rust-module/jsonc-edit/src/comment_merge.rs` is now
+> `package/jsonc-edit/core-rust/src/comment_merge.rs` (2026-10-29 `592d78b143`).
+> `package/rust-module/jsonc-edit/src/parse_tests.rs` is now
+> `package/jsonc-edit/core-rust/src/parse_tests.rs` (2026-10-29 `592d78b143`).
+> `package/module/jsonc-edit/src/stringify.unit.test.ts` is now
+> `package/jsonc-edit/core-ts/src/stringify.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/rust-module/jsonc-edit/src/edit_apply.rs` is now
+> `package/jsonc-edit/core-rust/src/edit_apply.rs` (2026-10-29 `592d78b143`).
+> `package/module/jsonc-edit/src/edit-set.ts` is now
+> `package/jsonc-edit/core-ts/src/edit-set.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

@@ -169,6 +169,16 @@ They do **not** show that ImageMagick promises an all-warnings-fatal switch.
   not the user's review assets.
   Repeating the task with the installed font succeeded.
 
+`package/music-player/design/sanitize-search-review.mjs` exists only on an unmerged branch (newest
+commit `7fda864849` (fix(music-player-design):
+reject warning-tainted review images) on 2026-09-24)
+and is not in the working tree.
+`mise run //package/music-player/design:prototype:sanitize:search` is not declared today;
+git last
+carries it in `948894d3c4` on 2026-09-24,
+and `package/music-player/design/mise.toml` has no
+sanitize task now.
+
 ## Verified workarounds
 
 - Resolve a real font file with `fc-match sans-serif --format '%{file}'`,

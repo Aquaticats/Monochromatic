@@ -394,6 +394,15 @@ not with anything the wrapper does at start.
   The profile adds no syscall.
   The stripped build loses function names in panic backtraces.
 
+`package/git-policy/cli/src/native/binary_fixture_tests.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/binary/binary_fixture_tests.rs` in `3ec1e1201b`
+(refactor(git-policy-cli):
+move the binary-level controls into a binary folder).
+`package/git-policy/cli/src/native/git_version_cache_tests.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/invocation/git_version_cache_tests.rs` in `a0d60dc29a`
+(refactor(git-policy-cli):
+move the invocation and forwarding modules into an invocation folder).
+
 ### Disk write and fsync
 
 Write caps (`--device-write-bps` 5 MB/s and `--device-write-iops` 50 on both devices) slowed only the bulk write of the

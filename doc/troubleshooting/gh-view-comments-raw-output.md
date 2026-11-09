@@ -286,6 +286,11 @@ and `package/search-fetch/pi-plugin/src/gh-client.ts` runs them concurrently,
 drops empty parts,
 and joins the rest with a blank line.
 
+`package/search-fetch/pi-plugin/src/gh-invocation-plan.ts` is not in the working tree and no commit
+in this repository carries it.
+`package/search-fetch/pi-plugin/src/gh-client.ts` is not in the working tree and no commit in this
+repository carries it.
+
 Tradeoffs:
 
 - two GraphQL round trips instead of one.
