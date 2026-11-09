@@ -464,10 +464,9 @@ pub fn read_named_ignored_roots(
         let request: GitRequest = GitRequest {
             cwd: source_root.to_path_buf(),
             arguments: vec![
-                // The named spec below is pathspec magic, so literal pathspec mode, from `GIT_LITERAL_PATHSPECS`
-                // or `--literal-pathspecs`, is switched off here: under it the name would match nothing and a
-                // configured ignored file would silently not be copied.
-                "--no-literal-pathspecs".into(),
+                // The named spec below is pathspec magic the wrapper writes, so every pathspec mode the caller set
+                // is removed from this start: under literal mode the name would match nothing and a configured
+                // ignored file would silently not be copied, and two glob modes at once make Git refuse the listing.
                 "ls-files".into(),
                 "--others".into(),
                 "--ignored".into(),
@@ -479,7 +478,8 @@ pub fn read_named_ignored_roots(
             ],
             without_prefix: true,
             ..GitRequest::default()
-        };
+        }
+        .own_pathspecs();
         let output = run_git(context, &request).map_err(raw_failure_of)?;
         if output.code != Some(0) {
             return Err(raw_failure(&String::from_utf8_lossy(
