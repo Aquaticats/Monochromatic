@@ -623,7 +623,7 @@ fn an_index_built_from_the_base_alone_cleans_every_filtered_file() {
 /// another path,
 /// and is not a path the commit changes:
 ///  the private index carries no intent-to-add entry,
-/// whose tree Git leaves out.
+/// and a tree built from one leaves that path out.
 #[test]
 fn an_intent_to_add_tracked_file_is_not_changed_by_a_commit_that_names_another_path() {
     let root: PathBuf = fixture("commit-index-stat-intent-tracked");
@@ -665,6 +665,162 @@ fn an_intent_to_add_tracked_file_is_not_changed_by_a_commit_that_names_another_p
     )
     .expect("the changed paths of the private index");
     assert_eq!(changed, vec![b"other.txt".to_vec()], "only the named path is changed by the commit");
+    remove(root.as_path());
+}
+
+//endregion
+
+//region Every selection against real Git
+
+/// One way of committing,
+/// as the wrapper prepares it and as real Git is given it.
+struct CommitCase {
+    /// Directory name of this case's fixtures.
+    name: &'static str,
+    /// The private index selection the wrapper prepares.
+    mode: TransactionMode,
+    /// The paths the command names.
+    pathspecs: &'static [&'static str],
+    /// Whether an index commit stages the named paths.
+    stage_into_index: bool,
+    /// Whether an index commit stages every tracked change.
+    stage_tracked_changes: bool,
+    /// Real Git's arguments after the message.
+    arguments: &'static [&'static str],
+}
+
+/// The five ways of committing the same fixture is compared in:
+/// a named path the person changed,
+/// a named path held as intent-to-add,
+/// `-a`,
+/// `--include`,
+/// and a plain commit.
+const COMMIT_CASES: [CommitCase; 5] = [
+    CommitCase {
+        name: "named",
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: &["a.txt"],
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        arguments: &["--", "a.txt"],
+    },
+    CommitCase {
+        name: "named-intent",
+        mode: TransactionMode::ExplicitPath,
+        pathspecs: &["ita.txt"],
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        arguments: &["--", "ita.txt"],
+    },
+    CommitCase {
+        name: "all",
+        mode: TransactionMode::Index,
+        pathspecs: &[],
+        stage_into_index: false,
+        stage_tracked_changes: true,
+        arguments: &["--all"],
+    },
+    CommitCase {
+        name: "include",
+        mode: TransactionMode::Index,
+        pathspecs: &["a.txt"],
+        stage_into_index: true,
+        stage_tracked_changes: false,
+        arguments: &["--include", "--", "a.txt"],
+    },
+    CommitCase {
+        name: "plain",
+        mode: TransactionMode::Index,
+        pathspecs: &[],
+        stage_into_index: false,
+        stage_tracked_changes: false,
+        arguments: &[],
+    },
+];
+
+/// What:
+///  The fixture every case commits:
+///  a tracked file the person removed from the index and added with intent,
+///  a new file added with intent,
+///  one changed file the cases name,
+///  and one staged change a plain commit carries.
+/// Why:
+///   The same repository is built twice per case,
+/// once for the wrapper and once for real Git,
+///  so the two trees are comparable object for object.
+fn compared_fixture(root: &Path) -> (PathBuf, CaptureIndexes, String) {
+    let repo: PathBuf = repository(root, "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    std::fs::write(repo.join("b.txt"), "b\n").expect("b");
+    std::fs::write(repo.join("tracked.txt"), "tracked base\n").expect("the tracked file");
+    std::fs::write(repo.join("empty"), "").expect("the tracked empty file");
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "--", "tracked.txt"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "tracked.txt"]);
+    std::fs::write(repo.join("ita.txt"), "intent content\n").expect("the file added with intent");
+    git(repo.as_path(), &["add", "--intent-to-add", "--", "ita.txt"]);
+    std::fs::write(repo.join("tracked.txt"), "tracked changed\n").expect("the change no case named");
+    std::fs::write(repo.join("a.txt"), "changed a\n").expect("the change the named cases take");
+    std::fs::write(repo.join("b.txt"), "staged b\n").expect("the change the index holds");
+    git(repo.as_path(), &["add", "--", "b.txt"]);
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: repo.join(".git").join("captured.index"),
+        commit_index: repo.join(".git").join("commit.index"),
+        object_directory: repo.join(".git").join("objects"),
+    };
+    return (repo, indexes, base);
+}
+
+/// The tree the wrapper's private index produces for `case`.
+fn wrapper_tree(root: &Path, case: &CommitCase) -> String {
+    let (repo, indexes, base): (PathBuf, CaptureIndexes, String) = compared_fixture(root);
+    let named: Vec<OsString> = case.pathspecs.iter().map(|spec| { return OsString::from(spec); }).collect();
+    let selection: IndexSelection = IndexSelection {
+        mode: case.mode,
+        pathspecs: named.as_slice(),
+        pathspec_file: None,
+        pathspec_file_nul: false,
+        stage_into_index: case.stage_into_index,
+        stage_tracked_changes: case.stage_tracked_changes,
+        base_revision: base.as_str(),
+    };
+    let real: PathBuf = repo.join(".git").join("index");
+    initialize_commit_index(&git_context(), repo.as_path(), real.as_path(), &indexes, &selection).expect("private index");
+    return write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path())
+        .expect("tree");
+}
+
+/// The tree real Git commits for `case` in the same fixture.
+fn real_git_tree(root: &Path, case: &CommitCase) -> String {
+    let (repo, _indexes, _base): (PathBuf, CaptureIndexes, String) = compared_fixture(root);
+    let mut arguments: Vec<&str> = vec!["commit", "--quiet", "--message=case"];
+    arguments.extend(case.arguments.iter().copied());
+    git(repo.as_path(), arguments.as_slice());
+    return git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+}
+
+/// Every selection commits the same tree as real Git,
+/// with an intent-to-add entry on a tracked file and on a new file in the index:
+///  the wrapper's private index is the intended tree,
+///  so this compares what each side would commit,
+/// not the real index a partial commit also updates.
+#[test]
+fn every_selection_commits_the_real_gits_tree_when_the_index_holds_intent_to_add_entries() {
+    let root: PathBuf = fixture("commit-index-stat-intent-compare");
+    for case in &COMMIT_CASES {
+        let wrapper_root: PathBuf = root.join(format!("wrapper-{}", case.name));
+        std::fs::create_dir(wrapper_root.as_path()).expect("wrapper fixture");
+        let real_root: PathBuf = root.join(format!("real-{}", case.name));
+        std::fs::create_dir(real_root.as_path()).expect("real fixture");
+        let wrapper: String = wrapper_tree(wrapper_root.as_path(), case);
+        let real: String = real_git_tree(real_root.as_path(), case);
+        // The fixture's own HEAD is unchanged by a preparation, so its tree is what the comparison must see changed.
+        let base: String = git_text(wrapper_root.join("repo").as_path(), &["rev-parse", "HEAD^{tree}"]);
+        assert_ne!(wrapper, base, "the {} commit must change the tree, or this comparison proves nothing", case.name);
+        assert_eq!(wrapper, real, "the {} selection must commit real Git's tree", case.name);
+    }
     remove(root.as_path());
 }
 
