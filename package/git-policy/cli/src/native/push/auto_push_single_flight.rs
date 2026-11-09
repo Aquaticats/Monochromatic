@@ -18,7 +18,7 @@
 
 use crate::bounded_push::STOP_GRACE;
 use crate::push_deadline_advice::limit_clause;
-use crate::bounded_query::{QueryOutput, query_window, run_bounded_query};
+use crate::bounded_query::{QueryOutput, query_window, run_bounded_query, run_bounded_query_awaiting};
 use crate::js_text::trim_javascript;
 /// Owned OS strings for Git arguments and the child environment.
 use std::ffi::OsString;
@@ -221,6 +221,41 @@ fn describe_arguments(arguments: &[OsString]) -> String {
 /// ```
 pub fn git_output(git: &PushGit, arguments: &[OsString]) -> Result<String, SingleFlightError> {
     let output = run_query(git, arguments)?;
+    return output_text(arguments, &output);
+}
+
+/// What:
+///  The same read,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The reconcile and the push of the landing round read the object store as tasks,
+/// and the synchronous face refuses a call from inside the runtime.
+/// The answer is read and trimmed the same way,
+/// so the two cannot differ in what they hand back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (await query(args)).stdout.trim();
+/// ```
+pub async fn git_output_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<String, SingleFlightError> {
+    let output = run_query_awaiting(git, arguments).await?;
+    return output_text(arguments, &output);
+}
+
+/// What:
+///  The trimmed standard output of a query that exited zero,
+/// or the failure that names the query otherwise.
+/// Why:
+///   Any failed query is a coordination failure,
+/// and it is never read as an answer;
+/// both faces of `git_output`
+///  decide that here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (output.code !== 0) throw new GitError(args, output.code, output.stderr); return trimJavascript(output.stdout);
+/// ```
+fn output_text(arguments: &[OsString], output: &QueryOutput) -> Result<String, SingleFlightError> {
     if output.code != Some(0) {
         return Err(SingleFlightError::Git {
             arguments: describe_arguments(arguments),
@@ -256,6 +291,37 @@ pub fn run_query(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, S
         STOP_GRACE,
         git.environment.as_slice(),
     );
+}
+
+/// What:
+///  The same query,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The synchronous face enters the runtime for the child's wait and is refused from inside it,
+/// and the landing round
+///  runs its items as tasks (`foundation/parallel_runner_on_the_runtime_awaiting.rs`).
+/// The in-process answer,
+/// the command line,
+/// the quiet window and the grace are the synchronous face's,
+///  so the two cannot differ in what they ask or wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await nanoSpawn(gitPath, args, { cwd, signal: quietFor(windowMs) })
+/// ```
+pub async fn run_query_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<QueryOutput, SingleFlightError> {
+    // An exact read-only command line the in-process readers know costs no Git process.
+    if let Some((code, stdout, stderr)) = crate::repo_read_hook::try_complete(arguments, git.cwd.as_path(), crate::git_system_config::with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice()) {
+        return Ok(QueryOutput { code, stdout, stderr });
+    }
+    return run_bounded_query_awaiting(
+        git_command(git, arguments),
+        describe_arguments(arguments).as_str(),
+        query_window(&git.environment),
+        STOP_GRACE,
+        git.environment.as_slice(),
+    )
+    .await;
 }
 
 /// Query behavior is controlled in the test module.

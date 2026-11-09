@@ -14,7 +14,7 @@
 //! ```
 
 use crate::auto_push_single_flight::{
-    PushGit, SingleFlightError, git_command, git_output, run_query,
+    PushGit, SingleFlightError, git_command, git_output, git_output_awaiting, run_query, run_query_awaiting,
 };
 use crate::bounded_push::{MAX_PUSH_OUTPUT, STOP_GRACE};
 use crate::bounded_query::{QueryOutput, query_window, run_bounded_git};
@@ -234,6 +234,23 @@ pub(crate) fn common_dir_of(git: &PushGit) -> Result<PathBuf, SingleFlightError>
 }
 
 /// What:
+///  The same common directory,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's reconcile reads where the repository's common directory is as a task,
+/// and the synchronous query enters the runtime and is refused from there.
+/// The join with the working directory is the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path.join(git.cwd, await gitOutput(['rev-parse', '--git-common-dir']));
+/// ```
+pub async fn common_dir_of_awaiting(git: &PushGit) -> Result<PathBuf, SingleFlightError> {
+    let answered = git_output_awaiting(git, &argv(&["rev-parse", "--git-common-dir"])).await?;
+    return Ok(git.cwd.join(answered));
+}
+
+/// What:
 ///  Whether `commit.gpgsign` asks for signed commits.
 /// Why:
 ///   `git commit-tree` signs only when given `-S` and never reads `commit.gpgsign`,
@@ -252,6 +269,38 @@ pub(crate) fn signs_commits(git: &PushGit) -> Result<bool, SingleFlightError> {
         git,
         &argv(&["config", "--type=bool", "--get", "commit.gpgsign"]),
     )?;
+    if asked.code == Some(1) {
+        return Ok(false);
+    }
+    if asked.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: String::from("config --type=bool --get commit.gpgsign"),
+            code: asked.code,
+            stderr: String::from_utf8_lossy(&asked.stderr).into_owned(),
+        });
+    }
+    return Ok(asked.stdout.trim_ascii() == b"true");
+}
+
+/// What:
+///  The same question,
+/// awaited by a caller that is itself a task of the runtime.
+/// Why:
+///   The landing round's reconcile asks whether the merge it publishes must carry a signature as a task,
+/// and the synchronous query enters the runtime and is refused from there.
+/// The exit rule and the reading of the value are the synchronous face's,
+/// so a merge is signed or not for the same reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await signsCommitsOnTheRuntime(git): Promise<boolean>;
+/// ```
+pub async fn signs_commits_awaiting(git: &PushGit) -> Result<bool, SingleFlightError> {
+    let asked = run_query_awaiting(
+        git,
+        &argv(&["config", "--type=bool", "--get", "commit.gpgsign"]),
+    )
+    .await?;
     if asked.code == Some(1) {
         return Ok(false);
     }

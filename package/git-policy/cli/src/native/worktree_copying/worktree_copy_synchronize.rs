@@ -24,7 +24,7 @@ use crate::diagnostic_log::debug;
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registration_changed, unreadable_notice};
+use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registration_changed, unreadable_notice, unsettled_notice};
 use crate::worktree_subvolume::Reservation;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_journal::create_journal;
@@ -235,6 +235,10 @@ pub fn synchronize_created_worktree_noting(
             if !snapshot.unreadable.is_empty() {
                 // A closed standard error leaves nowhere to print; the log line of the stage still names the entries.
                 let _written = notice.write_all(unreadable_notice(source_root, snapshot.unreadable.as_slice()).as_bytes());
+            }
+            if !snapshot.unsettled.is_empty() {
+                // The same writer and the same silence: an entry a build kept writing stays in its source, named.
+                let _written = notice.write_all(unsettled_notice(source_root, snapshot.unsettled.as_slice()).as_bytes());
             }
             Ok(copied)
         }

@@ -19,6 +19,10 @@ pub mod lfs_pre_push;
 /// read from the push and the configuration Git would read.
 pub mod lfs_upload_plan;
 
+/// The same plan worked out with every wait on the runtime,
+/// beside the plan itself so that neither file passes the package's length limit.
+pub mod lfs_upload_plan_awaiting;
+
 /// The configuration the Git LFS upload plan reads,
 /// and the default remote derived from it.
 pub mod lfs_upload_settings;

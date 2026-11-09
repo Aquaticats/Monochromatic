@@ -112,22 +112,30 @@ function warnOverride({ value, }: { readonly value?: string; },): Disposable {
 }
 
 /**
- Appends `--verbose` to argv for a scope; disposing removes it.
+ Appends `--verbose` to argv for a scope; disposing restores the arguments
+ the scope started with.
 
- @returns Disposable removing the flag.
+ The whole vector is restored rather than the appended entry being popped,
+ because another writer may append its own argument during the scope; popping
+ would remove that argument and leave `--verbose` behind.
+
+ @returns Disposable restoring the arguments from before the scope.
 
  @example
  ```ts
  using _flag = verboseArgv();
  ```
  */
-function verboseArgv(): Disposable {
+export function verboseArgv(): Disposable {
+  /**
+   Arguments from before the flag was appended, which the disposal restores as a whole.
+   */
+  const before = [...process.argv,];
   process.argv
     .push('--verbose',);
   return {
     [Symbol.dispose](): void {
-      process.argv
-        .pop();
+      process.argv = [...before,];
     },
   };
 }

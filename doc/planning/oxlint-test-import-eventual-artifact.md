@@ -11,7 +11,10 @@ The package,
  its fixture package,
  and its unit tests are in the tree,
 and `@monochromatic-dev/config-oxlint` enables the rule at `error`.
-Migration of the 697 reported sites has not started.
+Migration of the sites the rule reports is under way:
+ the rule found 228 left on 2026-11-09,
+ down from the 697 of its landing run
+ (measurement under "Migration progress").
 
 One decision changed during implementation,
  on measurement rather than preference:
@@ -183,8 +186,9 @@ Adding the dynamic form later is a small change.
 
 ## Migration
 
-Measured by running the implemented rule across `package/`,
-which supersedes the pre-implementation estimates:
+Measured when the rule landed,
+by running the implemented rule across `package/`,
+which superseded the pre-implementation estimates:
 
 -   697 violation sites across 357 files in 58 packages
 -   686 sites are relative imports of package source
@@ -198,12 +202,49 @@ It was produced by a line-based scanner rather than the rule's own AST walk,
 and it did not count allowlisted modules,
 which the anti-laundering clause brings into scope.
 
-Largest concentrations by violating file count:
+Largest concentrations when the rule landed,
+by violating file count:
 `git-policy/cli` 42,
 `file-enforcer/core` 36,
 `toml-edit/core` 24,
 `pi-plugin/auto-mode` 19,
 `logger/core` 16.
+
+### Migration progress
+
+A run of the same rule on 2026-11-09 reported 228 sites across 144 files in 37 packages,
+against the 697 sites of the landing run.
+Where a package's tests now reach it through a bare self-reference,
+its sites are gone:
+`file-enforcer/core`,
+`toml-edit/core`
+ and the `git-policy/cli` TypeScript tests
+ (the package is Rust now)
+ are no longer in the report.
+
+Current concentrations,
+by violating file count:
+`watch-restart/cli` 14,
+`git-clone-size/cli` 13,
+`oxlint-plugin/tsdoc` 10,
+`dependency-catalog/cli-cube` 9,
+`mvm/cli` 9,
+`i18n-compose/core` 8,
+`wc/app` 8.
+
+Reproduce the count from the repository root:
+
+```bash
+mise exec -- oxlint -c oxlint.config.ts -A all \
+  -A prefer-readonly-parameter-type/prefer-readonly-parameter-types \
+  -D test-import/require-eventual-artifact --format json package/
+```
+
+The `-A prefer-readonly-parameter-type/...` argument keeps the semantic bridge out of the run;
+ this rule reads the AST and the owning manifest,
+ never type evidence,
+so dropping that rule changes nothing it reports
+ and lets the sweep finish in minutes.
 
 Stage-one categorization below predates implementation and is retained
 as the shape of the work rather than as a current count.
@@ -449,7 +490,10 @@ These shapes in this package exist for that reason and should not be flattened b
 
 Measured after these changes:
  zero findings from every configured rule in the package,
-and the repo-wide report is unchanged at 697 sites across 357 files.
+and the repo-wide report was unchanged at 697 sites across 357 files
+ (the count measured at the rule's landing;
+ it has fallen since,
+ see "Migration progress").
 Old and new shipping-target derivation were compared across all 165 package manifests in the repo with no mismatch,
 so the restructure is behavior-neutral.
 
@@ -469,6 +513,7 @@ The shape match has not been confirmed by applying the marker in that package.
 
 ## Next action
 
-Migrate the 697 reported sites,
- using the rule's own output as the worklist.
+Migrate the 228 sites the rule still reports,
+ using its own output as the worklist
+ (command under "Migration progress").
 Widened exports carry a TSDoc `@internal` tag.

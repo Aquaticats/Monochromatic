@@ -10,6 +10,7 @@ use crate::service_land_git_steps_and_import_stream::{commits_from_marks, overla
 use super::*;
 use crate::service_journal::{DONE_EXTENSION, Recovery, batch_path, parse_intent};
 use crate::service_protocol::{ALLOWED_MODES, Change};
+use crate::service_index_lock::Announce;
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
