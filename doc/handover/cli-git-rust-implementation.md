@@ -9129,8 +9129,13 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   they will find issues no matter what,
   even if the issues aren't really good issues.
   That's why I said to use your own judgement."
-  The `CLAUDE.md` preamble states the rule in its own words,
-  beside the cross-vendor reviewer's instructions.
+  and,
+  later,
+  "assign a code to the rule and put it in AGENTS.md .
+  Remove the "a Claude subagent is a second pass" line."
+  `AGENTS.md` rules `XVW`,
+  `PFW` and `WGH` carry it,
+  split in three because `RLM` caps a tagged rule at 200 characters and the command alone takes most of that.
   The review request stays as it was.
   The coordinator's working bar,
   a revisable suggestion and not an owner rule:
