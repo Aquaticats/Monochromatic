@@ -880,8 +880,42 @@
   `parallel_runner` 20 of 20,
   `native:clippy` clean,
   `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- A second review (the same file,
+  a third finding) held as well:
+  the pool queues a blocking job before it asks for a thread
+  (`tokio-1.54.1`,
+  the version in `Cargo.lock`:
+  `runtime/blocking/pool.rs:624` pushes,
+  `:628` asks,
+  `:498` returns `NoThreads`,
+  `:386` panics,
+  `run_worker` at `:657` drains),
+  so "no thread" never proved a job would not run,
+  and the index report's "those stay as they were" was measured to be false (4 of 4 rewrites ran
+  after the report,
+  in a child whose process limit is one).
+  Fixed by `foundation/the_claim_a_job_takes_before_running_it.rs`:
+  a job takes the claim before its first effect and the reporter takes it after the refusal,
+  and one atomic exchange decides,
+  so the promise holds and a job the report gave up on does nothing.
+  The error texts of `BlockingJobError` and `OrderedRunError`,
+  the trash disposal's sentence and two
+  control frames were reworded,
+  and no other site promises a file
+  (the plan,
+  "What a review of the branch found,
+  and what changed").
+  Round 3's checks:
+  122 controls of the folders touched
+  (`blocking_job`,
+  `the_claim_a_job`,
+  `subvolume_index`,
+  `parallel_runner`,
+  `worktree_trash`) 122 of 122,
+  `native:clippy` clean,
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
 - Main was merged into this branch at `69a0e7f75c` (the coordinator);
-  the sixteen commits of this step are its own.
+  the commits of this step are its own.
 
 ## Step T13, not started, 2026-11-08T18:40:00-05:00
 

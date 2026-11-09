@@ -5610,6 +5610,71 @@ both read from the committed code and both right:
   The holder now waits for the ask and reports it (see the controls above),
   and the review's own scenario was reproduced as a false pass before the change.
 
+A third finding came from a second reviewer,
+on the branch after those two,
+and it holds as well:
+
+- `NoThreadToStart` was read as proof that a job never ran,
+  and `subvolume/subvolume_index_refresh_of_every_worktree.rs` promised "those stay as they were" on it.
+  Tokio queues the job first:
+  in the locked version (`Cargo.lock`,
+  `tokio-1.54.1`),
+  `runtime/blocking/pool.rs` pushes the task at line 624 and asks for a thread only at line 628,
+  returns `SpawnError::NoThreads` at line 498,
+  and panics with "OS can't spawn worker thread" at line 386,
+  so the job stays queued and the pool's next thread runs it (`run_worker`,
+  line 657).
+  This plan's own note in `blocking_jobs_within_the_budget.rs` already said so for the place,
+  and `blocking_job.rs`'s comment that "the closure it consumed is gone,
+  so nothing ran" was wrong.
+  Measured,
+  in a child whose process limit is one:
+  the report said "4 of 4 index file(s) were not rewritten,
+  because the work of each one could not be
+  started,
+  so those stay as they were",
+  a thread was allowed again,
+  and **all four rewrites ran** afterwards.
+  The fix is `foundation/the_claim_a_job_takes_before_running_it.rs`:
+  one atomic exchange decides,
+  between the job taking the claim before its first effect and the
+  reporter taking it after the refusal,
+  so a job the report gave up on does nothing and the promise is a fact,
+  and a job that took the claim first makes the report say the result is not known.
+  The control is
+  `a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewrite_it`,
+  which counts the runs of its own rewrite after the drain,
+  and it fails with the plant that removes the job's side of the claim.
+
+Every other place that read the refusal as proof,
+and what was decided for each:
+
+- `foundation/blocking_job.rs`,
+  the error itself and its text:
+  reworded,
+  because the type cannot know:
+  "it had not started when that was reported;
+  the pool had already queued it,
+  so it may still run
+  later".
+- `foundation/parallel_runner_on_the_runtime.rs`,
+  `OrderedRunError`:
+  reworded the same way,
+  and it now says that the item the step held may still run later.
+- `worktree/worktree_trash_entries.rs`:
+  no claim.
+  Its reason list says an entry was not removed now,
+  and a removal that runs later is identity-checked and is what the person asked for,
+  so no data can be lost by it.
+- `worktree/worktree_convert_command.rs`:
+  no claim.
+  A conversion that runs later is journaled and resumable,
+  the report says the reason rather than any
+  state of the worktree,
+  and the claim would buy nothing the journal does not already give.
+- The two controls that measured a job had not run (`blocking_jobs_within_the_budget_tests`,
+  `parallel_runner_on_the_runtime_tests`) now say that they measure it at that moment.
+
 #### Checks
 
 The folders this step touches,
