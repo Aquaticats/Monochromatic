@@ -816,3 +816,43 @@ fn a_rollback_preview_before_the_exchange_is_not_refused() {
     assert_original_again(&platform, root.as_path());
     remove(parent.as_path());
 }
+
+/// Remove the identity a journal records for the stage it made,
+/// as a journal written between the two records or by an earlier release has none.
+fn forget_the_recorded_stage(journal: &Path) {
+    let text: String = std::fs::read_to_string(journal).expect("the journal");
+    let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
+    let document = value.as_object_mut().expect("a journal is an object");
+    assert!(document.remove("stage_identity").is_some(), "the control starts from a journal that records the stage");
+    std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
+}
+
+/// What:
+///  A rollback deletes no subvolume when the journal records no identity for the one the migration made.
+/// Why:
+///   The creation step and the identity are recorded by two writes,
+/// so a kill between them leaves a journal that records the
+///  creation and no identity;
+/// the rollback read that as permission and destroyed whatever subvolume stood at the
+///  stage's name,
+/// with the data it held.
+/// A journal an earlier release wrote has the same shape.
+#[test]
+fn a_rollback_refuses_a_stage_the_journal_records_no_identity_for() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-unrecorded-stage");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("before-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    forget_the_recorded_stage(layout.journal_path.as_path());
+    std::fs::rename(layout.new_path.as_path(), parent.join("staged-aside")).expect("move the stage aside");
+    platform.create_subvolume(layout.new_path.as_path()).expect("another subvolume at the stage's name");
+    std::fs::write(layout.new_path.join("theirs"), b"their data").expect("their file");
+    let (rollback_code, rollback_lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(rollback_code, REFUSED, "{rollback_lines:#?}");
+    let said: String = rollback_lines.join("\n");
+    assert!(said.contains("records no identity") && said.contains("nothing was deleted"), "{said}");
+    assert_eq!(std::fs::read(layout.new_path.join("theirs")).expect("their file"), b"their data", "their data survives");
+    assert!(parent.join("staged-aside").exists(), "the stage this migration made is left where it was moved");
+    remove(parent.as_path());
+}
