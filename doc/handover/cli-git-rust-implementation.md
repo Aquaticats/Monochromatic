@@ -153,24 +153,32 @@ The old tree kept for the rollback stays until the owner deletes it.
   which their briefs tell them to resolve first,
   so neither branch has landed.
 - Deferred until a slot frees,
-  because the practical limit of agents was reached when each was written,
-  in this order,
-  briefs in `~/temp/agent/pi-runs/`:
-  `wrapper-tests-that-fail-only-in-a-suite-round-3-prompt.md`.
-  That branch's merge of main is open in its worktree on two conflicts,
-  in `landing/service_push_retry_tests.rs` and `testing/test_support.rs`,
-  and the brief also answers its two questions:
-  split the two long controls per case,
-  and fix `every_call_runs_on_the_same_runtime`.
+  because the practical limit of agents was reached when it was written:
+  `~/temp/agent/pi-runs/resume-after-wall-clock-prompt.md` for `worktree-removal-findings-fixed`,
+  whose run 6 reached its time limit while writing a test for the report after the exchange.
+- `discarding-commands-round-3-sol.txt` names a regression:
+  an ignored file inside a directory the target replaces with a file is deleted unguarded,
+  so that branch is not to land until its run 4 reports.
 - Started:
-  alias run 2 on the review `invocation-route-round-1-sol.txt`,
-  and hook run 4,
-  because hook run 3 reached its time limit while writing wording tests.
-- The intent-to-add branch passed 660 of 661 on top of main.
-  `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on it and passed 6 of 6 on it and on main,
-  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note;
-  the branch's review is running.
-- The conversion branch finished seven findings and its check is running.
+  discarding-commands run 4,
+  alias run 2,
+  hook run 4,
+  intent-to-add run 3 on two regressions its review named,
+  suite-failures run 3,
+  `kill-sweeps-reach-the-calls-they-name`,
+  `commit-queue-position-reaches-the-person`
+  and `tokio-repair-threads-on-the-runtime`.
+- `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on the intent-to-add branch
+  and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note.
+- Checks on top of main with cross-vendor reviews running:
+  merge 272 of 272,
+  standards review 249 of 249,
+  entry and service 703 of 704,
+  worktree copy 283 of 284.
+  The one failure each is a test `wrapper-tests-that-fail-only-in-a-suite` has changed.
+- The conversion branch passed 397 of 402 on top of main,
+  and its three migration timeouts not yet named on main are running alone on it and on main.
 - `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
   of which index 57.8 s and journal 20.6 s,
   and said a real commit makes the same writes and flushes.

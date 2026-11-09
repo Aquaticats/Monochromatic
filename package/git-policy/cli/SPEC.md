@@ -2804,6 +2804,10 @@ of the review call and of the whole review).
   the transport ends the call itself,
   and its global timeout ends
   it at the ceiling with a sentence that names the call and the command that reviews the commit again.
+  The answer is read against `MAX_RESPONSE_BYTES` (four times the model input's cap) frame by frame:
+  a body past it ends the call as a failed one while it still arrives,
+  and the review's entry records the failure,
+  so no answer is ever held whole and the display excerpt of a failure message is not a memory bound.
   The whole review of a commit is waited for `REVIEW_CEILING` (2 minutes) by the service (`run_contained`);
   a review it stopped
   waiting for is counted as outstanding until its thread ends and no other review starts meanwhile (the refused item fails with the
@@ -5368,17 +5372,24 @@ the options weighed and the controls.)
   and the older marker above names the outer start and matches nothing,
   so reading the record only when no marker exists let the process start itself without end
   (finding 1 of the round-3 review).
-  The record continues the chain when its start is this process or a live process above it,
-  four levels deep,
-  which covers a launcher a relay and the relay's own shell (finding 2);
+  The record continues the chain when its start is this process or any live process above it,
+  up to the first process of the host,
+  which covers a launcher and however many relays it starts (finding 2 of the round-3 review and
+  finding 1 of the round-4 review);
+  the walk costs one read of the kernel's process record per level and is made only when a record
+  exists,
+  so a first command pays nothing and a start that follows one paid 1.05 ms on this host,
+  measured against the same start without the walk
+  (paired median +33.7 ms over the 32 starts of one chain,
+  inside the 126 to 143 ms run-to-run spread
+  of either arm);
   a record naming any other process is a command that has ended,
   so its count starts again at one and a long session of one command after another is never refused.
   A read of the wrapper's own continues the chain from any process of it,
   as the marker path refuses it from any process,
   or the branch a relay starts from a recorded read would be uncounted.
-  A record whose start is further above than four processes starts the count again:
-  that is the shape this bound does not count,
-  and it is written here rather than closed.
+  A tree the walk cannot read above some level starts the count again there;
+  no chain of finishable depth was found that the walk misses.
   A memory file has no directory entry and no name to sweep:
   the kernel frees it with the last process that holds it,
   so a marked start costs nothing.
