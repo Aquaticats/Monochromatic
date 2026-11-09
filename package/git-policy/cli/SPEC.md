@@ -1846,7 +1846,9 @@ An owner is alive when a process with its id and its birth identity exists;
 one in a PID namespace the reader cannot see is
 alive until its item is older than `FOREIGN_OWNER_PATIENCE` (twice `LOCK_CEILING`,
 20 minutes),
-and past it the command that finds the item stops with an
+and past it,
+or as soon as the item's own time cannot be measured against this host's clock,
+the command that finds the item stops with an
 error that names the item and changes nothing (the owner's "Refuse and name it (Recommended)",
 "Foreign-owner expiry" below);
 one the platform cannot report on is not proven dead,
@@ -2939,6 +2941,9 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   not
   reclaimed:
   see "Foreign-owner expiry".
+  A record whose own time cannot be measured against this host's clock is refused at once,
+  whatever its age,
+  and never counted as a live owner's.
 
 What happens at the bound,
 on the commit path:
@@ -3240,13 +3245,36 @@ and the legacy transaction owner records
 (`transaction_owner.rs`).
 A commit is outside it:
 commits never wait for these records and never fail on them.
+The age is the modification time of the record's file read against this reader's clock,
+so it means something only while the two agree.
+An age that cannot be measured,
+which is a record whose own time is later than this reader's clock (a clock that was set back here,
+a record copied with its time,
+another machine's clock) and one whose time cannot be read at all,
+is refused the same way:
+the answer says the time cannot be trusted,
+names the file,
+the owner and its namespace,
+and gives the `rm`,
+and the record is never taken for a live owner's.
+Taking it for one is what keeps a dead owner's record in the way for as long as its time stays ahead of the clock,
+with no age and no `rm` (audit of 2026-11-09,
+finding 2).
+A measured age is this host's reading of the record,
+so a clock that was set forward here,
+or one that is behind where the record was written,
+makes it read older than the hold;
+that is why the message says so and why what follows from it is a person's decision and not the wrapper's.
 Tests,
 each red first:
 `an_old_record_of_another_namespace_is_refused_and_named_and_nothing_changes`,
 `a_claim_of_another_namespace_older_than_the_patience_is_refused_and_named_and_nothing_changes`,
 `an_owner_of_another_namespace_with_an_old_item_is_refused_and_named`,
+`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`,
+`a_foreign_record_whose_time_is_later_than_the_clock_is_refused_and_named`,
+`a_foreign_record_whose_time_cannot_be_read_is_refused_and_named`,
 and
-`a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_changes_nothing`.
+`a_claim_of_another_namespace_whose_time_is_ahead_is_refused_and_named_and_nothing_changes`.
 
 #### Output of a step, the review runner, and releases that meet
 

@@ -355,7 +355,8 @@ pub fn foreign_owner_standing(recorded: Option<&str>, record_path: &Path) -> Opt
     let because: ForeignRefusal = match foreign_record_age(record_path) {
         RecordAge::Measured(age) if age_outlives_patience(age) => ForeignRefusal::PastThePatience(age),
         RecordAge::Measured(_) => return Some(Ok(())),
-        RecordAge::Ahead | RecordAge::Unreadable(_) => return Some(Ok(())),
+        RecordAge::Ahead => ForeignRefusal::TimeAhead,
+        RecordAge::Unreadable(reason) => ForeignRefusal::TimeUnreadable(reason),
     };
     return Some(Err(RefusedForeignRecord { record: record_path.to_path_buf(), namespace, because }));
 }
