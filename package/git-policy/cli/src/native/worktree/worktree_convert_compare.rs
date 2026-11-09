@@ -84,6 +84,8 @@ fn contents_differ(old: &Path, installed: &Path) -> std::io::Result<bool> {
     // must not make this read follow it or wait for a writer, while the conversion holds its claim.
     let mut left: std::fs::File = crate::plain_file::open_plain_file(old)?;
     let mut right: std::fs::File = crate::plain_file::open_plain_file(installed)?;
+    #[cfg(test)]
+    note_contents_opened(old);
     let mut left_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
     let mut right_buffer: Vec<u8> = vec![0; COMPARE_BUFFER_BYTES];
     loop {
@@ -278,6 +280,9 @@ thread_local! {
     // The callback a control installs to replace an entry just before its contents are read; nothing in a release build
     // reads or sets it.
     static BEFORE_CONTENTS: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+    // The callback a control installs to act on the two files once they are open and their lengths are known; nothing in a
+    // release build reads or sets it.
+    static AFTER_OPEN: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:
@@ -303,6 +308,36 @@ pub(crate) fn watch_contents_open(watch: Option<Box<dyn FnMut(&Path)>>) {
 #[cfg(test)]
 fn note_contents_open(path: &Path) {
     BEFORE_CONTENTS.with(|slot| {
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
+}
+
+/// What:
+///  Install `watch` to run for the old entry whose contents are about to be read once both sides are open,
+///  or clear it with `None`.
+/// Why:
+///   A control of how far the read is bounded must extend the two files after they were opened and before the first byte
+/// is read;
+/// no other seam reaches that moment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchContentsOpened((path) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_contents_opened(watch: Option<Box<dyn FnMut(&Path)>>) {
+    AFTER_OPEN.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the old entry at `path` once both files are open and their lengths are known.
+#[cfg(test)]
+fn note_contents_opened(path: &Path) {
+    AFTER_OPEN.with(|slot| {
         let mut installed = slot.borrow_mut();
         if let Some(watch) = installed.as_mut() {
             watch(path);

@@ -5,6 +5,15 @@ use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_btrfs_test_support::btrfs_fixture;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// How much a control extends each file per step while the comparison reads it.
+/// Why:
+///  A sparse extension of this size lands faster than a reader passes the bytes already there,
+/// so a reader with no bound
+///  never reaches the end of either file.
+const GROWTH_BYTES: u64 = 1024 * 1024 * 1024;
 
 /// Two trees with the same file,
 /// link and directory,
@@ -59,6 +68,72 @@ fn each_kind_of_difference_is_named_and_nothing_is_changed() {
     std::os::unix::fs::symlink("elsewhere", installed.join("link")).expect("another target");
     let target = first_difference(old.as_path(), installed.as_path()).expect("compared").expect("a difference");
     assert!(target.contains("link") && target.contains("points elsewhere"), "{target}");
+    remove(root.as_path());
+}
+
+/// What:
+///  Files that something keeps extending while they are read do not hold the comparison open.
+/// Why:
+///   The comparison read until both sides met their end,
+/// and a writer that stayed ahead of the reader kept that
+///  end away for good,
+/// so a conversion waited inside it with its claim held and never finished.
+/// The lengths the two sides had when
+///  they were opened bound the read,
+/// and a file that grew past its own is a difference the conversion reports rather than
+///  waits on.
+#[test]
+fn a_file_that_keeps_growing_does_not_hold_the_comparison_open() {
+    let (root, old, installed) = twin_trees("compare-growing");
+    let first_watched: PathBuf = old.join("dir/file");
+    let second_watched: PathBuf = installed.join("dir/file");
+    let first_compared: PathBuf = old.clone();
+    let second_compared: PathBuf = installed.clone();
+    let growing: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+    let started: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let writer: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::new(std::sync::Mutex::new(None));
+    let stop: Arc<AtomicBool> = Arc::clone(&growing);
+    let once: Arc<AtomicBool> = Arc::clone(&started);
+    let spawned: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::clone(&writer);
+    let (extended, first_extension) = std::sync::mpsc::channel::<()>();
+    // The callback is installed on the thread that compares, because `finished_within` runs the work on a thread of its own.
+    let comparison = crate::test_support::finished_within(move || {
+        watch_contents_opened(Some(Box::new(move |_path: &Path| {
+            if once.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let stopping: Arc<AtomicBool> = Arc::clone(&stop);
+            let telling: std::sync::mpsc::Sender<()> = extended.clone();
+            let first_extended: PathBuf = first_watched.clone();
+            let second_extended: PathBuf = second_watched.clone();
+            let handle: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+                let first: std::fs::File = std::fs::OpenOptions::new().write(true).open(first_extended.as_path()).expect("the old file");
+                let second: std::fs::File = std::fs::OpenOptions::new().write(true).open(second_extended.as_path()).expect("the installed file");
+                let mut length: u64 = first.metadata().expect("metadata").len();
+                while stopping.load(Ordering::SeqCst) {
+                    length += GROWTH_BYTES;
+                    // A sparse extension: the bytes a reader passes afterwards are zeros the kernel supplies without storing them.
+                    first.set_len(length).expect("extend the old file");
+                    second.set_len(length).expect("extend the installed file");
+                    let _ = telling.send(());
+                }
+            });
+            *spawned.lock().expect("the slot of the writer") = Some(handle);
+            // The control waits for that first extension, so the growth the read reports is there before its first byte.
+            let _ = first_extension.recv_timeout(std::time::Duration::from_secs(2));
+        })));
+        let decided = first_difference(first_compared.as_path(), second_compared.as_path());
+        watch_contents_opened(None);
+        return decided;
+    });
+    growing.store(false, Ordering::SeqCst);
+    let stopped: Option<std::thread::JoinHandle<()>> = writer.lock().expect("the slot of the writer").take();
+    if let Some(handle) = stopped {
+        handle.join().expect("the writer stopped");
+    }
+    let Some(outcome) = comparison else { panic!("the comparison did not finish within five seconds although the files only grew; its read has no bound") };
+    let difference: String = outcome.expect("compared").expect("a difference");
+    assert!(difference.contains("dir/file"), "{difference}");
     remove(root.as_path());
 }
 
