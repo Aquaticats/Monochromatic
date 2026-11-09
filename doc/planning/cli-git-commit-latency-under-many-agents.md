@@ -551,7 +551,10 @@ and then the ref store.
 The records name that stretch exactly,
 because every phase and every Git step carries its offset from the command's start,
 and it is where 93 to 99 percent of each measured hour's `buildMs` sits,
-so measuring `buildMs` and measuring the creation were the same measurement.
+except the last hour of the window, 19:00, where it is 56 percent and the
+  machine stopped stalling,
+so measuring `buildMs` and measuring the creation were the same measurement in
+every hour that stalled.
 
 ### What it costs in the records
 
@@ -619,7 +622,7 @@ Two of those groups were the wrapper's own doing and nothing else's:
   so the lookup was one call per entry per commit for an answer that is always
   "nothing there".
 
-### The change, in three commits
+### The change, in four commits
 
 - `is_private_shadow_entry` now names the private index copies by their prefix,
   read from `PRIVATE_INDEX_PREFIX` (`shadow_links.rs`),
@@ -635,6 +638,13 @@ Two of those groups were the wrapper's own doing and nothing else's:
   a symbolic one is `ref: <target>` and a line feed.
   The reftable backend keeps Git,
   because its refs live in tables only Git writes.
+- A branch that is itself a symbolic ref to another branch keeps its chain,
+  and the private target is written where that chain ends,
+  at most `SYMBOLIC_REF_CHAIN_LIMIT` steps, which is Git's own limit
+  (`shadow_refs.rs`).
+  `git update-ref`, which the third step replaces, follows such a chain;
+  a direct write at the first name would turn the chain into a direct ref that a
+  hook can tell apart.
 
 Red controls first, for the two steps that changed what the wrapper does:
 
@@ -648,6 +658,10 @@ Red controls first, for the two steps that changed what the wrapper does:
   `symbolic-ref HEAD refs/heads/main`).
 - `shadow::shadow_refs::tests::a_files_detached_head_is_written_where_git_reads_it`
   failed the same way on `update-ref --no-deref HEAD`.
+- `shadow::shadow_refs::tests::a_files_target_that_is_a_symbolic_ref_is_written_at_the_end_of_its_chain`
+  failed with `left: "refs/heads/main", right: "refs/heads/alias"` on
+  `git symbolic-ref HEAD` of a shadow whose `HEAD` names `refs/heads/alias`,
+  and that was the cross-vendor review's finding against the third step.
 
 Both ref controls then read the store back through real Git:
 `git symbolic-ref HEAD`,
@@ -660,7 +674,9 @@ the existing controls for a replaced template entry, a linked worktree's private
 
 ### After
 
-The same fixture, the same trace, one commit:
+The same method, the same fixture shape, the same 39 private index copies, one
+commit traced with that call filter (each trace is its own fixture, so the
+figures are per call and not per run of the same tree):
 
 - 306 calls against 392;
   `symlink` 8 against 47,
@@ -844,6 +860,17 @@ owner-held machinery it would move.
   Native Git flushes the index only when `core.fsync` asks,
   which is unset here,
   so this record compares step by step and not device stall by device stall.
+- Whether a torn ref file of a shadow changes any recovery outcome.
+  The ref store is written unsynced and not through a lock file, on the argument
+  that nothing reads a shadow's refs after a crash and recovery removes the tree
+  whole.
+  The `packed-refs` half of that argument already rested on it,
+  and both comments that state it cite
+  `binary_recovery_tearing_shadow_tests.rs`,
+  which this branch does not hold:
+  `git log --all` finds no such path and no `binary/` control mentions tearing.
+  The argument stands on the code's own shape,
+  and no control on this branch exercises it.
 
 ## Decisions this record takes, open to the owner's veto
 
