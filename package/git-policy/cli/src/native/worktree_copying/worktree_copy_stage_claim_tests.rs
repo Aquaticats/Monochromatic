@@ -481,6 +481,55 @@ fn a_replaced_destination_is_left_whole_and_reported() {
     remove(root.as_path());
 }
 
+/// What:
+///  An interrupted add that is not proven whole is named by every command that runs the recovery,
+///  and its
+///  records stay,
+/// until the worktree is finished or removed.
+/// Why:
+///   A person's `git status`,
+/// `git commit` or `git log` in the main checkout never reaches the recovery,
+/// and an
+///  agent reads only its own command's output,
+/// so one line about one command's standard error is lost work:
+///  the
+///  worktree looks ordinary in `git worktree list` and holds only `.git`,
+/// and the stage beside it stays.
+///   A worktree that is whole,
+/// or gone,
+/// settles silently and takes the records with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(reap(common)).toEqual(reap(common)); // the same line twice
+/// git(destination).resetHard(); expect(reap(common)).toEqual([]);
+/// ```
+#[test]
+fn an_interrupted_add_is_named_by_every_recovery_until_it_is_finished_or_removed() {
+    let (root, repo, destination, _admin) = killed_add("claim-add-repeated", true, false);
+    let first: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    assert_eq!(first.len(), 1, "{first:?}");
+    let second: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("the next command");
+    assert_eq!(second, first, "the next command says the same about the same worktree");
+    // The person finishes the checkout the way the line tells them to.
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after finishing"), Vec::<String>::new(), "a worktree that is whole is not reported");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the records go once the worktree is whole");
+    remove(root.as_path());
+}
+
+/// An interrupted add whose worktree the person removes stops being reported,
+/// and its records go.
+#[test]
+fn an_interrupted_add_that_is_removed_stops_being_reported() {
+    let (root, repo, destination, _admin) = killed_add("claim-add-removed", true, false);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("reap").len(), 1);
+    crate::test_support::git(repo.as_path(), &["worktree", "remove", "--force", destination.to_string_lossy().as_ref()]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after removing"), Vec::<String>::new(), "a worktree that is gone is not reported");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "nothing is left to report");
+    remove(root.as_path());
+}
+
 /// An add that was marked complete before the kill is a whole worktree:
 /// recovery keeps it and says nothing.
 #[test]
