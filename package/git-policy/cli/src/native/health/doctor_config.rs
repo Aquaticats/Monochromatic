@@ -25,6 +25,7 @@ use crate::config_snapshot::read_config_snapshot_awaiting;
 use crate::external_hooks::{ConfiguredHook, configured_hooks, describe_hook, explain_external_hooks};
 use crate::transaction_git::{GitContext, GitRequest};
 use crate::transaction_git_awaiting::run_git_awaiting;
+use crate::wait_ceilings::LANDING_LOCK_CEILING;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -172,10 +173,14 @@ pub fn render_notes(findings: &ConfigFindings) -> String {
     }
     if findings.retired_index_lock_key {
         text.push_str(
-            "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
-             commit service waits for another process's `index.lock` for as long as the lock stays there, whether the process \
-             is proven to hold it or not, says what it knows about the owner while it waits, and reads no timeout from this \
-             file. Remove the key from monochromatic-git-policy-cli.config.jsonc.\n",
+            format!(
+                "git monochromatic-git-policy-cli doctor: monochromatic-git-policy-cli.config.jsonc sets `indexLock.unprovenOwnerTimeoutMs`. The key does nothing: the \
+                 commit service waits for another process's `index.lock` until the lock goes, and for at most {} seconds, whether the process \
+                 is proven to hold it or not, says what it knows about the owner while it waits, and reads no timeout from this \
+                 file; after that wait the commit is not made and its change stays uncommitted. Remove the key from monochromatic-git-policy-cli.config.jsonc.\n",
+                LANDING_LOCK_CEILING.as_secs()
+            )
+            .as_str(),
         );
     }
     if findings.retired_landing_key {
