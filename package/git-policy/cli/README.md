@@ -2988,6 +2988,8 @@ a possible rename,
 replace refs,
 shallow or grafted history,
 split or sparse indexes,
+an index extension other than the ones Git reads without a word,
+a ref name Git's own rule for a ref name would refuse,
 and configuration keys that can change the output.
 Differential controls run real Git and the readers over the same command lines
 (`src/native/repo_read_*_tests.rs`,
