@@ -156,15 +156,19 @@ pub(crate) fn tree_entries(git: &GitContext, repository: &Path, old: &str, names
 /// Why:
 ///   What the commit is about to record for a path is this entry.
 ///
+///  The question is asked with `--full-name`, because every name here is written from the top of the
+/// worktree and looked up again by that same path: without it `ls-files` answers relative to the
+/// directory Git runs in, which a caller's own `-C` can move below the top.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// indexEntries(index, names) // `ls-files -s -z -- :(top,literal)<name>...`
+/// indexEntries(index, names) // `ls-files -s -z --full-name -- :(top,literal)<name>...`
 /// ```
 pub(crate) fn index_entries(git: &GitContext, repository: &Path, index: &Path, names: &[Vec<u8>]) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
     if names.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let output = with_specs(git, repository, Some(index), &["ls-files", "-s", "-z"], names)?;
+    let output = with_specs(git, repository, Some(index), &["ls-files", "-s", "-z", "--full-name"], names)?;
     let mut found: BTreeMap<Vec<u8>, Entry> = BTreeMap::new();
     for record in output.stdout.split(is_zero_byte) {
         // An index line is `<mode> <object> <stage> TAB <path>`; a stage other than zero is a conflict.
