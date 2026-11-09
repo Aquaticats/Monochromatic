@@ -313,6 +313,32 @@ fn a_modified_misnamed_or_linked_shim_is_an_unsupported_hook() {
 
 /// Every one of the four names is recognized with its own text.
 #[cfg(unix)]
+/// What:
+///  The whole report is built by a task of the runtime it is awaited on,
+/// and every Git question of it is put from that task.
+/// Why:
+///   Every Git step of the report entered the runtime for the pipes of a step that is ended at its ceiling,
+/// and that entering is refused from inside the runtime,
+/// so a task could not build the report at all.
+/// This control can pass only when no step of the report calls the synchronous face,
+/// which is the whole of the conversion.
+#[test]
+fn the_report_is_built_on_the_runtime_it_is_awaited_on() {
+    let root: PathBuf = fixture("doctor-awaited");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let hook: PathBuf = repo.join(".git/hooks/pre-commit");
+    executable(hook.as_path(), b"#!/bin/sh\n");
+    let context: GitContext = git_context();
+    let (code, stdout, stderr) = crate::lazy_runtime::run_on_runtime(async {
+        return exit_parts(doctor_action_with_section(&context, repo.as_path(), None, &no_filesystem_section).await);
+    })
+    .expect("the runtime");
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(stdout, format!("{}\n", hook.display()));
+    assert!(stderr.contains("never run through monochromatic-git-policy-cli"), "{stderr}");
+    remove(root.as_path());
+}
+
 #[test]
 fn each_of_the_four_shims_is_recognized() {
     let root: PathBuf = fixture("doctor-shims-all");
