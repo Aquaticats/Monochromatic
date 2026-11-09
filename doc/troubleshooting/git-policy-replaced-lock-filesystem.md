@@ -45,6 +45,26 @@ match options.open(path) {
     Ok(_) => return Ok(true),
 ```
 
+The paths this record names under `package/git-policy/cli/src/native/` were removed on 2026-11-01
+in `72e0534cca` (refactor(git-policy-cli):
+delete the transaction landing,
+recovery,
+registry,
+replay,
+gate and index-writer coordination;
+binary tests of the old route retired,
+push
+expectations still to restate);
+no file in the working tree carries them now.
+`package/git-policy/cli/src/native/recovery_files.rs` moved on 2026-11-03 to
+`package/git-policy/cli/src/native/transaction/recovery_files.rs` in `9d630d998e`
+(refactor(git-policy-cli):
+move the transaction record modules into a transaction folder).
+`mise run //package/monorepo-task/core-exec:research:reuse:lock-portability` was never declared
+under `package/monorepo-task/core-exec`;
+a task of that name lived in `package/dev-script/task-util`,
+which was deleted on 2026-10-29 by `592d78b143`.
+
 The `RealIndexLock` fields at that file's line 57 retain paths and a `LockIdentity`,
 with no open `File` field.
 The identity is subsequently read from path metadata at line 300.

@@ -123,6 +123,12 @@ const link=`${output}.link`;
 await symlink(basename(output),link,'dir');
 ```
 
+The paths this record names under `package/pi-plugin/auto-mode/native/` were removed on 2026-10-19
+in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no file in the
+working tree carries them now.
+
 The pinned uploader's `followSymbolicLinks: true`,
 quoted in the root-cause section,
 collects regular bytes through that link.

@@ -22,6 +22,11 @@ The same workflow passed on `ubuntu-latest` and `macos-latest`.
 `package/git-policy/cli/src/resolve-git.ts` split `PATH` correctly with Node's platform delimiter,
 but constructed only an extensionless `git` candidate in every directory.
 
+`package/git-policy/cli/src/resolve-git.ts` was removed on 2026-08-28 in `2aef2d409a`
+(refactor(git-policy-cli):
+use shared Git resolver);
+no file in the working tree carries it now.
+
 Windows GitHub runners expose Git as an executable such as `git.exe`.
 Windows command lookup applies `PATHEXT`,
 but direct filesystem probes do not append those extensions automatically.
