@@ -240,6 +240,10 @@ pub mod service_commit_tree_ownership;
 /// What the branch shows once the commit service went silent after a commit was prepared.
 pub mod service_branch_shows;
 
+/// The look for the commit a request that was already sent made,
+/// once its answer was lost.
+pub mod service_commit_looking_for_what_landed;
+
 /// What a landed commit leaves the command to do:
 /// its result and the work after it.
 pub mod service_landed_aftermath;

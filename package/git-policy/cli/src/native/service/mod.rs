@@ -174,6 +174,10 @@ pub mod service_instance;
 /// and the stop of its units through the manager.
 pub mod service_units_of_removed_worktrees;
 
+/// The journal folder the unit gives an instance,
+/// and the state folder that holds it.
+pub mod service_journal_folder_of_an_instance;
+
 /// A manager that records the stops it is asked for,
 /// for the controls of the units of removed worktrees.
 #[cfg(test)]
