@@ -2123,12 +2123,26 @@ Every pending transaction then reaches an end:
   never touches the destination path,
   and writes one notice line.
   The `.git` pointer is read as bytes,
+  as a plain file without blocking and without following a link,
+  and never past `GIT_FILE_LIMIT`,
   with every trailing line feed and carriage return stripped as Git's `read_gitfile_raw` strips them,
   so a pointer a Windows tool ended with a carriage return and a line feed still names the directory it holds.
+  A named pipe at that name would stop its reader until a writer comes,
+  and the pending check runs before every forwarded command,
+  so one worktree's pipe could stick a command in an unrelated worktree.
 - A destination whose pointer cannot be followed,
-  because the file names no directory or the directory it names is not there,
+  because the file names no directory,
+  the directory it names is not there,
+  or the file is empty,
+  half written,
+  a link,
+  a named pipe,
+  a device,
+  a directory or past the bound,
   is not evidence either way:
-  recovery keeps the stage and the journal,
+  a command killed while it rewrote the pointer leaves the file cut off in just that way,
+  and the worktree and its registration under the common directory are still there.
+  Recovery keeps the stage and the journal,
   writes one notice line saying that whether the worktree is still registered is unknown,
   and names the commands that show and settle it.
 - A transaction whose private stage is gone is discarded the same way,
@@ -2154,6 +2168,51 @@ removes it with its read-only subdirectories,
 writes one notice line naming it,
 and removes the claim.
 A claim whose container was never created is removed without a notice.
+
+Two sites remove a stage container by the path a record names:
+finishing a transaction (`remove_pending_journal`,
+`worktree_copy_journal_removal.rs`)
+and reaping an abandoned copy's stage (`reap_judged_stages`,
+`worktree_copy_stage_claim_reaping.rs`).
+Both check the recorded path before the removal:
+the transaction's stage was validated as a private directory owned by the user with its payload present,
+and the abandoned stage is put through `assert_private_path` immediately before `remove_stage`.
+Neither check establishes that the directory at that path is the one the copy created.
+Another process that renames the original stage elsewhere and puts a private directory of its own at the same path
+inside that window makes recovery delete its data,
+while the original stage survives at its new location,
+and neither ownership nor private permissions tell the two apart.
+
+No cheap identity check exists at either site today.
+The journal records the container's path,
+its payload path,
+the destination,
+the source,
+and the identities of the entries it installed there (`created_entries`),
+and a claim records the container's path alone,
+written before the container exists;
+nothing records the container's device and inode,
+which is the identity `worktree_copy_rollback.rs` compares for entries the install log holds.
+Recording it would need a new journal field,
+read only by this release onward,
+and for a claim a second durable record written after the container is created,
+because the claim precedes it;
+and even a recorded identity would narrow rather than close the window,
+because the removal resolves the recorded path again after any check.
+The removal is therefore left as it is,
+and the window is recorded here as a known limit.
+
+A removal that closed the window would take the directory from a descriptor instead:
+opened once with `O_DIRECTORY` and `O_NOFOLLOW`,
+its entries deleted through that descriptor,
+and the container removed last by name,
+where a directory another process put there makes that last step fail
+instead of deleting anything inside it.
+That is a redesign of `remove_stage`,
+of the btrfs subvolume removal it uses,
+and of the two callers,
+not a check beside them,
+and it is not done in this round.
 
 Malformed or unsafe journal,
 install-log,
