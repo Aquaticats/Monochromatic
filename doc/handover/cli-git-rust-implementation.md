@@ -150,16 +150,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   and `ad3731e420` (the audit `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`).
   The module-doc issues the docs agent reported fixed or no longer applicable are closed with evidence comments,
   and the commit messages of `78c5b5e245` and `42a8a1d544` carry corrective comments.
-  That agent reports issues 4519,
-  4526,
-  4587 and 2650 do not hold as filed.
-  They stay open until checked.
-  Issues 4245,
-  4408,
-  3258,
+  `d39dffb7b8` corrects the citations in `doc/planning/`,
+  and issues 4245,
   4853,
   4863,
-  4871 and 4872 wait for the `doc/` round.
+  4871 and 4872 are closed with evidence.
+  Issues 4408 and 3258 hold,
+  and their files are under `doc/decision/`,
+  so they wait for the open question on moved-path notes in `doc/handover/questions-for-the-owner.md`.
+  The docs agent's report that 4519,
+  4526,
+  4587 and 2650 do not hold looked only at the filed paths.
+  `wrapper-doc-folder-citations` found each defect still present at its moved path
+  (`shadow/replay_subsumption.rs:255-270`,
+  `shadow/shadow_create.rs:61-65`,
+  `policy/event_hints.rs:12-17`,
+  `binary/binary_lfs_pre_push_tests.rs:11`),
+  so they stay open for a small comment fix.
 - The shadow audit reproduced three defects:
   a conflict on `é.txt` makes replay silently revert the distinct file `Ã©.txt`,
   signing set through an exact `gitdir` conditional include is lost in native shadow preparation,
