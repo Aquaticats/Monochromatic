@@ -3570,6 +3570,40 @@ on the commit path:
   service's retry plan,
   which keeps the push and tries it again.
 
+#### Windows that need another process
+
+Three instants need another command to act inside a few instructions of this one,
+and no mechanism is added for them;
+each is named with what the person would see.
+
+- A blob staged between recovery's index read and its own index write.
+  Recovery reads the index and classifies a path as holding the branch's entry;
+  another command stages a different blob for that path without touching the worktree file;
+  recovery then writes the merge's entry over it with `git update-index --index-info`.
+  What the person sees:
+  the merge lands and their staged version is gone from the index,
+  with nothing in the output saying which version it was.
+- An edit a clean filter hides.
+  A path has a clean filter that removes `NOTE:` lines;
+  recovery judges its content and takes the file aside;
+  another program changes `NOTE: old` to `NOTE: new`,
+  keeping the length and restoring the modification time;
+  every field of the identity and the filtered object are then unchanged,
+  so the private name is removed at the finish.
+  What the person sees:
+  the changed `NOTE:` bytes are gone,
+  and neither the Git object nor the merged file holds them.
+- A detached `HEAD` made symbolic after the last check.
+  The record names no branch and recovery starts with a detached `HEAD`;
+  another command makes `HEAD` symbolic to a branch at the same commit after the last read;
+  recovery's `update-ref --no-deref HEAD` writes the merge commit as a detached `HEAD` over that symbolic one.
+  The read after the write then finds no branch,
+  which is what the record expects,
+  so the merge is reported complete.
+  What the person sees:
+  their worktree is detached at the merge commit instead of on the branch they switched to,
+  and that branch itself did not move.
+
 Decided by the coordinator under the owner's delegation,
 veto open (inventory,
 "Picks"):
