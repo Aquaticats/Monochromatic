@@ -234,11 +234,41 @@ where
         Ok(_helper) => match receiver.recv_timeout(deadline) {
             Ok(Ok(runtime)) => return Ok(BuiltRuntime { runtime, flavor: BuiltFlavor::MultiThread { workers } }),
             Ok(Err(_refused)) => BuiltFlavor::CurrentThreadAfterFailure,
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => BuiltFlavor::CurrentThreadAfterDeadline,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                // A build that finished between the deadline and here is already in the channel, and one that finishes
+                //  after the channel is closed is kept by its own helper: measure the two, so neither is dropped.
+                let _kept: bool = keep_a_late_build(receiver.try_recv());
+                drop(receiver);
+                BuiltFlavor::CurrentThreadAfterDeadline
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
         },
     };
     return Ok(BuiltRuntime { runtime: fallback()?, flavor: flavor_when_replaced });
+}
+
+/// What:
+///  Keeps a runtime that finished after its build deadline for the work it was built for,
+///  and gives whether it was one.
+/// Why:
+///   A runtime that arrived while the caller was still in its stand-in is in the channel when the caller times out,
+/// and the
+///  channel is closed a moment later:
+/// reading it at the deadline is what keeps that runtime,
+/// and a receiver already closed
+///  makes the build that arrives after it the helper's to keep.
+/// A build that failed keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = keepALateBuild(receiver.tryRecv()); // true when a runtime was kept
+/// ```
+fn keep_a_late_build(outcome: Result<std::io::Result<Runtime>, std::sync::mpsc::TryRecvError>) -> bool {
+    let Ok(Ok(late)) = outcome else { return false };
+    if let Err(unkept) = LATE_RUNTIME.set(late) {
+        std::mem::forget(unkept);
+    }
+    return true;
 }
 
 /// What:
