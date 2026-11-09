@@ -4853,8 +4853,9 @@ file:
 #### Checks
 
 `mise run //package/git-policy/cli:native:test:host -- health::`:
-67 tests run,
-67 passed.
+69 tests run,
+69 passed,
+three of them new here.
 `native:test:binary:host -- doctor`:
 9 tests run,
 9 passed,
