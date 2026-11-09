@@ -18,6 +18,41 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Asked while the owner is away, started 2026-11-09T01:16:11-05:00
+
+The owner:
+"I'm going to be away for 5 to 8h.
+Keep working and ask questions async."
+Nothing in this section is holding up running work.
+Write an answer under a question and save.
+
+### Are the three findings left on the stat-data landing worth another round?
+
+The landing that keeps stat data went through six rounds of cross-vendor review and is on main.
+The sixth review (`${HOME}/temp/agent/reviews/landing-stat-data-round-6-sol.txt`) named three more cases,
+and the coordinator landed it with them open because each needs something unusual:
+
+- Another process swaps two directories by rename in the instant between opening one and reading its `.gitattributes`.
+- Another process holds `.gitattributes` in a shared memory mapping and changes it during the read,
+  which moves no timestamp.
+- A FUSE filesystem leaves a read of a regular file unanswered.
+  That one is the open question about a stalled regular-file read in this file,
+  which also covers every other read of a regular file.
+
+In the first two,
+a file can be recorded as clean when its contents differ.
+Each is reachable only by another process acting in a window of microseconds.
+Say if any of them should get another round.
+
+### Conversion: is a late change of mode or owner a defect or accepted risk?
+
+An audit (`doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`) found that a `chmod` made in a conversion's last window is lost,
+because the comparison that decides the old tree can be deleted does not look at mode,
+owner or extended attributes.
+The coordinator read this as a defect and queued a fix,
+since that comparison exists to catch a late change.
+Say if you would rather accept the risk than pay for the wider comparison.
+
 ## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
 
 None of these has been asked yet,

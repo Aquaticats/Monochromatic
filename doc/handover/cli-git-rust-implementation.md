@@ -186,8 +186,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   171,383 ms and 26,256 ms are the retry index without stat data,
   fixed in 0.6.1-alpha.4.
   The cause of 36,651 ms is not established.
-- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`,
-  `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
+  with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
+- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
   `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
   and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   their agents are working through their reviews.
@@ -673,7 +674,8 @@ What changed:
   reached below a root held open without following a link (a symbolic link is left to Git,
   since it is rare and a link read across a swap of its parent cannot be proven to be the one examined);
   the file's raw bytes hash to the entry's object name read as a blob;
-  no attribute Git applies converts these bytes, and the bytes hold no carriage return
+  no attribute Git applies converts these bytes,
+  and the bytes hold no carriage return
   (`ContentJudge::conversion_is_the_identity`,
   read in process from the files Git itself would read,
   with `attr.tree` and `GIT_ATTR_SOURCE` refused and an unestablished fact refusing the record);
@@ -696,14 +698,17 @@ What changed:
   `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another
   blob,
   and a reader trusting the recorded stat data would then call the file clean.
-  The open does not block (`fs_beneath::open_file_at`, `O_NONBLOCK`),
+  The open does not block (`fs_beneath::open_file_at`,
+  `O_NONBLOCK`),
   so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
   One landing reads at most `CONTENT_LIMIT` bytes in all,
   every read is charged including one the stability checks refuse,
   and a read takes at most what is left of the bound,
   so a file grown after its first examination is not read past it.
   The attribute facts cost one `git var GIT_ATTR_SYSTEM` the first time a given real Git has no cache entry for them
-  (traced from a fresh `XDG_CACHE_HOME`: one `execve`, then none),
+  (traced from a fresh `XDG_CACHE_HOME`:
+  one `execve`,
+  then none),
   and the steady state adds no Git start;
   the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
   and the whole proof 2.9 to 3.1 ms (about 15 microseconds a path).
@@ -722,7 +727,8 @@ What changed:
   a worker that panicked counts as one that found a stale entry.
   It still reads the index's bytes and takes no lock.
 
-Controls, each written before its fix:
+Controls,
+each written before its fix:
 
 - `src/native/index/index_reset_worktree_stat_tests.rs`:
   a file that holds the entry's bytes records the file's stat data,
@@ -755,7 +761,8 @@ Controls, each written before its fix:
   since the landing now records values where `git reset --no-refresh` writes zeros;
   every other differential control still compares the files byte for byte.
 
-Failing output of the new controls, before their fix:
+Failing output of the new controls,
+before their fix:
 
 - With the proof replaced by a plain `lstat` of the path (no content,
   stability or racy check),
@@ -781,7 +788,8 @@ The measurements and what is still open are in the section after this one.
 
 The second cross-vendor review found four defects in the proof and named three things it could not determine.
 
-What it found, and what each answer was:
+What it found,
+and what each answer was:
 
 - An attributes file the index holds applies where the worktree's copy is missing,
   and the proof treated a missing file as no attributes:
@@ -804,7 +812,8 @@ What it found, and what each answer was:
   capped at the room,
   and the size the open handle reports decides whether a file is read at all,
   so nothing is read past the bound and nothing charged for it.
-  Its controls count the bytes the file hands over, through the new read seam,
+  Its controls count the bytes the file hands over,
+  through the new read seam,
   rather than the counter they feed.
 - Attribute reads bypassed the bound and the parsed files stayed cached without one.
   Fixed in `c5989ba4eb`:
@@ -815,7 +824,8 @@ What it found, and what each answer was:
   A refusal costs the record and never the commit:
   the reset still proceeds and the entry keeps the zero value.
   The attribute reading moved to `worktree_clean_content_attributes.rs` for the line limit.
-- A stalled regular-file read has no time bound, and `O_NONBLOCK` does not supply one.
+- A stalled regular-file read has no time bound,
+  and `O_NONBLOCK` does not supply one.
   It holds:
   `guarded` is panic protection only (`repo_read_hook.rs:73`),
   and every ceiling in the landing wraps a child process (`child_watch`) or a client's wait,
@@ -834,7 +844,8 @@ What it found, and what each answer was:
   and that worktree's other commits queue behind it.
   Not fixed here:
   a time bound needs the proof on a worker thread with a deadline
-  (the judge and its caches borrow the landing, so a bounded job would be a per-landing worker that is abandoned on a
+  (the judge and its caches borrow the landing,
+  so a bounded job would be a per-landing worker that is abandoned on a
   stall,
   leaving a thread and a file handle behind each time),
   which is a cost on the commit path and a leak on the mount it guards,
@@ -850,9 +861,11 @@ What it found, and what each answer was:
   the worker would own the judge and its cached attributes (the decision borrows the landing today),
   be abandoned on each stall with its thread and file handle,
   and need its own control for a read that never returns.
-  That is open work for the owner to weigh, not a silent gap.
+  That is open work for the owner to weigh,
+  not a silent gap.
 
-What the review could not determine, checked here:
+What the review could not determine,
+checked here:
 
 - Attribute matching with case folding and Unicode:
   `may_apply` answers "may apply" for every spelling it does not model (a quote,
@@ -920,12 +933,16 @@ the index's bytes read in process),
 medians of nine walks for the whole pass and of twenty-five for the shorter ones:
 
 - One thread,
-  no thread started: 160.12 ms.
+  no thread started:
+  160.12 ms.
   Seven workers,
-  the budget of this 8-CPU host: 30.56 ms.
-  Eight: 27.45 ms.
+  the budget of this 8-CPU host:
+  30.56 ms.
+  Eight:
+  27.45 ms.
   The whole question,
-  index bytes and walk together: 19.37 ms.
+  index bytes and walk together:
+  19.37 ms.
 - The break-even is 32 entries:
   16 entries took 0.125 ms on one thread and 0.145 ms on seven,
   so the threads lost there;
