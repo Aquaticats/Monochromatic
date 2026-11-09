@@ -7,11 +7,9 @@
 //! Why:
 //!  Native `git commit` must see the policy-settled index,
 //! not worktree bytes again,
-//!  so selection controls and pathspecs are removed once the private index already holds them
-//!  (`src/policy-engine/commit-preparation-native.ts`,
-//!  `commit-transaction-selection.ts`,
-//!  `src/parser/commit-normalise.ts`).
-//!  The removals match the incumbent token for token,
+//!  so selection controls and pathspecs are removed once the private index already holds them.
+//!  The removals match the TypeScript wrapper's token for token
+//!  (deleted on 2026-10-13 in `642b6d72cb`),
 //! including its use of `lastIndexOf`,
 //!  so a `-m` value equal to a pathspec is removed from the same position.
 //!

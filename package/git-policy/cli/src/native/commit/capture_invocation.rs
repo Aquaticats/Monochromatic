@@ -10,9 +10,7 @@
 //!  never live `HEAD`,
 //!  because another landing may have moved it since the invocation started.
 //!  The layout query and the base read run as separate steps,
-//!  so pruning sees the transaction before the base is read
-//!  (`src/policy-engine/commit-transaction-capture.ts`,
-//!  `captureInvocationLayout` and `captureInvocationBase`).
+//!  so pruning sees the transaction before the base is read.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

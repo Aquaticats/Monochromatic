@@ -236,7 +236,7 @@ pub fn summary_line(copied: usize, destinations: usize, source: Option<&Path>) -
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// // src/bin.ts: copy failure 2, Git status kept, signal 1
+/// // copy failure 2, Git status kept, signal 1
 /// ```
 pub fn exit_code(settlement: &Settlement) -> i32 {
     let git_code: i32 = settlement.git.code.unwrap_or(1);

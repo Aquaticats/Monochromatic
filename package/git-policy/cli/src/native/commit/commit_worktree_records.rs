@@ -5,8 +5,7 @@
 //!  The commit keeps what the private index holds,
 //! so the real worktree still holds the bytes the user wrote.
 //!  After the landing,
-//! each recorded file takes the committed bytes only while it still holds its earlier bytes
-//!  (`src/policy-engine/commit-transaction-selected-worktree.ts`).
+//! each recorded file takes the committed bytes only while it still holds its earlier bytes.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
