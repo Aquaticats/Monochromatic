@@ -30,6 +30,9 @@
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
 use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
+/// What the notice of the scratch `git commit` saw while the step ran,
+/// one entry per build.
+use crate::scratch_commit_step::{ScratchStepFacts, drain_scratch_steps, scratch_steps_json};
 use crate::diagnostic_log::debug;
 use crate::discard_audit::append_line;
 use crate::iso_time::now_iso;
@@ -291,6 +294,14 @@ pub struct CommitTiming {
     /// taken from the ledger when the record is written (`commit_index_builds.rs`):
     /// empty for a commit that stopped before it built an index.
     pub index_builds: Vec<IndexBuild>,
+    /// What the waiting notice of the scratch `git commit` saw in each build of it,
+    /// in the order built
+    /// (`scratch_commit_step.rs`):
+    /// empty for a commit that ran no scratch step,
+    /// and one entry per build otherwise.
+    /// The record's own `git commit` step figure is the child alone,
+    /// so the notice's join and the time a program below the step ran are here and never inside it.
+    pub scratch_steps: Vec<ScratchStepFacts>,
     /// Policies,
     /// hooks,
     /// the private index,
@@ -351,6 +362,7 @@ impl CommitTiming {
             outcome: "stopped",
             attempts: 0,
             index_builds: Vec::new(),
+            scratch_steps: Vec::new(),
             prepare: Duration::ZERO,
             build: Duration::ZERO,
             provision: Duration::ZERO,
@@ -398,7 +410,7 @@ impl CommitTiming {
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
              \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
-             \"prepareMs\":{},\"attempts\":{},\"indexBuilds\":{},\"buildMs\":{},\"provisionMs\":{},\
+             \"prepareMs\":{},\"attempts\":{},\"indexBuilds\":{},\"scratchSteps\":{},\"buildMs\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
@@ -415,6 +427,7 @@ impl CommitTiming {
             self.prepare.as_millis(),
             self.attempts,
             index_builds_json(self.index_builds.as_slice()),
+            scratch_steps_json(self.scratch_steps.as_slice()),
             self.build.as_millis(),
             self.provision.as_millis(),
             self.submit.total.as_millis(),
@@ -464,6 +477,7 @@ impl CommitTiming {
         with_quiet.quiet = drain();
         (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
         with_quiet.index_builds = drain_index_builds();
+        with_quiet.scratch_steps = drain_scratch_steps();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));

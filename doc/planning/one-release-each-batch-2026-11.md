@@ -2786,7 +2786,12 @@ Released by the coordinator.
   the signed scratch `git commit` step's ceiling of 3,006 ms when the message came with the command
   (owner:
   "About 3 s now";
-  `d0bcc86ca3`);
+  `d0bcc86ca3`;
+  it is 16,332 ms since 2026-11-08,
+  owner "About 16 seconds",
+  `doc/handover/cli-git-rust-implementation.md`,
+  "The ceiling is about 16 s,
+  and the three steps over it");
   tokio step T11 (`f87cc69f8d`);
   commit-service units that stop with their worktree (`68cab5c681`);
   a stop that lets a running branch write finish,
