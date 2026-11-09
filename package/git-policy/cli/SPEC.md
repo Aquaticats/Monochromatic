@@ -3979,6 +3979,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
+  Its message reads `Merge <remote>/<tracked ref> into <branch>`,
+  naming the branch whose tip is that first parent,
+  the way `git merge` names the branch it is on,
+  measured on this host with native Git 2.56.0
+  (`feature` tracking `origin/main` wrote
+  `Merge remote-tracking branch 'origin/main' into feature`),
+  and a branch whose name differs from the tracked ref's short name also gets
+  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  as a further line of its body,
+  because the commit lands on a branch its subject does not name.
+  A detached `HEAD` has no branch to name and keeps the tracked ref's short name
+  (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.

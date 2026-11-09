@@ -430,6 +430,10 @@ Read-only commands,
   When the remote refuses that push because its branch moved after the commit landed,
    the wrapper merges the remote tip into the branch tip from Git objects alone and pushes the merge without force,
    at most ten times.
+  The merge's message names the branch whose tip is its first parent
+  (`Merge origin/main into feature`),
+  as `git merge` names the branch it is on,
+   and it names the ref the merge is published to when that ref's name differs from the branch's.
   While the merge is computed and pushed,
   the local branch,
   the index,
