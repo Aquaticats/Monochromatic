@@ -90,7 +90,7 @@ fn unregistered_destination_is_discarded_with_notice() {
     let root: PathBuf = fixture("recovery-unregistered");
     let (source, topic) = linked_source(root.as_path());
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
     git(
         source.as_path(),
         &[
@@ -127,7 +127,7 @@ fn missing_stage_is_discarded_with_notice() {
     let root: PathBuf = fixture("recovery-missing-stage");
     let (source, topic) = linked_source(root.as_path());
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    std::fs::remove_dir_all(pending.journal.stage_container.as_str()).expect("stage removed");
+    std::fs::remove_dir_all(pending.journal.stage_container.as_path()).expect("stage removed");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let report: RecoveryReport =
         recover_worktree_copy_transactions(common.as_path()).expect("recovered");
@@ -274,7 +274,7 @@ fn pending_check_leaves_a_live_journal_and_recovers_a_dead_one() {
     recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a live owner's journal is skipped");
     assert!(live.path.exists(), "a live owner keeps the journal for itself");
     assert!(notices.is_empty(), "{}", String::from_utf8_lossy(notices.as_slice()));
-    assert!(Path::new(live.journal.stage_container.as_str()).exists(), "its stage stays");
+    assert!(Path::new(live.journal.stage_container.as_path()).exists(), "its stage stays");
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     recover_pending_worktree_copies(common.as_path(), &mut notices).expect("a dead owner's journal is recovered");
     assert!(!dead.path.exists());
@@ -472,7 +472,7 @@ fn a_stage_that_cannot_be_examined_is_a_fault_and_not_a_missing_stage() {
     let mut pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
     let blocker: PathBuf = root.join("blocker");
     std::fs::write(blocker.as_path(), b"a file").expect("blocker");
-    pending.journal.stage_container = blocker.join("stage").to_string_lossy().into_owned();
+    pending.journal.stage_container = blocker.join("stage");
     let failure: WorktreeCopyError = validate_stage(&pending).expect_err("the stage cannot be examined");
     assert!(
         failure.0.contains("could not validate worktree-copy recovery state"),
@@ -533,7 +533,7 @@ fn a_journal_of_another_namespace_older_than_the_patience_stops_recovery_and_cha
     let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
     let pending: PendingJournal = create_journal_for(common.as_path(), topic.as_path(), &snapshot, &foreign).expect("journal");
     std::fs::File::options().write(true).open(pending.path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
-    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
     let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
     assert!(refused.0.contains(pending.path.to_string_lossy().as_ref()) && refused.0.contains("31337") && refused.0.contains("pid:[1]") && refused.0.contains("rm -- "), "{}", refused.0);
     assert!(pending.path.exists() && stage.exists(), "the journal and its stage are untouched");
@@ -566,7 +566,7 @@ fn an_expired_foreign_journal_after_a_dead_one_stops_recovery_before_the_dead_on
         std::fs::remove_file(expired.path.as_path()).expect("discard the pair");
     };
     std::fs::File::options().write(true).open(expired.path.as_path()).expect("open").set_modified(std::time::SystemTime::now() - crate::pid_namespace::FOREIGN_OWNER_PATIENCE - std::time::Duration::from_secs(300)).expect("age");
-    let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_str());
+    let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_path());
     let refused = recover_worktree_copy_transactions(common.as_path()).expect_err("an expired foreign journal stops recovery");
     assert!(refused.0.contains("31337"), "{}", refused.0);
     assert!(dead.path.exists() && dead_stage.exists(), "the dead owner's journal and stage are untouched: nothing changed");
@@ -589,7 +589,7 @@ fn an_expired_foreign_stage_claim_stops_recovery_before_a_dead_journal_is_touche
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let dead: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_str());
+    let dead_stage: PathBuf = PathBuf::from(dead.journal.stage_container.as_path());
     let foreign = crate::worktree_copy_owner::CopyOwner { pid: 31337, birth_identity: String::from("linux:1"), pid_namespace: Some(String::from("pid:[1]")) };
     let _claim = claim_stage_for(common.as_path(), root.join("elsewhere").as_path(), &foreign).expect("a foreign claim");
     let claim_path: PathBuf = std::fs::read_dir(crate::worktree_copy_journal::journal_root(common.as_path())).expect("the journal root").flatten().map(|entry| { return entry.path(); }).find(|path| { return path.extension().is_some_and(|extension| { return extension == "stage"; }); }).expect("the claim file");
@@ -612,7 +612,7 @@ fn a_recorded_registration_that_is_gone_is_discarded_with_a_notice() {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
     crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
     // Another command removes this worktree and registers another one at the same path, whose checkout has not run.
     git(
@@ -661,7 +661,7 @@ fn a_recorded_registration_that_still_holds_is_resumed() {
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic.as_path()).expect("binding").binding;
     let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
-    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
+    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
     crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
     let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 1);

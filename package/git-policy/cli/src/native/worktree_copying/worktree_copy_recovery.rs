@@ -99,16 +99,17 @@ pub struct RecoveryReport {
 /// async function readRegistration({ commonDir, destinationRoot }): Promise<DestinationRegistration>;
 /// ```
 fn read_registration(common_dir: &Path, destination: &Path) -> std::io::Result<Registration> {
+    use std::os::unix::ffi::OsStrExt;
     if std::fs::canonicalize(destination)? != destination {
         return Ok(Registration::Unregistered);
     }
-    let pointer: String = std::fs::read_to_string(destination.join(".git"))?
-        .trim_end()
-        .to_string();
-    let Some(rest) = pointer.strip_prefix("gitdir: ") else {
+    // The pointer is bytes: Git writes the directory it names as it is, so a path that is not text must be read whole.
+    let recorded: Vec<u8> = std::fs::read(destination.join(".git"))?;
+    let pointer: &[u8] = recorded.strip_suffix(b"\n").unwrap_or(recorded.as_slice());
+    let Some(rest) = pointer.strip_prefix(b"gitdir: ") else {
         return Ok(Registration::Unregistered);
     };
-    let admin: PathBuf = std::fs::canonicalize(destination.join(rest))?;
+    let admin: PathBuf = std::fs::canonicalize(destination.join(std::ffi::OsStr::from_bytes(rest)))?;
     let expected: PathBuf = std::fs::canonicalize(common_dir.join("worktrees"))?;
     if admin.parent() == Some(expected.as_path()) {
         return Ok(Registration::Registered);
@@ -160,11 +161,11 @@ pub fn destination_registration(
 /// async function validateJournalStage(record): Promise<StagePresence>;
 /// ```
 pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, WorktreeCopyError> {
-    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
-    let payload: PathBuf = PathBuf::from(pending.journal.stage_root.as_str());
+    let container: &Path = pending.journal.stage_container.as_path();
+    let payload: &Path = pending.journal.stage_root.as_path();
     // `match` on the no-follow lookup: an absent path is reported as missing, and any other failure names the destination.
     for path in [&container, &payload] {
-        match std::fs::symlink_metadata(path.as_path()) {
+        match std::fs::symlink_metadata(path) {
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(StagePresence::Missing);
@@ -172,12 +173,12 @@ pub fn validate_stage(pending: &PendingJournal) -> Result<StagePresence, Worktre
             Err(error) => {
                 let message: String = format!(
                     "monochromatic-git-policy-cli: could not validate worktree-copy recovery state for {}.",
-                    quote(pending.journal.destination_root.as_str())
+                    quote(pending.journal.destination_root.to_string_lossy().as_ref())
                 );
                 return Err(failure_with_cause(message.as_str(), Some(&error)));
             }
         }
-        assert_private_path(path.as_path(), Role::PrivateStage)?;
+        assert_private_path(path, Role::PrivateStage)?;
     }
     return Ok(StagePresence::Intact);
 }
@@ -198,10 +199,10 @@ fn recover_transaction(
     common_dir: &Path,
     pending: PendingJournal,
 ) -> Result<(bool, Option<String>), WorktreeCopyError> {
-    let destination: String = quote(pending.journal.destination_root.as_str());
+    let destination: String = quote(pending.journal.destination_root.to_string_lossy().as_ref());
     let registration: Registration = destination_registration(
         common_dir,
-        Path::new(pending.journal.destination_root.as_str()),
+        pending.journal.destination_root.as_path(),
     )?;
     let stage: StagePresence = validate_stage(&pending)?;
     if registration == Registration::Unregistered {
@@ -229,8 +230,7 @@ fn recover_transaction(
     let journal_for_snapshot: PendingJournal = pending.clone();
     // The stage records the registration the copy was made for; a destination that is another registration now is not
     // this copy's to fill, and nothing in it is written.
-    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
-    if let Some(bound) = stage_binding(container.as_path())?
+    if let Some(bound) = stage_binding(pending.journal.stage_container.as_path())?
         && let Err(reason) = verify_stage_binding(common_dir, &bound)
     {
         remove_pending_journal(&pending)?;

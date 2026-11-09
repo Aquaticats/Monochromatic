@@ -1117,7 +1117,7 @@ fn a_creation_leaves_a_live_journal_alone_and_does_not_wait() {
     assert!(started.elapsed() < std::time::Duration::from_secs(30), "the creation must not wait for the live copy");
     assert_eq!(exit_code(&settlement), 0, "{:?}", settlement.copy_failure);
     assert!(live.path.exists(), "the live journal is whole");
-    assert!(Path::new(live.journal.stage_container.as_str()).exists(), "its stage is whole");
+    assert!(live.journal.stage_container.as_path().exists(), "its stage is whole");
     assert!(!older.join("cache").exists(), "its copy is not installed by anyone else");
     assert!(!String::from_utf8(stderr).expect("utf8").contains("recovered"));
     remove(root.as_path());

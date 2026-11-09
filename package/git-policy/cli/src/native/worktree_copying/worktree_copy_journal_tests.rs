@@ -23,17 +23,17 @@ fn sample(root: &Path) -> Journal {
             selected: true,
         }],
         intended_entries: vec![String::from("cache")],
-        destination_root: destination.to_string_lossy().into_owned(),
+        destination_root: destination,
         phase: Phase::Installing,
         selected_roots: vec![String::from("cache")],
-        source_root: root.join("source").to_string_lossy().into_owned(),
-        stage_container: stage.to_string_lossy().into_owned(),
-        stage_root: stage.join("payload").to_string_lossy().into_owned(),
+        source_root: root.join("source"),
+        stage_container: stage.clone(),
+        stage_root: stage.join("payload"),
     };
 }
 
 /// The encoding is the incumbent's `JSON.stringify` of the same object,
-/// with a final line feed.
+/// with each root's bytes in hexadecimal after its text and a final line feed.
 #[test]
 fn encoding_matches_the_incumbent_exactly() {
     let journal: Journal = sample(Path::new("/w"));
@@ -41,11 +41,15 @@ fn encoding_matches_the_incumbent_exactly() {
         "{\"createdEntries\":[{\"device\":\"7\",\"inode\":\"42\",\"relativePath\":\"cache\",\"selected\":true}],",
         "\"intendedEntries\":[\"cache\"],",
         "\"destinationRoot\":\"/w/topic\",",
+        "\"destinationRootHex\":\"2f772f746f706963\",",
         "\"phase\":\"installing\",",
         "\"selectedRoots\":[\"cache\"],",
         "\"sourceRoot\":\"/w/source\",",
+        "\"sourceRootHex\":\"2f772f736f75726365\",",
         "\"stageContainer\":\"/w/.cli-git-worktree-copy-abc\",",
+        "\"stageContainerHex\":\"2f772f2e636c692d6769742d776f726b747265652d636f70792d616263\",",
         "\"stageRoot\":\"/w/.cli-git-worktree-copy-abc/payload\",",
+        "\"stageRootHex\":\"2f772f2e636c692d6769742d776f726b747265652d636f70792d6162632f7061796c6f6164\",",
         "\"version\":1}\n"
     )
     .to_string();
@@ -67,6 +71,20 @@ fn encoded_journal_parses_back_to_itself() {
     .expect("valid");
     assert_eq!(parsed, journal);
     remove(root.as_path());
+}
+
+/// The same record with every bytes field removed,
+/// as the release installed before them wrote it.
+fn strip_bytes_fields(text: &str) -> String {
+    let value: serde_json::Value = serde_json::from_str(text).expect("a journal");
+    let object: serde_json::Map<String, serde_json::Value> = value.as_object().expect("an object").clone();
+    let mut earlier: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    for (key, field) in object {
+        if !key.ends_with("Hex") {
+            earlier.insert(key, field);
+        }
+    }
+    return format!("{}\n", serde_json::Value::Object(earlier));
 }
 
 /// Every rule of the incumbent's validation refuses the record with its own wording.
@@ -102,7 +120,19 @@ fn validation_refuses_each_malformed_shape() {
             corrupt.clone(),
         ),
         (
+            // The bytes win over the text, so damage is a bytes field that is not the bytes of a path.
             base.replace(
+                &format!(
+                    "\"sourceRootHex\":{}",
+                    quote(hex_of_path(root.join("source").as_path()).as_str())
+                ),
+                "\"sourceRootHex\":\"2f6g\"",
+            ),
+            corrupt.clone(),
+        ),
+        (
+            // A record of the earlier shape, with no bytes fields, holds the text as the path.
+            strip_bytes_fields(base.as_str()).replace(
                 &format!(
                     "\"sourceRoot\":{}",
                     quote(root.join("source").to_string_lossy().as_ref())
@@ -116,19 +146,16 @@ fn validation_refuses_each_malformed_shape() {
         (
             base.replace(
                 &format!(
-                    "\"stageContainer\":{}",
+                    "\"stageContainerHex\":{}",
                     quote(
-                        root.join(".cli-git-worktree-copy-abc")
-                            .to_string_lossy()
-                            .as_ref()
+                        hex_of_path(root.join(".cli-git-worktree-copy-abc").as_path()).as_str()
                     )
                 ),
                 &format!(
-                    "\"stageContainer\":{}",
+                    "\"stageContainerHex\":{}",
                     quote(
-                        root.join("elsewhere/.cli-git-worktree-copy-abc")
-                            .to_string_lossy()
-                            .as_ref()
+                        hex_of_path(root.join("elsewhere/.cli-git-worktree-copy-abc").as_path())
+                            .as_str()
                     )
                 ),
             ),
@@ -191,12 +218,12 @@ fn validation_refuses_each_malformed_shape() {
 #[test]
 fn only_canonical_absolute_paths_are_accepted() {
     for accepted in ["/", "/a", "/a/b", "/a/.hidden", "/a/b.c"] {
-        assert!(is_canonical_absolute(accepted), "{accepted}");
+        assert!(is_canonical_absolute(Path::new(accepted)), "{accepted}");
     }
     for refused in [
         "", "a", "a/b", "//", "/a/", "/a//b", "/a/./b", "/./a", "/a/.", "/a/..", "/../a", "/a/b/..",
     ] {
-        assert!(!is_canonical_absolute(refused), "{refused}");
+        assert!(!is_canonical_absolute(Path::new(refused)), "{refused}");
     }
 }
 
@@ -240,8 +267,8 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
         quote(path.to_string_lossy().as_ref())
     );
     let place = |journal: &mut Journal, container: PathBuf| {
-        journal.stage_container = container.to_string_lossy().into_owned();
-        journal.stage_root = container.join("payload").to_string_lossy().into_owned();
+        journal.stage_container = container.clone();
+        journal.stage_root = container.join("payload");
     };
     let mut unprefixed: Journal = sample(root.as_path());
     place(&mut unprefixed, root.join("plain-stage"));
@@ -250,10 +277,7 @@ fn each_stage_relation_and_each_repeated_list_is_refused_alone() {
     place(&mut elsewhere, root.join("elsewhere/.cli-git-worktree-copy-abc"));
     refuse(&elsewhere, relation.clone());
     let mut misplaced_payload: Journal = sample(root.as_path());
-    misplaced_payload.stage_root = root
-        .join(".cli-git-worktree-copy-abc/other")
-        .to_string_lossy()
-        .into_owned();
+    misplaced_payload.stage_root = root.join(".cli-git-worktree-copy-abc/other");
     refuse(&misplaced_payload, relation);
     let mut repeated_intent: Journal = sample(root.as_path());
     repeated_intent.intended_entries.push(String::from("cache"));
@@ -394,7 +418,7 @@ fn removal_deletes_stage_and_journal() {
     std::fs::create_dir(common.as_path()).expect("common");
     let journal_root: PathBuf = ensure_journal_root(common.as_path()).expect("root");
     let journal: Journal = sample(root.as_path());
-    let stage: PathBuf = PathBuf::from(journal.stage_container.as_str());
+    let stage: PathBuf = journal.stage_container.clone();
     std::fs::create_dir_all(stage.join("payload/locked")).expect("stage");
     std::fs::write(stage.join("payload/locked/file"), b"x").expect("file");
     std::fs::set_permissions(
@@ -427,7 +451,7 @@ fn the_complete_phase_is_written_before_the_stage_is_removed() {
     std::fs::write(&file, b"x").expect("file");
     // A stage below a file cannot be inspected, which stops the removal right after the phase is written.
     let mut journal: Journal = sample(root.as_path());
-    journal.stage_container = file.join("stage").to_string_lossy().into_owned();
+    journal.stage_container = file.join("stage");
     let path: PathBuf = journal_root.join("id.json");
     write_journal(path.as_path(), &journal).expect("write");
     let pending: PendingJournal = PendingJournal {

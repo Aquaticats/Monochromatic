@@ -385,7 +385,7 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
     if !names.is_empty() {
         let mut journaled: BTreeSet<PathBuf> = BTreeSet::new();
         for pending in read_pending_journals(common_dir)? {
-            journaled.insert(PathBuf::from(pending.journal.stage_container));
+            journaled.insert(pending.journal.stage_container);
         }
         for name in names {
             let claim: PathBuf = root.join(name.as_str());
