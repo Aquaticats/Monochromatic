@@ -220,12 +220,15 @@ pub fn remove_entries(request: &EntryRemoval) -> Vec<String> {
 pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
     let indices: Arc<[usize]> = Arc::from((0..request.manifest.entries.len()).collect::<Vec<usize>>());
     // One lane per entry, so no entry waits for another.
-    let lanes: Arc<[Vec<usize>]> = Arc::from(indices.iter().map(|index: &usize| { return vec![*index]; }).collect::<Vec<Vec<usize>>>());
+    let mut lanes: Vec<Vec<usize>> = Vec::new();
+    for index in indices.iter() {
+        lanes.push(vec![*index]);
+    }
     let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &request.host });
     let mut left: Vec<String> = Vec::new();
     let removed = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: indices,
-        lanes,
+        lanes: Arc::from(lanes),
         workers,
         work: Arc::new(RemoveEachEntry { inside: request.inside.clone(), trash: Arc::clone(&request.trash), manifest: Arc::clone(&request.manifest), remove: Arc::clone(&request.remove) }),
         on_event: &mut KeepReasonsOfEntriesThatStay { left: &mut left },

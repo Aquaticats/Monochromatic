@@ -137,7 +137,8 @@ impl LinuxPlatform {
     /// and the bridge that starts one (`captured_child_run_to_its_end::output_of_blocking`)
     /// refuses a call from inside the process's runtime,
     /// where waiting for it would never end.
-    ///  A conversion is a job of the process's blocking pool, so it runs inside the runtime;
+    ///  A conversion is a job of the process's blocking pool,
+    /// so it runs inside the runtime;
     /// the command therefore settles these facts on its own thread before it hands the platform over,
     /// and the content decision inside the job reads them without starting Git.
     ///  With no Git named,

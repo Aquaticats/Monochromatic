@@ -391,7 +391,8 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
 /// Why:
 ///   A caller that is itself asynchronous cannot enter the runtime,
 /// so it awaits this face;
-/// the lines, the order and the exit status are the synchronous face's.
+/// the lines,
+/// the order and the exit status are the synchronous face's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

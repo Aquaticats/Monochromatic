@@ -41,7 +41,8 @@ struct Watched {
     inner: Arc<PlainPlatform>,
     /// Called with the path of the converting subvolume before it is created;
     /// an error fails the creation.
-    /// The hooks own what they read, because a conversion is a job of the blocking pool,
+    /// The hooks own what they read,
+    /// because a conversion is a job of the blocking pool,
     /// which must be `'static`.
     on_create: Box<dyn Fn(&Path) -> Result<(), PrimitiveError> + Send + Sync>,
     /// Called before the swap of a worktree with its converting sibling.
@@ -115,7 +116,8 @@ fn run_on(platform: &Arc<dyn Platform + Send + Sync>, host: &HostResources, argu
     return (code, lines);
 }
 
-/// The platform of a control, as a run takes it.
+/// The platform of a control,
+/// as a run takes it.
 fn shared(platform: &Arc<Watched>) -> Arc<dyn Platform + Send + Sync> {
     let held: Arc<Watched> = Arc::clone(platform);
     let shared: Arc<dyn Platform + Send + Sync> = held;
