@@ -326,13 +326,36 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
 /// ```ts
 /// wordPass(site, tip, { tree, conflicts }, paths) // { combined: { tree, files } } | { conflict: paths }
 /// ```
+/// What:
+///  The top of the worktree Git printed,
+/// with its line break removed and nothing else.
+/// Why:
+///   A directory may end in a space,
+/// and trimming the line Git printed takes that space with it,
+/// so every command of the second pass would
+///  run in a directory that does not exist and the commit would be refused as an uncombinable change.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const top = stdout.toString().replace(/\r?\n$/, '');
+/// ```
+fn toplevel_of(stdout: &[u8]) -> PathBuf {
+    let text: String = String::from_utf8_lossy(stdout).into_owned();
+    // Exactly one terminator goes, so a directory whose name ends in a line break keeps it.
+    let without_terminator: &str = match text.strip_suffix("\r\n") {
+        Some(rest) => rest,
+        None => text.strip_suffix('\n').unwrap_or(text.as_str()),
+    };
+    return PathBuf::from(without_terminator);
+}
+
 fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths: Vec<Vec<u8>>) -> Merged {
     let (tree, conflicts): (&str, &[Conflict]) = merge;
     // The commit may have been run from a subdirectory; the second pass reads paths from the top of the worktree.
     let mut top_request: GitRequest = GitRequest::new(site.cwd, &["rev-parse", "--show-toplevel"]);
     top_request.without_prefix = true;
     let top: PathBuf = match run_git_checked(site.context, &top_request) {
-        Ok(found) => PathBuf::from(String::from_utf8_lossy(found.stdout.as_slice()).trim()),
+        Ok(found) => toplevel_of(found.stdout.as_slice()),
         Err(_) => return Merged::Conflict(paths),
     };
     let process_environment: Vec<(OsString, OsString)> = std::env::vars_os().collect();
@@ -346,7 +369,7 @@ fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths:
         object_directory: Some(site.object_directory),
         environment: attribute_tree_variables(tip, &probe),
     };
-    return match resolve_tree(&runner, site.common_dir, tree, conflicts) {
+    return match resolve_tree(&runner, site.common_dir, tree, conflicts, &probe) {
         Some(resolved) => Merged::Combined { tree: resolved.tree, files: resolved.merged },
         None => Merged::Conflict(paths),
     };

@@ -1201,3 +1201,38 @@ fn what_git_says_of_the_fast_forward_reaches_the_journal_and_not_the_person() {
     assert!(said.is_some_and(|entry| { return entry.contains("Fast-forward"); }));
     remove_settled(&fixture);
 }
+
+/// What:
+///  `--no-summary` hides the end-of-merge diffstat,
+///  and `--summary` prints it even with `merge.stat=false`,
+///  as native Git 2.56.0 does (measured:
+/// `git merge -h` documents `--[no-]summary` as a
+///  synonym to `--stat`).
+/// Why:
+///  The isolated merge prints the diffstat this command line asks for;
+///  reading these two switches as no-ops printed the diffstat native Git suppresses,
+///  and dropped the one native Git prints.
+#[test]
+fn the_summary_switches_decide_the_printed_diffstat() {
+    let fixture: Fixture = fixture("merge-summary-switches");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    stage_unrelated_work(&fixture, repo.as_path());
+    let hidden: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "--no-summary", "feature"]);
+    assert_eq!(hidden.code, Some(0), "{}", text(&hidden.stderr));
+    assert_eq!(
+        text(&hidden.stdout),
+        "Merge made by the 'ort' strategy.\n",
+        "--no-summary hides the diffstat, as native Git does"
+    );
+    assert_eq!(git_text(&fixture, repo.as_path(), &["rev-list", "--count", "--merges", "HEAD"]), "1\n");
+    git(&fixture, repo.as_path(), &["reset", "--hard", "--quiet", "HEAD^"]);
+    stage_unrelated_work(&fixture, repo.as_path());
+    let shown: Observed = run(&fixture, repo.as_path(), &["-c", "merge.stat=false", "merge", "--no-edit", "--summary", "feature"]);
+    assert_eq!(shown.code, Some(0), "{}", text(&shown.stderr));
+    assert!(
+        text(&shown.stdout).starts_with("Merge made by the 'ort' strategy.\n") && text(&shown.stdout).contains(" | "),
+        "--summary prints the diffstat even with merge.stat=false, as native Git does: {}",
+        text(&shown.stdout)
+    );
+    remove_settled(&fixture);
+}

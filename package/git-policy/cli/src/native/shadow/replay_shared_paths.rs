@@ -248,17 +248,19 @@ pub fn list_shared_paths(
 ) -> Result<Vec<SharedPath>, SharedPathError> {
     let landed: Vec<RawChange> = raw_changes(context, shadow, cwd, merge_base, current)?;
     let mine: Vec<RawChange> = raw_changes(context, shadow, cwd, merge_base, prepared)?;
+    // A map answers "did the prepared side change this path" by naming the one change it
+    //  compares with, so building the intersection is one pass over each listing
+    //  (`AGENTS.md` `RG2`); the first change a path gets is the one the walk took.
+    let mut mine_by_path: std::collections::HashMap<&str, &RawChange> = std::collections::HashMap::new();
+    for candidate in &mine {
+        crate::collected_elements_looked_at::note_looked_at(1);
+        mine_by_path.entry(candidate.path.as_str()).or_insert(candidate);
+    }
     let mut shared: Vec<SharedPath> = Vec::new();
     for change in landed {
         // A landed change counts only when the prepared side changed the same path.
-        let mut own: Option<&RawChange> = None;
-        for candidate in &mine {
-            if candidate.path == change.path {
-                own = Some(candidate);
-                break;
-            }
-        }
-        let Some(own_change) = own else {
+        crate::collected_elements_looked_at::note_looked_at(1);
+        let Some(own_change) = mine_by_path.get(change.path.as_str()) else {
             continue;
         };
         shared.push(SharedPath {

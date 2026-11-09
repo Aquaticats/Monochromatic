@@ -206,3 +206,34 @@ fn real_git_supplies_blobs() {
     assert!(load_blob_batch(&context, root.join("missing").as_path(), &[alpha], None).is_err());
     remove(root.as_path());
 }
+
+/// What:
+///  Preparing one batch looks at each requested object name once.
+/// Why:
+///  `AGENTS.md` `RG2`:
+/// both callers pass one object name per changed path with no cap,
+///  so a request built by asking every earlier name whether it repeats itself is
+///  quadratic in the paths one commit touches.
+///  The seam counts the collected names a question looks at,
+///  which is one per name when a set answers and every earlier name when a scan does
+///  (`foundation/collected_elements_looked_at_tests.rs` proves the count separates the two).
+#[test]
+fn preparing_a_batch_looks_at_each_object_name_once() {
+    let count: usize = 4096;
+    let mut asked: Vec<String> = Vec::new();
+    for number in 0..count {
+        asked.push(format!("{number:040x}"));
+    }
+    // Every name once, and then every name a second time: a repeated request is one line either way.
+    let mut twice: Vec<String> = asked.clone();
+    twice.extend(asked.iter().cloned());
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let once: Vec<String> = requested_object_names(&twice);
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert_eq!(once, asked, "first-seen order, each name once");
+    assert_eq!(
+        looked,
+        twice.len() as u64,
+        "{looked} collected names looked at for {} requested names; one per name is linear", twice.len()
+    );
+}

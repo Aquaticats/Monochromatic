@@ -216,3 +216,51 @@ fn own_lines_between_landed_lines_need_both_ends_anchored() {
     )];
     assert!(!contains_landed_change(&landed, &prepared, &base()));
 }
+
+/// What:
+///  Deciding whether the prepared change contains the landed one looks at each hunk of both
+///  sides a bounded number of times,
+///  never at every prepared hunk for every landed hunk.
+/// Why:
+///  `AGENTS.md` `RG2`:
+/// a machine-generated change can fill one path's diff with many disjoint
+///  hunks,
+/// so finding each landed hunk's cover by walking the whole prepared list,
+///  and then grouping the covers by filtering the whole covered list per prepared hunk,
+///  is quadratic in the two hunk counts.
+///  The seam counts the collected hunks a question looks at,
+///  which is one per skipped prepared hunk and one per landed hunk when the walk is ordered
+///  (`foundation/collected_elements_looked_at_tests.rs` shows a walk over the whole list counts
+///  every one of them).
+#[test]
+fn a_wide_landed_change_reads_each_hunk_once() {
+    let width: usize = 512;
+    // The base is `width` distinct lines, so both sides' hunks are far apart.
+    let lines: Vec<Vec<u8>> = (0..width)
+        .map(|number| { return format!("line {number}\n").into_bytes(); })
+        .collect();
+    let mut landed: Vec<PatchHunk> = Vec::new();
+    let mut prepared: Vec<PatchHunk> = Vec::new();
+    for number in 0..width {
+        let start = i64::try_from(number).expect("fits") + 1;
+        let old: String = format!("line {number}\n");
+        let new: String = format!("line {number} {number}\n");
+        // The prepared commit makes the same edit and adds its own line beside it: a one-sided
+        //  extension, so every landed hunk is contained.
+        let own: String = format!("own {number}\n");
+        landed.push(hunk(start, start, &[(b'-', old.as_str()), (b'+', new.as_str())]));
+        prepared.push(hunk(start, start, &[(b'-', old.as_str()), (b'+', new.as_str()), (b'+', own.as_str())]));
+    }
+    let before: u64 = crate::collected_elements_looked_at::looked_at();
+    let contained: bool = contains_landed_change(landed.as_slice(), prepared.as_slice(), lines.as_slice());
+    let looked: u64 = crate::collected_elements_looked_at::looked_at() - before;
+    assert!(contained, "every landed hunk is the prepared one's prefix");
+    let allowed: u64 = (landed.len() + prepared.len()) as u64;
+    assert!(looked > 0, "the decision looked at the hunks");
+    assert!(
+        looked <= allowed,
+        "{looked} collected hunks looked at for {} landed and {} prepared hunks; one ordered walk looks at each hunk at most once ({allowed})",
+        landed.len(),
+        prepared.len()
+    );
+}

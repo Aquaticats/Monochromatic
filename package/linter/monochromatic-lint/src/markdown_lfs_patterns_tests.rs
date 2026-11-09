@@ -48,10 +48,45 @@ fn attribute_lines_become_ordered_patterns() {
         lfs_tracked_patterns(
             "a.bin -filter\r\n  b.bin \t filter=lfs  \r\nc.bin filter=other\nd.bin"
         ),
-        ["!a.bin", "b.bin"]
+        ["!a.bin", "b.bin", "!c.bin"]
     );
     assert!(lfs_tracked_patterns("").is_empty());
     assert!(lfs_tracked_patterns("# *.png filter=lfs\n \n").is_empty());
+}
+
+/// What:
+///  A later filter assignment that is not `filter=lfs` replaces an earlier one,
+///  exactly as Git resolves the attribute.
+/// Why:
+///  Git answers `filter: other` for `*.png filter=lfs` followed by `*.png filter=other`,
+///  so the image is not LFS-tracked and its Markdown link must be left alone;
+///  ignoring the second line rewrites an ordinary image to an LFS object URL Git never stored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(lfsTrackedMatcher('*.png filter=lfs\n*.png filter=other\n').matches('pkg/asset/shot.png')).toBe(false);
+/// ```
+#[test]
+fn a_later_filter_assignment_that_is_not_lfs_untracks_the_path() {
+    // Measured with native Git 2.56.0: `git check-attr filter -- pkg/asset/shot.png` answers `filter: other`.
+    let overridden: PathPatterns = tracked("*.png filter=lfs\n*.png filter=other\n");
+    assert!(
+        !overridden.matches("pkg/asset/shot.png"),
+        "Git says the image is not LFS-tracked"
+    );
+    // The positive control: the same image is tracked without the replacing line.
+    assert!(tracked("*.png filter=lfs\n").matches("pkg/asset/shot.png"));
+    // Every other assignment replaces it too: set, unset, unspecified and an empty value.
+    for replacement in ["filter=other", "filter", "filter=", "-filter", "!filter"] {
+        let text: String = format!("*.png filter=lfs\n*.png {replacement}\n");
+        assert!(
+            !tracked(text.as_str()).matches("shot.png"),
+            "Git gives the image no lfs filter after {replacement}"
+        );
+    }
+    // Two assignments on one line: the last one wins, as Git reads them left to right.
+    assert!(!tracked("*.png filter=lfs filter=other\n").matches("shot.png"));
+    assert!(tracked("*.png filter=other filter=lfs\n").matches("shot.png"));
 }
 
 /// An extension pattern matches anywhere in the tree;
