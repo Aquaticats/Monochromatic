@@ -226,7 +226,8 @@ fn a_path_too_large_to_compare_twice_is_left_and_named() {
 /// and no person can be told their file changed when nobody read it
 ///  (cross-vendor review round 3,
 /// finding 1,
-/// the other half: "inability to compare is accepted as equality").
+/// the other half:
+/// "inability to compare is accepted as equality").
 #[test]
 fn a_path_that_cannot_be_read_is_left_and_named() {
     let (world, entries) = stopped_merge("second-pass-worktree-cannot-read");
@@ -258,7 +259,8 @@ fn make_pipe(path: &Path) {
 }
 
 /// What:
-///  The recorded state of `paths`, answered inside `PATIENCE`.
+///  The recorded state of `paths`,
+/// answered inside `PATIENCE`.
 /// Why:
 ///   A read that waits has no end of its own,
 /// and a test that waited with it could only be stopped from outside;
@@ -277,7 +279,8 @@ fn held_within(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Held
 }
 
 /// What:
-///  A named pipe with no writer at a conflicted path is refused, not waited for.
+///  A named pipe with no writer at a conflicted path is refused,
+/// not waited for.
 /// Why:
 ///   `File::open` on a pipe waits for a writer that may never come,
 /// and that wait sits in the middle of a foreground command with no deadline and no way to

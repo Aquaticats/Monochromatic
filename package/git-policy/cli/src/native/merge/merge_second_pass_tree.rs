@@ -151,19 +151,14 @@ fn command_line_attribute_tree(prefix: &[OsString], variables: &[(OsString, OsSt
     while let Some(token) = tokens.next() {
         let Some(text) = token.to_str() else { continue };
         // The entry an option carries: `-c` and a bare `--config-env` take the next token, and `--config-env=` carries it.
-        let (entry, from_environment): (&str, bool) = match text {
-            "-c" => match tokens.next().and_then(|next| { return next.to_str(); }) {
-                Some(entry) => (entry, false),
-                None => continue,
-            },
-            "--config-env" => match tokens.next().and_then(|next| { return next.to_str(); }) {
-                Some(entry) => (entry, true),
-                None => continue,
-            },
-            _ => match text.strip_prefix("--config-env=") {
-                Some(entry) => (entry, true),
-                None => continue,
-            },
+        let (entry, from_environment): (&str, bool) = if let Some(carried) = text.strip_prefix("--config-env=") {
+            (carried, true)
+        } else if text == "-c" || text == "--config-env" {
+            let Some(next) = tokens.next() else { continue };
+            let Some(carried) = next.to_str() else { continue };
+            (carried, text == "--config-env")
+        } else {
+            continue;
         };
         // `-c name=value` splits at the first `=` and `--config-env=name=variable` at the last (`config.c` lines 495 and 511):
         // the variable name may hold no `=` while the key may, and Git refuses a `--config-env` entry with none at all.
