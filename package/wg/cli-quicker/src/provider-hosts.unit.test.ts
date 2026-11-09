@@ -1,6 +1,10 @@
-import { readFile, } from 'node:fs/promises';
-import { join, } from 'node:path';
-import { resolve, } from 'node:path';
+import {
+  readFile,
+} from 'node:fs/promises';
+import {
+  join,
+  resolve,
+} from 'node:path';
 
 import {
   describe,
@@ -28,8 +32,8 @@ const REPOSITORY_ROOT = resolve(
 
 /**
  Repository sources that name a host of a listed provider:
- the NeuralWatt listing constants and `DeepSeek` client the Pi plugins and the
- search tool reach through.
+ the NeuralWatt listing constants the Pi plugin reads,
+ and the `DeepSeek` client the search tool reaches.
  A provider that starts using another host in one of these files fails the
  scan below until that host is listed.
  */
@@ -50,6 +54,39 @@ const NAMED_PROVIDER_IDS: readonly string[] = [
   'qwen-token-plan-individual',
   'synthetic',
 ];
+
+/**
+ Hosts a prefix or suffix match would wrongly accept,
+ so the list is checked for exact entries.
+ */
+const LOOKALIKE_HOSTS: readonly string[] = [
+  'api.deepseek.com.evil.example',
+  'deepseek.com',
+  'synthetic.new',
+  'opencode.ai.example',
+];
+
+/**
+ Reports whether one character may appear in a hostname.
+
+ @param character - Candidate character.
+
+ @returns Whether the character is a lowercase letter,
+ a digit,
+ a dot,
+ or a dash.
+
+ @example
+ ```ts
+ isHostCharacter({ character: 'a' }); // true
+ ```
+ */
+function isHostCharacter({ character, }: { readonly character: string; },): boolean {
+  return ((character >= 'a') && (character <= 'z'))
+    || ((character >= '0') && (character <= '9'))
+    || (character === '.')
+    || (character === '-');
+}
 
 /**
  Extracts the host of every `https://` literal in a text.
@@ -76,10 +113,7 @@ function hostsIn({ text, }: { readonly text: string; },): readonly string[] {
       const end = Array
         .from(rest,)
         .findIndex(function endsHost(character,): boolean {
-          return !(((character >= 'a') && (character <= 'z'))
-            || ((character >= '0') && (character <= '9'))
-            || (character === '.')
-            || (character === '-'));
+          return !isHostCharacter({ character, },);
         },);
       return end <= 0 ? [] : [rest.slice(0, end,),];
     },);
@@ -104,17 +138,32 @@ function hostsIn({ text, }: { readonly text: string; },): readonly string[] {
  ```
  */
 function isBareHost({ host, }: { readonly host: string; },): boolean {
-  return host.length > 0
-    && host.includes('.',)
-    && (!host.startsWith('.',))
-    && (!host.endsWith('.',))
-    && Array.from(host,)
-      .every(function isHostCharacter(character,): boolean {
-        return ((character >= 'a') && (character <= 'z'))
-          || ((character >= '0') && (character <= '9'))
-          || (character === '.')
-          || (character === '-');
-      },);
+  if ((host.length === 0) || (!host.includes('.',)))
+    return false;
+  if (host.startsWith('.',) || host.endsWith('.',))
+    return false;
+  return Array
+    .from(host,)
+    .every(function isHostLetter(character,): boolean {
+      return isHostCharacter({ character, },);
+    },);
+}
+
+/**
+ Hosts the recorded base URLs name,
+ in the order they are recorded.
+
+ @returns One host per entry.
+
+ @example
+ ```ts
+ recordedHosts();
+ ```
+ */
+function recordedHosts(): readonly string[] {
+  return PROVIDER_BASE_URLS.map(function hostOf(entry,): string {
+    return new URL(entry.baseUrl,).hostname;
+  },);
 }
 
 await describe({
@@ -122,35 +171,29 @@ await describe({
   children: [
     it({
       name: 'derives one bare host per recorded provider base URL, with no duplicate and no look-alike',
-      fn: () => {
+      fn: async () => {
         for (const entry of PROVIDER_BASE_URLS)
           expect(new URL(entry.baseUrl,).protocol,).toBe('https:',);
-        /**
-         Hosts the recorded base URLs name.
-         */
-        const recorded = PROVIDER_BASE_URLS.map(function hostOf(entry,): string {
-          return new URL(entry.baseUrl,).hostname;
-        },);
-        expect(PROVIDER_HOSTS.toSorted(),).toEqual([...new Set(recorded,),].toSorted(),);
+        expect(PROVIDER_HOSTS.toSorted(),).toEqual([...new Set(recordedHosts(),),].toSorted(),);
         for (const host of PROVIDER_HOSTS)
           expect(isBareHost({ host, },),).toBe(true,);
       },
     },),
     it({
       name: 'records a base URL for every provider the owner named',
-      fn: () => {
+      fn: async () => {
         /**
          Provider ids the list covers.
          */
-        const covered = PROVIDER_BASE_URLS.map(function idOf(entry,): string {
+        const covered = new Set(PROVIDER_BASE_URLS.map(function idOf(entry,): string {
           return entry.provider;
-        },);
-        expect(NAMED_PROVIDER_IDS.filter((id,) => !covered.includes(id,)),).toEqual([],);
+        },),);
+        expect(NAMED_PROVIDER_IDS.filter((id,) => !covered.has(id,)),).toEqual([],);
       },
     },),
     it({
       name: 'stays apart from the update hosts, which leave the tunnel for another reason',
-      fn: () => {
+      fn: async () => {
         expect(PROVIDER_HOSTS.filter((host,) => UPDATE_HOSTS.includes(host,)),).toEqual([],);
         expect(new Set(PROVIDER_HOSTS,).size,).toBe(PROVIDER_HOSTS.length,);
       },
@@ -159,24 +202,27 @@ await describe({
       name: 'covers every provider host the repository\'s own provider sources name',
       fn: async () => {
         /**
-         Hosts the repository sources name,
-         minus the ones they only cite as documentation.
+         Hosts the list carries,
+         as a set the scan can ask.
          */
-        const named = new Set(PROVIDER_HOSTS,);
-        for (const file of PROVIDER_SOURCE_FILES) {
-          /**
-           Text of one provider source.
-           */
-          const text = await readFile(join(REPOSITORY_ROOT, file,), 'utf8',);
+        const listed = new Set(PROVIDER_HOSTS,);
+        /**
+         Texts of the provider sources,
+         read together.
+         */
+        const texts = await Promise.all(PROVIDER_SOURCE_FILES.map(function readSource(file,): Promise<string> {
+          return readFile(join(REPOSITORY_ROOT, file,), 'utf8',);
+        },),);
+        for (const text of texts) {
           for (const host of hostsIn({ text, },))
-            expect(named.has(host,),).toBe(true,);
+            expect(listed.has(host,),).toBe(true,);
         }
       },
     },),
     it({
       name: 'rejects look-alike hosts that a prefix or suffix match would accept',
-      fn: () => {
-        for (const host of ['api.deepseek.com.evil.example', 'deepseek.com', 'synthetic.new', 'opencode.ai.example',])
+      fn: async () => {
+        for (const host of LOOKALIKE_HOSTS)
           expect(PROVIDER_HOSTS,).not.toContain(host,);
       },
     },),

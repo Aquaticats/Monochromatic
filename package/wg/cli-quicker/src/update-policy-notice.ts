@@ -317,7 +317,10 @@ export function startNotices(input: StartNoticeInput,): readonly string[] {
   /**
    Notices every start with an exemption mark prints.
    */
-  const notices = [updatePolicyNotice({ hosts: input.hosts, providerHosts: input.providerHosts, },),];
+  const notices = [updatePolicyNotice({
+    hosts: input.hosts,
+    providerHosts: input.providerHosts,
+  },),];
   if (input.dnsServers
     .length
     === 0)

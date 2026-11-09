@@ -5,6 +5,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 
 import {
+  CLEARNET_HOSTS,
   FAILED_REFRESH_RETRY_SECONDS,
   hostSyncFailureText,
   noDnsFailure,
@@ -28,7 +29,6 @@ import {
   type HostRuleTools,
   type OwnedHostRule,
 } from '../dist/final/node/tunnel-bypass-hosts.mjs';
-import { CLEARNET_HOSTS, } from '../dist/final/node/bypass-host-refresh.mjs';
 import {
   removeUpdateHostRules,
   syncUpdateHostRules,

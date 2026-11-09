@@ -42,7 +42,8 @@ const USER_GID: u32 = 1500;
 const PROCESS_GID: u32 = 1001;
 /// A cgroup inside the user manager's subtree that the watcher attaches no mark to itself,
 /// so the process watch has to move its processes.
-/// A named terminal scope is not one of them: its own cgroup carries the mark.
+/// A named terminal scope is not one of them:
+/// its own cgroup carries the mark.
 const SCOPE: &str = "/user.slice/user-1000.slice/user@1000.service/app.slice/claude-code-bash";
 
 /// What the fake adopter was asked to do.

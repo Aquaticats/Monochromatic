@@ -39,7 +39,10 @@ const l = tagged({ tag: 'bypass-host-refresh', },);
  rules as unwanted,
  and each list keeps its own reason in the start notice.
  */
-export const CLEARNET_HOSTS: readonly string[] = [...UPDATE_HOSTS, ...PROVIDER_HOSTS,];
+export const CLEARNET_HOSTS: readonly string[] = [
+  ...UPDATE_HOSTS,
+  ...PROVIDER_HOSTS,
+];
 
 /**
  Milliseconds in one second.

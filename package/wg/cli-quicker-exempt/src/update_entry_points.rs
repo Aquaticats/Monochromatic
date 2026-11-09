@@ -62,7 +62,8 @@ pub enum MatchReason {
     ToolchainScript,
     /// An executable under the toolchain install roots.
     ToolchainPath,
-    /// Pi, the agent harness this repository runs,
+    /// Pi,
+    /// the agent harness this repository runs,
     /// whose provider traffic leaves the tunnel.
     PiAgent,
 }
