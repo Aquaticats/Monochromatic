@@ -101,8 +101,10 @@ impl RepositoryFacts for ScriptedFacts {
     ///  or fail.
     /// Answer with the scripted common directory,
     ///  so a fix's write of the ignore rule for its prepared files is exercised.
+    ///  The question costs no process and no remote ask,
+    ///  so it is not logged:
+    ///  the controls that care about it read the rule it produces.
     fn known_common_dir(&mut self) -> Option<PathBuf> {
-        self.asked.push(String::from("common-dir"));
         return self.common_dir.clone();
     }
 
