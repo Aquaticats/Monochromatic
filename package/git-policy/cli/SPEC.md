@@ -2565,6 +2565,25 @@ which are exactly the paths the move wrote,
 so a staged edit of the person's on any other path stays as it was.
 Nothing is written back when the checkout already shows the merge's tree
 (`move_the_named_branch` in `src/native/push/auto_push_reconcile_branch_advance.rs`).
+The put-back can still take a file the switched-to branch itself commits,
+and only a second process inside that window can make it:
+a branch that already holds the merge's content on a path the merge adds or changes,
+and an unrelated commit of its own on top,
+switched to in the few instructions after the look at the checkout and before the write.
+The forward `read-tree -u -m <local> <merge>` then leaves that path alone,
+because the index already holds the merge's entry for it,
+and the put-back,
+whose paths are the ones where `<local>` and `<merge>` differ,
+writes the tree the reconcile started from onto it:
+the switched-to checkout gets a staged deletion,
+or the older content,
+of a file its own branch commits.
+The branch then moves and the intent record goes,
+so nothing in the record says this happened.
+No lock and no third look is added for the window,
+because a kill alone cannot reach it and a process cannot be kept from switching branches between two of this
+command's steps;
+a worktree that shows such a staged deletion puts the file back with `git restore -- <path>`.
 A push the service stopped or that failed is tried again by the service on its own,
 with doubling pauses from
 `CLI_GIT_PUSH_RETRY_SECONDS` to 600 seconds,
@@ -4154,6 +4173,18 @@ in-process reader can) gives every value of the multi-valued keys.
   and `git commit-tree` records the merge with the branch tip first and the remote tip second,
   signed (`-S`) when `commit.gpgsign` is true because `commit-tree` never reads that setting;
   a signer that fails publishes nothing.
+  Its message reads `Merge <remote>/<tracked ref> into <branch>`,
+  naming the branch whose tip is that first parent,
+  the way `git merge` names the branch it is on,
+  measured on this host at 2026-11-09T09:33:10-05:00 with native Git 2.56.0
+  (`feature` tracking `origin/main` wrote
+  `Merge remote-tracking branch 'origin/main' into feature`),
+  and a branch whose name differs from the tracked ref's short name also gets
+  `Published to <remote>/<tracked ref>, which <branch> tracks.`
+  as a further line of its body,
+  because the commit lands on a branch its subject does not name.
+  A detached `HEAD` has no branch to name and keeps the tracked ref's short name
+  (`src/native/push/auto_push_reconcile.rs`).
   The merge is pushed with a plain push to `<remote> <merge>:<merge ref>`,
   never forced.
   A conflict (merge-tree exit `1`) that the second pass cannot resolve in every file publishes nothing and names the conflicting paths.
@@ -10246,6 +10277,14 @@ with `schemaVersion`,
 `hatch` or `saved-conflict`),
 `dirty`,
 `cwd` and `arguments`.
+Each path and argument this line names is written beside its text as its bytes
+(`gitDirHex`,
+`cwdHex`,
+`argumentsHex`),
+the two-field form every other record of a path takes (`path_bytes_in_records.rs`),
+so a command whose working directory or argument is not UTF-8 is still the command the line names:
+the line exists to attribute a loss to it.
+The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy).
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
