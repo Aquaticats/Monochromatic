@@ -67,11 +67,12 @@ use crate::service_protocol::{Change, Cleanup};
 use crate::merge_second_pass::Merged as MergedFile;
 use crate::service_replay::{MergeSite, Merged, Retry, already_committed_result, capture_stamp, first_landed, merge_captured, word_merge_notice};
 use crate::external_hooks::warn_external_hooks;
+use crate::preparation_notice::deliver_notice;
+use crate::standard_error_descriptor::StandardErrorDescriptor;
 use crate::traditional_hook_warning::warn_traditional_hooks;
 use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
 use crate::transaction_journal::{AddedPath, Base, Conclusion, RefFormat, SymbolicHead, TransactionMode};
 use std::ffi::OsString;
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -136,8 +137,10 @@ pub fn prepare<F: RepositoryFacts>(
     let mut part: PreparePartClock = PreparePartClock::begin("layout");
     let layout = capture_invocation_layout(context, cwd, region.amend)?;
     if inputs.first {
-        warn_traditional_hooks(layout.config_snapshot.as_ref(), std::io::stderr());
-        warn_external_hooks(layout.config_snapshot.as_ref(), std::io::stderr());
+        // The descriptor itself, not the standard library's shared handle: a worker left at the ceiling holds no lock this
+        //  command's own writes would wait for (`foundation/standard_error_descriptor.rs`).
+        warn_traditional_hooks(layout.config_snapshot.as_ref(), StandardErrorDescriptor);
+        warn_external_hooks(layout.config_snapshot.as_ref(), StandardErrorDescriptor);
     }
     part.next("unmergedBefore");
     // Named paths beside another session's unfinished merge or stopped cherry-pick land as an ordinary commit, one in conflict
@@ -269,13 +272,13 @@ pub fn prepare<F: RepositoryFacts>(
     //  its own selection, so only the notice is given for it.
     let (excluded, unreadable_note): (Vec<String>, Option<String>) = crate::owed_index_update::exclude_or_stop(context, &capture, &indexes, selection.mode, &index_witness)?;
     if inputs.first && let Some(note) = unreadable_note.as_ref() {
-        let _written = std::io::stderr().write_all(note.as_bytes());
-        let _newline = std::io::stderr().write_all(b"\n");
+        // A notice is worth less than a commit that returns: what cannot be said within the ceiling is left unsaid.
+        let _delivered = deliver_notice(format!("{note}\n"));
     }
     if inputs.first
         && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())
     {
-        let _written = std::io::stderr().write_all(notice.as_bytes());
+        let _delivered = deliver_notice(notice);
     }
     part.next("interactive");
     // The bytes are captured now; a retry keeps the stamp of the capture it replays.

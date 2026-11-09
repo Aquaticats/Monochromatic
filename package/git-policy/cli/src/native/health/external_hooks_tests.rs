@@ -132,12 +132,12 @@ fn the_warning_names_the_hooks_and_the_ways_forward() {
 fn the_writer_emits_one_line_or_nothing() {
     let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "hook.a.event\npost-commit")]);
     let written: SharedSink = SharedSink::default();
-    warn_external_hooks(Some(&snapshot), written.clone());
+    assert!(warn_external_hooks(Some(&snapshot), written.clone()), "the line reached the stream");
     assert_eq!(written.text(), external_hooks_warning(Some(&snapshot)).expect("warning"));
     let nothing: SharedSink = SharedSink::default();
-    warn_external_hooks(None, nothing.clone());
+    assert!(warn_external_hooks(None, nothing.clone()));
     assert_eq!(nothing.text(), "");
-    warn_external_hooks(Some(&snapshot), RefusingStream);
+    assert!(!warn_external_hooks(Some(&snapshot), RefusingStream), "a stream that refuses the line is a line not delivered");
 }
 
 /// What:
@@ -158,6 +158,23 @@ fn a_hook_disabled_with_a_numeric_false_is_not_reported() {
     ]);
     assert_eq!(configured_hooks(&snapshot), Vec::<ConfiguredHook>::new());
     assert_eq!(external_hooks_warning(Some(&snapshot)), None);
+}
+
+/// What:
+///  The configured-hook warning reaches standard error while another thread holds its shared lock.
+/// Why:
+///  The write runs on a thread of its own and is abandoned at its ceiling;
+/// a worker still waiting inside a write
+///  through the shared handle would keep that lock,
+/// and the commit's next synchronous write would wait for it with no end.
+#[cfg(unix)]
+#[test]
+fn a_warning_reaches_standard_error_while_its_shared_lock_is_held() {
+    let snapshot: ConfigSnapshot = listing_snapshot(&[("local", "hook.a.event\npost-commit")]);
+    let held = std::io::stderr().lock();
+    let delivered: bool = warn_external_hooks(Some(&snapshot), crate::standard_error_descriptor::StandardErrorDescriptor);
+    drop(held);
+    assert!(delivered, "the warning needed the lock a synchronous writer holds, so a worker left at the ceiling would keep it");
 }
 
 /// What:
