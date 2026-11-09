@@ -113,13 +113,15 @@ pub(crate) async fn watch_loop(
             // The status a wait already collected decides: a root the pin reports gone has ended, and reporting it as ended at
             //  its ceiling would turn a finished step into a failed one (the fourth review's finding 2).
             if !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&root_pin) {
+                // The wait is over, so it ends here as its own thread's end mark would: the loop then waits for the next mark.
+                // Turning round instead took this branch again, because the wait stays begun and the ceiling stays passed, so the
+                //  watcher held a worker and never read the end mark queued behind it (the fifth review's finding 3).
+                marks.end();
                 continue;
             }
             flags.ceiling_hit.store(true, Ordering::Release);
             expired.store(true, Ordering::Release);
-            marks.keep_gap();
-            marks.since = None;
-            marks.clock = None;
+            marks.end();
             stop_process(pid, &locks, &mut incoming, &root_pin).await;
             continue;
         }
@@ -131,13 +133,13 @@ pub(crate) async fn watch_loop(
         if quiet && stoppable.load(Ordering::Acquire) {
             // The same answer decides here: a step that ended before its quiet window has a status, and a stop does not replace it.
             if !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&root_pin) {
+                // As above: a wait that is over ends, so the loop waits for a mark rather than judging a child that has gone again.
+                marks.end();
                 continue;
             }
             // Raised before the child is signalled, so the waiting thread that its end releases reads it as true.
             expired.store(true, Ordering::Release);
-            marks.keep_gap();
-            marks.since = None;
-            marks.clock = None;
+            marks.end();
             stop_process(pid, &locks, &mut incoming, &root_pin).await;
             continue;
         }
@@ -239,8 +241,6 @@ async fn end_for_the_stop(
     root_pin: &crate::child_watch_clock_marks_and_stopping::RootPin,
 ) {
     stopped.store(true, Ordering::Release);
-    marks.keep_gap();
-    marks.since = None;
-    marks.clock = None;
+    marks.end();
     stop_process(pid, locks, incoming, root_pin).await;
 }

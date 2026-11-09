@@ -163,12 +163,30 @@ impl Marks {
                 self.printed = 0;
                 self.clock = Some(Clock::start(self.pid, Patience::Progress { stall: self.window }).without_wall_fallback());
             }
-            Mark::End => {
-                self.keep_gap();
-                self.since = None;
-                self.clock = None;
-            }
+            Mark::End => self.end(),
         }
+    }
+
+    /// What:
+    ///  Ends the wait the watcher holds,
+    /// as the waiting thread's end mark does,
+    /// and keeps the quiet gap it measured.
+    /// Why:
+    ///   A wait can end without a mark: the pin of the child reports it gone,
+    /// a stop of the service ends it,
+    ///  and the watcher itself ends it after a quiet window or a ceiling.
+    /// Every one of those ends the same way,
+    /// so the watcher
+    ///  waits for the next mark instead of taking the same branch again.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// marks.end(); // keepGap(); since = undefined; clock = undefined;
+    /// ```
+    pub(crate) fn end(&mut self) {
+        self.keep_gap();
+        self.since = None;
+        self.clock = None;
     }
 
     /// Keep the longest quiet gap of the wait that is ending,

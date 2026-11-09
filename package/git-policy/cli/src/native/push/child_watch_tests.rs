@@ -1224,3 +1224,64 @@ fn the_tree_of_a_root_that_has_ended_is_not_read() {
     assert!(for_a_gone_root.is_empty(), "the tree of a root that has ended was read: {for_a_gone_root:?}");
     assert_eq!(for_a_live_root.len(), 1, "the tree of the root that is still there was not read: {for_a_live_root:?}");
 }
+
+/// What:
+///  A watcher whose child has ended, and whose ceiling has passed, waits for a mark instead of taking the ceiling
+///  branch again.
+/// Why:
+///  The branch that stopped for a root the pin reports gone went round the loop without receiving a mark and without
+///  sleeping, while the wait stayed begun and the ceiling stayed passed, so every turn took the same branch again:
+///  the watcher held a worker of the runtime and never received the end mark queued behind it
+///  (the fifth review's finding 3).
+///  The sender is dropped, which is how a dropped watch ends the loop, and the task must answer that.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_watcher_whose_child_has_ended_waits_for_a_mark_instead_of_taking_its_ceiling_again() {
+    // A child this control started and then ended and reaped: the pin taken at its start reports it gone, which is the state
+    //  a step that finished before its ceiling leaves.
+    let mut child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a child of this control");
+    let pid: u32 = child.id();
+    let pin: crate::child_watch_clock_marks_and_stopping::RootPin = crate::child_watch_clock_marks_and_stopping::pin_at_start(pid);
+    child.kill().expect("the control ends its child");
+    child.wait().expect("the child is collected");
+    assert!(
+        !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&pin),
+        "the control's child ended, so its pin must report it gone"
+    );
+    let answering: Result<Result<(), tokio::task::JoinError>, tokio::time::error::Elapsed> = crate::lazy_runtime::run_on_runtime(async move {
+        let sink: SharedSink = SharedSink::default();
+        let flags: WatchFlags = WatchFlags {
+            expired: Arc::new(AtomicBool::new(false)),
+            stoppable: Arc::new(AtomicBool::new(true)),
+            longest: Arc::new(AtomicU64::new(0)),
+            // A ceiling of nothing: it has passed at the first look.
+            ceiling: Arc::new(AtomicU64::new(0)),
+            ceiling_hit: Arc::new(AtomicBool::new(false)),
+            stopped: Arc::new(AtomicBool::new(false)),
+        };
+        let terms: WatchTerms = WatchTerms {
+            limit: Duration::from_secs(3600),
+            // No notice comes due, so a loop that took its ceiling branch again would have nothing to await.
+            cadence: Cadence { grace: Duration::from_secs(3600), interval: Duration::from_secs(3600) },
+            notices: Box::new(sink),
+        };
+        let (marks, incoming) = unbounded_channel::<Mark>();
+        let task: tokio::task::JoinHandle<()> = tokio::spawn(watch_loop(
+            incoming,
+            flags,
+            String::from("a step that already ended"),
+            pid,
+            terms,
+            LockLedger::none(),
+            None,
+            pin,
+        ));
+        let _began = marks.send(Mark::Begin(Instant::now()));
+        // The watch is dropped, as a command that stopped waiting drops it, and the watcher reads that as its last mark.
+        drop(marks);
+        return tokio::time::timeout(Duration::from_secs(5), task).await;
+    })
+    .expect("the runtime");
+    assert!(answering.is_ok(), "a watcher whose child had ended spun on its ceiling branch instead of waiting for the mark that ends it");
+    let _ended = answering.expect("the task answered").expect("the watcher ended normally");
+}
