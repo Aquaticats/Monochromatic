@@ -5675,6 +5675,104 @@ and what was decided for each:
 - The two controls that measured a job had not run (`blocking_jobs_within_the_budget_tests`,
   `parallel_runner_on_the_runtime_tests`) now say that they measure it at that moment.
 
+#### A third review: three waits and bounds, and two controls that failed in a suite
+
+All three findings held;
+each has a control that failed first,
+and each
+control fails again with the fix removed.
+
+- The completion loop could miss its final wake
+  (`foundation/parallel_runner_on_the_runtime.rs`).
+  The notification branch was guarded by `still_running.running > 0`,
+  so a lane that returned between the count the consumer read and the wait it built left the consumer with a
+  switched-off branch,
+  a stored wake it could not use (`Notify::notify_one` stores one permit;
+  `tokio-1.54.1/src/sync/notify.rs`),
+  and a channel kept open by a sending end a refused job holds for the life of the process:
+  a wait for ever.
+  The wait is now one function,
+  `wait_for_a_message_or_a_return`,
+  whose wake branch is never switched off,
+  the count is read at the top of each turn,
+  and a closed channel leaves the count as the only thing to wait for (no spinning).
+  The control,
+  `a_wake_that_arrived_before_the_wait_still_ends_it_although_the_channel_stays_open`,
+  builds the state the race leaves,
+  since the two-instruction window itself cannot be forced from a test:
+  it failed with
+  "the wait was not ended by a wake that had already arrived,
+  because the branch that reads wakes was switched
+  off while the channel stayed open".
+- The refresh could block the runtime before its first await.
+  `subvolume_index_files::repository_hash_length` opens the repository's configuration with a synchronous
+  `std::fs::read` (line 485),
+  and a named pipe there blocks that open until a writer comes,
+  on the thread that polls the runtime:
+  no timeout could expire.
+  What a run reads before its first rewrite is now `prepare_the_run`,
+  one job of the blocking pool,
+  with what it reads owned.
+  The control,
+  `a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires`,
+  failed with "the refresh answered within the control's wait:
+  Timeout".
+- Refused jobs could run outside the blocking-job bound.
+  The frame gave the place back as soon as it stopped waiting,
+  so a job the pool had queued at that moment ran later on no place at all — measured in a child whose process
+  limit is one,
+  with the bound held to two:
+  the job the report gave up on ran.
+  The place and the claim now travel together
+  (`foundation/the_place_of_one_blocking_job.rs`):
+  the job takes the claim before its first effect and holds the place until its work ends (or unwinds),
+  the frame gives the place back only when it takes the claim,
+  which proves the job will do nothing,
+  and the slot is taken once so the second give-back is a no-op.
+  The claim a site puts on its own report stays as it is:
+  it is what lets a site say "given up on before it could start" rather than "not known".
+  The control,
+  `a_job_the_pool_queued_after_a_refusal_does_not_run`,
+  failed with "the job the report gave up on ran afterwards with no place of the bound held for it".
+  The version of this control that measured how many jobs run at once passed on the first attempt,
+  because the process's own pool may allow fewer blocking threads than the bound,
+  and the queue then runs one job at a time (measured:
+  `peak=1`);
+  its own runtime with a deeper pool is what makes the state reachable.
+
+Two controls that failed in a filtered suite of 122 tests and passed alone were measured in one scope of their
+two modules at CPU quotas of 100% and 200%:
+
+- `the_indexes_are_rewritten_side_by_side` (10.09 s),
+  `worktrees_are_converted_side_by_side` (11.38 s) and
+  `the_report_keeps_input_order_whichever_worktree_finishes_first` (22.17 s) failed at 200%,
+  every one of them a rendezvous that needs its items in flight at once;
+- the review's `the_report_keeps_the_order_of_the_checkout_then_its_worktrees` needs two places (the checkout's
+  rewrite holds one and waits for the others),
+  so it fails at 100%,
+  where the process allows one.
+
+The cause is the process's bound on blocking jobs,
+which comes from the CPUs the process may use,
+not from the host a control states for its own budget request.
+Measured with `budgeted_blocking_jobs()` against `worker_budget` on the same fixture:
+the request asks 4 and the bound is 1,
+2 and 3 at quotas of 100%,
+200% and 400%.
+`parallel_test_support::may_run_all_at_once` now states each control's need and passes without running where the
+machine cannot allow it,
+naming the control,
+the places it needs and the bound it saw:
+68 of 68 pass at both quotas.
+The `SIGABRT at 125 s` the review saw for
+`the_conversions_take_places_of_the_processs_bound_on_blocking_jobs` was not reproduced:
+it passed in 1.1 to 9.0 s at both quotas,
+and 125 s is nextest's watchdog,
+which means the test never returned.
+The only unbounded wait on that path was the completion loop's,
+which the first finding of this round removed;
+a refused job on the path cannot be ruled out under the load the review's run carried.
+
 #### Checks
 
 The folders this step touches,

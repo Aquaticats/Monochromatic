@@ -298,8 +298,10 @@ fn a_lane_set_that_leaves_an_item_out_is_refused() {
 }
 
 /// How long the control of the consumer's ending waits before it reports that the consumer never ended.
-/// A refused job keeps its sending end for the life of the process, so a consumer that waits for the channel
-/// to close waits for ever; two seconds is long past the time a report of one item needs.
+/// A refused job keeps its sending end for the life of the process,
+/// so a consumer that waits for the channel
+/// to close waits for ever;
+/// two seconds is long past the time a report of one item needs.
 const CONSUMER_STOP_BY: Duration = Duration::from_secs(2);
 
 /// What:
@@ -334,7 +336,8 @@ fn the_consumer_stops_when_the_last_job_returned_although_a_refused_job_holds_a_
     .expect("the runtime");
 }
 
-/// The items that ended, as their index and their answer.
+/// The items that ended,
+/// as their index and their answer.
 #[derive(Default)]
 struct SeenEnds {
     /// One entry per item that ended.
@@ -355,9 +358,12 @@ impl OrderedEvents<u64> for SeenEnds {
 /// Why:
 ///  This is the state the consumer of a run reaches when a lane returns between the count it read and the
 /// wait it builds:
-/// the count is zero, one wake is stored, the channel is empty and open.
+/// the count is zero,
+/// one wake is stored,
+/// the channel is empty and open.
 /// The stuck state is what the review of this branch named:
-/// a disabled notification branch cannot use the stored wake, and a channel kept open by a refused job
+/// a disabled notification branch cannot use the stored wake,
+/// and a channel kept open by a refused job
 /// never says the jobs are gone.
 /// So the run would wait for ever ("nothing should ever wait forever").
 #[test]

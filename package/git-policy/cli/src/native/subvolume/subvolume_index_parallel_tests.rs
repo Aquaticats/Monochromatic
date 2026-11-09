@@ -323,21 +323,27 @@ fn a_report_that_says_an_index_could_not_be_started_leaves_no_job_that_can_rewri
 }
 
 /// How long the control of the preparation waits for the refresh to give up on its own.
-/// The refresh's own timeout is `REFRESH_STOP_BY`, far below this, so only a runtime blocked before the first
+/// The refresh's own timeout is `REFRESH_STOP_BY`,
+/// far below this,
+/// so only a runtime blocked before the first
 /// await can make this wait run out.
 const PREPARATION_STOP_BY: Duration = Duration::from_secs(5);
 
-/// The timeout the control puts around the refresh itself: a preparation read that hangs must not outlast it.
+/// The timeout the control puts around the refresh itself:
+/// a preparation read that hangs must not outlast it.
 const REFRESH_STOP_BY: Duration = Duration::from_millis(200);
 
 /// What:
 ///  A refresh whose preparation read hangs gives up in bounded time,
 ///  because that read is a job of the blocking pool and never runs on the thread that polls the runtime.
 /// Why:
-///  The first thing `refresh_all_indexes_awaiting` reads is the repository's configuration, with a synchronous
+///  The first thing `refresh_all_indexes_awaiting` reads is the repository's configuration,
+/// with a synchronous
 /// `std::fs::read` (`subvolume_index_files::repository_hash_length`).
 /// Opening a named pipe with no writer blocks until one comes,
-///  so on the runtime's own thread the future never reaches an await, no timeout can expire, and every other task
+///  so on the runtime's own thread the future never reaches an await,
+/// no timeout can expire,
+/// and every other task
 /// of that runtime stops with it ("nothing should ever wait forever").
 #[test]
 fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires() {

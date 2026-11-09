@@ -12,7 +12,8 @@ use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 /// Why:
 ///  The pool queues a job before it asks for a thread (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`),
-/// so a report that says "given up on before it could start, so those stay as they were" is only true
+/// so a report that says "given up on before it could start,
+/// so those stay as they were" is only true
 ///  when the job finds the claim taken and does nothing.
 /// The control runs in a child whose process limit is one,
 /// because only a refused thread start queues a job this way.

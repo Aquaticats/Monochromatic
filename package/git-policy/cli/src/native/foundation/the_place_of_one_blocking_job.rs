@@ -14,7 +14,8 @@
 //! so the place lives in an object both can reach:
 //!  the frame gives it back when it takes the claim on the job's work,
 //! and a job that took the claim first keeps it until its work ends.
-//! The slot is taken once, so a second give-back does nothing.
+//! The slot is taken once,
+//! so a second give-back does nothing.
 //!  One small lock covers that take,
 //! never held across a wait.
 //!

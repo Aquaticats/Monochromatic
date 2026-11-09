@@ -354,7 +354,8 @@ fn prepare_the_run(root: &Path, references: &[PathBuf]) -> PreparedRun {
 /// no timeout could expire,
 /// and every other task of that runtime would stop with it
 /// ("nothing should ever wait forever").
-/// On the pool a thread waits there instead, and the caller's timeout expires.
+/// On the pool a thread waits there instead,
+/// and the caller's timeout expires.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

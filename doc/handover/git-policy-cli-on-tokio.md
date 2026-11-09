@@ -914,6 +914,38 @@
   `worktree_trash`) 122 of 122,
   `native:clippy` clean,
   `//package/git-policy/cli:lint` 0 warnings and 0 errors.
+- A third review (the same file) found three waits and bounds,
+  all three right,
+  fixed in `8a8ffaeea7` and `8881e8bc83` after `0bee2a3825` made the consumer's wait one function:
+  the completion loop's wake branch could be switched off and then miss its final wake,
+  the refresh read `.git/config` synchronously before its first await,
+  and a refused job's place went back while the pool still held the job queued.
+  The place and the claim travel together now
+  (`foundation/the_place_of_one_blocking_job.rs`),
+  a run reads what it needs on the blocking pool (`prepare_the_run`),
+  and the wake branch is never switched off.
+  `SPEC.md` records all three rules under "Every wait has a bound".
+- Two controls that failed in a filtered suite and passed alone were the process's blocking bound against controls
+  that ask for every item in flight at once:
+  measured,
+  the bound is 1,
+  2 and 3 at CPU quotas of 100%,
+  200% and
+  400% while the request asks 4.
+  `may_run_all_at_once` states each control's need now,
+  and the two modules pass 68 of 68 at both quotas (`a3a924b37b`).
+  The `SIGABRT at 125 s` was not reproduced;
+  that control passed in 1.1 to 9.0 s,
+  and the unbounded wait on its
+  path is the one the first finding of this round removed.
+- Round 4's checks:
+  `blocking_job`,
+  `the_place_of_one`,
+  `the_claim_a_job`,
+  `subvolume_index`,
+  `parallel_runner` and `worktree_convert_command` 107 of 107;
+  `native:clippy` clean;
+  `//package/git-policy/cli:lint` 0 warnings and 0 errors.
 - Main was merged into this branch at `69a0e7f75c` (the coordinator);
   the commits of this step are its own.
 

@@ -155,11 +155,14 @@ const POOL_THREADS_FOR_THE_CONTROL: usize = 8;
 ///  The pool queues a job before it asks for a thread (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`),
 /// and the frame gives the place back when it stops waiting for the job.
-/// A queued job that then ran would do its work with no place at all, so the bound of the process would no
+/// A queued job that then ran would do its work with no place at all,
+/// so the bound of the process would no
 /// longer cover every running blocking job:
 ///  `a_report_that_says_an_index_could_not_be_started_...` measured four rewrites running that way.
 /// A place that was never given back would instead leave later jobs waiting for ever,
-///  so what decides is the claim: the job takes it before its first effect, and the frame takes it when it gives up.
+///  so what decides is the claim:
+/// the job takes it before its first effect,
+/// and the frame takes it when it gives up.
 /// The control runs in a child whose process limit is one,
 /// because only a refused thread start queues a job this way.
 #[test]
