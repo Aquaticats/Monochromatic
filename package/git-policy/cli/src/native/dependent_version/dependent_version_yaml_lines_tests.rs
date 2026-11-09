@@ -155,6 +155,12 @@ fn refuses_keys_it_does_not_read() {
     assert_eq!(split_key(":"), Err(String::from("names no key")));
     assert_eq!(split_key("'':"), Err(String::from("names no key")));
     assert_eq!(split_key("-x: 1"), Ok(Some((String::from("-x"), "1"))));
+    assert_eq!(
+        split_key("'a':b"),
+        Err(String::from(
+            "puts its colon against its value, which this reader does not read"
+        ))
+    );
 }
 
 /// Single quotes escape by doubling,

@@ -270,6 +270,15 @@ pub fn split_key(content: &str) -> Result<Option<(String, &str)>, String> {
         if key.is_empty() {
             return Err(String::from("names no key"));
         }
+        let separated: bool = match after.chars().next() {
+            None => true,
+            Some(next) => is_space_or_tab(next),
+        };
+        if !separated {
+            return Err(String::from(
+                "puts its colon against its value, which this reader does not read",
+            ));
+        }
         return Ok(Some((key, after.trim_start_matches(is_space_or_tab))));
     }
     for (index, character) in content.char_indices() {
