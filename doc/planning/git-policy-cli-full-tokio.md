@@ -4369,7 +4369,12 @@ Both allowances:
 `mise run //package/git-policy/cli:native:test:host -- foundation::parallel_runner_on_the_runtime`
 passed 9 of 9 at `CPUQuota=200%` and at the session's 600%,
 with `items_run_at_the_same_time` in 0.007 s and in 0.009 s.
-Commit `520d8991c2` on `fix/git-policy-cli-parallel-runner-control-holds-at-any-cpu-count`.
+Commit `520d8991c2` on `fix/git-policy-cli-parallel-runner-control-holds-at-any-cpu-count`,
+with an independent review's corrections to three sentences that claimed more than the bound guarantees
+in `98f51f9d37`:
+the bound is a ceiling every job of the process shares and not a reservation one run keeps,
+and it comes from the CPU allowance with the thread,
+address-space and cap limits.
 
 ### Step T12, the leaf-first asynchronous Git and the ordered runner that awaits, 2026-11-08T19:29:56-05:00
 
