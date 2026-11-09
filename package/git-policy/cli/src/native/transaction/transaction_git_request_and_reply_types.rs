@@ -271,8 +271,22 @@ impl std::fmt::Display for GitFailure {
 /// `git ${args.join(' ')}`
 /// ```
 pub fn command_text(arguments: &[OsString]) -> String {
+    // The reflog message a branch move carries (`update-ref -m <message>`) is the person's commit text: the record of a
+    // step, the waiting notice a client is sent and every failure sentence name the transaction without it, so the shown
+    // command is the same `git update-ref --stdin` it was before the message was passed.
+    let moves_references: bool = arguments.first().is_some_and(|word| { return word == OsStr::new("update-ref"); });
     let mut text: String = String::from("git");
+    let mut skip_message: bool = false;
     for argument in arguments {
+        if skip_message {
+            skip_message = false;
+            continue;
+        }
+        if moves_references && argument == OsStr::new("-m") {
+            // The option and its message are left out together, so the shown command is the transaction Git reads.
+            skip_message = true;
+            continue;
+        }
         text.push(' ');
         text.push_str(argument.to_string_lossy().as_ref());
     }

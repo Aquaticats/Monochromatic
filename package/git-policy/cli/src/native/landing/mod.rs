@@ -93,6 +93,10 @@ pub mod service_land_settings;
 /// journaled and moved onto a branch.
 pub mod service_land_batch_body;
 
+/// The reflog message the branch move writes:
+/// the commit's kind in Git's own words and the first line of its message.
+pub mod service_land_reflog;
+
 pub mod service_land_outcomes;
 
 pub mod service_land_take_index_lock;

@@ -4769,6 +4769,22 @@ on the commit path:
   The record is written without a flush,
   so a power loss
   rather than a kill can lose it and leave the reference where it was.
+- The branch write carries the reflog message native Git writes for the commit it moves the branch to,
+  as one argument of `git update-ref -m`:
+  the commit's kind in Git's own words (`commit`,
+  `commit (initial)`,
+  `commit (amend)`,
+  `commit (merge)`,
+  `commit (cherry-pick)`,
+  `commit (revert)`) and the first line of the commit's message after it
+  (`src/native/landing/service_land_reflog.rs`).
+  The first line is the message's own bytes,
+  so a body line,
+  a carriage return or a byte that is not UTF-8 cannot reach the row,
+  and the message never enters the transaction Git reads on standard input,
+  so no byte of it can change that grammar.
+  The row names the commit the batch landed last,
+  which is the value the branch now holds.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").

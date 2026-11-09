@@ -13,7 +13,7 @@
 //! ```
 
 use crate::service_land_take_index_lock::take_index_lock;
-use crate::service_land_git_steps_and_import_stream::{checked, ids_of, requests_that_land, run};
+use crate::service_land_git_steps_and_import_stream::{checked, ids_of, requests_that_land, run, run_words};
 use crate::service_land_objects_of_batch::objects_of_batch;
 use crate::service_fault::reach;
 use crate::service_built_checks::{BuiltCommit, read_commit};
@@ -145,6 +145,21 @@ pub(crate) fn land_batch_body(
         if let Some(seam) = &context.on_objects_written {
             seam();
         }
+        // What the reflog row says: the kind of commit and the first line of its message, as native Git words both
+        // (`builtin/commit.c`, `update_head_with_reflog` in `sequencer.c`). A landing answers a batch with one branch move, so
+        // the row names the commit that landed last, which is the value the branch now holds.
+        let last_request: &CommitRequest = batch.last().copied().unwrap_or(first);
+        let content: Option<crate::service_built_checks::CommitContent> = crate::service_built_checks::commit_content(first.common_dir.as_path(), new.as_str());
+        let parents: usize = content.as_ref().map_or(0, |read| { return read.parents.len(); });
+        let copy: Option<std::path::PathBuf> =
+            crate::service_land_reflog::conclusion_copy(context.journal.as_path(), seq, first.cleanup.is_some());
+        let initial: bool = unborn || is_zero_object(old.as_str());
+        let committed: crate::service_land_reflog::Committed = crate::service_land_reflog::kind(last_request.amend, initial, parents, copy.as_deref());
+        let subject: Vec<u8> = match content {
+            Some(read) => read.message,
+            None => last_request.message.clone().into_bytes(),
+        };
+        let reflog: std::ffi::OsString = crate::service_land_reflog::message(committed, subject.as_slice());
         // A commit Git built carries no list of changes: its index entries are the paths that differ from the old branch.
         let derived: bool = first.commit.is_some();
         let paths: Vec<Vec<u8>> = if derived {
@@ -235,6 +250,14 @@ pub(crate) fn land_batch_body(
         //  detached new one). A head that became a branch at another value fails the compare; at the same value the branch it
         //  names takes the commit, and the head is read again below.
         let transaction: String = format!("start\nupdate {} {new} {old}\n{removal}prepare\ncommit\n", first.reference);
+        // The message is one argument of `-m`, never a line of the transaction, so no byte of the commit's message can change
+        // the grammar Git reads on standard input (`AGENTS.md` rules `SYB` and `STB`).
+        let moving: Vec<std::ffi::OsString> = vec![
+            std::ffi::OsString::from("update-ref"),
+            std::ffi::OsString::from("-m"),
+            reflog,
+            std::ffi::OsString::from("--stdin"),
+        ];
         let ref_began: Instant = Instant::now();
         // The write is never ended by the wrapper (owner, 2026-11-04: "Never cut a branch write (Recommended)"), so a write that never
         //  returns holds this thread; the clients that queue behind it are told what it is stuck in, and the commit it makes is on
@@ -245,7 +268,7 @@ pub(crate) fn land_batch_body(
             } else {
                 format!("it moves {} to {new}; the commit is also at {scratch} until the update ends", first.reference)
             });
-            run(&git, repository, &["update-ref", "--stdin"], Some(transaction.into_bytes()))?
+            run_words(&git, repository, moving.as_slice(), Some(transaction.into_bytes()))?
         };
         timing.ref_update += ref_began.elapsed();
         if !moved.succeeded() {
