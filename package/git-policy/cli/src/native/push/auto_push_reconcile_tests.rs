@@ -986,11 +986,13 @@ fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not
     git(&repo, &["commit", "--quiet", "-m", "two", "--", "a.txt"]);
     let target: String = text_of(&repo, &["rev-parse", "HEAD"]);
     git(&repo, &["reset", "--quiet", "--hard", old.as_str()]);
-    // A stand-in for Git looks for the record while Git moves the checkout, which is the instant a kill would leave it for.
+    // A stand-in for Git looks for the record when the move writes the checkout's files, which is the instant a kill would
+    //  leave it for; the move names its branch rather than running `git merge --ff-only`, so the step it watches is
+    //  `read-tree`.
     let seen: PathBuf = root.join("record-seen");
     let shim: PathBuf = root.join("watching-git");
     let script = format!(
-        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ]; then\n    if ls .git/{MERGE_INTENT_DIRECTORY}/*.json > /dev/null 2>&1; then echo present > '{seen}'; else echo absent > '{seen}'; fi\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = read-tree ]; then\n    if ls .git/{MERGE_INTENT_DIRECTORY}/*.json > /dev/null 2>&1; then echo present > '{seen}'; else echo absent > '{seen}'; fi\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
         seen = seen.display()
     );
     std::fs::write(&shim, script).expect("stand-in");

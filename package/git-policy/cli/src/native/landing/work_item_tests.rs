@@ -9,7 +9,6 @@
 use crate::work_item_recovery::{Recovered, next_claim_expiry, requeue_expired, requeue_expired_reporting};
 use crate::work_item_state_directories_and_claim_names::{NAME_SEPARATOR, take_listings};
 use super::*;
-use crate::work_item_ids_and_names::{MAX_ID_SUFFIX_LENGTH, MAX_OBJECT_NAME_LENGTH};
 use crate::test_support::{fixture, remove};
 use crate::work_item_recovery::{ClaimExpiry, STRAY_TEMPORARY_AGE, TEMPORARY_SUFFIX, requeue_with};
 
@@ -79,10 +78,7 @@ fn a_record_round_trips() {
         let text: String = original.encode();
         assert_eq!(text.matches('\n').count(), 1);
         assert_eq!(WorkItem::decode(text.as_str()), Ok(original.clone()));
-        // A push's id carries the branch as well; every other kind's is the kind and the object.
-        let expected: String = if kind == WorkKind::Push { original.id() } else { format!("{}-abc", kind.name()) };
-        assert_eq!(original.id(), expected);
-        assert!(original.id().starts_with(format!("{}-abc", kind.name()).as_str()));
+        assert_eq!(original.id(), format!("{}-abc", kind.name()));
         assert_eq!(WorkKind::from_name(kind.name()), Some(kind));
     }
 }
@@ -135,56 +131,11 @@ fn bad_records_are_refused() {
         good.replace("\"v\":1", "\"v\":2"),
         good.replace("\"kind\":\"review\"", "\"kind\":\"deploy\""),
         good.replace("\"id\":\"review-abc\"", "\"id\":\"review-other\""),
-        good.replace("\"id\":\"review-abc\"", "\"id\":\"review-abc-0123456789abcdef\""),
-        good.replace("\"id\":\"review-abc\"", "\"id\":\"push-abc-0123456789abcdef\""),
         good.replace("\"oid\":\"abc\"", ""),
         good.replace("\"tries\":0", "\"tries\":-1"),
     ] {
         assert!(WorkItem::decode(broken.as_str()).is_err(), "{broken}");
     }
-}
-
-/// A record of a push on `branch` for `oid`.
-fn push_of(branch: &str, oid: &str) -> WorkItem {
-    return WorkItem { branch_ref: String::from(branch), ..item(WorkKind::Push, oid) };
-}
-
-/// Two branches can hold one commit,
-/// and each must reach its own remote:
-/// the record of the second branch is an item of its own,
-/// not one the queue already knew.
-#[test]
-fn two_branches_at_one_commit_are_both_queued() {
-    let directory: PathBuf = fixture("work-two-branches-one-commit");
-    let work: PathBuf = directory.join(WORK_DIRECTORY);
-    let oid: &str = "abc";
-    let topic: WorkItem = push_of("refs/heads/topic", oid);
-    let release: WorkItem = push_of("refs/heads/release", oid);
-    assert_ne!(topic.id(), release.id(), "one commit on two branches is two records");
-    assert_eq!(enqueue(work.as_path(), &topic), Ok(Enqueued::Added));
-    let first: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the topic item");
-    settle(work.as_path(), &first, DONE).expect("settle");
-    assert_eq!(enqueue(work.as_path(), &release), Ok(Enqueued::Added), "a record that names another branch does not stand for this one");
-    let second: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the release item");
-    assert_eq!(second.item.branch_ref, String::from("refs/heads/release"));
-    remove(directory.as_path());
-}
-
-/// A pending record an earlier release wrote is named by its kind and object alone,
-/// and this release still reads and runs it.
-#[test]
-fn a_pending_record_of_an_earlier_release_is_claimed() {
-    let directory: PathBuf = fixture("work-earlier-release-name");
-    let work: PathBuf = directory.join(WORK_DIRECTORY);
-    let earlier: &str = "{\"v\":1,\"tries\":0,\"kind\":\"push\",\"id\":\"push-abc\",\"repository\":\"/repo\",\"gitDir\":\"/repo/.git\",\"ref\":\"refs/heads/main\",\"oid\":\"abc\",\"parent\":\"\",\"created\":\"2026-11-01T00:00:00.000Z\"}\n";
-    for state in [PENDING, CLAIMED] {
-        std::fs::create_dir_all(state_directory(work.as_path(), state)).expect("a state directory");
-    }
-    std::fs::write(state_directory(work.as_path(), PENDING).join("push-abc"), earlier).expect("a record an earlier release left");
-    let claimed: Claimed = claim_next(work.as_path(), &clock()).expect("claim").expect("the earlier release's item");
-    assert_eq!(claimed.item.branch_ref, String::from("refs/heads/main"));
-    assert_eq!(claimed.item.oid, "abc");
-    remove(directory.as_path());
 }
 
 /// The same landing enqueued twice,
@@ -493,12 +444,6 @@ fn the_longest_claim_file_name_fits_a_file_name() {
     let oid: String = "a".repeat(64);
     let id: String = item(WorkKind::Maintenance, oid.as_str()).id();
     assert_eq!(id.len(), longest_kind + 1 + oid.len());
-    // A push's id is the longest one this release writes, and its name must fit too.
-    let branch: String = format!("refs/heads/{}", "feature/".repeat(80));
-    let widest_id: String = WorkItem { branch_ref: branch, ..item(WorkKind::Push, oid.as_str()) }.id();
-    assert_eq!(widest_id.len(), MAX_ID_SUFFIX_LENGTH + WorkKind::Push.name().len() + 1, "a push's suffix is an object name and a digest: {widest_id}");
-    let widest_name: String = claim_file_name(widest_id.as_str(), "0123456789abcdef0123456789abcdef", &ClaimTime::from_parts(BOOT, Duration::from_millis(u64::MAX), Duration::from_secs(u64::MAX)).on_machine(MACHINE));
-    assert!(widest_name.len() + TEMPORARY_SUFFIX.len() <= FILE_NAME_MAX, "{} bytes: {widest_name}", widest_name.len());
     let widest: ClaimTime = ClaimTime::from_parts(BOOT, Duration::from_millis(u64::MAX), Duration::from_secs(u64::MAX)).on_machine(MACHINE);
     let name: String = claim_file_name(id.as_str(), "0123456789abcdef0123456789abcdef", &widest);
     assert!(name.len() + TEMPORARY_SUFFIX.len() <= FILE_NAME_MAX, "{} bytes: {name}", name.len());

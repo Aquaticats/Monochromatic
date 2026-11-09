@@ -30,8 +30,6 @@ use crate::service_timing::log;
 pub use crate::work_item_kinds_and_their_names::WorkKind;
 pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
 pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
-use crate::work_item_ids_and_names::{id_of_kind_and_object, is_id_suffix};
-pub(crate) use crate::work_item_ids_and_names::MAX_ID_SUFFIX_LENGTH;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -88,32 +86,7 @@ impl WorkItem {
     /// The id and file name:
     /// the kind and the landed object,
     /// so the same landing always yields the same id.
-    /// A push's id carries the branch too,
-    /// because one commit can sit on two branches and the queue's key is the only thing that keeps their
-    ///  records apart.
     pub fn id(&self) -> String {
-        return match self.kind {
-            WorkKind::Push => format!("{}-{}", id_of_kind_and_object(&self.kind, self.oid.as_str()), crate::work_item_ids_and_names::branch_digest(self.branch_ref.as_str())),
-            other => id_of_kind_and_object(&other, self.oid.as_str()),
-        };
-    }
-
-    /// What:
-    ///  The id a release that keyed a push by its kind and commit alone wrote for this item.
-    /// Why:
-    ///   Such a record is on disk in a repository this release took over,
-    /// and it is still this item's:
-    /// the record's
-    ///  name must not decide that a push left over from the release before this one is other work.
-    /// The
-    ///  current id is what this release writes,
-    /// so the two are asked for together wherever a name is matched against a record.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// `${kind}-${oid}`
-    /// ```
-    pub fn id_before_the_branch(&self) -> String {
         return format!("{}-{}", self.kind.name(), self.oid);
     }
 
@@ -141,11 +114,8 @@ impl WorkItem {
     /// Read a record;
     /// any other version,
     /// an unknown kind,
-    /// a missing field or an id that is not derived from the kind,
-    /// the object and
-    /// the branch of a push is refused with a message.
-    /// The id such a record carried before a push's branch joined it is accepted,
-    /// because a record an earlier release left is still that item's.
+    /// a missing field or an id that is not derived from the kind and
+    /// object is refused with a message.
     pub fn decode(text: &str) -> Result<WorkItem, String> {
         let value: Value = match serde_json::from_str(text) {
             Ok(parsed) => parsed,
@@ -175,9 +145,8 @@ impl WorkItem {
             created: text_field(&value, "created")?,
             tries,
         };
-        let written: String = text_field(&value, "id")?;
-        if written != item.id() && written != item.id_before_the_branch() {
-            return Err(String::from("the record's id is not derived from its kind, object and branch"));
+        if text_field(&value, "id")? != item.id() {
+            return Err(String::from("the record's id is not derived from its kind and object"));
         }
         return Ok(item);
     }
@@ -296,9 +265,6 @@ pub fn enqueue_all(work_dir: &Path, items: &[WorkItem]) -> Result<Vec<Enqueued>,
     }
     // The claims are listed once for the whole round; `done` and `failed` are named by the id alone, so each item asks
     //  about them by name and no listing sees them.
-    // A record an earlier release named by the kind and the object alone does not suppress this one: nothing in that name
-    //  says which branch it was for, and a second push of a commit that is already there costs nothing, while a suppressed
-    //  push of another branch is a branch that is never published.
     let mut held: HashSet<String> = claimed_or_recovering_ids(work_dir);
     let mut answers: Vec<Enqueued> = Vec::with_capacity(items.len());
     for item in items {
@@ -353,6 +319,26 @@ pub struct Claimed {
     pub item: WorkItem,
 }
 
+/// The most characters an object name has:
+/// 64 hexadecimal digits of a SHA-256 name.
+/// With the longest kind,
+/// a generation,
+/// a reading that
+/// fills every field and the suffix of a recovery's temporary file,
+/// such an id still makes a name of at most 223 bytes,
+/// under
+/// the 255 a file name may have;
+/// a longer id could make a claim's name fit and the name of its temporary file not.
+pub(crate) const MAX_OBJECT_NAME_LENGTH: usize = 64;
+
+/// Whether `object_name` is what follows the kind in an id:
+/// 1 to `MAX_OBJECT_NAME_LENGTH` ASCII letters and digits,
+/// so it
+/// holds no separator of a claim's name and no character a file name treats specially.
+fn is_object_name(object_name: &str) -> bool {
+    return !object_name.is_empty() && object_name.len() <= MAX_OBJECT_NAME_LENGTH && object_name.as_bytes().iter().all(u8::is_ascii_alphanumeric);
+}
+
 /// What:
 ///  Set the modification time of the file at `path` to now.
 /// Why:
@@ -379,12 +365,12 @@ fn stamp_modification_time(path: &Path) -> std::io::Result<()> {
 /// How a claim or renewal stamps the file it holds.
 type Stamp<'a> = &'a dyn Fn(&Path) -> std::io::Result<()>;
 
-/// Whether `id` is a kind and what follows it,
+/// Whether `id` is a kind and an object name,
 /// which makes every name built from it fit in a file name.
 pub(crate) fn is_valid_id(id: &str) -> bool {
     for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash] {
         if let Some(rest) = id.strip_prefix(format!("{}-", kind.name()).as_str())
-            && is_id_suffix(&kind, rest)
+            && is_object_name(rest)
         {
             return true;
         }
@@ -530,9 +516,9 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     let Some(kind) = found_kind else {
         return Ok(None);
     };
-    // An id that is not a kind and what a push or another kind names could make names that do not fit; it never becomes a claim.
-    if !is_id_suffix(kind, &id[kind.name().len() + 1..]) {
-        quarantine_pending(work_dir, id, format!("is not a kind and a name of at most {MAX_ID_SUFFIX_LENGTH} letters and digits").as_str());
+    // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
+    if !is_object_name(&id[kind.name().len() + 1..]) {
+        quarantine_pending(work_dir, id, format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
         return Ok(None);
     }
     let name: String = claim_file_name(id, new_generation()?.as_str(), now);
@@ -573,8 +559,7 @@ fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind],
     return match WorkItem::decode(text.as_str()) {
         // The record is the work the file name says;
         // a record of other work would be settled as done under this id.
-        // The name an earlier release gave a push is this release's name for it without the branch.
-        Ok(item) if item.id() == id || item.id_before_the_branch() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
+        Ok(item) if item.id() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
         _ => {
             let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id));
             Ok(None)
