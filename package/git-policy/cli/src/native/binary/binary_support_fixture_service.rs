@@ -124,7 +124,8 @@ const SERVICE_QUIET_WINDOW: std::time::Duration = std::time::Duration::from_secs
 ///  The counters that show a starting service is at work:
 ///  its processor ticks and the bytes it has read and written.
 /// Why:
-///   A service reads its configuration, writes its log and binds its socket before it listens,
+///   A service reads its configuration,
+/// writes its log and binds its socket before it listens,
 /// so the fixture tells a service
 ///  that is starting from one that has stopped,
 /// and ends the wait on the second alone.
