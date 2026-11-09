@@ -263,6 +263,7 @@ fn refuses_a_piped_search_that_names_a_search_path() {
         assert!(text.contains("standard input is a pipe"), "the message must name the affected input: {text}");
         assert!(text.contains("drop the search path"), "the message must offer dropping the path to filter the pipe: {text}");
         assert!(text.contains("without a pipe"), "the message must offer dropping the pipe to search the path: {text}");
+        assert!(text.contains("name `-` beside the path"), "the message must offer reading both inputs: {text}");
     }
 }
 
@@ -278,15 +279,30 @@ fn lets_a_piped_search_through_when_the_pipe_is_read_or_no_search_runs() {
     assert_eq!(piped_rg(&["X", "-", "extra/path"]), None);
     // `--files` lists files and reads no input.
     assert_eq!(piped_rg(&["--files", "."]), None);
-    // Informational flags only print.
+    // Informational flags only print, even with the positionals that would otherwise be a pattern and a path.
     assert_eq!(piped_rg(&["--version"]), None);
     assert_eq!(piped_rg(&["--help"]), None);
+    assert_eq!(piped_rg(&["--version", "X", "."]), None);
+    assert_eq!(piped_rg(&["--help", "X", "."]), None);
+    assert_eq!(piped_rg(&["--type-list", "X", "."]), None);
     // A redirected file and a socket are deliberate, and an unpiped run reads nothing.
     assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::File, "/anywhere"), None);
     assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::Socket, "/anywhere"), None);
     assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::None, "/anywhere"), None);
     // Other tools keep their own argument grammar.
     assert_eq!(rg_refusal("grep", &texts(&["X", "."]), false, false, StdinKind::Pipe, "/anywhere"), None);
+}
+
+/// The lost-input rule depends on neither the directory nor the wide-walk escape hatch:
+/// a pipe beside a path is refused at a repository root too,
+/// and `SEARCH_SHADOW_ALLOW_WIDE=1` does not lift it.
+#[test]
+fn refuses_the_lost_pipe_at_a_repository_root_and_with_the_wide_walk_hatch() {
+    let piped = texts(&["X", "."]);
+
+    assert!(rg_refusal("rg", &piped, false, true, StdinKind::Pipe, "/repo").is_some());
+    assert!(rg_refusal("rg", &piped, true, true, StdinKind::Pipe, "/repo").is_some());
+    assert!(rg_refusal("rg", &piped, true, false, StdinKind::Pipe, "/repo").is_some());
 }
 
 /// Each condition that makes the walk bounded or deliberate must let it through.

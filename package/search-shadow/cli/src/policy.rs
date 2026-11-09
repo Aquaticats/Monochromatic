@@ -419,7 +419,7 @@ pub fn rg_refusal(
         && !walk.stdin_marker_named && walk.path_count > 0;
     if pipe_would_be_ignored {
         let pipe_message: String = format!(
-            "search-shadow: refused `rg {}`. Its standard input is a pipe, and ripgrep reads the named search paths and never the pipe, so the piped lines would be dropped. To filter those lines, drop the search path: with no path ripgrep reads its standard input. To search the path, run the same command without a pipe.",
+            "search-shadow: refused `rg {}`. Its standard input is a pipe, and ripgrep reads the named search paths and never the pipe, so the piped lines would be dropped. To filter those lines, drop the search path: with no path ripgrep reads its standard input. To search the path, run the same command without a pipe. To read both, name `-` beside the path: ripgrep treats `-` as its standard input.",
             arguments.join(" "),
         );
         return Some(pipe_message);

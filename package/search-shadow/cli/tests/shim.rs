@@ -390,12 +390,16 @@ fn refuses_a_recursive_grep_from_a_repository_root_but_runs_a_bounded_one() {
 fn refuses_a_shell_pipeline_into_a_search_that_names_a_path() {
     let (root, path_variable) = make_world();
     let shadow = root.path().join("shadow").join("rg");
-    // The pipeline shape of 2026-11-01 (`find ... | rg --invert-match X .`), reduced to its decision.
-    let script = format!("printf 'a\\nb\\n' | {} --invert-match X .", shadow.display());
+    // The pipeline shape of 2026-11-01 (`find ... | rg --invert-match X .`), reduced to its decision. The shadow's path
+    // arrives as a positional (`$1`) and is quoted where it is used, so a directory with a space or a metacharacter
+    // cannot change the command.
+    let script = "printf 'a\\nb\\n' | \"$1\" --invert-match X .";
 
     let output = Command::new("sh")
         .arg("-c")
-        .arg(&script)
+        .arg(script)
+        .arg("pipeline")
+        .arg(&shadow)
         .current_dir(root.path())
         .env_clear()
         .env("PATH", &path_variable)
