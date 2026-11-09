@@ -1216,9 +1216,10 @@ so the inode is what the control reads.
   (`worktree_snapshot_source.rs:545`),
   which such a checkout fails,
   so it takes the clone rung or Git's checkout and I did not measure which.
-- What the point of a copy's stage container in finding 2 is when the
-  destination lies outside the source:
-  the container is then outside the snapshot too,
+- Whether finding 2 can happen when the destination lies outside the source:
+  it cannot,
+  because a stage container is made beside its destination and is then outside
+  the snapshot too,
   which I read from `new_stage_container` and did not need to measure.
 - The height of finding 3's cost in a real repository:
   it depends on whether the target branch's `.gitignore` covers the source's
