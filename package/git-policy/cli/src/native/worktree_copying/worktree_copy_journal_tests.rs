@@ -723,6 +723,24 @@ fn earlier_release_roots(text: &str) -> Option<Vec<String>> {
     return Some(roots);
 }
 
+/// The temporary a write publishes from keeps every byte of the path it stands beside,
+/// so a write under a directory that is not text renames onto the real name.
+#[test]
+fn a_temporary_beside_a_path_that_is_not_text_keeps_its_bytes() {
+    use crate::test_support::dead_copy_owner;
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("journal-temporary-bytes");
+    let path: PathBuf = root.join(OsStr::from_bytes(b"journals\xff")).join("id.json");
+    let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
+    let temporary: PathBuf = temporary_path(path.as_path(), &owner, "unique");
+    let mut expected: std::ffi::OsString = path.clone().into_os_string();
+    expected.push(format!(".{}.unique.tmp", owner.token()));
+    assert_eq!(temporary, PathBuf::from(expected), "the suffix follows the path's own bytes");
+    assert_eq!(temporary.parent(), path.parent(), "the temporary stands beside the journal");
+    remove(root.as_path());
+}
+
 /// A journal keeps the bytes of its four roots,
 /// so recovery reads the destination the copy was made for,
 /// and installs the ignored state there.
@@ -749,27 +767,68 @@ fn recovery_installs_into_a_destination_whose_path_is_not_text() {
     remove(root.as_path());
 }
 
-/// Two journals whose roots differ only in a byte that is not text are two records.
+/// Two journals whose roots differ only in a byte that is not text are two records:
+/// recovery fills each destination with its own copy and neither takes the other's.
 #[test]
 fn two_journals_whose_roots_differ_only_in_bytes_are_two_records() {
     use crate::test_support::dead_copy_owner;
-    let (first_root, first_common, first_destination, first_snapshot) = staged_for_destination("journal-two-byte-names-first", b"one\xff");
-    let (second_root, second_common, second_destination, second_snapshot) = staged_for_destination("journal-two-byte-names-second", b"one\xfe");
-    let first: PendingJournal = create_journal_for(first_common.as_path(), first_destination.as_path(), &first_snapshot, &dead_copy_owner()).expect("first");
-    let second: PendingJournal = create_journal_for(second_common.as_path(), second_destination.as_path(), &second_snapshot, &dead_copy_owner()).expect("second");
-    let first_text: String = std::fs::read_to_string(first.path.as_path()).expect("first file");
-    let second_text: String = std::fs::read_to_string(second.path.as_path()).expect("second file");
+    use crate::worktree_copy_recovery::recover_worktree_copy_transactions;
+    use crate::worktree_copy_selection::CopySelection;
+    use crate::worktree_copy_stage::{new_stage_container, stage_ignored_snapshot};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("journal-two-byte-names");
+    let main: PathBuf = crate::test_support::repository(root.as_path(), "source");
+    std::fs::write(main.join(".gitignore"), b"cache/\n").expect("gitignore");
+    std::fs::create_dir_all(main.join("cache")).expect("cache");
+    std::fs::write(main.join("cache/data"), b"payload").expect("data");
+    let common: PathBuf = std::fs::canonicalize(main.join(".git")).expect("common");
+    // Two destinations of one repository, under parents that are the same text and differ in one byte.
+    let mut destinations: Vec<PathBuf> = Vec::new();
+    for (bytes, branch) in [(b"one\xff".as_slice(), "first"), (b"one\xfe".as_slice(), "second")] {
+        let parent: PathBuf = root.join(OsStr::from_bytes(bytes));
+        std::fs::create_dir_all(parent.as_path()).expect("parent");
+        let destination: PathBuf = parent.join("topic");
+        let arguments: Vec<std::ffi::OsString> = ["worktree", "add", "--quiet", "-b", branch]
+            .iter()
+            .map(std::ffi::OsString::from)
+            .chain([destination.clone().into_os_string()])
+            .collect();
+        crate::test_support::git(main.as_path(), arguments.as_slice());
+        destinations.push(std::fs::canonicalize(destination).expect("canonical destination"));
+    }
+    let source: PathBuf = std::fs::canonicalize(main.as_path()).expect("canonical source");
+    let mut journals: Vec<PendingJournal> = Vec::new();
+    for destination in &destinations {
+        let snapshot: StagedSnapshot = stage_ignored_snapshot(
+            &crate::test_support::git_context(),
+            source.as_path(),
+            new_stage_container(destination.as_path()).expect("container").as_path(),
+            &[],
+            &CopySelection::Ignored,
+        )
+        .expect("staged");
+        journals.push(create_journal_for(common.as_path(), destination.as_path(), &snapshot, &dead_copy_owner()).expect("journal"));
+    }
+    let first_text: String = std::fs::read_to_string(journals[0].path.as_path()).expect("first file");
+    let second_text: String = std::fs::read_to_string(journals[1].path.as_path()).expect("second file");
     assert_ne!(first_text, second_text, "the two destinations are two records");
     assert!(
-        first_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(first_destination.as_path()).as_str())).as_str()),
+        first_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destinations[0].as_path()).as_str())).as_str()),
         "the first names its own bytes: {first_text}"
     );
     assert!(
-        second_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(second_destination.as_path()).as_str())).as_str()),
+        second_text.contains(format!("\"destinationRootHex\":{}", quote(hex_of_path(destinations[1].as_path()).as_str())).as_str()),
         "the second names its own bytes: {second_text}"
     );
-    remove(first_root.as_path());
-    remove(second_root.as_path());
+    let report = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 2, "{report:?}");
+    for destination in &destinations {
+        assert_eq!(std::fs::read(destination.join("cache/data")).expect("copied"), b"payload", "{}", destination.display());
+        let replacement: PathBuf = PathBuf::from(destination.to_string_lossy().into_owned());
+        assert!(!replacement.exists(), "nothing is written at the replacement spelling");
+    }
+    remove(root.as_path());
 }
 
 /// The release now installed reads a journal this build writes for text roots,
