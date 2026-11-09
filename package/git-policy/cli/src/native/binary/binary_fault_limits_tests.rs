@@ -640,3 +640,32 @@ fn a_commit_on_a_single_processor_lands_and_leaves_nothing() {
     assert_eq!(verify_recovery(&fixture, repo.as_path(), "single-cpu", ""), Ok(()));
     remove_settled(&fixture);
 }
+
+/// What:
+///  A service whose after-commit work thread is refused says which limit refused it before it ends.
+/// Why:
+///  The service that cannot start the thread for its after-commit work answers no commit, so it ends and the manager
+///  starts another. What it says is all a person has, and a line that names only the system's error sends them looking
+///  for a defect of this program. The limit is real (`RLIMIT_NPROC` on the service), not armed by a control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { greeted, log } = await startServiceUnder('processes', 1, directory);
+/// expect(greeted).toBe(false); expect(log).toContain('ulimit -u');
+/// ```
+#[test]
+fn a_service_whose_work_thread_is_refused_says_which_limit_refused_it() {
+    if !process_limit_bites() {
+        eprintln!("skipped: this user may exceed RLIMIT_NPROC, so no start was refused");
+        return;
+    }
+    let probes: Fixture = fixture("nproc-service-work-thread");
+    let outcome: StartOutcome = start_service_under(LimitKind::Processes, 1, probes.root.as_path());
+    assert!(!outcome.greeted, "a service that can start no thread greets no client: {}", outcome.log);
+    assert!(
+        outcome.log.contains("ulimit -u") && outcome.log.contains("pids.max"),
+        "the line the service ends with names the limits that refused the thread: {}",
+        outcome.log
+    );
+    remove_settled(&probes);
+}

@@ -342,3 +342,27 @@ fn a_job_that_keeps_working_is_abandoned_at_its_ceiling() {
     assert!(waited >= CEILING && waited < CEILING * 5, "the guard answered after {waited:?}");
     crate::test_support::remove(scratch.as_path());
 }
+
+/// What:
+///  A system that refuses every thread refuses the guard's thread and says which limit did it.
+/// Why:
+///  The markdown check of a commit runs the linked linter on a thread of its own, so a refused thread must end the
+///  check with the limit that refused it: a person cannot change anything in the command to make a thread appear.
+///  The child is refused every thread for real (`RLIMIT_NPROC`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // under prlimit --nproc=1: expect(runGuarded(job, limits, cadence, 'the markdown check')).rejects.toMatchObject({ start: /ulimit -u/ });
+/// ```
+#[test]
+fn where_no_thread_can_start_the_guard_names_the_limit() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "where_no_thread_can_start_the_guard_names_the_limit") {
+        return;
+    }
+    let outcome: Result<u8, GuardFailure> = run_guarded(|| return 7_u8, limits(LONG_WINDOW), FAST, "the markdown check", &mut Some(Box::new(std::io::sink())));
+    let failure: GuardFailure = outcome.expect_err("no thread could be started to run the check");
+    let GuardFailure::Start(said) = failure else {
+        panic!("a refused start is what this control made: {failure:?}");
+    };
+    assert!(said.contains("ulimit -u") && said.contains("pids.max"), "the refusal names the limits that refused the thread: {said}");
+}
