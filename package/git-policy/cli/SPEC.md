@@ -8389,7 +8389,9 @@ Every Git command of the reconcile merge's second pass (`merge-tree`,
 `hash-object`,
 the scratch index's `read-tree`,
 `update-index` and `write-tree`)
-runs under the push's stall window and, beside it, under a total ceiling,
+runs under the push's stall window and,
+beside it,
+under a total ceiling,
 300 seconds by default and settable with `CLI_GIT_PUSH_MERGE_CEILING_SECONDS`:
 the window ends a command that shows no sign of work,
 and only the ceiling ends one that keeps working without ever returning,
