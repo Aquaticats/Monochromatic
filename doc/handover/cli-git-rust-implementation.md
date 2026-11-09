@@ -125,14 +125,13 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T05:15:47-05:00)
+#### Reviews and landings in progress (2026-11-09T05:25:13-05:00)
 
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
-  run 5 of its agent reports the fourth review's four findings fixed,
-  and measured both order controls that failed:
-  each waited inside a job holding a place its peers needed.
-  The selection of 218 passes at 100% and 200% CPU.
-  Its tests on top of main are running.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` landed as `0ac02768cd`,
+  with 334 of 334 selected tests passing on top of main before the landing.
+  Landing it conflicted with the timing-controls branch in the imports and the budget controls of three test files.
+  The session kept the tokio side's room for the blocking pool and the timing side's rendezvous at the bound,
+  and 53 of 53 tests of those files pass on the merged tree.
   The fifth review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-5-sol.txt`) names two things.
   The raw runner's refusal says the step changed nothing,
   though a queued job can still run later:
@@ -140,7 +139,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   A permit wait with no deadline needs a cancelled job in the same process,
   and a conversion is one call per process,
   so the session leaves it.
-  The branch lands if its tests pass.
+  The next tokio step is `landing/service_round.rs`,
+  and it starts after the landing branch lands because both change that code.
+- Two agents started at 2026-11-09T05:25:13-05:00 on free slots.
+  `worktree-copy-records-keep-path-bytes` reproduces and fixes paths the worktree copy stores as lossy text,
+  which `worktree_copy_stage_claim.rs` does for a stage claim.
+  `shadow-and-replay-route-findings-on-main` audits `native/shadow/`,
+  which no route audit covers,
+  and writes `doc/planning/cli-git-shadow-and-replay-route-findings-on-main.md`.
 - `fix/git-policy-cli-push-route-records-and-ceilings`:
   run 3 of its agent reports the eight findings of the second review fixed,
   and 783 of 783 selected tests pass on top of main.
@@ -283,8 +289,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   and a ceiling that also kills the person's own command.
   By its own report,
   the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
-  Not ready to merge.
-  Run 2 of its agent is on them.
+  Run 2 of its agent reports six findings handled,
+  674 of 674 selected tests pass on top of main,
+  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) is running.
+  The container gate has not run.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
@@ -300,8 +308,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   run 3 of its agent reports the second review's three findings fixed,
   and the third review (`${HOME}/temp/agent/reviews/path-bytes-round-3-sol.txt`) names one:
   a record that cannot be read lets cleanup delete another directory's retry plan.
-  Run 4 of its agent is on it,
-  meant to be the last before this branch lands.
+  Run 4 of its agent reports that held and fixed:
+  the cleanup now removes a file only when it read the file and the record names that directory and branch.
+  Its tests on top of main are running.
   Issue 6005 is commented on or closed after it lands.
 - `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
   its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
@@ -364,11 +373,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   710 of 710 tests pass on top of main,
   and the third review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`) names four smaller defects in the same prune,
   among them a recursive removal that can take a version just installed.
-  A small round 4 is meant to be the last before this branch lands.
-  It waits for a free agent slot,
-  behind the merge and commit-ceiling rounds:
-  resume the run `mpm-shadow-open-issues` as run 4,
-  with `mpm-shadow-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+  Run 4 of its agent reports all four reproduced and fixed,
+  715 of 715 tests pass on top of main,
+  and the review of that round (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-4-sol.txt`) is running.
   Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
   By its own report the agent ran its cargo commands outside the required resource limits,
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
@@ -450,10 +457,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
   The agent `driver-resumes-after-provider-errors` built retries on the branch `fix/pi-shared-subagent-driver-resumes-after-provider-errors`.
-  Run 2 of its agent reports the first review's findings and four more fixed,
-  and all 31 test groups pass on top of main.
-  The second review (`${HOME}/temp/agent/reviews/driver-retries-round-2-sol.txt`) is running,
-  and the branch lands if it comes back clean.
+  It landed as `245c54a008`,
+  and the two fixes the second review named landed as `9462675cd8`:
+  `408` and `522` count as transient,
+  and a leading `401` or `403` decides before any word of its body.
+  All 31 test groups pass on top of main.
+  That last round had no cross-vendor review of its own.
+  The review's point about an identical new failure inheriting the wait is written down in the package.
   One visible change:
   a run whose failure nothing recovered now reports `model-error` and exits non-zero even when the stop file ends it.
 - Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
