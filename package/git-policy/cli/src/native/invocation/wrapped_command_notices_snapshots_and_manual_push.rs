@@ -152,9 +152,8 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
 /// pushNoticesFor(gitDir, commonDir) // record held pushes, then take the notices
 /// ```
 pub(crate) fn push_notices_for(git_dir: &Path, common_dir: &Path, abbreviate: &dyn CommitNamer) -> Vec<String> {
-    // A held push is not released by anything, and the next push of its branch carries it: every command says which commit that
-    //  is, through the same notice, once.
-    crate::service_handoff::record_held_push_notices(git_dir);
+    // A held push writes its notice where it is held, so the notice directory exists from that moment and the check below finds it;
+    //  the notice is taken here, once.
     let own: bool = notice_directory(git_dir).is_dir();
     let orphaned: bool = common_dir.join(ORPHAN_NOTICE_DIRECTORY).is_dir();
     if !own && !orphaned {
@@ -277,3 +276,8 @@ pub(crate) fn prepare_manual_push<F: RepositoryFacts>(
     checks.candidates = LifecycleContent::Requested(CandidateRequest::Pushed(scope));
     return Ok(());
 }
+
+/// Controls for what a command says about a worktree's pushes stay out of the release executable.
+#[cfg(test)]
+#[path = "wrapped_command_notices_snapshots_and_manual_push_tests.rs"]
+mod tests;

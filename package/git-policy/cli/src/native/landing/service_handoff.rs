@@ -26,7 +26,7 @@ use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
 use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all, state_directory};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// What the wrapper knows about a commit the service landed.
 #[derive(Clone, Debug)]
@@ -139,6 +139,8 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
 /// The work queue's own words when the record cannot be written.
 pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = push_item(handoff, landed);
+    // The push is released, so the line that says it is held must not be shown.
+    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
     if crate::work_item::promote(work_directory(handoff.git_dir.as_path()).as_path(), item.id().as_str()) {
         return Ok(());
     }
@@ -147,47 +149,6 @@ pub fn promote_the_push(handoff: &ServiceHandoff, landed: &str) -> Result<(), Cl
         Ok(_enqueued) => Ok(()),
         Err(reason) => Err(ClientFailure::WorkNotHandedOver(reason)),
     };
-}
-
-/// What:
-///  Records one line for each held push of a worktree,
-/// so the notice every command shows says it once.
-/// Why:
-///   A push whose command stopped before the push was released is not released by anything,
-/// and the next push
-///  of its branch carries the commit.
-/// The line is recorded through the notice the worktree's push
-///  failures use,
-/// so it is shown once and taken as it is read,
-/// and it says what is true of both a
-///  command that died and one whose checks never finished.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// recordHeldPushNotices(gitDir) // one skip record per held commit
-/// ```
-pub fn record_held_push_notices(git_dir: &Path) {
-    let work_dir: PathBuf = work_directory(git_dir);
-    let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
-        return;
-    };
-    for entry in listing.flatten() {
-        let name: String = entry.file_name().to_string_lossy().into_owned();
-        let Some(commit) = name.strip_prefix(format!("{}-", WorkKind::Push.name()).as_str()) else { continue };
-        let item: WorkItem = match std::fs::read_to_string(entry.path()).ok().and_then(decode_item) {
-            Some(item) => item,
-            None => continue,
-        };
-        // What is known is that the push is held and that the next push of its branch carries it. Whether the command that held
-        //  it has stopped cannot be told from the record, so the line does not claim it.
-        let said: String = format!(
-            "the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {}",
-            item.branch_ref
-        );
-        if let Err(reason) = crate::push_failure_notice::record_push_skip(git_dir, item.branch_ref.as_str(), commit, said.as_str()) {
-            crate::diagnostic_log::warn("recordHeldPushNotices", format!("the held push of {commit} cannot be said ({reason})").as_str());
-        }
-    }
 }
 
 /// What:
@@ -204,6 +165,7 @@ pub fn record_held_push_notices(git_dir: &Path) {
 /// forgetThePush(handoff, landed) // unlink the pending record
 /// ```
 pub fn forget_the_push(handoff: &ServiceHandoff, landed: &str) {
+    crate::push_failure_notice::clear_push_failures(handoff.git_dir.as_path(), handoff.reference.as_str());
     let work_dir: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
     let id: String = push_item(handoff, landed).id();
     // The verdict is durable: a later recovery of the same batch must not hold the push again.
@@ -261,8 +223,18 @@ pub fn hand_over_push(handoff: &ServiceHandoff, tip: &str, notices: &mut dyn Wri
 #[path = "service_handoff_tests.rs"]
 mod tests;
 
-/// The item one held record's text holds,
-/// or nothing when it cannot be read.
-fn decode_item(text: String) -> Option<WorkItem> {
-    return WorkItem::decode(text.as_str()).ok();
+/// What:
+///  The one sentence the worktree says about a held push.
+/// Why:
+///   What is known is that the push is held and that the next push of its branch carries the commit.
+/// Whether the
+///  command that held it has stopped cannot be told,
+/// so the sentence does not claim it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldPushLine(branchRef, commit)
+/// ```
+pub fn held_push_line(reference: &str, commit: &str) -> String {
+    return format!("the commit {commit} is held: its push has not been released yet, and it goes out with the next push from {reference}");
 }
