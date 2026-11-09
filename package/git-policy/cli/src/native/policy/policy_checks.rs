@@ -157,6 +157,10 @@ pub struct ShippedChecks<F: RepositoryFacts> {
     /// so the
     ///  expansion an alias names is the command all three see.
     pub forwarded: Option<GuardedForwarded>,
+    /// The environment the invocation was started with;
+    ///  the guard needs its `PATH` to see that Git runs an installed
+    ///  external command instead of an alias of that name.
+    pub environment: Vec<(OsString, OsString)>,
 }
 
 /// What:
@@ -192,6 +196,7 @@ pub fn shipped_checks<F: RepositoryFacts>(
         markdown: markdown_state(Box::new(embedded_linter())),
         notices: Vec::new(),
         forwarded: None,
+        environment: Vec::new(),
     };
 }
 
@@ -221,8 +226,11 @@ pub fn guarded_forwarded<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) -> G
     if let Some(known) = &checks.forwarded {
         return known.clone();
     }
-    let decided: GuardedForwarded =
-        decide_guarded_forwarded(&checks.facts.transaction_context(), checks.arguments.as_slice());
+    let decided: GuardedForwarded = decide_guarded_forwarded(
+        &checks.facts.transaction_context(),
+        checks.environment.as_slice(),
+        checks.arguments.as_slice(),
+    );
     checks.forwarded = Some(decided.clone());
     return decided;
 }

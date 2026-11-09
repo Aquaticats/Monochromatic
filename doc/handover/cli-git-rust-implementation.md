@@ -129,26 +129,65 @@ The old tree kept for the rollback stays until the owner deletes it.
 
 - `421ab69c3e` landed the landing branch,
   `2522a13f4f` the literal-pathspec branch,
-  and `2b309f8f25` the test-coverage branch.
+  `2b309f8f25` the test-coverage branch,
+  `87f5771748` the index offset guard,
+  `cc6ebc3a07` the wording for a refused blocking thread,
+  `dea0f5d24e` the landing branch's follow-up on a failed head probe,
+  and `8026d49827` the alias branch.
 - Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
   previous-branch and audit cases of `discarding-commands-round-2-sol.txt`,
   and `invocation-route-findings-fixed` has the alias cases by inbox note.
 - Follow-up runs started:
   landing run 12,
   worktree-removal run 6,
-  worktree-add run 4 and child-process run 5.
-  The last two open with a merge of main in conflict,
+  worktree-add run 4,
+  child-process run 5,
+  merge run 8,
+  the wrapper-issue resume (run 2),
+  shadow run 2,
+  push run 6,
+  literal-pathspec run 3,
+  locks run 4
+  and scratch-removal run 3.
+  Worktree-add and child-process open with a merge of main in conflict,
   which their briefs tell them to resolve first,
   so neither branch has landed.
 - Deferred until a slot frees,
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `merge-route-round-8-prompt.md`,
-  `shadow-and-replay-round-2-prompt.md`,
-  `push-route-round-5-prompt.md`,
-  and `literal-pathspec-round-3-prompt.md`.
-- The shadow branch has passed its tests on top of main and waits for its round 2:
+  `wrapper-tests-that-fail-only-in-a-suite-round-3-prompt.md`.
+  That branch's merge of main is open in its worktree on two conflicts,
+  in `landing/service_push_retry_tests.rs` and `testing/test_support.rs`,
+  and the brief also answers its two questions:
+  split the two long controls per case,
+  and fix `every_call_runs_on_the_same_runtime`.
+- Started:
+  alias run 2 on the review `invocation-route-round-1-sol.txt`,
+  and hook run 4,
+  because hook run 3 reached its time limit while writing wording tests.
+- The intent-to-add branch passed 660 of 661 on top of main.
+  `a_step_is_still_stopped_after_a_look_that_could_not_be_made` failed twice on it and passed 6 of 6 on it and on main,
+  and went to `commit-ceiling-and-private-index-follow-ups` by inbox note;
+  the branch's review is running.
+- The conversion branch finished seven findings and its check is running.
+- `wrapper-tests-that-fail-only-in-a-suite` measured a landing of 107.9 s in the fsync tests,
+  of which index 57.8 s and journal 20.6 s,
+  and said a real commit makes the same writes and flushes.
+- `worktree-copy-records-keep-path-bytes` run 3 restores four files that its run 2 swapped for a comparison.
+  The branch is not to be merged or landed until that run reports,
+  because a check of mine merged main into it as `d5a2481e7e` while the files were swapped.
+  That merge left the four files alone.
+- The locks branch passed 379 of 379 on top of main.
+  `locks-and-transactions-round-3-sol.txt` names a metadata call on the service's own descriptors with no bound
+  and a pid file declaring an owner dead while a holder could not be resolved.
+- The scratch-removal branch passed 502 of 502 on top of main.
+  `commit-scratch-removal-round-1-sol.txt` names a release that can run before the queued landing that needs the tree,
+  an age sweep that ignores a live owner and calls `remove_dir_all` on the commit's path,
+  and stalled removal threads with no cap.
+- `a_real_migration_resumes_after_a_kill_on_each_side_of_the_exchange` times out at 300 s alone on main,
+  and is with `wrapper-tests-that-fail-only-in-a-suite`.
+- The shadow branch has passed its tests on top of main and its round 2 is running:
   `shadow-and-replay-round-1-sol.txt` names a dropped `gpg.openpgp.program`,
   a subsection holding `=` that loses its value,
   and a long value that stops the scratch commit from starting.
@@ -161,9 +200,6 @@ The old tree kept for the rollback stays until the owner deletes it.
   a Git step reads its child through the runtime,
   so inside a blocking job of the pool every step refuses as nested.
   Its branch keeps the corrected wording for a refused thread.
-- The stale-comments branch and the test-coverage branch corrected the same comments.
-  The merge takes main's text,
-  and that branch still brings the index offset guard.
 - Open from the test-coverage report,
   not yet given to an agent:
   the kill sweeps list calls a flow never makes,
