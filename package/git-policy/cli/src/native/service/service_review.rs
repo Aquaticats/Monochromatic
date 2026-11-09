@@ -26,7 +26,7 @@
 //! const outcome = await reviewLanded(names, sha, subject, read, options);
 //! ```
 
-use crate::standards_review_input::{LandedCommit, has_shadow_log};
+use crate::standards_review_input::{ChangedPath, LandedCommit, has_shadow_log};
 use crate::standards_review_run::{Containment, Contained, EnvironmentVariables, LandedCommitReader, ReviewOptions, ReviewOutcome, options_from_environment, review_landed, run_contained_in};
 use crate::standards_review_source::{read_landed_commit, read_message, read_names};
 use crate::standards_review_text::commit_subject;
@@ -194,7 +194,7 @@ struct ReadLandedCommit<'a> {
 }
 
 impl LandedCommitReader for ReadLandedCommit<'_> {
-    fn read(&self, files: &[String]) -> Result<LandedCommit, String> {
+    fn read(&self, files: &[ChangedPath]) -> Result<LandedCommit, String> {
         return read_landed_commit(self.context, self.cwd, self.oid, self.subject, files);
     }
 }
@@ -204,7 +204,7 @@ impl LandedCommitReader for ReadLandedCommit<'_> {
 /// without the budget.
 fn run_review(context: &GitContext, item: &WorkItem, options: &ReviewOptions, now_millis: &dyn Fn() -> u64) -> ReviewOutcome {
     let cwd: PathBuf = item.repository.clone();
-    let names: Vec<String> = match read_names(context, cwd.as_path(), item.oid.as_str()) {
+    let names: Vec<ChangedPath> = match read_names(context, cwd.as_path(), item.oid.as_str()) {
         Ok(found) => found,
         Err(message) => return ReviewOutcome::Unread(message),
     };

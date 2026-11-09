@@ -41,6 +41,12 @@ pub mod iso_time;
 /// Lexical path normalization.
 pub mod lexical_path;
 
+/// Reading a file only when it is a plain one:
+/// never waiting for a writer,
+/// never following a link,
+/// never past a limit.
+pub mod plain_file;
+
 /// A path kept as text in a record,
 /// with its bytes in hexadecimal beside the plain text.
 pub mod path_bytes_in_records;
