@@ -36,6 +36,7 @@ use crate::fs_beneath::{ObjectId, handle_path, identity_at, identity_of, open_di
 use crate::fs_btrfs_ioctl::subvolume_create_at;
 use crate::fs_kind::{FilesystemKind, filesystem_kind};
 use crate::worktree_add_plan::AddPlan;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -110,6 +111,111 @@ pub fn prepare_subvolume_destination(plan: &AddPlan) -> Option<CreatedSubvolume>
         }
     };
     return Some(CreatedSubvolume { path: destination.to_path_buf(), identity });
+}
+
+/// What:
+///  Who owns the destination of a creating command,
+/// decided once,
+/// before real Git runs.
+/// Why:
+///   A `git worktree add` that finds its destination unregistered cannot tell,
+/// after its own Git
+///  returned,
+/// whether the registration there is the one its Git made:
+/// a second add at the same path
+///  leaves its registration exactly where this one's would be,
+/// and Git accepts an empty directory any
+///  command prepared.
+/// One exclusive creation of the directory decides it before any Git runs:
+/// the
+///  command that made the directory owns the destination,
+/// every other command finds it there and
+///  copies nothing,
+/// and Git's own status then says nothing about ownership.
+/// Nothing waits and no lock
+///  exists:
+/// the creation either succeeds or finds the directory,
+/// and a loser never removes what it did not
+///  make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Reservation = { owned: CreatedDestination } | 'another commands' | 'not attempted';
+/// ```
+#[derive(Debug, Eq, PartialEq)]
+pub enum Reservation {
+    /// The destination was not there and this command made it.
+    Mine(CreatedSubvolume),
+    /// The destination was there already,
+    /// so another command made it;
+    /// the identity is what stood there when the reservation was
+    ///  made,
+    /// and a different object at the path later is a replacement.
+    Anothers(Option<ObjectId>),
+    /// Nothing was reserved:
+    /// the command copies nothing,
+    /// or the path could not be made.
+    NotAttempted,
+}
+
+/// What:
+///  The identity of the object at `path` now,
+/// or nothing when it cannot be looked at.
+/// Why:
+///   A destination that stood there before this command's Git is another command's,
+/// and the object that stood
+///  there is what a later replacement is told apart from.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function identityOfEntry(path: string): ObjectId | undefined;
+/// ```
+fn identity_of_entry(path: &Path) -> Option<ObjectId> {
+    let parent: File = std::fs::File::open(path.parent()?).ok()?;
+    return identity_at(&parent, path.file_name()?).ok();
+}
+
+/// What:
+///  Reserve the destination of a creating command as an empty directory,
+/// and record what it is.
+/// Why:
+///   Git accepts an existing empty directory as the destination of `git worktree add` and fills it,
+/// so the
+///  directory this command made is the one its worktree is made in,
+/// and its identity proves it later.
+/// An
+///  existing directory is another command's reservation:
+/// this one copies nothing and says so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function reserveDestination(destination: string): Promise<Reservation>;
+/// ```
+pub fn reserve_destination(destination: &Path) -> Reservation {
+    if destination.as_os_str().is_empty() {
+        return Reservation::NotAttempted;
+    }
+    // `match` on the exclusive creation: the command that makes the directory owns the destination.
+    match std::fs::DirBuilder::new().create(destination) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Reservation::Anothers(identity_of_entry(destination)),
+        Err(error) => {
+            debug(TAG, format!("no reservation of {} ({error}); Git makes the directory and this command copies nothing", destination.display()).as_str());
+            return Reservation::NotAttempted;
+        }
+    }
+    let read: Option<ObjectId> = match destination.parent() {
+        Some(parent) => match std::fs::File::open(parent) {
+            Ok(held) => identity_at(&held, destination.file_name().unwrap_or_default()).ok(),
+            Err(error) => {
+                debug(TAG, format!("the identity of the reserved {} cannot be read ({error})", destination.display()).as_str());
+                None
+            }
+        },
+        None => None,
+    };
+    debug(TAG, format!("reserved the empty destination {}", destination.display()).as_str());
+    return Reservation::Mine(CreatedSubvolume { path: destination.to_path_buf(), identity: read });
 }
 
 /// What:
