@@ -247,8 +247,9 @@ bins and trust
 workflow);
 no file in the working tree carries them now.
 
-The same identity reaches final forwarding at
-`package/git-policy/cli/src/bin.ts:338-348`:
+The same identity reached final forwarding at
+`package/git-policy/cli/src/bin.ts:338-348` at `268a49aa`,
+the revision this record was diagnosed at:
 
 ```ts
 const transactionCommitted = ((typeof commitTransaction) !== 'symbol')
@@ -264,8 +265,10 @@ if (!transactionCommitted) {
 
 The regression fixture
 `package/git-policy/cli/src/read-only-forwarding.unit.test.ts`
-uses Starship's exact argument vector and requires only one identity request followed by the forwarded `for-each-ref`.
-It also places an incomplete transaction directory under retained identity and proves recovery blocks before forwarding.
+(removed with the TypeScript wrapper on 2026-10-13 in `642b6d72cb`;
+no test in `package/git-policy/cli/src/native/` carries Starship's argument vector today)
+used Starship's exact argument vector and required only one identity request followed by the forwarded `for-each-ref`.
+It also placed an incomplete transaction directory under retained identity and proved recovery blocks before forwarding.
 Removing retained-identity recovery made this guard fail before the production branch was restored.
 
 ### Starship emitted the warning correctly

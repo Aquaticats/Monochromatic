@@ -308,10 +308,10 @@ The migration selected cli-git as the durable owner.
 `package/git-policy/cli/src/policy-engine/final-newline-policy.ts` owns policy registration and lifecycle behavior;
 `final-newline-normalize.ts` owns exact-byte classification;
 `final-newline-patch.ts` owns destination-grammar Git patch generation.
-The TypeScript wrapper those modules belong to was deleted on 2026-10-13,
- in `642b6d72cb` (`refactor(*): delete the TypeScript Git policy wrapper`),
- and the native wrapper carries the policy at
- `package/git-policy/cli/src/native/policy/policy_final_newline.rs`.
+That TypeScript policy engine was removed on 2026-10-13 in `642b6d72cb`;
+the three concerns now sit in one Rust module,
+`package/git-policy/cli/src/native/policy/policy_final_newline.rs`,
+with its sidecars `policy_final_newline_tests.rs` and `policy_final_newline_attribute_tests.rs`.
 The shared commit transaction applies pre-forward patches only to a private index.
 The direct-fix transaction projects selected worktree bytes into another private index,
 converges whole-policy passes,
@@ -386,8 +386,8 @@ for a normalization-only selection it reported no commit and cleaned the selecte
 A file-scoped Oxlint pass over the changed production TypeScript files reported zero warnings and errors.
 The file-scoped task's positive control reported the existing `test-import(require-eventual-artifact)` errors in
 `package/git-policy/cli/src/policy-engine/final-newline-policy.unit.test.ts`
- (deleted 2026-10-13,
- in `642b6d72cb`).
+(removed with the TypeScript policy engine on 2026-10-13 in `642b6d72cb`;
+`package/git-policy/cli/src/native/policy/policy_final_newline_tests.rs` is the policy's test today).
 Package-wide Oxlint remains red on that rule in unchanged unit tests and an unrelated
 `unicorn(consistent-function-scoping)` warning in `package/git-policy/cli/src/trust/account-root.ts`
  (deleted 2026-10-13,
