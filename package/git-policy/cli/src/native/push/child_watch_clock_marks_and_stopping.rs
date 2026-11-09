@@ -27,7 +27,8 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use crate::stopped_git_locks::LockLedger;
 use crate::bounded_push::STOP_GRACE;
 use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
-use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+use crate::process_tree::{TreeMember, descendants_of, member_of, still_running};
+use crate::member_signalled_through_its_pidfd::{kill_members, terminate_members};
 use std::time::{Duration, Instant};
 
 /// The shortest sleep of the watcher,

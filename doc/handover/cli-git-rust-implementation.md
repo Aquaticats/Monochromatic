@@ -9739,6 +9739,85 @@ then we have a defect and should log more."
   and a named entry is a lower bound.
   A step whose `below` holds no signing program may still have signed for less than the interval.
 
+### The scratch commit's ceiling, reviewed: what the review found and what is still open (2026-11-09T06:20:00-05:00)
+
+A cross-vendor reviewer read the branch that added the ceiling and its record
+(`scratch-commit-ceiling-round-1-sol.txt`),
+the owner's audit of every child the wrapper starts and ends landed on `main`
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`),
+and seven findings of the review and two of the audit met in this file.
+Each was a failing control first:
+
+- A process number reused between the identity read and the signal
+  (`process/process_tree.rs`, `signal_members`).
+  The signal now travels through a pidfd opened while the number is proven to name the member
+  (start time read, descriptor opened, start time read again),
+  the same shape `binary/binary_supervisor_pin.rs` uses for the binary tests' hang guard.
+  A number cannot be reused on demand,
+  so the control injects the reuse behind one identity read
+  (`reused_after_the_next_read`).
+- A reader that stopped reading held the commit after its step ended
+  (audit finding 3).
+  The lines are written by a thread of their own,
+  the notice never writes,
+  and `finish` waits for the notice's answer and for the line it handed over no longer than `NOTICE_BOUND`
+  (twice `LOOK_INTERVAL`).
+  A line that cannot be handed over is dropped and counted (`linesDropped`).
+- A step's ceiling ended every child of the process,
+  another landing's Git among them (audit finding 1,
+  owner's answer "B: let a branch write finish").
+  The step's own number is handed to the notice the moment it starts
+  (`run_child_telling_its_number`),
+  and every look and every stop is rooted at it.
+- A failed read of `/proc` was read as "the step ended".
+  A look that cannot be made now decides nothing,
+  the ceiling stays armed,
+  and `blindLooks` counts it.
+- A stop was recorded although no signal was taken,
+  so a commit that landed could be refused as stopped.
+  `member_read` tells a process that ended from a record that could not be read,
+  and the stop is recorded only when the step itself was signalled.
+- The record credited time to a name, not to a process,
+  and dropped a program it saw only once.
+  It now credits only the same process number and start time at both looks,
+  and keeps a program seen once with a zero lower bound.
+
+Still open, and needing the owner:
+
+- A `git commit` that the kernel holds in uninterruptible sleep (`D`) cannot complete its end
+  when the ceiling's `SIGKILL` reaches it,
+  so the thread that waits for it (`commit_preparation.rs`, through `SignalGuard::run_child`,
+  `process/signal_relay.rs:748-752`) waits for the kernel operation.
+  Nothing in the wrapper can make that operation finish.
+  `doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md` records the fact.
+  The three honest answers,
+  none built:
+  1. Keep waiting and say so:
+     after the ceiling, print that the stop was sent and the kernel has not released the step yet,
+     so the person knows the wait is the disk's.
+     A person's commit waits exactly as long as today;
+     only the words change.
+  2. Leave after a bound (the ceiling plus a grace):
+     the wrapper prints the stop's words and exits nonzero,
+     and a step that is already `SIGKILL`ed is reaped by init when the kernel releases it.
+     The commit returns in bounded time,
+     and the wrapper's exit no longer waits for what it killed;
+     the scratch directory may be removed while that process still holds it open,
+     which is safe for its files and leaves nothing of the person's.
+  3. Stop enforcing after the first look that fails, which is what the code did before this round:
+     rejected, because it is how a step ran on with no ceiling at all.
+- The audit's finding 4 (a `/proc` read that fails is read as "the process is gone",
+  so a watched step's root is never signalled,
+  `push/child_watch_clock_marks_and_stopping.rs:191-198`) is the same shape as the notice's,
+  and is not fixed here:
+  `member_read` is the shape that fix needs,
+  and the push path's callers were outside this branch's scope.
+
+What remains true of the record:
+within a look interval,
+which program was below the step is only known to the interval's resolution,
+and a signing program that starts and ends between two looks is not named.
+
 ### The lock ceiling and the three waits it fed, measured (2026-11-08T16:01:42-05:00)
 
 Item 5 of the queue audit:

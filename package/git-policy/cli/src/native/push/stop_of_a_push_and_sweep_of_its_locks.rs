@@ -33,7 +33,8 @@ use crate::lazy_runtime::spawn_on_runtime;
 use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
 /// The processes a push started,
 /// and the calls that look at and end them.
-use crate::process_tree::{TreeMember, descendants_of, kill_members, member_of, still_running, terminate_members};
+use crate::process_tree::{TreeMember, descendants_of, member_of, still_running};
+use crate::member_signalled_through_its_pidfd::{kill_members, terminate_members};
 /// The lock files a stopped push leaves,
 /// and the ledger that finds them.
 use crate::stopped_git_locks::LockLedger;

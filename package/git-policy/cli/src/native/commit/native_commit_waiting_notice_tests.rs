@@ -33,26 +33,6 @@ fn text_of(buffer: &Buffer) -> String {
     return String::from_utf8_lossy(buffer.0.lock().expect("buffer").as_slice()).into_owned();
 }
 
-/// The first line names the commit Git builds,
-/// says there is no limit and adds the hint;
-/// a repeat is the same without the hint;
-/// a
-///  signed commit says why,
-/// and a signer below it is named.
-#[test]
-fn the_line_names_the_step_the_limit_and_the_signer() {
-    let ceiling: Duration = Duration::from_secs(1260);
-    let first: String = notice_line(false, Duration::from_secs(12), true, &[], ceiling);
-    assert!(first.starts_with("monochromatic-git-policy-cli: still waiting for the `git commit` this commit runs in its scratch repository, 12 seconds so far;"), "{first}");
-    assert!(first.contains("stopped if it lasts 1260 seconds") && first.contains("Hint: it is still running"), "{first}");
-    assert!(!first.contains("no time limit"), "{first}");
-    assert!(!first.contains("signs"), "{first}");
-    let repeat: String = notice_line(true, Duration::from_secs(22), false, &[(7, String::from("ssh-keygen"))], ceiling);
-    assert!(!repeat.contains("Hint"), "{repeat}");
-    assert!(repeat.contains("signs the commit because `commit.gpgsign` or `-S` asks for it") && repeat.contains("`ssh-keygen` (process 7) runs below it"), "{repeat}");
-    assert!(first.ends_with('\n') && repeat.ends_with('\n'));
-}
-
 /// The command line can ask for a signature,
 /// and `--no-gpg-sign` takes the request back;
 /// the arguments after `--` are paths.
@@ -224,23 +204,6 @@ fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
     assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(200); }), "{stopped:?}");
 }
 
-/// The words of a stop say what ended,
-/// after how long,
-/// why this long,
-/// what became of the person's work,
-/// and what to run.
-#[test]
-fn the_words_of_a_stop_say_what_ended_what_is_kept_and_what_to_run() {
-    let said: String = stop_words(Duration::from_secs(1261), Duration::from_secs(1260), true);
-    assert!(said.starts_with("monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after 1261 seconds"), "{said}");
-    assert!(said.contains("1260 seconds") && said.contains("three times"), "{said}");
-    assert!(said.contains("signs the commit"), "a signed commit's words name the signer: {said}");
-    assert!(said.contains("nothing was committed") && said.contains("index and files are as they were"), "{said}");
-    assert!(said.contains("Run the same `git commit` command again"), "{said}");
-    assert!(!stop_words(Duration::from_secs(1261), Duration::from_secs(1260), false).contains("signs the commit"));
-}
-
-
 /// The entry the notice kept for the program `name`,
 /// or a failure that names what it kept instead.
 fn kept_below<'kept>(below: &'kept [crate::scratch_commit_step::SeenProgram], name: &str) -> &'kept crate::scratch_commit_step::SeenProgram {
@@ -309,7 +272,8 @@ fn the_same_program_must_be_seen_at_both_looks_to_be_credited() {
 }
 
 /// What:
-///  A program a look saw once is kept, with a zero lower bound.
+///  A program a look saw once is kept,
+/// with a zero lower bound.
 /// Why:
 ///   A signing program that runs and ends between two looks was below the step,
 /// and a record that leaves it out says the step ran no signing program at all.
@@ -330,9 +294,11 @@ fn a_program_seen_once_is_kept_with_a_zero_lower_bound() {
 ///  A look that could not be made keeps the ceiling armed instead of reading as "the step ended".
 /// Why:
 ///   A descriptor or memory limit refuses both reads a look makes of `/proc`
-/// (`read_dir`, then one `stat` per process),
+/// (`read_dir`,
+/// then one `stat` per process),
 /// and an empty answer was read as the step having ended:
-/// the notice returned, the ceiling went with it,
+/// the notice returned,
+/// the ceiling went with it,
 /// and the step ran on while the command still waited for it.
 ///  The limit is this test's own process,
 /// which nextest runs alone for each test.
@@ -427,13 +393,16 @@ fn a_process_beside_the_step() -> std::process::Child {
 }
 
 /// What:
-///  A ceiling ends the step it watches, and no process beside it.
+///  A ceiling ends the step it watches,
+/// and no process beside it.
 /// Why:
 ///   The landing service runs landings of different repositories on worker threads of one process,
 /// so another landing's Git is a child of this process at the same moment as this step.
 /// The notice read every child of the process and sent `SIGKILL` to all of them,
 /// which cuts the other landing's write in the middle,
-/// and the owner's answer to that finding (2026-11-09, "B: let a branch write finish")
+/// and the owner's answer to that finding (2026-11-09,
+/// "B:
+/// let a branch write finish")
 /// is that a ceiling reaches only its own step.
 #[test]
 fn a_ceiling_ends_the_step_and_not_a_process_beside_it() {
@@ -489,7 +458,8 @@ fn a_ceiling_reports_a_stop_only_when_the_step_was_signalled() {
 
 /// A sink that stops taking bytes until it is let go,
 /// standing for a standard error whose reader stopped reading:
-/// a pager a person stopped, or a terminal stopped with the flow control key.
+/// a pager a person stopped,
+/// or a terminal stopped with the flow control key.
 struct StoppedReaderSink {
     /// Set once a write was entered,
     /// so a control knows the line reached the sink.
@@ -564,7 +534,7 @@ fn a_notice_whose_sink_stopped_reading_does_not_hold_the_commit() {
     released.store(true, std::sync::atomic::Ordering::SeqCst);
     let answered_in_time: bool = heard.is_some();
     let facts: ScratchStepFacts = match heard {
-        Some(heard) => heard,
+        Some(answered) => answered,
         None => told.recv_timeout(Duration::from_secs(30)).expect("the finish returns once the reader takes the line"),
     };
     finishing.join().expect("the finishing thread");

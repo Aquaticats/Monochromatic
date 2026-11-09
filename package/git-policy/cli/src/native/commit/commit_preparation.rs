@@ -218,9 +218,9 @@ pub fn run_native_commit_within(
     );
     let began: std::time::Instant = std::time::Instant::now();
     let finished = run_guarded_child(&mut command, &notice);
-    // The step's own figure is the child alone. The notice's own time (its lines are written from its thread, and a write waits
-    // for its reader) is reported beside it in `scratchSteps`, and the time the signing program ran below the step is there too,
-    // so a long step names no work the person's terminal did.
+    // The step's own figure is the child alone. The notice's own end is reported beside it in `scratchSteps`, and the time
+    // the signing program ran below the step is there too, so a long step names no work the person's terminal did and no
+    // line the notice could not hand to a reader that stopped reading.
     crate::transaction_step_durations::note_step(step.as_str(), began, began.elapsed());
     let facts: crate::scratch_commit_step::ScratchStepFacts = notice.finish();
     let stopped_after: Option<std::time::Duration> = facts.stopped_after;
@@ -228,7 +228,7 @@ pub fn run_native_commit_within(
     if let Some(waited) = stopped_after {
         let signs: bool = crate::native_commit_waiting_notice::signs_commit(snapshot, request.commit_args);
         crate::diagnostic_log::warn("runNativeCommit", format!("the scratch git commit was stopped after {} ms at its ceiling of {} ms", waited.as_millis(), ceiling.as_millis()).as_str());
-        return Err(PreparationError::Git(GitFailure(crate::native_commit_waiting_notice::stop_words(waited, ceiling, signs))));
+        return Err(PreparationError::Git(GitFailure(crate::scratch_step_stop_words::stop_words(waited, ceiling, signs))));
     }
     return finished;
 }
@@ -245,7 +245,7 @@ pub fn run_native_commit_within(
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// using guard = installSignalGuard(); return exitCode(await guard.runChildNaming(command, (pid) => notice.stepStarted(pid)));
+/// using guard = installSignalGuard(); return exitCode(await guard.runChildNaming(command, notice.stepNumber()));
 /// ```
 fn run_guarded_child(command: &mut std::process::Command, notice: &crate::native_commit_waiting_notice::NativeCommitNotice) -> Result<i32, PreparationError> {
     let guard: SignalGuard = match SignalGuard::install() {
@@ -254,7 +254,7 @@ fn run_guarded_child(command: &mut std::process::Command, notice: &crate::native
             return Err(PreparationError::Git(GitFailure(format!("installing the signal guard failed: {error}"))));
         }
     };
-    let outcome = match guard.run_child_telling_its_number(command, |pid| notice.step_started(pid)) {
+    let outcome = match guard.run_child_telling_its_number(command, notice.step_number()) {
         Ok(finished) => finished,
         Err(error) => {
             return Err(PreparationError::Git(GitFailure(format!("git commit could not start: {error}"))));

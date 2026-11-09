@@ -54,6 +54,9 @@ use crate::start_retry::spawn_retrying_without_blocking;
 /// The process's runtime,
 /// which the synchronous face enters.
 use crate::lazy_runtime::run_on_runtime;
+/// The descriptor the handler sends through,
+/// and the pidfd that names the child it points at.
+use crate::signal_relay_descriptor::{ensure_relay_descriptor, pidfd_of, point_relay_at};
 /// A child owned until it is reaped,
 /// awaited through its pidfd.
 use crate::child_awaited_through_a_pidfd::adopt;
@@ -162,7 +165,7 @@ static CHILD_PID: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::n
 /// A signal that finds
 ///  `/dev/null` fails harmlessly.
 #[cfg(target_os = "linux")]
-static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::new();
+pub(crate) static RELAY_FD: std::sync::OnceLock<std::os::fd::RawFd> = std::sync::OnceLock::new();
 
 /// What:
 ///  Whether a service owns this process's stop signals,
@@ -523,12 +526,15 @@ impl SignalGuard {
     /// await guard.runChildAwaiting(command): Promise<ChildOutcome>
     /// ```
     pub async fn run_child_awaiting(&self, command: &mut Command) -> io::Result<ChildOutcome> {
-        return run_relayed(command, self.relaying, &mut |_started: i32| {}).await;
+        let unheeded: crate::child_number_told_at_start::ChildNumber = crate::child_number_told_at_start::ChildNumber::not_started();
+        return run_relayed(command, self.relaying, &unheeded).await;
     }
 
     /// What:
-    ///  Start `command`, wait for it while relaying signals, and return how it ended,
-    /// having told `on_started` the child's number as soon as it exists.
+    ///  Start `command`,
+    /// wait for it while relaying signals,
+    /// and return how it ended,
+    /// having published the child's number into `told` as soon as it exists.
     /// Why:
     ///   A ceiling that ends a step must name that step and no other child of this process,
     /// and the only moment its number can be had is the moment it starts.
@@ -537,74 +543,12 @@ impl SignalGuard {
     /// ```ts
     /// const outcome = guard.runChildNaming(command, (pid) => notice.stepStarted(pid));
     /// ```
-    pub fn run_child_telling_its_number(&self, command: &mut Command, mut on_started: impl FnMut(i32)) -> io::Result<ChildOutcome> {
-        return match run_on_runtime(run_relayed(command, self.relaying, &mut on_started)) {
+    pub fn run_child_telling_its_number(&self, command: &mut Command, told: &crate::child_number_told_at_start::ChildNumber) -> io::Result<ChildOutcome> {
+        return match run_on_runtime(run_relayed(command, self.relaying, told)) {
             Ok(outcome) => outcome,
             Err(refusal) => Err(io::Error::other(refusal.to_string())),
         };
     }
-}
-
-/// What:
-///  Make the descriptor number the relay signals through,
-/// once for the process.
-/// Why:
-///   `/dev/null` stands on the number until a child is published;
-/// the number is never closed (see `RELAY_FD`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// relayDescriptor ??= openDevNull();
-/// ```
-#[cfg(target_os = "linux")]
-fn ensure_relay_descriptor() -> io::Result<()> {
-    if RELAY_FD.get().is_some() {
-        return Ok(());
-    }
-    let nothing: std::os::fd::OwnedFd = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-        .map_err(io::Error::from)?;
-    let number: std::os::fd::RawFd = std::os::fd::IntoRawFd::into_raw_fd(nothing);
-    // A guard that lost the race closes its own descriptor; the winner's number is the only one that is kept.
-    if RELAY_FD.set(number).is_err() {
-        // SAFETY: the number was just made here and was not published, so nothing else holds or reads it.
-        drop(unsafe { <std::os::fd::OwnedFd as std::os::fd::FromRawFd>::from_raw_fd(number) });
-    }
-    return Ok(());
-}
-
-/// What:
-///  Make the relay descriptor name `child` (a pidfd opened for it),
-/// or `/dev/null` when `child` is nothing.
-/// Why:
-///   `dup3` replaces what the number refers to in one step,
-/// so the handler never sees a closed number and never a descriptor of
-///  another process.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pointRelayAt(child);
-/// ```
-#[cfg(target_os = "linux")]
-fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
-    let Some(target) = RELAY_FD.get() else {
-        return Err(io::Error::other("the relay descriptor was never made"));
-    };
-    let nothing: std::os::fd::OwnedFd;
-    let source: std::os::fd::RawFd = match child {
-        Some(pidfd) => std::os::fd::AsRawFd::as_raw_fd(pidfd),
-        None => {
-            nothing = rustix::fs::open("/dev/null", rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::CLOEXEC, rustix::fs::Mode::empty())
-                .map_err(io::Error::from)?;
-            std::os::fd::AsRawFd::as_raw_fd(&nothing)
-        }
-    };
-    // SAFETY: `dup3` takes two descriptor numbers and no memory; `source` is open for this call and `target` is the process's own
-    //  never-closed number. `O_CLOEXEC` keeps the child from inheriting the copy.
-    let replaced: c_int = unsafe { libc::dup3(source, *target, libc::O_CLOEXEC) };
-    if replaced < 0 {
-        return Err(io::Error::last_os_error());
-    }
-    return Ok(());
 }
 
 /// Spawns the child,
@@ -617,11 +561,11 @@ fn point_relay_at(child: Option<&std::os::fd::OwnedFd>) -> io::Result<()> {
 /// so that signal is relayed here,
 /// not lost.
 #[cfg(unix)]
-async fn run_relayed(command: &mut Command, relaying: bool, on_started: &mut dyn FnMut(i32)) -> io::Result<ChildOutcome> {
+async fn run_relayed(command: &mut Command, relaying: bool, told: &crate::child_number_told_at_start::ChildNumber) -> io::Result<ChildOutcome> {
     // In a service the shutdown waits for this child and ends it when the service is stopped; elsewhere there is no stop to wait for.
     let (_unfinished, stop) = crate::child_awaited_until_it_exits_or_the_service_is_stopped::begin_an_awaited_child("a Git step of a commit")?;
     let started: std::process::Child = spawn_retrying_without_blocking(command).await?;
-    on_started(i32::try_from(started.id()).unwrap_or(0));
+    told.publish(i32::try_from(started.id()).unwrap_or(0));
     let owned = adopt(started);
     let published: bool = relaying && publish(owned.id());
     let waited: io::Result<ExitStatus> = crate::child_awaited_until_it_exits_or_the_service_is_stopped::wait_until_exit_or_stop(owned, stop, "a Git step of a commit").await;
@@ -629,13 +573,6 @@ async fn run_relayed(command: &mut Command, relaying: bool, on_started: &mut dyn
     //  repointed before the next child all the same.
     retire(published);
     return Ok(crate::forwarding::outcome_of(waited?));
-}
-
-/// A pidfd for the process with this number,
-/// or nothing when the system gives none.
-#[cfg(target_os = "linux")]
-fn pidfd_of(pid: rustix::process::Pid) -> Option<std::os::fd::OwnedFd> {
-    return rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()).ok();
 }
 
 /// Publish the child with this id to the handler and relay what was waiting for it;

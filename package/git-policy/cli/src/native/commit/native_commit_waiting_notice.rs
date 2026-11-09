@@ -6,7 +6,7 @@
 //! how long it has waited,
 //! and when the step is stopped;
 //! when the ceiling comes,
-//! everything below this process is ended.
+//! that `git commit` and everything it started is ended.
 //! Why:
 //!  Every other wait of the wrapper says what it waits for (issue 1811),
 //! but this step runs with the terminal attached and no watch,
@@ -24,15 +24,20 @@
 //! where the person is the wait and a stop would lose what they typed.
 //! The ceiling is `SCRATCH_COMMIT_STEP_CEILING` (`service/wait_ceilings.rs`),
 //! with its measurement.
-//! A stop ends every process below this one with `SIGKILL`:
+//! A stop ends that `git commit` and what it started with `SIGKILL`:
 //! the step runs in a scratch repository on a private copy of the index,
 //! and the objects it wrote are content-addressed files the next build writes again,
 //! so nothing of the person's is in the step.
-//! The thread that watches the step is the only caller that needs to find it,
-//! because the step runs below `SignalGuard`,
-//! which relays signals but names no child;
-//! this is the only child of the command at that point,
-//! the same reading `look_below` already makes.
+//!  It ends nothing else:
+//! the landing service runs landings of different repositories on worker threads of one process,
+//! so another landing's Git is a child of the same process at the same moment,
+//! and cutting its write is what the owner's answer of 2026-11-09 rules out
+//! ("B:
+//! let a branch write finish").
+//! The step's own number is what the notice watches (`WatchedStep`):
+//! `SignalGuard` relays signals but names no child,
+//! so the number is handed over the moment the step starts,
+//! and every look and every stop is rooted at it.
 //! A commit that opens the person's editor prints nothing and is never stopped,
 //! because the person is the wait.
 //! The ceiling is counted from the first look that found the step below this process,
@@ -43,6 +48,16 @@
 //! Once the step has been seen,
 //! a look that finds nothing means it ended by itself,
 //! and the commit lands.
+//! A look that could not be made at all decides nothing:
+//! the ceiling stays armed and the look is made again,
+//! because reading a failed look as an empty one is how a ceiling is lost
+//! (`blindLooks` counts them).
+//! A stop is recorded only when a signal was really taken for the step:
+//! a step that finished between the look and the signal landed,
+//! and refusing it would fail a commit that succeeded.
+//!  The lines are written by a thread of their own (`LINE_QUEUE`),
+//! so a reader that stopped reading holds that thread and never the ceiling,
+//! and `finish` waits for the notice and for the line it handed over no longer than `NOTICE_BOUND`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -69,15 +84,28 @@ pub fn scratch_ceiling() -> Duration {
 
 /// The cadence and the clock of a wait notice.
 use crate::wait_progress::{Cadence, Ticker};
-/// The step the notice watches, and the processes it started.
-use crate::process_tree::{Delivered, MemberRead, descendants_of_read, kill_members, member_read};
+/// The step the notice watches,
+/// and the processes it started.
+use crate::process_tree::descendants_of_read;
+/// What the ceiling does when it comes.
+use crate::scratch_step_ceiling_stop::{CeilingCame, ceiling_came};
+/// The line the notice prints,
+/// and the programs it names below the step.
+use crate::scratch_step_notice_line::{notice_line, other_programs};
+/// The programs a look saw below the step,
+/// and the time each was credited with.
+use crate::scratch_step_programs_below::{SeenBelow, credit_between_looks, seen_below};
+/// The number of the step,
+/// published the moment it starts.
+use crate::child_number_told_at_start::ChildNumber;
 /// The configuration the commit is built under.
 use crate::config_snapshot::ConfigSnapshot;
 /// Whether the commit's arguments open an editor.
 use crate::service_commit_args_editor_opening::opens_editor;
 /// The notice's sink.
 use std::io::Write;
-/// The writer thread's own time, kept where the notice thread can read it.
+/// The writer thread's own time,
+/// kept where the notice thread can read it.
 use std::sync::Mutex;
 /// The channel that ends the notice thread.
 use std::sync::mpsc::{Sender, RecvTimeoutError, channel};
@@ -132,7 +160,8 @@ const NOTICE_BOUND: Duration = Duration::from_millis(500);
 /// it landed,
 /// so the ceiling never ended it.
 ///  The same look is what the record's `scratchSteps` reports,
-/// so this is also how finely the time of a program below the step is known.
+/// so this is also how finely the time of a program below the step is known,
+/// and how soon a look that failed is tried again.
 ///  A look reads the kernel's per-thread child lists and one `/proc/<pid>/stat` per descendant
 /// (`look_below`),
 /// which cost 19.6 microseconds on 2026-11-09 on this host (1,210 entries,
@@ -157,38 +186,6 @@ pub struct NoticeStart<'a> {
     pub sink: Box<dyn Write + Send>,
 }
 
-/// What:
-///  The words of a stop:
-/// what ended,
-/// after how long,
-/// why this long,
-/// what became of the person's work,
-/// and what to run.
-/// Why:
-///   A commit that stops with a bare exit status leaves the person guessing whether anything was committed;
-/// the step runs in a scratch repository,
-/// so nothing was,
-/// and the message is on the command line.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stopWords({ waited, ceiling, signs })
-/// ```
-pub fn stop_words(waited: Duration, ceiling: Duration, signs: bool) -> String {
-    let signing: &str = if signs {
-        " The commit signs the commit because `commit.gpgsign` or `-S` asks for it, so the signing program is the first thing to check."
-    } else {
-        ""
-    };
-    return format!(
-        "monochromatic-git-policy-cli: the `git commit` this commit runs in its scratch repository was stopped after {} seconds, the most a commit whose \
-         message came with the command may take ({} seconds, three times the slowest `git commit` step this repository's commit timing log holds); nothing was \
-         committed, and your index and files are as they were.{signing} Run the same `git commit` command again.\n",
-        waited.as_secs(),
-        ceiling.as_secs()
-    );
-}
-
 /// What the notice saw while the step ran,
 /// and the ledger the commit's timing record takes it from.
 use crate::scratch_commit_step::ScratchStepFacts;
@@ -205,46 +202,9 @@ use crate::process_tree::descendant_numbers_from_thread_lists;
 /// from one `/proc/<pid>/stat`.
 use crate::process_tree::use_of;
 
-/// What:
-///  Where the number of the step is kept once the step has started.
-/// Why:
-///   The notice starts before `git commit` does,
-/// because the step may be slow to start,
-/// and a ceiling must end only that step:
-/// a number handed over once is what the notice watches,
-/// so no other child of this process can be in the tree it walks.
-///  A landing service runs landings of different repositories on worker threads of one process,
-/// so another landing's Git is a child of this one at the same moment,
-/// and cutting its write is what the owner's answer of 2026-11-09 rules out
-/// ("B: let a branch write finish").
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const watched = new WatchedStep(); watched.started(pid); watched.number();
-/// ```
-#[derive(Clone, Debug, Default)]
-struct WatchedStep(std::sync::Arc<std::sync::OnceLock<i32>>);
-
-impl WatchedStep {
-    /// A step that has not started yet.
-    fn not_started() -> Self {
-        return Self::default();
-    }
-
-    /// Keep `pid` as the step's number;
-    /// the first number given is the step, and a later one changes nothing.
-    fn started(&self, pid: i32) {
-        let _kept = self.0.set(pid);
-    }
-
-    /// The step's number, once it has started.
-    fn number(&self) -> Option<i32> {
-        return self.0.get().copied();
-    }
-}
-
 /// The running notice:
-/// the thread that watches the step, the thread that writes its lines,
+/// the thread that watches the step,
+/// the thread that writes its lines,
 /// and the sender that ends the watching.
 pub struct NativeCommitNotice {
     /// Ends the thread when it is sent to or dropped.
@@ -261,7 +221,7 @@ pub struct NativeCommitNotice {
     /// so a record still says that no ceiling was armed and why.
     unarmed: ScratchStepFacts,
     /// The step the thread watches.
-    step: WatchedStep,
+    step: ChildNumber,
 }
 
 /// Whether the commit is signed:
@@ -285,17 +245,22 @@ pub fn signs_commit(snapshot: Option<&ConfigSnapshot>, commit_arguments: &[Strin
 }
 
 /// What:
-///  Every living process below this one,
-/// with its name,
-/// state and processor time.
+///  The step and every living process below it,
+/// with their names,
+/// states and processor times.
 /// Why:
-///   One read of one small file per process,
+///   The step's own read comes first,
+/// so a look that finds it and nothing else still arms the ceiling.
+///  One read of one small file per process,
 /// from the kernel's per-thread child lists,
 /// so a notice that looks many times stays cheap:
 /// a walk costs 19.6 microseconds and a pass over `/proc` 17.6 ms on 2026-11-09 (`process_tree.rs`).
 ///  `/proc` itself is read only where the kernel has no child lists.
 ///  A process the kernel holds as a zombie is not below the step any more,
 /// as `descendants_of` counts it.
+///  Nothing is answered when `/proc` could not be read at all:
+/// that is a look that failed,
+/// never a step that ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -330,106 +295,9 @@ fn look_below(step: i32) -> Option<Vec<(i32, ProcessUse)>> {
     return Some(found);
 }
 
-/// What:
-///  What the ceiling came to when it came.
-/// Why:
-///   Three answers the notice must keep apart:
-/// the step ended by itself, so the commit lands;
-/// a signal was really sent, so the step was stopped;
-/// and the look that came with the ceiling failed, so nothing is decided and the ceiling stays armed.
-///  Treating a failed look as an empty one takes the ceiling away from a step that is still running,
-/// which is how a commit lands after a long step.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type CeilingCame = 'the-step-ended' | 'stopped' | 'unknown';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum CeilingCame {
-    /// Nothing is below this process any more: the step ended by itself.
-    TheStepEnded,
-    /// The kernel took a signal for the step or a program below it.
-    Stopped,
-    /// The processes below this one could not be read at all, so nothing is concluded:
-    /// the ceiling stays armed and the look is made again.
-    Unknown,
-}
-
-/// What:
-///  End what the ceiling's look found below this process, and answer what that came to.
-/// Why:
-///   A stop is recorded only when a signal was really sent:
-/// a step that ended between the look and the signal landed,
-/// and refusing it as stopped would fail a commit that succeeded.
-///  A look that failed is not an empty tree:
-/// answering "the step ended" there takes the ceiling away from a step that is still running.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const came = ceilingCame(step); // an unreadable tree: 'unknown'
-/// ```
-fn ceiling_came(step: i32) -> CeilingCame {
-    let Some(below) = descendants_of_read(step) else {
-        return CeilingCame::Unknown;
-    };
-    let stopped_the_step: bool = match member_read(step) {
-        MemberRead::Found(member) => kill_members(std::slice::from_ref(&member)).contains(&Delivered::Sent),
-        MemberRead::Gone => false,
-        MemberRead::Unreadable => return CeilingCame::Unknown,
-    };
-    // The signing program and everything else the step started goes with it,
-    // whether or not the step itself was still there to be signalled.
-    let _ended_below: Vec<Delivered> = kill_members(below.as_slice());
-    if stopped_the_step {
-        return CeilingCame::Stopped;
-    }
-    return CeilingCame::TheStepEnded;
-}
-
 /// The number of one member of a tree.
 fn member_number(member: &TreeMember) -> i32 {
     return member.pid;
-}
-
-/// What:
-///  One process a look saw below the step,
-/// as the next look needs it:
-/// the number and the start time that prove it is the same process,
-/// and the name the record keeps.
-/// Why:
-///   Two programs can carry one name,
-/// so the name alone cannot say that the program a look credited was below the step at both ends of the interval.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type SeenBelow = { pid: number; started: number; name: string };
-/// ```
-#[derive(Clone, Debug, Eq, PartialEq)]
-struct SeenBelow {
-    /// The process number.
-    pid: i32,
-    /// The start time the kernel recorded for it.
-    started: u64,
-    /// The kernel's name for it.
-    name: String,
-}
-
-/// What:
-///  The processes one look saw below the step,
-/// numbered once each.
-/// Why:
-///   The next look credits a program with the interval only when it was there at both ends,
-/// so this is what the look is remembered by.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const seen = below.map(([pid, used]) => ({ pid, started: used.started, name: used.name }));
-/// ```
-fn seen_below(below: &[(i32, ProcessUse)]) -> Vec<SeenBelow> {
-    return below
-        .iter()
-        .map(|(pid, used)| { return SeenBelow { pid: *pid, started: used.started, name: used.name.clone() }; })
-        .collect();
 }
 
 /// The processor time one process below the step has used.
@@ -440,73 +308,6 @@ fn process_cpu(entry: &(i32, ProcessUse)) -> Duration {
 /// Whether one process below the step is in uninterruptible sleep.
 fn process_is_blocked(entry: &(i32, ProcessUse)) -> bool {
     return entry.1.state == 'D';
-}
-
-/// The programs below the step other than Git itself,
-/// which the notice line names.
-fn other_programs(below: &[(i32, ProcessUse)]) -> Vec<(i32, String)> {
-    let mut others: Vec<(i32, String)> = Vec::new();
-    for (pid, used) in below {
-        if used.name != "git" {
-            others.push((*pid, used.name.clone()));
-        }
-    }
-    return others;
-}
-
-/// What:
-///  Credit the time since the previous look to every program that was below the step at both looks,
-/// and keep every program the look saw that cannot be credited at all.
-/// Why:
-///   The kernel records no start and no end of a short program that the notice could read,
-/// so it measures what it can:
-/// a program that starts and ends between two looks is not seen at all,
-/// and the time an entry holds is a lower bound of the time that program ran.
-///  Only the same process at both looks is credited:
-/// a name is not an identity,
-/// and a program that took another's name between the looks ran in neither interval it would be credited with.
-///  A program seen once is kept with a zero lower bound,
-/// so the record says it was below the step even when no interval can be measured for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// for (const [pid, used] of now) facts.credit(used.name, seenAtBothLooks(before, pid, used.started) ? sinceLastLook : 0);
-/// ```
-fn credit_between_looks(facts: &mut ScratchStepFacts, before: &[SeenBelow], now: &[(i32, ProcessUse)], interval: Duration) {
-    let mut credited: Vec<&str> = Vec::new();
-    for (pid, used) in now {
-        if credited.contains(&used.name.as_str()) {
-            continue;
-        }
-        let at_both_looks: bool = before.iter().any(|known| { return known.pid == *pid && known.started == used.started; });
-        facts.credit(used.name.as_str(), if at_both_looks { interval } else { Duration::ZERO });
-        credited.push(used.name.as_str());
-    }
-}
-
-/// What:
-///  One notice line.
-/// Why:
-///   The first one adds what to do when the step looks stuck;
-/// the repeats stay short.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// noticeLine({ signs, waited, first, below })
-/// ```
-pub fn notice_line(signs: bool, waited: Duration, first: bool, below: &[(i32, String)], ceiling: Duration) -> String {
-    let signing: String = if signs { String::from(", which signs the commit because `commit.gpgsign` or `-S` asks for it") } else { String::new() };
-    let signer: String = match below.first() {
-        Some((pid, name)) => format!("; `{name}` (process {pid}) runs below it"),
-        None => String::new(),
-    };
-    let hint: &str = if first { " Hint: it is still running; if it looks stuck, check it with `ps` and report it." } else { "" };
-    return format!(
-        "monochromatic-git-policy-cli: still waiting for the `git commit` this commit runs in its scratch repository{signing}{signer}, {} seconds so far; \
-         it is stopped if it lasts {} seconds in all.{hint}\n",
-        waited.as_secs(),
-        ceiling.as_secs()
-    );
 }
 
 impl NativeCommitNotice {
@@ -522,7 +323,7 @@ impl NativeCommitNotice {
             written,
             wrote: std::sync::Arc::default(),
             unarmed: ScratchStepFacts::unarmed(ceiling),
-            step: WatchedStep::not_started(),
+            step: ChildNumber::not_started(),
         };
     }
 
@@ -538,7 +339,23 @@ impl NativeCommitNotice {
     /// notice.stepStarted(pid);
     /// ```
     pub fn step_started(&self, pid: i32) {
-        self.step.started(pid);
+        self.step.publish(pid);
+    }
+
+    /// What:
+    ///  The spot the step's number is published into,
+    ///  for the call that starts the step.
+    /// Why:
+    ///   The code that starts a child takes no callback from the code that watches it:
+    /// the start publishes the number into this,
+    /// and the notice reads it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// guard.runChildNaming(command, notice.stepNumber());
+    /// ```
+    pub fn step_number(&self) -> &ChildNumber {
+        return &self.step;
     }
 
     /// What:
@@ -573,16 +390,16 @@ impl NativeCommitNotice {
         // The writer's own copy of the time it spends, so the notice thread's figures can say it without waiting for a write.
         let spending: std::sync::Arc<Mutex<Duration>> = wrote.clone();
         let began: Instant = Instant::now();
-        let step: WatchedStep = WatchedStep::not_started();
-        let watched: WatchedStep = step.clone();
+        let step: ChildNumber = ChildNumber::not_started();
+        let watched: ChildNumber = step.clone();
         // The lines are written here and never on the thread that enforces the ceiling:
         // a reader that stopped reading then holds this thread, and the commit does not wait for it.
         let _writer = std::thread::Builder::new().name(String::from("native-commit-notice-writer")).spawn(move || {
-            let mut sink: Box<dyn Write + Send> = sink;
+            let mut to_write: Box<dyn Write + Send> = sink;
             for line in waiting {
                 let writing: Instant = Instant::now();
-                let _written = sink.write_all(line.as_bytes());
-                let _flushed = sink.flush();
+                let _written = to_write.write_all(line.as_bytes());
+                let _flushed = to_write.flush();
                 let mut spent = spending.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 *spent = spent.saturating_add(writing.elapsed());
             }
@@ -604,7 +421,7 @@ impl NativeCommitNotice {
                 // One look: the step, the programs below it, and what they are using.
                 // A step that has not started yet is nothing to look at, which is not a look that failed.
                 let look: Option<Vec<(i32, ProcessUse)>> = match watched.number() {
-                    Some(step) => look_below(step),
+                    Some(number) => look_below(number),
                     None => Some(Vec::new()),
                 };
                 let below: &[(i32, ProcessUse)] = look.as_deref().unwrap_or_default();
@@ -628,11 +445,11 @@ impl NativeCommitNotice {
                     None => Duration::ZERO,
                 };
                 // The ceiling can only have been counted from a look that found the step, so its number is known here.
-                if let Some(step) = watched.number()
+                if let Some(number) = watched.number()
                     && seen_at.is_some()
                     && since_seen >= ceiling
                 {
-                    match ceiling_came(step) {
+                    match ceiling_came(number) {
                         CeilingCame::Stopped => {
                             facts.stopped_after = Some(waited);
                             break 'notice;

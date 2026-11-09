@@ -5,10 +5,7 @@
 //! Why:
 //!  The record holds one figure for the step,
 //! and that figure names no part of it:
-//! Git and the signing program run in one process tree with no sub-step figure,
-//! and the wrapper's own time after the step (the notice thread's join,
-//! which waits for its line to be written)
-//! sat inside the same figure.
+//! Git and the signing program run in one process tree with no sub-step figure.
 //!  So a commit whose step ran 36,651 ms under a 3,006 ms ceiling on 2026-11-08 (release 0.6.1-alpha.4,
 //! landed)
 //! could not be explained,
@@ -21,13 +18,16 @@
 //!  What is logged here is what the notice thread already reads:
 //! whether a ceiling was armed at all (a commit that may open an editor keeps none,
 //! and a thread the system refuses keeps none either),
-//! how long the notice's own join took,
-//! how long its lines took to write,
+//! how long the notice's own end took,
+//! how long the writer spent on the lines it finished,
+//! and how many lines it had to drop because the reader stopped taking them,
 //! how many looks it made and how many found the step,
 //! which programs other than Git ran below the step and for how long,
 //! the processor time everything below had used at the last look,
 //! and how many looks found one of them in uninterruptible sleep (`D`),
-//! which is a stalled disk or a processor it is not given rather than work.
+//! which is a stalled disk or a processor it is not given rather than work,
+//! and how many looks could not be made at all,
+//! which is a `/proc` that refused the read rather than a step that ended.
 //!  The time a program below the step is credited is measured at the look's interval,
 //! so a program that starts and ends between two looks is not seen at all:
 //! the figure is a lower bound of the time it ran.
@@ -63,14 +63,16 @@ use std::time::Duration;
 /// and a step that starts more programs than this names the first ones only.
 pub const MAX_BELOW_NAMES: usize = 8;
 
-/// One program other than Git that ran below the step,
-/// and how long it was seen.
+/// One program that ran below the step,
+/// and how long the same process was seen.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SeenProgram {
     /// The kernel's name for it.
     pub name: String,
     /// The time it was seen below the step,
-    /// measured at the notice's look interval.
+    /// measured at the notice's look interval,
+    /// and only in the intervals in which the same process number and start time were there at both ends.
+    /// Zero is a program the notice saw and could not credit with any interval.
     pub seen: Duration,
 }
 
@@ -112,7 +114,8 @@ pub struct ScratchStepFacts {
     pub below_cpu: Duration,
     /// How many looks could not be made at all,
     /// because `/proc` could not be read
-    /// (a descriptor or memory limit, a `/proc` that is not there).
+    /// (a descriptor or memory limit,
+    /// a `/proc` that is not there).
     pub blind_looks: u32,
     /// How many looks found a process below the step in uninterruptible sleep.
     pub blocked_looks: u32,

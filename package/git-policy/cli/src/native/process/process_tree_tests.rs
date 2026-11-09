@@ -1,6 +1,7 @@
 //! Controls for reading the processes below one process and signalling them safely.
 
 use super::*;
+use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, signal_members, terminate_members};
 use std::io::{BufRead, BufReader};
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, ExitStatus, Stdio};

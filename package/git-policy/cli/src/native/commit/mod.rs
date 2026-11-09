@@ -124,6 +124,21 @@ pub mod commit_index_selection;
 /// the prepared commit read back and `prepared.json`.
 pub mod commit_preparation;
 
+/// What the ceiling of the scratch `git commit` does when it comes:
+/// ends the step it watches,
+/// and answers whether that step was signalled.
+pub mod scratch_step_ceiling_stop;
+
+/// The words a stopped scratch `git commit` prints.
+pub mod scratch_step_stop_words;
+
+/// The line a commit prints while it waits for the `git commit` of its scratch repository.
+pub mod scratch_step_notice_line;
+
+/// The programs a look of the notice saw below the step,
+/// and the time each was credited with.
+pub mod scratch_step_programs_below;
+
 /// The waiting notice of the commit Git builds in the scratch repository.
 pub mod native_commit_waiting_notice;
 
