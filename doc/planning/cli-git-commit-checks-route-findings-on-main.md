@@ -874,7 +874,11 @@ and keep an explicit test-only exception list.
   unreachable from a declared module
   (`source_guard/source_scan_tests.rs`,
   `source_scan_tree_tests.rs:330-360`),
-  and no rule fires on this revision's release code.
+  and no rule fires on this revision's release code
+  (the whole `source_guard` filter:
+  45 tests run,
+  45 passed,
+  4,779 skipped).
 - The lock inventory has no stale entries and its positive controls fire
   (`source_guard/service_lock_inventory_tests.rs:150-190`).
 
