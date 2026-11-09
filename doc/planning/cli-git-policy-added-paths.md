@@ -11,6 +11,15 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09:
+`package/git-policy/repository` was deleted on 2026-10-13 in `642b6d72cb`
+ (`refactor(*): delete the TypeScript Git policy wrapper`),
+ and the native wrapper owns the dependent-bump policy at
+ `package/git-policy/cli/src/native/dependent_version/`.
+ Every `package/git-policy/repository` path below names the tree as it stood then.
+ The `git cli-git trust` and `git cli-git untrust` commands below are retired in the native program,
+ which names the retirement and changes nothing when either runs.
+
 ## Status
 
 Implementation plan for the owner decision recorded 2026-09-15 in
@@ -271,6 +280,10 @@ Remaining:
 Task 8 landed:
  root task `changeset:version` runs `mise run //package/git-policy/repository:bump:dependents`
  between `changeset version` and the lockfile refresh.
+That task left the tree with the package,
+ and the root task `changeset:version` now runs
+ `monochromatic-git-policy-cli monochromatic-git-policy-cli fix --all --policy mono/dependent-version-bump`
+ between the same two steps (`mise.toml`).
 The runner reads the worktree through `bump-dependents-worktree.ts`
  and plans through `dependent-bump-workflow.ts`,
  the module the policy also uses.

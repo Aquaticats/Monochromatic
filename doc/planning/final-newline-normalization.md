@@ -308,6 +308,10 @@ The migration selected cli-git as the durable owner.
 `package/git-policy/cli/src/policy-engine/final-newline-policy.ts` owns policy registration and lifecycle behavior;
 `final-newline-normalize.ts` owns exact-byte classification;
 `final-newline-patch.ts` owns destination-grammar Git patch generation.
+That TypeScript policy engine was removed on 2026-10-13 in `642b6d72cb`;
+the three concerns now sit in one Rust module,
+`package/git-policy/cli/src/native/policy/policy_final_newline.rs`,
+with its sidecars `policy_final_newline_tests.rs` and `policy_final_newline_attribute_tests.rs`.
 The shared commit transaction applies pre-forward patches only to a private index.
 The direct-fix transaction projects selected worktree bytes into another private index,
 converges whole-policy passes,
@@ -365,18 +369,29 @@ and explicit `--allow-empty`.
 `built-final-newline-normalization-recovery.ts` exercises normalization-only recovery with differing and byte-identical
 index snapshots.
 Neither fixture claims a reproduction of the original doubled or relocated LF incident.
+Both fixture trees left the tree with the TypeScript wrapper on 2026-10-13,
+ in `642b6d72cb`,
+ and no fixture in the native wrapper verifies those cases,
+ so this paragraph records the verification as it stood then.
 
 The issue-specific verification passed with `mise run //package/git-policy/cli:build:js:node`,
 `mise run //package/git-policy/cli:lint:types`,
 `mise run //package/git-policy/cli:test:unit`,
 and `mise run //package/git-policy/cli:test:built:trust`.
+The first and the last of those tasks were removed with the TypeScript wrapper on 2026-10-13,
+ in `642b6d72cb`,
+ so the commands below no longer run in this tree.
 The rebuilt `node_modules/.bin/git` also left a disposable foreign repository clean after a corrected pathspec commit;
 for a normalization-only selection it reported no commit and cleaned the selected index and worktree.
 A file-scoped Oxlint pass over the changed production TypeScript files reported zero warnings and errors.
 The file-scoped task's positive control reported the existing `test-import(require-eventual-artifact)` errors in
-`package/git-policy/cli/src/policy-engine/final-newline-policy.unit.test.ts`.
+`package/git-policy/cli/src/policy-engine/final-newline-policy.unit.test.ts`
+(removed with the TypeScript policy engine on 2026-10-13 in `642b6d72cb`;
+`package/git-policy/cli/src/native/policy/policy_final_newline_tests.rs` is the policy's test today).
 Package-wide Oxlint remains red on that rule in unchanged unit tests and an unrelated
-`unicorn(consistent-function-scoping)` warning in `package/git-policy/cli/src/trust/account-root.ts`.
+`unicorn(consistent-function-scoping)` warning in `package/git-policy/cli/src/trust/account-root.ts`
+ (deleted 2026-10-13,
+ in `642b6d72cb`).
 Those diagnostics do not meet the historical whole-package zero-lint criterion;
 they are not evidence that issue #520's changed production files pass package-wide lint.
 

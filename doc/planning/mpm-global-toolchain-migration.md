@@ -332,7 +332,10 @@ with the Mise installs left in place as rollback:
  point at the same `~/.cargo/bin/cli-git-native`
  and therefore move together.
 - `rustup` home is shared;
- the repository scope's `nightly-2026-10-28` and the global scope's `stable`
+ the repository scope's `nightly-2026-11-09`
+ (the version `toolchain.lock.json` pins,
+ and every `toolchain:update` moves it)
+ and the global scope's `stable`
  toolchain coexist,
  exactly as the old Mise `rust` entry did beside the repository pin.
 

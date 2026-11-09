@@ -393,6 +393,66 @@ pub enum ClientMessage {
     },
 }
 
+/// What:
+///  One sync of a landing,
+/// as the client's timing record states it.
+/// Why:
+///   A landing that made more syncs and one whose syncs met a stalling device look alike in the phases;
+/// the record needs what each was for and how long it took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LandingSync = { what: string; waited: boolean; ms: number };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LandingSync {
+    /// What the sync is for,
+    /// as the landing names it:
+    /// `built-index`,
+    /// `lock-marker`,
+    /// `intent-file` and the rest.
+    pub what: String,
+    /// Whether the landing waited for it,
+    /// false for one it handed to the background task.
+    pub waited: bool,
+    /// How long it took in whole milliseconds,
+    /// which is zero for one the landing never waited for.
+    pub ms: u64,
+}
+
+/// What:
+///  What one landing spent and what it held,
+/// carried in the answer so the client's record can state it.
+/// Why:
+///   The landing runs in the resident service,
+/// so the commit's own record said nothing about the 13.4 percent of its uncovered time
+/// that is the landing and about the commits queued behind it;
+/// the journal's `answered` line says both,
+/// and the record that explains a slow commit is read on its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type LandingFigures = { lockHoldMs: number; queuedBehind: number; readsMs: number; reads: Record<string, number>; syncs: LandingSync[] };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct LandingFigures {
+    /// How long the landing held the index lock,
+    /// which is what the commits behind it queued on.
+    pub lock_hold_ms: u64,
+    /// How many requests were still waiting for their answer when the landing finished,
+    /// this batch's own taken out.
+    pub queued_behind: u64,
+    /// The whole of the residual reads,
+    /// of which `reads` names the parts.
+    pub reads_ms: u64,
+    /// The named reads and their whole milliseconds,
+    /// in the order the landing wrote them.
+    pub reads: Vec<(String, u64)>,
+    /// Every sync of the landing,
+    /// in the order it asked for them.
+    pub syncs: Vec<LandingSync>,
+}
+
 /// What the service sends.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServiceMessage {
@@ -406,7 +466,10 @@ pub enum ServiceMessage {
     Position { number: usize, of: usize },
     /// The commit is on the branch;
     /// `already` when an earlier request with the same identity landed it.
-    Landed { id: String, commit: String, already: bool },
+    /// `landing` states what the landing spent and held,
+    /// and a service of a release that did not send it leaves it absent,
+    /// which the client's record states as no figures rather than as zeros.
+    Landed { id: String, commit: String, already: bool, landing: Option<LandingFigures> },
     /// A named path changed on the branch since the base;
     /// prepare again from `base`.
     RetryPrepare { id: String, base: String, landed: Vec<LandedCapture> },

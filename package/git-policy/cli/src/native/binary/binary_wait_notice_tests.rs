@@ -19,7 +19,7 @@ use super::commit::{remove_settled, wrapped_commit};
 use super::support::{
     Fixture, fixture, git, repository,
 };
-use git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING;
+use git_policy_cli::wait_ceilings::{LANDING_LOCK_CEILING, WAITING_NOTICE_VARIABLE};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -30,6 +30,13 @@ use std::process::{Child, Command, Stdio};
 /// in seconds:
 /// the smallest the variable accepts.
 const NOTICE_SECONDS: &str = "1";
+/// The words a commit the service named no place for is told,
+/// as the person reads them.
+///
+/// A control asserts on the part of the line that states no seconds,
+/// because the line may name them.
+const UNPLACED_SAID: &str = "has not said where this commit stands";
+
 
 /// What a watched commit showed its caller.
 pub(super) struct Watched {
@@ -104,6 +111,44 @@ pub(super) fn watch_notices(command: &mut Command, needle: &str, count: usize, o
     }
     let status = child.wait().expect("the commit ends");
     return Watched { code: status.code(), stderr };
+}
+
+/// The wait the standing notice is set to in this control,
+/// in seconds:
+/// the smallest the variable accepts.
+const STANDING_SECONDS: &str = "1";
+
+/// What:
+///  A commit whose landing waits behind another process's `index.lock` is told only what the client knows:
+/// that the
+///  service has not said where it stands,
+/// and not that the service has not started on it.
+/// Why:
+///   The landing has started by then:
+/// the line that names the holder is the landing's own,
+/// so words that say the service has not
+///  begun on the commit are false.
+/// What the client knows is that no answer has come and that the service named no place.
+#[test]
+fn a_commit_that_waits_is_told_the_service_has_not_said_where_it_stands() {
+    let fixture: Fixture = fixture("wait-notice-standing");
+    let repo: PathBuf = edited_repository(&fixture);
+    let lock_path: PathBuf = repo.join(".git/index.lock");
+    // This process holds the lock file open, so the service's landing waits behind it and the answer waits with it.
+    let lock: File = File::create(&lock_path).expect("index lock");
+    let needle: String = format!("waiting for PID {}", std::process::id());
+    let mut command: Command = waiting_commit(&fixture, repo.as_path());
+    command.env(WAITING_NOTICE_VARIABLE, STANDING_SECONDS);
+    let watched: Watched = watch_notices(&mut command, needle.as_str(), 2, move || {
+        drop(lock);
+        std::fs::remove_file(&lock_path).expect("the holder lets go");
+    });
+    assert!(watched.stderr.contains(UNPLACED_SAID), "the person is told the service has not said where the commit stands: {}", watched.stderr);
+    assert!(!watched.stderr.contains("has not started on this commit"), "the landing had started, so the words may not say it had not: {}", watched.stderr);
+    // The landing had started: this line is the landing's own, and it names the holder of the lock.
+    assert!(watched.stderr.contains(needle.as_str()), "the wait names the holder of the index: {}", watched.stderr);
+    assert_eq!(watched.code, Some(0), "the commit landed once the holder let go: {}", watched.stderr);
+    remove_settled(&fixture);
 }
 
 /// A commit that waits for a live `index.lock` holder repeats the line that names it,

@@ -521,7 +521,8 @@ pub(crate) fn run_child_under_file_size_limit(test_name: &str, limit: u64, direc
 /// Why:
 ///   A wall clock cannot tell a service that lost its work from one whose push is slow on a contended disk.
 /// Measured on 2026-11-09 in the push-retry controls of this crate while the host ran at a load average of 100 and more:
-/// a local one-commit push took 9.6 s and 12.0 s (`push_ms=9605`, `push_ms=12009`) against 1.2 to 3 s alone,
+/// a local one-commit push took 9.6 s and 12.0 s (`push_ms=9605`,
+/// `push_ms=12009`) against 1.2 to 3 s alone,
 /// and controls whose wait allowed 11.8 s failed while the push went on to land just after it.
 /// The judgment is the watchdog's own (`run_progress`),
 /// whose window is 120 s on the same evidence
@@ -552,9 +553,12 @@ pub(crate) struct WaitingFor<'a> {
 }
 
 /// What:
-///  Wait until `done` holds, for as long as the run keeps working, and give whether it held.
+///  Wait until `done` holds,
+/// for as long as the run keeps working,
+/// and give whether it held.
 /// Why:
-///   A control's event (a push that lands, a claim that is settled) takes as long as the disk takes,
+///   A control's event (a push that lands,
+/// a claim that is settled) takes as long as the disk takes,
 /// and a wait that gives up on a clock fails while the event is still coming.
 /// Only a run that shows no sign of work is over:
 /// the wait ends when the run has moved nothing for its window,

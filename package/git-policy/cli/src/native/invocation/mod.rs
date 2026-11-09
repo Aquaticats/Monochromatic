@@ -50,6 +50,10 @@ pub mod entry_repository_link_stop;
 pub mod entry_push_stacking_and_lfs_upload;
 
 /// Runs coordinated and settled forwards and writes to the standard streams.
+/// The end of a command that stops without running the caller's request,
+/// with its report written as bytes.
+pub mod exit_report_written;
+
 pub mod entry_run_forwarded_actions;
 
 /// The ask to compile changed rules text,

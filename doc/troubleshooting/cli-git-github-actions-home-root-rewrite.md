@@ -58,6 +58,13 @@ this changed an existing repository root into a different path identity.
 
 `package/git-policy/cli/src/trust/config-discovery.ts:142` then accepted that transformed root.
 `package/git-policy/cli/src/trust/config-discovery.ts:149` joined `cli-git.config.mjs` to it.
+At `ac70fa47c^` the two files this paragraph and the excerpt above name are
+`packages/module/fs-path/src/root-discovery.ts` and
+`packages/git-policies/cli/src/trust/config-discovery.ts`;
+the line numbers match in both.
+`packages/module/fs-path/src/root-discovery.ts` became
+`package/module/fs-path/src/root-discovery.ts` on 2026-07-15 in `ece5b7553f`
+and `package/fs-path/core/src/root-discovery.ts` on 2026-10-29 in `592d78b143`.
 The resulting nonexistent candidate was treated as config absence,
 which made trust return `trust-failed`.
 
@@ -71,7 +78,7 @@ file in the working tree carries it now.
 `package/fs-path/core/src/find-monorepo-root.unit.test.ts` is not in the working tree and no commit
 in this repository carries it.
 
-The fix in `package/fs-path/core/src/root-discovery.ts:635` to `642` returns the path that actually matched:
+The fix in `package/fs-path/core/src/root-discovery.ts:633` to `640` returns the path that actually matched:
 
 ```ts
 const root = await walkUpRoot({
@@ -101,7 +108,10 @@ and `git rev-parse --show-toplevel` were all valid before the package root finde
 - Failing runner image:
    `ubuntu-24.04` version `20260705.232.1`.
 - Regression test:
-   `package/fs-path/core/src/find-monorepo-root.unit.test.ts`.
+   `package/fs-path/core/src/root-discovery.unit.test.ts`,
+   whose `preserves logical home spelling instead of fabricating a var-home path` case is the guard;
+   the record first named it `find-monorepo-root.unit.test.ts`,
+  a file no commit carries.
 - Hosted harness:
    `.github/workflows/final-newline.yml`.
 

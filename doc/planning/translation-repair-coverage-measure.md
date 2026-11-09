@@ -463,7 +463,8 @@ and a separate `FAIL` line per child that did not.
 A suite with one failing case still prints its `PASS` line naming the rest,
 so the count held at 711 across a `GFP` round in which a case failed and the run
 exited 1.
-`TLY` already rules that the exit code decides;
+The exit code decides the verdict,
+not a count;
 this is what a count disagreeing with it looks like in this package.
 
 Do not put two suites a single GFP round needs to read in one file.
