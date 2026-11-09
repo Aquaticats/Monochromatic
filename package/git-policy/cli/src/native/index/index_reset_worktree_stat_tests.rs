@@ -69,8 +69,18 @@ fn request_at_stamp<'a>(stamp: IndexStamp, root: &'a Path, path: &'a [u8], blob:
     let fixture: ConversionEnvironment = crate::fixture_content_decision::content_environment();
     let git_dir: &'a Path = Box::leak(root.join(".git").into_boxed_path());
     let environment: &'a ConversionEnvironment = Box::leak(Box::new(fixture));
-    let request: WorktreeStatRequest<'a> = WorktreeStatRequest { worktree_root: root, git_dir, common_dir: git_dir, environment, path, blob, mode, format: ObjectFormat::Sha1, stamp, hashed };
+    let request: WorktreeStatRequest<'a> = WorktreeStatRequest { worktree_root: root, git_dir, common_dir: git_dir, environment, path, blob, mode, format: ObjectFormat::Sha1, stamp, hashed, indexed_attributes: &[] };
     return request;
+}
+
+/// `recorded` for a landing whose index holds a `.gitattributes` in the directories `indexed`.
+fn recorded_with_indexed(indexed: &[Vec<u8>], root: &Path, path: &[u8], blob: &[u8], mode: u32) -> Option<StatData> {
+    let hashed: StdCell<u64> = StdCell::new(0);
+    let fixture: ConversionEnvironment = crate::fixture_content_decision::content_environment();
+    let git_dir: &Path = Box::leak(root.join(".git").into_boxed_path());
+    let environment: &ConversionEnvironment = Box::leak(Box::new(fixture));
+    let request: WorktreeStatRequest<'_> = WorktreeStatRequest { worktree_root: root, git_dir, common_dir: git_dir, environment, path, blob, mode, format: ObjectFormat::Sha1, stamp: now_stamp(), hashed: &hashed, indexed_attributes: indexed };
+    return recorded_stat(&request);
 }
 
 /// `recorded` for an index file dated `stamp`.
@@ -371,5 +381,22 @@ fn a_fifo_swapped_over_the_path_is_not_opened() {
     });
     let answer: Option<StatData> = receiver.recv_timeout(std::time::Duration::from_secs(5)).expect("the proof must not wait on a fifo for a writer");
     assert_eq!(answer, None, "a fifo is not a file the proof records");
+    remove(root.as_path());
+}
+
+/// An attributes file the index holds applies where the worktree's copy is gone,
+/// so the path keeps the zero stat data even though its raw bytes equal the blob,
+/// while the same fixture with no indexed copy records.
+#[test]
+fn an_attributes_file_only_the_index_holds_refuses_the_record() {
+    let root: PathBuf = fixture_root("index-worktree-stat-indexed-attributes");
+    std::fs::write(root.join(".gitattributes"), b"a filter=weird\n").expect("attributes");
+    let file: PathBuf = root.join("a");
+    std::fs::write(&file, b"a\n").expect("write");
+    age(file.as_path());
+    let blob: Vec<u8> = blob_in(root.as_path(), b"a\n");
+    std::fs::remove_file(root.join(".gitattributes")).expect("the worktree copy is gone");
+    assert_eq!(recorded(root.as_path(), b"a", blob.as_slice(), 0o100_644).unwrap_or_default(), stat_of_file(file.as_path()), "without the index's copy the proof sees no attributes");
+    assert_eq!(recorded_with_indexed(&[Vec::new()], root.as_path(), b"a", blob.as_slice(), 0o100_644), None, "the index's copy applies where the worktree's is gone");
     remove(root.as_path());
 }

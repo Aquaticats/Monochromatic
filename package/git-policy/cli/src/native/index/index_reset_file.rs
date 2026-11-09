@@ -181,6 +181,62 @@ fn read_index(file: &Path, format: ObjectFormat) -> Option<(FullIndex, IndexStam
     return Some((parse_full_index(bytes.as_slice(), hash_length)?, stamp));
 }
 
+/// What:
+///  The directory one path is the `.gitattributes` of,
+/// or nothing when it is another path.
+/// Why:
+///   The directories whose attributes the index can supply are named by the `.gitattributes` entries themselves,
+/// at the root or below one directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const attributeDirectory = (path) => path === '.gitattributes' ? '' : path.endsWith('/.gitattributes') ? path.slice(0, -'/'.length - '.gitattributes'.length) : undefined;
+/// ```
+fn attribute_directory(path: &[u8]) -> Option<Vec<u8>> {
+    if path == b".gitattributes" {
+        return Some(Vec::new());
+    }
+    let suffix: &[u8] = b"/.gitattributes";
+    return path.strip_suffix(suffix).map(<[u8]>::to_vec);
+}
+
+/// What:
+///  The directories whose `.gitattributes` the index this update writes holds,
+/// in path order.
+/// Why:
+///   Git reads the index's copy of an attributes file where the worktree's copy is missing
+/// (`attr.c`,
+/// measured on Git 2.56.0:
+/// `git check-attr` still answers from the index after the worktree's `.gitattributes` is removed),
+/// and a
+///  sparse checkout leaves it outside its cone the same way,
+/// so the proof must know which directories could supply one through the index.
+///  The entries before the reset and the tree's entries are both taken,
+/// so a path this reset installs is counted too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const directories = [...index.entries, ...tree].map((entry) => entry.path === '.gitattributes' ? '' : entry.path.replace(/\/\.gitattributes$/, '')).filter(defined);
+/// ```
+fn indexed_attribute_directories(index: &FullIndex, tree: &[FlatEntry]) -> Vec<Vec<u8>> {
+    let mut directories: Vec<Vec<u8>> = Vec::new();
+    for entry in index.entries.iter() {
+        if entry.stage() == 0
+            && let Some(directory) = attribute_directory(entry.path.as_slice())
+        {
+            directories.push(directory);
+        }
+    }
+    for entry in tree {
+        if let Some(directory) = attribute_directory(entry.path.as_slice()) {
+            directories.push(directory);
+        }
+    }
+    directories.sort();
+    directories.dedup();
+    return directories;
+}
+
 /// The update,
 /// with every decline as `None`.
 fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, built: &Path) -> Option<()> {
@@ -232,7 +288,8 @@ fn reset_file(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
         format: around.layout.object_format,
     };
     let hashed: std::cell::Cell<u64> = std::cell::Cell::new(0);
-    let source: LandingStat<'_> = LandingStat::new(&root, &target, stamp, &hashed);
+    let indexed: Vec<Vec<u8>> = indexed_attribute_directories(&index, tree.as_slice());
+    let source: LandingStat<'_> = LandingStat::new(&root, &target, stamp, &hashed, indexed.as_slice());
     reset_paths(&mut index, names.as_slice(), tree.as_slice(), around.settings, stamp, WorktreeStat::Recorded(&source))?;
     let format: ObjectFormat = around.layout.object_format;
     let hash: fn(&[u8]) -> Vec<u8> = if name_length(format) == 20 { sha1_bytes } else { sha256_bytes };

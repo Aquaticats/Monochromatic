@@ -116,6 +116,42 @@ fn a_path_the_worktree_holds_records_the_files_stat_data_and_one_edited_after_it
     finish(scene);
 }
 
+/// What:
+///  A repository whose index holds `.gitattributes` with `attribute` for `a`,
+/// and whose worktree copy of that file is gone.
+/// Why:
+///  Real Git falls back to the index's copy when the worktree's is missing
+/// (measured 2026-11-09,
+/// `git check-attr filter -- a.txt` still answers from the index after `rm .gitattributes`),
+/// so a proof that reads only the worktree would miss the conversion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// git('add', '.gitattributes'); unlink('.gitattributes');
+/// ```
+fn attributes_only_in_the_index(repo: &Path, attribute: &str) {
+    std::fs::write(repo.join(".gitattributes"), format!("a {attribute}\n")).expect("attributes");
+    crate::test_support::git(repo, &["add", ".gitattributes"]);
+    std::fs::remove_file(repo.join(".gitattributes")).expect("the worktree copy is gone");
+}
+
+/// An attribute only the index's `.gitattributes` names still applies,
+/// so the proof refuses the record rather than trusting the worktree alone.
+#[test]
+fn a_path_whose_attributes_only_the_index_holds_records_nothing() {
+    let scene: Scene = captures_a_two("index-reset-recorded-stat-indexed-attributes");
+    attributes_only_in_the_index(scene.repo.as_path(), "filter=weird");
+    std::fs::write(scene.repo.join("a"), b"a two\n").expect("a");
+    age(scene.repo.join("a").as_path());
+    assert!(landing_reset(&git_context(), scene.repo.as_path(), scene.new.as_str(), IndexPaths::Named(&named(&["a"]))), "the reset is the plain case");
+    assert_eq!(
+        entry_of(scene.repo.as_path(), "a").stat,
+        StatData::default(),
+        "the index's .gitattributes applies while the worktree copy is gone, so the entry keeps the zero stat data"
+    );
+    finish(scene);
+}
+
 /// A file older than the index file records its stat data.
 #[test]
 fn a_file_older_than_the_index_records_its_stat_data() {

@@ -128,7 +128,7 @@ fn do_nothing() {}
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WorktreeStatRequest = { worktreeRoot: string; gitDir: string; commonDir: string; environment: ConversionEnvironment; path: Uint8Array; blob: Uint8Array; mode: number; format: ObjectFormat; stamp: IndexStamp; hashed: { bytes: number } };
+/// type WorktreeStatRequest = { worktreeRoot: string; gitDir: string; commonDir: string; environment: ConversionEnvironment; path: Uint8Array; blob: Uint8Array; mode: number; format: ObjectFormat; stamp: IndexStamp; hashed: { bytes: number }; indexedAttributes: Uint8Array[] };
 /// ```
 pub struct WorktreeStatRequest<'a> {
     /// The worktree's top level,
@@ -155,6 +155,10 @@ pub struct WorktreeStatRequest<'a> {
     /// The bytes this landing has read so far,
     /// which bound what one landing reads (`CONTENT_LIMIT`).
     pub hashed: &'a Cell<u64>,
+    /// The directories whose `.gitattributes` the index holds,
+    /// in path order,
+    /// which Git reads where the worktree's copy is missing.
+    pub indexed_attributes: &'a [Vec<u8>],
 }
 
 /// What:
@@ -302,12 +306,14 @@ pub struct LandingStat<'a> {
     stamp: IndexStamp,
     /// The bytes this landing has read so far.
     hashed: &'a Cell<u64>,
+    /// The directories whose `.gitattributes` the index holds.
+    indexed_attributes: &'a [Vec<u8>],
 }
 
 impl<'a> LandingStat<'a> {
     /// The source of the worktree held open as `root`,
     /// whose index file is dated `stamp`.
-    pub fn new(root: &'a std::fs::File, target: &ContentTarget<'a>, stamp: IndexStamp, hashed: &'a Cell<u64>) -> LandingStat<'a> {
+    pub fn new(root: &'a std::fs::File, target: &ContentTarget<'a>, stamp: IndexStamp, hashed: &'a Cell<u64>, indexed_attributes: &'a [Vec<u8>]) -> LandingStat<'a> {
         return LandingStat {
             root,
             judge: RefCell::new(ContentJudge::new(root, target.git_dir, target.common_dir, target.environment, target.format)),
@@ -315,6 +321,7 @@ impl<'a> LandingStat<'a> {
             format: target.format,
             stamp,
             hashed,
+            indexed_attributes,
         };
     }
 
@@ -395,6 +402,63 @@ impl<'a> LandingStat<'a> {
     }
 
     /// What:
+    ///  Whether a directory whose `.gitattributes` the index holds has the worktree's copy.
+    /// Why:
+    ///   Git reads the index's copy when the worktree's is missing (`attr.c`,
+    /// `prepare_attr_stack` falls from the file to the index),
+    /// measured on Git 2.56.0 on 2026-11-09:
+    /// `git check-attr filter -- a.txt` still answers from the index after the worktree's `.gitattributes` is
+    ///  removed,
+    /// and a sparse checkout that leaves the file outside its cone reads the index the same way.
+    /// A proof that reads only the worktree sees no attributes there,
+    /// so the path keeps the zero stat data instead.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const attributesMissing = (parents) => !exists(join(heldDirectory(parents), '.gitattributes'));
+    /// ```
+    fn attributes_missing(&self, parents: &[OsString]) -> Option<bool> {
+        let directory: std::cell::Ref<'_, std::fs::File> = self.directory(parents)?;
+        return Some(entry_metadata_at(&directory, OsStr::new(".gitattributes")).is_err());
+    }
+
+    /// What:
+    ///  The refusal for a path whose attributes could come from the index because the worktree's copy is gone.
+    /// Why:
+    ///   Refusing costs a refresh and recording wrongly hides an edit,
+    /// so a directory the index can supply attributes for is checked from the root
+    ///  down before any of its files is trusted.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// for (const directory of ancestors(parents)) if (indexed.has(directory) && attributesMissing(directory)) return undefined;
+    /// ```
+    fn attributes_come_only_from_the_index(&self, parents: &[OsString]) -> bool {
+        if self.indexed_attributes.is_empty() {
+            return false;
+        }
+        if self.indexed_attributes.binary_search(&Vec::new()).is_ok() && matches!(self.attributes_missing(&[]), None | Some(true)) {
+            return true;
+        }
+        for depth in 1..=parents.len() {
+            let mut prefix: Vec<u8> = Vec::new();
+            for name in &parents[..depth] {
+                if !prefix.is_empty() {
+                    prefix.push(b'/');
+                }
+                prefix.extend_from_slice(name.as_os_str().as_bytes());
+            }
+            if self.indexed_attributes.binary_search(&prefix).is_err() {
+                continue;
+            }
+            if matches!(self.attributes_missing(&parents[..depth]), None | Some(true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// What:
     ///  The stat data the landing may record for one path,
     /// or nothing when the file cannot prove it holds the committed bytes.
     /// Why:
@@ -416,6 +480,9 @@ impl<'a> LandingStat<'a> {
             return None;
         }
         // A conversion Git may apply can leave these bytes looking equal to the blob while Git's view of the file is not.
+        if self.attributes_come_only_from_the_index(parents) {
+            return None;
+        }
         if self.judge.borrow_mut().conversion_is_the_identity(path, parents).is_err() {
             return None;
         }
@@ -453,7 +520,7 @@ impl WorktreeStatSource for LandingStat<'_> {
 pub fn recorded_stat_seamed(request: &WorktreeStatRequest<'_>, seams: &mut ProofSeams<'_>) -> Option<StatData> {
     let root: std::fs::File = crate::fs_beneath::open_root(request.worktree_root).ok()?;
     let target: ContentTarget<'_> = ContentTarget { root: request.worktree_root, git_dir: request.git_dir, common_dir: request.common_dir, environment: request.environment, format: request.format };
-    let source: LandingStat<'_> = LandingStat::new(&root, &target, request.stamp, request.hashed);
+    let source: LandingStat<'_> = LandingStat::new(&root, &target, request.stamp, request.hashed, request.indexed_attributes);
     return source.record(request.path, request.blob, request.mode, seams);
 }
 
