@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T03:51:25-05:00)
+#### Reviews and landings in progress (2026-11-09T03:56:40-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -215,10 +215,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   By its own report,
   the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
   Not ready to merge.
-  Waits for a free agent slot,
-  since all twenty are taken:
-  resume the run `worktree-add-findings-fixed` as run 2,
-  with `worktree-add-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  Run 2 of its agent is on them.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
@@ -243,12 +240,26 @@ The old tree kept for the rollback stays until the owner deletes it.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
-  The agent `controls-witness-their-race-by-ordering` is on them.
+  The agent `controls-witness-their-race-by-ordering` ended on a provider error,
+  "Stream ended without finish_reason",
+  which is the failure the driver branch now retries.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume it as run 2,
+  with `resume-after-provider-error-prompt.md` and the session file named in run 1's `summary.json`.
 - `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
-  111 of 111 selected tests pass on top of main,
-  and the cross-vendor review (`${HOME}/temp/agent/reviews/dependent-version-publish-list-round-1-sol.txt`) names three defects,
-  among them that a missing publish configuration fails a commit,
-  against the agent's report that commits were unaffected.
+  run 2 of its agent reports that a missing publish configuration does not fail a commit,
+  proved by a real wrapped commit through the service,
+  and that the same change had broken five of the policy's controls,
+  now fixed along with tagged keys and tab-separated comments.
+  116 of 116 selected tests pass on top of main,
+  and the review `dependent-version-publish-list-round-2` is running.
+- `fix/git-policy-cli-conflict-resolution-attributes-and-part-list`:
+  its agent reports the three findings of its audit fixed,
+  262 of 262 selected tests pass on top of main,
+  and the review (`${HOME}/temp/agent/reviews/conflict-resolution-round-1-sol.txt`) names a resolution another command staged being overwritten,
+  rules that a conflicted or command-line attribute source lets through,
+  and a merge driver that blocks auto-push without end.
   Not ready to merge.
   Run 2 of its agent is on them.
 - `fix/mpm-shadow-open-issues-batch`:
