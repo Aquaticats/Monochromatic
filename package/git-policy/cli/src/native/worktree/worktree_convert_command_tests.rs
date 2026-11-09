@@ -95,6 +95,29 @@ fn a_worktree_that_is_a_subvolume_already_is_counted_as_skipped() {
     remove(parent.as_path());
 }
 
+/// A run that undoes unfinished conversions counts them in the summary;
+/// an undone conversion is not a skip,
+/// because the run did what it was asked to.
+#[test]
+fn the_undone_conversions_are_counted_in_the_summary() {
+    let (parent, root) = two_worktrees("convert-command-undone");
+    let platform: PlainPlatform = PlainPlatform::new();
+    for name in ["wt", "second"] {
+        let named: ConvertArguments = ConvertArguments { paths: vec![std::ffi::OsString::from(name)], ..ConvertArguments::default() };
+        let code: i32 = execute(&platform, &named, root.as_path(), &Interrupt::at("verified", 0), &mut |_text: &str| {});
+        assert_eq!(code, FAILED_EXIT_CODE, "{name} was killed after its copy was verified, so its journal stays");
+    }
+    let abandon: ConvertArguments = ConvertArguments { abandon: true, all: true, ..ConvertArguments::default() };
+    let (code, lines) = run(&platform, &abandon, root.as_path());
+    assert_eq!(code, 0, "{lines:#?}");
+    let undone: usize = lines.iter().filter(|line: &&String| { return line.trim() == "the unfinished conversion was undone"; }).count();
+    assert_eq!(undone, 2, "{lines:#?}");
+    let summary: &str = lines.last().expect("a summary line").as_str();
+    assert!(summary.contains(format!("{undone} undone").as_str()), "{undone} line(s) said 'undone': {lines:#?}");
+    assert!(summary.contains("0 skipped"), "an undone conversion is not a skip: {lines:#?}");
+    remove(parent.as_path());
+}
+
 /// A named worktree that is refused ends the command with status 1 and a reason;
 /// a path that is no worktree is refused too.
 #[test]
