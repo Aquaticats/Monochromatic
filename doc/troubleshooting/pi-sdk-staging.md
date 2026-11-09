@@ -10,6 +10,19 @@ live provider and approval checks did not establish interactive bypass parity.
 This is an owned migration regression,
 not evidence of an upstream keyboard failure.
 
+The paths and tasks cited throughout this record name the tree as it stood when each
+incident was recorded.
+The legacy extension source under `package/pi-plugin/auto-mode/src/` was removed on
+2026-10-19 by `7ac15b19b4`
+(refactor(pi-plugin-auto-mode): remove legacy source for ground-up rebuild),
+and the native build tree under `package/pi-plugin/auto-mode/native/` was retired on
+2026-10-19 by `ff55ced353`
+(refactor(pi-plugin-auto-mode): retire unapproved native Pi build).
+Neither tree has a successor in the working tree,
+and the package declares only `build`, `lint` and `test:unit` today,
+so the `build:native*` and `test:native:*` commands in this record no longer resolve
+and nothing replaces them.
+
 ### Root cause
 
 The legacy extension registers the shortcut in
