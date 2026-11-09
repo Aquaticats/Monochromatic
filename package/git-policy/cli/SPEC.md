@@ -1910,6 +1910,16 @@ the folder is read on every wrapped command,
 so a
 named pipe,
 a device or a link there would otherwise make a commit wait for a writer that never comes.
+A record names the process that wrote it,
+with the identity that tells it from a later process of the same number,
+and an
+unmarked record whose owner may still be running is left untouched:
+that owner destroys the tree and marks the record,
+and a
+second command that read it in that time and forgot it would take away the only place the first can mark its success.
+A
+marked record is finished even while its owner lives,
+because the kernel call it names has returned.
 Before a registration is emptied,
 its `gitdir` is compared with the path the record holds:
 a registration a repair
