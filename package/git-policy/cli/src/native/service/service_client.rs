@@ -374,11 +374,13 @@ pub struct ScratchWatch {
 /// and a client
 ///  killed meanwhile still loses its directory.
 /// A service that is not running takes nothing,
-/// and a service of another release
-///  refuses a message it does not know and closes nothing of the client's;
-/// the client removes nothing either way,
-/// and the directory waits in the repository scratch directory,
-/// where the sweep of a later command removes it once it is abandoned.
+/// and the client then removes the directory itself as it ends.
+/// A service of another release refuses a message it does not know,
+/// and that refusal is not read,
+/// because a service that takes the announcement answers nothing at all;
+/// such a directory waits in the repository scratch directory,
+/// where the sweep and the abandonment rule remove it,
+/// and `SPEC.md` ("The commit's scratch directory") states that bound.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

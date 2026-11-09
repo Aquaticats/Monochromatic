@@ -7045,6 +7045,14 @@ the tree goes into the worktree's Git directory,
 where nothing sweeps it,
 and the debug log says so.
 
+A service of an earlier release refuses an announcement of a place it does not know,
+and the client does not read that refusal,
+because a service that takes the announcement answers nothing at all and reading for an answer would put a wait on every
+commit.
+Such a tree waits for the abandonment age instead of being removed at once,
+which costs one tree of about 9 MiB per worktree for two hours while an installation switches releases:
+the next commit retires the service of the other release and starts this one.
+
 #### Scratch repository layout
 
 The scratch repository (the shadow,
