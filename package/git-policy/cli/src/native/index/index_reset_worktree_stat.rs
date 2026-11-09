@@ -341,7 +341,9 @@ fn charged_judge<'a>(root: &'a std::fs::File, target: &ContentTarget<'a>, hashed
 ///  The held directory out of the cached entry.
 /// Why:
 ///   The cache holds the names it was opened for beside the handle,
-/// and only the handle is borrowed for the look-up.
+/// and only the handle is read out of the entry.
+/// It is duplicated for the caller there,
+/// so no borrow of the cache outlives the look-up that asked for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -406,25 +408,35 @@ impl<'a> LandingStat<'a> {
 
     /// What:
     ///  The directory holding the entry at `parents`,
-    /// opened below the held root without following a link and kept for the next entry.
+    /// opened below the held root without following a link and kept for the next entry,
+    /// as a handle of the caller's own.
     /// Why:
     ///   A held directory makes every look-up below it immune to a swap of an ancestor,
     /// which a path built from the
     ///  worktree root is not.
+    /// The handle is duplicated for the caller rather than lent out of the cache:
+    /// this method replaces the cache whenever another directory is asked for,
+    /// and a borrow of the cache alive across that call panics
+    ///  (`RefCell` holds one mutable borrow, and the third review found exactly that with the root and an ancestor's
+    ///  `.gitattributes`).
+    /// A duplicate costs one `dup` a path and cannot outlive the call it is made for.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const directory = cache.get(parents) ?? openBelow(heldRoot, parents);
+    /// const directory = (cache.get(parents) ?? openBelow(heldRoot, parents)).dup();
     /// ```
-    fn directory(&self, parents: &[OsString]) -> Option<std::cell::Ref<'_, std::fs::File>> {
+    fn directory(&self, parents: &[OsString]) -> Option<std::fs::File> {
         let missed: bool = match self.directory.borrow().as_ref() {
             Some((known, _opened)) => known.as_slice() != parents,
             None => true,
         };
         if missed {
-            self.directory.replace(Some((parents.to_vec(), open_directory_beneath(self.root, parents).ok()?)));
+            let opened: std::fs::File = open_directory_beneath(self.root, parents).ok()?;
+            self.directory.replace(Some((parents.to_vec(), opened)));
         }
-        return std::cell::Ref::filter_map(self.directory.borrow(), the_directory).ok();
+        let cache: std::cell::Ref<'_, Option<(Vec<OsString>, std::fs::File)>> = self.directory.borrow();
+        let cached: &std::fs::File = the_directory(&cache)?;
+        return cached.try_clone().ok();
     }
 
     /// What:
@@ -490,7 +502,7 @@ impl<'a> LandingStat<'a> {
     /// const attributesMissing = (parents) => !exists(join(heldDirectory(parents), '.gitattributes'));
     /// ```
     fn attributes_missing(&self, parents: &[OsString]) -> Option<bool> {
-        let directory: std::cell::Ref<'_, std::fs::File> = self.directory(parents)?;
+        let directory: std::fs::File = self.directory(parents)?;
         return Some(entry_metadata_at(&directory, OsStr::new(".gitattributes")).is_err());
     }
 
@@ -546,7 +558,7 @@ impl<'a> LandingStat<'a> {
     fn record(&self, path: &[u8], blob: &[u8], mode: u32, seams: &mut ProofSeams<'_>) -> Option<StatData> {
         let names: Vec<OsString> = plain_components(Path::new(OsStr::from_bytes(path))).ok()?;
         let (name, parents): (&OsString, &[OsString]) = names.split_last()?;
-        let directory: std::cell::Ref<'_, std::fs::File> = self.directory(parents)?;
+        let directory: std::fs::File = self.directory(parents)?;
         let before: std::fs::Metadata = entry_metadata_at(&directory, name.as_os_str()).ok()?;
         if !mode_agrees(mode, &before) || self.stamp.is_racy(&stat_of(&before)) {
             return None;
