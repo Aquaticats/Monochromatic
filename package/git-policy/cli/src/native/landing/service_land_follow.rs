@@ -25,6 +25,7 @@
 
 use crate::autostash_carry::carry_stash;
 use crate::conclusion_cleanup::reproduce_conclusion_cleanup;
+use crate::conflict_side_modes::MODE_VARIABLES;
 use crate::diagnostic_log::warn;
 use crate::index_holder_wait::{IndexWait, wait_for_index_release_within};
 use crate::wait_ceilings::RECONCILE_LOCK_CEILING;
@@ -35,6 +36,7 @@ pub use crate::service_land_copy::PrivateCopy;
 use crate::service_protocol::{Cleanup, FailureCode, is_zero_object};
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_journal::RefFormat;
+use std::ffi::OsString;
 use std::path::Path;
 
 /// How many times the index update is tried again when the lock was gone by the time it was looked at:
@@ -86,6 +88,14 @@ fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Ve
     let mut request: GitRequest = GitRequest::new(repository, arguments);
     request.input = input;
     request.index = index.map(Path::to_path_buf);
+    // Every pathspec this module writes is its own, so no pathspec mode the service inherited reaches it:
+    // `GIT_ICASE_PATHSPECS=1` makes `:(top,literal)a.txt` match `A.txt` too, and the reset then replaces the staged entry
+    // of a path the batch never selected. Measured against Git 2.56.0: no option turns case-insensitive matching off
+    // (`--no-icase-pathspecs` is an unknown global), and `GIT_GLOB_PATHSPECS=1` beside `GIT_NOGLOB_PATHSPECS=1` is
+    // refused outright ("global 'glob' and 'noglob' pathspec settings are incompatible"), which removing both avoids.
+    for name in MODE_VARIABLES {
+        request.unset.push(OsString::from(name));
+    }
     return match run_git(git, &request) {
         Ok(output) => Ok(output),
         Err(_unstartable) => Err(FailureCode::Unavailable),
@@ -195,6 +205,10 @@ fn pathspec_input(names: &[u8]) -> Vec<u8> {
 /// so the service would lose the index update it owes while reporting success.
 /// The service inherits the environment of the command that first started it,
 /// so a person with the variable in their shell reaches this step.
+///  The mode variables are removed from every Git this module starts (see `run`),
+/// so this option answers the caller's own global option in the prefix,
+/// which no removal can reach;
+///  a mode that only a variable set is gone with the variable.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
