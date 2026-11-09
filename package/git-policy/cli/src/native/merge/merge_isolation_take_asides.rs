@@ -25,10 +25,11 @@
 //! ```
 
 use crate::index_lock_holders::{HolderEvidence, scan_platform_holders_bounded};
-use crate::merge_isolation_changes::{Change, FileIdentity, WorktreeState, file_identity, state_of_file, worktree_path};
+use crate::merge_isolation_changes::{Change, FileIdentity, file_identity, worktree_path};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace};
 use crate::recovery_error::{RecoveryError, io_failure};
 use crate::rename_that_never_replaces::rename_noreplace;
+use crate::transaction_git::{GitOutput, GitRequest, run_git, run_git_checked};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -238,6 +239,76 @@ pub struct TakeFailure {
     pub stranded: Option<PathBuf>,
 }
 
+/// What:
+///  The object the raw bytes of a file hash to,
+///  with no filter applied.
+/// Why:
+///   An aside exists to keep a person's bytes,
+/// and a clean filter can hide bytes from the object Git records for the
+///  path,
+/// so the bytes themselves are what is compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rawBytesOf(place, location): string | undefined; // hash-object --no-filters -- <location>
+/// ```
+fn raw_bytes_of(place: &RecoveryPlace, root: &Path, location: &Path) -> Option<String> {
+    let mut request: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--"]);
+    request.arguments.push(location.as_os_str().to_os_string());
+    let output: GitOutput = run_git(&place.git, &request).ok()?;
+    if !output.succeeded() {
+        return None;
+    }
+    return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
+}
+
+/// What:
+///  The object the branch's own file form hashes to:
+///  the path's filters applied to the object,
+///  then the raw bytes of that
+///  hashed with no filter.
+/// Why:
+///   That is what the worktree would hold had nobody touched the file,
+/// so a file whose raw bytes hash to something else carries bytes of the
+///  person's that the filter hides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theBranchsFileForm(place, root, path, expected): string | undefined; // cat-file --filters --path=<path> <expected> | hash-object --no-filters --stdin
+/// ```
+fn the_branchs_file_form(place: &RecoveryPlace, root: &Path, path: &[u8], expected: &str) -> Option<String> {
+    let mut named: std::ffi::OsString = std::ffi::OsString::from("--path=");
+    named.push(worktree_path(Path::new(""), path).into_os_string());
+    let mut cat: GitRequest = GitRequest::new(root, &["cat-file", "--filters"]);
+    cat.arguments.push(named);
+    cat.arguments.push(std::ffi::OsString::from(expected));
+    let filtered: GitOutput = run_git(&place.git, &cat).ok()?;
+    if !filtered.succeeded() {
+        return None;
+    }
+    let mut hash: GitRequest = GitRequest::new(root, &["hash-object", "--no-filters", "--stdin"]);
+    hash.input = Some(filtered.stdout);
+    let output: GitOutput = run_git_checked(&place.git, &hash).ok()?;
+    return Some(String::from_utf8_lossy(&output.stdout).trim().to_owned());
+}
+
+/// What:
+///  Whether the bytes at `location` are the branch's own file form for `expected`,
+///  or nothing when either read fails.
+/// Why:
+///   One comparison serves the take and the removal,
+/// so a file either side accepts is the same file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// areTheBranchsBytes(place, root, path, location, expected): boolean | undefined;
+/// ```
+fn are_the_branchs_bytes(place: &RecoveryPlace, root: &Path, path: &[u8], location: &Path, expected: &str) -> Option<bool> {
+    let taken: String = raw_bytes_of(place, root, location)?;
+    let branch: String = the_branchs_file_form(place, root, path, expected)?;
+    return Some(taken == branch);
+}
+
 /// What a take of one worktree path found.
 ///
 /// In TS you'd write (pseudocode):
@@ -315,13 +386,17 @@ pub fn take_aside(
     if judged.identity.is_none() || taken != judged.identity {
         return put_back_and_report(location, aside);
     }
-    let bytes: WorktreeState = match state_of_file(&place.git, root, path, aside.as_path()) {
-        Ok(found) => found,
-        // The rename has already happened, so a read that fails must put the file back before the take reports anything.
-        Err(error) => return Err(put_back_after_a_failed_read(location, aside, RecoveryError(error))),
-    };
-    if bytes != WorktreeState::Content(String::from(expected)) {
-        return put_back_and_report(location, aside);
+    match are_the_branchs_bytes(place, root, path, aside.as_path(), expected) {
+        Some(true) => {}
+        Some(false) => return put_back_and_report(location, aside),
+        // A read that fails cannot prove the bytes, so the file goes back rather than be replaced.
+        None => {
+            return Err(put_back_after_a_failed_read(
+                location,
+                aside,
+                RecoveryError(String::from("the bytes of the file the merge replaces could not be read")),
+            ));
+        }
     }
     return match taken {
         Some(identity) => Ok(Take::Aside { aside, taken: identity, expected: String::from(expected) }),
@@ -474,7 +549,9 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 
 /// What:
 ///  Whether nothing can write into a file that was taken aside any more,
-///  so removing its private name loses nothing.
+///  so removing its private name loses nothing,
+///  and whether its bytes are
+///  the branch's own form rather than bytes a clean filter hides.
 /// Why:
 ///   A program that already has the file open keeps that descriptor across the rename,
 /// and a write through it lands
@@ -517,16 +594,9 @@ fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
             return false;
         }
     }
-    // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last looks.
+    // A control reaches here to write as a program that kept its descriptor would, after the scan and before the last look.
     crate::service_fault::reach("aside-scanned");
-    if file_identity(entry.aside.as_path()) != Some(entry.taken) {
-        return false;
-    }
-    let bytes: WorktreeState = match state_of_file(&place.git, root, entry.path.as_slice(), entry.aside.as_path()) {
-        Ok(found) => found,
-        Err(_) => return false,
-    };
-    return bytes == WorktreeState::Content(entry.expected.clone());
+    return are_the_branchs_bytes(place, root, entry.path.as_slice(), entry.aside.as_path(), entry.expected.as_str()) == Some(true);
 }
 
 /// What:

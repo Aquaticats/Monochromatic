@@ -8932,8 +8932,15 @@ asked in this order:
 a scan of every process this command can read finds none with the file open,
 which is the proof the commit service's lock removal acts on,
 and then,
-as the last steps before the unlink,
-the file's identity is the one the take checked and its bytes still hash to the object it held when it was judged.
+as the last step before the unlink,
+the file's **raw bytes** still hash to the branch's own file form for that path,
+which is the judged object with the path's clean filter applied and those bytes hashed with no filter.
+A clean filter can hide bytes a person saved from the object Git records,
+so the filtered object is not the identity of an aside:
+the raw bytes are,
+and a file that carries bytes the branch's form does not have is kept with its private name and named.
+A file whose raw bytes are not the branch's own form is not taken either,
+so the merge stops and names the path rather than replace it.
 A writer that still holds the file is seen by the scan,
 and a writer that let go has already written,
 so the bytes then show it;

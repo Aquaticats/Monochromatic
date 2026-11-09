@@ -1052,7 +1052,7 @@ fn a_write_that_fails_puts_the_files_it_already_took_back() {
     let (mut changes, mut judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
     std::fs::write(world.repo.join("zeta.txt"), b"old zeta\n").expect("the file");
     let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(world.repo.join("zeta.txt").as_path());
-    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", "zeta.txt"]).trim().to_owned();
+    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", "zeta.txt"]).trim().to_owned();
     // An object no repository holds: the index write and the checkout both refuse it.
     let absent: String = String::from("1234567890123456789012345678901234567890");
     // The failing path is written first, so the checkout stops before it writes any file the merge changes.
@@ -1232,7 +1232,7 @@ fn a_file_whose_name_is_at_the_file_systems_limit_is_taken_and_finished() {
     let long: String = format!("{}.txt", "l".repeat(240));
     std::fs::write(world.repo.join(long.as_str()), b"old long\n").expect("a valid long file name");
     let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(world.repo.join(long.as_str()).as_path());
-    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", long.as_str()]).trim().to_owned();
+    let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--", long.as_str()]).trim().to_owned();
     let next_oid: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]).trim().to_owned();
     changes.push(extra_change(long.as_str(), "100644", "100644", old_oid.as_str(), next_oid.as_str()));
     judgements.push(Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
@@ -2120,5 +2120,44 @@ fn an_unrelated_commit_of_the_same_content_does_not_make_a_saved_merge_began() {
     assert!(!record.exists(), "the record only goes");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the independent commit");
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/37"]), world.new_oid, "the saved merge is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A file that carries bytes a clean filter drops is not replaced by the merge,
+///  and its bytes stay where they are.
+/// Why:
+///  Recovery judged such a file by its filtered hash,
+/// which equals the branch's object,
+/// so the note the person saved was
+///  accepted as the branch's own content and replaced by the merge,
+/// and the aside that held its only copy was
+///  removed
+///  (a cross-vendor review of the eighth round,
+/// its second finding).
+/// The aside exists to keep the person's bytes,
+/// so it compares them raw.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// cleanFilter('strip', 'sed /^NOTE:/d'); write('f.txt', 'f.txt base\nNOTE: mine\n'); const (changes, judged) = judge(world); await expect(installEntries(...)).rejects.toMatch(/f.txt/); expect(read('f.txt')).toEqual('f.txt base\nNOTE: mine\n');
+/// ```
+#[test]
+fn a_note_a_filter_hides_is_not_replaced_and_stays_where_it_is() {
+    let world: World = world("merge-recovery-filtered-note-kept");
+    std::fs::write(world.repo.join(".gitattributes"), b"f.txt filter=strip\n").expect("the attribute file");
+    git(world.repo.as_path(), &["config", "filter.strip.clean", "sed /^NOTE:/d"]);
+    // The person's note is in the file before recovery judges it, and the filter hides it.
+    let note: &[u8] = b"f.txt base\nNOTE: locally saved data\n";
+    std::fs::write(world.repo.join("f.txt"), note).expect("the person's note");
+    let (changes, judgements): (Vec<Change>, Vec<Judged>) = judged_changes(&world);
+    let judged: &Judged = &judgements[changes.iter().position(|change| { return change.path == b"f.txt"; }).expect("the path")];
+    assert_eq!(judged.standing, Standing::Old, "the filtered content is the branch's, which is why the note is invisible to it");
+    let mut said: Vec<u8> = Vec::new();
+    let refused = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), false, &mut said)
+        .expect_err("a file whose raw bytes are not the branch's is not the merge's to replace");
+    assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
+    assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file"), note, "the note stays where it is");
+    assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
     remove(world.parent.as_path());
 }
