@@ -201,7 +201,9 @@ pub(crate) fn is_unmerged(entry: Option<&Entry>) -> bool {
 /// wholeListing(index) // `ls-files -s -z`
 /// ```
 pub(crate) fn whole_listing(git: &GitContext, repository: &Path, index: &Path) -> Result<BTreeMap<Vec<u8>, Entry>, FailureCode> {
-    let mut request: GitRequest = GitRequest::new(repository, &["ls-files", "-s", "-z"]);
+    // `--full-name`: the names of both listings are compared and then named to `git rm` and `git reset` as
+    // `:(top,literal)<path>` specs, which a caller's `-C` into a subdirectory would otherwise shorten.
+    let mut request: GitRequest = GitRequest::new(repository, &["ls-files", "-s", "-z", "--full-name"]);
     request.index = Some(index.to_path_buf());
     let output = match run_git(git, &request) {
         Ok(answer) if answer.succeeded() => answer,
