@@ -46,6 +46,9 @@ struct Fixture {
     /// Private commit index,
     /// staged for `a.txt` only.
     commit_index: PathBuf,
+    /// The commit's own scratch directory,
+    /// which holds the file the native-commit configuration travels in.
+    scratch: PathBuf,
     /// Intended tree of the private index.
     intended_tree: String,
 }
@@ -132,6 +135,7 @@ fn preparation_fixture_with(context: &GitContext, root: &Path, repo: PathBuf) ->
         shadow,
         capture,
         commit_index: indexes.commit_index,
+        scratch: transaction.clone(),
         intended_tree,
     };
 }
@@ -149,6 +153,7 @@ fn prepare_with(context: &GitContext, fixture: &Fixture, commit_args: &[&str]) -
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
         commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
         global_args: &[],
         commit_args: commit_arguments.as_slice(),
         object_directory: None,
@@ -185,6 +190,16 @@ fn git_in_layers(context: &GitContext, directory: &Path, arguments: &[&str]) -> 
 /// How many times the stand-in signer of a fixture ran.
 fn signer_calls(calls: &Path) -> usize {
     return std::fs::read_to_string(calls).map_or(0, |text| { return text.lines().count(); });
+}
+
+/// Append `bytes` to a file a fixture already wrote.
+fn append_to(path: &Path, bytes: &[u8]) {
+    use std::io::Write;
+    std::fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .and_then(|mut file| { return file.write_all(bytes); })
+        .expect("append to the file");
 }
 
 /// Preparation leaves the real refs,
@@ -226,12 +241,13 @@ fn native_commit_arguments_name_the_shadow_and_turn_traditional_hooks_off() {
         capture: &capture,
         shadow: Path::new("/s"),
         commit_index: Path::new("/i"),
+        scratch: Path::new("/c"),
         global_args: global.as_slice(),
         commit_args: commit_arguments.as_slice(),
         object_directory: None,
     };
     assert_eq!(
-        native_commit_arguments(&request),
+        native_commit_arguments(&request).expect("the configuration travels"),
         vec![
             "-c",
             "a.b=1",
@@ -467,6 +483,7 @@ fn a_scratch_commit_that_outlasts_its_ceiling_is_stopped_and_changes_nothing() {
         capture: &fixture.capture,
         shadow: fixture.shadow.as_path(),
         commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
         global_args: global_args.as_slice(),
         commit_args: commit_args.as_slice(),
         object_directory: None,
@@ -521,6 +538,51 @@ fn the_repository_openpgp_program_beats_the_legacy_global_program() {
     let prepared: PreparedCommit = prepare_with(&context, &fixture, &["--allow-empty", "--message=shadow control"]).expect("prepared");
     assert!(prepared.signed, "the repository's program must sign in the shadow too");
     assert_eq!(signer_calls(calls.as_path()), after_control + 1, "the shadow ran the repository's program, not the global one");
+    remove(root.as_path());
+}
+
+/// A trailer subsection holding an equals sign,
+/// such as `[trailer "review=bot"]`,
+/// names a key that a `key=value` setting cannot carry:
+/// Git splits such a setting at its first equals sign,
+/// so the configured trailer has to reach the shadow another way.
+#[test]
+fn a_trailer_subsection_holding_an_equals_sign_keeps_its_configuration() {
+    let root: PathBuf = fixture("commit-preparation-trailer-equals");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let included: PathBuf = root.join("trailer.config");
+    std::fs::write(included.as_path(), "[trailer \"review=bot\"]\n\tkey = Reviewed-by\n\tcmd = printf reviewer\n").expect("trailer configuration");
+    // Only this exact Git directory selects the file, which is what no longer matches in the shadow.
+    let condition: String = format!("includeIf.gitdir:{}/.git.path", repo.display());
+    git(repo.as_path(), &["config", condition.as_str(), included.to_str().expect("UTF-8")]);
+    let trailer: &str = "review=bot: given";
+    // The positive control: real Git adds the configured trailer for this token.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control", "--trailer", trailer]);
+    let control: String = git_text(repo.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(control.contains("Reviewed-by: reviewer"), "the configured trailer must be added, or this control proves nothing: {control}");
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    prepare(&fixture, &["--allow-empty", "--message=shadow control", "--trailer", trailer]).expect("prepared");
+    let shadow: String = git_text(fixture.shadow.as_path(), &["log", "-1", "--format=%B"]);
+    assert!(shadow.contains("Reviewed-by: reviewer"), "the shadow must add the configured trailer too: {shadow}");
+    remove(root.as_path());
+}
+
+/// A configured value that no single argument can carry stays in the configuration files,
+/// so the shadow's native commit starts and commits as real Git does.
+#[test]
+fn a_configuration_value_longer_than_one_argument_does_not_stop_the_native_commit() {
+    let root: PathBuf = fixture("commit-preparation-long-value");
+    let repo: PathBuf = prepared_repository(root.as_path());
+    let value: String = "x".repeat(crate::argument_limit::one_argument_limit() * 2);
+    append_to(
+        repo.join(".git").join("config").as_path(),
+        format!("[trailer \"unused\"]\n\tkey = {value}\n").as_bytes(),
+    );
+    // The positive control: real Git reads the value from its file, never uses it, and commits.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=real control"]);
+    let fixture: Fixture = preparation_fixture(root.as_path(), repo);
+    let prepared: PreparedCommit = prepare(&fixture, &["--message=shadow control"]).expect("prepared");
+    assert_eq!(prepared.tree_oid, fixture.intended_tree);
     remove(root.as_path());
 }
 

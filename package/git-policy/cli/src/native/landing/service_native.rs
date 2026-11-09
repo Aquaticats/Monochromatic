@@ -219,6 +219,7 @@ pub fn build_with_git(input: &BuildInput<'_>) -> Result<GitBuilt, TransactionSto
         capture: input.capture,
         shadow: shadow.as_path(),
         commit_index: input.commit_index,
+        scratch: input.scratch,
         global_args: globals.as_slice(),
         commit_args: commit_args.as_slice(),
         object_directory: Some(input.capture.layout.object_directory.as_path()),

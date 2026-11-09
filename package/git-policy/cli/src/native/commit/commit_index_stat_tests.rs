@@ -268,6 +268,8 @@ struct Stale {
     capture: InvocationCapture,
     /// Private indexes and object store.
     indexes: CaptureIndexes,
+    /// The commit's own scratch directory.
+    scratch: PathBuf,
     /// Base commit of the invocation.
     base: String,
 }
@@ -320,7 +322,7 @@ fn stale_fixture(root: &Path) -> Stale {
         commit_index: transaction.join("commit.index"),
         object_directory: shadow.join("objects"),
     };
-    return Stale { repo, shadow, capture, indexes, base };
+    return Stale { repo, shadow, capture, indexes, scratch: transaction, base };
 }
 
 /// Stages the named path into the private index,
@@ -347,6 +349,7 @@ fn commit_stale(stale: &Stale) -> Result<i32, PreparationError> {
         capture: &stale.capture,
         shadow: stale.shadow.as_path(),
         commit_index: stale.indexes.commit_index.as_path(),
+        scratch: stale.scratch.as_path(),
         global_args: &[],
         commit_args: commit_args.as_slice(),
         object_directory: None,
