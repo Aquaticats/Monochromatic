@@ -318,7 +318,9 @@ impl Replanning {
 
     /// What:
     ///  Keep the plan of the try `attempt` of the branch of `item` on disk now,
-    /// before any words that promise it reach the person.
+    /// before any words that promise it reach the person,
+    /// and answer whether it
+    ///  is kept.
     /// Why:
     ///   The loop applies the changes a worker asks only once every repository of the round is drained,
     /// so a kill before it applies them would take the plan,
@@ -326,16 +328,25 @@ impl Replanning {
     /// A worker writes only its own branch's plan,
     /// whose file name the branch key and the try number make,
     /// and the loop writes the same file again when it applies the change.
+    ///  A plan that cannot be written answers that it is not kept,
+    /// so the caller promises nothing the next service cannot keep.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// savePlans(this.plans, { gitDir, item, attempt });
+    /// return savePlans(this.plans, { gitDir, item, attempt });
     /// ```
-    pub(crate) fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) {
-        let Some(directory) = self.plans.as_deref() else { return };
-        if let Err(reason) = crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
-            crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
-        }
+    pub(crate) fn keep_the_plan(&self, git_dir: &Path, item: &WorkItem, attempt: u32) -> bool {
+        let Some(directory) = self.plans.as_deref() else {
+            // A plan kept in memory only is kept as long as the service that keeps it lives.
+            return true;
+        };
+        return match crate::push_retry_store::save(directory, &crate::push_retry_store::StoredPlan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt }) {
+            Ok(()) => true,
+            Err(reason) => {
+                crate::service_warn!("the plan to push {:?} again could not be kept for a restart: {reason}", item.branch_ref);
+                false
+            }
+        };
     }
 }
 
@@ -352,7 +363,11 @@ impl Replanning {
 /// the person's record says the service keeps trying,
 /// so they do not push by hand for nothing.
 ///  The plan is asked of the service loop (`Replanning`),
-/// which owns it.
+/// which owns it,
+/// and it is written before those words exist:
+/// the promise a record makes
+///  is the plan's,
+/// so a plan that cannot be kept leaves the record with Git's own words alone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,9 +375,10 @@ impl Replanning {
 /// ```
 pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: Duration, item: &WorkItem, attempt: u32, text: &str) -> String {
     let pause: Duration = pause_before(attempt, first);
+    // The notice below says the service keeps trying, so the plan that keeps it is written first,
+    // and its answer says whether the words may promise it.
+    let kept: bool = replanning.keep_the_plan(git_dir, item, attempt);
     replanning.changes.push(RetryChange::Plan { git_dir: git_dir.to_path_buf(), item: item.clone(), attempt, due: Instant::now() + pause });
-    // The notice below says the service keeps trying, so the plan that keeps it is written first.
-    replanning.keep_the_plan(git_dir, item, attempt);
     let plan: String = format!(
         "monochromatic-git-policy-cli: the commit service tries this push again by itself in {} seconds (try {}), and keeps trying with longer pauses until the push lands or a conflict needs you.",
         pause.as_secs(),
@@ -378,7 +394,9 @@ pub(crate) fn planned_retry(git_dir: &Path, replanning: &mut Replanning, first: 
         format!("push will be tried again branch={:?} oid={} next_try={} in_seconds={} cause: {}", item.branch_ref, item.oid, attempt + 1, pause.as_secs(), text.lines().next().unwrap_or_default()).as_str(),
         &fields,
     );
-    return format!("{plan}\n{text}");
+    // A plan that could not be kept is not promised: the service of this run still tries the push, and a service started in
+    //  its place would not know it, so the person is left with Git's own words and pushing by hand.
+    return if kept { format!("{plan}\n{text}") } else { text.to_string() };
 }
 
 /// What:

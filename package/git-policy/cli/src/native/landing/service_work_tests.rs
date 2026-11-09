@@ -1025,3 +1025,32 @@ fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
     assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the retry the notice promised is on disk before the notice was written");
     remove(repo.root.as_path());
 }
+
+/// What:
+///  A push whose retry plan cannot be kept is not told that the service keeps trying.
+/// Why:
+///   The plan is what keeps that promise across a restart;
+/// with none on disk the words would outlive the service that
+///  could have kept them,
+/// and the person would wait for a retry nothing knows about.
+/// The words are then Git's own alone,
+/// and the
+///  service that is running still tries,
+/// whose journal says so.
+#[test]
+fn a_retry_the_plan_cannot_keep_is_not_promised() {
+    let repo: Repo = repo("work-retry-plan-unwritable");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    // A file where the plan directory must be makes saving any plan fail.
+    std::fs::write(plans.as_path(), "in the way").expect("blocker");
+    let recorder: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) };
+    let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown.len(), 1, "the person is told about the push");
+    assert!(!shown[0].contains("tries this push again by itself"), "no promise the plan cannot keep: {shown:?}");
+    assert!(shown[0].contains("the network is down"), "Git's own words are kept: {shown:?}");
+    assert_eq!(drained.changes.len(), 1, "the service that is running goes on trying the push");
+    remove(repo.root.as_path());
+}
