@@ -20,9 +20,11 @@ use std::os::unix::fs::PermissionsExt;
 
 /// What:
 /// `pub pub const OWNER_ONLY_MODE: u32 = 0o700;` is the mode rule ATH requires for the shared scratch root:
-/// read, write and search for the owner and nothing for anyone else.
+/// read,
+/// write and search for the owner and nothing for anyone else.
 /// Why:
-/// The fixture sets it and `tests/fixture.rs` asserts it, both from this one value,
+/// The fixture sets it and `tests/fixture.rs` asserts it,
+/// both from this one value,
 /// so a change to the requirement is one edit.
 ///
 /// In TS you'd write (pseudocode):

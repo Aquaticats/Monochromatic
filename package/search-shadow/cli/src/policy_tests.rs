@@ -248,7 +248,8 @@ fn piped_rg(items: &[&str]) -> Option<String> {
 
 /// A pipe on standard input with a named search path loses the piped lines:
 /// ripgrep reads the paths and never the pipe.
-/// It is refused wherever it runs, repository root or not.
+/// It is refused wherever it runs,
+/// repository root or not.
 #[test]
 fn refuses_a_piped_search_that_names_a_search_path() {
     for arguments in [&["--invert-match", "X", "."][..], &["X", "some/dir"], &["-l", "X", "a", "b"]] {

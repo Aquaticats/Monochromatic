@@ -197,6 +197,21 @@ fn long_flag_name(token: &str) -> &str {
 }
 
 /// What:
+/// `fn is_stdin_marker(path: &str) -> bool` declares a private function that recognizes ripgrep's explicit
+/// "read standard input" path.
+/// Why:
+/// It is passed by name to the iterator over the positional arguments,
+/// so the marker is defined once beside the code that looks for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isStdinMarker = (path: string): boolean => path === '-';
+/// ```
+fn is_stdin_marker(path: &str) -> bool {
+    return path == "-";
+}
+
+/// What:
 /// `pub fn describe_walk(arguments: &[String]) -> WalkDescription` declares a public function.
 /// `&[String]` is a borrowed read-only view of a list of owned texts
 /// (the siblings are `Vec<String>`,
@@ -340,7 +355,8 @@ pub fn describe_walk(arguments: &[String]) -> WalkDescription {
     let stdin_marker_named: bool = positionals
         .iter()
         .skip(first_path_index)
-        .any(|path| return path == "-");
+        .map(String::as_str)
+        .any(is_stdin_marker);
 
     // What:     `WalkDescription { widened, informational, path_count, ... }` builds the record from the variables of the
     // same names (shorthand for `widened: widened`).

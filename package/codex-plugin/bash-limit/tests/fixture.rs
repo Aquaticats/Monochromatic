@@ -20,7 +20,8 @@
 /// Import the shared fixture and native process helpers.
 mod support;
 
-/// Import filesystem operations, the I/O error type and child processes.
+/// Import filesystem operations,
+/// the I/O error type and child processes.
 use std::{fs, io, process::Command};
 
 /// Import the permission bits the mode assertion reads.
@@ -29,11 +30,13 @@ use std::os::unix::fs::PermissionsExt;
 /// Import the owned path type.
 use std::path::{Path, PathBuf};
 
-/// Import the one definition of the owner-only mode, so the assertion cannot drift from the fixture.
+/// Import the one definition of the owner-only mode,
+/// so the assertion cannot drift from the fixture.
 use support::OWNER_ONLY_MODE;
 
 /// What:
-/// `fn fresh_home() -> io::Result<PathBuf>` declares a helper that makes an empty, unused home directory under
+/// `fn fresh_home() -> io::Result<PathBuf>` declares a helper that makes an empty,
+/// unused home directory under
 /// Cargo's per-target temporary directory.
 /// Why:
 /// A test of the scratch root's creation needs a home where that directory does not exist yet,

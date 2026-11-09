@@ -101,7 +101,8 @@ fn own_real_path() -> PathBuf {
 /// `fn stdin_kind() -> StdinKind` declares a private function returning which kind of thing standard input is
 /// attached to.
 /// Why:
-/// The policies decide on it: with a pipe and no path a search reads the input and walks nothing,
+/// The policies decide on it:
+/// with a pipe and no path a search reads the input and walks nothing,
 /// and with a pipe and a named path ripgrep ignores the input.
 ///
 /// In TS you'd write (pseudocode):

@@ -58,6 +58,9 @@ pub enum StdinKind {
     Socket,
 }
 
+/// The questions a policy asks about the kind of input:
+/// whether a tool could read anything at all,
+/// and whether that input is a pipe.
 impl StdinKind {
     /// What:
     /// `pub fn of(file_type: &FileType) -> StdinKind` declares an associated function (it takes no `self`) that maps a
@@ -88,7 +91,8 @@ impl StdinKind {
     /// `pub fn reads_input(self) -> bool` declares a method taking the value by copy and returning true when a tool
     /// could read the input.
     /// Why:
-    /// A pipe, a file and a socket all give a tool something to read;
+    /// A pipe,
+    /// a file and a socket all give a tool something to read;
     /// only `StdinKind::None` leaves it nothing.
     ///
     /// In TS you'd write (pseudocode):

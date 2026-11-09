@@ -382,7 +382,8 @@ fn refuses_a_recursive_grep_from_a_repository_root_but_runs_a_bounded_one() {
     assert!(String::from_utf8_lossy(&allowed.stdout).contains("REAL grep -rn foo package"));
 }
 
-/// The incident: a shell pipeline into a search that names a path.
+/// The incident:
+/// a shell pipeline into a search that names a path.
 /// ripgrep never reads the pipe there,
 /// so the shadow refuses through the real process and the pipe's lines are not silently dropped.
 #[test]

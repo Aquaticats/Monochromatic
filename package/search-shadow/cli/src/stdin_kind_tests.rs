@@ -30,13 +30,15 @@ fn file_type_of(path: &Path) -> fs::FileType {
 /// Why:
 /// A pipe is the one kind that cannot be made from the standard library without `unsafe`,
 /// and this crate keeps its single `unsafe` call in `priority.rs`.
-/// `mkfifo` is coreutils, present on every host this crate supports.
+/// `mkfifo` is coreutils,
+/// present on every host this crate supports.
 fn make_pipe(path: &Path) {
     let status = Command::new("mkfifo").arg(path).status().expect("run mkfifo");
     assert!(status.success(), "mkfifo could not create {}", path.display());
 }
 
-/// A pipe on standard input is a FIFO, and only a FIFO is a pipe.
+/// A pipe on standard input is a FIFO,
+/// and only a FIFO is a pipe.
 #[test]
 fn a_named_pipe_is_a_pipe() {
     let directory = scratch();
@@ -45,7 +47,9 @@ fn a_named_pipe_is_a_pipe() {
     assert_eq!(StdinKind::of(&file_type_of(&pipe)), StdinKind::Pipe);
 }
 
-/// A redirected file reads as a file, never as a pipe: `rg PATTERN < file` is deliberate.
+/// A redirected file reads as a file,
+/// never as a pipe:
+/// `rg PATTERN < file` is deliberate.
 #[test]
 fn a_regular_file_is_a_file_and_not_a_pipe() {
     let directory = scratch();
@@ -56,7 +60,8 @@ fn a_regular_file_is_a_file_and_not_a_pipe() {
     assert!(!kind.is_pipe());
 }
 
-/// A socket reads as a socket, never as a pipe.
+/// A socket reads as a socket,
+/// never as a pipe.
 #[test]
 fn a_socket_is_a_socket_and_not_a_pipe() {
     let directory = scratch();
@@ -72,7 +77,9 @@ fn a_socket_is_a_socket_and_not_a_pipe() {
     drop(listener);
 }
 
-/// `/dev/null` is a character device, which is what an unpiped command sees, so it is no input at all.
+/// `/dev/null` is a character device,
+/// which is what an unpiped command sees,
+/// so it is no input at all.
 #[test]
 fn the_null_device_is_no_input() {
     let kind = StdinKind::of(&file_type_of(Path::new("/dev/null")));
@@ -81,14 +88,16 @@ fn the_null_device_is_no_input() {
     assert!(!kind.is_pipe());
 }
 
-/// A directory is none of the four, and must not be mistaken for a pipe.
+/// A directory is none of the four,
+/// and must not be mistaken for a pipe.
 #[test]
 fn a_directory_is_no_input() {
     let directory = scratch();
     assert_eq!(StdinKind::of(&file_type_of(directory.path())), StdinKind::None);
 }
 
-/// Every kind that gives a tool something to read reports so, and only `None` does not.
+/// Every kind that gives a tool something to read reports so,
+/// and only `None` does not.
 #[test]
 fn only_none_leaves_a_tool_nothing_to_read() {
     assert!(StdinKind::File.reads_input());
