@@ -79,6 +79,7 @@ use crate::service_messages::ClientFailure;
 pub use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, RETIREMENT_WAIT, STOP_TIMEOUT_SECONDS, platform_without_manager, runtime_unit_dir};
 use crate::service_provision_host_and_manager::refusal;
 use crate::service_provision_earlier_service_retirement::{clear_earlier_units, retire_earlier_service};
+use crate::service_provision_loaded_unit_texts::{record as record_loaded_texts, remembers as manager_was_told};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
 use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_units_of_removed_worktrees::note_worktree;
@@ -139,14 +140,21 @@ pub fn in_place(host: &ProvisionHost) -> bool {
 /// `in_place` with the process table to read the listening sockets from.
 pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
     let directory: PathBuf = runtime_unit_dir(host.runtime_dir.as_path());
+    let texts: [(&'static str, String); 2] = unit_texts(host);
     // Every unit file holds exactly the text the wrapper would write.
     let mut all_current: bool = true;
-    for (name, text) in unit_texts(host) {
-        if !matches!(std::fs::read_to_string(directory.join(name)), Ok(installed) if installed == text) {
+    for (name, text) in &texts {
+        if !matches!(std::fs::read_to_string(directory.join(name)), Ok(installed) if installed == *text) {
             all_current = false;
             break;
         }
     }
+    // What: The manager was told about these very texts.
+    // Why:  A file that matches says what this release would write, not what the manager loaded. A process killed between
+    //       writing a template and asking for the reload leaves exactly that, and every later commit would then keep reaching
+    //       the service of the release that was replaced (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+    //       the interrupted upgrade). One small read of the record beside the notes decides it.
+    let manager_holds: bool = manager_was_told(host.runtime_dir.as_path(), texts.as_slice());
     // A file of an earlier name that something else wrote is not the wrapper's to retire, and does not keep it from being in place.
     let mut earlier_left: bool = false;
     for name in [LEGACY_SOCKET_UNIT_NAME, LEGACY_SERVICE_UNIT_NAME] {
@@ -156,7 +164,7 @@ pub fn in_place_with(host: &ProvisionHost, proc_root: &Path) -> bool {
         }
     }
     earlier_left = earlier_left || host.runtime_dir.join(LEGACY_SOCKET_RELATIVE).exists();
-    if !all_current || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
+    if !all_current || !manager_holds || earlier_left || !socket_path(host.runtime_dir.as_path(), host.instance.as_str()).exists() {
         return false;
     }
     // The earlier release's socket of this worktree: a listener there starts the earlier helper on a connection, so the stop
@@ -194,14 +202,15 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     if let Err(error) = std::fs::create_dir_all(&directory) {
         return Err(ClientFailure::CouldNotStart(format!("{} cannot be created: {error}", directory.display())));
     }
+    let texts: [(&'static str, String); 2] = unit_texts(host);
     // Whether the manager may hold state for these units: a unit file was already there, so a start may have failed under it.
     let mut known: bool = false;
     let mut written: Vec<PathBuf> = Vec::new();
-    for (name, text) in unit_texts(host) {
+    for (name, text) in &texts {
         let path: PathBuf = directory.join(name);
         let existed: bool = path.exists();
         known |= existed;
-        if matches!(std::fs::read_to_string(&path), Ok(current) if current == text) {
+        if matches!(std::fs::read_to_string(&path), Ok(current) if current == *text) {
             continue;
         }
         if let Err(error) = write_atomically(&path, text.as_str()) {
@@ -210,6 +219,21 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         written.push(path);
         reload |= existed;
     }
+    // What: A unit file the manager may hold and was never told about is reloaded for, even though this call wrote nothing.
+    // Why:  The upgrade a kill interrupted had already written the template that now matches, so the loop above finds nothing
+    //       to write and would leave the manager holding the text it loaded before; the record of what it was told is what
+    //       tells the two apart (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, the interrupted
+    //       upgrade). The next commit asks for the reload the killed one never made, and the commits after it find the record
+    //       and take the fast path again.
+    reload |= known && !manager_was_told(host.runtime_dir.as_path(), texts.as_slice());
+    // What: The note names the worktree before the manager is asked to start the units.
+    // Why:  The service reads the note to learn whose units it runs, and a service that finds none answers `Unmapped`, never asks
+    //       whether its worktree is still there, and cannot be named by the sweep that stops the units of a removed worktree. A
+    //       kill between the start and the note left exactly that service behind, for up to the idle exit
+    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 4). The note names a directory
+    //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
+    //       never started, which no service reads and the next provisioning writes again.
+    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
     // Whatever the retirement of the earlier service took, the reload and the start have the time of a whole exchange.
     manager.within(EXCHANGE_WAIT);
     let asked: Result<(), CallError> = ask_manager(manager, reload, known, host.instance.as_str());
@@ -221,8 +245,13 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
         }
         return Err(refusal(error));
     }
-    // After the units are in place and started: a refused provisioning writes nothing, and no note of a worktree whose units never started stays.
-    note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
+    // What: The manager now holds exactly these texts.
+    // Why:  The record is written after the manager accepted the reload and never before, so it is the manager's own answer and
+    //       the next commit can take the fast path. A record that cannot be written costs one reload per commit and never a
+    //       commit.
+    if let Err(error) = record_loaded_texts(host.runtime_dir.as_path(), texts.as_slice()) {
+        crate::service_warn!("the units this program wrote cannot be recorded as the ones the service manager was told about ({error}), so the next commit provisions again and asks for a reload it does not need");
+    }
     stop_earlier_instance_socket(host, manager);
     return Ok(());
 }

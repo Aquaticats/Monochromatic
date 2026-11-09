@@ -103,6 +103,15 @@ pub mod real_git_record;
 /// then the Git the commit service's unit records.
 pub mod real_git_resolution;
 
+/// The marker every start of real Git carries:
+///  its format,
+///  and the one lookup of it in an environment.
+pub mod start_marker;
+
+/// The chain record carried in an inherited descriptor:
+///  the start that a launcher which clears the environment cannot hide.
+pub mod chain_starts_record;
+
 /// The marker every real-Git start carries and the check that stops a wrapper which finds it was started as Git.
 pub mod started_as_git;
 
@@ -152,3 +161,7 @@ pub mod git_version_cache;
 /// The Git command a forwarded invocation runs,
 ///  after ordinary alias expansion.
 pub mod forwarded_command;
+
+/// The guarded decision about the command Git will really run,
+/// alias expansion included.
+pub mod guarded_forwarded_command;

@@ -29,7 +29,8 @@
 /// ```ts
 /// import { runPolicyStage } from './policy_engine.ts';
 /// ```
-use crate::policy_checks::ShippedChecks;
+use crate::guarded_forwarded_command::GuardedForwarded;
+use crate::policy_checks::{ShippedChecks, guarded_forwarded};
 use crate::policy_engine::{StageEnd, StageRequest, StageResult, run_policy_stage};
 use crate::policy_events::PolicyEvent;
 use crate::policy_registry::{POLICY_REGISTRY, PolicyId};
@@ -154,6 +155,10 @@ pub fn run_policy_pass<F: RepositoryFacts>(
     // `mut` allows the transforms to replace the arguments.
     let mut arguments: Vec<OsString> = checks.arguments.clone();
     if request.trigger == Trigger::PreForward {
+        // An alias makes the typed word differ from the command Git runs: the guard decided on the expansion, the
+        //  transforms add their tokens to that same expansion, and that is what the wrapper forwards.
+        let forwarded: GuardedForwarded = guarded_forwarded(checks);
+        arguments = forwarded.arguments;
         // `&mut checks.facts` lends the provider for writing: a transform may ask Git one fact.
         let transformed: TransformResult = apply_fixed_transforms(
             arguments.as_slice(),

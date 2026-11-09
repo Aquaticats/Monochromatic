@@ -125,6 +125,59 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
+#### Queue after the push landing (2026-11-09T08:09:56-05:00)
+
+- `67e8cf0808` landed the discarding-commands branch.
+  The review `~/temp/agent/reviews/discarding-commands-round-2-sol.txt` is a source review and names further cases,
+  none reproduced yet.
+  Run 3 of `discarding-commands-findings-fixed` reproduces and fixes the ignored-file,
+  previous-branch and audit cases,
+  and `invocation-route-findings-fixed` has the alias cases by inbox note.
+- The worktree-copy branch does not land yet.
+  `worktree-copy-path-bytes-round-1-sol.txt` names two regressions of that branch:
+  a `containerHex=` line inside an older release's unescaped path can direct recursive deletion,
+  and a `.git` pointer ending in a carriage return reads as unregistered and loses a pending copy.
+  Run 2 of `worktree-copy-records-keep-path-bytes` is on them.
+- Run 3 of `hook-route-findings-fixed` removes the delivery proof,
+  which exists only on that branch (`ea3f3fd3fd`):
+  `hook-route-round-2-sol.txt` names three more ways it claims a delivery that did not happen.
+  The coordinator's decision is that a stopped push says what is known and its retry settles the question.
+- `858fc0a751` (entry and service) and `0b6f191324` (push) landed with their last reviews' findings open,
+  because each finding is no worse than main.
+  Those reviews read source only,
+  so the follow-ups reproduce each finding first.
+  The landing branch and the worktree-add branch land next for the same reason.
+- Deferred until a slot frees,
+  in this order,
+  briefs in `~/temp/agent/pi-runs/`:
+  `landing-route-round-12-prompt.md`,
+  `worktree-add-round-4-prompt.md`,
+  `entry-and-service-round-5-prompt.md`,
+  and `push-route-round-5-prompt.md`.
+  The practical limit of agents was reached when they were written.
+- Fail alone on main,
+  so no branch caused them,
+  and they are with `wrapper-tests-that-fail-only-in-a-suite`:
+  `a_stopped_push_is_still_tried_again_after_the_service_restarts`,
+  `a_landing_waits_for_the_reclaimer_that_holds_a_claim`,
+  and `the_report_keeps_input_order_whichever_worktree_finishes_first`,
+  whose output says a blocking step panicked.
+  Pass alone and fail or time out in a suite:
+  `a_writer_saving_during_a_pass_loses_no_copy` (235 s alone against a 300 s limit),
+  `a_creation_leaves_a_live_journal_alone_and_does_not_wait`,
+  and `a_landing_over_an_unheld_lock_removes_it_and_goes_on`.
+- Check on top of main running:
+  the worktree-removal branch.
+  Cross-vendor reviews running:
+  child-process round 3 and literal-pathspec round 2.
+- The owner,
+  2026-11-09:
+  "Always Size turn limits to the task based on past data."
+  The skill states it and the launcher sizes the cap from finished runs of the same kind.
+  Agents started before that change keep the cap they started with.
+- The 16 second signed scratch commit ceiling is on main (`e8f75c09e8`) and unreleased.
+  The installed wrapper still stops that step at 3006 ms.
+
 #### Main stopped building, and what landed after it (2026-11-09T06:35:43-05:00)
 
 - Main did not compile from `367c52c390` until `121100623c`.
@@ -227,21 +280,41 @@ The old tree kept for the rollback stays until the owner deletes it.
   path bytes in every field of the owed index record,
   and the landing findings of `merge-route-round-6-sol.txt`),
   `locks-and-transactions-findings-fixed` run 3,
-  and `subvolume-conversion-findings-fixed` run 3.
+  `subvolume-conversion-findings-fixed` run 3,
+  `merge-route-findings-fixed` run 7,
+  `conflict-resolution-findings-fixed` run 3,
+  and the new agents `markdown-route-findings-fixed` and `standards-review-findings-fixed`
+  for the defects in the audits of those routes under `doc/planning/`.
   The lock and conversion branches do not land before those runs:
   their reviews (`locks-and-transactions-round-2-sol.txt`,
   `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
 - Waiting for a free agent slot,
   in this order:
-  `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
-  a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
-  `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
-  for the findings of `conflict-resolution-round-2-sol.txt` other than the window between revalidation and install,
-  a new agent `standards-review-findings-fixed` with `standards-review-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-standards-review-route-findings-on-main.md`,
-  and a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`.
+  `process-and-child-lifetime-findings-fixed` run 4 with `process-and-child-lifetime-merge-of-main-prompt.md`,
+  to finish the merge of main left open in its worktree,
+  whose conflicts come from `e8f75c09e8`;
+  a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`;
+  and a new agent `commit-ceiling-and-private-index-follow-ups` with `commit-ceiling-and-private-index-follow-ups-prompt.md`.
+- Finished their runs and are being checked on top of main:
+  `worktree-add-findings-fixed` and `discarding-commands-findings-fixed`,
+  whose last runs both ended at the wall clock during a final test run,
+  so those two checks stand in for it.
+  `push-route-findings-fixed` had its merge conflict in the notice code resolved by this session,
+  keeping the branch's rule that a notice leaves its record only once its words were written;
+  its check and the review of `56d3ab1f0f~1..bcd87c1f15` come next.
+- The commit-ceiling branch landed as `e8f75c09e8`,
+  with 495 of 495 selected tests on top of main.
+  Its last review (`scratch-commit-ceiling-round-5-sol.txt`) was started over a range that crossed a merge of main,
+  so it also read main's landing and `fix` code.
+  The findings on the owed index record went to the inbox of `landing-route-findings-fixed` run 11.
+  The rest are in the follow-up brief named in the queue:
+  a commit has no ceiling when its notice thread cannot start (main has the same gap),
+  a step started without a descriptor is signalled by number,
+  an `owner` FIFO blocks private index creation without a bound,
+  and a rollback notice says a file holds a save that is only in the journal.
+  The visible queue position can now start,
+  since it was held for this landing.
 - mpm-shadow landed as `9406b6e5b0` with 725 of 725 tests on top of main,
   and 0.2.7-alpha.10 was released from it,
   locked and installed (`mise exec -- mpm-shadow --version` reads that version;

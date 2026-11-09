@@ -16,6 +16,7 @@ use super::{ChildOutcome, STOP_OUTCOME_FOR_THIS_THREAD, StopOutcome, exit_code, 
 use crate::test_support::{executable, fixture, remove};
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStringExt;
+use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -376,4 +377,74 @@ fn a_bounded_step_keeps_the_process_group_of_this_one() {
     let mine: i32 = unsafe { libc::getpgrp() };
     assert_eq!(number_in(group_file.as_path()), mine, "the step runs in this process's group, which is the terminal's foreground group");
     remove(root.as_path());
+}
+
+/// The variable that marks the child of the blocked-signal control.
+const BLOCKED_SIGNAL_CHILD_VARIABLE: &str = "CLI_GIT_END_AS_GIT_ENDED_BLOCKED_CHILD";
+
+/// The status the child exits with when the signal could not end it:
+/// no program of the wrapper uses it.
+const SIGNAL_NOT_DELIVERED_CODE: i32 = 97;
+
+/// What:
+///  A terminating signal this process blocks still ends it by that signal.
+/// Why:
+///  A route that keeps a process around Git reports the death as a value and ends by it afterwards
+/// (`forwarding::end_as_git_ended`);
+/// a signal the person's own start left blocked,
+/// or one a parent blocked
+///  before the wrapper ran,
+/// stays pending when raised,
+/// so the wrapper exited normally with `128 + the signal` and its caller saw a
+///  normal exit where native Git's caller sees `WIFSIGNALED`
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 5 of the round-3 review).
+/// The body runs in a child,
+/// because the death is the assertion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // in a child: block(SIGTERM); endAsGitEnded(SIGTERM); expect(parent).toSeeSignal('SIGTERM');
+/// ```
+#[test]
+fn a_blocked_terminating_signal_still_ends_by_it() {
+    if std::env::var_os(BLOCKED_SIGNAL_CHILD_VARIABLE).is_some() {
+        block(super::SIGNAL_TO_END_BY);
+        let _status: i32 = super::end_as_git_ended(super::SIGNAL_TO_END_BY);
+        // Only reached when the signal could not end this process: the parent names that status.
+        std::process::exit(SIGNAL_NOT_DELIVERED_CODE);
+    }
+    let binary: PathBuf = crate::test_support::this_test_binary().expect("the test binary");
+    let output: std::process::Output = Command::new(binary)
+        .args([
+            "--exact",
+            "invocation::forwarding::tests::a_blocked_terminating_signal_still_ends_by_it",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(BLOCKED_SIGNAL_CHILD_VARIABLE, "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child test runs");
+    assert_eq!(
+        output.status.signal(),
+        Some(super::SIGNAL_TO_END_BY),
+        "the child ended with {:?} instead of the death by signal {}: {}",
+        output.status.code(),
+        super::SIGNAL_TO_END_BY,
+        String::from_utf8_lossy(output.stderr.as_slice())
+    );
+}
+
+/// Blocks `signal` in this thread,
+/// so raising it leaves it pending.
+fn block(signal: i32) {
+    // SAFETY: `sigemptyset` and `sigaddset` write only this local set, and `pthread_sigmask` reads it and touches no other
+    //  memory of this process.
+    unsafe {
+        let mut blocked: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut blocked);
+        libc::sigaddset(&mut blocked, signal);
+        let _masked = libc::pthread_sigmask(libc::SIG_BLOCK, &blocked, std::ptr::null_mut());
+    }
 }

@@ -178,6 +178,9 @@ pub mod worktree_ladder_finish;
 #[cfg(target_os = "linux")]
 pub mod worktree_dirty_restore;
 
+/// The facts one audit line of a removed worktree carries.
+pub mod worktree_audit;
+
 /// The cheap-worktree ladder around one `git worktree add`:
 /// what runs before real Git and after it.
 #[cfg(unix)]
