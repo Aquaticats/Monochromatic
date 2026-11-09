@@ -80,6 +80,69 @@ pub struct ServiceCommit {
 }
 
 /// What:
+///  Everything a commit that landed still needs, gathered so the answer that landed and the silence that ended in one
+///  take the same path.
+struct LandedAftermath<'landed> {
+    /// The command being run.
+    invocation: &'landed CommitInvocation<'landed>,
+    /// What the preparation came to.
+    ready: &'landed Ready,
+    /// The events the preparation captured, which the result carries.
+    events: Vec<crate::policy_events::PolicyEvent>,
+    /// The native inputs of the command.
+    native_inputs: &'landed NativeInputs,
+    /// The commit that landed.
+    commit: &'landed str,
+    /// The branch value it was made on.
+    first_parent: String,
+    /// A typed message that was saved and used.
+    fixed_message: Option<&'landed PathBuf>,
+    /// The commit the service built from the request, when it did.
+    embedded_in_use: Option<&'landed Embedded>,
+    /// Whether Git built the commit.
+    native: bool,
+    /// Commits earlier attempts prepared and left behind.
+    unlanded: &'landed [String],
+    /// How to reach the service afterwards.
+    config: ClientConfig,
+}
+
+/// What:
+///  The command's result for a commit that landed, and the refusal its after-landing report came to if it refused.
+/// Why:
+///   A commit the branch shows as made is a landed commit even when its answer never arrived,
+/// so both paths report the landing, hand the after-commit work over and exit 0
+/// (finding 6 of the third review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [outcome, refused] = theLandedCommit(input);
+/// ```
+fn the_landed_commit(input: LandedAftermath<'_>) -> (ServiceCommit, Option<TransactionStop>) {
+    let reported: Option<TransactionStop> = report_landing(
+        input.invocation,
+        input.ready,
+        input.native_inputs,
+        input.commit,
+        input.first_parent.as_str(),
+        input.fixed_message,
+        input.embedded_in_use,
+        input.native,
+        input.unlanded,
+    )
+    .err();
+    let handoff: ServiceHandoff = ServiceHandoff {
+        config: input.config,
+        repository: input.ready.repository.clone(),
+        git_dir: input.native_inputs.capture.layout.git_dir.clone(),
+        reference: input.ready.reference.clone(),
+        parent: input.first_parent,
+    };
+    let result: TransactionResult = TransactionResult { events: input.events, exit_code: 0, landed_oid: Some(input.commit.to_string()), uses_lfs: input.ready.uses_lfs };
+    return (ServiceCommit { result, handoff: Some(handoff) }, reported);
+}
+
+/// What:
 ///  Lands the commit through the service,
 /// for every command line.
 /// Why:
@@ -311,17 +374,24 @@ pub fn service_commit<F: RepositoryFacts>(
         match submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit) {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
-                report_landing(invocation, &ready, native_inputs, commit.as_str(), first_parent.as_str(), fixed_message.as_ref(), embedded_in_use, native, unlanded.as_slice())?;
-                let handoff: ServiceHandoff = ServiceHandoff {
+                let (outcome, refused): (ServiceCommit, Option<TransactionStop>) = the_landed_commit(LandedAftermath {
+                    invocation,
+                    ready: &ready,
+                    events: ready.events.clone(),
+                    native_inputs,
+                    commit: commit.as_str(),
+                    first_parent,
+                    fixed_message: fixed_message.as_ref(),
+                    embedded_in_use,
+                    native,
+                    unlanded: unlanded.as_slice(),
                     config: config.clone(),
-                    repository: ready.repository.clone(),
-                    git_dir: native_inputs.capture.layout.git_dir.clone(),
-                    reference: ready.reference.clone(),
-                    parent: first_parent,
-                };
-                let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
+                });
                 timing.after_landing += after_landing.elapsed();
-                return Ok(ServiceCommit { result, handoff: Some(handoff) });
+                if let Some(stop) = refused {
+                    return Err(stop);
+                }
+                return Ok(outcome);
             }
             Ok(Submitted::PrepareAgain { landed, .. }) => {
                 if native || sent.amend {
@@ -395,7 +465,30 @@ pub fn service_commit<F: RepositoryFacts>(
                     other => Some(other),
                 };
                 let Some(worded) = worded else {
-                    return Err(TransactionStop::Message(String::from("the branch holds the commit this command prepared")));
+                    // The branch holds the commit this command prepared, so the commit was made: the command succeeds, and only
+                    // the work after it can still be refused.
+                    let prepared: String = sent.commit.clone().unwrap_or_else(|| { return ready.base.clone(); });
+                    let (outcome, refused): (ServiceCommit, Option<TransactionStop>) = the_landed_commit(LandedAftermath {
+                        invocation,
+                        ready: &ready,
+                        events: ready.events.clone(),
+                        native_inputs,
+                        commit: prepared.as_str(),
+                        first_parent,
+                        fixed_message: fixed_message.as_ref(),
+                        embedded_in_use,
+                        native,
+                        unlanded: unlanded.as_slice(),
+                        config: config.clone(),
+                    });
+                    if let Some(stop) = refused {
+                        match stop {
+                            TransactionStop::NativeExit(code) => warn("serviceCommit", format!("the commit landed and the work after it exited {code}").as_str()),
+                            TransactionStop::Message(words) => warn("serviceCommit", format!("the commit landed and the work after it failed: {words}").as_str()),
+                            TransactionStop::Failed { code, message } => warn("serviceCommit", format!("the commit landed and the work after it failed ({code:?}): {message}").as_str()),
+                        }
+                    }
+                    return Ok(outcome);
                 };
                 return Err(TransactionStop::Message(render(&worded)));
             }

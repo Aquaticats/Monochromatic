@@ -111,7 +111,11 @@ pub fn the_silent_service_after_a_prepare(context: &GitContext, cwd: &Path, refe
 /// const theSilenceMeans = (shows) => shows === 'made' ? undefined : { shows };
 /// ```
 fn the_silence_means(shows: WhatTheBranchShows) -> Option<ClientFailure> {
-    return Some(ClientFailure::ServiceSilentAfterPreparing { shows });
+    return match shows {
+        // The branch holds the commit: the command did what it was asked, so it reports nothing and succeeds.
+        WhatTheBranchShows::Made => None,
+        what_the_branch_shows => Some(ClientFailure::ServiceSilentAfterPreparing { shows: what_the_branch_shows }),
+    };
 }
 
 /// Controls for the branch read stay out of the release executable.
