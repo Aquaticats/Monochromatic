@@ -269,11 +269,33 @@ const RESTART_MARGIN: Duration = Duration::from_secs(STALL_SECONDS_NUMBER * 5);
 /// The stall window of the controls as a number.
 const STALL_SECONDS_NUMBER: u64 = 2;
 
+/// How long a first push to a fresh bare remote may take on this host,
+/// so the wait below covers the push itself and not only the stall it was written for.
+///  Citation:
+/// measured 2026-11-09 on this host's encrypted disk,
+/// six first pushes with the same small commit:
+/// 10.4,
+/// 11.5 and 15.8
+/// seconds with Git's default `core.fsync`,
+/// and 13.5,
+/// 19.0 and 22.0 seconds with `core.fsync=none` on the remote,
+/// so the
+///  setting is not the cause and this allowance is three times the longest of the six.
+/// With it the controls waited out a push that
+///  took 13.3 s (`push_ms=13323`) and passed,
+/// where the wait before it ended at 11.8 s.
+const FIRST_PUSH_ALLOWANCE: Duration = Duration::from_secs(66);
+
 /// How long the restart control gives a restarted service to deliver:
 /// its first pause,
 /// the slack the schedule adds,
-/// and the margin.
-const RESTART_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// the margin,
+/// and a first push.
+///  Every wait of these controls is for something to become true,
+/// never for it to stay false,
+/// so a longer wait
+///  can only let a slow disk pass and cannot hide a plan that was lost.
+const RESTART_PATIENCE: Duration = FIRST_PUSH_ALLOWANCE.saturating_add(RESTART_MARGIN).saturating_add(PAUSE).saturating_add(RETRY_SLACK);
 
 /// Run `work_loop` on a thread,
 /// as the service does,
@@ -825,8 +847,11 @@ fn a_push_plan_due_later_does_not_hide_the_startup_look() {
 
 /// How long the controls of a fault in the notes wait for the service to try again:
 /// the pause,
-/// the slack and a margin for a loaded host.
-const NOTE_RETRY_PATIENCE: Duration = RESTART_MARGIN.saturating_add(PAUSE).saturating_add(RETRY_SLACK);
+/// the slack,
+/// a margin for a loaded host,
+/// and a first push,
+/// because the note's retry runs on the same disk as the push before it.
+const NOTE_RETRY_PATIENCE: Duration = FIRST_PUSH_ALLOWANCE.saturating_add(RESTART_MARGIN).saturating_add(PAUSE).saturating_add(RETRY_SLACK);
 
 /// Puts a file where the notes' directory should be,
 /// so that nothing can be written or listed under it,
