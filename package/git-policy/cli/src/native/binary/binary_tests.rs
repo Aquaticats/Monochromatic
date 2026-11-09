@@ -487,6 +487,12 @@ mod service_replay;
 #[path = "binary_push_failure_tests.rs"]
 mod push_failure;
 
+/// A held push whose commit a later push of the branch carried to the remote:
+/// the record is settled on Git's proof,
+/// so no command says the opposite of `git status`.
+#[path = "binary_held_push_carried_by_a_later_push_tests.rs"]
+mod held_push_carried_by_a_later_push;
+
 /// The report a reconcile owes when it published a merge but could not move the local branch,
 /// or moved it beside uncommitted work,
 /// shown once by a later command.

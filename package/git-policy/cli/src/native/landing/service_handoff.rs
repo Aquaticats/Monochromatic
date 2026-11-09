@@ -18,6 +18,7 @@
 //! await enqueue(workDir, push); await enqueue(workDir, maintenance); await wake(commonDir);
 //! ```
 
+use crate::held_push_commit_on_the_remote::{OnTheRemote, RemoteRecord};
 use crate::iso_time::now_iso;
 use crate::service_client::{ClientConfig, wake};
 use crate::service_messages::ClientFailure;
@@ -283,14 +284,26 @@ pub fn held_push_line(reference: &str, commit: &str) -> String {
 /// The wording claims only what is known,
 /// which is that the push has not been
 ///  released yet.
+///   A held record outlives the reason for its line when a later push of its branch carries the commit anyway,
+/// because the
+///  queue pushes the branch and not the commit;
+/// `record` is the proof that Git already holds the commit in the
+///  branch's remote,
+/// and a record it proves is settled as done before the line is worded,
+/// so the line
+///  and `git status` agree.
+/// A question that answers nothing leaves the line standing,
+/// which is the record's
+///  own state.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// heldPushNotices(gitDir) // one line per held record
+/// heldPushNotices(gitDir, record) // one line per held record Git does not already hold
 /// ```
-pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
+pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
-    let Ok(listing) = std::fs::read_dir(state_directory(work_dir.as_path(), crate::work_item::HELD)) else {
+    let held: PathBuf = state_directory(work_dir.as_path(), crate::work_item::HELD);
+    let Ok(listing) = std::fs::read_dir(held.as_path()) else {
         return Vec::new();
     };
     let mut lines: Vec<String> = Vec::new();
@@ -303,9 +316,38 @@ pub fn held_push_notices(git_dir: &Path) -> Vec<String> {
             Some(item) => item.branch_ref,
             None => String::new(),
         };
+        if !branch.is_empty() && record.on_the_remote(branch.as_str(), commit) == OnTheRemote::There {
+            // Git holds the commit in the branch's remote, so the push this record would make has been made by another push of the
+            //  branch. Nothing waits on it: it is settled where a finished push goes.
+            settle_held(work_dir.as_path(), name.as_str());
+            continue;
+        }
         lines.push(held_push_line(branch.as_str(), commit));
     }
     return lines;
+}
+
+/// What:
+///  Moves a held record whose commit Git holds in the branch's remote to `done`,
+/// where the queue keeps a push that was made.
+/// Why:
+///   `done` is the state a settlement already has,
+/// so the record stays known to the queue (a repeat landing adds
+///  nothing) and stops being a thing no round may run.
+/// A move that fails leaves the record held,
+/// which costs a line that is
+///  still true of the record and loses nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settleHeld = (workDir, id) => { mkdirp(join(workDir, 'done')); rename(join(workDir, 'held', id), join(workDir, 'done', id)); };
+/// ```
+fn settle_held(work_dir: &Path, name: &str) {
+    let done: PathBuf = state_directory(work_dir, crate::work_item::DONE);
+    if crate::private_storage::create_private_directory_all(done.as_path()).is_err() {
+        return;
+    }
+    let _settled: std::io::Result<()> = std::fs::rename(state_directory(work_dir, crate::work_item::HELD).join(name), done.join(name));
 }
 
 /// The item one held record's text holds,

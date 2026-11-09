@@ -203,3 +203,35 @@ fn a_blocked_gate_forgets_a_record_an_earlier_release_named() {
     assert!(!state_directory(work.as_path(), crate::work_item::HELD).join(item.id()).exists(), "the blocked verdict stands, so the push is not held again");
     remove(root.as_path());
 }
+
+/// What a command is told about a held record the repository proves the remote already holds.
+struct TheRemoteHolds(bool);
+
+impl crate::held_push_commit_on_the_remote::RemoteRecord for TheRemoteHolds {
+    fn on_the_remote(&self, _reference: &str, _commit: &str) -> OnTheRemote {
+        return if self.0 { OnTheRemote::There } else { OnTheRemote::NotThere };
+    }
+}
+
+/// A held push whose commit a later push carried is settled as done and no longer said,
+/// and one the remote does not hold keeps its line.
+#[test]
+fn a_held_push_the_remote_already_holds_is_settled_and_not_said() {
+    let root: std::path::PathBuf = fixture("handoff-held-settled");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = push_item(&handoff, OID);
+    crate::work_item::hold(work.as_path(), &item).expect("the push is held");
+    let held: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::HELD).join(item.id());
+    let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
+    // The state the record describes: Git's record of the branch's remote does not hold the commit, so the line stands.
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(false)).len(), 1);
+    assert!(held.exists(), "a proof that says no settles nothing");
+    // A later push of the branch carried the commit: the record is settled where a finished push goes, and nothing is said.
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true)), Vec::<String>::new(), "a commit the remote holds is not held");
+    assert!(!held.exists(), "the record left the held state");
+    assert!(done.exists(), "and is known to the queue as a push that was made");
+    // Settled once, so a second command says nothing either.
+    assert_eq!(held_push_notices(handoff.git_dir.as_path(), &TheRemoteHolds(true)), Vec::<String>::new());
+    remove(root.as_path());
+}

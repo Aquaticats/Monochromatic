@@ -317,6 +317,9 @@ pub mod service_round;
 /// records and the wake.
 pub mod service_handoff;
 
+/// Whether Git's own record of a branch's remote says a held push's commit has reached it.
+pub mod held_push_commit_on_the_remote;
+
 /// Whether a worktree's head still names the branch a commit was prepared on.
 pub mod service_head;
 

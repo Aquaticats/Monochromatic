@@ -8433,6 +8433,29 @@ so a blocked gate keeps the commit local,
 and a promotion creates every state directory a claim passes through (see "What a landed batch leaves
 behind").
 
+A held record is settled when Git proves its commit reached the remote.
+The question is put to the local repository alone,
+because a command asks no remote:
+`<branch>@{upstream}` names the ref the branch's pushes update,
+and `git merge-base --is-ancestor <commit> <that ref>` says whether the commit is in it
+(`held_push_commit_on_the_remote.rs`).
+A `merge-base` that exits other than `0` or `1`,
+a branch with no upstream,
+a branch outside `refs/heads` and a Git that cannot be started all answer "nothing is known",
+and the line stands.
+That record is moved to `done`,
+where the queue keeps a push that was made,
+so it is known to the queue and no round may run it,
+and no command says the commit is held while `git status` shows it on the remote.
+The proof is Git's record and not the remote's:
+a remote-tracking ref can lag the remote
+(a push whose reference update was refused still delivered the commits),
+and a lagging record leaves the held line standing,
+which costs a line that is still true of the record and loses nothing,
+while settling on anything weaker would drop the only word about a commit that is not backed up.
+A `blocked` record is not asked about at all:
+the question of whether a commit the gate refused should ever be pushed is open with the owner.
+
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
 and the only wait is the service's bounded wait for a foreign holder
