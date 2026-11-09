@@ -3,8 +3,8 @@
 //! a file whose inode changed does,
 //! and a path the commit stages from the worktree does not.
 
-use super::{WorktreeStaging, index_stat_data_needs_refresh};
-use crate::test_support::{fixture, git, git_context, git_text, remove, renew_inode, repository};
+use super::{EntrySlice, STAT_WALK_BREAK_EVEN_ENTRIES, WorktreeStaging, index_stat_data_needs_refresh, slice_needs_refresh, walk_in_slices, workers_for};
+use crate::test_support::{age, fixture, git, git_context, git_text, remove, renew_inode, repository};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -124,4 +124,53 @@ fn a_missing_index_needs_no_refresh() {
     std::fs::remove_file(real_index(repo.as_path())).expect("remove the index");
     assert!(!needs_refresh(repo.as_path()), "there is no stat data to refresh");
     remove(root.as_path());
+}
+
+/// A repository whose `files` files are committed,
+/// each of them aged so its entry is not racily clean.
+fn many_files_repository(root: &Path, files: usize) -> PathBuf {
+    let repo: PathBuf = repository(root, "repo");
+    for number in 0..files {
+        let path: PathBuf = repo.join(format!("f{number}.txt"));
+        std::fs::write(path.as_path(), format!("{number}\n")).expect("write");
+        age(path.as_path());
+    }
+    git(repo.as_path(), &["add", "--all"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    return repo;
+}
+
+/// The entries of `repo`'s index,
+/// and the walk of all of them.
+fn slice_of(repo: &Path) -> EntrySlice<'static> {
+    let bytes: Vec<u8> = std::fs::read(real_index(repo)).expect("index");
+    let parsed: crate::index_full::FullIndex = crate::index_full::parse_full_index(bytes.as_slice(), 20).expect("parsed");
+    // The control holds them for the length of its walk, and leaking them names that once.
+    let index: &'static crate::index_full::FullIndex = Box::leak(Box::new(parsed));
+    return EntrySlice { entries: index.entries.as_slice(), worktree_root: Box::leak(repo.to_path_buf().into_boxed_path()), restaged: &[] };
+}
+
+/// The slices answer exactly what the one linear walk answers,
+/// for every thread count and both answers:
+/// this is the control that the parallel walk changed no verdict.
+#[test]
+fn the_sliced_walk_answers_as_the_one_linear_walk_does() {
+    let root: PathBuf = fixture("index-staleness-slices");
+    let repo: PathBuf = many_files_repository(root.as_path(), 40);
+    assert!(!slice_needs_refresh(slice_of(repo.as_path())), "a clean index needs no refresh on one thread");
+    for workers in 1..=8 {
+        assert!(!walk_in_slices(slice_of(repo.as_path()), workers), "a clean index needs no refresh on {workers} threads");
+    }
+    renew_inode(repo.join("f10.txt").as_path());
+    assert!(slice_needs_refresh(slice_of(repo.as_path())), "the renewed inode needs the refresh on one thread");
+    for workers in 1..=8 {
+        assert!(walk_in_slices(slice_of(repo.as_path()), workers), "the renewed inode needs the refresh on {workers} threads");
+    }
+    remove(root.as_path());
+}
+
+/// Below the break-even of the neighbouring file-tree jobs the walk keeps one thread.
+#[test]
+fn a_walk_below_the_break_even_uses_one_thread() {
+    assert_eq!(workers_for(STAT_WALK_BREAK_EVEN_ENTRIES - 1), 1, "a short walk pays no thread");
 }
