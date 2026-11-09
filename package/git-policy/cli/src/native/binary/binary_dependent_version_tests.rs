@@ -18,6 +18,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
+use super::commit::{git_text, run_commit};
 use super::support::{Fixture, Observed, fixture, git, observe, remove, repository, wrapped};
 /// Operating-system text for the repository name.
 use std::ffi::OsStr;
@@ -50,6 +51,20 @@ fn write(repo: &Path, path: &str, text: &str) {
     let file: PathBuf = repo.join(path);
     std::fs::create_dir_all(file.parent().expect("parent")).expect("directories");
     std::fs::write(file, text).expect("file");
+}
+
+/// The registry configuration the generator writes around one publish set,
+/// four levels down at `auth.oidc[].workloads[].packages`;
+/// an empty slice writes the list with no item.
+fn publish_set(names: &[&str]) -> String {
+    let items: Vec<String> = names
+        .iter()
+        .map(|name: &&str| return format!("            - '{name}'"))
+        .collect();
+    return format!(
+        "auth:\n  oidc:\n    - name: github\n      workloads:\n        - identity:\n            subject: 'repo:example/main'\n          registry: r\n          packages:\n{}\n\nweb:\n  enable: false\n",
+        items.join("\n")
+    );
 }
 
 /// A committed workspace of `@s/a` and its dependents `@s/b` and `@s/c`,
@@ -108,6 +123,72 @@ fn stale(sequence: u64, name: &str, from: &str, to: &str) -> String {
 fn read(repo: &Path, name: &str) -> String {
     return std::fs::read_to_string(repo.join(format!("package/module/{name}/package.json")))
         .expect("manifest");
+}
+
+/// A commit that raises a version lands whether the publish set is absent or empty:
+/// the pre-forward lifecycle plans no dependent bump,
+/// so a publish set it cannot read never fails a commit.
+#[test]
+fn a_version_raising_commit_lands_without_a_publish_set() {
+    for (name, configuration) in [
+        ("dependent-version-commit-untracked", None),
+        ("dependent-version-commit-empty", Some(publish_set(&[]))),
+    ] {
+        let fixture: Fixture = fixture(name);
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        write(
+            repo.as_path(),
+            "package/module/base/package.json",
+            &manifest("@s/base", "1.0.0", None),
+        );
+        write(repo.as_path(), "monochromatic-git-policy-cli.config.jsonc", CONFIGURATION);
+        if let Some(text) = configuration {
+            write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
+        }
+        git(&fixture, repo.as_path(), &["add", "--all"]);
+        git(
+            &fixture,
+            repo.as_path(),
+            &["commit", "--quiet", "--message=initial"],
+        );
+        write(
+            repo.as_path(),
+            "package/module/base/package.json",
+            &manifest("@s/base", "1.1.0", None),
+        );
+        git(
+            &fixture,
+            repo.as_path(),
+            &["add", "--", "package/module/base/package.json"],
+        );
+        let landed: Observed = run_commit(
+            &fixture,
+            repo.as_path(),
+            &[
+                "commit",
+                "--message=bump",
+                "--",
+                "package/module/base/package.json",
+            ],
+        );
+        assert_eq!(
+            landed.code,
+            Some(0),
+            "{name}: {}{}",
+            String::from_utf8_lossy(&landed.stdout),
+            String::from_utf8_lossy(&landed.stderr)
+        );
+        assert_eq!(
+            git_text(
+                &fixture,
+                repo.as_path(),
+                &["show", "HEAD:package/module/base/package.json"],
+            ),
+            manifest("@s/base", "1.1.0", None),
+            "{name}"
+        );
+        remove(&fixture);
+    }
 }
 
 /// A check reports both dependents with a fix available and exits 1;
