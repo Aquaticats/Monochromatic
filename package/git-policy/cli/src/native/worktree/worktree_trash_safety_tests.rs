@@ -349,6 +349,43 @@ fn btrfs_non_utf8_names_are_judged_by_their_bytes() {
     remove(root.as_path());
 }
 
+/// Review round 5,
+/// finding 1:
+/// an ordinary nested checkout is set aside whole,
+/// and the sweep still looks inside it,
+/// so its
+///  own `.git`
+/// directory does not hide another command's stage container.
+/// Why:
+///   A nested checkout that is a repository of its own has a real `.git` directory,
+/// while a linked worktree
+///  has a pointer file the leave-out unlinks before the sweep runs;
+/// the sweep skipped every directory that
+///  held `.git`,
+/// which is the directory it was handed,
+/// so the container beside that marker travelled into
+///  the trash with its credentials and a target commit that stops ignoring the path makes it stageable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// put(repo, `clone/.claude/worktrees/.cli-git-worktree-copy-<token>/payload/credentials`, 'token');
+/// const { stage } = await snapshotOf(repo);
+/// expect(holdsANamedFile(join(stage, TRASH_PARENT), 'credentials')).toBe(false);
+/// ```
+#[test]
+fn btrfs_a_container_inside_an_ordinary_nested_checkout_is_removed_with_it() {
+    let Some(root) = btrfs_fixture("trash-container-in-other-checkout") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    assert!(repo.join("clone/.git").is_dir(), "the other checkout holds a real administrative directory, not a pointer");
+    let inside: String = format!("clone/.claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(repo.as_path(), format!("{inside}/payload/credentials").as_str(), b"another worktree's token\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    assert!(std::fs::symlink_metadata(stage.join("clone")).is_err(), "the other checkout itself is still set aside whole");
+    assert!(!holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"), "the container beside its .git marker is not in the trash");
+    assert!(trash.is_some(), "the leave-out made a trash for the rest");
+    remove(root.as_path());
+}
+
 /// Finding 14:
 /// a worktree whose path is not UTF-8 has its trash emptied here,
 /// by the bytes of the path,
