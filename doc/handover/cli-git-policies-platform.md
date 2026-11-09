@@ -1,5 +1,72 @@
 # cli-git policies platform implementation grilling handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/bin.ts` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional` is deleted (2026-10-13 `642b6d72cb`) and
+> `package/forbidden-strings/core` and `package/linter/monochromatic-lint` carry its two
+> features in Rust today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/rule` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/dev-script/task-util/src/oxlint-fix-loop.ts` is now
+> `package/monorepo-task/core-exec/src/oxlint-fix-loop.ts` (2026-10-29 `592d78b143`).
+> `package/git-policy/cli/src/optional/forbidden-strings` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/forbidden-strings/core` carries the scanner today.
+> `package/module/fs-id/README.md` is now `package/fs-id/core/README.md`
+> (2026-10-29 `592d78b143`).
+> `//package/git-policy/cli:test:built:trust` is retired (2026-10-13 `642b6d72cb`) and the
+> package builds only Rust today.
+> `package/git-policy/api` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper under
+> `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/forbidden-strings` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper
+> under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository/src/index.ts` is deleted (2026-10-13 `a2b56c548c`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional/repository-policy.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/git-policy/cli/src/native/policy` carries that
+> policy today.
+> `package/cli/forbidden-strings/PERF.md` is now `package/forbidden-strings/cli/PERF.md`
+> (2026-10-29 `113633b259`).
+> `package/git-policy/cli/perf/manual-push-latency-benchmark.ts` is deleted
+> (2026-10-13 `724d70bfa7`) and no path of that name exists today.
+
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:test:built:trust` went with the trust workflow on 2026-10-13 (`642b6d72cb`);
+
+Note 2026-10-13:
+`package/git-policy/api`
+`package/git-policy/forbidden-strings`
+`package/git-policy/markdown-lint`
+`package/git-policy/repository`
+were deleted by `a2b56c548c`
+with the four git-policy authoring packages;
+no same-name package replaced them.
+The scanner moved to `package/forbidden-strings/cli` on 2026-10-29 (`113633b259`)
+and the candidate scan it fed is `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`.
+
+Note 2026-10-13:
+the TypeScript wrapper this document names under `package/git-policy/cli/src`
+was deleted by `642b6d72cb`,
+and the four authoring packages by `a2b56c548c`.
+That covered `package/git-policy/cli/src/bin.ts`
+`package/git-policy/cli/src/optional`
+`package/git-policy/cli/src/parser`
+`package/git-policy/cli/src/policy-engine`
+and `package/git-policy/cli/src/rule`;
+no `.ts` path under `package/git-policy` survives,
+and that work is Rust under `package/git-policy/cli/src/native/`.
+
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

@@ -85,6 +85,9 @@ Scratch-only byte-sharing experiments are not a replacement for that requirement
 
 `mise run //package/pi-plugin/auto-mode:test:assessment-bundles`
 exercises the built sender with the actual built judgment owner.
+That address no longer resolves:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and removed it with
+the `test:native:*` tasks.
 The test proves three parallel starts before releasing the first bundle,
 complete answer identity,
 provider-boundary counts,
@@ -155,6 +158,16 @@ active.add(value);
 pending.push({leave:true,value});
 ```
 
+`package/pi-plugin/auto-mode/native/contract/collector/run-prompt-custody/messages.mjs` was removed
+on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no file in the working tree carries it now.
+`package/pi-plugin/auto-mode/src/input-receipt-budget.ts` was removed on 2026-10-19 in `7ac15b19b4`
+(refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file in the working
+tree carries it now.
+
 The work stack removes an object from `active` after its descendants finish.
 Shared metadata can therefore occur in separate branches;
 message aliases retain their separate rejection rule.
@@ -177,6 +190,11 @@ mise run //package/pi-plugin/auto-mode:test:native:resource-input
 mise run //package/pi-plugin/auto-mode:test:native:event-receipts
 mise run //package/pi-plugin/auto-mode:test:native:governing-bindings
 ```
+
+The four `test:native:*` addresses in that block no longer resolve:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and deleted
+`package/pi-plugin/auto-mode/native/`.
+`mise run //package/pi-plugin/auto-mode:build` still resolves.
 
 The original prompt regression was committed red in `49b0dd1b08`.
 The repaired built tests pass complete initial/follow-up prompts,

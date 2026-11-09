@@ -23,6 +23,43 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, NO_REFLOG_SETTIN
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 /// What:
+///  Writes `refs/cli-git/kept/<number>` at `tip`,
+/// the ref the wrapper keeps a commit it did not land on,
+/// and returns nothing when Git wrote it or Git's own words when it did not.
+/// Why:
+///   One place names that ref and writes it,
+/// so the side ref of a landing that gave up at a step and the side ref the restart writes for a batch its branch does
+/// not show cannot drift apart;
+/// the write follows no symbolic ref,
+/// and it passes the setting that keeps Git from making a reflog for a ref that has none
+/// (`SPEC.md`,
+/// a setting that does not stop an append to a log another Git made).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const made = await git(['-c', withNoReflog, 'update-ref', '--no-deref', `refs/cli-git/kept/${seq}`, tip]); return made.succeeded ? undefined : made.stderr
+/// ```
+pub(crate) fn keep_on_a_side_ref(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> Option<String> {
+    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
+    let made: Result<GitOutput, FailureCode> = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
+    return match made {
+        Ok(output) if output.succeeded() => None,
+        Ok(output) => {
+            let words: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_string();
+            if words.is_empty() {
+                let status: String = match output.code {
+                    Some(code) => code.to_string(),
+                    None => String::from("no exit status"),
+                };
+                return Some(format!("git update-ref ended with {status}"));
+            }
+            Some(words)
+        }
+        Err(code) => Some(format!("Git could not be run ({code:?})")),
+    };
+}
+
+/// What:
 ///  Keeps the commit built for a batch that was withdrawn on a side ref,
 /// and returns the line that tells the person where it is.
 /// Why:
@@ -34,12 +71,11 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await git(['update-ref', `refs/cli-git/kept/${seq}`, tip]); return `kept at refs/cli-git/kept/${seq}`
+/// await keepOnASideRef(git, repository, seq, tip); return `kept at refs/cli-git/kept/${seq}`
 /// ```
 pub(crate) fn keep_unlanded(git: &GitContext, repository: &Path, seq: u64, tip: &str) -> String {
-    let name: String = format!("refs/cli-git/kept/{seq}");
-    let made = run(git, repository, &["-c", NO_REFLOG_SETTING, "update-ref", "--no-deref", name.as_str(), tip], None);
-    if !matches!(made, Ok(output) if output.succeeded()) {
+    let name: String = crate::service_scratch_ref_of_a_dropped_batch::kept_ref(seq);
+    if keep_on_a_side_ref(git, repository, seq, tip).is_some() {
         return String::from("monochromatic-git-policy-cli: the commit built for you could not be kept on a side ref; your staged changes and your worktree are as they were, so run the commit again when the program above is done.\n");
     }
     return format!(

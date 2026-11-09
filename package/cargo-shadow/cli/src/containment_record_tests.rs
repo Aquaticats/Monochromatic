@@ -518,6 +518,7 @@ fn a_journal_seen_through_another_view_is_refused_and_kept() {
     // Each changed view (another mount, another inode, no view record) is given to the real recovery: it must refuse, name the view,
     // leave the live output as it was and keep the journal (certification group 1: a classification alone is not a refusal).
     let original_view: String = format!("view {}:{}\n", recorded.mount, recorded.inode);
+    let journals_before: Vec<PathBuf> = journal_dirs(root.path());
     let cases: Vec<(&str, Option<String>)> = vec![
         ("another mount", Some(format!("view {}:{}\n", recorded.mount + 1, recorded.inode))),
         ("another inode", Some(format!("view {}:{}\n", recorded.mount, recorded.inode + 1))),
@@ -536,6 +537,12 @@ fn a_journal_seen_through_another_view_is_refused_and_kept() {
         assert!(messages.iter().any(|message| { return message.contains("mount") && message.contains("cargo-shadow acknowledge"); }), "{label}: the recovery did not refuse for the view: {messages:?}");
         assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "{label}: the live output changed: {messages:?}");
         assert!(journal.exists(), "{label}: the journal was not retained");
+        // The admission checks the journal's view too, not only the recovery (sixth pass, group 10): a refusal that names the view,
+        // no new journal and the original snapshot still in place.
+        let admitted = begin(root.path(), &[snapshot("second")], false);
+        assert!(admitted.as_ref().is_err_and(|error| { return error.to_string().contains("mount"); }), "{label}: a transaction was admitted beside a journal in another view, or the refusal does not name the view: {:?}", admitted.as_ref().err());
+        assert_eq!(journal_dirs(root.path()), journals_before, "{label}: the refused admission changed the journal set");
+        assert_eq!(fs::read_to_string(journal.join("0.lock")).expect("the snapshot"), "original", "{label}: the refused admission changed the snapshot");
     }
     // The control: with the recorded view back the same recovery settles the journal, so the refusals above came from the view.
     fs::write(journal.join("view"), original_view).expect("put the recorded view back");
@@ -601,7 +608,12 @@ fn recovery_in_another_mount_namespace_fixture() {
         fs::write(journal.join("view"), format!("view {}\n{rest}", view_of(&journal).expect("views"))).expect("rewrite the view");
     }
     let messages: Vec<String> = recover(&root, &refusing);
-    fs::write(root.join("fixture-messages"), messages.join("\n")).expect("write the messages");
+    // The admission is asked in the same namespace, with the same journal still present (sixth pass, group 11).
+    let admitted: String = match begin(&root, &[LockSnapshot { crate_dir: CRATE_DIR.to_string(), source: "second".to_string() }], false) {
+        Ok(_) => "admitted".to_string(),
+        Err(error) => format!("refused {error}"),
+    };
+    fs::write(root.join("fixture-messages"), format!("{}\n{admitted}\n", messages.join("\n"))).expect("write the messages");
 }
 
 /// Acceptance row "V2,
@@ -636,6 +648,10 @@ fn a_recovery_in_another_mount_namespace_refuses_and_keeps_the_journal() {
     assert!(!said.contains("another mount or path"), "the journal view differed too, so the cgroup view was not isolated: {said}");
     assert_eq!(live_lock(root.path()), LEFT_BY_THE_KILLED_RUN, "the other view restored a file");
     assert!(journal.exists(), "the journal was not retained");
+    // The same substitution through the admission, in the same namespace and with the journal still present (sixth pass, group 11).
+    let admitted: &str = said.lines().last().expect("the admission line");
+    assert!(admitted.starts_with("refused ") && admitted.contains("recorded path may lead somewhere else"), "the admission did not refuse for the cgroup parent view: {said}");
+    assert_eq!(fs::read_to_string(journal.join("0.lock")).expect("the snapshot"), "original", "the refused admission changed the snapshot");
 }
 
 /// Acceptance row "V3,

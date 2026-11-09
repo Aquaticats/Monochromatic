@@ -64,7 +64,7 @@ fn each_kind_of_difference_is_named_and_nothing_is_changed() {
 /// A subvolume inside the old tree is named as something the command does not delete,
 /// so the old tree is kept with the path.
 #[test]
-fn a_nested_subvolume_is_named_as_not_deleted() {
+fn btrfs_a_nested_subvolume_is_named_as_not_deleted() {
     let Some(base) = btrfs_fixture("compare-nested") else { return };
     let old: PathBuf = base.join("old");
     let installed: PathBuf = base.join("installed");

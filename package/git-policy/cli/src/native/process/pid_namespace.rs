@@ -80,6 +80,16 @@ use std::time::{Duration, SystemTime};
 /// revisit the margin then
 ///  (`doc/planning/cli-git-shipped-limits-audit.md`,
 /// "Foreign-owner patience").
+/// Read again on 2026-11-08T18:43-05:00:
+/// the longest service-side hold in the journal is the `lock_hold_ms` of 119,721 ms,
+/// a tenth of this patience,
+/// and the longest whole command in the timing log is 1,228,797 ms,
+/// 28,797 ms past it.
+/// The log times a whole command and not a record's hold,
+/// so that figure says nothing about the records this patience judges.
+/// The merge it was stated against waits one minute now (`MERGE_LOCK_CEILING`),
+/// which would make a patience derived the same way two minutes;
+/// the value stays at twice `LOCK_CEILING` and another change owns it.
 pub const FOREIGN_OWNER_PATIENCE: Duration = Duration::from_secs(2 * LOCK_CEILING.as_secs());
 
 /// What:

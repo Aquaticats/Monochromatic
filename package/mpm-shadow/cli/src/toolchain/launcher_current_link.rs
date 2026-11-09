@@ -62,19 +62,36 @@ fn is_current_link(candidate: &&Path) -> bool {
     return candidate.file_name() == Some(OsStr::new(CURRENT_LINK_NAME)) && candidate.is_symlink();
 }
 
+/// What:
 /// The `current` link above a program's path:
 /// the nearest ancestor that is a link named `current`.
-fn current_link_above(real: &Path) -> Option<&Path> {
+/// Why:
+/// Both the program a launcher starts and the launcher's own source are found this way:
+/// the link is the boundary of one installed version,
+/// whichever route installed it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function currentLinkAbove(real: string): string | undefined
+/// ```
+pub fn current_link_above(real: &Path) -> Option<&Path> {
     return real.ancestors().skip(1).find(is_current_link);
 }
 
-/// The version the tool's `current` link names,
-/// found from the real program's path:
-/// `<crate directory>/current/bin/<name>` for a crate,
-/// `<tool directory>/current/<archive folder>/<name>` for a release archive,
-/// so the link is the nearest ancestor of the program that is named `current`.
-pub fn version_that_runs(real: &Path) -> Option<String> {
-    let link: &Path = current_link_above(real)?;
+/// What:
+/// The version `link` names:
+/// the final directory of its target,
+/// resolved through the link chain when it can be,
+/// so a `current` that forwards to the other root's `current` names the version behind the chain.
+/// Why:
+/// A link's own text is either a version name or another link;
+/// only the resolved target separates the two.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function versionNamedBy(link: string): string | undefined
+/// ```
+pub fn version_named_by(link: &Path) -> Option<String> {
     // The final directory's name, so a `current` that forwards to the other toolchain root's `current` still names the
     // version that runs; a link that does not resolve falls back to its own target.
     let target: PathBuf = match fs::canonicalize(link) {
@@ -88,6 +105,16 @@ pub fn version_that_runs(real: &Path) -> Option<String> {
     return Some(name);
 }
 
+/// The version the tool's `current` link names,
+/// found from the real program's path:
+/// `<crate directory>/current/bin/<name>` for a crate,
+/// `<tool directory>/current/<archive folder>/<name>` for a release archive record written before `link_stable_programs`,
+/// and `<tool directory>/current/<name>` for a record written after it,
+/// so the link is the nearest ancestor of the program that is named `current`.
+pub fn version_that_runs(real: &Path) -> Option<String> {
+    return version_named_by(current_link_above(real)?);
+}
+
 /// What:
 /// The program a launcher runs:
 /// `real` when it exists,
@@ -95,8 +122,11 @@ pub fn version_that_runs(real: &Path) -> Option<String> {
 /// otherwise `real` again (the launcher then reports that it could not start it).
 /// Why:
 /// The folder below `current` of a release archive carries the version,
-/// so the path a record names stops existing when `current` moves,
-/// while a program of the same name still sits under `current`.
+/// so the path a record written before `link_stable_programs` names stops existing when `current` moves,
+/// while a program of the same name still sits under `current`,
+/// now also as the version-independent link the install writes.
+/// The search finds that link first,
+/// so a repaired record needs no repair after the next version move.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -144,7 +174,11 @@ pub struct MissingProgram<'facts> {
 /// Why:
 /// `install` rebuilds the exposure directory and every launcher record from the lock,
 /// so it is the one command that fixes a tree whose launcher cannot find its program;
-/// the machine-global scope has no checkout to run it in.
+/// the machine-global scope has no checkout to run it in,
+/// and it names `mpm-shadow` rather than `mpm`,
+/// because only a worktree's `PATH` makes `mpm` this tool,
+/// and the machine-wide `mpm` is the real mpm,
+/// which refuses `-g`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -172,7 +206,7 @@ pub fn missing_program_advice(facts: MissingProgram<'_>) -> String {
             let tree: PathBuf = facts.lock_file.parent().map(Path::to_path_buf).unwrap_or_default();
             format!("run `mpm install` in {} to make this tree's links again", tree.display())
         }
-        ScopeKind::Global => "run `mpm install -g` to make the machine-global links again".to_string(),
+        ScopeKind::Global => "run `mpm-shadow install -g` to make the machine-global links again".to_string(),
     };
     return format!("{versions} no program named {name} was found under `current` or at the recorded path; {command}");
 }

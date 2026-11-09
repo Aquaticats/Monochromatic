@@ -1,5 +1,14 @@
 # cli-git native replay core
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -305,10 +314,93 @@ Open:
 landing and the crate release 0.1.5 together with the deletion of the dead policy patch modules already on `main`.
 The container gate image bakes in the source snapshot,
 so a new test needs a new gate before a mutation run sees it.
-A long fuzz campaign (900 s per target,
-15 targets) runs as the unit `cli-git-fuzz-campaign`
-(log `~/temp/agent/fuzz-campaign-20261015.log`);
-read it for crashes before the release.
+The long fuzz campaign ran 2026-11-08 from 18:15:19 to 22:08:54 (-05:00),
+14,015 seconds,
+as `mise run //package/git-policy/cli.fuzz:smoke -- --seconds-per-target=900`
+with `GIT_POLICY_NATIVE_IMAGE_TAG=pi-fuzz-long-campaign-20261108`,
+inside one gate slot and a scope capped at 6 CPUs,
+10 GiB and 1024 processes.
+It covered the sixteen registered targets,
+ran 486,000,719 units,
+and exited 1 on the two failed targets.
+Executions and exit status per target:
+
+- `global_arguments`:
+  33,975,112,
+  exit 0.
+- `config_loading`:
+  10,266,097,
+  exit 0.
+- `config_schema`:
+  1,010,279,
+  exit 0.
+- `wrapper_controls`:
+  336,090,
+  exit 70,
+  one `timeout-` artifact and no crash:
+  a unit sat inside a write to the container's standard error while the host drained it,
+  and the same unit runs in 0.151 seconds with a file as its standard error.
+  The 5-second unit bound that reported it is 60 seconds now (`87d81cde3d`);
+  `doc/troubleshooting/git-policy-cli-fuzz-unit-timeout-during-a-stalled-log-drain.md` holds the evidence.
+- `batch_reply`:
+  5,240,552,
+  exit 0.
+- `stage_listing`:
+  5,691,335,
+  exit 0.
+- `rules_file`:
+  89,781,802,
+  exit 0.
+- `final_newline`:
+  201,773,300,
+  exit 0.
+- `owner_records`:
+  709,194,
+  exit 77,
+  the one crash artifact
+  `crash-ec175e0ebdb86921dfd35cec627c9f94d22f0611`:
+  the target panicked at `package/git-policy/cli.fuzz/src/owners.rs:315`
+  because both name readers gave an empty token for the stranger's name `1...json/`.
+  The readers now refuse an empty token field (`7e9256d58e`),
+  pinned by `a_journal_names_its_owner` and `a_temporary_names_its_writer`,
+  and the target's name check reads a journal path's last component (`cf5fcab952`).
+- `index_lock_records`:
+  39,115,869,
+  exit 0.
+- `owner_claim_record`:
+  57,566,684,
+  exit 0.
+- `dependent_version`:
+  4,182,135,
+  exit 0.
+- `linter_output`:
+  6,888,527,
+  exit 0.
+- `event_path`:
+  2,745,282,
+  exit 0.
+- `linter_config`:
+  1,035,782,
+  exit 0.
+- `dbus_reply`:
+  25,682,679,
+  exit 0.
+
+Evidence `package/git-policy/cli.fuzz/target/verification/campaign-tfBbHh`
+(copied to `~/temp/agent/fuzz-campaign-20261108-evidence`),
+log `~/temp/agent/fuzz-campaign-20261108T1818-0500.log`,
+manifest compiler `rustc 1.102.0-nightly (f5cedb83a 2026-11-07)`,
+2 GiB,
+2 CPUs,
+512 processes and a 4,096-byte input limit per target.
+The mutation campaigns stay paused;
+nothing above is a mutation result.
+History:
+the unit `cli-git-fuzz-campaign` started three times on 2026-10-15 and each start exited 1 (11:38,
+11:45 and 12:53:55,
+the last after 57 minutes and 20 seconds of wall clock),
+and its log is gone from `${HOME}/temp/agent`,
+so no crash or total from it is recorded anywhere.
 The fuzz sidecar had fallen behind the subject (stale lockfile version,
 byte paths in the journal helper,
 a refusal

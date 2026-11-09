@@ -26,7 +26,7 @@ and the bundled catalog underneath holds
 
 ## Settled decisions
 
-Each item below was decided by the user during the grilling session.
+Every numbered item under the Settled decisions heading was decided by the user during the grilling session.
 
 1. Scope is within-family superseded models only.
    Whole-provider removal is out of scope,
@@ -387,7 +387,7 @@ when any of these hold.
 - Either entry has an empty version vector (decision 7).
 - The name-shapes differ,
   so they are not in the same family.
-- Any comparison step above reports the pair unordered.
+- Any comparison step under `Ordering` reports the pair unordered.
 - The two entries have the same provider,
   api,
   and id.
@@ -654,8 +654,7 @@ defaults rather than settled decisions.
 - Context-window regression guard.
   Rejected by decision 8,
   against the recommendation,
-  with the measured cost recorded
-  above.
+  with the measured cost recorded under What the naive rule got wrong.
 
 ## Implementation risks, ordered by severity
 

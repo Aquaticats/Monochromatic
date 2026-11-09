@@ -29,6 +29,11 @@
 //! and that service refuses messages about
 //!  any other worktree;
 //! without it a development run serves any.
+//! A start that finds its own worktree gone stops its own socket and serves nothing
+//!  (`service_units_of_removed_worktrees.rs`),
+//! so the units of a worktree that a removal Git ran with the wrapper replaced took with it,
+//!  or of one deleted without Git,
+//! end at the first connection instead of waiting for a person to run the sweep.
 //!  The service finishes no batch of an earlier release's helper and has no option that does:
 //! the look that would guard it cannot
 //!  exclude a wrapper of the earlier release that starts the helper meanwhile (cross-vendor reviews of 2026-11-07),
@@ -49,6 +54,7 @@ use crate::service_land::{LandContext, recover_instance};
 use crate::service_protocol::PROTOCOL_VERSION;
 use crate::service_timing::{log, started_line};
 use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
+use crate::service_units_of_removed_worktrees::{OwnWorktree, own_worktree_state, stop_own_socket_when_the_worktree_is_gone};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -116,6 +122,16 @@ pub const EXIT_REFUSED: i32 = 2;
 
 /// The exit status of a start that could not listen.
 pub const EXIT_NOT_LISTENING: i32 = 3;
+
+/// The exit status of a start that served nothing because the worktree it serves is gone.
+/// Zero,
+/// not a refusal:
+/// the unit is meant to be gone,
+/// and `Restart=on-failure` would start a refused one again until its start rate ran out.
+/// The socket unit was stopped before this status is returned,
+/// so no connection starts the service again;
+/// a socket that could not be stopped is left for the sweep and the doctor.
+pub const EXIT_NOTHING_TO_SERVE: i32 = 0;
 
 /// What:
 ///  Whether the arguments (without the program name) select the service mode.
@@ -241,6 +257,9 @@ pub fn run(arguments: &[String]) -> i32 {
     crate::hooks_off::activate();
     // The runtime is built by the first need (the warm below, or the acceptor): the cap comes before it.
     crate::lazy_runtime::cap_workers(SERVICE_WORKER_CAP);
+    // The blocking jobs of the service are held to the same cap: one service runs per worktree, so the pool is bounded as its workers
+    //  are. A budget that is already made is not resized, so the call comes before the service's first job.
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(SERVICE_WORKER_CAP);
     // A signal that ends the service (the manager stops a unit with `SIGTERM`) leaves one line with the signal and the uptime.
     crate::service_signal::install();
     // The push messages this process writes name the remedies that reach the service, not a terminal's variable.
@@ -262,6 +281,22 @@ pub fn run(arguments: &[String]) -> i32 {
         crate::service_error!("--journal <directory> is required");
         return EXIT_REFUSED;
     };
+    // The worktree of this unit is read before anything is created or bound: a service of a worktree that no longer exists
+    //  has nothing to serve, so it stops its own socket rather than listen for a directory that is gone.
+    //  A worktree that is there is remembered, so the serving loop asks again: a removal by another Git leaves the socket
+    //  listening while this service runs, and a start is not what such a service gets.
+    let named_instance: Option<String> = option(arguments, "--instance");
+    let mut own_git_dir: Option<PathBuf> = None;
+    if let Some(name) = named_instance.as_deref() {
+        match own_worktree_state(name, journal.as_path()) {
+            OwnWorktree::Gone(_) => {
+                let _served_nothing = stop_own_socket_when_the_worktree_is_gone(name, journal.as_path());
+                return EXIT_NOTHING_TO_SERVE;
+            }
+            OwnWorktree::Served(git_dir) => own_git_dir = Some(git_dir),
+            OwnWorktree::Unmapped => {}
+        }
+    }
     let git: PathBuf = match option(arguments, "--git") {
         Some(named) => PathBuf::from(named),
         None => PathBuf::from("/usr/bin/git"),
@@ -293,11 +328,13 @@ pub fn run(arguments: &[String]) -> i32 {
     };
     let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
+    // The serving loop asks about this worktree at its own interval, so a removal that no wrapper sees still ends the units.
+    settings.own_git_dir = own_git_dir;
     if let Some(release) = option(arguments, "--release") {
         settings.release = release;
     }
     // The unit instance names the worktree this service is for; a message about any other worktree is refused.
-    settings.instance = option(arguments, "--instance");
+    settings.instance = named_instance;
     // Every later entry carries the release and the instance.
     crate::service_timing::set_context(settings.release.as_str(), settings.instance.as_deref());
     // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.

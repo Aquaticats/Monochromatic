@@ -10,7 +10,7 @@ meow's hash is XXH3-128 rather than `gxhash`,
 so the AES-specific startup check became a check for whatever target features a build was compiled with,
 and the release matrix now ships separate `x86-64-v3` and `x86-64-v4` builds
 of which only `x86-64-v4` and aarch64 block publishing.
-The measurements and the static-pie work below are unaffected.
+The measurements and the static-pie work recorded in this file are unaffected.
 Work directory:
 `/tmp/claude-1000/-var-home-user-Monochromatic/e28ad59c-f3f5-46e9-8c8c-59a61c331610/scratchpad/platforms/`
 (called `platforms/` in this file).
@@ -364,7 +364,7 @@ Runtime floor checks (`platforms/logs/probe-results.jsonl`,
    through binfmt_misc QEMU),
    and exits 1 in an arm64 `fedora:34` container with "version `GLIBC_2.34' not found".
 - Minimum glibc for both glibc targets:
-   2.34 (Verified by the runs above).
+   2.34 (Verified by the runtime floor checks in `glibc floor`).
   A release build host with glibc 2.39 or newer adds the loader warning on glibc 2.34 to 2.38
   (Verified on 2.34 and 2.35 only).
 

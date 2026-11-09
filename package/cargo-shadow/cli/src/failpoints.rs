@@ -24,6 +24,10 @@
 // ```
 /// Imports `std::cell::Cell` for this file.
 use std::cell::Cell;
+/// Imports `std::cell::RefCell` for the path-targeted switches.
+use std::cell::RefCell;
+/// Imports `std::path::Path` for the path-targeted switches.
+use std::path::Path;
 
 thread_local! {
     /// Whether the next lockfile restore on this thread fails.
@@ -85,6 +89,15 @@ thread_local! {
     static CONTAINMENT_INSPECTION: Cell<bool> = const { Cell::new(false) };
     /// Whether the next publication of a journal's durable completion marker on this thread fails.
     static FINISH_COMPLETION: Cell<bool> = const { Cell::new(false) };
+    /// The one output file whose next data barrier on this thread fails,
+    /// or `None`.
+    static OUTPUT_FILE_SYNC_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
+    /// The one output file whose next directory barrier on this thread fails,
+    /// or `None`.
+    static OUTPUT_DIRECTORY_SYNC_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
+    /// The target whose preservation link fails on every candidate name on this thread,
+    /// or `None`.
+    static KEEP_LINK_OF: RefCell<Option<std::path::PathBuf>> = const { RefCell::new(None) };
 }
 
 /// The steps that can be made to fail.
@@ -158,6 +171,138 @@ pub enum Point {
     ContainmentInspection,
     /// The publication of a journal's durable completion marker (the rename to its done name and the sync of the directory that lists it).
     FinishCompletion,
+}
+
+/// What:
+/// `pub fn arm_output_file_sync_of(path: &Path)` makes the next data barrier of exactly this file on this thread fail.
+/// Why:
+/// A one-shot `OutputFileSync` fails at whichever output the run reaches first (the lockfile),
+/// so a barrier that is
+/// skipped for the manifest alone stays green (sixth certification pass,
+/// group 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armOutputFileSyncOf(path: string): void
+/// ```
+pub fn arm_output_file_sync_of(path: &Path) {
+    OUTPUT_FILE_SYNC_OF.with(|slot| { *slot.borrow_mut() = Some(path.to_path_buf()); });
+}
+
+/// What:
+/// `pub fn arm_output_directory_sync_of(path: &Path)` makes the next directory barrier of the file's parent on this thread fail
+/// (the barrier `make_durable` runs for that file).
+/// Why:
+/// The directory barrier of one named output must fail on its own,
+/// without the lockfile's barrier failing first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armOutputDirectorySyncOf(path: string): void
+/// ```
+pub fn arm_output_directory_sync_of(path: &Path) {
+    OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { *slot.borrow_mut() = Some(path.to_path_buf()); });
+}
+
+/// What:
+/// `pub(crate) fn output_file_sync_of(path: &Path) -> bool` says whether this file's data barrier was armed,
+/// and disarms it.
+/// Why:
+/// The fault reaches the named file only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function outputFileSyncOf(path: string): boolean
+/// ```
+pub(crate) fn output_file_sync_of(path: &Path) -> bool {
+    return OUTPUT_FILE_SYNC_OF.with(|slot| {
+        let mut pending = slot.borrow_mut();
+        let matches: bool = pending.as_deref() == Some(path);
+        if matches {
+            *pending = None;
+        }
+        return matches;
+    });
+}
+
+/// What:
+/// `pub(crate) fn output_directory_sync_of(path: &Path) -> bool` says whether this file's directory barrier was armed,
+/// and disarms it.
+/// Why:
+/// The fault reaches the named file's directory only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function outputDirectorySyncOf(path: string): boolean
+/// ```
+pub(crate) fn output_directory_sync_of(path: &Path) -> bool {
+    return OUTPUT_DIRECTORY_SYNC_OF.with(|slot| {
+        let mut pending = slot.borrow_mut();
+        let matches: bool = pending.as_deref() == Some(path);
+        if matches {
+            *pending = None;
+        }
+        return matches;
+    });
+}
+
+/// What:
+/// `pub(crate) fn path_targets_armed() -> (bool, bool)` reports whether a data barrier and a directory barrier are still waiting for
+/// their file on this thread.
+/// Why:
+/// A test must show that the targeted fault was reached,
+/// not only that the run failed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pathTargetsArmed(): [boolean, boolean]
+/// ```
+pub(crate) fn path_targets_armed() -> (bool, bool) {
+    let file: bool = OUTPUT_FILE_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
+    let directory: bool = OUTPUT_DIRECTORY_SYNC_OF.with(|slot| { return slot.borrow().is_some(); });
+    return (file, directory);
+}
+
+/// What:
+/// `pub fn arm_keep_link_of(target: &Path)` makes every preservation link for this target fail on this thread,
+/// until it is disarmed.
+/// Why:
+/// The recovery's post-exchange schedule needs the preservation that follows a successful exchange to fail,
+/// so the lockfile is already live while the root is treated as failed (sixth pass,
+/// group 8).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function armKeepLinkOf(target: string): void
+/// ```
+pub fn arm_keep_link_of(target: &Path) {
+    KEEP_LINK_OF.with(|slot| { *slot.borrow_mut() = Some(target.to_path_buf()); });
+}
+
+/// What:
+/// `pub fn disarm_keep_link()` forgets the target armed for a failing preservation link.
+/// Why:
+/// Every candidate name fails while it is armed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function disarmKeepLink(): void
+/// ```
+pub fn disarm_keep_link() {
+    KEEP_LINK_OF.with(|slot| { *slot.borrow_mut() = None; });
+}
+
+/// What:
+/// `pub(crate) fn keep_link_of(target: &Path) -> bool` says whether preservation links for this target were armed.
+/// Why:
+/// The fault stays armed for every candidate name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function keepLinkOf(target: string): boolean
+/// ```
+pub(crate) fn keep_link_of(target: &Path) -> bool {
+    return KEEP_LINK_OF.with(|slot| { return slot.borrow().as_deref() == Some(target); });
 }
 
 /// What:

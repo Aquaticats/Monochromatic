@@ -58,6 +58,14 @@ await using build = await rolldown({
     define: {
 ```
 
+The paths this record names under `package/git-policy/cli/src/` were removed on 2026-10-13 in
+`642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust
+workflow);
+no file in the working tree carries them now.
+
 That omission was initially read as meaning that the bundler would transpile
 TypeScript without consulting a project configuration.
 Rolldown's public option contract disproves that reading.
@@ -611,6 +619,10 @@ The least-trusting command completed with `built-trust-consumer-ok`:
 ```console
 mise run //package/git-policy/cli:test:built:trust
 ```
+
+That address no longer resolves:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript wrapper with its tasks
+and the `src/trust/` fixture tree this command ran.
 
 That run also retained strict relative-source invalidation,
 relaxed rebuild,

@@ -1,5 +1,23 @@
 # cli-git native commit transactions
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:interop` is retired (2026-11-01 `cd67a90f6c`) and no
+> interop task exists today.
+
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:native:interop` went on 2026-11-01 (`cd67a90f6c`);
+
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

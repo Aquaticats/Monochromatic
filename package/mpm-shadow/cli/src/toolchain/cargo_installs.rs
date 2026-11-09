@@ -440,9 +440,10 @@ pub fn shell_word(word: &str) -> String {
 
 /// What:
 /// The sentence that says a scope runs a newer repository-published tool than its lock pins,
+/// naming that lock file,
 /// with the remedy for that scope as mpm's own pnpm-style verb naming the tool:
 /// `mpm update <tool id>` for a tree's lock,
-/// `mpm update -g <tool id>` for the machine-global lock,
+/// `mpm-shadow update -g <tool id>` for the machine-global lock,
 /// the id written as one shell word (`shell_word`).
 /// Why:
 /// One text for `install`,
@@ -451,32 +452,39 @@ pub fn shell_word(word: &str) -> String {
 /// `install --lockfile-only`,
 /// `bin` and every run of the tool,
 /// so a person searching for it finds all of them.
+/// The file is named because a launcher and a shell read whichever lock their own record names,
+/// so a warning from another checkout's launcher looks stale until the file it read is visible.
 /// The remedy names the tool so it moves only that row of the lock,
-/// and names `mpm` rather than a mise task because the repository is moving away from mise
-/// and `mpm update -g` works from any directory.
+/// and names a program rather than a mise task because the repository is moving away from mise.
+/// The machine-global sentence names `mpm-shadow`,
+/// never `mpm`:
+/// only a worktree's `PATH` makes `mpm` this tool (the plan's postinstall link),
+/// and the machine-wide `mpm` is the real mpm,
+/// which reads `update -g` as its own `upgrade` and refuses it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function olderLockMessageFor(kind: 'repo' | 'global', toolId: string, locked: string, used: string): string
+/// export function olderLockMessageFor(kind: 'repo' | 'global', toolId: string, locked: string, used: string, lockFile: string): string
 /// ```
-pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used: &str) -> String {
+pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used: &str, lock_file: &Path) -> String {
     // The tool id as one word the person can paste into a shell.
     let word: String = shell_word(tool_id);
+    let lock: String = lock_file.display().to_string();
     return match kind {
         ScopeKind::Repo => format!(
-            "{tool_id} is locked at {locked} in this tree but {used} runs, because older repository tools are never kept \
+            "{tool_id} is locked at {locked} in this tree's lock, {lock}, but {used} runs, because older repository tools are never kept \
              once a newer one is installed; upgrade this tree's lock with `mpm update {word}` or merge main"
         ),
         ScopeKind::Global => format!(
-            "{tool_id} is locked at {locked} in this machine's global lock but {used} runs, because older repository tools are \
-             never kept once a newer one is installed; upgrade the global lock with `mpm update -g {word}`"
+            "{tool_id} is locked at {locked} in this machine's global lock, {lock}, but {used} runs, because older repository tools are \
+             never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g {word}`"
         ),
     };
 }
 
 /// The older-lock sentence for a tree's lock (the repository scope).
-pub fn older_lock_message(tool_id: &str, locked: &str, used: &str) -> String {
-    return older_lock_message_for(ScopeKind::Repo, tool_id, locked, used);
+pub fn older_lock_message(tool_id: &str, locked: &str, used: &str, lock_file: &Path) -> String {
+    return older_lock_message_for(ScopeKind::Repo, tool_id, locked, used, lock_file);
 }
 
 /// Whether `used` is newer than `locked`.
@@ -503,7 +511,7 @@ pub fn older_lock_warnings(scope: &Scope, tools: &[LockedTool], family: Option<O
             continue;
         };
         if is_newer_than_locked(&used, &tool.version) {
-            warnings.push(older_lock_message_for(scope.kind, &tool.declaration.id, &tool.version, &used));
+            warnings.push(older_lock_message_for(scope.kind, &tool.declaration.id, &tool.version, &used, &scope.lock_file));
         }
     }
     return warnings;

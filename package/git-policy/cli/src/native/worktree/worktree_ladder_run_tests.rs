@@ -27,8 +27,8 @@ fn no_plan_means_the_persons_run() {
     let ladder: Ladder = begin_ladder(None, &git_context(), &WorktreeIdentity::OutsideWorktree);
     assert_eq!(ladder.first_step(), GitStep::Person);
     let mut runner = no_runner();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None });
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, trash: None });
 }
 
 /// A source that cannot be snapshotted gets an empty subvolume at the destination,
@@ -44,8 +44,8 @@ fn btrfs_a_refused_source_gets_a_subvolume_that_a_failed_git_leaves_no_trace_of(
     assert!(is_subvolume_root(plan.destination.as_path()).expect("probe"));
     assert_eq!(ladder.slow.as_ref().map(|route| { return route.word(); }), Some("not-subvolume"), "an ordinary directory on btrfs is told to be converted: {:?}", ladder.slow);
     let mut runner = no_runner();
-    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: FAILED, carried: None });
+    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    assert_eq!(result, LadderResult { git: FAILED, carried: None, trash: None });
     assert!(!plan.destination.exists());
     remove(root.as_path());
 }
@@ -64,8 +64,8 @@ fn btrfs_a_clean_ordinary_source_gets_the_clone_rung_and_a_subvolume() {
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the clone rung records the add durably, so a killed add can be removed");
     assert!(!plan.destination.with_file_name(".cli-git-worktree-copy-stage").exists(), "the clone rung stages nothing");
     let mut runner = no_runner();
-    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: FAILED, carried: None });
+    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    assert_eq!(result, LadderResult { git: FAILED, carried: None, trash: None });
     assert!(!plan.destination.exists(), "the empty subvolume is removed after a failed Git");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the record is released");
     remove(root.as_path());
@@ -85,8 +85,8 @@ fn btrfs_an_eligible_source_runs_git_without_a_checkout_and_a_failure_releases_t
     assert!(!plan.destination.exists(), "a snapshot rung makes no subvolume before Git");
     assert!(stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the stage name is claimed durably");
     let mut runner = no_runner();
-    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink());
-    assert_eq!(result, LadderResult { git: FAILED, carried: None });
+    let result: LadderResult = ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
+    assert_eq!(result, LadderResult { git: FAILED, carried: None, trash: None });
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "the claim is released");
     remove(root.as_path());
 }
@@ -106,7 +106,7 @@ fn btrfs_a_dirty_subvolume_source_is_snapshotted_and_a_merging_one_keeps_its_rea
     let changed = source.dirty.as_ref().expect("the changes are listed");
     assert_eq!(changed.first.as_deref(), Some("shared.txt"));
     let mut runner = no_runner();
-    ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink());
+    ladder.finish(FAILED, &mut runner, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     let head: String = String::from_utf8_lossy(&crate::test_support::git(repo.as_path(), &["rev-parse", "HEAD"]).stdout).trim().to_string();
     std::fs::write(repo.join(".git/MERGE_HEAD"), format!("{head}\n")).expect("merge mark");
     let merging: Ladder = begin_ladder(Some(&plan), &git_context(), &main_identity(repo.as_path()));
@@ -114,7 +114,7 @@ fn btrfs_a_dirty_subvolume_source_is_snapshotted_and_a_merging_one_keeps_its_rea
     let line: String = merging.slow.as_ref().expect("a reason").line();
     assert!(line.contains("MERGE_HEAD"), "{line}");
     let mut second = no_runner();
-    merging.finish(FAILED, &mut second, &git_context(), &mut std::io::sink());
+    merging.finish(FAILED, &mut second, &git_context(), &mut std::io::sink(), &mut std::io::sink());
     remove(root.as_path());
 }
 

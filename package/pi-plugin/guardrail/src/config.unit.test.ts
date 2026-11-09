@@ -9,11 +9,13 @@ import {
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
-import { FILE_NOT_FOUND_CODE, } from './constants.ts';
-import { loadGuardrailConfig, } from './config.ts';
-import { configPathForHome, } from './config-paths.ts';
-import { normalizeConfigFile, } from './config-normalize.ts';
-import { parseConfigJson, } from './config-file.ts';
+import {
+  configPathForHome,
+  FILE_NOT_FOUND_CODE,
+  loadGuardrailConfig,
+  normalizeConfigFile,
+  parseConfigJson,
+} from '../dist/final/node/index.mjs';
 
 /**
  Config path used by normalization tests.

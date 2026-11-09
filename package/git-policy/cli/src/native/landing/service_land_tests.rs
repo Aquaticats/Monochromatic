@@ -8,11 +8,12 @@
 
 use crate::service_land_git_steps_and_import_stream::{commits_from_marks, overlaps};
 use super::*;
-use crate::service_journal::{DONE_EXTENSION, batch_path, parse_intent};
+use crate::service_journal::{DONE_EXTENSION, Recovery, batch_path, parse_intent};
 use crate::service_protocol::{ALLOWED_MODES, Change};
 use crate::test_support::{fixture, git, git_context, git_output, git_text, remove, repository};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::RecvTimeoutError;
 
 const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 
@@ -210,9 +211,18 @@ fn a_branch_that_moves_under_the_batch_is_built_again() {
             move_branch(repo.as_path(), "moved by someone");
         }
     }));
-    let outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt");
+    let mut outcomes: Vec<Outcome> = Vec::new();
+    // The batch is built again under the number it already holds, so the record its first attempt wrote is the one that stays, and
+    //  a second write of it is no failure to report.
+    let entries = crate::service_timing::capture::entries_of(|| { outcomes = land_batch(&world.context, 1, &[first]).expect("landed after a second attempt"); });
     assert!(matches!(outcomes[0], Outcome::Landed { .. }));
     assert_eq!(subjects(&world, base.as_str()), vec!["moved by someone", "message of mine"]);
+    assert!(
+        entries.iter().all(|entry| { return !entry.message.contains("record of its scratch reference could not be written"); }),
+        "the record of a batch built again is written once: {:?}",
+        entries.iter().map(|entry| { return entry.message.clone(); }).collect::<Vec<String>>()
+    );
+    assert!(!crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record of a landed batch goes with its landing");
     remove(world.root.as_path());
 }
 
@@ -523,30 +533,124 @@ fn a_dead_owners_index_lock_changes_nothing() {
     remove(world.root.as_path());
 }
 
-/// How long the controls give a landing that must end at its ceiling before they call it hung.
-const CEILING_PATIENCE: std::time::Duration = std::time::Duration::from_secs(10);
+/// Owner's rule "never discard user data":
+/// a service killed between its intent and its branch write leaves the batch's commit on the scratch branch,
+/// and nothing else names it.
+/// The restart that drops the batch keeps that commit on `refs/cli-git/kept/<seq>` and then removes the scratch branch,
+/// so no reference of the wrapper keeps objects alive for ever and no commit is lost.
+#[test]
+fn a_restart_keeps_the_commit_of_a_batch_that_did_not_land_and_removes_its_scratch_branch() {
+    let world: World = world("service-land-dropped-scratch");
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    // The kill, at the instant a real service is killed at (`service_fault::FAULT_POINTS`, "after-intent"): the objects are
+    //  imported, the intent is written and the process ends before the branch write. A control cannot kill itself and go on,
+    //  so the landing ends there instead, which leaves the same files behind.
+    crate::service_fault::hooks::set("before-ref", std::rc::Rc::new(|| panic!("the service was killed before its branch write")));
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::clear();
+    assert!(killed.is_err(), "the landing of the killed service never answered");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert!(batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is open");
+    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
+    assert!(scratch.starts_with("refs/worktree/cli-git-service/1 "), "the killed landing left its commit on the scratch branch: {scratch:?}");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    assert!(
+        reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Drop && report.handled == Handled::Dropped; }),
+        "the branch never moved, so the restart drops the batch: {reports:?}"
+    );
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the dropped batch keeps no intent");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]),
+        "refs/cli-git/kept/1",
+        "the commit of the batch that did not land is kept where the person can find it"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the batch's own commit");
+    // Nothing is lost that only the removed reference held: the kept commit survives a maintenance that drops unreachable objects.
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit is still in the object store after a prune");
+    remove(world.root.as_path());
+}
+
+/// A landing killed at `after-objects` (`service_fault::FAULT_POINTS`)
+/// leaves the batch's commit on `refs/worktree/cli-git-service/<seq>`
+/// with nothing that names it:
+/// the objects are imported,
+/// and no intent was written,
+/// so no restart can decide the batch from the branch.
+/// The landing records the worktree beside its batch before it imports,
+/// so the restart finds that record,
+/// keeps the commit the reference holds on `refs/cli-git/kept/<seq>` and only then removes the reference.
+#[test]
+fn a_restart_keeps_the_commit_of_a_batch_whose_intent_was_never_written_and_removes_its_scratch_branch() {
+    let world: World = world("service-land-killed-import-scratch");
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    crate::service_fault::hooks::set("after-objects", std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")));
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::clear();
+    assert!(killed.is_err(), "the landing of the killed service never answered");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert!(!batch_path(world.context.journal.as_path(), 1, crate::service_journal::OPEN_EXTENSION).exists(), "no intent names the batch");
+    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
+    assert!(scratch.starts_with("refs/worktree/cli-git-service/1 "), "the killed landing left its commit on the scratch branch: {scratch:?}");
+    assert_eq!(recover(&world.context), Vec::new(), "no intent is open, so nothing is settled from the branch");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]),
+        "refs/cli-git/kept/1",
+        "the commit of a batch no record named is kept where the person can find it"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the kept reference holds the batch's own commit");
+    // Nothing is lost that only the removed reference held: the kept commit survives a maintenance that drops unreachable objects.
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", "refs/cli-git/kept/1"]), "commit", "the kept commit is still in the object store after a prune");
+    assert!(!crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record of the batch's scratch reference goes with the reference");
+    remove(world.root.as_path());
+}
+
+/// The owner's rule "never discard user data":
+/// a kept reference that already names another commit is no proof that the commit the scratch branch holds is safe elsewhere,
+/// so the restart removes neither the scratch branch nor the record that names it.
+#[test]
+fn a_kept_reference_that_names_another_commit_leaves_the_scratch_branch_and_its_record() {
+    let world: World = world("service-land-killed-import-kept-clash");
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    crate::service_fault::hooks::set("after-objects", std::rc::Rc::new(|| panic!("the service was killed between the import and its intent")));
+    let killed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); }));
+    crate::service_fault::hooks::clear();
+    assert!(killed.is_err(), "the landing of the killed service never answered");
+    let scratch_before: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]);
+    let elsewhere: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", elsewhere.as_str()]);
+    assert_eq!(recover(&world.context), Vec::new(), "no intent is open");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname) %(objectname)", "refs/worktree/cli-git-service/"]),
+        scratch_before,
+        "a kept reference that names another commit proves nothing about the batch's commit, so the scratch branch stays"
+    );
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), elsewhere, "and the kept reference is not moved");
+    assert!(crate::service_scratch_ref_marker_of_a_batch::record_path(world.context.journal.as_path(), 1).exists(), "the record stays for the next restart to try again");
+    remove(world.root.as_path());
+}
 
 /// The ceiling the controls give the lock wait:
 /// short,
 /// so the control ends in a moment.
 const SHORT_CEILING: std::time::Duration = std::time::Duration::from_millis(300);
 
-/// Runs `land_batch_announcing` for `requests` on a thread of its own with a ceiling of `SHORT_CEILING`,
-/// and returns what it
-///  answered and said,
-/// or nothing when it was still waiting after `CEILING_PATIENCE`.
-/// The thread builds its own context.
-fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> Option<(Result<Vec<Outcome>, FailureCode>, Vec<Announce>)> {
-    let (finished, ended) = std::sync::mpsc::channel();
-    let journal: PathBuf = world.context.journal.clone();
-    std::thread::spawn(move || {
-        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
-        let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
-        let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| { said.lock().expect("lock").push(note); });
-        let heard: Vec<Announce> = said.lock().expect("lock").clone();
-        let _sent = finished.send((answered, heard));
-    });
-    return ended.recv_timeout(CEILING_PATIENCE).ok();
+/// Runs `land_batch_announcing` for `requests` with a ceiling of `SHORT_CEILING`,
+/// and returns what it answered and said.
+/// The wait ends by itself at that ceiling,
+/// so the control reads the ending rather than timing it,
+/// and a wait that never ends is the whole run's watchdog to report.
+fn land_at_the_ceiling(world: &World, requests: Vec<CommitRequest>) -> (Result<Vec<Outcome>, FailureCode>, Vec<Announce>) {
+    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    let said: std::sync::Mutex<Vec<Announce>> = std::sync::Mutex::new(Vec::new());
+    let answered = land_batch_announcing(&context, 1, requests.as_slice(), &|note: Announce| { said.lock().expect("lock").push(note); });
+    let heard: Vec<Announce> = said.lock().expect("lock").clone();
+    return (answered, heard);
 }
 
 /// A foreign owner nothing proves alive that keeps `index.lock` past the ceiling:
@@ -563,7 +667,7 @@ fn a_foreign_index_lock_at_the_ceiling_withdraws_the_commit_and_keeps_it_on_a_si
     let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
-    let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
+    let (answered, said) = land_at_the_ceiling(&world, vec![request]);
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let kept: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/cli-git/kept/"]);
     assert_eq!(kept, "refs/cli-git/kept/1", "the built commit is kept on a side ref");
@@ -592,7 +696,7 @@ fn a_proven_holder_at_the_ceiling_is_named_in_the_withdrawal() {
     let lock: PathBuf = world.repo.join(".git/index.lock");
     std::fs::write(&lock, "foreign").expect("foreign lock");
     std::fs::write(crate::recovery_files::lock_pid_path(world.repo.join(".git/index").as_path()), format!("pid {}\n", std::process::id())).expect("PID file");
-    let (answered, said) = land_at_the_ceiling(&world, vec![request]).expect("the landing ended at its ceiling");
+    let (answered, said) = land_at_the_ceiling(&world, vec![request]);
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let texts: Vec<String> = said.iter().filter_map(|note| { return if let Announce::Waiting(text) = note { Some(text.clone()) } else { None }; }).collect();
     let ending: String = texts.join("");
@@ -746,13 +850,130 @@ fn a_restart_finishes_drops_and_removes_what_a_kill_left() {
     never.new = "f".repeat(40);
     crate::service_journal::write_intent(world.context.journal.as_path(), &never).expect("second intent");
     std::fs::write(batch_path(world.context.journal.as_path(), 3, OPEN_EXTENSION), "seq=3\nrepos").expect("torn");
-    let reports = recover(&world.context);
+    let mut reports: Vec<RecoveryReport> = Vec::new();
+    let entries: Vec<crate::service_timing::capture::Captured> = crate::service_timing::capture::entries_of(|| { reports = recover(&world.context); });
     let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
     assert!(by_seq.contains(&(1, Recovery::Finish)), "{by_seq:?}");
     assert!(by_seq.contains(&(2, Recovery::Drop)), "{by_seq:?}");
+    // The second batch names a commit that is no object, so its kept ref cannot be written, and Git's own words say why.
+    let failures: Vec<&crate::service_timing::capture::Captured> = entries.iter().filter(|entry| { return entry.priority == crate::journald_native::Priority::Error; }).collect();
+    assert_eq!(failures.len(), 1, "{entries:?}");
+    assert!(failures[0].message.contains("refs/cli-git/kept/2"), "{}", failures[0].message);
+    assert!(failures[0].message.contains("fatal:"), "Git's words are logged: {}", failures[0].message);
     assert_eq!(git_text(world.repo.as_path(), &["status", "--short"]), "", "the index shows the landing again");
     assert!(crate::service_journal::landed_commits(world.context.journal.as_path()).contains_key("landed"));
     assert_eq!(list_intents(world.context.journal.as_path(), OPEN_EXTENSION).len(), 0);
+    remove(world.root.as_path());
+}
+
+/// A batch whose branch never moved keeps its commit on `refs/cli-git/kept/<number>` when a restart drops its intent.
+/// This is the shape a stop of the service leaves when the branch write outlasts the stop bound:
+///  the stop never cuts that write,
+/// the service ends inside it,
+/// so the landing cannot unwind and keep the commit itself,
+/// the branch stands where it was,
+/// the commit is on the landing's scratch branch,
+/// and the intent is open (`a_stop_during_a_hung_branch_write_ends_the_service_within_the_bound_and_keeps_the_commit_on_its_side_ref`).
+/// The restart keeps that commit on the ref the wrapper names,
+/// and only then removes the scratch branch the killed landing left
+/// (`service_scratch_ref_of_a_dropped_batch.rs`),
+/// so no commit is lost and no reference of the wrapper pins objects for ever.
+#[test]
+fn a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref() {
+    let world: World = world("service-land-recover-kept");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let stopped: CommitRequest = request(&world, "stopped", "stopped.txt", "stopped\n");
+    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
+    let built: String = match &outcomes[0] {
+        Outcome::Landed { commit } => commit.clone(),
+        other => panic!("{other:?}"),
+    };
+    // The branch writes only at the end of its transaction, which also deletes the scratch branch: a kill inside it
+    //  leaves the branch where it was and the commit on the scratch branch, with the intent already written.
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/worktree/cli-git-service/1", built.as_str()]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the commit is on the scratch branch the landing made");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit is kept on the ref the wrapper names");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of stopped");
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/worktree/cli-git-service/"]),
+        "",
+        "the scratch branch goes once its commit is kept"
+    );
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    // Nothing the removed reference held is lost: the kept commit outlives a maintenance that drops unreachable objects.
+    git(world.repo.as_path(), &["prune", "--expire=now"]);
+    assert_eq!(git_text(world.repo.as_path(), &["cat-file", "-t", built.as_str()]), "commit", "the kept commit is still in the object store after a prune");
+    remove(world.root.as_path());
+}
+
+/// A restart keeps a batch's commit under its number only where nothing is kept there yet:
+/// a kept ref that already names another commit is another batch's work,
+/// so the restart leaves it,
+/// leaves the scratch branch that holds the dropped commit as it is,
+/// and says both.
+#[test]
+fn a_restart_does_not_replace_a_kept_ref_that_names_another_commit() {
+    let world: World = world("service-land-recover-kept-collision");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let stopped: CommitRequest = request(&world, "stopped", "stopped.txt", "stopped\n");
+    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the batch lands");
+    let built: String = match &outcomes[0] {
+        Outcome::Landed { commit } => commit.clone(),
+        other => panic!("{other:?}"),
+    };
+    // A commit an earlier batch was kept under: the same number, another commit.
+    let other: String = git_text(world.repo.as_path(), &["commit-tree", "HEAD^{tree}", "-p", base.as_str(), "-m", "kept from another batch"]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/worktree/cli-git-service/1", built.as_str()]);
+    git(world.repo.as_path(), &["update-ref", "refs/cli-git/kept/1", other.as_str()]);
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing landed, so nothing lands later");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), other, "the commit kept under this number is not replaced");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/worktree/cli-git-service/1"]), built, "the scratch branch keeps the commit nothing else holds");
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
+    remove(world.root.as_path());
+}
+
+/// A batch that lands a commit Git built makes no scratch branch:
+/// the commit is written by the client's own `git commit`,
+/// and the landing's transaction only moves the branch.
+/// A stop inside that branch write therefore leaves the commit on no ref at all,
+/// and the restart that drops the batch keeps it on `refs/cli-git/kept/<number>`:
+/// without that,
+/// only `git fsck` would find it,
+/// and only until maintenance prunes it.
+#[test]
+fn a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref() {
+    let world: World = world("service-land-recover-kept-built");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let tree: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    let built: String = git_text(world.repo.as_path(), &["commit-tree", tree.as_str(), "-p", base.as_str(), "-m", "the stopped built commit"]);
+    let mut stopped: CommitRequest = request(&world, "built", "built.txt", "built\n");
+    stopped.commit = Some(built.clone());
+    stopped.changes = Vec::new();
+    let outcomes: Vec<Outcome> = land_batch(&world.context, 1, &[stopped]).expect("the commit Git built lands");
+    assert_eq!(outcomes, vec![Outcome::Landed { commit: built.clone() }]);
+    // The kill inside the branch write: the branch where it was, the intent open, and no scratch branch ever made.
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", base.as_str()]);
+    let scratch: String = git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", "refs/worktree/cli-git-service"]);
+    assert_eq!(scratch, "", "a commit Git built is on no ref while it lands");
+    let done: PathBuf = batch_path(world.context.journal.as_path(), 1, DONE_EXTENSION);
+    std::fs::rename(&done, batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION)).expect("the intent is open again");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    let by_seq: Vec<(u64, Recovery)> = reports.iter().map(|report| { return (report.seq, report.decision); }).collect();
+    assert_eq!(by_seq, vec![(1, Recovery::Drop)], "nothing of the batch is on the branch");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/1"]), built, "the commit Git built is kept on the ref the wrapper names");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "the stopped built commit");
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "the intent is gone");
     remove(world.root.as_path());
 }
 
@@ -1286,7 +1507,10 @@ fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
     let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
     // A conclusion whose scratch directory exists and whose state cannot be reproduced removes nothing and says so.
     let scratch: PathBuf = world.root.join("scratch");
-    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
+    // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
     intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
     crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
     let landing_git: GitContext = world.context.git.clone();
@@ -1318,26 +1542,81 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
     git(world.repo.as_path(), &["branch", "other"]);
     let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     let lock: PathBuf = world.repo.join(".git/index.lock");
-    std::fs::write(&lock, "foreign").expect("foreign lock");
+    let foreign: ForeignIndexLock = ForeignIndexLock::take(lock.as_path());
     let intent: PathBuf = batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION);
-    let outcomes = std::thread::scope(|scope| {
-        let landing = scope.spawn(|| { return land_batch(&world.context, 1, std::slice::from_ref(&mine)); });
-        // The intent is written after the checks before the wait, so once it exists the landing is waiting for the lock.
-        let deadline: Instant = Instant::now() + std::time::Duration::from_secs(10);
-        while !intent.exists() && Instant::now() < deadline {
-            std::thread::sleep(std::time::Duration::from_millis(5));
+    let (waiting, said) = std::sync::mpsc::channel();
+    let (heard, outcomes) = std::thread::scope(|scope| {
+        let landing = scope.spawn(|| {
+            // The landing says so from its own thread, before it blocks, once it has found the lock held and has not read the
+            //  branch; the channel goes with this thread, so a landing that ends without waiting is heard at once rather than
+            //  at the end of a window.
+            let announce = move |_: Announce| { let _told = waiting.send(()); };
+            return land_batch_announcing(&world.context, 1, std::slice::from_ref(&mine), &announce);
+        });
+        let heard: Result<(), &'static str> = match said.recv_timeout(WAIT_WORD_CEILING) {
+            Ok(()) => Ok(()),
+            Err(RecvTimeoutError::Disconnected) => Err("the landing ended without waiting for the index lock"),
+            Err(RecvTimeoutError::Timeout) => Err("the landing did not reach the wait for the index lock"),
+        };
+        // The switch is made while the landing is inside its wait, and the lock goes in every path: a control that fails here
+        //  must not leave the landing waiting out its ceiling for a lock the control still holds.
+        if heard.is_ok() {
+            git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
         }
-        assert!(intent.exists(), "the landing reached the wait");
-        git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
-        std::fs::remove_file(&lock).expect("the foreign program lets go");
-        return landing.join().expect("landing");
+        drop(foreign);
+        return (heard, landing.join().expect("landing"));
     });
+    assert_eq!(heard, Ok(()), "the landing reached the wait");
     assert_eq!(outcomes, Ok(vec![Outcome::BranchMoved]));
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/heads/main"]), base, "the branch did not move");
     assert!(!intent.exists(), "no intent is left");
     assert!(!lock.exists(), "no lock is left");
     assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
     remove(world.root.as_path());
+}
+
+/// The longest a control waits for the landing's own word that it is waiting for the index lock.
+/// The bound only ends a run that is already broken:
+/// a landing that never says the word stopped before its wait,
+/// and a control that waited without one would be held until the test watchdog ends the process
+/// (`testing/test_support.rs`,
+/// `RUN_LIMIT`,
+/// two minutes).
+/// It is the ceiling the shipped landing gives a foreign holder
+/// (`wait_ceilings.rs`,
+/// `LANDING_LOCK_CEILING`),
+/// which is above the longest measured landing phase before the wait and below the watchdog.
+const WAIT_WORD_CEILING: std::time::Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
+
+/// What:
+///  A program that is not the service,
+/// holding a worktree's index lock.
+/// Why:
+///   The lock goes when the control lets go and also when the control ends however it ends,
+/// so a control that fails cannot
+///  leave a landing waiting out its ceiling for a lock the control still holds.
+struct ForeignIndexLock {
+    /// The lock file this program holds.
+    path: PathBuf,
+}
+
+impl ForeignIndexLock {
+    /// Hold the lock at `path`,
+    /// as a program that is not the service would:
+    /// with content in it,
+    /// which is what keeps the landing from judging it a lock nothing holds and removing it.
+    fn take(path: &Path) -> Self {
+        std::fs::write(path, "foreign").expect("foreign lock");
+        return Self { path: path.to_path_buf() };
+    }
+}
+
+impl Drop for ForeignIndexLock {
+    /// Let the lock go;
+    /// a lock already gone is the control having let go before it ended.
+    fn drop(&mut self) {
+        let _let_go = std::fs::remove_file(self.path.as_path());
+    }
 }
 
 /// A restart that finds the worktree on another branch than the batch's does not touch the index:
@@ -1502,15 +1781,10 @@ fn a_withdrawal_forces_the_records_it_wrote() {
     let world: World = world("service-land-withdrawal-syncs");
     let request: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
     std::fs::write(world.repo.join(".git/index.lock"), "foreign").expect("foreign lock");
-    let journal: PathBuf = world.context.journal.clone();
-    let (finished, ended) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        crate::service_fault::hooks::take_events();
-        let context: LandContext = LandContext { git: git_context(), journal, on_objects_written: None, lock_ceiling: SHORT_CEILING };
-        let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
-        let _sent = finished.send((answered, crate::service_fault::hooks::take_events()));
-    });
-    let (answered, events) = ended.recv_timeout(CEILING_PATIENCE).expect("the landing ended at its ceiling");
+    let context: LandContext = LandContext { git: git_context(), journal: world.context.journal.clone(), on_objects_written: None, lock_ceiling: SHORT_CEILING };
+    crate::service_fault::hooks::take_events();
+    let answered = crate::landing_state_carried_by_its_task::in_a_landing(|| return land_batch(&context, 1, &[request]));
+    let events: Vec<String> = crate::service_fault::hooks::take_events();
     assert_eq!(answered, Err(FailureCode::IndexInUse));
     let (waited, queued) = syncs_of(events.as_slice());
     assert!(waited.contains(&String::from("intent-file")) && waited.contains(&String::from("intent-dir")), "the intent was forced: {events:?}");
@@ -1604,7 +1878,10 @@ fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() 
     std::fs::rename(&done, &open).expect("reopen");
     let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
     let scratch: PathBuf = world.root.join("scratch");
-    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
+    // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
     intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
     crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
     recover(&world.context);
@@ -1647,4 +1924,27 @@ fn the_release_flushes_a_copy_git_wrote_and_not_one_the_update_already_flushed()
         assert_eq!(in_process_waited, vec![String::from("index-publish")], "the update's own flush is not repeated: {in_process_events:?}");
         remove(world.root.as_path());
     });
+}
+
+/// Owner's rule "never discard user data":
+/// a landing that fails after its objects exist and before its intent is in the journal leaves a batch no restart can land
+/// or find again,
+/// so the commit it built is kept at `refs/cli-git/kept/<seq>` and the scratch branch is removed,
+/// instead of the commit being lost and the scratch branch holding its objects for ever.
+#[test]
+fn a_landing_that_fails_before_its_intent_keeps_the_commit_and_removes_its_scratch_branch() {
+    let world: World = world("service-land-objects-without-intent");
+    let mine: CommitRequest = request(&world, "mine", "mine.txt", "mine\n");
+    let head: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    // The journal cannot be written: the import cannot leave its marks file there, so the landing makes the batch's objects
+    //  (the scratch branch names its commit) and fails before the intent is written.
+    std::fs::set_permissions(world.context.journal.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("the journal directory cannot be written");
+    let answered = land_batch(&world.context, 1, std::slice::from_ref(&mine));
+    std::fs::set_permissions(world.context.journal.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the journal directory is writable again");
+    assert_eq!(answered, Err(FailureCode::PermissionDenied));
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "HEAD"]), head, "the branch did not move");
+    assert!(!batch_path(world.context.journal.as_path(), 1, OPEN_EXTENSION).exists(), "nothing names the batch");
+    assert_eq!(git_text(world.repo.as_path(), &["for-each-ref", "refs/worktree/cli-git-service/"]), "", "no scratch branch is left");
+    assert_eq!(git_text(world.repo.as_path(), &["log", "-1", "--format=%s", "refs/cli-git/kept/1"]), "message of mine", "the commit the batch built is kept");
+    remove(world.root.as_path());
 }

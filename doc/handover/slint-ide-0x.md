@@ -1,5 +1,57 @@
 # Slint IDE implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/desktop-app/ide/design` is now `package/ide/app/design`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/design/questions/2026-10-06-ui-batch-3.html` is now
+> `package/ide/app/design/questions/2026-10-06-ui-batch-3.html` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/src` is now `package/ide/app/src` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:test` is now `//package/ide/app:test`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/bin/container-bounds.ts` is now
+> `package/ide/app/bin/container-bounds.ts` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/Cargo.toml` is now `package/ide/app/Cargo.toml`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:fetch` is now `//package/ide/app:fetch`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:inspect:cadence` is now `//package/ide/app:inspect:cadence`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:lint:closures` is retired (2026-10-19 `269e6ba288`) and
+> `package/ide/app` has no closures task today.
+> `package/desktop-app/ide/monochromatic-lint.prerequisites.jsonc` is now
+> `package/ide/app/monochromatic-lint.prerequisites.jsonc` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/design/screenshots` is now `package/ide/app/design/screenshots`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/Containerfile` is now `package/ide/app/Containerfile`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/LICENSES` is now `package/ide/app/LICENSES`
+> (2026-10-29 `592d78b143`).
+> `package/build-tool/css/src/build.unit.test.ts` is now
+> `package/css/cli/src/build.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/src/annotation/blocks.rs` is now
+> `package/ide/app/src/annotation/blocks.rs` (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/Cargo.toml` is now
+> `package/nested-wayland-session/cli/Cargo.toml` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/terminal:image` is now `//package/terminal/app:image`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/terminal/task.ts` is now `package/terminal/app/task.ts`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/task.ts` is now `package/ide/app/task.ts`
+> (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:inspect:no-software-renderer` is now
+> `//package/ide/app:inspect:no-software-renderer` (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/src/native/frame_trace.rs` is now
+> `package/ide/app/src/native/frame_trace.rs` (2026-10-29 `592d78b143`).
+> `package/dev-script/task-cli/src/run.ts` is now `package/monorepo-task/cli/src/run.ts`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/README.md` is now `package/ide/app/README.md`
+> (2026-10-29 `592d78b143`).
+> `package/desktop-app/ide/mise.toml` is now `package/ide/app/mise.toml`
+> (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/src/input.rs` is now
+> `package/nested-wayland-session/cli/src/input.rs` (2026-10-29 `592d78b143`).
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -69,7 +121,7 @@ See [the pointer lifetime investigation](../troubleshooting/slint-repeater-model
 
 In-file find was implemented on 2026-10-05;
 the "Handoff state" section records its result.
-The following paragraphs are the research record that preceded it.
+Historical record of the Chrome find-in-page research that preceded it:
 Fresh reference reads confirm that editord delegates Ctrl+F to real Chrome's find-in-page,
 rather than implementing another regular-expression search widget.
 `inspect:find-reference` now probes synthetic Unicode/whitespace cases in an isolated browser profile.
@@ -775,7 +827,7 @@ the items after it are the record of 2026-10-05 and older.
     worktree `.claude/worktrees/ide-wrap`,
     through `a973a163f1`,
     package tree `80e74506a4`;
-    the merged tree `b63b63eb7f` adds only the check-script fix below).
+    the merged tree `b63b63eb7f` adds only the check-script fix).
     Four slices:
     IntelliJ break rules and wrapped shaping;
     wrap width,
@@ -1260,7 +1312,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     `test` (792),
     `test:wrap` (15 and 67) and
     `test:native` (203) passed,
-    and the ten `inspect:source-guards` cases above (seven new,
+    and the ten `inspect:source-guards` cases this fix names (seven new,
     three re-anchored) each
     passed at baseline,
     failed with the guard removed,
@@ -2437,7 +2489,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     the 64 MiB tile byte bound is unchanged;
     +52 MiB RSS,
     +260 MiB VRAM and +34 ms
-    first frame are accepted until stage 6 and the item below;
+    first frame are accepted until stage 6 and the queued Vello video-memory item;
     `inspect:native` keeps `--accessibility` on,
     the
     measuring tasks leave it off.
@@ -2753,7 +2805,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     would be killed by a reboot,
     which is that session's call.
     Subagent contexts are not saved by a reboot:
-    the notes below are the durable state.
+    the notes in `Current state on 2026-10-06` are the durable state.
     LANDED 2026-10-21 after the reboot:
     both agent branches are merged and pushed as `34a38c9897` on `main` (scratch
     worktree,
@@ -3567,7 +3619,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     a chunk shifted by a whole
     line is invisible to the capture measure (only `minimap_seam_tests.rs` covers it).
     Findings outside the checks,
-    all being worked (agents below):
+    all being worked:
     (1) in a 7680x4320 window at scale 1 the code tile is
     cut to 7259x2280 and 52% of the code view is blank (I confirmed it in `~/temp/agent/sss-shots/w8k/plain.png`);
     (2)
@@ -4152,7 +4204,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
     tip `420b7ceb2e`,
     not on `main`):
     it found
-    the release jobs and binstall metadata already present (see the correction above) and only hardened them:
+    the release jobs and binstall metadata already present (see the CORRECTION block about the compositor releases) and only hardened them:
     a dry
     run now builds every target,
     a smoke run and an archive verification step,
@@ -5023,7 +5075,7 @@ the one-step delay is the recorder's capture model plus winit's redraw gate,
       under whatever load there is;
       the stall pass agent) and whether a tile taken in an
     input gap over 20 ms costs a frame;
-      (1b) the code tile stack and the minimap fling lag (the two agents above);
+      (1b) the code tile stack and the minimap fling lag (the two agent handbacks this record describes);
     (2) the flake work,
       in `doc/handover/ide-native-flakes.md`:
     fixed with counts (refused-tile test 10 of 360 to 0 of 360,
@@ -8165,7 +8217,7 @@ guard runs and known costs:
 `doc/troubleshooting/typescript-7-inlay-hints-outside-the-requested-range.md`,
 section "Skip a hint request that stored answers cover:
 built".
-Hint skip rule (owner answer above):
+Hint skip rule (the owner skip-rule answer):
 landed 2026-10-24 as `83f6240e4b` (fast-forward to the agent's tip),
 installed (sha256 `36c9caad610ced81…`,
 prints 0.1.1).
@@ -10173,7 +10225,7 @@ scratch trees,
 `~/temp/agent/lp`,
 `ft`
 (34 GB),
-`verify` and the disposable projects (see below).
+`verify` and the disposable projects (the scratch list names them).
 Lesson:
 the gates and the agent's counts all passed while the picture was blank;
 the check that found it was
@@ -10181,7 +10233,7 @@ screenshots of the real binary after each press,
 so every change of when the view or hints are handled needs
 a drawn-text check on the installed binary before it is called done.
 Scratch left until the owner confirms the fixes on the installed binary
-(`~/temp/agent/cr` and `~/temp/agent/verify` join the list below):
+(`~/temp/agent/cr` and `~/temp/agent/verify` join the scratch list):
 `~/temp/agent/mm`,
 `~/temp/agent/mm2`,
 `~/temp/agent/reaim` (354 MB,
@@ -10468,7 +10520,7 @@ drawn under the pointer (a constant position for a resting pointer).
 
 ## A pointer that rests over no character asks when the view puts a character under it, 2026-10-25 (branch worktree-agent-a9743aae63279d55b)
 
-The limitation noted in the block above is fixed on the branch (not merged or installed).
+The no-new-popup-after-a-scroll limitation is fixed on the branch (not merged or installed).
 Record:
 `doc/troubleshooting/slint-flickable-wheel-jump-outruns-the-tile.md`,
 section "A hover request after a far wheel jump",
@@ -11051,7 +11103,7 @@ three sessions at a time):
   all 300 ended at 36,024 px.
   Arm B,
   60 interleaved sessions:
-  30 normal (all 36,024 px) and 30 positive-control stalls (below).
+  30 normal (all 36,024 px) and 30 positive-control stalls (the positive control this entry records).
   The verifier's own total for sessions without the control stall is 0 of 310 not at 36,024 px.
 - Positive control:
   stopping the app for 2.2 s at the first `row map rebuilt` showed the narrow-width map of 36,456 px at `viewport_width=173` in 30 of 30,
@@ -11526,7 +11578,7 @@ on `origin/main` at `a800292c31`):
 Two of 210 press events (agent `a1ba2331a7bd7b972`,
 docs only,
 merged as `6c2ae6af8b`):
-explained as late log lines in the section above.
+explained as late log lines in the "Two of 210 press events that logged nothing" section.
 The log writer thread sat in `write(1)` (state `D`,
 `folio_wait_bit_common`) for up to 2.75 s on this btrfs host;
 `WAYLAND_DEBUG` writes from the window thread and stalls the press itself.
@@ -11539,7 +11591,7 @@ IDE 0.1.3 released,
 commit `d1477a13ba`,
 run 40836615403,
 all jobs succeeded):
-- Cause of the earlier block:
+- The `ide-v0.1.3` release was blocked before it could be published:
   the rust-catalog migration (`fd0bd03540`,
   #1800) made cargo refuse `default-features = false` on a `workspace = true` dependency.
   Session `monochromatic-fb` fixed the generator in `d1477a13ba` (each crate's generated `[workspace.dependencies]` entry now carries `default-features = false`);

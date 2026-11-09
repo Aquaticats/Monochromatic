@@ -250,6 +250,19 @@ fn a_batch_number_skips_every_number_the_journal_holds() {
     remove(root.as_path());
 }
 
+/// A number whose landing left the record of its scratch reference is not taken again:
+/// the reference that record names may still hold a commit nothing else holds,
+/// and the next import would move that reference.
+#[test]
+fn a_batch_number_whose_scratch_record_stays_is_not_taken_again() {
+    let root: PathBuf = fixture("service-journal-scratch-record");
+    let first: u64 = 40;
+    std::fs::write(batch_path(root.as_path(), first, SCRATCH_EXTENSION), "{}\n").expect("the record of a scratch reference");
+    let taken: BatchClaim = claim_batch(root.as_path(), first).expect("a claim");
+    assert_eq!(taken.seq(), first + 1, "a number with a record is not free again");
+    remove(root.as_path());
+}
+
 /// A claim left by a service that was killed is removed once it is old enough that no landing can still hold it,
 /// and a younger
 ///  one is left to its landing.

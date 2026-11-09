@@ -1,5 +1,38 @@
 # Handover: forbidden-strings runtime rule precompilation
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/forbidden-strings/data/builtin-rules.txt` is now
+> `package/forbidden-strings/cli/data/builtin-rules.txt` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/build.rs` is now `package/forbidden-strings/cli/build.rs`
+> (2026-10-29 `113633b259`).
+> `package/rust-module/forbidden-regex/src/regex.rs` is now
+> `package/forbidden-strings/core/src/regex.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/runtime_cache` is now
+> `package/forbidden-strings/cli/src/runtime_cache` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/cli.rs` is now
+> `package/forbidden-strings/cli/src/cli.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/lib.rs` is now
+> `package/forbidden-strings/cli/src/lib.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/tests/integration.rs` is now
+> `package/forbidden-strings/cli/tests/integration.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/frx_load.rs` is now
+> `package/forbidden-strings/cli/src/frx_load.rs` (2026-10-29 `113633b259`).
+> `package/git-policy/forbidden-strings/src/scan-candidates.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+> `package/git-policy/forbidden-strings/src/scanner-output.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+> `package/cli/forbidden-strings/Cargo.toml` is now
+> `package/forbidden-strings/cli/Cargo.toml` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/PERF.md` is now `package/forbidden-strings/cli/PERF.md`
+> (2026-10-29 `113633b259`).
+> `package/git-policy/cli/src/optional/forbidden-strings/scanner-output.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/forbidden-strings/core` carries the scanner today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -71,9 +104,15 @@ Two rule sources participate in this repository:
 
 The local cli-git policy in `cli-git.config.ts` spawns the release scanner.
 The canonical adapter is
-`package/git-policy/forbidden-strings/src/scan-candidates.ts`.
+`package/git-policy/forbidden-strings/src/scan-candidates.ts`,
+which is now `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`
+(deleted 2026-10-13 by `a2b56c548c` with the four git-policy authoring packages).
 It inherits scanner environment variables and parses scanner stderr strictly through
-`package/git-policy/forbidden-strings/src/scanner-output.ts`.
+`package/git-policy/forbidden-strings/src/scanner-output.ts`,
+which has no successor:
+it was deleted 2026-10-13 by `a2b56c548c`,
+when the findings began
+arriving typed from the linked scanner.
 Every nonempty unrecognized stderr line currently fails the policy as malformed output.
 
 ## Issue evidence
@@ -593,8 +632,14 @@ Monorepo integration changes:
 - `file-enforcer.config.ts`
 - Generated `mise.toml`
 - `package/git-policy/forbidden-strings/src/scanner-output.ts`
+  has no successor:
+  it was deleted 2026-10-13 by `a2b56c548c`,
+  when the findings began arriving
+  typed from the linked scanner.
 - Its generated mirror under
   `package/git-policy/cli/src/optional/forbidden-strings/scanner-output.ts`
+  has no successor either:
+  it was deleted 2026-10-13 by `642b6d72cb` with the TypeScript wrapper.
 - Canonical and integration tests for warning parsing.
 
 ## Required verification

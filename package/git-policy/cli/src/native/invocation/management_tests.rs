@@ -687,7 +687,7 @@ fn doctor_appends_the_supplied_filesystem_section_and_no_other_command_asks_for_
     let inputs: ResolutionInputs = with_git(root.as_path());
     let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
     let asked: std::cell::RefCell<Vec<PathBuf>> = std::cell::RefCell::new(Vec::new());
-    let supplier = |common_directory: &Path| -> String {
+    let supplier = |common_directory: &Path, _home: Option<&Path>| -> String {
         asked.borrow_mut().push(common_directory.to_path_buf());
         return String::from("section text\n");
     };
@@ -718,7 +718,7 @@ fn doctor_tells_how_many_batches_the_earlier_release_left_open_and_names_the_com
     environment.push((OsString::from("XDG_STATE_HOME"), state.as_os_str().to_os_string()));
     let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
     let doctor = || -> (i32, String, String) {
-        return exit_parts(plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), environment.as_slice(), &inputs, &|_| { return String::new(); }));
+        return exit_parts(plan_management_with_section(&[OsString::from("doctor")], global.as_slice(), &no_controls(), environment.as_slice(), &inputs, &|_, _| { return String::new(); }));
     };
     let (quiet_code, _, quiet_stderr) = doctor();
     assert_eq!(quiet_code, 0);
@@ -827,7 +827,7 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     let status_in = |global: &[OsString], extra: &[(OsString, OsString)]| -> (i32, String, String) {
         let mut seen: Vec<(OsString, OsString)> = environment.clone();
         seen.extend(extra.iter().cloned());
-        let planned: Action = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), seen.as_slice(), &inputs, &|_| { return String::new(); });
+        let planned: Action = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], global, &no_controls(), seen.as_slice(), &inputs, &|_, _| { return String::new(); });
         let Action::Exit { code, stdout, stderr } = planned else {
             panic!("the status exits");
         };
@@ -863,7 +863,7 @@ fn the_status_follows_the_dash_c_options_of_the_invocation() {
     // an invocation the reader does not resolve is unresolved,
     // never counted as any service.
     let nameless: ResolutionInputs = no_git(root.as_path());
-    let unresolved = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], git_dir_option.as_slice(), &no_controls(), environment.as_slice(), &nameless, &|_| { return String::new(); });
+    let unresolved = plan_management_with_section(&[OsString::from("service"), OsString::from("status")], git_dir_option.as_slice(), &no_controls(), environment.as_slice(), &nameless, &|_, _| { return String::new(); });
     let Action::Exit { code: unresolved_code, stdout: unresolved_out, stderr: unresolved_err } = unresolved else {
         panic!("the status exits");
     };
@@ -918,5 +918,52 @@ fn the_doctors_host_section_carries_the_link_line_only_with_an_identity_file() {
     let section: String = filesystem_section_with_link_line(nowhere.as_path(), Some(home.as_path()));
     assert!(section.starts_with("repository link: the 860 drive is not mounted yet ("), "{section}");
     assert!(section.ends_with("run this again\n"), "{section}");
+    remove(root.as_path());
+}
+
+/// The doctor's link line reads the home the invocation's environment names,
+/// not this process's:
+/// an identity file below that home records a link that dangles,
+/// and the doctor says so.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_doctors_link_line_reads_the_home_the_invocation_names() {
+    use super::host_filesystem_section;
+    let root: PathBuf = fixture("doctor-invocation-home").canonicalize().expect("root");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let inputs: ResolutionInputs = with_git(root.as_path());
+    let home: PathBuf = root.join("home");
+    let mount_point: PathBuf = root.join("not-a-mount");
+    let link: PathBuf = root.join("repolink");
+    let target: PathBuf = mount_point.join("repository/Monochromatic");
+    std::fs::create_dir_all(mount_point.as_path()).expect("mount point stand-in");
+    std::os::unix::fs::symlink(target.as_path(), link.as_path()).expect("dangling link");
+    let identity: PathBuf = home.join(".config/monochromatic-dev/repository-link.json");
+    std::fs::create_dir_all(identity.parent().expect("parent")).expect("config folder");
+    std::fs::write(
+        identity,
+        format!(
+            "{{\"linkPath\":\"{}\",\"linkText\":\"{}\",\"canonicalRoot\":\"{}\",\"mountPoint\":\"{}\",\"driveUuid\":\"D\",\"nvmeUuid\":\"N\",\"rootCommit\":\"abc\",\"phase\":\"after\"}}",
+            link.display(),
+            target.display(),
+            target.display(),
+            mount_point.display()
+        ),
+    )
+    .expect("identity file");
+    let mut environment: Vec<(OsString, OsString)> = isolated_overlay();
+    environment.push((OsString::from("HOME"), home.into_os_string()));
+    let global: Vec<OsString> = vec![OsString::from("-C"), repo.as_os_str().to_os_string()];
+    let action: Action = plan_management_with_section(
+        &[OsString::from("doctor")],
+        global.as_slice(),
+        &no_controls(),
+        environment.as_slice(),
+        &inputs,
+        &host_filesystem_section,
+    );
+    let (code, _stdout, stderr) = exit_parts(action);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stderr.contains("repository link: the 860 drive is not mounted yet ("), "{stderr}");
     remove(root.as_path());
 }

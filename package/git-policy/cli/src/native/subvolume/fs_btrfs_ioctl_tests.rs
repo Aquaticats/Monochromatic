@@ -110,10 +110,13 @@ fn a_path_without_a_name_cannot_be_split() {
 
 /// On a filesystem that is not btrfs the ioctls answer with a feature-missing error,
 /// which a ladder falls through on.
+/// On btrfs this control has nothing to check,
+/// and it says so in one line rather than passing without a word.
 #[test]
 fn off_btrfs_the_ioctls_report_a_missing_feature() {
     let root: PathBuf = fixture("fs-ioctl-off");
     if crate::fs_kind::filesystem_kind(root.as_path()) == Ok(crate::fs_kind::FilesystemKind::Btrfs) {
+        eprintln!("BTRFS CONTROL NOT RUN: off-btrfs-ioctls (fixture root {} is on btrfs, and this control needs a filesystem that is not btrfs)", root.display());
         remove(root.as_path());
         return;
     }

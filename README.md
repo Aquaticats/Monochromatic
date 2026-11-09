@@ -271,7 +271,9 @@ or a finished version folder under the `mpm-shadow` folder of either toolchain r
 `toolchain` or `toolchain-global`:
 the newest copy wins wherever it is)
 whose version is at or above the lock's,
-and says `locked at X, Y runs; upgrade with: mise run toolchain:update mpm-shadow` when that copy is newer.
+and says `locked at X in <lock file>, Y runs; upgrade that lock with: mise run toolchain:update mpm-shadow` when that copy is newer,
+naming the lock file it compared,
+because every worktree has a lock of its own.
 Only when there is none does the task download the lock's archive,
 check its SHA-256 against the lock,
 and install it into the toolchain root as `mpm-shadow install` would.

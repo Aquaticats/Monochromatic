@@ -41,6 +41,11 @@ Mirrors the Slint spike's scale so the numbers are comparable:
   scroll-back.
    Resident decoded bytes are bounded by the viewport.
 
+`package/file-manager/app/src/rowmodel.rs` is not in the working tree and no commit in this
+repository carries it.
+`package/file-manager/app/src/preview.rs` is not in the working tree and no commit in this
+repository carries it.
+
 The benchmark reproduces all of this:
  1200 columns,
  about 14400 panes,

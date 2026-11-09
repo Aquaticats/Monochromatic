@@ -16,8 +16,8 @@ use rayon::prelude::*;
 use crate::frx_load::{load_listed, LoadedRules};
 /// Imports the entry type of the rules list.
 use crate::rules_list::RulesEntry;
-/// Imports the working-tree walk.
-use crate::walk::list_files;
+/// Imports the working-tree walk and what it lists.
+use crate::walk::{list_files, WorkingTreeListing};
 
 /// What the two pieces of startup work need to know.
 pub(crate) struct StartupRequest<'entries> {
@@ -56,9 +56,9 @@ enum StartupOutcome {
     /// The listed files,
     /// or why the walk failed.
     Files(
-        /// The listed paths,
+        /// The listed paths and any tracked-file union gap,
         /// or the reason the walk failed.
-        Result<Vec<String>>,
+        Result<WorkingTreeListing>,
     ),
 }
 
@@ -83,14 +83,16 @@ fn run_work(work: StartupWork<'_, '_>) -> StartupOutcome {
 ///
 /// Returns the rules result and the listing result;
 /// the listing is `None` when it was not asked for.
-pub(crate) fn run_startup_work(request: &StartupRequest<'_>) -> (Result<LoadedRules>, Option<Result<Vec<String>>>) {
+pub(crate) fn run_startup_work(
+    request: &StartupRequest<'_>,
+) -> (Result<LoadedRules>, Option<Result<WorkingTreeListing>>) {
     let mut work: Vec<StartupWork<'_, '_>> = vec![StartupWork::LoadRules(request)];
     if request.list_working_tree {
         work.push(StartupWork::ListFiles);
     }
     let outcomes: Vec<StartupOutcome> = work.into_par_iter().map(run_work).collect();
     let mut rules_result: Option<Result<LoadedRules>> = None;
-    let mut files_result: Option<Result<Vec<String>>> = None;
+    let mut files_result: Option<Result<WorkingTreeListing>> = None;
     for outcome in outcomes {
         match outcome {
             StartupOutcome::Rules(result) => rules_result = Some(result),

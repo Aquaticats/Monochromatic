@@ -9,8 +9,9 @@
 //!  and the holder,
 //! and over as soon as the lock is gone.
 //! A holder proven alive and an owner that cannot be proven alive are
-//!  both waited for with no bound,
-//! because the person's own `git commit` with its editor open holds the lock with no proof;
+//!  both waited for until `MERGE_LOCK_CEILING` (one minute,
+//! `wait_ceilings.rs`),
+//! which is where the wait names the blocker and ends and the merge goes on to meet Git's own refusal;
 //!  the line for the second says what is known and how to remove the lock if no program uses the repository.
 //! A PID file naming
 //!  a process that is gone ends the wait at once with a diagnostic.
@@ -43,7 +44,7 @@
 
 /// Evidence about the holder of a lock.
 use crate::index_lock_evidence::{
-    Evidence, Verdict, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
@@ -122,19 +123,22 @@ fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
 /// The notice:
 /// what the command waits for,
 /// why it is safe to wait,
-/// then the holder.
-fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, first: bool) -> String {
+/// then the holder,
+/// and how long the wait lasts before the command meets Git's own refusal.
+fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration, proof: &Proof, first: bool) -> String {
+    let ending: String = format!("git {command} meets Git's own refusal");
+    let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending: ending.as_str() };
     let tail: String = match proof {
         Proof::Alive(evidence, pid, by_descriptor, holder_command) => {
             let line: String = if first {
-                proven_holder_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path())
+                proven_holder_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path(), end)
             } else {
-                proven_holder_progress_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path(), waited.as_secs())
+                proven_holder_progress_line(*pid, *by_descriptor, holder_command.as_deref(), evidence.lock_path.as_path(), waited.as_secs(), end)
             };
             line
         }
-        Proof::Nothing(found) => unproven_wait_line(lock_path_of(real_index).as_path(), found.as_ref()),
-        Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None),
+        Proof::Nothing(found) => unproven_wait_line(lock_path_of(real_index).as_path(), found.as_ref(), end),
+        Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None, end),
     };
     return format!(
         "monochromatic-git-policy-cli: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
@@ -151,7 +155,9 @@ fn notice(command: &str, real_index: &Path, waited: Duration, proof: &Proof, fir
 ///  known when the wait begins and then every notice interval,
 /// so a queued command can be told from a hung one.
 /// A holder
-///  proven alive and an owner nothing proves alive are waited for with no bound;
+///  proven alive and an owner nothing proves alive are waited for until `MERGE_LOCK_CEILING`,
+/// not forever,
+/// because the person's own `git commit` with its editor open holds the lock with no proof;
 /// a dead owner ends the wait at once.
 ///
 /// In TS you'd write (pseudocode):
@@ -208,7 +214,7 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = write_then_flush(out, notice(command, real_index, elapsed, &proof, !announced).as_bytes());
+            let _noted = write_then_flush(out, notice(command, real_index, elapsed, ceiling, &proof, !announced).as_bytes());
             announced = true;
         }
         // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;

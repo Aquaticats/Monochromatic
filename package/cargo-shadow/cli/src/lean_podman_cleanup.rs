@@ -11,10 +11,17 @@
 //! each after the grace period,
 //! as the user and never as root.
 //! A container in any state uses its image,
-//! so an image an exited container still holds is kept (a person decides about containers).
+//! so an image a container holds is kept (a person decides about containers).
+//! A Buildah working container holds its image too and is invisible to `podman ps --all`,
+//! which needs `--external` to list it (measured 2026-11-08,
+//! `lean_podman_real.rs`).
 //! The newest image of each repository is kept as the repository's current one.
 //! Podman is asked to remove plainly (never with `--force`),
 //! so Podman itself refuses an image a container started in the meantime.
+//! Each judged image is asked for by every tag it carries,
+//! because Podman refuses an image with more than one tag by id;
+//! a refusal that says the image is not known counts it as gone,
+//! because removing one image also removes an ancestor that only it referenced.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -52,16 +59,86 @@ pub struct Volume {
 pub trait PodmanApi {
     /// Every image row.
     fn images(&self) -> Result<Vec<Image>, String>;
-    /// The image id of every container in any state.
+    /// The image id of every container in any state,
+    /// the external (Buildah working) ones included.
     fn container_image_ids(&self) -> Result<Vec<String>, String>;
     /// The volumes no container uses.
     fn dangling_volumes(&self) -> Result<Vec<Volume>, String>;
-    /// Removes images by id,
+    /// Removes one image through every reference that names it,
     /// never forcing.
-    fn remove_images(&self, ids: &[String]) -> Result<(), String>;
+    fn remove_image(&self, references: &[String]) -> Result<(), String>;
     /// Removes a volume,
     /// never forcing.
     fn remove_volume(&self, name: &str) -> Result<(), String>;
+}
+
+/// What Podman's refusal of one removal says about the image.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Refusal {
+    /// Podman does not know the image any more:
+    /// it went with another image of this run.
+    AlreadyGone,
+    /// A container Podman knows holds the image.
+    InUse,
+}
+
+/// The words of a Podman refusal that says the image is gone,
+/// measured on podman 6.1.3 (2026-11-08).
+pub const ALREADY_GONE: &str = "image not known";
+
+/// The words of a Podman refusal that says a container holds the image,
+/// measured on podman 6.1.3 (2026-11-08).
+pub const IN_USE: &str = "image is in use by a container";
+
+/// What:
+/// `pub fn refusal_of(message: &str) -> Option<Refusal>` reads the two refusals this cleanup understands.
+/// Why:
+/// Removing an image also removes an ancestor that only it referenced,
+/// so a later call of the same run reads "image not known" for an image that is gone;
+/// that is the outcome the run wanted,
+/// not a failure.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function refusalOf(message: string): Refusal | undefined
+/// ```
+pub fn refusal_of(message: &str) -> Option<Refusal> {
+    if message.contains(ALREADY_GONE) {
+        return Some(Refusal::AlreadyGone);
+    }
+    if message.contains(IN_USE) {
+        return Some(Refusal::InUse);
+    }
+    return None;
+}
+
+/// What:
+/// `pub fn image_references(rows: &[&Image], id: &str) -> Vec<String>` is what Podman is asked to remove for one image:
+/// every `repository:tag` it carries,
+/// or its id when it carries none.
+/// Why:
+/// Podman refuses an image with more than one tag by id ("unable to delete image ... by ID with more than one tag"),
+/// and untags rather than deletes while another tag of it remains.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function imageReferences(rows: Image[], id: string): string[]
+/// ```
+pub fn image_references(rows: &[&Image], id: &str) -> Vec<String> {
+    let mut references: Vec<String> = Vec::new();
+    for row in rows {
+        if row.repository == "<none>" || row.tag == "<none>" {
+            continue;
+        }
+        let reference: String = format!("{}:{}", row.repository, row.tag);
+        if !references.contains(&reference) {
+            references.push(reference);
+        }
+    }
+    if references.is_empty() {
+        references.push(id.to_string());
+    }
+    return references;
 }
 
 /// What a cleanup did.
@@ -69,6 +146,9 @@ pub trait PodmanApi {
 pub struct PodmanOutcome {
     /// Image ids removed or that would be.
     pub images: Vec<String>,
+    /// Image ids that were gone when this run asked for them,
+    /// because removing another image of the run took them.
+    pub gone_with_another: Vec<String>,
     /// Image ids kept,
     /// with the reason of each.
     pub kept_images: Vec<(String, String)>,
@@ -80,9 +160,6 @@ pub struct PodmanOutcome {
     /// Failures.
     pub failures: Vec<String>,
 }
-
-/// How many images one `podman rmi` call removes.
-pub const REMOVAL_BATCH: usize = 25;
 
 /// What:
 /// `fn same_image(left: &str, right: &str) -> bool` compares two image ids that may be short or full.
@@ -268,17 +345,32 @@ pub fn clean_podman(api: &dyn PodmanApi, references: &HashSet<String>, grace_sec
             let (remove, keep) = judge_images(&images, &containers, references, grace_seconds, now);
             outcome.kept_images = keep;
             let proof: String = format!("podman listed {} image rows and {} containers (any state); none of the containers uses it, no current source names a tag of it, it is not the newest of its repository, and it is older than {grace_seconds} s", images.len(), containers.len());
-            for batch in remove.chunks(REMOVAL_BATCH) {
-                for id in batch {
-                    emit(log, format!("{} image {id}: {proof}", if dry_run { "would remove" } else { "removing" }));
+            for id in remove {
+                let mut rows: Vec<&Image> = Vec::new();
+                for row in &images {
+                    if row.id == id {
+                        rows.push(row);
+                    }
                 }
+                let named: Vec<String> = image_references(&rows, &id);
+                emit(log, format!("{} image {id} ({}): {proof}", if dry_run { "would remove" } else { "removing" }, named.join(" ")));
                 if dry_run {
-                    outcome.images.extend(batch.iter().cloned());
+                    outcome.images.push(id);
                     continue;
                 }
-                match api.remove_images(batch) {
-                    Ok(()) => outcome.images.extend(batch.iter().cloned()),
-                    Err(reason) => outcome.failures.push(format!("podman rmi of {} images: {reason}", batch.len())),
+                match api.remove_image(&named) {
+                    Ok(()) => outcome.images.push(id),
+                    Err(reason) => match refusal_of(&reason) {
+                        Some(Refusal::AlreadyGone) => {
+                            emit(log, format!("image {id} was gone when this run asked: {reason}"));
+                            outcome.gone_with_another.push(id);
+                        }
+                        Some(Refusal::InUse) => {
+                            emit(log, format!("keeping image {id}: {reason}"));
+                            outcome.kept_images.push((id, format!("a container holds it: {reason}")));
+                        }
+                        None => outcome.failures.push(format!("podman rmi {}: {reason}", named.join(" "))),
+                    },
                 }
             }
         }

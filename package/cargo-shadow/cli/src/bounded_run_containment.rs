@@ -527,6 +527,7 @@ pub(crate) fn start_contained(command: &mut Command, containment: &Containment, 
             let child: Child = launch.spawn().map_err(RunError::Io)?;
             // The direct child of this process, as the kernel numbered it: a test compares it with what the program says it is.
             trace(format_args!("spawned {}", child.id()));
+            crate::bounded_run::run_after_launch_hook(child.id());
             if let Some(state) = scope {
                 note_launcher(&state.log, group.directory(), &child);
             }

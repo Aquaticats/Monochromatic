@@ -53,6 +53,14 @@ const candidates = await context.git
   .candidates();
 ```
 
+The paths this record names under `package/git-policy/cli/src/policy-engine/` were removed on
+2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins
+and trust workflow);
+no file in the working tree carries them now.
+
 ### Step 1: a new ref scanned the whole history
 
 `pushedCommits` built the commit range with no exclusion when the destination ref was absent
@@ -159,6 +167,10 @@ The fixture repository contains a trusted empty `cli-git.config.mjs`;
 without a trusted configuration manual-push policies do not run.
 `/fixture/cli.tgz` is the output of `mise run //package/git-policy/cli:pack:npm`
 for the revision under test.
+That address no longer resolves:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript wrapper and its tasks,
+and the package declares no npm tarball task today.
+It ships the Rust binary through `//package/git-policy/cli:native:release`.
 
 ```js
 // /fixture/repro.mjs

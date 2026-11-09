@@ -1,5 +1,14 @@
 # Handover: index-only /ts cross-package imports, and build every package
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/config/tsdown/src/index.ts` is deleted (2026-07-15 `844e9dedda`) and
+> `package/config/rolldown/src/index.ts` is the neutral build config today.
+> `package/config/tsdown/src/index.node.ts` is deleted (2026-07-15 `844e9dedda`) and
+> `package/config/rolldown/src/index.node.ts` is the Node entry today.
+> `package/dev-script/deps-cube/tsdown.node.config.ts` is now
+> `package/dependency-catalog/cli-cube/rolldown.node.config.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -207,7 +216,8 @@ itself by name,
  plan-excluded;
  includes the intentional "tests import the built dist" pattern) and TSDoc/README
 `@example` comments (deferred,
- see "Doc examples" below).
+ see the "Doc examples" section,
+which is DEFERRED).
 
 ### The tools (repo root, UNTRACKED, throwaway)
 
@@ -233,7 +243,7 @@ touches bare string-literal package names (verified skips:
  reports files that would have DUPLICATE import statements after collapse
 (condition:
  `valueCount + typeCount > 1` for the target's `/ts`;
- see the rule finding below).
+ see the empirical duplicate-import findings).
  Used as the merge oracle
 (detector -> 0 after merging),
  cross-checked against real scoped oxlint.
@@ -914,7 +924,7 @@ preference,
 
 VERIFY-THEN-ROUTE:
  `mcp-stdio` — DONE (node bundle;
- see Done above).
+ see its entry in the Done list).
  Confirmed it uses `process` stdin/stdout.
 
 NEUTRAL but cross-runtime/OPFS:
@@ -992,7 +1002,7 @@ PURE-CLI (bin only,
     For the remaining pure-CLIs:
     `mcp-mvm` + `dev-script-vm-builder` spin VMs -> ONLY `--help`/
    `--version` after confirming help is inert;
-    `cli-terminal-exec` (lib+bin below) must NOT be run at all (`AGENTS.md`:
+    `cli-terminal-exec` (its lib and bin packages) must NOT be run at all (`AGENTS.md`:
    probing terminal-exec opens a terminal) -- verify it by build + shebang + parser-read only.
 
 LIB+BIN (BOTH `.`/`./ts` exports AND a bin from a SEPARATE entry -- DUAL-ENTRY):

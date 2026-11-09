@@ -99,6 +99,9 @@ pub mod journal_unready;
 /// The verdict on a journal that has no ready record (split out of the journal unready module).
 pub mod journal_unready_verdict;
 
+/// The assessment of one journal's containment records (split out of the journal unready module).
+pub mod journal_unready_assessment;
+
 /// Runs a child process within a time bound.
 pub mod bounded_run;
 
@@ -515,6 +518,10 @@ mod git_fallback_tests;
 /// The tests of the bounds on cargo calls and registry pauses.
 #[cfg(test)]
 mod wait_bound_tests;
+
+/// The tests of the runner that starts the real cargo for the install and update steps.
+#[cfg(test)]
+mod cargo_run_tests;
 
 /// The tests of the bounded child runs.
 #[cfg(test)]
@@ -933,6 +940,10 @@ pub mod lean_lock_probe;
 /// The scan of `/proc` for processes using a path.
 pub mod lean_proc_scan;
 
+/// The tests of the process scan and of what it cannot read.
+#[cfg(test)]
+mod lean_proc_scan_tests;
+
 /// The one way the lean-folder tools remove an entry.
 pub mod lean_removal;
 
@@ -998,6 +1009,10 @@ pub mod lean_run_records;
 #[cfg(test)]
 mod lean_run_records_tests;
 
+/// The tests of the wiring of the run-record retention to the tasks that write records.
+#[cfg(test)]
+mod lean_records_wiring_tests;
+
 /// The checkouts of a repository,
 /// found from the Git directory's files.
 pub mod lean_checkouts;
@@ -1043,6 +1058,10 @@ pub mod lean_run_steps;
 
 /// The lean-folder run.
 pub mod lean_run;
+
+/// The tests of the order a run takes its mechanisms in.
+#[cfg(test)]
+mod lean_run_tests;
 
 /// Mechanism F:
 /// the daily systemd user timer and its installer.

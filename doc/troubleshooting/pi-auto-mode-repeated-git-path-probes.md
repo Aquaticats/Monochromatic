@@ -122,6 +122,9 @@ There is no process-level or session-level resolved-path cache in this call chai
 
 ### The resolver launches checks for every PATH directory
 
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts` was removed on 2026-10-17 by `a3955898f1`;
+every line range this document cites for it records that last state.
+
 `package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.ts:211-237` splits the complete `PATH`,
 starts one candidate check per directory with `Promise.all()`,
 and only then selects the first usable result:
@@ -288,6 +291,10 @@ It is not failure to locate Git.
 
 ### A better resolver already exists inside git-policy-cli
 
+`package/git-policy/cli/src/resolve-git.ts` was removed on 2026-08-28 by `2aef2d409a`,
+which moved the CLI onto the shared resolver;
+the CLI now resolves Git through `package/git-executable/core/src/resolve-real-git.ts`.
+
 `package/git-policy/cli/src/resolve-git.ts:289-417` owns a more complete real-Git resolver.
 It supports Windows `PATHEXT`,
 recognizes additional self-shim forms,
@@ -370,6 +377,17 @@ rg --count 'git not executable at' \
 rg --count 'resolving real git|resolved real git at|skipping cli-git wrapper shim' \
   "${HOME}/temp/agent/pi-auto-mode-git-probes.log"
 ```
+
+That harness no longer runs:
+`a3955898f1` (2026-10-17) removed
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.unit.test.ts`
+with the source it tested,
+so the counts below describe the deleted suite.
+
+`package/pi-plugin/auto-mode/src/git-worktree-read-allowlist.unit.test.ts` was removed on
+2026-10-17 in `a3955898f1` (refactor(pi-plugin-auto-mode):
+remove superseded extension pipeline);
+no file in the working tree carries it now.
 
 The 2026-08-27 run passed every test.
 Its log contained 810 missing-candidate records,

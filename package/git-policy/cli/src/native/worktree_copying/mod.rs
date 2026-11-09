@@ -109,10 +109,28 @@ pub mod worktree_copy_owner;
 #[cfg(unix)]
 pub mod worktree_copy_recovery;
 
+/// Whether a source worktree is itself the destination of a copy that still runs:
+/// a copy stages nothing from it and tells the person why.
+#[cfg(unix)]
+pub mod worktree_copy_source_still_being_filled;
+
 /// The linked-worktree ignored-state copy around one forwarded Git invocation:
 /// the integrator's entry point.
 #[cfg(unix)]
 pub mod worktree_copy;
+
+/// What is left to do once a created worktree holds its ignored state:
+/// its package-manager repair,
+/// and the trash a snapshot
+///  left there,
+/// emptied beside that repair.
+#[cfg(unix)]
+pub mod worktree_copy_after_lock;
+
+/// The job that empties the trash a snapshot of the main checkout left,
+/// run beside that repair or here when it has nothing to do.
+#[cfg(target_os = "linux")]
+pub mod worktree_copy_after_lock_disposal;
 
 /// Which forwarded invocations the copy applies to,
 /// and the child run that performs it.

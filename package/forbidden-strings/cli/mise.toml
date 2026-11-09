@@ -12,35 +12,44 @@ run = "cargo fetch --locked"
 
 [tasks."lint:clippy:container"]
 description = "Run all-target/all-feature Clippy with warnings denied in the bounded offline scanner snapshot"
-run = "node bin/test-container.ts --clippy"
+# Mechanism D: this task writes records of its own, so it sweeps the run records first (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/test-container.ts --clippy"]
 
 [tasks."test:release:container"]
 description = "Verify the actual release scanner and all-feature embedding consumers inside the bounded snapshot"
-run = "node bin/test-container.ts --release"
+# Mechanism D: this task writes records of its own, so it sweeps the run records first (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/test-container.ts --release"]
 
 [tasks."test:guards:observe:container"]
 description = "Verify exact failure causes, per-operation hook ownership, independent worker cases, and real parallel CLI faults"
-run = "node bin/observe-guards-container.ts"
+# Mechanism D: this task writes records of its own, so it sweeps the run records first (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/observe-guards-container.ts"]
 
 [tasks."test:guards:container"]
 description = "Prove real executable and public-loader panic guards with passing and disabled disposable variants"
-run = "node bin/guard-container.ts"
+# Mechanism D: this task writes records of its own, so it sweeps the run records first (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/guard-container.ts"]
 
 [tasks."test:mutation:startup:container"]
 description = "Re-test startup filter mutations with the full all-feature baseline and complete retained outcomes"
-run = "node bin/mutate-container.ts --startup"
+# Mechanism D: this task writes records of its own, so it sweeps the run records first (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-container.ts --startup"]
 
 [tasks."test:mutation:pathname:container"]
 description = "Mutate only pathname normalization, prefix counting and component masking with the full all-feature baseline and complete retained outcomes"
-run = "node bin/mutate-container.ts --pathname"
+# Mechanism D: this task writes records of its own, so it sweeps the run records first (doc/handover/cargo-shadow-lean-build-folders.md).
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-container.ts --pathname"]
 
 [tasks."test:mutation:container"]
 description = "Mutation-test embedding owners in a bounded mount-free snapshot, retaining every outcome"
-run = "node bin/mutate-container.ts"
+# Mechanism D: this task does not depend on the container gate, so it sweeps the run records itself.
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-container.ts"]
 
 [tasks."test:container"]
 description = "Run binary and embedded scanner tests unprivileged with Git 2.56.0 in a bounded mount-free container"
-run = "node bin/test-container.ts"
+# Mechanism D: the run-record retention of this package's target/verification, swept before a run writes another record
+# through cargo-shadow's own sweep, so the task does not reimplement the retention.
+run = ["cargo-shadow lean records target/verification", "node bin/test-container.ts"]
 
 [tasks.release]
 description = "Start the scanner release on GitHub and print the run URL: `-- <from> <to> <note>` (quote the note; `--dry-run` first runs everything except the push and the publish). The crate-release workflow bumps the scanner and every exact pin of it, checks, dry-runs the publish, pushes the bump to main and starts cargo-publish; nothing compiles here"
@@ -61,13 +70,13 @@ run = "cargo build"
 [tasks."generate:rules"]
 description = "Regenerate the embedded data/builtin-rules.txt baseline from the vendored betterleaks config (two-stage: TS porter, then dialectport)"
 run = [
-  "node src/mise.port-betterleaks.ts",
+  "node bin/port-betterleaks.ts",
   "cargo run --release --manifest-path ../../forbidden-strings/core.bench/Cargo.toml --bin dialectport",
 ]
 
 [tasks.lint]
-description = "cargo check (no codegen)"
-run = "cargo check"
+description = "cargo check (no codegen), then the TypeScript type check and Oxlint over src and bin"
+run = ["cargo check", { tasks = ["lint:scripts:types", "lint:scripts:oxlint"] }]
 
 [tasks."lint:fuzzing"]
 description = "cargo check with the fuzzing feature (type-checks the fuzz_api surface the sidecar consumes)"
@@ -129,20 +138,22 @@ if (child.exitCode !== 0) throw new Error(`forbidden-strings exited ${String(chi
 # Run targets via `mise run //package/forbidden-strings/cli.fuzz:build` etc.
 
 [tasks."lint:scripts:types"]
-description = "Type-check the verification scripts in bin"
+description = "Type-check the Rust crate's TypeScript: the bins in bin and the pattern conversions in src"
 extends = "lint:types"
 
 [tasks."lint:scripts:oxlint"]
-description = "Lint explicitly selected scanner TypeScript script paths with Oxlint"
-usage = 'arg "[paths]" var=#true help="Package-relative files to lint"'
+description = "Lint the scanner's TypeScript script paths with Oxlint (default: src and bin)"
+usage = 'arg "[paths]" var=#true help="Package-relative files or directories to lint (default: src and bin)"'
 shell = "node --input-type=module-typescript -e"
 run = """
 {{vars.dispatch_workspace_node}}
 {{vars.parse_usage_args}}
 const files = parseUsageArgs(process.env.usage_paths ?? '')
-if (files.length === 0) { throw new Error('lint:scripts:oxlint requires at least one file') }
+// Defaulting to the two source roots keeps `lint` enforcing the bans on every
+// package TypeScript file; an explicit path still narrows a one-off run.
+const paths = files.length > 0 ? files : ['src', 'bin']
 ensureOxlintConfig()
-runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', files)
+runWorkspaceNode('package/monorepo-task/core-exec', 'oxlint-wrapper', paths)
 """
 
 [tasks."format:scripts:oxlint"]

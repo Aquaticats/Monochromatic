@@ -11,6 +11,8 @@
 //! mpm 8.2.0 drops the pinned version for pnpm
 //!           (probe 1b),
 //! so each manager is called directly with the locked version.
+//! Every route reads its tool back after the manager reported success,
+//! because an exit status is not evidence that a tool is there.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -31,8 +33,8 @@ use super::context::Context;
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::install_support`.
 use super::install_support::{artifact_for_host, download_verified, run_checked};
-/// Imports `tool_install_dir` from `super::layout`.
-use super::layout::tool_install_dir;
+/// Imports `go_bin_dir_of` from `super::layout`.
+use super::layout::go_bin_dir_of;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::observe`.
@@ -56,6 +58,21 @@ fn prerequisite(ctx: &Context, tool_id: &str) -> Result<PathBuf, ToolchainError>
         None => Err(ToolchainError::failure(format!(
             "{tool_id} is not installed in the toolchain; the {tool_id} stage must run first"
         ))),
+    };
+}
+
+/// What:
+/// What a read-back saw,
+/// in the words every route's failure text uses:
+/// `absent`,
+/// or `listed at version <version>`.
+/// Why:
+/// Each of the three manager routes fails the install on the same two observations,
+/// so the phrase that names them has one spelling.
+fn observed_state(observed: Option<&str>) -> String {
+    return match observed {
+        Some(version) => format!("listed at version {version}"),
+        None => "absent".to_string(),
     };
 }
 
@@ -91,25 +108,31 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
     run_checked(ctx, &request, "pnpm add --global", &tool.declaration.id)?;
     let package: String = package_name(tool);
     let observed: Option<String> = observe_tool(ctx, tool);
-    let state: String = match observed.as_deref() {
-        Some(version) if satisfies_lock(tool, version) => return Ok(()),
-        Some(version) => format!("listed at version {version}"),
-        None => "absent".to_string(),
-    };
+    if let Some(version) = observed.as_deref() && satisfies_lock(tool, version) {
+        return Ok(());
+    }
     return Err(ToolchainError::failure(format!(
-        "pnpm add --global exited 0 for {package}@{} (tool {}), but pnpm list --global then reports {package} {state}; \
+        "pnpm add --global exited 0 for {package}@{} (tool {}), but pnpm list --global then reports {package} {}; \
          pnpm wrote the package where its own listing cannot read it (a link that resolves nowhere, for one). \
          Check that the `node_modules/{package}` link in the group directory under pnpm's global home resolves \
          (`pnpm root --global` names the current group's `node_modules`), then run the install again",
-        tool.version, tool.declaration.id
+        tool.version,
+        tool.declaration.id,
+        observed_state(observed.as_deref())
     )));
 }
 
 /// What:
 /// `uv tool install --force` of a verified wheel (when the plan marks the tool a wheel bootstrap) or of
-///           `<package>==<locked version>`.
+///           `<package>==<locked version>`,
+/// and then the same `uv tool list` reading that `list` uses.
 /// Why:
 /// The wheel route is how `mpm` itself is installed from the lock's SHA-256 before anything else can verify.
+/// The exit status alone is not evidence that a tool is there:
+/// `pnpm add --global` reported eleven npm tools installed that the next listing read as absent
+/// (`doc/troubleshooting/pnpm-symlinked-store-path.md`),
+/// so the route that reads a tool back is the one that fails at `install` instead of at the next `list`,
+/// and `uv` gets the same read for the same reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -118,28 +141,62 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
 pub fn install_mpm_uvx(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let uv: PathBuf = prerequisite(ctx, "uv")?;
     let uv_text: String = uv.to_string_lossy().to_string();
-    let is_wheel: bool = tool.declaration.options.is_wheel();
-    if is_wheel {
+    let what_to_install: String = if tool.declaration.options.is_wheel() {
         let artifact = artifact_for_host(tool, &ctx.host.platform)?;
         let file_name: String = super::install_archive::safe_file_name(&artifact.url);
         let wheel_path: PathBuf = ctx.scope.toolchain_root.join("downloads").join(file_name);
         download_verified(ctx, &artifact.url, &wheel_path, &artifact.sha256)?;
-        let wheel_text: String = wheel_path.to_string_lossy().to_string();
-        let request: RunRequest = ctx.request(&uv_text, &["tool", "install", "--force", &wheel_text]);
-        run_checked(ctx, &request, "uv tool install", &tool.declaration.id)?;
-        return Ok(());
-    }
-    let requirement: String = format!("{}=={}", package_name(tool), tool.version);
-    let request: RunRequest = ctx.request(&uv_text, &["tool", "install", "--force", &requirement]);
+        wheel_path.to_string_lossy().to_string()
+    } else {
+        format!("{}=={}", package_name(tool), tool.version)
+    };
+    let request: RunRequest = ctx.request(&uv_text, &["tool", "install", "--force", &what_to_install]);
     run_checked(ctx, &request, "uv tool install", &tool.declaration.id)?;
-    return Ok(());
+    return read_back_installed_uv_tool(ctx, tool);
 }
 
-/// `go install <module>@v<locked version>` with `GOBIN` set to a `bin` directory under the tool's install directory.
+/// What:
+/// Reads the tool back with `uv tool list` after `uv tool install` exited 0,
+/// and fails the install when the package is absent or listed at another version.
+/// Why:
+/// The listing is the same one `list` reads,
+/// so a tool `uv` wrote where its own listing cannot read it fails here,
+/// naming the package,
+/// the version the lock pins,
+/// what the listing said and the directory to check.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readBackInstalledUvTool(ctx: Context, tool: LockedTool): void  // throws
+/// ```
+fn read_back_installed_uv_tool(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+    let package: String = package_name(tool);
+    let observed: Option<String> = observe_tool(ctx, tool);
+    if let Some(version) = observed.as_deref() && satisfies_lock(tool, version) {
+        return Ok(());
+    }
+    return Err(ToolchainError::failure(format!(
+        "`uv tool install` exited 0 for {package} {} (tool {}), but `uv tool list` then reports {package} {}; \
+         uv left nothing its own listing can read. Check that the tool's directory, which `uv tool dir` names, resolves \
+         and that `uv tool list` names {package}, then run the install again",
+        tool.version,
+        tool.declaration.id,
+        observed_state(observed.as_deref())
+    )));
+}
+
+/// What:
+/// `go install <module>@v<locked version>` with `GOBIN` set to the tool's `bin` directory under the version's install
+/// directory,
+/// and then the executables that directory holds.
+/// Why:
+/// `go` writes no record of an install and no manager lists a Go tool,
+/// so the exit status alone would report a tool whose binaries are missing as installed;
+/// the read-back is the same observation `list` reads,
+/// so such a tool fails at `install` instead of at the next `list`.
 pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
     let go: PathBuf = prerequisite(ctx, "go")?;
-    let install_dir: PathBuf = tool_install_dir(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
-    let gobin: PathBuf = install_dir.join("bin");
+    let gobin: PathBuf = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
     if let Err(error) = fs::create_dir_all(&gobin) {
         return Err(ToolchainError::failure(format!("cannot create {}: {error}", gobin.display())));
     }
@@ -155,5 +212,46 @@ pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), Toolch
         cwd: None,
     };
     run_checked(ctx, &request, "go install", &tool.declaration.id)?;
-    return Ok(());
+    return read_back_installed_go_tool(ctx, tool);
+}
+
+/// What:
+/// Reads the tool back after `go install` exited 0,
+/// and fails the install when the `bin` directory it was given as `GOBIN` does not hold the executables `go` was to
+/// write there.
+/// Why:
+/// Those executables are all a Go install leaves behind,
+/// and they are what the exposure step links,
+/// so naming them is the only check that the install produced a usable tool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readBackInstalledGoTool(ctx: Context, tool: LockedTool): void  // throws
+/// ```
+fn read_back_installed_go_tool(ctx: &Context, tool: &LockedTool) -> Result<(), ToolchainError> {
+    let package: String = package_name(tool);
+    let observed: Option<String> = observe_tool(ctx, tool);
+    if let Some(version) = observed.as_deref() && satisfies_lock(tool, version) {
+        return Ok(());
+    }
+    let gobin: PathBuf = go_bin_dir_of(&ctx.scope.toolchain_root, &tool.declaration.id, &tool.version)?;
+    let gobin_text: String = gobin.display().to_string();
+    let expected: String = if tool.declaration.bins.is_empty() {
+        "any executable file".to_string()
+    } else {
+        let mut named: Vec<String> = Vec::new();
+        for name in &tool.declaration.bins {
+            named.push(format!("`{name}`"));
+        }
+        format!("the executables it declares ({})", named.join(", "))
+    };
+    return Err(ToolchainError::failure(format!(
+        "`go install` exited 0 for {package} at version {version} (tool {id}), but {gobin_text} then holds none of \
+         {expected}, so the toolchain reads {package} {state}; a Go install writes one executable per main package into \
+         the `GOBIN` this route gives it and leaves no record anywhere else, so the exposure step has nothing to link. \
+         Check that {gobin_text} is a directory `go install` can write to, then run the install again",
+        version = tool.version,
+        id = tool.declaration.id,
+        state = observed_state(observed.as_deref()),
+    )));
 }

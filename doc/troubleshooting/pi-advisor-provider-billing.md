@@ -83,6 +83,15 @@ if (response.stopReason === 'error') {
 }
 ```
 
+`package/pi-plugin/advisor/src/advisor-completion.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/advisor-completion.ts` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+`package/pi-plugin/advisor/src/operation-attempt.ts` moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/operation-attempt.ts` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+
 Tool and slash-command operations now use the raw-response observer instead.
 `package/pi-plugin/advisor/src/operation-attempt.ts:196` applies the credit-specific classification:
 

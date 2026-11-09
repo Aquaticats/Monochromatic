@@ -1110,8 +1110,8 @@ caps) are in `src/lean_policy.rs`,
 each beside the measurement it rests on,
 and are coordinator picks with the owner's veto open.
 
-Six mechanisms,
-in the plan's order:
+Six mechanisms
+(the order a run takes them in is its own section below):
 
 - A,
   toolchain-keyed build folders.
@@ -1150,15 +1150,43 @@ in the plan's order:
   and no process uses anything under it.
 - D,
   retention of verification run records under `target/verification`:
-  records (`campaign-`,
-  `native-`,
+  records (`RECORD_PREFIXES` in `src/lean_run_records.rs` names every program of this repository that writes one,
+  with its prefix:
+  `campaign-`,
+  `clippy-`,
+  `container-`,
+  `coverage-`,
+  `embedding-fuzz-`,
+  `fuzz-clippy-`,
   `git-image-`,
+  `guard-observer-`,
+  `guard-protected-`,
+  `guard-without-`,
   `mutation-`,
-  `planted-`) older than the retention age go,
+  `native-`,
+  `pathname-mutation-`,
+  `planted-`,
+  `processors-mutation-`,
+  `release-test-`,
+  `startup-mutation-`,
+  `test-`,
+  `windows-`) older than the retention age go,
   and the oldest go while the directory is over its cap.
-  Anything else in the directory is never touched.
-  The sweep runs from `cargo-shadow lean run`;
-  the producing tasks do not call it themselves yet.
+  Anything else in the directory is never touched:
+  a rendered handover,
+  a manifest,
+  a cache directory,
+  and a log a person redirected there by hand,
+  which has no producer here and so no prefix.
+  The sweep runs from `cargo-shadow lean run` over every checkout's directory,
+  and from `cargo-shadow lean records <directory>...` over the directories one producing task names:
+  the task that writes records calls that first,
+  so the directory is bounded without the task reimplementing the retention.
+  A sweep of one package's directory costs a read of that directory and one `/proc` scan;
+  the machine-wide pass measured 398 s on 2026-11-08 (359 checkouts,
+  119 verification directories,
+  nothing due for removal),
+  which is why a producing task names its own directory instead of running the whole pass.
 - E,
   size caps per profile directory with oldest-first eviction.
   Entries touched within the grace period are never evicted.
@@ -1184,7 +1212,32 @@ rustup's default and overrides),
 and removes Podman images and volumes that no container uses and no current source names,
 as the user and never as root.
 A container in any state uses its image,
-so an image an exited container holds is kept.
+so an image a container holds is kept;
+that includes a Buildah working container,
+which only `podman ps --external` lists.
+An image is asked for by every tag it carries,
+because Podman refuses an image with more than one tag when it is named by its id,
+and a refusal that says the image is not known counts it as gone,
+because removing one image also removes an ancestor that only it referenced.
+
+### The order a run takes its mechanisms in
+
+One deadline covers the whole run,
+so the run takes the cheapest mechanism first and the units pass last:
+run records,
+toolchains,
+Podman,
+idle trees,
+then the older-compiler sweep and the size caps.
+Measured in the first run (2026-11-07T23:52:28-05:00 to 2026-11-08T01:24:39-05:00):
+2.5 minutes for records and toolchains together,
+20.5 minutes for Podman,
+29 minutes for the idle trees,
+and hours for the units pass,
+which reached about 700 of several thousand profile directories in 40 minutes.
+In the plan's order that pass came second and starved the Podman pass of the deadline.
+What a deadline cuts off waits for the next run;
+the units pass starts again at the front of the profile list.
 
 The proof of "not in use",
 recorded in the log line of every removal:
@@ -1201,6 +1254,24 @@ recorded in the log line of every removal:
   program,
   open file or mapped file lies under the entry;
   processes in another mount namespace are judged by the device and inode of what they hold.
+  A process whose entries cannot be read is classified from its `/proc/<pid>/status`,
+  which every process shows:
+  a kernel thread (`Kthread: 1`) and an ended process (`State: Z`) hold no file and are counted as such,
+  and what is left is counted as uninspectable,
+  split into the processes of another user that `other_uids_can_reach` shows the path lets in
+  (one directory between `/` and the entry that grants its group and every other user nothing stops every other user)
+  and those of this user or of root,
+  whose descriptors the kernel hides from a plain user.
+  Neither kind stops a removal:
+  the kernel shows a plain user no descriptors of either,
+  and refusing every removal while another user's system daemon exists would stop the sweep wherever the build base is
+  world-searchable (the host base here is on a `0777` mount with a `uid 70` daemon running,
+  measured 2026-11-08).
+  The limit is therefore narrowed and named,
+  not closed:
+  the proof line says how many processes it could not judge and which kind,
+  and closing the rest needs `CAP_SYS_PTRACE` or root,
+  which this tool never takes.
 - The entry's device and inode are read when it is judged,
   before it is moved into a trash directory on the same file system by an atomic rename that never replaces,
   and again just before it is deleted.
@@ -1217,6 +1288,7 @@ and takes no lock of its own (the claim is the rename).
 # package/cargo-shadow/cli/README.md
 cargo-shadow lean run --dry-run
 cargo-shadow lean run --only units,records
+cargo-shadow lean records target/verification --dry-run
 cargo-shadow lean timer-install
 ```
 

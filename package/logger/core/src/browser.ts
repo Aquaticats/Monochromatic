@@ -10,5 +10,8 @@
  @module
  */
 
-export { createIndexedDbSink, MAX_STORED_BATCHES, } from './sink/indexed-db.ts';
+export {
+  createIndexedDbSink,
+  MAX_STORED_BATCHES,
+} from './sink/indexed-db.ts';
 export { createOpfsSink, } from './sink/opfs.ts';

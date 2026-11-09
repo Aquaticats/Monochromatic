@@ -134,6 +134,11 @@ Run the campaign boundary with:
 mise run //package/toml-edit/core:fuzz
 ```
 
+That address moved on 2026-09-06:
+commit `abe8b94343` moved the fuzz campaign into the
+`toml-edit.fuzz` sidecar,
+whose task is `mise run //package/toml-edit/core.fuzz:fuzz`.
+
 ### Inputs that project cleanly
 
 - ordinary bare and quoted keys;
@@ -156,6 +161,9 @@ because primitives are lost and objects can replace the projection prototype.
 `staticSemanticOracleSupports` in `package/toml-edit/core/src/fuzz/equality.ts` parses the source,
 walks authored key nodes iteratively,
 and rejects a source containing any `__proto__` key segment before calling `getStaticTOMLValue`.
+
+`package/toml-edit/core/src/fuzz/equality.ts` is not in the working tree and no commit in this
+repository carries it.
 
 Round-trip and metamorphic properties use fast-check `pre` for that classification.
 This keeps the generated input in the campaign while discarding only a case the external oracle cannot represent.

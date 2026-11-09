@@ -27,7 +27,7 @@ the package docs record that the test images take tools from pacman).
 
 ## Built on `fix/git-policy-cli-branch-write-and-tool-ceilings` (2026-11-04)
 
-Three lines for the answered items above,
+Three lines for the items under the Answered by the owner on 2026-11-04 heading,
 with the owner's words:
 
 - Branch write:
@@ -60,6 +60,14 @@ with the owner's words:
   write),
   and the commands that find an old record from another PID namespace stop,
   name it and change nothing.
+  Note 2026-11-08T19:19:04-05:00:
+  `LOCK_CEILING` is still ten minutes and this patience is still twice it,
+  but no wait takes `LOCK_CEILING` any more:
+  a commit's wait for a foreign `index.lock` is one minute (`LANDING_LOCK_CEILING`),
+  the merge's and the reconciliation's are one minute (`MERGE_LOCK_CEILING`,
+  `RECONCILE_LOCK_CEILING`),
+  and only the wait on the service's own hold is ten (`SERVICE_HOLD_CEILING`),
+  all in `package/git-policy/cli/src/native/service/wait_ceilings.rs`.
 
 ## Picks the owner kept on 2026-11-04
 
@@ -133,7 +141,7 @@ the unmeasured numbers are still to be replaced by measured values as the logs f
   done on `fix/git-policy-cli-branch-write-and-tool-ceilings`:
   the patience is twice the lock ceiling,
   20 minutes,
-  derived in code (see "Built on" above).
+  derived in code (see the "Built on `fix/git-policy-cli-branch-write-and-tool-ceilings`" section).
 - Picks 8,
   13,
   14,

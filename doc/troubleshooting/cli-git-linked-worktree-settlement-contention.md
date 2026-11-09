@@ -28,6 +28,14 @@ if (identity.kind === 'main-worktree') {
 }
 ```
 
+The paths this record names under `package/git-policy/cli/src/worktree-copy/` were removed on
+2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins
+and trust workflow);
+no file in the working tree carries them now.
+
 The linked source reaches the returned observation at
 `git-observer.ts:138-146`:
 

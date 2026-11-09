@@ -18,80 +18,6 @@ use std::process::{Command, Output};
 /// The real Git 2.56.0 executable installed in the verification image.
 pub(crate) const REAL_GIT: &str = "/usr/bin/git";
 
-/// A sink a test reads after the code under test wrote its notices to a clone of it.
-#[derive(Clone, Default)]
-pub(crate) struct SharedSink(pub(crate) std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-
-impl SharedSink {
-    /// Everything written so far,
-    /// as text.
-    pub(crate) fn text(&self) -> String {
-        let bytes: Vec<u8> = self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-        return String::from_utf8_lossy(bytes.as_slice()).into_owned();
-    }
-}
-
-/// Writes go to the shared buffer.
-impl std::io::Write for SharedSink {
-    /// Append the bytes.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend_from_slice(bytes);
-        return Ok(bytes.len());
-    }
-
-    /// Nothing is buffered.
-    fn flush(&mut self) -> std::io::Result<()> {
-        return Ok(());
-    }
-}
-
-/// What:
-///  A sink that keeps what is written in a shared buffer and runs an action once,
-/// when the `after`th line is finished.
-/// Why:
-///   A control of a repeated notice ends the wait it watches from inside the notice that counts:
-///  the wait stops on that event and not on a timer,
-///  so the count of notices holds however slowly a loaded host runs the waiting thread.
-pub(crate) struct ActionSink {
-    /// The buffer the test reads.
-    shared: SharedSink,
-    /// How many lines were finished.
-    lines: usize,
-    /// The line after which the action runs.
-    after: usize,
-    /// The action,
-    /// until it has run.
-    action: Option<Box<dyn FnOnce() + Send>>,
-}
-
-impl ActionSink {
-    /// A sink that copies into `shared` and runs `action` once the `after`th line is finished.
-    pub(crate) fn new(shared: &SharedSink, after: usize, action: impl FnOnce() + Send + 'static) -> Self {
-        return Self { shared: shared.clone(), lines: 0, after, action: Some(Box::new(action)) };
-    }
-}
-
-/// Writes are copied,
-/// and the action runs when the counted line is finished.
-impl std::io::Write for ActionSink {
-    /// Append the bytes,
-    /// count finished lines,
-    /// run the action at the counted one.
-    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-        std::io::Write::write(&mut self.shared, bytes)?;
-        self.lines += bytes.iter().filter(|byte| { return **byte == b'\n'; }).count();
-        if self.lines >= self.after && let Some(action) = self.action.take() {
-            action();
-        }
-        return Ok(bytes.len());
-    }
-
-    /// Nothing is buffered.
-    fn flush(&mut self) -> std::io::Result<()> {
-        return Ok(());
-    }
-}
-
 /// How long the whole unit-test run may last before the watchdog ends it.
 /// The run takes under a minute,
 /// so a run past this limit has a test stuck behind something that never happens.
@@ -362,6 +288,22 @@ mod fixture_executable;
 
 #[cfg(unix)]
 pub(crate) use fixture_executable::executable;
+
+/// The writer of a fixture file under a new inode,
+/// shared with the binary-level controls.
+#[cfg(unix)]
+#[path = "fixture_inode.rs"]
+mod fixture_inode;
+
+#[cfg(unix)]
+pub(crate) use fixture_inode::renew_inode;
+
+/// The sinks a control reads a notice from,
+/// in a file of their own.
+#[path = "fixture_notice_sinks.rs"]
+mod fixture_notice_sinks;
+
+pub(crate) use self::fixture_notice_sinks::{ActionSink, SharedSink};
 
 /// The shell condition that holds while the test that started a fixture script is still there.
 #[cfg(unix)]

@@ -41,6 +41,62 @@ and prompts.
 Production adapters own operating-system effects.
 Disposable tests replace those adapters without production environment overrides.
 
+## Other processes changing files
+
+No check or lock the wrapper takes excludes another program from changing the same files in the same moment,
+and the wrapper builds nothing further against it:
+a rename or a replacement of a path,
+a write through an open file or a shared mapping,
+and an edit between a check and the step that relies on it are accepted risk in every command and in the commit service.
+The owner's decision of 2026-11-03T00:15:33-05:00 is that a race another program causes is not the wrapper's to close,
+and that using a command or the program means accepting the risk;
+the wrapper states the risk plainly and keeps fixing its own
+ deterministic bugs (`doc/handover/cli-git-rust-implementation.md`,
+"Worktree add and package managers").
+
+The cheap guards stay,
+and each narrows the window without closing it:
+a lock where one is free,
+a second look before a removal,
+an identity compared when an object is opened,
+and a descriptor held on what a removal names.
+
+`README.md` states the risk once for the whole program ("Other processes changing files").
+A command that can change or delete files states it in its own `--help`,
+where it has one,
+and says it once on standard error;
+a command whose own notice states it prints only that one,
+never a second line.
+The commands are:
+
+- `git monochromatic-git-policy-cli migrate-to-subvolume`,
+in a run,
+a `--rollback` and a `--remove-old`:
+the notice comes before the first step that writes,
+keeps,
+swaps or deletes anything (`MIGRATE_RISK_NOTICE`,
+`src/native/subvolume/subvolume_arguments.rs`);
+a `--dry-run` and a refusal change nothing,
+so neither says it.
+- `git monochromatic-git-policy-cli convert-worktree-to-subvolume`,
+in a conversion:
+the notice comes before the first worktree is touched (`RISK_NOTICE`,
+`src/native/worktree/worktree_convert_arguments.rs`);
+a `--dry-run`,
+an `--abandon` and a run that names no worktree say nothing.
+- `git worktree remove`,
+when the wrapper destroys the worktree's subvolume in one step:
+the notice comes after the destroy,
+which cannot be undone,
+and that command's `--help` is Git's own (`DESTROY_NOTICE`,
+`src/native/worktree/worktree_remove.rs`).
+
+The sections that describe those commands carry the same statement beside their guards:
+"Linked-worktree ignored-state synchronization" for the leave-out and the trash of a snapshot of the main checkout,
+and "Cheap worktree creation and removal on btrfs,
+XFS and overlayfs" for the conversion,
+the removal and the migration.
+
 ## Single executable and shipped policies
 
 The release artifact is one executable,
@@ -651,6 +707,31 @@ Ignored sockets,
 FIFOs,
 and device nodes are selected only to produce a copy failure without opening them.
 A bare repository has no source root and synchronizes an empty set.
+The readiness of a source is decided in `src/native/worktree_copying/worktree_copy_source_still_being_filled.rs`:
+a source that is itself the destination of a copy still in progress holds only part of its own ignored files,
+so nothing is staged from it.
+The wrapper decides this from the durable items it already judges:
+a journal whose record names the source,
+and an add's stage claim whose record beside it names the source.
+A live owner of either is a copy into the source that has not finished;
+a dead owner's item is not,
+and neither is a copy's own claim,
+whose record names no destination.
+A creating command that finds such a source still runs real Git,
+creates its worktree,
+copies nothing into it,
+and writes one line on standard error saying that it received no ignored-state copy,
+why,
+and the commands that have the copy made once the other add has finished:
+`git worktree remove <destination>` and then the same `git worktree add` again,
+which copies the source's ignored state once it is whole,
+with `git worktree remove` leaving a worktree that holds changes alone.
+The package-manager repair does not run for such a worktree,
+as it does not after a failed copy.
+Nothing waits for the other add and no lock is taken.
+A copy that is still staging its source has no journal yet,
+and a copy's own stage claim records no destination,
+so that window alone is not covered.
 No repository configuration touches this behavior.
 The wrapper-only flag `--no-worktree-copy` skips synchronization for one invocation.
 It is recognized in flag position after the subcommand and before Git's `--` pathspec separator,
@@ -1350,7 +1431,8 @@ check and the step that relies on it are accepted risk,
 stated in the help text,
 in one notice on standard error before the
 conversion runs,
-and in the README.
+and in the README;
+"Other processes changing files" states it for the whole program.
 The guards that cost little stay:
 the claim,
 the identity checks,
@@ -2708,12 +2790,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   1.04 s).
 - `LANDING_LOCK_CEILING` 1 minute:
   the landing waits for a foreign `index.lock` this long.
-  It is five times the longest wait for a foreign lock that ended because the holder let go (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
+  It is five times the longest wait at a holder's place that ended when the lock was released (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
   8 s,
-  the longest of ten landings that waited over a second in the `lock_wait_ms` of 3,634 answers since 2026-11-01),
+  the largest of the 71 landings that waited at a place at all in the 4,386 answers since 2026-11-02T04:01:38-05:00;
+  the longest whole lock acquisition is 11,490 ms once the wrapper's own staging of a cold index is counted,
+  which keeps the one minute at 5.2 times it),
   in whole
   minutes.
-  The only longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07).
+  The longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07),
+  one 497,803 ms wait that ended when a person removed the lock,
+  and five refusals at 600,090 to 600,718 ms.
   The lock that outlasts one commit's wait is remembered by its file identity,
   and the commits queued behind it are refused at once
   instead of each waiting a ceiling (`src/native/landing/service_index_refused_lock.rs`).
@@ -2728,6 +2814,17 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the same kind of holder,
   the only
   sample there is.
+  The commit timing log read on 2026-11-08 (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z) adds no sample of its own:
+  it holds no record of a
+  merge,
+  though 351 merge commits were made in the window,
+  and no `git reset` step,
+  so the reconciliation never ran in it.
+  What it shows is
+  that no wait a holder released came near a minute:
+  the longest was under 23,783 ms of answer time,
+  and the longest wait at a holder's place that ended when the lock was released was 8,000 ms.
   The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
   thread,
   so only the landing has queued commits to spare it for;
@@ -2736,19 +2833,40 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the settling of an earlier service's open batches.
   Five times the longest settle in the journal
   since 2026-11-01 (`LONGEST_SETTLE_WAIT`,
-  172 ms of 3,630 settles,
-  99th percentile 20 ms),
+  172 ms of 4,386 settles read on 2026-11-08,
+  99th percentile 17 ms;
+  the read of 2026-11-07 had 3,630 settles and 20 ms),
   in whole minutes.
   The settle's whole time
   holds any wait it made,
   so the figure can only overstate it.
+  The commit timing log holds no settle at all (the settling is the management command
+  `service settle-earlier-batches`),
+  so the journal stays its only sample.
 - `LOCK_CEILING` 10 minutes,
-  unmeasured:
-  no wait takes it.
-  It stays as the basis of `FOREIGN_OWNER_PATIENCE`
+  measured on 2026-11-08 from the commit timing log (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z)
+  and the service journal (4,386 answers,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
+  the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
+  and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
+  644,710 to 1,200,776 ms,
+  every one stopped).
+  Of the journal's 4,386 landings,
+  609 waited on the index at all (95th percentile 6 ms,
+  99th percentile 158 ms),
+  71 waited at a holder's place,
+  and the longest whole lock acquisition was 11,490 ms counted with the wrapper's own staging
+  (8,000 ms at the place).
+  No wait a holder released reached the ten minutes,
+  and the longest of those four is 776 ms past the
+  client's twenty-minute `ANSWER_CEILING`,
+  which bounds the whole wait rather than one step of it.
+  No wait takes it:
+  it stays as the basis of `FOREIGN_OWNER_PATIENCE`
   (`src/native/process/pid_namespace.rs`,
   twice this),
-  which another change owns.
+  which another change owns and whose stated basis (twice the longest a merge waits) no longer holds.
 - `SERVICE_HOLD_CEILING` 10 minutes:
   a forwarded `git add`,
   `rm` or `mv` waits for the service's hold,
@@ -2875,6 +2993,44 @@ on the commit path:
   intent finishes a batch only when its branch has moved,
   so nothing lands later.
   Hooks are never ended by the wrapper.
+- A landing that ends before its intent is in the journal,
+  and a restart that drops an open batch whose branch has not moved,
+  keep the same two things:
+  the commit the batch built is kept on `refs/cli-git/kept/<batch>`,
+  and the scratch reference of the batch (`refs/worktree/cli-git-service/<batch>`),
+  which held the batch's objects and nothing else,
+  is removed once that commit is kept,
+  so a batch that will not land leaves no reference behind.
+  A keep Git refused,
+  a kept reference that names another commit,
+  and a reference Git cannot read all leave the scratch reference where it is
+  (the landing sweeps its own batch when it fails,
+  the restart when it drops one;
+  `src/native/landing/service_scratch_ref_of_a_dropped_batch.rs`).
+- A service killed between the import of a batch's objects and the write of its intent leaves the scratch reference with no
+  intent to settle it,
+  and a service instance is a hash of its worktree's Git directory,
+  which no path can be made from,
+  so the
+  landing writes `<batch>.scratch` in its own journal before the import,
+  naming the worktree root and the worktree's own Git
+  directory,
+  and a restart's recovery does what the drop does for a named batch:
+  it keeps the commit the reference holds on
+  `refs/cli-git/kept/<batch>`,
+  removes the reference,
+  and removes the record once the reference is gone.
+  A record that cannot be read,
+  a keep Git refused,
+  a kept reference that names another commit and a reference Git cannot read all leave the
+  reference and the record where they are,
+  and the journal keeps that batch number out of use while the record stays,
+  because the next
+  import of that number would move the reference
+  (`src/native/landing/service_scratch_ref_marker_of_a_batch.rs`).
+  The record is written without a flush,
+  so a power loss
+  rather than a kill can lose it and leave the reference where it was.
 - The branch write (`git update-ref --stdin`) is never ended (owner,
   2026-11-04,
   "Never cut a branch write (Recommended)").
@@ -5369,6 +5525,21 @@ Owner,
 "Remove all three (Recommended)" for the CPU,
 task and disk limits,
 after asking why the service was capped "to the magic number of 1GB of memory w/o evidence".
+A service that finds the worktree it serves gone stops its own socket and serves nothing,
+and it asks when it starts and once a minute while it serves:
+the administrative directory is missing while the repository that held it is there
+(a repository on a drive that is not mounted proves nothing),
+and the note provisioning wrote beside the socket,
+or the `gitdir=` records of the service's own journal,
+names that directory and hashes to the instance.
+It stops its socket unit with the job mode that leaves the units requiring it alone,
+because its own end is what stops its service unit,
+and a stop of that unit from inside the service would signal it before it could remove the note and the socket file.
+It ends with status 0,
+not a refusal,
+because `Restart=on-failure` would start a refused unit again,
+and a socket that could not be stopped is left to `service stop-units-of-removed-worktrees` and to `doctor`'s count.
+Nothing starts a unit.
 The wrapper forwards native `git commit` only for dry runs and short-circuit forms.
 
 Each commit passes through three phases:
@@ -7019,6 +7190,15 @@ which holds a copy of the conclusion state of the worktree
 `REVERT_HEAD`,
 `MERGE_RR`,
 and the `sequencer/` directory).
+The copies also name the conclusion values a reftable repository keeps in its ref store
+(`conclusion/store-held.json`,
+`store_names_conclusions` in `conclusion_cleanup.rs`):
+a backend whose store can hold such a value writes the record and flushes it,
+a files-backend repository can hold none,
+so its copy writes no record,
+an absent record names nothing there,
+and no commit waits for the flush of bytes that would say nothing
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`).
 The landing removes the same state from the worktree exactly as native Git removed it in the scratch repository,
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
@@ -7370,8 +7550,30 @@ and `LANDING_ATTEMPTS` in `src/native/landing/service_land.rs`.
 
 ### Recovery
 
-The service keeps a journal of each batch it lands and settles an unfinished batch when it starts again;
-the wrapper recovers nothing for a commit.
+The service keeps a journal of each batch it lands and settles an unfinished batch before its next batch;
+a service's start settles only an earlier release's shared journal,
+and the wrapper recovers nothing for a commit.
+A batch whose branch does not show its commit is dropped:
+its commit is written to `refs/cli-git/kept/<batch>` before the intent goes
+(`keep_what_the_branch_does_not_show` in `src/native/landing/service_land_finish.rs`),
+so the commit of a branch write that a stop left running,
+including one Git built,
+which has no scratch branch,
+reaches a ref the wrapper names instead of an unnamed one,
+or none at all.
+The kept write runs only on this drop,
+never during a landing,
+and it is a side-ref write,
+so the stop's own bounds cut it as they cut every other Git of a landing.
+It writes a kept reference only where nothing is kept under that number yet:
+a kept reference that already names another commit is left as it is,
+and so is the batch's scratch reference,
+whose removal waits for the keep
+(`service_scratch_ref_of_a_dropped_batch.rs`).
+A drop whose kept write fails is logged with Git's words and the commit's name,
+and it still drops:
+the drop is what releases the worktree's index lock and forgets the batch,
+so a ref that cannot be written holds up neither the next commit nor the stop.
 What the wrapper still settles at the start of a command is state other code writes:
 an isolated merge whose process died,
 and it stops on a commit journal of the previous executable's format
@@ -7613,6 +7815,14 @@ the disjoint phases
 `handoffMs` and `otherMs`
 (the remainder,
 never negative),
+`indexBuilds`
+(one entry per build of the private commit index,
+in the order built:
+`kind` is `first` for the command's own preparation and `retry` for a rebuild after the branch moved,
+and `statDataKept` says whether that build started from a copy of the real index,
+keeping the cached stat data of every entry its tree shares with it;
+a build from the base or the tree alone holds none,
+and the scratch commit then hashes every file of the work tree),
 and within `submitMs` the reach (`reachMs`,
 `connectTries`,
 `refusedConnects`,

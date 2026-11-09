@@ -25,7 +25,7 @@ and all three stale `mise watch ... -- node ...` tasks are still present.
 
 ## Commands and measurement basis
 
-Every count below came from one of these,
+Every count in this document came from one of these commands,
 run from the repository root unless stated:
 
 ```sh
@@ -387,7 +387,8 @@ with the benchmark recorded there.
 
 Layer 1,
  the tool itself:
-covered above.
+covered by the Field census,
+Run bodies and Inline Node scripts sections.
 
 Layer 2,
  parallel systems.
@@ -1452,7 +1453,10 @@ so a worktree of an already-trusted repository at the same commit inherits trust
 - Pros:
    the worktree case disappears;
    `cli-git` already reasons about repository identity,
-   which rule `WXG` and `doc/planning/git-wrong-repository-identity-defense.md` cover.
+   which rule `WXG` and `doc/planning/git-wrong-repository-identity-defense.md` cover
+   (WXG:
+  retired from `AGENTS.md` 2026-09-29;
+  the README section that held it was dropped 2026-10-13).
 - Cons:
    a worktree can be checked out at an untrusted commit;
    identity is a weaker key than exact bytes,

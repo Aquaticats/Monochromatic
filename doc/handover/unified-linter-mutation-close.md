@@ -1,5 +1,10 @@
 # Unified-linter mutation close
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/linter/monochromatic-lint.fuzz/bin/container.mjs` is deleted
+> (2026-10-30 `ba6a0c3d7c`) and its TypeScript replacement serves its job today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

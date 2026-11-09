@@ -32,7 +32,8 @@ use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::earlier_service_process_look::Hold;
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE};
-use git_policy_cli::service_instance::instance_of;
+use git_policy_cli::service_instance::{instance_of, socket_path};
+use git_policy_cli::service_units_of_removed_worktrees::record_worktree;
 use git_policy_cli::service_journal::{DONE_EXTENSION, DONE_RETAINED, landed_commits};
 use git_policy_cli::service_messages::{Platform, ClientFailure, STARTING_NOTICE, UPDATING_NOTICE};
 use git_policy_cli::service_protocol::{
@@ -54,6 +55,24 @@ const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 /// far beyond what a healthy run needs,
 /// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
+
+/// How long the client of a killed service waits on the restarted one before it calls it stopped.
+/// The restart settles the batch the kill left open before it accepts a connection (`serve_in_a_landing` calls
+///  `settle_open_batches` before `start_acceptor_or_exit`),
+/// and that settle waits up to `SETTLE_LOCK_CEILING` for the
+///  `index.lock` the killed service left;
+/// `LANDING_LOCK_CEILING` bounds the first landing after it.
+/// Both are a minute,
+/// which is
+///  exactly this control's `PATIENCE`,
+/// so a settle that used its whole ceiling ended the client's wait (`ServiceSilent` after
+///  60 s,
+/// 2026-11-08).
+/// The event a killed-service control waits for is the answer;
+/// a service that never answers is ended by the
+///  per-test limit (five minutes),
+/// so the client's silence bound is above every ceiling the service can meet.
+const RESTART_PATIENCE: Duration = Duration::from_secs(240);
 
 /// The text of a Git query,
 /// without its final newline.
@@ -125,6 +144,28 @@ fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
 }
 
+/// The client of a control whose service is killed and started again:
+/// `config` with `RESTART_PATIENCE` as its silence bound.
+fn restarted_service_client(name: &str) -> ClientConfig {
+    return ClientConfig { heartbeat_silence: RESTART_PATIENCE, ..config(name) };
+}
+
+/// What:
+///  The answer the client of a killed-service control ended with,
+/// and what it was told while it waited.
+/// Why:
+///   `submit_quietly` throws the notices away,
+/// and the failure this replaces said only `ServiceSilent` after sixty seconds,
+///  with nothing about what the client had seen (2026-11-08).
+///
+/// # Panics
+///  When the client ended without an answer,
+/// with the failure and every notice it printed.
+fn answered_after_the_restart(client: std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String)>, point: &str) -> Submitted {
+    let (answered, notices) = client.join().expect("client thread");
+    return answered.unwrap_or_else(|failure| panic!("{point}: the client ended before the restarted service answered: {failure:?}; it was told:\n{notices}"));
+}
+
 /// A request that sets `path` to `content`,
 /// prepared against the branch as it is now.
 fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) -> CommitRequest {
@@ -162,6 +203,29 @@ fn assert_healthy(fixture: &Fixture, repo: &Path, what: &str) {
     assert_eq!(query(fixture, repo, &["status", "--short", "--untracked-files=no"]), "", "{what}: the index agrees with the branch");
     let checked = Command::new("/usr/bin/git").current_dir(repo).args(["fsck", "--strict", "--no-dangling"]).output().expect("fsck");
     assert!(checked.status.success() && checked.stderr.is_empty(), "{what}: fsck: {}", String::from_utf8_lossy(&checked.stderr));
+}
+
+/// What:
+///  The references of the wrapper's two side namespaces,
+/// as `name object` lines.
+/// Why:
+///   A kill leaves the batch's scratch reference and the commit it holds behind,
+/// and every one of them must be accounted for
+///  after the restart rather than being pinned for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['for-each-ref', '--format=%(refname) %(objectname)', namespace])
+/// ```
+fn side_refs(fixture: &Fixture, repo: &Path, namespace: &str) -> Vec<(String, String)> {
+    return query(fixture, repo, &["for-each-ref", "--format=%(refname) %(objectname)", namespace])
+        .lines()
+        .filter(|line| { return !line.is_empty(); })
+        .map(|line| {
+            let (name, object) = line.split_once(' ').expect("a reference and its object");
+            return (name.to_string(), object.to_string());
+        })
+        .collect();
 }
 
 fn submit_quietly(config: &ClientConfig, request: &CommitRequest) -> Result<Submitted, ClientFailure> {
@@ -256,6 +320,41 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         assert!(shared.join(format!("{seq}.{DONE_EXTENSION}")).exists(), "batch {seq} of the shared journal is among the newest and is kept");
     }
     stop(service);
+    remove_settled(&fixture);
+}
+
+/// A service that starts and finds its own worktree gone serves nothing and ends without a failure status:
+/// the manager starts a service on the first connection,
+/// so a removal Git ran with the wrapper replaced took its units with it at that connection,
+/// and a failure status would make `Restart=on-failure` start it again.
+#[test]
+fn a_service_whose_worktree_is_gone_serves_nothing() {
+    let fixture: Fixture = fixture("service-gone-worktree");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let git_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("canonical Git directory");
+    let instance: String = instance_of(git_dir.as_path());
+    // The runtime directory a user's units live in, and the note the wrapper writes beside them.
+    let runtime: PathBuf = fixture.root.join("runtime");
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("socket directory");
+    record_worktree(runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("the note provisioning writes");
+    std::fs::write(socket_path(runtime.as_path(), instance.as_str()), b"listening").expect("the socket file the manager leaves");
+    // A worktree deleted without Git, as after a removal run by another Git.
+    std::fs::remove_dir_all(git_dir.as_path()).expect("the Git directory is gone");
+    let name: String = address(&fixture, "gone-worktree");
+    let journal: PathBuf = runtime.join("state/monochromatic-git-policy-cli/service").join(instance.as_str());
+    let mut command: Command = super::support::service_command();
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
+        .env("XDG_RUNTIME_DIR", runtime.as_path())
+        // The bus is looked for in the fixture's runtime directory, so no real user manager is asked anything.
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit());
+    let mut service: Service = Service { child: command.spawn().expect("the service starts") };
+    let status: std::process::ExitStatus = ended_at_fault(&mut service, "a service of a gone worktree");
+    assert!(status.success(), "serving nothing is not a failure, or `Restart=on-failure` starts the unit again: {status}");
+    assert!(!reachable(name.as_str()), "the service listened for a worktree that is gone");
     remove_settled(&fixture);
 }
 
@@ -581,6 +680,9 @@ fn clients_sent_together_all_land_once() {
 /// the client that was waiting reconnects with the
 ///  same identity,
 /// and the commit is on the branch exactly once with the index and the repository healthy.
+/// The references the kill leaves are accounted for as well:
+/// no batch's scratch reference survives the restart,
+/// and the commit of a batch that the branch never took is kept where the person can find it.
 #[test]
 fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
     for point in FAULT_POINTS {
@@ -590,15 +692,32 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
         let mut doomed: Service = start_service(&fixture, name.as_str(), Some(point));
         wait_until_reachable(name.as_str());
         let sent: CommitRequest = request(&fixture, &repo, "kill-1", "k.txt", "k\n");
-        let client_config: ClientConfig = config(name.as_str());
-        let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
+        let client_config: ClientConfig = restarted_service_client(name.as_str());
+        let client = std::thread::spawn(move || {
+            let mut notices: Vec<u8> = Vec::new();
+            let answered = submit(&client_config, &sent, &mut notices);
+            return (answered, String::from_utf8_lossy(&notices).into_owned());
+        });
         let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
+        // A kill at these points leaves the batch's objects on `refs/worktree/cli-git-service/<seq>` without an intent that
+        //  names them; the branch takes the commit only from `after-ref` on.
+        let before_the_branch_moved: bool = matches!(point, "after-objects" | "after-intent");
+        let scratch_at_the_kill: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/worktree/cli-git-service/");
+        assert_eq!(scratch_at_the_kill.len(), usize::from(before_the_branch_moved), "{point}: the killed batch's scratch reference is what the kill left: {scratch_at_the_kill:?}");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
-        let answered = client.join().expect("client thread").expect("the client is answered after the restart");
+        let answered = answered_after_the_restart(client, point);
         assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
         assert_eq!(count_of(&fixture, &repo, "message of kill-1"), 1, "{point}: exactly once");
         assert_healthy(&fixture, &repo, point);
+        assert_eq!(side_refs(&fixture, &repo, "refs/worktree/cli-git-service/"), Vec::new(), "{point}: the restart removed the scratch reference of the batch no intent named");
+        let kept: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/cli-git/kept/");
+        if before_the_branch_moved {
+            assert_eq!(kept.len(), 1, "{point}: the commit of the batch that did not land is kept: {kept:?}");
+            assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", kept[0].0.as_str()]), "message of kill-1", "{point}: the kept reference holds the batch's own commit");
+        } else {
+            assert_eq!(kept, Vec::new(), "{point}: the branch took the commit, so nothing was kept");
+        }
         stop(restarted);
         remove_settled(&fixture);
     }
@@ -1055,12 +1174,16 @@ fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
         let sent: CommitRequest = amend_request(&fixture, &repo, "ak-amend", "amended.txt", "amended\n");
         let mut doomed: Service = start_service(&fixture, name.as_str(), Some(point));
         wait_until_reachable(name.as_str());
-        let client_config: ClientConfig = config(name.as_str());
-        let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
+        let client_config: ClientConfig = restarted_service_client(name.as_str());
+        let client = std::thread::spawn(move || {
+            let mut notices: Vec<u8> = Vec::new();
+            let answered = submit(&client_config, &sent, &mut notices);
+            return (answered, String::from_utf8_lossy(&notices).into_owned());
+        });
         let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
-        let answered = client.join().expect("client thread").expect("the client is answered after the restart");
+        let answered = answered_after_the_restart(client, point);
         assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
         assert_eq!(count_of(&fixture, &repo, "message of ak-amend"), 1, "{point}: exactly once");
         assert_eq!(count_of(&fixture, &repo, "message of ak-first"), 0, "{point}: the replaced commit is off the branch");

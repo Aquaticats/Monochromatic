@@ -18,6 +18,44 @@ the owner said "Forget about --print on a real coding task."
 In every prompt cite rule `ATH`,
 because the model writes scratch to `/tmp` unprompted,
 and quote the synthetic-load ban (rule `NLD`).
+Also tell every agent,
+in every prompt,
+to run Git only as plain `git` and never to use real Git:
+no `/usr/bin/git`,
+no other absolute path to a Git binary,
+and no other route around the wrapper that plain `git` reaches.
+Real Git skips every guard against discarding work and every commit policy,
+and agents here have committed and run `checkout --` through it.
+The owner:
+"Agents using real git is pretty bad.
+As a duct tape patch,
+put in the skill to always tell the agents to not use real git."
+Also tell every agent never to print the environment (`env`,
+`printenv`,
+`set`),
+even through a filter,
+never to read another process's (`/proc/<pid>/environ`,
+`ps e`),
+and to name the one variable it wants:
+an agent's `env | rg` put a real GitHub token in its session,
+and all command output goes to the model provider.
+The driver enforces that bound too:
+it hands Pi its own environment with every variable whose name holds
+`TOKEN`,
+`SECRET`,
+`KEY`,
+`PASSWORD`,
+`CREDENTIAL` or
+`AUTH` removed
+(`package/pi-shared/subagent-driver/README.md`),
+so a dump shows the names a command may read and no value it may not.
+Keep the sentence in every prompt anyway:
+a command can still print a token it finds in a file.
+Name the worktree in the prompt of an agent given one,
+and tell it to run every command and make every edit inside it:
+one agent ran its builds in the main checkout,
+so they did not test its worktree's code,
+and the uncommitted edits it left there blocked merges of other branches.
 Leave `--tools` unstated:
 it is an allowlist for every tool,
 extension tools included,
@@ -44,6 +82,30 @@ Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
 Give a run its own worktree whenever anything else is working in the same packages.
+Start a run for every independent queued item up to that number.
+Resource limits that add up to more than the host has are ceilings,
+not usage,
+and are no reason to hold work back.
+
+The owner on runs that do not come back:
+"Regularly,
+check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+`watch-overdue-pi-runs` is that check,
+and it is one command in the shape rule `MWK` asks for:
+it ends when a run is past the 90th percentile of the finished runs in `--runs-folder`,
+or when its `--deadline-seconds` pass,
+and prints one line per run to act on and nothing else.
+It computes the limit itself from those runs,
+so nothing here needs to be remembered.
+When a line names a unit,
+`check-in-on-pi-runs --runs-folder=<folder> --unit=<that unit>` prints its open tool call and the processes under the agent
+with their age,
+state and kernel wait.
+Both commands and their options are in `package/pi-shared/subagent-driver/README.md`.
+A quiet feed is usually a long test run.
+A message in `inbox/` reaches Pi only between tool calls,
+so a tool call that will never return gets the message first,
+and then has its hung process ended by process number.
 
 ## Start a run
 
@@ -110,22 +172,36 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     because the driver reads any other name at once.
     Pi gets it as a steer while it runs and as a new prompt while it is idle,
     and `--idle-seconds` is how long the driver stays up for one after Pi settles.
+    An entry must be an ordinary file:
+    a named pipe is set aside rather than waited on.
     A message Pi refused,
     or an entry that cannot be read,
-    stays there as `.failed-<name>`.
+    stays there as `.failed-<name>`,
+    and a later message of the same name that is also refused gets a number after it,
+    so nothing replaces an earlier one.
     To end the run early,
     create `<run>/stop`.
 6.  Read the result from `<run>/summary.json`,
     which appears last,
-    so its presence means Pi has gone and the feed is complete.
+    so its presence means the driver has finished.
+    `piExit` is there only when Pi's exit was seen,
+    so a summary naming `pi-not-stopped` claims nothing about Pi having gone:
+    the unit's own cleanup ends that process,
+    and its `RuntimeMaxSec` is what bounds the driver when a file system call or a named pipe keeps it alive past the
+    summary.
     `endReason` says how it ended:
     `idle` and `stop-file` exit 0,
     and `prompt-rejected`,
     `pi-exited`,
     `turn-cap`,
-    `wall-clock` and `driver-failed` fail the unit.
+    `wall-clock`,
+    `driver-failed`,
+    `model-error` and `pi-not-stopped` fail the unit,
+    and a Pi that left with a failing status after the run ended as `idle` fails it as `pi-exited`.
     `lastAssistantText` holds the whole final report,
-    and `sessionStats` holds the cost and names the session file.
+    `sessionStats` holds the cost and names the session file,
+    `modelError` holds what the model said when it settled on an error nothing recovered from,
+    and `feedProblem` names why the feed is incomplete when it is.
 7.  For a follow-up after the driver has exited,
     start the same unit under a new name,
     with a new run folder,

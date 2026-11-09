@@ -1,5 +1,13 @@
 # Markdown-lint to Sätteri: speed benchmark
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint` is deleted (2026-10-13 `5db89c1b61`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/webapp-productivity/rss/TODO.index.md` is now `package/rss/app/TODO.index.md`
+> (2026-10-29 `592d78b143`).
+> `package/cli/markdown-lint/src/parse.ts` is deleted (2026-10-13 `5db89c1b61`) and
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -162,7 +170,7 @@ whole corpus).
    601 ms,
    12.0 MB/s.
 - Variant 3 plugin rewrite:
-   611 ms (see the correctness caveat below).
+   611 ms (see the two correctness hazards in variant 3).
 
 ### Lint, mangled corpus (min ms)
 
@@ -183,7 +191,7 @@ whole corpus).
    4198 ms,
    and this undercounts (about 22 files per
   pass crash on re-parse and were skipped;
-   see the MDX hazard below).
+   see the MDX hazard in "Two correctness hazards in variant 3").
 
 ## Why variant 3 does not win
 

@@ -3,6 +3,7 @@
 
 use crate::work_item_recovery::requeue_expired;
 use crate::work_item::{DONE, FAILED, WorkKind, claim_next_of};
+use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::PushRetries;
 use crate::service_work_run_round::run_round;
 use super::*;
@@ -289,6 +290,26 @@ fn a_claim_left_by_an_earlier_service_is_run_again_when_its_lease_is_over() {
     remove(repo.root.as_path());
 }
 
+/// The bound on a push the controls below hold open:
+/// a failing run's way out of the wait,
+/// and never how long a passing one waits.
+const GATE_CEILING: Duration = Duration::from_secs(30);
+
+/// What:
+///  Lets the held push go however the control ends.
+/// Why:
+///   A control that fails before it lets the push go otherwise leaves the scope joining a holder that waits out
+/// `GATE_CEILING`,
+/// so the failure would take thirty seconds to report.
+struct LetGo<'gate>(&'gate std::sync::mpsc::Sender<()>);
+
+impl Drop for LetGo<'_> {
+    /// Let the push go.
+    fn drop(&mut self) {
+        let _sent = self.0.send(());
+    }
+}
+
 /// A handler that holds its push open until the test lets it go,
 /// and says when the push began;
 /// the other handler of a pair
@@ -304,7 +325,7 @@ impl WorkHandlers for Gate {
         self.pushes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.began.send(()).expect("the test is listening");
         // The bound only ends a failing run.
-        let _released = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner).recv_timeout(Duration::from_secs(30));
+        let _released = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner).recv_timeout(GATE_CEILING);
         return Verdict::Done;
     }
 
@@ -338,6 +359,7 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
     let driver: DrivenRenewal = DrivenRenewal::default();
     let wait: Option<Duration> = std::thread::scope(|scope| {
         let holder = scope.spawn(|| { drain_with_renewal(repo.common.as_path(), &dying, &ClaimTime::read(), lease, Renewal::Driven(&driver)); });
+        let letting_go: LetGo<'_> = LetGo(&release);
         began_receiver.recv_timeout(Duration::from_secs(60)).expect("the push began");
         // Four leases pass while the push runs; only a renewing holder keeps its claim through them.
         for third in 1..=(4 * RENEWALS_PER_LEASE) {
@@ -346,6 +368,7 @@ fn a_drain_beside_a_slow_push_leaves_its_claim_alone() {
         let later: ClaimTime = ClaimTime::read().advanced(lease * 4);
         let wait: Option<Duration> = drain_with_lease(repo.common.as_path(), &restarted, &later, lease);
         release.send(()).expect("the push is waiting");
+        drop(letting_go);
         holder.join().expect("the first instance finished");
         return wait;
     });
@@ -854,7 +877,7 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let service_context: GitContext = GitContext { common_dir: None, ..git_context() };
     let handlers: GitHandlers = GitHandlers::new(service_context).with_review_endpoint(mock.url.as_str());
     run_round(vec![(common.clone(), ReviewKey::new(SECRET))], &handlers, &mut PushRetries::with_first_pause(FIRST_PAUSE), &ClaimTime::read());
-    let seen: String = mock.finish().to_ascii_lowercase();
+    let seen: String = mock.finish().seen.to_ascii_lowercase();
     let settled = |state: &str| -> Vec<String> {
         return std::fs::read_dir(state_directory(work_directory(common.as_path()).as_path(), state))
             .map(|listing| { return listing.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); })
@@ -959,4 +982,30 @@ fn the_service_starts_its_push_git_with_lock_pid_files_on() {
     let started: PushGit = handlers.push_git(&item(&repo, WorkKind::Push, OID, BRANCH));
     assert!(lock_pid_files_enabled(started.environment.as_slice()), "the push's Git environment turns on core.lockfilePid");
     remove(repo.root.as_path());
+}
+
+/// The listings a drain of `count` pushes of one branch costs,
+/// with every item settled.
+fn listings_of_a_drain(count: usize) -> usize {
+    let repo: Repo = repo(format!("work-linear-{count}").as_str());
+    let items: Vec<WorkItem> = (0..count).map(|n| { return item(&repo, WorkKind::Push, format!("{n:040x}").as_str(), BRANCH); }).collect();
+    enqueue_all(&repo, items.as_slice());
+    // The looks the producers themselves made are no part of the drain.
+    let _producers_looks: usize = take_listings();
+    drain(repo.common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+    assert_eq!(names(&repo, DONE).len(), items.len(), "the drain of {count} items settled every one of them");
+    let listings: usize = take_listings();
+    remove(repo.root.as_path());
+    return listings;
+}
+
+/// A drain of many claims walks the work queue once per round and not once per claim (`RG2`):
+/// the number of directory listings it costs does not grow with the number of claims it holds.
+#[test]
+fn a_drain_of_many_claims_lists_the_state_directories_once() {
+    let measured: Vec<(usize, usize)> = [4, 24, 96].iter().map(|count| { return (*count, listings_of_a_drain(*count)); }).collect();
+    let first: usize = measured[0].1;
+    for (_count, listings) in &measured {
+        assert_eq!(*listings, first, "the listings of a drain do not grow with its claims: {measured:?}");
+    }
 }

@@ -173,7 +173,9 @@ The built token must hold only characters a part of a file name can carry,
 and the journal and temporary names built around it must give it back.
 Any accepted token must have a positive PID and a non-empty birth identity,
 and must parse back to itself after being restated.
-Any text read as a journal or temporary name must end in its suffix and give a token without a dot.
+Any text read as a journal or temporary name must end in its suffix and give a non-empty token without a dot;
+a journal is read through its path's last component,
+so a text ending with a separator names the component before it.
 A transaction owner record is parsed as written
 and restated;
 an accepted one must have a positive safe PID and a non-empty identity.
@@ -184,6 +186,53 @@ and the start time in field 22;
 the reader must return that start time for a running process,
 nothing for a zombie or dead one,
 and refuse a line without the start time or without a closing parenthesis.
+
+### `owner_claim_record`
+
+Runs `decode`,
+the reader of a single-owner claim file
+(`package/git-policy/cli/src/native/lock/single_owner_claim.rs`),
+over raw text and over claim files built from the input.
+A built file chooses its first line
+(the current folder spelling,
+the earlier one,
+the current one in capitals,
+or the header with no folder name)
+and then one of six shapes:
+a released claim,
+the same followed by a line no reader acts on,
+a whole owned claim,
+the same followed by such a line,
+an owned claim one field edit leaves naming no process
+(a process id that names none,
+an empty birth identity,
+or no namespace line),
+or a released line a trailing space makes a near miss.
+Its process id is a positive one,
+zero,
+a negative one,
+a fraction,
+a value past the integer range,
+a leading-zero spelling,
+or text;
+its birth identity is text holding quotes,
+escapes,
+a NUL,
+a space,
+the released marker and non-ASCII characters,
+or empty;
+its namespace is the released marker,
+empty,
+that text,
+or the line is left out.
+An accepted claim must name one of the two folder spellings,
+a released claim or a process id of at least one with a non-empty birth identity,
+and a namespace that is never the released marker,
+and it must hold exactly its own record when restated here in the current spelling.
+A hand-written file whose field ends in a carriage return is read without that carriage return,
+because line splitting removes it,
+so that record is not restated;
+raw bytes still reach the decoder for the refusal rules and for panics.
 
 ### `dependent_version`
 
@@ -264,6 +313,9 @@ removed and new paths of a staged delta,
 every `rulesFile` refusal,
 every final-newline outcome,
 accepted and refused owner tokens,
+every claim outcome
+(a released claim,
+an owned claim and a refusal),
 running,
 exited and malformed stat lines,
 so an invariant that is never reached cannot pass unnoticed.
@@ -285,6 +337,7 @@ a reply accepted for another object,
 a changed path left out of the staged delta,
 a `rulesFile` value with `..` accepted,
 an owner token naming PID 0 accepted,
+a claim naming PID 0 accepted,
 the start time read from the field before it,
 extra final line feeds kept),
 and requires a generator control to fail for each.
@@ -294,6 +347,24 @@ unlisted `branch` and `tag` flags already require configuration.
 
 The `fuzz_target!` input looks like a closure signature but is macro input grammar.
 
+## The lockfile
+
+`Cargo.lock` here must lock every package the subject locks,
+at the same version.
+A sidecar links the subject by path,
+so it resolves the subject's whole dependency graph,
+and a dependency the subject gains,
+drops or moves makes this lock stale.
+The subject's `lint:sidecar-locks`
+(`package/git-policy/cli/bin/native-sidecar-lock-check.ts`)
+fails on a lock that fell behind,
+and the subject's container gate runs the same check before it builds anything;
+the root `lint` still reaches this package's own `lint`,
+which compiles the targets against the subject.
+`mise run //package/git-policy/cli.fuzz:lock:members` records the versions again,
+and `lock:subject` seeds this lock from the subject's,
+so both lock the same registry versions.
+
 ## Campaigns
 
 `mise run //package/git-policy/cli.fuzz:smoke` builds AddressSanitizer targets with the read-only nightly compiler,
@@ -301,7 +372,7 @@ runs the controls and Clippy in the same bounded container,
 then fuzzes each target for 30 seconds without host mounts
 under 2 GiB,
 2 CPUs,
-128 PIDs,
+512 PIDs,
 and a 4,096-byte input limit.
 A target must exit 0 and report at least one executed unit.
 A longer campaign passes the time per target after the task name,

@@ -1,10 +1,42 @@
 # Forbidden-strings fuzzing handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/forbidden-strings/mise.toml` is now `package/forbidden-strings/cli/mise.toml`
+> (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:build` is now `//package/forbidden-strings/cli:build`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:test` is now `//package/forbidden-strings/cli:test`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:lint` is now `//package/forbidden-strings/cli:lint`
+> (2026-10-29 `113633b259`).
+> `//package/cli/forbidden-strings:lint:clippy` is now
+> `//package/forbidden-strings/cli:lint:clippy` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings.fuzz/Cargo.lock` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.lock` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/lib.rs` is now
+> `package/forbidden-strings/cli/src/lib.rs` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/src/fuzz_api.rs` is now
+> `package/forbidden-strings/cli/src/fuzz_api.rs` (2026-10-29 `113633b259`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
 > `package/cli/forbidden-strings.fuzz` is now `package/forbidden-strings/cli.fuzz`;
-> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+> `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`;
+> `package/cli/forbidden-strings/fuzz` is now `package/forbidden-strings/cli.fuzz`.
+
+> The fuzz harness became a sibling sidecar package on 2026-09-26 (`b9c0e6e483`).
+> Its tasks kept their names without the `fuzz:` prefix.
+> This record keeps its text and these mappings:
+> `//package/cli/forbidden-strings:fuzz:build` is now `//package/forbidden-strings/cli.fuzz:build`;
+> `//package/cli/forbidden-strings:fuzz:smoke` is now `//package/forbidden-strings/cli.fuzz:smoke`;
+> `//package/cli/forbidden-strings:fuzz:run` is now `//package/forbidden-strings/cli.fuzz:run`;
+> `//package/cli/forbidden-strings:fuzz:list` is now `//package/forbidden-strings/cli.fuzz:list`.
+> No `fuzz:seed` task is defined anywhere.
+> The corpus is seeded by `seed/<target>/` directories.
 
 ## Sibling-sidecar relocation, 2026-09-26
 

@@ -19,9 +19,11 @@
 
 use crate::bounded_push::{run_bounded_push, Patience, STOPPED_EXIT_CODE};
 use crate::child_watch::{output_watched, WatchTerms};
-use crate::process_tree::{TreeMember, state_letter_of};
-use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, STOP_CEILING, rules_for_this_thread};
+use crate::process_tree::TreeMember;
+use crate::push_limit_held_for_an_ordering::{LimitHeldForAnOrdering, LimitHoldGuard, hold_limit_for_an_ordering};
+use crate::stop_waits_while_a_member_cannot_be_interrupted::{ControlRules, RulesGuard, STOP_CEILING, rules_for_this_thread};
 use crate::test_support::{fixture, git, git_text, remove, repository, scratch_environment, while_test_lives};
+use std::cell::Cell;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -30,6 +32,10 @@ use std::time::{Duration, Instant};
 /// The deadline of the held lock's command:
 /// long enough for Git to start and take the lock,
 /// short enough to wait for.
+/// It is held until a look of the control sees Git's lock and the pid file beside it
+/// (`the_holder_holds_its_lock`),
+/// so it says how long the run goes on after the lock is held,
+/// never when the lock must be held.
 const HOLD_DEADLINE: Duration = Duration::from_millis(2500);
 
 /// The grace after the polite stop request:
@@ -89,6 +95,242 @@ enum Holder {
 ///  kill at the end of the grace always falls inside it.
 const CLEANUP_DELAY_MICROSECONDS: u64 = 5_000_000;
 
+/// How long a control holds the run's limit back for the holder's announcement of its lock,
+/// before it lets the limit pass and its own assertion reports that the announcement never came.
+/// Why:
+///  A control that held the limit back forever would wait for the run's watchdog,
+/// and one that held it not at all
+///  would bet that the holder is quick (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
+///  The owner's "3x worst case" is what this package waits for anything that is only slow (`STOP_CEILING`):
+/// it lies above
+///  the longest announcement measured here (2.9 s for a `strace`-wrapped Git under eleven controls sharing a tenth of a
+/// processor,
+/// 2026-11-08)
+/// and below the watchdog's 120 s.
+const ANNOUNCEMENT_HOLD: Duration = STOP_CEILING;
+
+/// What one control watches on disk,
+/// and what its looks saw.
+/// Why:
+///  The stop's request is decided by the run's limit and its kill by the stop's grace,
+/// and both are elapsed
+///  time;
+/// the holder takes its lock and Git's handler walks between its two unlinks each after a delay the host
+///  sets,
+/// never one the control can bound.
+/// Measured here on 2026-11-08:
+/// a `strace`-wrapped Git took
+///  2.9 s to take its lock against the 2.5 s limit,
+/// so the run was stopped before the lock the control was about
+///  to check ever existed.
+///  The control therefore reads Git's own two files,
+/// the lock and the pid file beside it,
+/// never the word of
+///  a shell the stop kills:
+/// the pid file is what the stop's own claim reads before it signals (`LockLedger::claiming`).
+struct Watched {
+    /// The lock of `HELD_REF`.
+    lock: PathBuf,
+    /// The pid file Git writes beside it under `core.lockfilePid`.
+    pid_file: PathBuf,
+    /// Set by a look that saw the lock and its pid file:
+    /// the holder really held the lock.
+    held_seen: Cell<bool>,
+    /// Set by a look that saw the lock with its pid file gone:
+    /// Git's handler has removed the first and not yet the second.
+    cut_seen: Cell<bool>,
+}
+
+impl Watched {
+    fn of(stage: &Stage) -> Self {
+        let git_directory: PathBuf = stage.repo.join(".git");
+        return Self {
+            lock: git_directory.join(format!("{HELD_REF}.lock")),
+            pid_file: git_directory.join(format!("{HELD_REF}~pid.lock")),
+            held_seen: Cell::new(false),
+            cut_seen: Cell::new(false),
+        };
+    }
+
+    /// What the two files look like now,
+    /// for the words of a failure.
+    fn describe(&self) -> String {
+        return format!(
+            "lock {} present={}, pid file {} present={}",
+            self.lock.display(),
+            self.lock.exists(),
+            self.pid_file.display(),
+            self.pid_file.exists()
+        );
+    }
+}
+
+thread_local! {
+    /// What the control of this thread watches;
+    /// nothing outside a control.
+    static WATCHED: std::cell::RefCell<Option<Watched>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Whether Git holds the ref's lock now:
+/// the lock and the pid file beside it are both there.
+/// Why:
+///   This is the ordering the stop's own claim reads before it signals,
+/// so a stop asked before it can prove nothing
+///  about a lock that is not there yet.
+/// The look is recorded,
+/// so a control can report afterwards that the ordering it
+///  needed happened.
+fn the_holder_holds_its_lock() -> bool {
+    return WATCHED.with(|slot| {
+        let watching = slot.borrow();
+        let Some(watched) = watching.as_ref() else {
+            return false;
+        };
+        let held: bool = watched.lock.exists() && watched.pid_file.exists();
+        if held {
+            watched.held_seen.set(true);
+        }
+        return held;
+    });
+}
+
+/// Whether a look of this control saw the holder holding its lock.
+fn saw_the_holder_hold_the_lock() -> bool {
+    return WATCHED.with(|slot| { return slot.borrow().as_ref().is_some_and(|watched| { return watched.held_seen.get(); }); });
+}
+
+/// What the watched files look like now,
+/// for the words of a failure.
+fn describe_the_holder() -> String {
+    return WATCHED.with(|slot| { return slot.borrow().as_ref().map(Watched::describe).unwrap_or_else(|| { return String::from("nothing is watched on this thread"); }); });
+}
+
+/// Whether a look of this control saw Git between its two unlinks,
+/// the ordering both slow-cleanup controls are about.
+fn saw_the_cut() -> bool {
+    return WATCHED.with(|slot| { return slot.borrow().as_ref().is_some_and(|watched| { return watched.cut_seen.get(); }); });
+}
+
+/// Keep the stop waiting while Git has not begun its cleanup,
+/// so the kill that ends the wait falls at the cut.
+/// Records the cut,
+/// because a kill there is the whole arrangement of the control that uses this rule.
+fn wait_while_git_has_not_begun_its_cleanup(_member: &TreeMember) -> bool {
+    return WATCHED.with(|slot| {
+        let watching = slot.borrow();
+        let Some(watched) = watching.as_ref() else {
+            return false;
+        };
+        let between: bool = watched.lock.exists() && !watched.pid_file.exists();
+        if between {
+            watched.cut_seen.set(true);
+        }
+        // The pid file's removal is what the wait is for, so it also ends the wait.
+        return watched.pid_file.exists() && watched.lock.exists();
+    });
+}
+
+/// Keep the stop waiting while Git has not finished its cleanup,
+/// so the lock goes with its pid file and no kill lands inside the cleanup.
+/// Records the cut while it lasts.
+fn wait_while_git_has_not_finished_its_cleanup(_member: &TreeMember) -> bool {
+    return WATCHED.with(|slot| {
+        let watching = slot.borrow();
+        let Some(watched) = watching.as_ref() else {
+            return false;
+        };
+        let between: bool = watched.lock.exists() && !watched.pid_file.exists();
+        if between {
+            watched.cut_seen.set(true);
+        }
+        return watched.lock.exists();
+    });
+}
+
+/// What a control expects the stop to wait for past its grace.
+/// Why:
+///  The production rule waits past the grace only while a member is in uninterruptible sleep (`D`),
+/// and a control
+///  cannot make a `D`:
+/// the fixture's `strace` holds the handler in the traced stop (`t`) while it delays the first
+///  `unlink`,
+/// which is what keeps Git's cleanup between its two unlinks (130 µs apart on a quiet disk).
+/// A
+///  control cannot make the production rule see a state it does not look for,
+/// so the slow-cleanup controls wait by
+///  the cut on disk instead,
+/// which is the same ordering named by two files rather than by a letter.
+#[derive(Clone, Copy)]
+enum StopRule {
+    /// The production rule alone,
+    /// which proves nothing about the cut here.
+    TheProductionRule,
+    /// Wait while Git has not begun its cleanup,
+    /// so the kill that ends the wait lands at the cut.
+    UntilTheCutIsReached,
+    /// Wait while Git has not finished its cleanup,
+    /// so no kill lands inside it.
+    UntilTheCleanupIsFinished,
+}
+
+impl StopRule {
+    /// The rule the stop consults past its grace,
+    /// or nothing where the production one stays.
+    fn blocked(self) -> Option<fn(&TreeMember) -> bool> {
+        return match self {
+            StopRule::TheProductionRule => None,
+            StopRule::UntilTheCutIsReached => Some(wait_while_git_has_not_begun_its_cleanup),
+            StopRule::UntilTheCleanupIsFinished => Some(wait_while_git_has_not_finished_its_cleanup),
+        };
+    }
+
+    /// Whether the control arranged the run so that the cut happens,
+    /// and must therefore report whether it saw it.
+    fn expects_the_cut(self) -> bool {
+        return !matches!(self, StopRule::TheProductionRule);
+    }
+}
+
+/// What one bounded control puts in force for its run:
+/// the look at the holder's files,
+/// the run's limit held until the holder announced its lock,
+/// and the stop's rule where the control replaces the production one.
+/// Every part ends when this value drops.
+struct Watching {
+    /// Ends the look at the files of this thread;
+    /// held for its `Drop` and read by nothing.
+    _watched: WatchedClear,
+    /// Ends the hold of the run's limit;
+    /// held for its `Drop` and read by nothing.
+    _limit: LimitHoldGuard,
+    /// Ends the stop's own rule where the control gave one;
+    /// held for its `Drop` and read by nothing.
+    _rules: Option<RulesGuard>,
+}
+
+impl Watching {
+    fn of(stage: &Stage, rule: StopRule) -> Self {
+        let watched: Watched = Watched::of(stage);
+        let clear: WatchedClear = WATCHED.with(|slot| {
+            *slot.borrow_mut() = Some(watched);
+            return WatchedClear;
+        });
+        let limit: LimitHoldGuard = hold_limit_for_an_ordering(LimitHeldForAnOrdering { reached: the_holder_holds_its_lock, ceiling: ANNOUNCEMENT_HOLD });
+        let rules: Option<RulesGuard> = rule.blocked().map(|blocked| { return rules_for_this_thread(ControlRules { blocked, ceiling: STOP_CEILING }); });
+        return Self { _watched: clear, _limit: limit, _rules: rules };
+    }
+}
+
+/// Ends the look at the files when dropped.
+struct WatchedClear;
+
+impl Drop for WatchedClear {
+    fn drop(&mut self) {
+        WATCHED.with(|slot| { *slot.borrow_mut() = None; });
+    }
+}
+
 /// A repository whose `origin/main` is behind a bare remote's `main`,
 /// so a later fetch has a tracking ref to update.
 struct Stage {
@@ -99,22 +341,6 @@ struct Stage {
     repo: PathBuf,
     /// The ready marker the holder writes once the lock exists.
     ready: PathBuf,
-}
-
-/// Whether a member is held where it cannot act on a signal,
-/// as far as a control can make one:
-/// uninterruptible sleep (`D`),
-/// which a
-///  control cannot produce on demand,
-/// or the stop of a traced process (`t`),
-/// which is what `strace` holds the handler in while it
-///  injects the delay.
-/// The production rule looks for `D` only;
-/// this stand-in is the control's,
-/// and it is the reason the reproduction
-///  below is a reproduction of the cut and not of a stalled disk.
-fn held_where_a_signal_cannot_act(member: &TreeMember) -> bool {
-    return matches!(state_letter_of(member), Some('D' | 't'));
 }
 
 /// Every member is held where a signal cannot act,
@@ -235,7 +461,6 @@ fn describe_left(files: &[PathBuf]) -> String {
 /// end runs on a thread and is waited for),
 /// and the fetch that failed in practice works.
 fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
-    assert!(stage.ready.exists(), "{how} {kind:?}: the holder took the lock before it was stopped");
     let waited: Instant = Instant::now();
     let mut left: Vec<PathBuf> = lock_files(stage.repo.join(".git").as_path());
     while !left.is_empty() && waited.elapsed() < SWEEP_WAIT {
@@ -255,19 +480,74 @@ fn assert_clean_after_stop(stage: &Stage, kind: Holder, how: &str) {
     assert!(fetched.status.success(), "{how} {kind:?}: the following fetch failed: {}", String::from_utf8_lossy(&fetched.stderr));
 }
 
-/// A push-style bounded run stops the holder at its deadline and leaves no lock.
+/// A push-style bounded run stops the holder at its run's limit and leaves no lock.
 fn bounded_run_leaves_no_lock(kind: Holder, name: &str) {
+    bounded_run_with(kind, name, StopRule::TheProductionRule);
+}
+
+/// What:
+///  A push-style bounded run stops the holder at its run's limit and leaves no lock,
+/// while `rule` says what the stop
+///  waits for past its grace.
+/// Why:
+///   The run's limit is held until a look sees the lock and its pid file,
+/// `the_holder_holds_its_lock`,
+/// so the
+///  stop is asked after the lock is held however slow the host is;
+/// the report then names the ordering the control
+///  needed and did not see,
+/// never a watchdog.
+fn bounded_run_with(kind: Holder, name: &str, rule: StopRule) {
     let stage: Stage = stage(name);
     let grace: Duration = match kind {
         Holder::Responsive => RESPONSIVE_GRACE,
         Holder::Unresponsive | Holder::SlowToFinishCleanup | Holder::HeldPastTheStopGrace => SHORT_GRACE,
     };
-    // The slow holder is held in a traced stop, which only the control's rule counts as a wait the stop may extend (see above).
-    let _rules = matches!(kind, Holder::SlowToFinishCleanup).then(|| { return rules_for_this_thread(ControlRules { blocked: held_where_a_signal_cannot_act, ceiling: STOP_CEILING }); });
+    let watching: Watching = Watching::of(&stage, rule);
     let attempt = run_bounded_push(holder(&stage, kind), Patience::Fixed(HOLD_DEADLINE), grace, scratch_environment().as_slice()).expect("runs");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
+    assert_the_holder_held_its_lock(kind, "bounded run");
+    if rule.expects_the_cut() {
+        assert!(saw_the_cut(), "{kind:?}: the stop ended without a look seeing Git between its two unlinks, so the ordering this control is about never happened");
+    }
+    drop(watching);
     assert_clean_after_stop(&stage, kind, "bounded run");
     remove(stage.root.as_path());
+}
+
+/// What:
+///  Assert that a look of this control saw Git holding the ref's lock before the stop was asked,
+/// which is what makes
+///  the stop and the cut it makes worth judging.
+/// Why:
+///   The limit that asks for the stop is held for that very ordering (`ANNOUNCEMENT_HOLD`),
+/// so a failure here says
+///  the hold ran out and names what was on disk,
+/// instead of the misleading "the holder took the lock before it was
+///  stopped" of a control that bet the holder is quick.
+fn assert_the_holder_held_its_lock(kind: Holder, how: &str) {
+    assert!(
+        saw_the_holder_hold_the_lock(),
+        "{how} {kind:?}: no look saw the lock and its pid file within the hold of {ANNOUNCEMENT_HOLD:?}, so the stop was asked before the holder held the lock: {}",
+        describe_the_holder()
+    );
+}
+
+/// What:
+///  Assert the fixture's own word that it held the lock:
+/// the holder writes `ready` once it sees its lock.
+/// Why:
+///   The steps whose stop is decided by signs of work,
+/// a watched step and a push stopped on no progress,
+///  cannot be stopped while the step is still working,
+/// so their stop is after the lock whatever the host does,
+/// and the word
+///  is enough.
+/// A step stopped by a fixed limit is not:
+/// its limit can pass before the holder reaches its lock,
+///  which is why those controls read Git's own files instead (`the_holder_holds_its_lock`).
+fn assert_the_holder_announced_its_lock(stage: &Stage, kind: Holder, how: &str) {
+    assert!(stage.ready.exists(), "{how} {kind:?}: the holder never announced that it held the lock, so the stop was asked before the lock existed");
 }
 
 /// A watched step stops the holder at its bound and leaves no lock.
@@ -281,6 +561,7 @@ fn watched_step_leaves_no_lock(kind: Holder, name: &str) {
     };
     let ended = output_watched(&mut command, "git update-ref --stdin", terms);
     assert_eq!(ended.expect_err("the step is stopped at its bound").kind(), std::io::ErrorKind::TimedOut);
+    assert_the_holder_announced_its_lock(&stage, kind, "watched step");
     assert_clean_after_stop(&stage, kind, "watched step");
     remove(stage.root.as_path());
 }
@@ -292,6 +573,7 @@ fn a_stall_stop_of_an_unresponsive_holder_leaves_no_lock() {
     let patience: Patience = Patience::Progress { stall: HOLD_DEADLINE };
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), patience, SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
     assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped on no progress");
+    assert_the_holder_announced_its_lock(&stage, Holder::Unresponsive, "stalled run");
     assert_clean_after_stop(&stage, Holder::Unresponsive, "stalled run");
     remove(stage.root.as_path());
 }
@@ -305,17 +587,20 @@ fn a_push_stop_of_a_responsive_holder_leaves_no_lock() {
 /// A holder whose handler is slow to finish is not killed between Git's two unlinks:
 /// the stop waits,
 /// up to its ceiling,
-/// while a member
-///  of the tree cannot be interrupted,
+/// while Git's cleanup has not finished,
 /// so the lock goes with its pid file.
 /// Before the wait the kill at the end of the grace left the
 ///  lock without its pid file and the sweep left it alone,
 /// because nothing proves its holder gone (the gate of `85e6d2ab99`;
 /// plan,
 ///  "The two gate failures of main at `85e6d2ab99`").
+/// The wait is decided by the lock on disk and not by the grace:
+/// a grace shorter than the
+///  host's delay in running Git's handler would kill before the handler began and leave both files
+///  (`doc/troubleshooting/git-policy-cli-stop-lock-controls-wait-on-order-not-time.md`).
 #[test]
 fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
-    bounded_run_leaves_no_lock(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup");
+    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-slow-cleanup", StopRule::UntilTheCleanupIsFinished);
 }
 
 /// A kill that falls between Git's two unlinks leaves no lock either,
@@ -331,19 +616,18 @@ fn a_push_stop_of_a_holder_slow_to_finish_its_cleanup_leaves_no_lock() {
 /// The stop that waits while a member cannot be
 ///  interrupted only makes the cut rarer.
 /// The holder here is held after its first unlink by a traced stop,
-/// which the production rule
-///  does not count as a wait,
-/// so the kill at the end of the grace falls exactly between the two.
-/// The wrapper saw the pid file name the
-///  holder before it signalled it,
+/// which the production rule does not
+///  count as a wait,
+/// so the production stop kills at its grace;
+/// the control's own rule keeps that stop waiting until
+///  the cut on disk begins,
+/// so the kill falls between the two unlinks however long the host takes to run
+///  Git's handler.
+/// The wrapper saw the pid file name the holder before it signalled it,
 /// so the lock is the holder's by its own observation.
 #[test]
 fn a_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
-    let stage: Stage = stage("stop-lock-push-cut-cleanup");
-    let attempt = run_bounded_push(holder(&stage, Holder::SlowToFinishCleanup), Patience::Fixed(HOLD_DEADLINE), SHORT_GRACE, scratch_environment().as_slice()).expect("runs");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
-    assert_clean_after_stop(&stage, Holder::SlowToFinishCleanup, "bounded run cut between the unlinks");
-    remove(stage.root.as_path());
+    bounded_run_with(Holder::SlowToFinishCleanup, "stop-lock-push-cut-cleanup", StopRule::UntilTheCutIsReached);
 }
 
 /// The same cut in the watched path leaves no lock.
@@ -362,15 +646,19 @@ fn a_watched_kill_between_the_pid_file_and_the_lock_still_leaves_no_lock() {
 fn a_member_held_for_ever_is_ended_at_the_ceiling_and_the_lock_is_swept() {
     const CEILING: Duration = Duration::from_millis(1500);
     const GRACE: Duration = Duration::from_millis(300);
-    const GENEROUS_SLACK: Duration = Duration::from_secs(10);
+    // The hold the run's limit is kept back for is part of what the stop's whole time may hold, and nothing else is.
+    const GENEROUS_SLACK: Duration = ANNOUNCEMENT_HOLD;
     let stage: Stage = stage("stop-lock-push-held-for-ever");
+    let watching: Watching = Watching::of(&stage, StopRule::TheProductionRule);
     let _rules = rules_for_this_thread(ControlRules { blocked: held_for_ever, ceiling: CEILING });
     let began: Instant = Instant::now();
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), GRACE, scratch_environment().as_slice()).expect("runs");
     let took: Duration = began.elapsed();
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
     assert!(took >= HOLD_DEADLINE + CEILING, "the stop forced the end after {took:?}, before the ceiling of {CEILING:?} that followed the request");
     assert!(took < HOLD_DEADLINE + CEILING + GENEROUS_SLACK, "the stop took {took:?}: it waited past its ceiling");
+    assert_the_holder_held_its_lock(Holder::Unresponsive, "stalled run held for ever");
+    drop(watching);
     assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run held for ever");
     remove(stage.root.as_path());
 }
@@ -425,8 +713,10 @@ fn a_watched_stop_gives_a_catchable_signal_first() {
 #[test]
 fn a_stop_without_grace_sweeps_the_locks_on_a_thread_of_its_own() {
     let stage: Stage = stage("stop-lock-push-no-grace");
+    let _watching: Watching = Watching::of(&stage, StopRule::TheProductionRule);
     let attempt = run_bounded_push(holder(&stage, Holder::Unresponsive), Patience::Fixed(HOLD_DEADLINE), Duration::ZERO, scratch_environment().as_slice()).expect("runs");
-    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its deadline");
+    assert_eq!(attempt.exit_code, STOPPED_EXIT_CODE, "the holder is stopped at its limit");
+    assert_the_holder_held_its_lock(Holder::Unresponsive, "bounded run without grace");
     assert_clean_after_stop(&stage, Holder::Unresponsive, "bounded run without grace");
     remove(stage.root.as_path());
 }

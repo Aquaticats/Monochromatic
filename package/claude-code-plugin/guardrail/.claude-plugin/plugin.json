@@ -1,6 +1,6 @@
 {
   "name": "guardrail",
-  "description": "Blocks Agent resume calls (preventing polling loops) and bun test invocations (which misreport under the module-test harness).",
+  "description": "Blocks Agent resume calls (preventing polling loops), bun test invocations (which misreport under the module-test harness), process-name wait loops, and mutating Git commands that spell the real Git binary by path (which skip the repository Git wrapper and its policies).",
   "version": "0.0.1",
   "author": {
     "name": "Aquaticat"

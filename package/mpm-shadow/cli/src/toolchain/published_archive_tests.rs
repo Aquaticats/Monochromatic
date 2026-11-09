@@ -17,12 +17,12 @@ use super::commands::older_lock_warning_lines;
 use super::context::Context;
 use super::fakes::{Rig, write_executable};
 use super::hash::sha256_hex;
-use super::launcher::{LaunchRecord, PROC_SELF_EXE, prepare_launch, usable_source, warning_naming_program};
+use super::launcher::{LaunchRecord, parse_record, prepare_launch, warning_naming_program};
 use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
 use super::prune_cargo::{PresentVersion, prune_toolchain};
-use super::layout::tool_directory;
+use super::layout::{find_tool_bin, tool_directory};
 use super::published_archive::{
     current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, running_version_archive,
 };
@@ -81,6 +81,37 @@ pub(super) fn serve_releases(rig: &Rig, versions: &[&str]) {
             let position: usize = request.args.iter().position(|argument| return argument == "--directory").expect("a directory");
             let directory: PathBuf = PathBuf::from(&request.args[position + 1]);
             write_executable(&directory.join("release-folder").join(BIN));
+        }),
+    );
+}
+
+/// The folder a release archive of this repository unpacks into,
+/// named after the version the way the release job names it.
+pub(super) fn release_folder(version: &str) -> String {
+    return format!("monochromatic-mpm-shadow-{version}-x86_64-unknown-linux-gnu");
+}
+
+/// Makes the fake network serve releases whose unpacking folder carries the version,
+/// the way a real release archive of this repository unpacks.
+/// The version is read from the download's own directory,
+/// `<toolchain root>/downloads/<tool id>/<version>/`,
+/// which is what a real `tar --extract` receives.
+pub(super) fn serve_versioned_releases(rig: &Rig, versions: &[&str]) {
+    for version in versions {
+        rig.http.serve(&release_url(version), &release_body(version));
+    }
+    rig.runner.on(
+        "tar --extract",
+        Box::new(|request: &RunRequest| {
+            let position: usize = request.args.iter().position(|argument| return argument == "--directory").expect("a directory");
+            let directory: PathBuf = PathBuf::from(&request.args[position + 1]);
+            let file: usize = request.args.iter().position(|argument| return argument == "--file").expect("a file");
+            let version: String = PathBuf::from(&request.args[file + 1])
+                .parent()
+                .and_then(Path::file_name)
+                .map(|name| return name.to_string_lossy().to_string())
+                .expect("the download's version directory");
+            write_executable(&directory.join(release_folder(&version)).join(BIN));
         }),
     );
 }
@@ -203,6 +234,84 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
     assert!(through_current.to_string_lossy().ends_with("0.2.1/release-folder/mpm-shadow-release"), "{}", through_current.display());
 }
 
+/// What:
+/// A tree's launcher record names the program through the tool's `current` link,
+/// never a folder whose name carries the version,
+/// so a newer install in another tree,
+/// which deletes the older version's folder,
+/// leaves that record naming a program that is still there.
+/// Why:
+/// The census of this machine on 2026-11-08 found 289 of 1105 launcher records naming a deleted folder,
+/// and every one of them named a release folder of a repository-published archive tool.
+/// A launcher repairs such a record on its first run,
+/// but only after that run;
+/// a record written through `current` never goes stale in the first place.
+#[test]
+fn a_record_names_a_program_a_newer_install_in_another_tree_leaves_in_place() {
+    let rig = Rig::new();
+    serve_versioned_releases(&rig, &["0.2.0", "0.2.1"]);
+    let scope_old = second_tree(&rig);
+    let lock_old = lock_at(&rig, "0.2.0");
+    let lock_new = lock_at(&rig, "0.2.1");
+
+    let first = sync_tools(&context_of(&rig, &scope_old, &lock_old), None);
+    assert_eq!(first.installed, vec![ID.to_string()], "{first:?}");
+    let record_file: PathBuf = scope_old.launcher_dir.join(format!("{BIN}.launch"));
+    let record = parse_record(&fs::read_to_string(&record_file).expect("a record")).expect("a record");
+    let through_current: PathBuf = current_link_of(&scope_old.toolchain_root, ID).expect("a plain id").join(BIN);
+    assert_eq!(record.real, through_current, "the record names the program through `current`, not a folder named after the version");
+
+    // The other tree installs the newer release, which deletes the folder 0.2.0 unpacked into.
+    let second = sync_tools(&context_of(&rig, &rig.scope, &lock_new), None);
+    assert_eq!(second.installed, vec![ID.to_string()], "{second:?}");
+    assert!(
+        !tool_directory(&scope_old.toolchain_root, ID).expect("a plain name").join("0.2.0").exists(),
+        "installing 0.2.1 removed 0.2.0"
+    );
+    assert!(
+        record.real.is_file(),
+        "the record of a tree that installed the older release still names a program that exists: {}",
+        record.real.display()
+    );
+}
+
+/// What:
+/// The program a record written before this rule names is still the version-carrying folder below `current`,
+/// so a newer install,
+/// which deletes the older folder,
+/// leaves another tree's record naming a path that no longer exists.
+/// Why:
+/// The census of this machine on 2026-11-08 found 284 such records and 891 launcher binaries that predate the code which
+/// follows `current` and rewrites the record.
+/// Such a record keeps working,
+/// because the launcher follows `current` to the program of the same name and then rewrites the record,
+/// and a directory an older release unpacked in place carries no `current`-relative program path of its own.
+#[test]
+fn the_program_a_record_names_is_the_version_folder_a_newer_install_deletes() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool = release_tool(&rig, "0.2.0");
+    let tool_dir = tool_directory(&root, ID).expect("a plain name");
+    let link = current_link_of(&root, ID).expect("a plain name");
+    let folder = |version: &str| return format!("monochromatic-mpm-shadow-{version}-x86_64-unknown-linux-gnu");
+
+    // The install of 0.2.0, in the folder a release archive of this repository unpacks into.
+    write_executable(&tool_dir.join("0.2.0").join(folder("0.2.0")).join(BIN));
+    write_complete_marker(&tool_dir.join("0.2.0"), ID, "0.2.0").expect("write the marker");
+    std::os::unix::fs::symlink("0.2.0", &link).expect("link current");
+    let named = find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[]).expect("a program");
+    assert_eq!(named, link.join(folder("0.2.0")).join(BIN), "the record names the version's own folder");
+
+    // Installing 0.2.1 moves `current` and deletes the folder of 0.2.0; no other tree's record is rewritten.
+    write_executable(&tool_dir.join("0.2.1").join(folder("0.2.1")).join(BIN));
+    write_complete_marker(&tool_dir.join("0.2.1"), ID, "0.2.1").expect("write the marker");
+    fs::remove_file(&link).expect("replace current");
+    std::os::unix::fs::symlink("0.2.1", &link).expect("link current");
+    fs::remove_dir_all(tool_dir.join("0.2.0")).expect("remove the older version");
+    assert!(!named.exists(), "the folder the record named is gone, which is the dangling record the census counts: {}", named.display());
+    assert!(find_tool_bin(&tool, BIN, &rig.scope, &rig.env, &[]).is_some_and(|found| return found.is_file()), "a launcher follows current to the program that is there");
+}
+
 #[test]
 fn a_tree_pinning_an_older_release_keeps_the_newer_install_runs_it_and_is_warned() {
     let rig = Rig::new();
@@ -221,7 +330,7 @@ fn a_tree_pinning_an_older_release_keeps_the_newer_install_runs_it_and_is_warned
     assert_eq!(report_old.unchanged, vec![ID.to_string()]);
     assert_eq!(tar_lines(&rig).len(), 1, "0.2.0 was not even downloaded unpacked");
     assert!(!tool_directory(&root, ID).expect("a plain name").join("0.2.0").exists());
-    assert_eq!(report_old.warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")], "{report_old:?}");
+    assert_eq!(report_old.warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1", &scope_old.lock_file)], "{report_old:?}");
     assert!(report_old.warnings[0].contains("older repository tools are never kept"));
     assert!(report_old.warnings[0].contains(&format!("`mpm update {ID}`")));
 
@@ -279,10 +388,14 @@ fn every_command_warns_about_an_older_lock_for_a_release_archive_and_stays_silen
     tree_with_installed(&rig, "0.2.0", "0.2.1");
     for verb in ["install", "update", "outdated", "bin"] {
         let lines = older_lock_warning_lines(verb, &rig.scope, Some(OsFamily::Linux));
-        assert_eq!(lines, vec![format!("toolchain {verb}: warning: {}", older_lock_message(ID, "0.2.0", "0.2.1"))], "{verb}");
+        assert_eq!(
+            lines,
+            vec![format!("toolchain {verb}: warning: {}", older_lock_message(ID, "0.2.0", "0.2.1", &rig.scope.lock_file))],
+            "{verb}"
+        );
     }
     let report = run_status(&rig.scope, &rig.env, &rig.runner, &rig.host).expect("status runs");
-    let warning = format!("toolchain list: warning: {}\n", older_lock_message(ID, "0.2.0", "0.2.1"));
+    let warning = format!("toolchain list: warning: {}\n", older_lock_message(ID, "0.2.0", "0.2.1", &rig.scope.lock_file));
     assert!(report.text.contains(&warning), "{}", report.text);
 
     let matching = Rig::new();
@@ -322,7 +435,11 @@ fn the_launcher_finds_the_version_of_a_release_archive_below_any_number_of_folde
     for depth in [0, 1, 3] {
         let record = record_below_current(&rig._directory.path().join(format!("depth-{depth}")), "0.2.1", depth);
         let launch = prepare_launch(&record, Some(&lock_text("0.2.0")));
-        assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(ID, "0.2.0", "0.2.1"), &record.real)), "depth {depth}");
+        assert_eq!(
+            launch.warning,
+            Some(warning_naming_program(&older_lock_message(ID, "0.2.0", "0.2.1", &record.lock_file), &record.real)),
+            "depth {depth}"
+        );
         assert_eq!(prepare_launch(&record, Some(&lock_text("0.2.1"))).warning, None, "depth {depth}: matching");
     }
     let unlinked = LaunchRecord {
@@ -349,24 +466,10 @@ fn an_archive_folder_named_current_does_not_hide_the_link_that_names_the_version
     let launch = prepare_launch(&record, Some(&lock_text("0.2.0")));
     assert_eq!(
         launch.warning,
-        Some(warning_naming_program(&older_lock_message(ID, "0.2.0", "0.2.1"), &record.real)),
+        Some(warning_naming_program(&older_lock_message(ID, "0.2.0", "0.2.1", &record.lock_file), &record.real)),
         "the nearest ancestor that is a link wins, not the folder"
     );
     assert_eq!(prepare_launch(&record, Some(&lock_text("0.2.1"))).warning, None);
-}
-
-#[test]
-fn a_launcher_is_made_from_proc_when_the_running_file_was_deleted() {
-    let rig = Rig::new();
-    let present = rig._directory.path().join("present");
-    fs::write(&present, "x").expect("write");
-    assert_eq!(usable_source(present.clone(), true).expect("used"), present, "a file that exists is used as it is");
-    assert_eq!(usable_source(present.clone(), false).expect("used"), present, "on every platform");
-    let gone = rig._directory.path().join("deleted (deleted)");
-    assert_eq!(usable_source(gone.clone(), true).expect("through proc"), PathBuf::from(PROC_SELF_EXE), "a replaced running binary is read through /proc");
-    let error = usable_source(gone.clone(), false).expect_err("no /proc");
-    assert!(error.message.contains(&gone.display().to_string()), "the error names the vanished path: {error}");
-    assert!(error.message.contains("no longer exists") && !error.message.contains("/proc"), "and does not blame a /proc path: {error}");
 }
 
 /// A lock text naming the release tool at `version`,
@@ -514,7 +617,7 @@ fn a_tool_whose_request_spells_this_repository_in_another_case_is_kept_newest_on
 
     // A tree pinning the older version is warned, as for the exact spelling.
     let warnings = older_lock_warnings(&rig.scope, &old_lock.tools, Some(OsFamily::Linux));
-    assert_eq!(warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1")]);
+    assert_eq!(warnings, vec![older_lock_message(ID, "0.2.0", "0.2.1", &rig.scope.lock_file)]);
 }
 
 /// Two pre-releases of one version whose numbers differ in length:

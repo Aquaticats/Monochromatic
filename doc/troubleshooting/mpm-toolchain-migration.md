@@ -51,6 +51,23 @@ Workaround:
  an existing configuration file is left alone,
  so an empty `$HOME/.bin/config.json` still wins and a human must remove it.
 
+`package/file-enforcer/core/src/toolchain` is not in the working tree;
+the newest commit touching
+it is `5f5debe2f0` (chore(toolchain):
+move the branch pins up to the newest releases,
+monochromatic-lint 0.4.0 to 0.5.0 among them) on 2026-11-01.
+`package/file-enforcer/core/src/toolchain/providers.ts` was removed on 2026-10-31 in `e7b5130459`
+(feat(*):
+delete the TypeScript file-enforcer and file-enforcer.config.ts;
+pnpr names its own
+generator);
+no file in the working tree carries it now.
+`package/file-enforcer/core/src/toolchain/plan.artifacts.ts` was removed on 2026-10-29 in
+`71ff15994f` (refactor(file-enforcer-core):
+name the toolchain plan data modules *.data.ts and
+render the artifacts lint-clean);
+no file in the working tree carries it now.
+
 ### `bin install` prompts for an asset on multi-file archives
 
 Surface:
@@ -285,6 +302,48 @@ Workaround:
  resurrects them,
  which brings the failure back while the exposed `git` wrapper predates
  `monochromatic-git-policy-cli` 0.2.9.
+
+### The tool environment named the JDK's version directory, not the JDK, 2026-11-08T16:10:00-05:00
+
+Surface:
+`package/music-player/android-app`,
+run as `mise exec -- bash -c 'cd package/music-player/android-app && ./gradlew --version'`.
+
+Message:
+
+```text
+ERROR: JAVA_HOME is set to an invalid directory: /home/user/.local/share/monochromatic-dev/toolchain/java/temurin-21.0.13+9.0.LTS
+```
+
+Cause:
+the plan declares `"JAVA_HOME": "java/{version}"`,
+and `tool_env.rs` wrote that value as the tool's version directory.
+Adoptium's archive unpacks the whole JDK into the release's own folder below it:
+`.../java/temurin-21.0.13+9.0.LTS/jdk-21.0.13+9`,
+which is the directory holding `bin`,
+`conf` and `lib`.
+Gradle refuses a `JAVA_HOME` one level above that.
+
+Fix:
+`tool_home` in `package/mpm-shadow/cli/src/toolchain/tool_env.rs` writes a directory value as the inner directory
+when the value names a directory holding exactly one directory
+and that directory holds the tool's first declared program in its own `bin`.
+The `bin` requirement keeps a directory that merely holds one package
+(`android-sdk/<version>/platform-tools`) from being taken for the home:
+on this machine `ANDROID_HOME` keeps the SDK root,
+which holds six directories,
+and only `JAVA_HOME` moves down one level.
+The fragment is rewritten whole from the lock on every full `install`,
+so the next `install` of a release carrying this fix writes the right value,
+with no re-download of the JDK.
+
+Tests:
+`a_tool_directory_that_holds_only_the_unpacked_jdk_exports_the_jdk_directory`
+(red before the fix:
+the line named `.../java/temurin-21.0.13+9.0.LTS`)
+and its control `a_tool_directory_that_is_the_home_itself_is_exported_as_it_is_named`
+(`tool_env_tests.rs`).
+No release was dispatched from the branch that carries it.
 
 ## Rollback path
 

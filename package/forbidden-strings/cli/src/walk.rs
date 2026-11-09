@@ -1,4 +1,5 @@
-//! walk support for the forbidden-strings scanner.
+//! walk support for the forbidden-strings scanner:
+//!  the working-tree walk and the tracked-file union read from Git's own index.
 /// Imports dependencies used by this module.
 // What:     `use ignore::WalkBuilder;` imports the type that builds a
 //           filesystem walker honoring `.gitignore`, hidden-file rules,
@@ -125,117 +126,95 @@ fn walk_poisoned<Poison: std::fmt::Display>(poison: Poison) -> anyhow::Error {
     return anyhow!("walk poisoned: {}", poison);
 }
 
-/// A listed path without its leading `./`.
-fn without_leading_dot_slash(path: &str) -> String {
-    return path.trim_start_matches("./").to_string();
+/// What one `--all` listing produced.
+pub(crate) struct WorkingTreeListing {
+    /// Every path to scan,
+    ///  as the walker spells them and as this module joins the index's own.
+    pub(crate) files: Vec<String>,
+    /// Why the tracked-file union is missing or incomplete,
+    ///  so a scan that cannot cover force-added files says so instead of
+    ///  quietly reporting less.
+    pub(crate) union_gap: Option<UnionGap>,
 }
 
-/// Implements `detect_index_hash_kind`.
-// What:     `fn detect_index_hash_kind(repo_root) -> gix_hash::Kind`
-//           reads `.git/config` and returns `Sha256` when the repository
-//           was initialized with `git init --object-format=sha256`,
-//           otherwise `Sha1`. Detection runs in a few hundred
-//           microseconds (config files are tiny).
-// Why:      `gix_index::File::at(...)` parses entries based on the
-//           hash kind: 20-byte object IDs and 20-byte trailer for
-//           Sha1, 32-byte for Sha256. Calling with the wrong kind on
-//           a Sha256 index produces silently corrupted paths because
-//           each entry's flags + path offsets land 12 bytes off. We
-//           never compute hashes ourselves (skip_hash = true) but we
-//           must still know the right ID length to parse correctly.
-//           Configurations using SHA-256 are still rare today, but
-//           Git's SHA-256 transition is moving forward; supporting
-//           the case keeps BUG 3's fix sound across object formats.
-//
-// In TS you'd write (pseudocode):
-// ```ts
-// function detectIndexHashKind(repoRoot: string): "sha1" | "sha256" {
-//   const config = fs.readFileSync(path.join(repoRoot, ".git/config"), "utf8");
-//   let inExtensions = false;
-//   for (const raw of config.split("\n")) {
-//     const line = raw.split(/[#;]/, 1)[0].trim();
-//     if (line === "") continue;
-//     const section = line.match(/^\[(.+?)(?:\s.+)?\]$/);
-//     if (section) { inExtensions = section[1].toLowerCase() === "extensions"; continue; }
-//     if (!inExtensions) continue;
-//     const eq = line.indexOf("=");
-//     if (eq < 0) continue;
-//     if (line.slice(0, eq).trim().toLowerCase() === "objectformat" &&
-//         line.slice(eq + 1).trim().toLowerCase() === "sha256") {
-//       return "sha256";
-//     }
-//   }
-//   return "sha1";
-// }
-// ```
-fn detect_index_hash_kind(repo_root: &std::path::Path) -> gix_hash::Kind {
-    let config_path = repo_root.join(".git/config");
-    let Ok(config) = std::fs::read_to_string(&config_path) else {
-        return gix_hash::Kind::Sha1;
-    };
-    let mut in_extensions = false;
-    for raw in config.lines() {
-        // What:     Strip line comments (`# ...`, `; ...`) and trim.
-        // Why:      Git config supports both comment prefixes; the
-        //           value before the comment is the only signal.
-        let line = raw
-            .split(['#', ';'])
-            .next()
-            .unwrap_or("")
-            .trim();
-        if line.is_empty() {
-            continue;
-        }
-        // What:     Section headers look like `[section]` or
-        //           `[section "subsection"]`. We only care whether the
-        //           current section name (case-insensitive) is
-        //           `extensions`; subsections are ignored.
-        // Why:      `objectformat` lives directly under `[extensions]`
-        //           in git's standard config layout; subsections would
-        //           be a custom shape we don't speak.
-        if let Some(rest) = line.strip_prefix('[') {
-            let section = rest.trim_end_matches(']').trim();
-            let name = section.split_whitespace().next().unwrap_or("");
-            in_extensions = name.eq_ignore_ascii_case("extensions");
-            continue;
-        }
-        if !in_extensions {
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        if key.trim().eq_ignore_ascii_case("objectformat")
-            && value.trim().eq_ignore_ascii_case("sha256")
-        {
-            return gix_hash::Kind::Sha256;
+/// Why the tracked-file union is unavailable.
+///
+/// The path is kept apart from the words so the caller renders it through the
+///  pathname scan,
+///  which masks a component matching a rule and escapes protocol-sensitive
+///  characters,
+///  exactly as every other path in a diagnostic is rendered.
+///  Printing a raw path here would let the one message about a path we could
+///  not read be the one place a pathname leaks.
+pub(crate) struct UnionGap {
+    /// The file the scan could not use,
+    ///  either a `.git` entry or an index.
+    pub(crate) at: std::path::PathBuf,
+    /// What state it was in.
+    pub(crate) cause: String,
+}
+
+/// One listed path reduced to the form two spellings of the same path agree on:
+///  `.` components dropped and separators normalized,
+///  with nothing resolved against the filesystem.
+///
+/// The walker reports `<root>/<entry>` and this module joins index entries the
+///  same way,
+///  so the two differ only in `.` components
+///  (`./x` from the walker of root `.` against `./x` built by the join).
+///  Neither side carries `..`,
+///  which is why nothing here collapses one.
+fn listing_key(path: &str) -> Vec<u8> {
+    let mut without_dots: std::path::PathBuf = std::path::PathBuf::new();
+    for part in std::path::Path::new(path).components() {
+        if part != std::path::Component::CurDir {
+            without_dots.push(part.as_os_str());
         }
     }
-    return gix_hash::Kind::Sha1
+    return crate::path_name_bytes::normalized_path(&without_dots)
+}
+
+/// What state the index at `index_path` is in,
+///  given that `gix-index` could not open it.
+///
+/// The error text is kept as the scanner received it and the file is asked
+///  what state it is in,
+///  because the two say different things:
+///  a missing or permission-denied file is an operating-system refusal,
+///  while a file that opens but does not parse is a format or extension the
+///  decoder does not handle.
+///  Reopening is safe here:
+///  Git never writes into the same index file,
+///  it replaces it.
+fn unreadable_index_cause(index_path: &std::path::Path, error: &impl std::fmt::Display) -> String {
+    return match std::fs::File::open(index_path) {
+        Err(open_error) => format!("it cannot be read ({})", open_error),
+        Ok(_) => format!("it does not hold a Git index this scanner can parse ({})", error),
+    }
 }
 
 /// Implements `list_files`.
-// What:     `pub fn list_files(root: &str) -> Result<Vec<String>>`
-//           walks the working tree starting at `root` and returns an
-//           owned vector of file paths (UTF-8). `pub` makes it visible
-//           to `main.rs`. The signature mirrors the prior
-//           `list_tracked_files` to keep the call site simple.
+// What:     `pub fn list_files(root: &str) -> Result<WorkingTreeListing>`
+//           walks the working tree starting at `root` and returns the
+//           paths to scan (UTF-8) plus, when a repository was found but
+//           its index could not be read, why the tracked-file union is
+//           missing.
 // Why:      `--all` mode calls this once to get every scannable file.
 //           The `Result` shape lets us propagate walk errors through
-//           anyhow, matching the rest of the binary's error style.
+//           anyhow, matching the rest of the binary's error style, and
+//           the union gap reaches the caller as a value so the CLI prints
+//           it in its own deterministic order rather than from a walker
+//           thread.
 //
 // In TS you'd write (pseudocode):
 // ```ts
-// export function listFiles(root: string): string[] {
-//   return walkBuilder(root)
-//     .hidden(false)
-//     .ignore(false)
-//     .filterEntry((e) => e.fileName !== ".git" && e.fileName !== ".jj")
-//     .buildParallel()
-//     .map((e) => e.path);
+// export function listFiles(root: string): { files: string[]; unionGap: string | null } {
+//   const files = walkBuilder(root).hidden(false).ignore(false).filterEntry(vcsFilter).buildParallel().map((e) => e.path);
+//   // union with the working tree's own index below
+//   return { files, unionGap };
 // }
 // ```
-pub fn list_files(root: &str) -> Result<Vec<String>> {
+pub fn list_files(root: &str) -> Result<WorkingTreeListing> {
     // What:     `Arc::new(Mutex::new(Vec::new()))` allocates an empty
     //           `Vec<String>`, wraps it in a `Mutex`, then heap-
     //           allocates that mutex behind an atomically-refcounted
@@ -319,19 +298,19 @@ pub fn list_files(root: &str) -> Result<Vec<String>> {
         Err(arc) => arc.lock().map_err(walk_poisoned)?.clone(),
     };
 
-    // What:     Union with paths read from `.git/index` via `gix-index`
-    //           to recover tracked files the walker did not visit. The
-    //           `ignore` crate's `WalkBuilder` always honours .gitignore
-    //           (the `.ignore(false)` toggle disables `.ignore` files,
-    //           not `.gitignore`). A file that was force-added with
-    //           `git add -f` despite matching a `.gitignore` pattern is
-    //           tracked by git but skipped by the walker, leaving a
-    //           silent gap in `--all` mode -- a secret-scan on
-    //           push-to-main must cover every tracked file.
+    // What:     Union with paths read from this working tree's own Git
+    //           index via `gix-index` to recover tracked files the walker
+    //           did not visit. The `ignore` crate's `WalkBuilder` always
+    //           honours .gitignore (the `.ignore(false)` toggle disables
+    //           `.ignore` files, not `.gitignore`). A file that was
+    //           force-added with `git add -f` despite matching a
+    //           `.gitignore` pattern is tracked by git but skipped by the
+    //           walker, leaving a silent gap in `--all` mode -- a
+    //           secret-scan on push-to-main must cover every tracked file.
     // Why:      Closes BUG 3 without paying the ~88 ms subprocess wall
     //           the previous `git ls-files --cached --ignored
     //           --exclude-standard -z` invocation cost on Mono
-    //           (350 ms on Linux). Reading `.git/index` in-process with
+    //           (350 ms on Linux). Reading the index in-process with
     //           `gix-index` is single-digit milliseconds: the same
     //           binary index format `git ls-files` parses, without the
     //           fork+exec+repo-discovery overhead.
@@ -345,112 +324,158 @@ pub fn list_files(root: &str) -> Result<Vec<String>> {
     //           "read error" hits via BUG 4's fix, and gitignored
     //           tracked files are the force-added set we need.
     //
-    //           When `.git/index` is absent (not a repo) or unreadable
-    //           the call returns `Err` and we silently fall back to
-    //           walker-only output, matching the previous subprocess
-    //           behaviour.
+    //           The index is the one belonging to the working tree the
+    //           scan walks, which `git_working_tree::discover` finds from
+    //           the walked directory itself: a linked worktree and a
+    //           submodule keep theirs behind a `.git` file's `gitdir:`
+    //           line, and a scan started in a subfolder keeps it at an
+    //           ancestor. Joining `.git/index` onto the walked directory
+    //           found the first of those nowhere and the last two not at
+    //           all (issue 1232).
+    //
+    //           Index entries are recorded from the working tree root, so
+    //           a subfolder scan keeps only the entries below itself and
+    //           drops the prefix they carry; adding them unchanged would
+    //           scan files outside the directory the caller named.
+    //
+    //           A directory with no repository above it keeps the previous
+    //           behaviour: walker-only output and no diagnostic, since
+    //           nothing there claims to be a working tree. Inside a real
+    //           working tree whose index is missing or unreadable, the
+    //           scan still runs but its caller is told the union is
+    //           unavailable, because scanning less in silence would let a
+    //           tracked secret in an ignored file pass the gate.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const idx = await openIndex(path.join(repoRoot, ".git/index"));
-    // for (const entry of idx.entries) {
-    //   const rel = entry.path;
-    //   // dedupe + normalize prefix as before
+    // const discovery = discoverWorkingTree(root);
+    // let unionGap = null;
+    // if (discovery.kind === "unusable") unionGap = { at: discovery.entry, cause: discovery.cause };
+    // if (discovery.kind === "working-tree") {
+    //   const idx = await openIndex(discovery.tree.indexPath, discovery.tree.hashKind());
+    //   for (const entry of idx.entries) {
+    //     const below = discovery.tree.belowWalkRoot(entry.path);   // null outside the walked directory
+    //     if (below !== null) files.push(join(root, below));
+    //   }
     // }
     // ```
     let root_path = std::path::Path::new(root);
-    let index_path = root_path.join(".git/index");
-    let hash_kind = detect_index_hash_kind(root_path);
-    if let Ok(index) = gix_index::File::at(
-        &index_path,
-        hash_kind,
-        // What:     `true` skips the trailing-checksum verification
-        //           that `gix-index` would otherwise re-hash the entire
-        //           file to validate. We do not need integrity here;
-        //           git itself owns index integrity, and a corrupt
-        //           index will surface on the next git operation.
-        //           Skipping the hash check is bench-meaningful: it
-        //           drops index-open from ~5 ms to <1 ms on Mono.
-        // Why:      Match the perf target: in-process index read should
-        //           be a few milliseconds total, not match the
-        //           subprocess wall it replaces.
-        true,
-        gix_index::decode::Options::default(),
-    ) {
-        // What:     Build a HashSet of normalized paths already in
-        //           `files` so we can detect duplicates with the
-        //           index output. WalkBuilder paths typically start
-        //           with `./`; index paths are repo-root-relative with
-        //           no leading `./`. Normalize by stripping `./` and
-        //           comparing the remainder.
-        // Why:      Without deduplication tracked-non-ignored files
-        //           would scan twice (once via walker, once via index).
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // const seen = new Set(files.map(p => p.replace(/^\.\//, "")));
-        // ```
-        let mut seen: std::collections::HashSet<String> = files
-            .iter()
-            .map(String::as_str)
-            .map(without_leading_dot_slash)
-            .collect();
-        for entry in index.entries() {
-            // What:     Filter index entries by `Mode`. Only regular
-            //           files (`Mode::FILE`, `Mode::FILE_EXECUTABLE`)
-            //           are scannable; `Mode::COMMIT` is a submodule
-            //           gitlink whose path on disk is a directory (or
-            //           absent), `Mode::SYMLINK` would let `fs::read`
-            //           follow into content outside the repo, and
-            //           `Mode::DIR` (sparse-checkout) is non-content.
-            //           Without this filter, every tracked submodule
-            //           surfaces as a `"./<sub>: Is a directory"` hit
-            //           via BUG 4's read-error path; on the Linux
-            //           kernel that produces ~12 false-positive lines
-            //           per scan.
-            // Why:      Match the original subprocess semantics.
-            //           `git ls-files --cached --ignored
-            //           --exclude-standard -z` filtered to gitignored
-            //           entries; submodules are almost never
-            //           gitignored, so the subprocess output naturally
-            //           excluded them. The in-process replacement
-            //           reads ALL index entries, so we must mode-filter
-            //           explicitly.
-            let mode = entry.mode;
-            if !mode.contains(gix_index::entry::Mode::FILE)
-                && !mode.contains(gix_index::entry::Mode::FILE_EXECUTABLE)
-            {
-                continue;
+    let mut union_gap: Option<UnionGap> = None;
+    let mut working_tree: Option<crate::git_working_tree::GitWorkingTree> = None;
+    match crate::git_working_tree::discover(root_path) {
+        crate::git_working_tree::Discovery::WorkingTree(tree) => working_tree = Some(tree),
+        crate::git_working_tree::Discovery::NoRepository => {}
+        crate::git_working_tree::Discovery::Unusable { entry, cause } => {
+            union_gap = Some(UnionGap { at: entry, cause });
+        }
+    }
+    if let Some(tree) = working_tree {
+        let index_path = tree.index_path();
+        let opened = gix_index::File::at(
+            &index_path,
+            crate::git_working_tree::index_hash_kind(&tree.config_path()),
+            // What:     `true` skips the trailing-checksum verification
+            //           that `gix-index` would otherwise re-hash the entire
+            //           file to validate. We do not need integrity here;
+            //           git itself owns index integrity, and a corrupt
+            //           index will surface on the next git operation.
+            //           Skipping the hash check is bench-meaningful: it
+            //           drops index-open from ~5 ms to <1 ms on Mono.
+            // Why:      Match the perf target: in-process index read should
+            //           be a few milliseconds total, not match the
+            //           subprocess wall it replaces.
+            true,
+            gix_index::decode::Options::default(),
+        );
+        match opened {
+            Ok(index) => {
+                // What:     Build a HashSet of normalized paths already in
+                //           `files` so we can detect duplicates with the
+                //           index output. The walker spells a path relative
+                //           to the walked directory (`./x`), by absolute
+                //           path when the root is absolute, and the index
+                //           records it from the working tree root; one
+                //           lexical key makes all three compare equal.
+                // Why:      Without deduplication tracked-non-ignored files
+                //           would scan twice (once via walker, once via index).
+                //
+                // In TS you'd write (pseudocode):
+                // ```ts
+                // const seen = new Set(files.map((p) => lexicalKey(p)));
+                // ```
+                let mut seen: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+                for listed_above in &files {
+                    seen.insert(listing_key(listed_above));
+                }
+                for entry in index.entries() {
+                    // What:     Filter index entries by `Mode`. Only regular
+                    //           files (`Mode::FILE`, `Mode::FILE_EXECUTABLE`)
+                    //           are scannable; `Mode::COMMIT` is a submodule
+                    //           gitlink whose path on disk is a directory (or
+                    //           absent), `Mode::SYMLINK` would let `fs::read`
+                    //           follow into content outside the repo, and
+                    //           `Mode::DIR` (sparse-checkout) is non-content.
+                    //           Without this filter, every tracked submodule
+                    //           surfaces as a `"./<sub>: Is a directory"` hit
+                    //           via BUG 4's read-error path; on the Linux
+                    //           kernel that produces ~12 false-positive lines
+                    //           per scan.
+                    // Why:      Match the original subprocess semantics.
+                    //           `git ls-files --cached --ignored
+                    //           --exclude-standard -z` filtered to gitignored
+                    //           entries; submodules are almost never
+                    //           gitignored, so the subprocess output naturally
+                    //           excluded them. The in-process replacement
+                    //           reads ALL index entries, so we must mode-filter
+                    //           explicitly.
+                    let mode = entry.mode;
+                    if !mode.contains(gix_index::entry::Mode::FILE)
+                        && !mode.contains(gix_index::entry::Mode::FILE_EXECUTABLE)
+                    {
+                        continue;
+                    }
+                    // What:     `entry.path(&index)` resolves the entry's path
+                    //           backing range into a `&BStr` (byte string) slice
+                    //           of the index's shared path-storage buffer. The
+                    //           bytes are exactly what `git ls-files -z` would
+                    //           emit for this entry, recorded from the working
+                    //           tree root.
+                    // Why:      The path below the walked directory is what we
+                    //           feed downstream; index entries carry neither the
+                    //           walker's leading `./` nor, for a subfolder scan,
+                    //           the directory the caller named.
+                    let path_bytes: &[u8] = entry.path(&index);
+                    let Some(below) = tree.below_walk_root(path_bytes) else {
+                        continue;
+                    };
+                    // What:     `std::str::from_utf8(below)` validates that
+                    //           the path is UTF-8. Non-UTF-8 paths are silently
+                    //           skipped to match the walker's existing
+                    //           semantics (the walker uses `Path::to_str()`,
+                    //           which also requires UTF-8).
+                    // Why:      Every downstream consumer expects `&str`; a
+                    //           single non-UTF-8 path would force `OsString`
+                    //           plumbing across the binary for vanishingly rare
+                    //           cases.
+                    let Ok(relative) = std::str::from_utf8(below) else {
+                        continue;
+                    };
+                    let Some(listed) = root_path.join(relative).to_str().map(str::to_string) else {
+                        continue;
+                    };
+                    if seen.insert(listing_key(&listed)) {
+                        files.push(listed);
+                    }
+                }
             }
-            // What:     `entry.path(&index)` resolves the entry's path
-            //           backing range into a `&BStr` (byte string) slice
-            //           of the index's shared path-storage buffer. The
-            //           bytes are exactly what `git ls-files -z` would
-            //           emit for this entry.
-            // Why:      The repo-relative path is what we want to feed
-            //           downstream scanning; index entries do not carry
-            //           the leading `./` walker convention.
-            let path_bytes: &[u8] = entry.path(&index);
-            // What:     `std::str::from_utf8(path_bytes)` validates that
-            //           the path is UTF-8. Non-UTF-8 paths are silently
-            //           skipped to match the walker's existing
-            //           semantics (the walker uses `Path::to_str()`,
-            //           which also requires UTF-8).
-            // Why:      Every downstream consumer expects `&str`; a
-            //           single non-UTF-8 path would force `OsString`
-            //           plumbing across the binary for vanishingly rare
-            //           cases.
-            let Ok(rel) = std::str::from_utf8(path_bytes) else {
-                continue;
-            };
-            let normalized = rel.trim_start_matches("./").to_string();
-            if seen.insert(normalized.clone()) {
-                files.push(format!("./{}", normalized));
+            Err(error) => {
+                let cause: String = unreadable_index_cause(&index_path, &error);
+                union_gap = Some(UnionGap { at: index_path, cause });
             }
         }
     }
 
-    return Ok(files)
+    return Ok(WorkingTreeListing { files, union_gap })
 }
 
 /// Registers the `tests` child module.

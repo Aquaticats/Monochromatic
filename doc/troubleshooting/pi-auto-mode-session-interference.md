@@ -43,6 +43,21 @@ The maintained projection now includes process starts while retaining other proc
 if (name !== 'bash' && !(name === 'process' && input.action === 'start')) return input;
 ```
 
+The paths this record names under `package/pi-plugin/auto-mode/src/` were removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries them now.
+The paths this record names under `package/pi-plugin/auto-mode/native/contract/` were removed on
+2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no
+file in the working tree carries them now.
+None of the `mise run` targets this record names resolves today:
+those tasks were removed on
+2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build).
+
 Replacing only the process command copies in the saved mixed-group request with parser structure
 changes the result to `approve: 0.69`,
 `deny: 0.20`,
@@ -164,6 +179,15 @@ mise run //package/pi-plugin/auto-mode:test:visible-context
 mise run //package/pi-plugin/auto-mode:test:assessment-transport
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 ```
+
+The four addresses in that block no longer resolve.
+Commit `ff55ced353` (2026-10-19) retired the native Pi build and deleted
+`package/pi-plugin/auto-mode/native/` together with its `test:native:*`,
+`test:visible-context`,
+`test:assessment-transport`,
+and `test:decision-wire` tasks.
+`mise run //package/pi-plugin/auto-mode:test:unit`
+is the package's only test task in the working tree today.
 
 The pre-correction native lifecycle catalog passes parallel and sequential execution,
 argument preparation,
@@ -301,6 +325,11 @@ mise run //package/pi-plugin/auto-mode:test:native:dependency-facade
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 mise run //package/pi-plugin/auto-mode:test:visible-context
 ```
+
+The eight addresses in that block no longer resolve.
+The same commit `ff55ced353` (2026-10-19) removed them with the native Pi build;
+`mise run //package/pi-plugin/auto-mode:test:unit`
+is the package's only test task in the working tree today.
 
 Passing catalogs include late responses,
 delayed credential preparation,
@@ -493,6 +522,12 @@ The consumer regression is committed as `c408b94879`.
 # Run from the repository root.
 mise run //package/pi-plugin/auto-mode:test:native:session-actions
 ```
+
+That address no longer resolves:
+commit `ff55ced353` (2026-10-19) removed it with the native Pi build.
+The package's only test task in the working tree today is
+`mise run //package/pi-plugin/auto-mode:test:unit`,
+which does not run this catalog.
 
 At the reproduction commit,
 the first case fails with `Follow-up after switch: Connection error.`.
@@ -862,6 +897,8 @@ Maintained regressions run through
 `mise run //package/pi-plugin/auto-mode:test:native:run-message-freshness`
 and `mise run //package/pi-plugin/auto-mode:test:native:tool-schema-capacity`
 after building the candidate artifact.
+Neither address resolves today:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and removed both tasks.
 The configured replay tasks are `mimo-first`,
 `mimo-candidate`,
 and `mimo-diagnostic`

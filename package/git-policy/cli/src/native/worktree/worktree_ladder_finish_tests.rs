@@ -69,7 +69,7 @@ fn add_through_the_ladder(repo: &Path, root: &Path, extra: &[&str], fail_reset: 
     let mut printed: Vec<u8> = Vec::new();
     let result: LadderResult = {
         let mut runner = recording_runner(&steps, fail_reset);
-        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed)
+        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed, &mut std::io::sink())
     };
     return (result, steps.into_inner(), String::from_utf8_lossy(printed.as_slice()).into_owned());
 }
@@ -81,7 +81,7 @@ fn btrfs_a_source_at_the_target_commit_is_served_with_no_git_step() {
     let Some(root) = btrfs_fixture("finish-same") else { return };
     let repo: PathBuf = subvolume_repository(root.as_path());
     let (result, steps, printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: Some(root.join("topic")) });
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: Some(root.join("topic")), trash: None });
     assert!(steps.is_empty(), "{steps:?}");
     let head: String = git_text(repo.as_path(), &["log", "-1", "--format=HEAD is now at %h %s"]);
     assert_eq!(printed, format!("{head}\n"));
@@ -156,7 +156,7 @@ fn btrfs_a_refused_step_destroys_the_stage_and_completes_the_checkout_like_git()
     let (result, steps, printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |destination| {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None });
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(0) }, carried: None, trash: None });
     assert_eq!(printed, "", "Git's own reset prints the line, not the ladder");
     assert_eq!(steps.len(), 1, "{steps:?}");
     assert_eq!(&steps[0][2..], ["reset", "--hard", "--no-recurse-submodules"], "{steps:?}");
@@ -178,7 +178,7 @@ fn btrfs_a_failing_checkout_step_gives_its_status() {
     let (result, _steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &["--quiet"], true, |destination| {
         std::fs::write(destination.join("stray"), b"x").expect("a stray file");
     });
-    assert_eq!(result, LadderResult { git: GitStatus { code: Some(1) }, carried: None });
+    assert_eq!(result, LadderResult { git: GitStatus { code: Some(1) }, carried: None, trash: None });
     assert!(root.join("topic/.git").exists() && root.join("topic/stray").exists(), "nothing was deleted");
     assert!(repo.join(".git/worktrees/topic").exists(), "nothing was unregistered");
     remove(root.as_path());
@@ -233,6 +233,72 @@ fn btrfs_a_failing_checkout_after_a_refused_clone_rung_leaves_the_worktree_and_i
     remove(root.as_path());
 }
 
+/// A snapshot of the main checkout empties nothing itself:
+/// the trash the leave-out made travels out of the ladder,
+/// so the lifecycle
+///  empties it beside the package repair of the new worktree.
+#[test]
+fn btrfs_a_snapshot_hands_its_trash_to_the_caller_instead_of_emptying_it() {
+    let Some(root) = btrfs_fixture("finish-trash-handed-over") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    // The trash parent and the cache must be ignored in the source, so the source is clean; the cache is what the leave-out sets
+    //  aside.
+    tracked(repo.as_path(), ".gitignore", b"ignored/\n.claude/\n.pnpm-store/\n");
+    commit_all(repo.as_path(), "ignore the trash parent");
+    std::fs::create_dir_all(repo.join(".pnpm-store")).expect("a cache");
+    std::fs::write(repo.join(".pnpm-store/data"), b"payload").expect("cache data");
+    let (result, steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, |_| {});
+    assert_eq!(result.carried, Some(root.join("topic")), "the snapshot served the add");
+    assert!(steps.is_empty(), "{steps:?}");
+    let pending: PendingTrash = result.trash.expect("the snapshot left a trash for the disposal");
+    assert_eq!(pending.destination, root.join("topic"));
+    assert_eq!(pending.manifest.entries.len(), 1, "the cache was set aside");
+    assert!(!pending.quiet);
+    let trash: PathBuf = root.join("topic").join(crate::worktree_trash::TRASH_PARENT).join(&pending.manifest.name);
+    assert!(trash.join("d0/.pnpm-store/data").is_file() || trash.join("d0/data").is_file(), "the trash is still in the worktree, for the lifecycle to empty: {}", trash.display());
+    remove(root.as_path());
+}
+
+/// A source file whose bytes were written again after the source was proven clean keeps the snapshot:
+/// the entry the stat data
+///  cannot vouch for is settled by content,
+/// so Git's own checkout never runs.
+#[test]
+fn btrfs_a_source_file_written_again_with_its_own_bytes_keeps_the_snapshot() {
+    let Some(root) = btrfs_fixture("finish-content-settled") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    let source: PathBuf = repo.clone();
+    let (result, steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, move |_| {
+        std::fs::write(source.join("shared.txt"), b"second, longer\n").expect("the same bytes again");
+    });
+    assert_eq!(result.carried, Some(root.join("topic")), "the snapshot served the add");
+    assert!(steps.is_empty(), "no Git step, so the slow route never ran: {steps:?}");
+    assert_eq!(std::fs::read(root.join("topic/shared.txt")).expect("the file"), b"second, longer\n");
+    assert!(is_subvolume_root(root.join("topic").as_path()).expect("probe"), "the snapshot stands in place");
+    remove(root.as_path());
+}
+
+/// A main checkout whose file changed in content after the source was proven clean keeps the snapshot and is restored to the new
+///  `HEAD`,
+/// instead of discarding it for Git's own checkout.
+#[test]
+fn btrfs_a_main_source_changed_under_the_copy_is_restored_instead_of_copied_in_full() {
+    let Some(root) = btrfs_fixture("finish-restore-under-copy") else { return };
+    let repo: PathBuf = subvolume_repository(root.as_path());
+    let source: PathBuf = repo.clone();
+    let (result, steps, _printed) = add_through_the_ladder(repo.as_path(), root.as_path(), &[], false, move |_| {
+        std::fs::write(source.join("shared.txt"), b"edited while the copy was made\n").expect("a change after the check");
+    });
+    assert_eq!(result.carried, Some(root.join("topic")), "the snapshot served the add");
+    assert!(is_subvolume_root(root.join("topic").as_path()).expect("probe"), "the snapshot stands in place");
+    let ran = |word: &str| -> bool { return steps.iter().any(|words: &Vec<String>| { return words.iter().any(|each: &String| { return each == word; }); }); };
+    assert!(ran("read-tree"), "the restore ran in the stage: {steps:?}");
+    assert!(!ran("reset"), "Git's own checkout did not run: {steps:?}");
+    assert_eq!(std::fs::read(root.join("topic/shared.txt")).expect("the committed bytes"), b"second, longer\n", "the worktree holds what Git's own checkout holds");
+    assert!(root.join("topic/ignored/pkg/index.js").is_file(), "the ignored state is still carried");
+    remove(root.as_path());
+}
+
 /// A writer that reports whether the completion marker was on disk when the line for the person was written.
 struct MarkerProbe {
     /// The directory of the claims.
@@ -276,7 +342,7 @@ fn btrfs_each_rung_marks_the_add_complete_before_it_prints_and_releases_the_reco
         let steps: Steps = RefCell::new(Vec::new());
         let result: LadderResult = {
             let mut runner = recording_runner(&steps, false);
-            ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut probe)
+            ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut probe, &mut std::io::sink())
         };
         assert_eq!(result.git, GitStatus { code: Some(0) }, "{name}");
         assert_eq!(probe.marker_seen, Some(true), "{name}: the marker is on disk when the line is printed");
@@ -314,7 +380,7 @@ fn btrfs_an_add_whose_records_cannot_be_written_still_succeeds_and_keeps_everyth
     let mut printed: Vec<u8> = Vec::new();
     let result: LadderResult = {
         let mut runner = recording_runner(&steps, false);
-        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed)
+        ladder.finish(GitStatus { code: Some(0) }, &mut runner, &git_context(), &mut printed, &mut std::io::sink())
     };
     std::fs::set_permissions(claims.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("writable again");
     assert_eq!(result.git, GitStatus { code: Some(0) });
@@ -353,7 +419,7 @@ fn btrfs_a_fallback_never_resets_a_replacement_at_the_destination() {
         return inner(step);
     };
     let mut printed: Vec<u8> = Vec::new();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed);
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed, &mut std::io::sink());
     assert_eq!(result.git, GitStatus { code: Some(1) });
     assert!(printed.is_empty());
     assert_eq!(std::fs::read(root.join("topic/edited.txt")).expect("the replacement is untouched"), b"work in the replacement");
@@ -384,7 +450,7 @@ fn btrfs_a_checkout_that_ran_against_a_replacement_is_not_taken_for_the_adds() {
         return outcome;
     };
     let mut printed: Vec<u8> = Vec::new();
-    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed);
+    let result: LadderResult = ladder.finish(GitStatus { code: Some(0) }, &mut swapping, &git_context(), &mut printed, &mut std::io::sink());
     assert_eq!(result.git, GitStatus { code: Some(1) }, "the reset succeeded, but not against the bound worktree");
     assert!(root.join("moved/shared.txt").exists() && root.join("topic/shared.txt").exists(), "both worktrees stand");
     remove(root.as_path());

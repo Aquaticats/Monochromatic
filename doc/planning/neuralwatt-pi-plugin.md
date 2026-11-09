@@ -206,6 +206,28 @@ each was recorded during the interview and none was objected to.
   observe the failure,
   restore it.
 - Logger tags are renamed per the tagging rule when modules move.
+- The credential seam remembers its store read
+ (`package/pi-plugin/neuralwatt/src/credential-memory.ts`):
+ one decryption per
+ `CREDENTIAL_REVALIDATION_INTERVAL_MS`,
+ revalidation behind the request,
+ the last good key kept when a read fails,
+ one shared read for concurrent resolutions,
+ and a first read retried inside `STORE_READ_DEADLINE_MS`.
+ Measured on 2026-11-09:
+ one warm decryption of the repository store costs 17.6 to 23.4 ms over
+ eleven reads and 1.1 s on the first read of a process,
+ while pi resolves the credential once per request and twice per
+ availability refresh,
+ so per-request decryption spent hundreds of sops invocations in a
+ 142-turn session and one timeout ended it with
+ `Provider is not configured`.
+ The failure mode and its verification live in
+ [`doc/troubleshooting/pi-neuralwatt-encrypted-store-timeout.md`](../../../doc/troubleshooting/pi-neuralwatt-encrypted-store-timeout.md).
+ Veto-open:
+ the revalidation window is what a rotated key waits for,
+ because pi-ai calls `onResponse` only after a successful status,
+ so no provider callback sees a rejected key.
 - Snapshot staleness stays visible through the fetch-date header
   and `refresh-snapshot` drift printing;
   no hard freshness limit ships,
@@ -417,7 +439,7 @@ each run named with its backing.
   after the extension bundle rebuilt.
 - Open gate:
   `verify:host` (throwaway-home pi RPC) was not run as its own gate;
-  the real-home boundary runs above exercised the host path instead.
+  the real-home boundary runs in `Gate results (2026-11-08T00:06:46-05:00)` exercised the host path instead.
 - Blocked elsewhere:
   typecheck gates whose graph includes `test-harness/core-matrix` fail on
   `TS2307` for `container-limit-core`,

@@ -346,13 +346,37 @@ run_playwright = """
 const { execFileSync } = await import('node:child_process')
 // The lowest disk weight and the podman bound options come from package/container-limit/core (repository rule HXR).
 const { containerLimitArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/container-limit/core/src/index.ts')).href)
-// 2 GiB and 2 CPUs are package/test-harness/core's bound for its browser tests; 2048 processes is what podman run --help prints as the
-// default, so today's effective cap becomes explicit (browsers start many threads, and threads count). Adopted, not measured.
-const playwrightBound = { memory: '2g', cpus: 2, pidsLimit: 2048 }
+// The shared pnpm store, mounted read-only at the path this checkout's node_modules links name, so `npx playwright`
+// resolves the workspace's own Playwright instead of nothing (package/test-harness/core-matrix/src/pnpm-store-mount.ts).
+const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/test-harness/core-matrix/src/pnpm-store-mount.ts')).href)
+// One rule ties the worker count to the bound: a worker of the browser suites needs at most one CPU and about half a
+// GiB, so the bound is one CPU per worker and one GiB per worker plus one GiB for the browsers' own fixed cost.
+// The worker-count study below ran on the heaviest shape this suite has had, every OPFS test file on a persistent
+// context, whole suite, three projects, peak of a one-second sample of `podman stats`, host load average 55 to 68 on
+// 8 CPUs:
+//
+//   workers  bound     peak memory  peak CPU  peak processes  wall time  2026-11-08
+//   2        4g/4cpu   1,936 MiB    250%      680             31.6 s     23:22:20-05:00
+//   4        4g/4cpu   2,807 MiB    286%      1,129           33.4 s     23:22:52-05:00
+//   8        8g/8cpu   4,174 MiB    546%      1,863           21.8 s     23:23:22-05:00, 3 firefox tests lost their browser
+//
+// The merged tree at this bound, one OPFS test file on a persistent context, 2026-11-08T23:42:11-05:00 at load
+// average 42: 3,052 MiB, 328% CPU, 1,248 processes, 19.5 s, exit 0, which is 60% of the memory cap and 82% of the CPU
+// quota. 8 workers bought 12 s of wall time, another 1.4 GiB and three firefox crashes, so the bound and the worker
+// count both stop at four. Playwright's own default is half the host's 32 logical CPUs, because a CFS quota does not
+// change what `os.cpus().length` reports, so without this argument the run used 16 workers: at the earlier 2g/2cpu
+// bound that was killed at its memory cap after 16 minutes once, and failed 53 of 84 tests in firefox and webkit on
+// 30 s timeouts and page crashes another time (both runs in doc/handover/container-limits-everywhere.md, section The
+// shared pnpm store inside a container). 2048 processes is what `podman run --help` prints as the default, made
+// explicit (browsers start many threads, and threads count).
+const browserSuiteWorkerCount = 4
+const playwrightBound = { memory: `${browserSuiteWorkerCount + 1}g`, cpus: browserSuiteWorkerCount, pidsLimit: 2048 }
 const runPlaywright = (config, extraFlags = []) => {
   execFileSync('mise', ['run', 'prepare:playwright'], { stdio: 'inherit' })
   const args = parseUsageArgs(process.env.usage_args ?? '')
-  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...args], { stdio: 'inherit' })
+  // A caller that names its own worker count keeps it; the bound stays the one above, so it takes fewer workers, never more.
+  const workerArguments = args.some((argument) => argument === '--workers' || argument.startsWith('--workers=') || argument === '-j' || argument.startsWith('-j')) ? [] : [`--workers=${browserSuiteWorkerCount}`]
+  execFileSync('podman', ['run', '--rm', ...containerLimitArguments(playwrightBound), '--security-opt', 'label=disable', '-v', `${process.cwd()}:/work`, ...pnpmStoreMountArguments(), '-w', '/work', 'monochromatic-playwright', 'npx', 'playwright', 'test', '--config', config, ...extraFlags, ...workerArguments, ...args], { stdio: 'inherit' })
 }
 """
 
@@ -1024,7 +1048,9 @@ shell = "node --input-type=module-typescript -e"
 run = "{{vars.fanout_packages}}"
 
 # Applies the whitespace fixes of monochromatic-lint (plain `--fix`: semantic-line-breaks inserting
-# breaks in Markdown and in rustdoc, which changes no token) over the whole tree or the given paths.
+# breaks in Markdown and in rustdoc; the only added bytes are a line break and the `>` or `///` markers
+# of the container the line continues, which are syntax and not words) over the whole tree or the
+# given paths.
 # Fixes that rewrite content (fence languages, `$ ` prompts, link styles, trailing heading punctuation,
 # bare URLs, reference definitions) wait for `monochromatic-lint --fix-content <paths>`, which this task never
 # runs; their findings stay reported. Rationale: doc/planning/monochromatic-lint-fix-split-whitespace-and-content.md.
@@ -1036,7 +1062,7 @@ run = "{{vars.fanout_packages}}"
 # format.
 [tasks."format:monochromatic-lint"]
 hide = true
-description = "Apply monochromatic-lint whitespace fixes (plain --fix, no token changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
+description = "Apply monochromatic-lint whitespace fixes (plain --fix, no word changes) to Rust, Markdown and MDX, optionally restricted to specific paths"
 # No usage spec: mise appends post-`--` args after `--fix` as a real argv vector.
 # The linter walks `.` when no paths are given.
 run = "monochromatic-lint --fix"
@@ -1089,11 +1115,140 @@ if (failed.length > 0) { throw new Error(`prepare child tasks failed: ${failed.j
 """
 
 [tasks."prepare:pnpm"]
-run = [{ tasks = ["prepare:pnpm:install"] }, { tasks = ["prepare:pnpm:others:*"] }]
+run = [
+  { tasks = ["prepare:pnpm:install"] },
+  { tasks = ["prepare:pnpm:store-links"] },
+  { tasks = ["prepare:pnpm:others:*"] },
+]
 
 [tasks."prepare:pnpm:install"]
 alias = "pi"
 run = "pnpm install"
+
+# pnpm 12 writes each `link:` override as a relative symlink whose climb out of the
+# shared global virtual store is counted from the store path as spelled. pnpm spells it
+# through ${HOME}, and this host's /home is a symlink to /var/home, so every install
+# that does not run under this repository's mise environment (the one that supplies
+# PNPM_CONFIG_STORE_DIR with the canonical home spelling) leaves a link that climbs one
+# directory too few and dangles. pnpm's own reuse check then calls that link current, so
+# a later correct install reports `Already up to date` and never rewrites it:
+# `mise run //package/pi-plugin/guardrail:verify:pi-runtime` then dies importing
+# `proper-lockfile` inside the Pi package. This task finds those links and has pnpm
+# rewrite them, which repairs a worktree without touching the shared store by hand and
+# without editing the lockfile. Upstream cause and measurements:
+# doc/troubleshooting/pnpm-symlinked-store-path.md.
+[tasks."prepare:pnpm:store-links"]
+description = "Check that every `link:` override inside the shared global virtual store resolves, and have pnpm rewrite the ones that do not"
+shell = "node --input-type=module-typescript -e"
+run = """
+const { execFileSync } = await import('node:child_process')
+const { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync } = await import('node:fs')
+const { dirname, join, resolve } = await import('node:path')
+
+const WORKSPACE_STATE = 'node_modules/.pnpm-workspace-state-v1.json'
+const NODE_MODULES_MARKER = '/node_modules/'
+
+const LINK_OVERRIDE = /^\\s+'?([^':\\n]+)'?:\\s*'link:[^'\\n]*'/gmu
+const workspaceYaml = readFileSync('pnpm-workspace.yaml', 'utf8')
+const overrideNames = [...workspaceYaml.matchAll(LINK_OVERRIDE)]
+  .map((match) => match[1].split('>').at(-1))
+if (overrideNames.length === 0) {
+  if (workspaceYaml.includes('link:'))
+    throw new Error('pnpm-workspace.yaml holds a `link:` override this check cannot read, so it would prove nothing; teach `LINK_OVERRIDE` the new shape')
+  console.log('store links: pnpm-workspace.yaml has no `link:` override, nothing to check')
+  process.exit(0)
+}
+
+if (!existsSync(WORKSPACE_STATE)) {
+  console.log('store links: no node_modules yet, nothing to check')
+  process.exit(0)
+}
+
+const projects = Object.keys(JSON.parse(readFileSync(WORKSPACE_STATE, 'utf8')).projects ?? {})
+
+/** Every package link a project's node_modules holds, scoped names included. */
+function packageLinks(nodeModules) {
+  if (!existsSync(nodeModules))
+    return []
+  const names = []
+  for (const entry of readdirSync(nodeModules, { withFileTypes: true })) {
+    if (entry.name.startsWith('.'))
+      continue
+    if (entry.name.startsWith('@')) {
+      for (const scoped of readdirSync(join(nodeModules, entry.name), { withFileTypes: true }))
+        names.push(`${entry.name}/${scoped.name}`)
+      continue
+    }
+    names.push(entry.name)
+  }
+  return names.map((name) => join(nodeModules, name))
+}
+
+/** Store instance directories this workspace's dependency links point into. */
+const instances = new Set()
+for (const project of projects) {
+  for (const link of packageLinks(join(project, 'node_modules'))) {
+    let target
+    try {
+      target = readlinkSync(link)
+    }
+    catch {
+      continue
+    }
+    const reached = resolve(dirname(link), target)
+    const marker = reached.lastIndexOf(NODE_MODULES_MARKER)
+    if (marker === -1)
+      continue
+    instances.add(reached.slice(0, marker))
+  }
+}
+
+/** Overridden names whose link inside a store instance does not resolve. */
+function danglingLinks() {
+  const broken = []
+  for (const instance of instances) {
+    for (const name of overrideNames) {
+      const link = join(instance, 'node_modules', name)
+      let stats
+      try {
+        stats = lstatSync(link)
+      }
+      catch {
+        continue
+      }
+      if (!stats.isSymbolicLink() || existsSync(link))
+        continue
+      const target = readlinkSync(link)
+      broken.push({ link, target, reached: resolve(dirname(link), target) })
+    }
+  }
+  return broken
+}
+
+function report(broken) {
+  for (const entry of broken)
+    console.error(`store link does not resolve: ${entry.link}`)
+  for (const entry of broken)
+    console.error(`  it climbs to ${entry.reached}, which does not exist`)
+}
+
+const before = danglingLinks()
+if (before.length === 0) {
+  console.log(`store links: ${String(instances.size)} store instance(s) checked, every ${overrideNames.join(', ')} link resolves`)
+  process.exit(0)
+}
+
+report(before)
+console.log('store links: asking pnpm to rewrite them with a forced install')
+execFileSync('pnpm', ['install', '--force', '--frozen-lockfile', '--ignore-scripts'], { stdio: 'inherit' })
+
+const after = danglingLinks()
+if (after.length > 0) {
+  report(after)
+  throw new Error(`${String(after.length)} store link(s) still do not resolve after a forced install; the cause is recorded in doc/troubleshooting/pnpm-symlinked-store-path.md`)
+}
+console.log(`store links: pnpm rewrote ${String(before.length)} dangling link(s), every ${overrideNames.join(', ')} link now resolves`)
+"""
 
 [tasks."prepare:pnpm:others:approve-builds"]
 description = "Approve build scripts for native dependencies"
@@ -1124,6 +1279,8 @@ runWorkspaceNode('package/monorepo-task/core-exec', 'playwright-image', [])
 # stays as a thin alias of `toolchain:install` so existing callers (the `prepare`
 # umbrella, the release workflow, package error messages) keep working. A depth-2
 # `prepare:*` task, so the `prepare` umbrella auto-runs it after a fresh clone.
+# The `rustTargets` row is reconciled even for a toolchain already at the locked
+# version (doc/troubleshooting/ci-steps-do-not-see-the-toolchain-environment.md).
 # EXPENSIVE on a fresh machine: ~2.9 GB of Android SDK + NDK (the NDK alone is
 # ~2.4 GB), and the `prepare` umbrella auto-runs it for every developer, not just
 # Android ones; this cost is intended and tolerated. Idempotent: a fast no-op
@@ -1254,6 +1411,10 @@ execFileSync('pnpm', ['install'], { stdio: 'inherit' })
 
 # Forge shortcut tasks (forge:dev, forge:seed, forge:stress, prepare:garage) were removed when
 # webapp-forge moved to package-paused/. Re-add them on un-pause.
+# Also re-add the `isomorphic-git` entry to the `catalog:` block in
+# pnpm-workspace.yaml: it was removed on 2026-11-08 because
+# package-paused/webapp-forge/{server,stress}/package.json were its only
+# declarers, and both still say 'catalog:'.
 
 # The canary task was removed when inference-canary moved to package-paused/
 # (superseded by marginlab.ai). Re-add it on un-pause.

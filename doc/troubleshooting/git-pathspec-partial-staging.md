@@ -89,6 +89,14 @@ This repository's `cli-git` wrapper reinforces explicit path selection by inject
  * invocation.
 ```
 
+`package/git-policy/cli/src/rule/commit-only.ts` was removed on 2026-10-13 in `642b6d72cb`
+(refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow);
+no
+file in the working tree carries it now.
+
 The earlier reading was wrong:
 an explicit commit pathspec does not mean "commit the staged portion of this path."
 It means "construct a partial commit from current working-tree contents for this path."

@@ -1122,6 +1122,9 @@ type,
 lockfile,
 and audit checks are the evidence for this scoped dependency change.
 
+`package/dependency-catalog/cli-cube/src/scripts/controller.ts` is not in the working tree and no
+commit in this repository carries it.
+
 The generated lockfile also synchronized stale catalog specifier metadata already
 present in `pnpm-workspace.yaml`.
 Those entries retained their existing resolved versions;
@@ -1205,7 +1208,9 @@ carries it.
 
 `pnpm install` emits no warning for `ms`;
  the package is not deprecated and
-carries no security advisory as of 2026-05-12.
+carries no security advisory as of 2026-05-12,
+ and `pnpm view ms@2.1.3 deprecated` still printed an empty field on
+ 2026-11-08.
 The upstream source is 3024 bytes across 162 lines,
  MIT-licensed,
  with zero
@@ -1216,42 +1221,140 @@ and rejected,
 
 #### Dependency chain
 
-```text
-ms@2.1.3
-├─┬ debug@4.4.3
-│ ├── @tokenizer/inflate → file-type → @earendil-works/pi-coding-agent
-│ │                     → @monochromatic-dev/pi-{auto-mode,morph-compact,terminal-title}
-│ ├── extract-zip → @earendil-works/pi-coding-agent [deduped]
-│ ├── micromark → @monochromatic-dev/dev-script-inference-canary-viewer
-│ │             → @monochromatic-dev/webapp-content-messages-demo
-│ │             → mdast-util-from-markdown → remark-* → @mdx-js/mdx
-│ │             → @monochromatic-dev/ssg-aquati.cat
-│ └── stylelint → @monochromatic-dev/config-stylelint
-│                → stylelint-config-recommended → stylelint-config-standard
-│                → monochromatic (workspace root devDependency)
-└─┬ logform@2.7.0
-  ├── winston → neovim → @monochromatic-dev/mcp-nvim
-  └── winston-transport → winston [deduped]
-```
+Measured on 2026-11-08 with `pnpm why ms --lockfile-only`:
+ one version,
+ `ms@2.1.3`,
+ reached through one consumer,
+ `debug@4.4.3`.
+Three roots reach that `debug`:
+
+- Electron tooling:
+   `@electron/get`,
+  `@electron/notarize`,
+  `@electron/osx-sign`,
+  `@electron/packager`,
+  `@electron/universal`,
+  `@electron/windows-sign`,
+  `electron`,
+  `flora-colossus`,
+  `galactus`,
+   and `sumchecker`.
+   The workspace packages at those leaves are
+  `@monochromatic-dev/electron-infra-app-counter`,
+  `@monochromatic-dev/electron-infra-core`,
+   and `@monochromatic-dev/file-manager-variant-electron`.
+- `@earendil-works/pi-ai`,
+   through `http-proxy-agent` and `https-proxy-agent`.
+   Its leaves are
+  `@monochromatic-dev/dsh-plugin-neuralwatt`
+   (via `@deepseek-ai/dsh-llm-pi-ai`),
+   the workspace packages that depend on
+  `@earendil-works/pi-coding-agent`
+   (`agent-harness-shared-advisor`,
+   `agent-harness-shared-truncate`,
+   `pi-goal`,
+   `pi-plugin-advisor`,
+   `pi-plugin-agent-settled-notification`,
+   `pi-plugin-ask-user-question`,
+   `pi-plugin-auto-mode`,
+   `pi-plugin-bash-poke`,
+   `pi-plugin-cost-dismissal`,
+   `pi-plugin-current-time-context`,
+   `pi-plugin-guardrail`,
+   `pi-plugin-model-retirement`,
+   `pi-plugin-neuralwatt`,
+   `pi-plugin-openai-fast`,
+   `pi-plugin-spawn`,
+   `pi-plugin-statusline`,
+   `pi-plugin-terminal-title`,
+   `pi-plugin-thinking-default`,
+   `search-fetch-core`,
+   `search-fetch-pi-plugin`),
+   and its direct workspace consumers
+   (`dsh-plugin-advisor`,
+   `pi-shared-model-review`).
+- `micromark`,
+   through `mdast-util-from-markdown` and the mdast,
+  remark,
+   and MDX stack.
+   Its leaves are
+  `@monochromatic-dev/ssg-aquati.cat`,
+  `@monochromatic-dev/translation-repair-document-structure`,
+   and
+  `@monochromatic-dev/pnpm-override-shim-katex`.
 
 `pnpm why ms` reproduces this on demand.
 No workspace package imports `ms` directly;
- the only declared consumers are
-`debug@4.4.3` and `logform@2.7.0`.
+ the only declared consumer is `debug@4.4.3`.
+With one consumer and one version,
+ every path into `ms` passes through `debug`,
+ so `Why each blocklist action was rejected` reasons about `debug`.
+
+The first measurement of this section,
+ on 2026-05-12,
+ recorded a second consumer and other roots.
+ Those names keep their original spelling here,
+ with what each is now:
+
+- `logform@2.7.0`,
+   and the `winston` and `winston-transport` path to
+  `@monochromatic-dev/mcp-nvim`:
+   `logform` left the lockfile on 2026-06-22
+  (commit `7f9975db4d`,
+  `2026-06-22T18:23:20-04:00`),
+   and `@monochromatic-dev/mcp-nvim` now sits at
+  `package-deprecated/mcp/nvim`,
+   outside the `package/*/*` workspace glob.
+- `stylelint`,
+  `@monochromatic-dev/config-stylelint`,
+  `stylelint-config-recommended`,
+   and `stylelint-config-standard`:
+   all four were removed on 2026-10-04 (commit `f1bca05`,
+   `doc/decision/remove-stylelint.md`).
+- `@tokenizer/inflate`:
+   no longer in the lockfile;
+   matched on 2026-05-17 (commit `79019aa86d`),
+  except for
+  `@electron-internal/extract-zip`,
+   which is a different package and does not depend on `ms`.
+- `extract-zip`:
+   now `@electron-internal/extract-zip`.
+- `@monochromatic-dev/pi-{auto-mode,morph-compact,terminal-title}`:
+   the family took its `pi-plugin-` prefix on 2026-07-15
+  (commit `f8cf0ab9aa`),
+   and `morph-compact` moved to
+  `package-paused/pi-plugin/morph-compact` on 2026-10-29
+  (commit `64046360d2`),
+   so those three are now
+  `@monochromatic-dev/pi-plugin-auto-mode`,
+  `@monochromatic-dev/pi-plugin-morph-compact`,
+   and `@monochromatic-dev/pi-plugin-terminal-title`.
+- `@monochromatic-dev/dev-script-inference-canary-viewer`
+   and `@monochromatic-dev/webapp-content-messages-demo`:
+   both moved under `package-paused/`,
+   so neither is a workspace package and neither reaches `ms`.
 
 #### API surface used
 
-Both consumers call `ms(number)` for the short-form duration humaniser and
-nothing else.
-
-- `debug/src/common.js:14` assigns `createDebug.humanize = require('ms')`,
-  and `debug` calls `ms(this.diff)` to produce log prefixes such as `+2m`.
-- `logform/ms.js:4` imports `ms`;
-   `logform/ms.js:15` writes
-  `info.ms` as a template literal that prepends `+` to `ms(this.diff)`.
-
-Neither path uses the string-parser overload (`ms('2 days')`) or the
+`debug@4.4.3` calls `ms(number)` for the short-form duration humaniser and
+nothing else:
+ `debug/src/common.js:14` assigns
+`createDebug.humanize = require('ms')`,
+ and `debug/src/node.js:176` appends
+`'+' + module.exports.humanize(this.diff)` to the arguments,
+ producing log prefixes such as `+2m`.
+That path uses neither the string-parser overload (`ms('2 days')`) nor the
 `{ long: true }` formatter option.
+
+Neither the 2026-05-12 measurement nor today's graph showed such a use.
+The retired second consumer,
+ `logform@2.7.0`,
+ was observed the same way:
+ `logform/ms.js:4` imported `ms`,
+ and `logform/ms.js:15` wrote `info.ms` as a template literal prepending `+`
+ to `ms(this.diff)`.
+That observation stays here because the silent-stub argument below rests on
+ the template-literal coercion pattern it documented.
 
 #### Why each blocklist action was rejected
 
@@ -1259,10 +1362,10 @@ Neither path uses the string-parser overload (`ms('2 days')`) or the
   `debug/src/common.js:14` hard-requires `ms` at module load.
   A missing module crashes every code path that loads `debug` with
   `MODULE_NOT_FOUND`,
-   which transitively breaks stylelint,
-   micromark,
-  pi-coding-agent,
-   and every workspace target listed in the chain above.
+   which transitively breaks micromark,
+  `@earendil-works/pi-coding-agent`,
+   the Electron tooling,
+   and every workspace package `Dependency chain` lists.
 - Throwing stub (`POLICY` entry with `action: 'throw'` in `.pnpmfile.mjs`):
   loading the workspace stub throws at the same import site.
   Same crash as removal,
@@ -1272,14 +1375,17 @@ Neither path uses the string-parser overload (`ms('2 days')`) or the
 - Silent stub (`POLICY` entry with `action: 'silent'` in `.pnpmfile.mjs`):
   the call returns the callable Proxy defined in
   `package/pnpm-override/stub-silent/index.cjs:3-19`.
-  Embedding the result in a template literal (the consumer pattern at
+  Embedding the result in a template literal or concatenating it
+  (the consumer pattern at
+  `debug/src/node.js:176`,
+   and previously at
   `logform/ms.js:15`) triggers primitive coercion.
   Every Proxy `get` returns the Proxy itself,
    including `Symbol.toPrimitive`,
   so coercion fails with
   `TypeError: Cannot convert object to primitive value`.
   The build does not stay green.
-- API-compatible shim (`package/shim/ms/` wired via a `link:` override in
+- API-compatible shim (`package/pnpm-override/shim-ms/` wired via a `link:` override in
   `pnpm-workspace.yaml`):
   the pattern works technically;
    the precedent is
@@ -1648,6 +1754,11 @@ plugin or reporter is added that transforms code.
 mutation run (for example `mise run //package/file-enforcer/core:test:mutation`)
 completes and reports killed and survived mutants without any `convert-source-map`
 error.
+That address no longer resolves:
+commit `e7b5130459` (2026-10-31) deleted the TypeScript file-enforcer and its `mise.toml`.
+The Rust crate in `package/file-enforcer/core-rust` declares `test`,
+which runs the crate's own tests,
+and no mutation task.
  See `doc/troubleshooting/stryker-container-runtime.md` for the Stryker runtime
 notes and `doc/dependency-blocklist.md` for the policy reference.
 

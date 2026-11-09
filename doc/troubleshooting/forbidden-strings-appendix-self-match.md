@@ -221,6 +221,10 @@ Renaming `package/cli/forbidden-strings` to a new directory re-lists every file 
 and the policy scanned each one again.
 Three files match the scanner's own rules by design:
 
+`package/cli/forbidden-strings` moved on 2026-10-29 to `package/forbidden-strings/cli`
+in `113633b259` (refactor(*):
+move cli packages into product categories).
+
 - `data/builtin-rules.txt`,
   rule `aws-amazon-bedrock-api-key-short-lived` (line 118 at the time),
    whose body is a literal that the rule matches;
@@ -359,6 +363,9 @@ The scanner owns the list,
 so the skip moved there.
 `build_self_match_set` in `src/lib.rs` returns the canonical paths of the three sources
 and applies to walker output and positional arguments alike.
+The anchor is the discovered repository root,
+so a run started in any subdirectory resolves the same three files;
+a standalone run outside any repository resolves them from the working directory.
 `build_skip_set` keeps only the rules files and stays `--all`-only,
 so a rules file the user names is still scanned.
 The match stays path-anchored by canonical path.

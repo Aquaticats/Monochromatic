@@ -71,6 +71,10 @@ pub mod bounded_push;
 /// The stop of a running push and the sweep of the lock files it and what it started leave.
 pub mod stop_of_a_push_and_sweep_of_its_locks;
 
+/// Where a control holds a run's limit until the ordering it needs has happened,
+/// so a stop is never decided by elapsed time alone.
+pub mod push_limit_held_for_an_ordering;
+
 /// The bytes a push and its processes move,
 /// sampled,
 /// and the clock that stops it on a stall.
@@ -139,6 +143,9 @@ pub mod child_watch_step_bounds_and_errors;
 
 /// The loop of a child watch's task and the writing of its notices.
 pub mod child_watch_task_loop_and_notice;
+
+/// The watched one-shot run for a caller that is itself a task of the runtime.
+pub mod child_watch_output_watched_on_the_runtime;
 
 /// The paths of a dirty worktree and of a fast-forward,
 /// and their overlap.

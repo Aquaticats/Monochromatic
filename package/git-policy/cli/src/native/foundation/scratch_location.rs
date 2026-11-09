@@ -59,10 +59,14 @@ pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 ///  add timing log (48 adds) 539.7 s;
 /// a day is about a hundred times the longest.
 /// The patience for an owner of another namespace
-///  (3,600 s) is far under a day.
-/// A wait for a live program's lock has no bound of its own,
-/// so a command that waits on one for
-///  more than a day is the case this age does not cover (none in the logs came near).
+///  (`FOREIGN_OWNER_PATIENCE`,
+/// twice `LOCK_CEILING`) is far under a day.
+/// A wait for a live program's lock ends at a ceiling:
+/// one minute (`LANDING_LOCK_CEILING`,
+/// `MERGE_LOCK_CEILING`)
+///  or ten for the service's own hold (`SERVICE_HOLD_CEILING`,
+/// `wait_ceilings.rs`),
+/// so no command that waits on one comes near this age.
 ///  Kept as the coordinator's pick under the owner's delegation,
 /// open to the owner's veto (`doc/planning/cli-git-shipped-limits-audit.md`,
 /// "Sizes and ages of the service's own housekeeping").
@@ -83,9 +87,8 @@ pub const SCRATCH_REFRESH_EVERY: Duration = Duration::from_secs(SCRATCH_STALE_AF
 /// What:
 ///  Sets the modification time of `path` to now.
 /// Why:
-///   A command that waits for a lock holder or for the commit service with no bound can outlast `SCRATCH_STALE_AFTER`,
-/// and the
-///  sweep removes entries by modification time;
+///   The sweep removes entries by modification time,
+/// which says nothing about whether the command that made the entry still runs;
 /// renewing the time while the command lives ties the entry's age to the
 ///  command's liveness,
 /// with no lock and no record of the process.

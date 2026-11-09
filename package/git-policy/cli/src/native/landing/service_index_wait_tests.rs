@@ -3,7 +3,7 @@
 //! the event-driven release,
 //! the
 //!  notice,
-//! and the absence of any limit on a holder proven to run.
+//! and the ceiling that ends a wait on a holder proven to run.
 
 use super::*;
 use crate::test_support::{fixture, remove};
@@ -199,14 +199,9 @@ fn a_hold_that_outlasts_the_ceiling_ends_the_wait_and_stays() {
     let lock: PathBuf = lock_path_of(index.as_path());
     let identity: String = crate::service_index_marker::own_identity().expect("identity");
     std::fs::write(&lock, format!("{LOCK_MARKER}9 {} {identity}\n", std::process::id())).expect("lock");
-    let (finished, ended) = std::sync::mpsc::channel();
-    let waiter_index: PathBuf = index.clone();
-    std::thread::spawn(move || {
-        let mut out: Vec<u8> = Vec::new();
-        let outcome: Waited = wait_for_service_hold_within(waiter_index.as_path(), "add", Duration::from_millis(300), QUICK, &mut out);
-        let _sent = finished.send((outcome, String::from_utf8_lossy(&out).into_owned()));
-    });
-    let (outcome, text) = ended.recv_timeout(Duration::from_secs(10)).expect("the wait ended at its ceiling");
+    let mut out: Vec<u8> = Vec::new();
+    let outcome: Waited = wait_for_service_hold_within(index.as_path(), "add", Duration::from_millis(300), QUICK, &mut out);
+    let text: String = String::from_utf8_lossy(&out).into_owned();
     assert_eq!(outcome, Waited::GaveUp);
     assert!(text.contains("still finishing a commit") && text.contains("git add runs now"), "{text}");
     assert!(lock.exists(), "the hold is not the command's to remove");
@@ -237,13 +232,13 @@ fn where_no_watch_can_be_set_the_services_hold_is_polled_for() {
     remove(root.as_path());
 }
 
-/// A holder the mark proves to run is waited for with no bound:
+/// A holder the mark proves to run is waited for until it lets go:
 /// the lock is looked at,
 /// notices repeat over many intervals
 ///  without ever saying the wait gives up,
 /// and the wait ends when the holder lets go.
 #[test]
-fn a_holder_the_mark_proves_to_run_is_waited_for_with_no_bound() {
+fn a_holder_the_mark_proves_to_run_is_waited_for_until_it_lets_go() {
     let root: PathBuf = fixture("index-wait-no-bound");
     let index: PathBuf = index_in(root.as_path());
     let lock: PathBuf = lock_path_of(index.as_path());
@@ -260,7 +255,8 @@ fn a_holder_the_mark_proves_to_run_is_waited_for_with_no_bound() {
     letting_go.join().expect("the service lets go");
     let text: String = String::from_utf8_lossy(&out).into_owned();
     assert!(text.matches("waiting for the commit service").count() > 1, "the line repeats while the service holds: {text}");
-    assert!(!text.contains("giving up") && !text.contains("runs now"), "a service that runs is never given up on: {text}");
+    assert!(text.contains(format!("for at most {} seconds in all", SERVICE_HOLD_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before the command runs: {text}");
+    assert!(!text.contains("giving up") && !text.contains("runs now"), "a notice while the wait goes on never says the command gave up or ran; only the ceiling's line does: {text}");
     remove(root.as_path());
 }
 

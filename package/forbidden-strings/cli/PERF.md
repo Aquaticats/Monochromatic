@@ -245,8 +245,9 @@ previous `git ls-files --cached --ignored --exclude-standard -z` subprocess
 was removed on 2026-05-16 (recovered ~167 ms on Mono,
  ~433 ms on Linux).
 Historical blocks below still describe the subprocess as the contemporary
-implementation — that wording is preserved deliberately as the regression
-history is the file's reason for existing.
+implementation.
+That wording is preserved deliberately,
+because the regression history is the file's reason for existing.
 
 ## Last benched
 
@@ -1763,7 +1764,7 @@ and is now a small fraction of overall runtime.
 ## Comparison with betterleaks v1.1.2
 
 Betterleaks is the upstream source for the ported rule corpus (see
-`src/mise.port-betterleaks.ts`).
+`bin/port-betterleaks.ts`).
  Measuring against it is informative
 because both tools scan for secrets,
  but the comparison is not a

@@ -1,5 +1,40 @@
 # cli-git native retirement lane
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/api` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper under
+> `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/forbidden-strings` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/markdown-lint` is deleted (2026-10-13 `a2b56c548c`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/repository` is deleted (2026-10-13 `a2b56c548c`) and the Rust wrapper
+> under `package/git-policy/cli/src/native/` serves its job today.
+> `package/dev-script/file-enforcer/src/generated-policy-contracts.unit.test.ts` is deleted
+> (2026-10-13 `a2b56c548c`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
+Scratch note 2026-11-08:
+`package/git-policy/cli/dist` and `package/git-policy/cli/.cache` were build and cache
+outputs of the TypeScript wrapper,
+which `642b6d72cb` deleted on 2026-10-13;
+the launcher directory is `.cache/cli-git-bin` at the repository root.
+
+Note 2026-10-13:
+`.github/workflows/cli-git-trust.yml` was deleted by `642b6d72cb`
+with the TypeScript wrapper and its trust step.
+
+Note 2026-10-13:
+`package/git-policy/api`
+`package/git-policy/forbidden-strings`
+`package/git-policy/markdown-lint`
+`package/git-policy/repository`
+were deleted by `a2b56c548c`
+with the four git-policy authoring packages;
+no same-name package replaced them.
+The scanner moved to `package/forbidden-strings/cli` on 2026-10-29 (`113633b259`)
+and the candidate scan it fed is `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

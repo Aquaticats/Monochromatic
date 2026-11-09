@@ -1,5 +1,10 @@
 # Issue #498 bash-poke promotion handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/file-enforcer/README.md` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/cli/README.md` is the README today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -277,7 +282,7 @@ so they are cited by symbol name rather than line number.
 - Poke delivery uses `pi.sendMessage` with a registered renderer,
   `triggerTurn: true`,
   and `deliverAs: "followUp"`,
-  subject to the attribution correction recorded above.
+  subject to the correction to the round 2 framing in "Message delivery".
 - This package owns as much as possible:
   its own spawn,
   output accumulation,
@@ -315,7 +320,7 @@ so they are cited by symbol name rather than line number.
   `cancelShortcut`,
   and `progressWidget` true.
   The `shell` and `cancelShortcut` keys are now superseded
-  by the two decisions recorded directly above.
+  by the cancellation decision and the shell-resolution decision.
 - No features or fixes are built for session-transition states in v0.x:
   no `session_shutdown` subscription,
   no kill-on-quit,

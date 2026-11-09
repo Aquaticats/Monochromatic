@@ -1,5 +1,44 @@
 # cli-git native post-landing lane
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/bin.ts` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional` is deleted (2026-10-13 `642b6d72cb`) and
+> `package/forbidden-strings/core` and `package/linter/monochromatic-lint` carry its two
+> features in Rust today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/rule` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine/commit-transaction-conclusion.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
+Note 2026-10-13:
+the TypeScript wrapper this document names under `package/git-policy/cli/src`
+was deleted by `642b6d72cb`,
+and the four authoring packages by `a2b56c548c`.
+That covered `package/git-policy/cli/src/bin.ts`
+`package/git-policy/cli/src/optional`
+`package/git-policy/cli/src/parser`
+`package/git-policy/cli/src/policy-engine`
+and `package/git-policy/cli/src/rule`;
+no `.ts` path under `package/git-policy` survives,
+and that work is Rust under `package/git-policy/cli/src/native/`.
+
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

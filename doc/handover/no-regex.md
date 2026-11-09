@@ -1,5 +1,27 @@
 # HANDOVER.no-regex
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/dev-script/deps-cube/src/scripts/filter.ts` is now
+> `package/dependency-catalog/cli-cube/src/script/filter.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/watch-restart/src/cli-helpers.ts` is now
+> `package/watch-restart/cli/src/cli-helpers.ts` (2026-10-29 `592d78b143`).
+> `package/module/test-expect/src/expect.unit.test.ts` is now
+> `package/test-harness/core-expect/src/expect.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/fuzz/Cargo.toml` is now
+> `package/forbidden-strings/cli.fuzz/Cargo.toml` (2026-10-29 `113633b259`).
+> `package/cli/forbidden-strings/fuzz/dictionaries/forbidden-strings.dict` is now
+> `package/forbidden-strings/cli.fuzz/dictionary/forbidden-strings.dict`
+> (2026-10-29 `113633b259`).
+> `package/pi-plugin/auto-mode/src/constants.ts` is deleted (2026-10-19 `7ac15b19b4`) and no
+> path of that name exists today.
+> `package/pi-plugin/auto-mode/src/budget-model-version.ts` is deleted
+> (2026-10-19 `7ac15b19b4`) and the package was rebuilt from scratch then.
+> `package/module/test-expect/src/expect-matchers.ts` is now
+> `package/test-harness/core-expect/src/expect-matchers.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -25,6 +47,30 @@
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
 > `package/cli/forbidden-strings` is now `package/forbidden-strings/cli`.
+
+> Moved 2026-10-29 (`64046360d2`).
+> `pi-plugin/morph-compact` is paused.
+> This record keeps its text and this mapping:
+> `package/pi-plugin/morph-compact` is now `package-paused/pi-plugin/morph-compact`.
+
+> Paused 2026-06-10 (`73997634ea`).
+> `module/es` moved to the paused tree.
+> This record keeps its text and this mapping:
+> `package/module/es` is now `package-paused/module/es`.
+
+> Paused 2026-06-06 (`db317e8506`).
+> Both inference-canary packages moved to the paused tree.
+> This record keeps its text and these mappings:
+> `package/dev-script/inference-canary` is now `package-paused/dev-script/inference-canary`;
+> `package/dev-script/inference-canary-viewer` is now
+> `package-paused/dev-script/inference-canary-viewer`.
+
+> Paused 2026-05-25 (`e26035dbb2`).
+> The webapp packages named here moved to the paused tree.
+> This record keeps its text and these mappings:
+> `package/webapp-edu/paper2vn` is now `package-paused/webapp-edu/paper2vn`;
+> `package/webapp-content/messages-demo` is now `package-paused/webapp-content/messages-demo`;
+> `package/webapp-forge/server` is now `package-paused/webapp-forge/server`.
 
 State of the lint-failure refactor triggered by the oxlint rule
 `no-restricted-syntax/no-regex`.
@@ -52,8 +98,9 @@ Three packages are paused at the user's direction;
 - `package/webapp-forge/server` -- 13 sites
 
 To resume any of those,
- apply the patterns documented below (the
+ apply the patterns in the
 "Patterns established this session for common refactors" section
+(it
 covers every refactor shape used in this sweep) and remove the
 paused-status block from the README.
 
@@ -61,7 +108,7 @@ paused-status block from the README.
 
 All 114 errors from `/tmp/pi-bash-25cddcf1ce4714e4.log` plus the
 follow-on packages surfaced by repeated `mise //:lint` runs are
-addressed (modulo the 3 paused packages above).
+addressed (modulo the three paused packages).
  Tests pass for every
 package that has a `test:unit` task and was directly touched.
 
@@ -250,7 +297,9 @@ above;
   (e.g. length cap),
    (c) name the backtracking-safety story.
    Example
-  in `package/dev-script/deps-cube/src/scripts/filter.ts` and
+  in `package/dev-script/deps-cube/src/scripts/filter.ts`
+  (moved 2026-10-29 to `package/dependency-catalog/cli-cube/src/script/filter.ts`)
+  and
   `package/dev-script/watch-restart/src/cli-helpers.ts`.
 - **`array-element-per-line`** fires on multi-element arrays even when
   using `[...acc, token]`.
@@ -294,7 +343,8 @@ above;
   disable with the reason.
 - **`chai`'s `.to.throw(string)` does substring matching** (verified in
   `package/module/test/src/expect.unit.test.ts:99-105`).
-  The file moved on 2026-10-04 to `package/module/test-expect/src/expect.unit.test.ts`.
+  The file moved on 2026-10-04 to `package/module/test-expect/src/expect.unit.test.ts`,
+  which is now `package/test-harness/core-expect/src/expect.unit.test.ts`.
    So
   `.toThrow(/foo/,)` swaps cleanly to `.toThrow('foo',)`.
    Similarly
@@ -322,9 +372,16 @@ this task;
 - `.pnpmfile.mjs`
 - `AGENTS.md`
 - `package/claude-code-plugin/session-start-housekeeping/dist/final/node/index.mjs`
+  (build output of that package;
+  no tree holds it)
 - `package/cli/forbidden-strings/README.md`
 - `package/cli/forbidden-strings/fuzz/Cargo.toml`
+  is now `package/forbidden-strings/cli.fuzz/Cargo.toml`
+  (the harness left the scanner package on 2026-06-02)
 - `package/cli/forbidden-strings/fuzz/dictionaries/forbidden-strings.dict`
+  is now `package/forbidden-strings/cli.fuzz/dictionary/forbidden-strings.dict`
+  (the folder is `dictionary`
+  and not `dictionaries`)
 - `package/figma/to-penpot/src/index.ts`
 - `pnpm-lock.yaml`
 
@@ -504,7 +561,9 @@ unless the user asks otherwise.
 
 ### Files where source-of-truth IS regex (kept with disables)
 
-- `package/dev-script/deps-cube/src/scripts/filter.ts` (user-typed
+- `package/dev-script/deps-cube/src/scripts/filter.ts`
+  (moved 2026-10-29 to `package/dependency-catalog/cli-cube/src/script/filter.ts`)
+  (user-typed
   regex search;
    bounded to 256 chars).
 - `package/dev-script/watch-restart/src/cli-helpers.ts:compileRegex`
@@ -513,18 +572,29 @@ unless the user asks otherwise.
   regex-tooling subtree).
 - `package/pi-plugin/auto-mode/src/constants.ts` (secret-detection patterns;
   block disable around the content-signal region).
+  Deleted 2026-10-19 by `7ac15b19b4`,
+  which removed the legacy source for a ground-up rebuild;
+  the package's only source is `package/pi-plugin/auto-mode/src/index.ts`.
 - `package/pi-plugin/auto-mode/src/budget-model-version.ts` (model-id
   tokeniser;
    block disable).
+  Deleted 2026-05-26 by `c49d211f9b`,
+  when the package took the shared model selection.
 - `package/pi-plugin/auto-mode/src/config.ts:compilePatterns` (user-supplied
   config patterns).
+  Deleted 2026-07-25 by `13bd40ad67`,
+  which removed runtime configuration from the package.
 - `package/pi-plugin/terminal-title/src/formatter-utils.ts:COMMAND_NOISE_RE`
   (negative lookahead disambiguating `--foo=bar` from `FOO=bar`).
+  Deleted 2026-07-05 by `32eeff23ae`,
+  which moved the plugin onto the shared title helpers in
+  `package/pi-plugin/terminal-title/src/title-builder.ts` and `tool-titles.ts`.
 - `package/dev-script/inference-canary-viewer` (the `\p{Upper}`/
   `\p{Lower}` Unicode property classes have no string-API equivalent).
 - `package/module/test/src/expect-matchers.ts:toMatch` (the matcher's
   contract is RegExp).
-  The file moved on 2026-10-04 to `package/module/test-expect/src/expect-matchers.ts`.
+  The file moved on 2026-10-04 to `package/module/test-expect/src/expect-matchers.ts`,
+  which is now `package/test-harness/core-expect/src/expect-matchers.ts`.
 
 ### If a downstream test fails
 

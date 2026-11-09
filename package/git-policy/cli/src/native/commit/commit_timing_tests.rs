@@ -271,10 +271,13 @@ fn whole_milliseconds_drop_the_part_of_a_millisecond() {
 #[test]
 fn the_holder_kind_follows_what_the_notice_says() {
     use super::holder_kind_of;
-    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"));
+    use crate::service_index_attempts::COMMIT_WITHDRAWN;
+    use crate::wait_ceilings::LANDING_LOCK_CEILING;
+    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd { within: LANDING_LOCK_CEILING, ending: COMMIT_WITHDRAWN };
+    let proven: String = crate::index_lock_evidence::proven_holder_line(42, true, Some("git"), Path::new("/r/.git/index.lock"), end);
     assert_eq!(holder_kind_of(proven.as_str()), "proven-alive");
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None).as_str()),
+        holder_kind_of(crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end).as_str()),
         "unproven"
     );
     assert_eq!(
@@ -350,13 +353,35 @@ fn the_record_carries_the_quiet_gaps_of_the_steps() {
     remove(root.as_path());
 }
 
+/// The record states how each build of the private index was made and whether it kept the real index's cached stat data,
+/// in the order built,
+/// so the build of a slow first preparation is told apart from a rebuild after the branch moved,
+/// and both are in the record without verbose mode.
+#[test]
+fn the_record_states_every_index_build_with_whether_it_kept_the_stat_data() {
+    use crate::commit_index_builds::{IndexBuildKind, note_index_build};
+    let root: PathBuf = fixture("timing-index-builds");
+    let (timing, _covered) = filled(root.as_path());
+    note_index_build(IndexBuildKind::First, true);
+    note_index_build(IndexBuildKind::Retry, false);
+    timing.finish(0);
+    let text: String = std::fs::read_to_string(root.join(".git").join(TIMING_FILE)).expect("timing file");
+    let value: serde_json::Value = parsed(text.as_str());
+    let expected: serde_json::Value = serde_json::from_str(r#"[{"kind":"first","statDataKept":true},{"kind":"retry","statDataKept":false}]"#).expect("the list of two builds");
+    assert_eq!(value["indexBuilds"], expected, "every build of the private index is stated in the order built: {value}");
+    remove(root.as_path());
+}
+
 /// A proof is never undone by a later notice,
 /// and a notice that proves an earlier unproven wait counts.
 #[test]
 fn a_holder_proven_alive_stays_proven_after_any_later_notice() {
     use super::holder_kind_after;
-    let proven: String = crate::index_lock_evidence::proven_holder_line(7, true, None, Path::new("/r/.git/index.lock"));
-    let unproven: String = crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None);
+    use crate::service_index_attempts::COMMIT_WITHDRAWN;
+    use crate::wait_ceilings::LANDING_LOCK_CEILING;
+    let end: crate::index_lock_evidence::WaitEnd<'_> = crate::index_lock_evidence::WaitEnd { within: LANDING_LOCK_CEILING, ending: COMMIT_WITHDRAWN };
+    let proven: String = crate::index_lock_evidence::proven_holder_line(7, true, None, Path::new("/r/.git/index.lock"), end);
+    let unproven: String = crate::index_lock_evidence::unproven_wait_line(Path::new("/r/.git/index.lock"), None, end);
     assert_eq!(holder_kind_after(None, proven.as_str()), "proven-alive");
     assert_eq!(holder_kind_after(Some("proven-alive"), unproven.as_str()), "proven-alive");
     assert_eq!(holder_kind_after(Some("unproven"), proven.as_str()), "proven-alive");

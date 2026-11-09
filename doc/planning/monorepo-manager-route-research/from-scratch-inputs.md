@@ -273,7 +273,7 @@ All conditional on keeping TypeScript on Node.
   Whether old records are ever collected is not documented on that page (unverified).
   Running each config evaluation in a child process gives fresh transitive imports,
   bounded memory,
-  isolation of the module singletons listed above,
+  isolation of the module singletons listed in "Other process-lifetime caches that matter for a daemon",
   and a real cancellation point (kill the child);
   a dynamic `import()` cannot be aborted (unverified,
   recall).
@@ -554,10 +554,14 @@ All conditional on keeping TypeScript on Node.
   verified);
   Rust has the same 300-line budget (`MXR`,
   `AGENTS.md:1005-1013`,
-  verified).
+  verified;
+  MXR retired from `AGENTS.md` 2026-09-29,
+  `rust/max-lines` and `MXL` now).
 - Docs in code:
   `TSD` TSDoc on all declarations (`AGENTS.md:1121`),
-  `RDC` rustdoc on all Rust items (`:1015-1018`)
+  `RDC` rustdoc on all Rust items (`:1015-1018`;
+  RDC retired from `AGENTS.md` 2026-09-29,
+  `rust/require-rustdoc` now)
 - (verified).
 - Errors:
   `PP4` custom error classes and `@throws` (`AGENTS.md:1281`),
@@ -1837,7 +1841,8 @@ Commands that need root are marked `sudo`.
   Reason:
   freezer,
   kill,
-  and delegation files used below are v2 interfaces (`SRC/linux/cgroup-v2.rst:1025-1064`,
+  and the delegation files in the `Sandbox (required: at least cgroups)` section are v2 interfaces
+  (`SRC/linux/cgroup-v2.rst:1025-1064`,
   `:537-590`).
 - **Daemon runs in a delegated cgroup.**
   Detect:

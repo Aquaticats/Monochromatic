@@ -261,6 +261,17 @@ before bypass or model-judge handling.
 It blocks statically visible caller-scoped ydotool execution,
 including:
 
+The paths this record names under `package/pi-plugin/auto-mode/src/` were removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries them now.
+`package/pi-plugin/auto-mode/src/index-bypass.unit.test.ts` was removed on 2026-10-17 in
+`a3955898f1` (refactor(pi-plugin-auto-mode):
+remove superseded extension pipeline);
+no file in the
+working tree carries it now.
+
 - direct `ydotool` and `/usr/bin/ydotool` commands;
 - logical chains containing ydotool;
 - generic wrappers such as `env`,
@@ -291,6 +302,9 @@ The hard guard runs even when auto-mode bypass is enabled.
 covers command classification.
 `package/pi-plugin/auto-mode/src/index-bypass.unit.test.ts`
 covers the non-bypassable integration boundary.
+All three cited files are gone:
+`7ac15b19b4` (2026-10-19) removed `virtual-input-guard.ts` and its unit test,
+and `a3955898f1` (2026-10-17) removed `index-bypass.unit.test.ts`.
 Removing the guard call,
 rebuilding,
 and running that test made it fail because bypass executed the fake Bash path;

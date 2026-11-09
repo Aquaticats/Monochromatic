@@ -1,7 +1,9 @@
 //! Binary-level controls for the notices of a commit that waits for Git's own `index.lock` (issue 1811):
 //!  the wait names what it waits for and who holds it,
 //!  repeats at a steady interval,
-//! and waits with no bound for a holder proven alive and for an owner nothing proves alive,
+//! and waits for a holder proven alive,
+//! and for an owner nothing proves alive,
+//! until the ceiling,
 //!  saying what is known about the second.
 //! The holder is this test process,
 //! holding the lock file open.
@@ -17,6 +19,7 @@ use super::commit::{remove_settled, wrapped_commit};
 use super::support::{
     Fixture, fixture, git, repository,
 };
+use git_policy_cli::wait_ceilings::LANDING_LOCK_CEILING;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -127,7 +130,7 @@ fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
     );
     let notices: Vec<&str> = lines_with(watched.stderr.as_str(), needle.as_str());
     assert!(notices.len() >= 2, "a first notice and a repeat: {}", watched.stderr);
-    assert!(notices.iter().all(|line| { return line.contains("for as long as that process holds the lock"); }), "{}", watched.stderr);
+    assert!(notices.iter().all(|line| { return line.contains(format!("for at most {} seconds", LANDING_LOCK_CEILING.as_secs()).as_str()); }), "every notice says how long the wait lasts: {}", watched.stderr);
     assert!(!watched.stderr.contains("giving up"), "{}", watched.stderr);
     assert_eq!(watched.code, Some(0), "{}", watched.stderr);
     remove_settled(&fixture);
@@ -139,7 +142,7 @@ fn a_commit_waiting_for_a_live_index_lock_holder_repeats_its_notice() {
 /// nothing gives up,
 /// and the commit lands when the holder lets go.
 #[test]
-fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
+fn a_commit_waits_on_a_live_index_lock_holder_until_it_lets_go() {
     let fixture: Fixture = fixture("wait-notice-index-live-no-bound");
     let repo: PathBuf = edited_repository(&fixture);
     let lock_path: PathBuf = repo.join(".git/index.lock");
@@ -160,7 +163,7 @@ fn a_commit_waits_on_a_live_index_lock_holder_with_no_bound() {
 /// at one notice a second,
 /// than the
 ///  second an owner nothing proves alive used to be given,
-/// so only a wait with no bound lasts this long.
+/// so a wait that lasts past that second is what the control reads.
 const LONG_WAIT_NOTICES: usize = 4;
 
 /// A commit that waits for an `index.lock` nobody can be proven to hold says so,

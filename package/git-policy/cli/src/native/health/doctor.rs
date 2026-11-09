@@ -43,7 +43,12 @@ use crate::doctor_fsmonitor::fsmonitor_report;
 /// so one directory named two ways is scanned once.
 use crate::lexical_path::normalized_path;
 /// One required Git start with the caller's context.
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest};
+/// The same Git start awaited by a task of the runtime.
+use crate::transaction_git_awaiting::run_git_awaiting;
+/// The process's one runtime,
+/// which the doctor's report is built on.
+use crate::lazy_runtime::run_on_runtime;
 /// `ErrorKind` tells a missing hooks directory from one that cannot be read.
 use std::io::ErrorKind;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -232,9 +237,9 @@ or express what it checked as a policy under policies in monochromatic-git-polic
 /// ```ts
 /// const { stdout } = await git(args, { cwd });
 /// ```
-fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, String> {
+async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<String>, String> {
     let request: GitRequest = GitRequest::new(cwd, arguments);
-    let output = match run_git(context, &request) {
+    let output = match run_git_awaiting(context, &request).await {
         Ok(done) => done,
         Err(error) => return Err(format!("git {} could not start: {error}", arguments.join(" "))),
     };
@@ -266,19 +271,20 @@ fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<Option<
 /// ```ts
 /// const location = await locateHooks({ context, cwd });
 /// ```
-pub fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, String> {
+pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, String> {
     let report: String = query(
         context,
         cwd,
         &["rev-parse", "--path-format=absolute", "--git-common-dir", "--absolute-git-dir"],
-    )?
+    )
+    .await?
     .unwrap_or_default();
     let mut lines = report.lines();
     let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
         return Err(String::from("git rev-parse did not report the common and Git directories"));
     };
     // An answer with nothing after its trailing line feed counts as no answer, as `.filter(...)` made it.
-    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"])? {
+    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"]).await? {
         Some(text) => {
             let stripped: String = text.strip_suffix('\n').unwrap_or(text.as_str()).to_string();
             if stripped.is_empty() { None } else { Some(stripped) }
@@ -298,7 +304,7 @@ pub fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocation, S
         });
     }
     // A relative value resolves where Git runs hooks; a repository without a worktree has no top level.
-    let base: PathBuf = match query(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]) {
+    let base: PathBuf = match query(context, cwd, &["rev-parse", "--path-format=absolute", "--show-toplevel"]).await {
         Ok(Some(top)) if !top.trim_end().is_empty() => PathBuf::from(top.trim_end()),
         Ok(_) | Err(_) => PathBuf::from(git_directory),
     };
@@ -408,7 +414,8 @@ such as `/usr/bin/git` directly, would run them.\n",
 }
 
 /// What:
-///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with.
+///  Decide what `git monochromatic-git-policy-cli doctor` prints and exits with,
+/// entering the process's runtime once for the whole report.
 /// Why:
 ///   Exit 0 with no output means no traditional hook was found,
 /// exit 1 lists each one on standard output,
@@ -416,13 +423,19 @@ such as `/usr/bin/git` directly, would run them.\n",
 ///  reports a repository or a directory that could not be examined.
 ///  Git LFS shims are explained on standard error apart from the other hooks and leave an exit status of 0 as it is;
 ///  any other hook beside them still ends in 1 with the unsupported report.
+///  The report is built on the runtime (`doctor_action_with_section`),
+/// so this face is the one a caller that is still synchronous uses,
+/// and it goes with the last of them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function doctor({ context, cwd }): Promise<Action>;
 /// ```
 pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
-    return doctor_action_with_section(context, cwd, &no_filesystem_section);
+    return match run_on_runtime(doctor_action_with_section(context, cwd, None, &no_filesystem_section)) {
+        Ok(action) => action,
+        Err(refusal) => doctor_failure(format!("the runtime could not be entered: {refusal}").as_str()),
+    };
 }
 
 /// What:
@@ -430,19 +443,20 @@ pub fn doctor_action(context: &GitContext, cwd: &Path) -> Action {
 /// Why:
 ///   `doctor_action` prints no filesystem section,
 /// and `doctor_action_with_section` takes its section as a function,
-///  so this named function stands where a closure that ignored its argument stood.
+///  so this named function stands where a closure that ignored its arguments stood.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noFilesystemSection = (_commonDirectory: string) => '';
+/// const noFilesystemSection = (_commonDirectory: string, _home: string | undefined) => '';
 /// ```
-fn no_filesystem_section(_common_directory: &Path) -> String {
+fn no_filesystem_section(_common_directory: &Path, _home: Option<&Path>) -> String {
     return String::new();
 }
 
 /// What:
 ///  The same decision with a filesystem section appended to standard error.
-///  `&dyn Fn(&Path) -> String` is a borrowed function from the repository's common Git directory to the section text.
+///  `&dyn Fn(&Path, Option<&Path>) -> String` is a borrowed function from the repository's common Git directory and
+/// the home the invocation names to the section text.
 /// Why:
 ///   The section is informational and comes last,
 /// after every hook line and note;
@@ -452,16 +466,21 @@ fn no_filesystem_section(_common_directory: &Path) -> String {
 /// Git selected the common directory
 ///  (so `-C`,
 /// `--git-dir` and linked worktrees are honored),
-/// and the caller supplies the text function,
+/// and the caller supplies the text function and the home the invocation names,
 /// so the
 ///  exact-output controls pass one that returns nothing and stay independent of the host.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function doctorWithSection({ context, cwd, section }): Promise<Action>;
+/// async function doctorWithSection({ context, cwd, home, section }): Promise<Action>;
 /// ```
-pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_section: &dyn Fn(&Path) -> String) -> Action {
-    let location: HooksLocation = match locate_hooks(context, cwd) {
+pub async fn doctor_action_with_section(
+    context: &GitContext,
+    cwd: &Path,
+    home: Option<&Path>,
+    filesystem_section: &dyn Fn(&Path, Option<&Path>) -> String,
+) -> Action {
+    let location: HooksLocation = match locate_hooks(context, cwd).await {
         Ok(found) => found,
         Err(message) => return doctor_failure(message.as_str()),
     };
@@ -479,12 +498,12 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
         }
     }
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
-    let findings: ConfigFindings = config_findings(context, cwd);
-    let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd));
+    let findings: ConfigFindings = config_findings(context, cwd).await;
+    let notes: String = format!("{}{}", render_notes(&findings), fsmonitor_report(context, cwd).await);
     // The first time the common Git directory is known to this command, an earlier release's names in it are moved.
     crate::kept_names_in_the_git_directories::settle_common_directory_names(location.common_directory.as_path());
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
-    let section: String = filesystem_section(location.common_directory.as_path());
+    let section: String = filesystem_section(location.common_directory.as_path(), home);
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {
             code: 0,
@@ -504,12 +523,16 @@ pub fn doctor_action_with_section(context: &GitContext, cwd: &Path, filesystem_s
 ///  The action for a doctor run that could not examine the repository.
 /// Why:
 ///   Status 2 is the wrapper's status for a failure that is not a finding.
+/// The command's own prefix is used here and not the wrapper's,
+/// so a report that could not be started reads like every other doctor failure
+/// (`invocation/management.rs`,
+/// `plan_doctor`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// { code: 2, stdout: '', stderr: `git monochromatic-git-policy-cli doctor: ${message}\n` }
 /// ```
-fn doctor_failure(message: &str) -> Action {
+pub(crate) fn doctor_failure(message: &str) -> Action {
     return Action::Exit {
         code: ENGINE_FAILURE_EXIT_CODE,
         stdout: String::new(),

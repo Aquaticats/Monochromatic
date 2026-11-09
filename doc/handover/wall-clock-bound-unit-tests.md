@@ -1,5 +1,21 @@
 # Wall-clock bound unit tests handover (issue 1762)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/logger/src/create-logger.unit.test.ts` is now
+> `package/logger/core/src/create-logger.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/module/logger/src/sink/file-batch.unit.test.ts` is now
+> `package/logger/core/src/sink/file-batch.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/module/test-sandbox/src/sandbox.unit.test.ts` is now
+> `package/test-harness/core-sandbox/src/sandbox.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/module/test/src/sinon-clock.unit.test.ts` is now
+> `package/test-harness/core/src/sinon-clock.unit.test.ts` (2026-10-29 `592d78b143`).
+> `package/module/async-time/src/with-timeout.ts` is now
+> `package/async-time/core/src/with-timeout.ts` (2026-10-29 `592d78b143`).
+> `package/module/deepmerge-ts.fuzz/src/scale-complexity.local.unit.test.ts` is now
+> `package/upstream-fork/deepmerge-ts.fuzz/src/scale-complexity.local.unit.test.ts`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

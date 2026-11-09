@@ -524,6 +524,69 @@ fn another_machine_an_unreadable_identity_no_record_or_the_same_boot_keeps_the_r
 }
 
 /// Contract assumption c,
+/// the boot identity (sixth pass,
+/// groups 10 and 11):
+/// a record that is not evidence of a reboot of this machine keeps a live process group blocking,
+/// and both consumers refuse under the same identity:
+/// the recovery restores nothing and keeps the journal with its snapshot,
+/// and admission starts no transaction.
+/// The cases are another machine,
+/// a current identity that cannot be read,
+/// a current identity that is malformed,
+/// a recorded identity that is malformed,
+/// and a record without an identity.
+/// The control is a well-formed record of another boot of this machine,
+/// which settles the journal,
+/// so the refusals above are the identity's.
+#[test]
+fn a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused() {
+    use std::os::unix::process::CommandExt;
+    let now: Identity = current_identity().expect("an identity");
+    let other: Identity = after_a_reboot();
+    let mut group = Command::new("sleep").arg("600").process_group(0).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().expect("a live group");
+    let cases: Vec<(&str, Option<Result<Identity, String>>, Option<String>)> = vec![
+        ("another machine", Some(Ok(Identity { boot: with_first_digit_changed(&now.boot), machine: with_first_digit_changed(&now.machine) })), None),
+        ("an unreadable current identity", Some(Err("the boot id cannot be read".to_string())), None),
+        ("a malformed current identity", Some(Ok(Identity { boot: "not-a-boot-id".to_string(), machine: now.machine.clone() })), None),
+        ("a malformed recorded identity", None, Some(format!("boot not-a-boot-id\nmachine {}\n", now.machine))),
+        ("a record without an identity", Some(Ok(after_a_reboot())), Some(String::new())),
+    ];
+    for (label, identity, recorded_lines) in cases {
+        let root = repository();
+        let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", group.id()));
+        if let Some(lines) = recorded_lines {
+            let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+            let first: &str = recorded.lines().next().expect("a view line");
+            fs::write(journal.join("view"), format!("{first}\n{lines}")).expect("rewrite the view");
+        }
+        use_identity_for_test(identity);
+        let report = crate::journal_recover::recover_report(root.path(), &refusing);
+        let admitted = begin(root.path(), &[snapshot("second")], false);
+        use_identity_for_test(None);
+
+        assert!(!report.mandatory_failure, "{label}: the refusal was a mandatory finish failure: {report:?}");
+        assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "{label}: the recovery restored a file: {report:?}");
+        assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "{label}: the journal was not kept as it is: {report:?}");
+        assert!(journal.join("0.lock").exists(), "{label}: the snapshot is gone");
+        assert!(admitted.as_ref().is_err_and(|error| { return error.to_string().contains("still running"); }), "{label}: a transaction was admitted, or the refusal does not name the member: {:?}", admitted.as_ref().err());
+    }
+    let _ = group.kill();
+    let _ = group.wait();
+    // The control: a well-formed record of another boot of this machine, with an identity in the journal's view, clears the group.
+    let root = repository();
+    let mut control_group = Command::new("sleep").arg("600").process_group(0).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().expect("a live group");
+    let journal: PathBuf = journal_with_records(root.path(), &format!("pgroup {}\n", control_group.id()));
+    let _ = control_group.kill();
+    let _ = control_group.wait();
+    use_identity_for_test(Some(Ok(other)));
+    let note: Option<String> = survivor_note(&journal);
+    let settled: Vec<String> = recover(root.path(), &refusing);
+    use_identity_for_test(None);
+    assert_eq!(note, None, "the control: a well-formed record of another boot did not clear the group");
+    assert_eq!(live_lock(root.path()), "original", "the control: the journal was not settled after the reboot: {settled:?}");
+}
+
+/// Contract assumption c,
 /// the boot identity:
 /// the discharge is of process liveness only:
 /// a missing snapshot and an incomplete listing of the journals still keep the journal,
@@ -797,35 +860,266 @@ fn a_root_whose_lockfile_restore_fails_keeps_its_manifest_while_the_other_root_i
 }
 
 /// Acceptance rows V3 and V4 (certification,
-/// fourth pass):
-/// a record write that returns having written only part of the line starts no
-/// program,
-/// in the delegated path and in the weaker path.
-/// The cut-short write is the real result of the write call (half the line
-/// reaches the file),
-/// so the length check after it is what refuses;
-/// a regression that drops the check lets the program start.
+/// fourth pass,
+/// and sixth pass group 13):
+/// a record write that fails,
+/// a record write that returns having written only part of the line,
+/// and a record whose durability barrier fails all start no program,
+/// in the delegated path and in the weaker path (forced through the route settings).
+/// The sequence is append,
+/// then its barrier,
+/// then the spawn:
+/// the trace shows the record step and no launch,
+/// and the control shows the three in order.
+/// The cut-short write is the real result of the write call (half the line reaches the file),
+/// so the length check after it is what refuses.
 #[test]
-fn a_record_that_is_written_only_in_part_starts_no_program() {
+fn a_record_that_is_written_only_in_part_or_cannot_be_written_or_synced_starts_no_program() {
     for weaker in [false, true] {
-        let plain = scratch();
-        if weaker {
-            crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
-        } else if delegated_route().is_none() {
-            return;
+        for fault in [Point::RecordWrite, Point::RecordShortWrite, Point::RecordSync] {
+            let plain = scratch();
+            if weaker {
+                crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+            } else if delegated_route().is_none() {
+                crate::bounded_run::use_route_settings_for_test(None);
+                return;
+            }
+            let root = repository();
+            let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+            let marker: PathBuf = root.path().join("ran");
+            let _ = crate::bounded_run::take_trace_for_test();
+            arm(fault);
+
+            let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
+            crate::bounded_run::use_route_settings_for_test(None);
+            let events: Vec<String> = crate::bounded_run::take_trace_for_test();
+
+            assert!(!crate::failpoints::fires(fault), "weaker={weaker} {fault:?}: the fault was never reached");
+            let refusal: String = result.expect_err("the program ran although its record was not durable").to_string();
+            assert!(!marker.exists(), "weaker={weaker} {fault:?}: the program started after an incomplete or unsynced record: {events:?}");
+            assert!(events.iter().any(|event| { return event.starts_with("attempt "); }), "weaker={weaker} {fault:?}: the record write was never attempted: {events:?}");
+            // A cut-short write is refused at the length check, before the "written" event; a failed sync comes after it.
+            if matches!(fault, Point::RecordSync) {
+                assert!(events.iter().any(|event| { return event.starts_with("written "); }), "weaker={weaker} {fault:?}: the record was never written: {events:?}");
+            }
+            assert!(refusal.contains("cut short") || refusal.contains("injected failure"), "weaker={weaker} {fault:?}: the refusal is not the record's: {refusal}");
+            assert!(!events.iter().any(|event| { return event.starts_with("launch ") || event.starts_with("spawned "); }), "weaker={weaker} {fault:?}: the program was launched after the record's failure: {events:?}");
+            drop(transaction);
         }
-        let root = repository();
-        let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
-        let marker: PathBuf = root.path().join("ran");
-        arm(Point::RecordShortWrite);
-
-        let result = output_within(Command::new("sh").args(["-c", &format!(": > {}", marker.display())]), None, &bound());
-        crate::bounded_run::use_route_settings_for_test(None);
-
-        assert!(!crate::failpoints::fires(Point::RecordShortWrite), "weaker={weaker}: the short write was never reached");
-        let refusal: String = result.expect_err("the program ran although its record was cut short").to_string();
-        assert!(refusal.contains("cut short"), "weaker={weaker}: the refusal is not the cut-short record: {refusal}");
-        assert!(!marker.exists(), "weaker={weaker}: the program started after an incomplete record");
-        drop(transaction);
     }
+    // The control: with no fault the same weaker-path schedule writes, syncs and then launches, in that order.
+    let plain = scratch();
+    crate::bounded_run::use_route_settings_for_test(Some(RouteSettings { cgroup_root: plain.path().to_path_buf(), ..RouteSettings::default() }));
+    let root = repository();
+    let transaction = begin(root.path(), &[snapshot("original")], false).expect("begin");
+    let _ = crate::bounded_run::take_trace_for_test();
+    output_within(&mut Command::new("true"), None, &bound()).expect("the control runs");
+    crate::bounded_run::use_route_settings_for_test(None);
+    let events: Vec<String> = crate::bounded_run::take_trace_for_test();
+    let order: Vec<&str> = events.iter().filter(|event| { return event.starts_with("attempt ") || event.starts_with("written ") || event.starts_with("sync ") || event.starts_with("synced ") || event.starts_with("launch ") || event.starts_with("spawned "); }).map(String::as_str).collect();
+    let attempt: usize = order.iter().position(|event| { return event.starts_with("attempt pgroup-starting"); }).expect("the announcement was attempted");
+    let written: usize = order.iter().position(|event| { return event.starts_with("written pgroup-starting"); }).expect("the announcement was written");
+    let synced: usize = order.iter().position(|event| { return event.starts_with("synced pgroup-starting"); }).expect("the announcement was synced");
+    let launched: usize = order.iter().position(|event| { return event.starts_with("launch pgroup"); }).expect("the launch was traced");
+    assert!(attempt < written && written < synced && synced < launched, "the weaker path did not append, then make durable, then spawn: {order:?}");
+    drop(transaction);
+}
+
+/// The environment variable that gives the acknowledgement-barrier helper its journal.
+const FIXTURE_ACKNOWLEDGEMENT: &str = "CARGO_SHADOW_ROUND_NINE_ACKNOWLEDGEMENT";
+
+/// The environment variable that tells the acknowledgement-barrier helper whether it writes or reads.
+const FIXTURE_ACKNOWLEDGEMENT_MODE: &str = "CARGO_SHADOW_ROUND_NINE_ACKNOWLEDGEMENT_MODE";
+
+/// The helper process of the acknowledgement syscall test:
+/// it acknowledges the journal it is given,
+/// or asks the reader whether the journal is acknowledged,
+/// and exits.
+/// Run on its own it does nothing.
+#[test]
+#[ignore = "the helper process of the_acknowledgement_barriers_are_the_real_syscalls_in_writer_and_reader_order"]
+fn acknowledgement_barrier_fixture() {
+    let Ok(journal) = std::env::var(FIXTURE_ACKNOWLEDGEMENT) else {
+        return;
+    };
+    let mode: String = std::env::var(FIXTURE_ACKNOWLEDGEMENT_MODE).expect("a mode");
+    let path: PathBuf = PathBuf::from(&journal);
+    if mode == "writer" {
+        acknowledge(&path).expect("acknowledges the journal");
+    } else {
+        assert!(crate::journal_unready::is_acknowledged(&path), "the reader did not accept the acknowledgement");
+    }
+}
+
+/// Acceptance row "Weaker path" (sixth pass,
+/// group 13,
+/// the acknowledgement writer's ordering):
+/// the writer's `acknowledged` name is published and then the directory that lists it is synchronized by the kernel,
+/// and the reader synchronizes the acknowledgement file before that directory.
+/// A regression that keeps the failpoints and the trace but drops either `sync_directory` call removes the fsync this test
+/// requires.
+#[test]
+fn the_acknowledgement_barriers_are_the_real_syscalls_in_writer_and_reader_order() {
+    let found = Command::new("strace").arg("--version").output();
+    if found.is_err() {
+        crate::test_scratch::skip_or_fail("strace is not installed, so the acknowledgement barriers cannot be observed here");
+        return;
+    }
+    for mode in ["writer", "reader"] {
+        let root = repository();
+        let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+        if mode == "reader" {
+            acknowledge(&journal).expect("the marker the reader is asked about");
+        }
+        let log: PathBuf = root.path().join(format!("strace-acknowledged-{mode}.log"));
+        let status = Command::new("strace")
+            .args(["-f", "-y", "-e", "trace=rename,renameat,renameat2,fsync,fdatasync", "-o"])
+            .arg(&log)
+            .arg(std::env::current_exe().expect("this test executable"))
+            .args(["--ignored", "--exact", "round_nine_tests::acknowledgement_barrier_fixture", "--nocapture"])
+            .env(FIXTURE_ACKNOWLEDGEMENT, &journal)
+            .env(FIXTURE_ACKNOWLEDGEMENT_MODE, mode)
+            .status()
+            .expect("strace runs the helper");
+        assert!(status.success(), "{mode}: the helper or strace failed: {status:?}");
+        let text: String = fs::read_to_string(&log).expect("the strace log");
+        let calls: Vec<&str> = text.lines().filter(|line| { return line.contains("rename(") || line.contains("renameat") || line.contains("fsync(") || line.contains("fdatasync("); }).collect();
+        let parent: String = format!("<{}>", journal.display());
+        let marker: String = format!("<{}>", journal.join("acknowledged").display());
+        if mode == "writer" {
+            let published_at: usize = calls.iter().position(|line| { return line.contains(&format!("{}/acknowledged", journal.display())) && line.contains("= 0"); }).unwrap_or_else(|| { panic!("the acknowledgement was never published by a rename: {calls:?}"); });
+            let synced_at: Option<usize> = calls.iter().enumerate().skip(published_at + 1).find(|(_, line)| { return (line.contains("fsync(") || line.contains("fdatasync(")) && line.contains(&parent) && line.contains("= 0"); }).map(|(index, _)| { return index; });
+            assert!(synced_at.is_some(), "the directory that lists the acknowledgement was not synchronized after the publication: {calls:?}");
+        } else {
+            let file_at: Option<usize> = calls.iter().position(|line| { return (line.contains("fsync(") || line.contains("fdatasync(")) && line.contains(&marker) && line.contains("= 0"); });
+            let directory_at: Option<usize> = calls.iter().position(|line| { return (line.contains("fsync(") || line.contains("fdatasync(")) && line.contains(&parent) && line.contains("= 0"); });
+            let (Some(first), Some(second)) = (file_at, directory_at) else {
+                panic!("the reader did not synchronize the acknowledgement file and its directory: {calls:?}");
+            };
+            assert!(first < second, "the reader synchronized the directory before the acknowledgement file: {calls:?}");
+        }
+    }
+}
+
+/// Acceptance row "Weaker path" (sixth pass,
+/// group 13,
+/// the reader's failures through both consumers):
+/// a marker whose file or directory the reader cannot make durable is not an acknowledgement:
+/// recovery keeps the journal and its snapshot,
+/// admission refuses,
+/// the fault is reached at the reader's operation,
+/// and with no fault the same recovery settles it.
+#[test]
+fn a_reader_that_cannot_make_an_acknowledgement_durable_blocks_recovery_and_admission() {
+    for fault in [Point::AcknowledgementFileSync, Point::AcknowledgementDirectorySync] {
+        let root = repository();
+        let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\n");
+        acknowledge(&journal).expect("the marker");
+        // Each consumer is given the fault on its own: the switch fails one use.
+        arm(fault);
+        let report = crate::journal_recover::recover_report(root.path(), &refusing);
+        assert!(!crate::failpoints::fires(fault), "{fault:?}: the reader's barrier was never reached by the recovery");
+        arm(fault);
+        let admitted = begin(root.path(), &[snapshot("second")], false);
+        assert!(!crate::failpoints::fires(fault), "{fault:?}: the reader's barrier was never reached by the admission");
+        arm(fault);
+        let note: Option<String> = survivor_note(&journal);
+        assert!(!crate::failpoints::fires(fault), "{fault:?}: the reader's barrier was never reached by the check");
+
+        assert!(note.is_some(), "{fault:?}: an acknowledgement the reader cannot make durable counted");
+        assert_eq!(live_lock(root.path()), "unchecked output of the killed run", "{fault:?}: the recovery acted on a marker it cannot make durable: {report:?}");
+        assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "{fault:?}: the journal was not kept: {report:?}");
+        assert!(journal.join("0.lock").exists(), "{fault:?}: the snapshot is gone");
+        assert!(admitted.is_err(), "{fault:?}: a transaction was admitted on a marker the reader cannot make durable");
+
+        // The control: the same marker with no fault settles the journal.
+        let settled: Vec<String> = recover(root.path(), &refusing);
+        assert_eq!(live_lock(root.path()), "original", "{fault:?}: the control did not settle the acknowledged journal: {settled:?}");
+    }
+}
+
+/// Acceptance row "Weaker path" (sixth pass,
+/// group 13,
+/// the uncertainty classes an acknowledgement resolves):
+/// a malformed containment record,
+/// an unreadable one and a journal seen through another view each block,
+/// and the acknowledgement of each lets the same recovery settle it,
+/// so the acknowledgement is what resolves those classes and not only a valid process-group record.
+#[test]
+fn an_acknowledgement_resolves_a_malformed_an_unreadable_and_another_views_journal() {
+    for (label, damage) in [
+        ("a malformed record", "malformed"),
+        ("an unreadable record", "unreadable"),
+        ("another view", "view"),
+    ] {
+        let root = repository();
+        let journal: PathBuf = journal_with_records(root.path(), "pgroup starting\npgroup 2147483646\n");
+        match damage {
+            "malformed" => fs::write(journal.join("groups"), "pgroup 4242\nnot a number\n").expect("damage the record"),
+            "unreadable" => {
+                fs::remove_file(journal.join("groups")).expect("the record");
+                fs::create_dir(journal.join("groups")).expect("a directory where the record was");
+            }
+            _ => {
+                let recorded: String = fs::read_to_string(journal.join("view")).expect("the view record");
+                let mut lines = recorded.lines();
+                let first: &str = lines.next().expect("a view line");
+                let view: &str = first.strip_prefix("view ").expect("a view");
+                let (mount, inode): (&str, &str) = view.split_once(':').expect("mount and inode");
+                fs::write(journal.join("view"), format!("view {}:{}\n{}\n", mount.parse::<u64>().expect("a mount") + 1, inode, lines.collect::<Vec<&str>>().join("\n"))).expect("another view");
+            }
+        }
+        assert!(survivor_note(&journal).is_some(), "{label}: the journal did not block before the acknowledgement");
+        acknowledge(&journal).expect("acknowledge the uncertainty");
+
+        let messages: Vec<String> = recover(root.path(), &refusing);
+
+        assert_eq!(live_lock(root.path()), "original", "{label}: the acknowledged journal was not settled: {messages:?}");
+        assert!(crate::journal_support::journal_dirs(root.path()).is_empty(), "{label}: the acknowledged journal was not removed: {messages:?}");
+    }
+}
+
+/// Acceptance row V5 (sixth pass,
+/// group 8,
+/// a failure after the exchange):
+/// the snapshot lockfile becomes live (the exchange succeeded),
+/// then the preservation of the file it displaced fails.
+/// The root is treated as failed:
+/// its edited manifest is untouched,
+/// the journal is kept with its snapshot,
+/// and the displaced inode keeps the stranded exchange temporary.
+/// A control without the fault restores both and completes the journal.
+#[test]
+fn a_restore_that_fails_after_the_exchange_keeps_the_edited_manifest_and_the_journal() {
+    use std::os::unix::fs::MetadataExt;
+    let root = repository();
+    let manifest: PathBuf = root.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&manifest, "edited manifest of the killed run").expect("manifest");
+    let manifests: Vec<crate::manifest_edit::ManifestEdit> = vec![crate::manifest_edit::ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: manifest.clone(), before: "manifest before".to_string(), produced: None }];
+    let journal: PathBuf = plant(root.path(), &[snapshot("original")], &manifests);
+    let lock_path: PathBuf = root.path().join(CRATE_DIR).join("Cargo.lock");
+    let displaced: u64 = fs::metadata(&lock_path).expect("examines").ino();
+    crate::failpoints::arm_keep_link_of(&lock_path);
+
+    let messages: Vec<String> = recover(root.path(), &refusing);
+    crate::failpoints::disarm_keep_link();
+
+    assert_eq!(live_lock(root.path()), "original", "the exchange did not put the snapshot live before the failure, so the schedule is not the one named: {messages:?}");
+    assert_eq!(fs::read_to_string(&manifest).expect("manifest"), "edited manifest of the killed run", "the manifest of a root whose preservation failed after the exchange was put back: {messages:?}");
+    assert!(messages.iter().any(|message| { return message.contains(CRATE_DIR) && message.contains("could not recover a killed run"); }), "the failed root was not reported: {messages:?}");
+    assert_eq!(crate::journal_support::journal_dirs(root.path()), vec![journal.clone()], "the journal of an unsettled recovery was not kept");
+    assert!(journal.join("0.lock").exists(), "the journal's snapshot is gone");
+    let names: Vec<PathBuf> = crate::journal_protocol_tests::names_of_inode(root.path(), displaced);
+    assert!(names.iter().any(|name| { return name.file_name().is_some_and(|file| { return file.to_string_lossy().contains(".shadow-"); }); }), "the displaced inode lost the stranded exchange temporary: {names:?}");
+
+    // The control: the same journal without the fault restores the lockfile and the manifest and completes.
+    let control = repository();
+    let control_manifest: PathBuf = control.path().join(CRATE_DIR).join("Cargo.toml");
+    fs::write(&control_manifest, "edited manifest of the killed run").expect("manifest");
+    let control_manifests: Vec<crate::manifest_edit::ManifestEdit> = vec![crate::manifest_edit::ManifestEdit { crate_dir: CRATE_DIR.to_string(), path: control_manifest.clone(), before: "manifest before".to_string(), produced: None }];
+    let control_journal: PathBuf = plant(control.path(), &[snapshot("original")], &control_manifests);
+    let settled: Vec<String> = recover(control.path(), &refusing);
+    assert_eq!(live_lock(control.path()), "original", "the control did not restore the snapshot: {settled:?}");
+    assert_eq!(fs::read_to_string(&control_manifest).expect("manifest"), "manifest before", "the control did not restore the manifest: {settled:?}");
+    assert!(!control_journal.exists(), "the control journal was not completed: {settled:?}");
 }

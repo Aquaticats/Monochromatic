@@ -345,7 +345,7 @@ and both are named above:
 `#151` for the line structure,
 and a stated policy for the candidates that never validate.
 
-## `#151` landed, and it corrects the first measurement above
+## `#151` landed, and it corrects the first of the four measurements
 
 `consolidate-wrap.ts` gives the stage the assembly step it never had.
 It calls the same `wrapReplacementText` both lanes call,
@@ -393,7 +393,7 @@ and `keyword233#0` in run 8.
 All three ship 198 or 221 characters against a standing text of the same length,
 and once wrapped they are the standing text exactly.
 
-So measurement one above overstates.
+So measurement one overstates.
 The roster backed a consolidation carrying a real content change
 at 9 of 11 decided slices in run 8,
 not 11 of 11,
@@ -467,7 +467,7 @@ Veto invited.
 ## The first measurement, restated once the floor is in it
 
 The section "`#151` landed,
-and it corrects the first measurement above"
+and it corrects the first of the four measurements"
 put the rate at 9 of 11 decided slices in run 8 and 8 of 9 in run 9.
 Both numbers predate the validity floor,
 and the floor moves them again.

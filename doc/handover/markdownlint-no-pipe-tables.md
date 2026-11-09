@@ -49,7 +49,8 @@ changed).
    the
   rationale belongs in `doc/philosophy/agents.md` (do not advertise the HTML escape hatch in the
   terse rule).
-   This doc edit is still pending (task 5 below).
+   This doc edit is still pending (task 5,
+  "docs").
 
 ## Architecture (current)
 

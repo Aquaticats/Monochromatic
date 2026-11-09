@@ -1,5 +1,14 @@
 # IDE GPU migration, stages 5 and 6: state at the stop
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/desktop-app/ide:lint` is now `//package/ide/app:lint`
+> (2026-10-29 `592d78b143`).
+> `package/cli/nested-wayland-session/src/recorder.rs` is now
+> `package/nested-wayland-session/cli/src/recorder.rs` (2026-10-29 `592d78b143`).
+> `//package/desktop-app/ide:build` is now `//package/ide/app:build`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:
@@ -64,7 +73,7 @@ section "Stages 5 and 6".
 
 ## Next steps
 
-1. `mise run //package/desktop-app/ide:lint`,
+1. `mise run //package/ide/app:lint`,
    then `test:native` once,
    then `test`,
    `test:bin`,
@@ -479,7 +488,7 @@ which was measured again below.
 "First hand-over stall" is a stalled tick at slots 33 to 37,
 or 41 to 45 when highlighting timed out under load
 (a 30 px banner moves the first hand-over,
-as in the section above).
+as the Counts measurement explains).
 
 - A against A (5 pairs,
   both with the immediate request):
@@ -2016,7 +2025,7 @@ dark.
   the minimap picture is 220x7936 (15.5 chunks,
   one texture).
   At scale 1 the tile is 679x11064 and the picture 110x3968.
-  Because a window cannot be taller than the device's texture limit (see below),
+  Because a window cannot be taller than the device's 16,384-row texture limit,
   a picture of more than 16,384 rows
   needs a window of about 16,000 physical rows.
   A 1100x8100 window at scale 2 (2200x16200 physical) gave the stack of the real device:
@@ -2069,7 +2078,7 @@ dark.
   not text,
   and
   its colors come from the same function as the code's (`ink(role, colors)`).
-- Looked at (images below):
+- Looked at (the screenshots this entry carries):
   light code view,
   find box with 166 matches,
   select all with the underlines of diagnostics
@@ -2489,7 +2498,7 @@ the longest blank run.
   B has 10,454 to 10,492 inked rows (64.5 percent),
   the last 16,199,
   dark and light.
-- Looked at with the image viewer (images below):
+- Looked at with the image viewer (the screenshots this entry carries):
   the window downscaled and 4x crops at cuts,
   scale 1 and 2,
   dark and

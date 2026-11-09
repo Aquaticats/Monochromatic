@@ -7,6 +7,11 @@
 //! so every call has its own deadline and a call that passes it is an error,
 //! never a wait without end.
 //! Nothing here forces a removal and nothing here runs as root.
+//! The three refusals the first run met (2026-11-08,
+//! `~/temp/agent/lean/first-podman.out`) are answered here:
+//! the container list asks for the external Buildah working containers,
+//! a removal names an image by every tag it carries rather than by its id,
+//! and a refusal that says the image is not known is read as gone rather than as a failure.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,6 +33,14 @@ pub const LIST_LIMIT: Duration = Duration::from_secs(1_500);
 
 /// How long one removal call may take.
 pub const REMOVE_LIMIT: Duration = Duration::from_secs(900);
+
+/// What Podman is asked for the containers of any state:
+/// `--all` covers the stopped ones,
+/// and `--external` the Buildah working containers,
+/// which a plain `podman ps --all` does not list (measured 2026-11-08,
+/// buildah 1.45.1 and podman 6.1.3,
+/// in a throwaway storage root).
+pub const CONTAINER_LIST_ARGUMENTS: [&str; 6] = ["ps", "--all", "--external", "--no-trunc", "--format", "{{.ImageID}}"];
 
 /// Real Podman.
 pub struct RealPodman;
@@ -126,9 +139,10 @@ impl PodmanApi for RealPodman {
         return parse_images(&run(&["images", "--all", "--format", "json"], LIST_LIMIT)?);
     }
 
-    /// Lists the image id of every container in any state.
+    /// Lists the image id of every container in any state,
+    /// the Buildah working ones included.
     fn container_image_ids(&self) -> Result<Vec<String>, String> {
-        let text: String = run(&["ps", "--all", "--no-trunc", "--format", "{{.ImageID}}"], LIST_LIMIT)?;
+        let text: String = run(&CONTAINER_LIST_ARGUMENTS, LIST_LIMIT)?;
         let mut ids: Vec<String> = Vec::new();
         for line in text.lines() {
             let id: String = line.trim().chars().take(12).collect();
@@ -144,11 +158,14 @@ impl PodmanApi for RealPodman {
         return parse_volumes(&run(&["volume", "ls", "--filter", "dangling=true", "--format", "json"], LIST_LIMIT)?);
     }
 
-    /// Removes images by id with a plain `podman rmi`,
+    /// Removes one image through every reference that names it with a plain `podman rmi`,
     /// never forcing.
-    fn remove_images(&self, ids: &[String]) -> Result<(), String> {
+    /// Why:
+    /// Podman refuses an image with more than one tag when it is named by id,
+    /// and untags it rather than deleting it while another tag of it remains.
+    fn remove_image(&self, references: &[String]) -> Result<(), String> {
         let mut arguments: Vec<&str> = vec!["rmi"];
-        arguments.extend(ids.iter().map(String::as_str));
+        arguments.extend(references.iter().map(String::as_str));
         run(&arguments, REMOVE_LIMIT)?;
         return Ok(());
     }

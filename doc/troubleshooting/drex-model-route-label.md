@@ -426,6 +426,12 @@ requires a distribution sum within `0.000001` of one and a highest-probability s
 if((Math.abs(total-1)>0.000001)||(probabilities[value.choice]!==largest))throw new QuestionSelectionError('Choice answer is not a complete distribution with a highest-probability selected option');
 ```
 
+`package/pi-plugin/auto-mode/native/contract/lifecycle/claim-evidence-batch-selection/selection.mjs`
+was removed on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native
+Pi build);
+no file in the working tree carries it now.
+
 The public Drex source at commit `be8ba7c8157241b9393862e9fcec104d0dc5caff`
 rounds each value independently in `kev/api.py:137` and `kev/api.py:149`:
 

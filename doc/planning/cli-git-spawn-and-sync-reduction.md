@@ -13,7 +13,11 @@ This record keeps the names of its time.
 
 Status:
 accepted for implementation by the user (2026-10-29),
-scope below.
+scope:
+the process-start retry (slice R),
+the candidate replacements,
+the journal syncs (slice J,
+task 69) and the in-process filesystem identity (slice S2).
 Owner package:
 `package/git-policy/cli`.
 Tracking issue:
@@ -169,7 +173,7 @@ Measured process lifetimes of one commit (strace):
   exist plus `hook.<event>.enabled=false` for every event,
   and the wrapper starts no hook and no hook shim.
   The S1
-  shim record above,
+  shim record,
   `write_hook_dispatch`,
   `run_post_commit_hook` and the fifteen-shape parity suite describe code that
   no longer exists;
@@ -181,7 +185,7 @@ Measured process lifetimes of one commit (strace):
   and `/dev/disk/by-uuid` when the mapping is unambiguous;
   otherwise `findmnt` stays.
   Needs a check of how the
-  identity is consumed before choosing (recorded below when read).
+  identity is consumed before choosing (recorded under `What must stay identical` when read).
 - One configuration snapshot (`git config --list -z --show-scope`) in place of the separate `config` runs
   (`core.hooksPath`,
   the four `hook.<event>.enabled` reads already batched,
@@ -287,7 +291,7 @@ Measured process lifetimes of one commit (strace):
 - Merging `core.hooksPath` with the maintenance reads by hand:
   different phases and a `--type=path` value;
   covered
-  instead by the snapshot above.
+  instead by `config_snapshot.rs`.
 - Capping Git's threads (`pack.threads=1`,
   `core.preloadindex=false`):
   101 ms against 105 and 100 ms baseline,
@@ -398,7 +402,7 @@ or nothing.
 If a filesystem persisted the unlinks but not the
 rename,
 the published name `<id>` would be left without `owner.json`,
-and the J3 outcome below shows that this state
+and the `J3 outcome: what recovery does with emptied, halved and dropped records` section shows that this state
 sticks (deleting `owner.json` fails closed at every phase,
 naming the directory).
 No such state was produced by any
@@ -547,7 +551,10 @@ and the listings were updated to match.
   (empty and half before the ref moves),
   `landing-1.json` and `ref-updated.json` (empty and half),
   `store-held.json`
-  after the ref moved,
+  after the ref moved
+  (in a reftable repository,
+  the only backend whose store can hold one,
+  since 2026-11-09T03:26:44Z),
   and the `owner.json` of `landing.lock`.
   Their messages are fail-closed by design.
 - Silent inconsistency:
@@ -587,7 +594,7 @@ and the listings were updated to match.
   which is the unsourced ordering assumption
   recorded under the J2 outcome.
 - What the user is told (resolved by follow-up 3;
-  the text below is the state when the harness was written):
+  the quoted message text is the state when the harness was written):
   only the
   owner-record messages name a path.
   The messages for `preparing.json`,
@@ -618,7 +625,14 @@ and the unsynced
 `store-held.json` is benign before the
 ref moves and sticks after it,
 so it can lose its own sync only if the landing barrier makes it durable.
-Everything else listed under the first two bullets above stays.
+Note 2026-11-09T03:26:44Z:
+the writer now leaves the record out when its backend's ref store can hold no conclusion value,
+which is every files-backend repository,
+and its reader takes an absent record as naming nothing there.
+The condition above therefore holds where values exist (a reftable repository) and has no subject elsewhere,
+and the flush it removes is measured in
+`doc/planning/cli-git-commit-latency-under-many-agents.md`.
+Everything else listed in the torn snapshots bullet and in the records that are synced today bullet stays.
 
 #### Outcomes by phase
 
@@ -1226,7 +1240,7 @@ each in its own commit,
 and the exposure each one accepts is
 recorded here.
 A kill leaves the page cache intact,
-so no test below is a power loss;
+so no test under "J4 outcome" is a power loss;
 the harness damages files to
 stand for one.
 
@@ -1325,8 +1339,7 @@ before the barrier where the loss is reachable:
   such a directory when it holds no landing record,
   or put the candidate directory sync back (one call per commit).
 
-Superseded by "J4 follow-up:
-lost names converge" below:
+Superseded by the J4 follow-up "lost names converge":
 the `preparing.json`,
 `index-lock-1.json` and `owner.json`
 bullets and the paragraph after them describe the state when the syncs were dropped,
@@ -1334,7 +1347,7 @@ before recovery learned to converge
 on them.
 The tests `a_lost_index_lock_name_equals_a_lock_record_never_written` and
 `a_lost_owner_name_pins_the_known_gap_of_a_stuck_repository_naming_the_directory` no longer exist (replaced by the
-controls below),
+convergence controls in the J4 follow-up),
 and `a_lost_preparing_name_equals_a_preparing_record_never_written` was renamed.
 
 The "leaves `index.lock`" outcome of the first two bullets does not converge either,
@@ -1407,7 +1420,8 @@ change.
 The owner accepted the durability risk and refused to put the syncs back;
 the requirement that stays is that the wrapper
 never leaves a repository stuck.
-Recovery now converges on the three lost names above without a new sync,
+Recovery now converges on `preparing.json`,
+`index-lock-1.json` and `owner.json` without a new sync,
 a new spawn
 or a new syscall on a commit that finds its state whole:
 every new check runs in the branch that already found a dead
@@ -1637,8 +1651,7 @@ rule A waits sixty minutes of quiet (`FOREIGN_OWNER_PATIENCE`,
 reused so one constant
 serves both cases),
 so a fresh ownerless directory stops every guarded command for up to an hour,
-with the message
-above naming the manual way out.
+with the rule A message naming the manual way out.
 A shorter bound (for example tied to `CLI_GIT_LOCK_WAIT_SECONDS`,
 30 minutes by
 default) converges sooner and widens the window in which a live wrapper whose `owner.json` was removed by hand and that
@@ -1655,7 +1668,7 @@ none hidden:
   On a busy host the number can be reused soon;
   the lock then
   stays until it is removed by hand with the command the message names.
-- A lock of unknown origin (see the limits above).
+- A lock of unknown origin (see the unknown-origin limit under `Named limits of rule B2`).
 - A `.pending` staging candidate whose `owner.json` name was lost is kept in place and reported as live
   (`StagingUnattributed`).
   This is not a stuck case:
@@ -1876,6 +1889,22 @@ question the readers leave to Git takes the old way,
 with the start.
 The reasons and the numbers are in
 `doc/planning/cli-git-main-commit-within-native-plus-five.md`.
+
+Lowered again on 2026-11-08:
+the `update-index` start of the stat-data refresh is zero unless the real index no longer describes the worktree.
+The refresh `cd1755d728` added to keep the scratch commit inside its ceiling ran
+`git update-index --refresh` on the real index before the private copies were made,
+which is one start in every scenario,
+and Git takes `index.lock` on every such run even when it writes nothing;
+the six constants were left at the counts measured before it,
+so `budget::` failed six times on main's tree.
+`src/native/commit/commit_index_stat_staleness.rs` answers the question in process from the index's bytes,
+so an index that describes the worktree starts no Git and takes no lock,
+and the counts under "Budgets" hold as they were measured before the refresh existed.
+The measurements,
+the reasoning and what is still to do are in
+`doc/handover/cli-git-rust-implementation.md`,
+"The refresh of a stale index asks for Git and the real index's lock only when it is stale".
 
 ## Filesystem identity without `findmnt` (slice S2)
 
@@ -2144,8 +2173,10 @@ each with its reason):
 Rejected:
 `/dev/disk/by-uuid` as the source of the text (see "How `findmnt` 2.41 gets the text").
 Reading
-`ID_FS_UUID_SUB_ENC` (the Btrfs device UUID) instead of `ID_FS_UUID_ENC` is the natural mistake and the guard below
-catches it:
+`ID_FS_UUID_SUB_ENC` (the Btrfs device UUID) instead of `ID_FS_UUID_ENC` is the natural mistake,
+and `udev_records_give_one_plain_uuid`,
+`in_process_uuids_equal_what_findmnt_prints` and
+`identities_equal_the_command_only_resolution` catch it:
 the repository path then records `87fa7a73-...` against `findmnt`'s `1bb3d23e-...`.
 
 Guards shown failing before being kept (each break applied,

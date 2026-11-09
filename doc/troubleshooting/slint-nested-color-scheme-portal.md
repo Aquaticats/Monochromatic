@@ -211,6 +211,13 @@ mise run //package/nested-wayland-session/cli:build
 mise run //package/nested-wayland-session/cli:inspect:color-scheme
 ```
 
+`mise run //package/nested-wayland-session/cli:lint:rust` was removed on 2026-10-06 by `0b49ae109e`;
+today's lint is `mise run //package/nested-wayland-session/cli:lint:clippy`.
+
+`lint:rust` is not declared in that package's `mise.toml` on any ref of this repository.
+The package declares `lint` and `lint:clippy`;
+the other four addresses still resolve.
+
 ### Passing cases
 
 Measured on 2026-10-05.

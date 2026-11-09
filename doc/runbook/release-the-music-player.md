@@ -220,7 +220,10 @@ Read the message:
   and write the reason in the comment above the list and in the decision document;
   otherwise replace or drop the dependency.
 - `does not match the checksum recorded in this script` or `does not ship ... with the vendored license text`
-  means a Slint release changed its Royalty-free license file.
+  means the vendored Slint license file is not,
+  byte for byte,
+  the file the Slint crates ship.
+  A Slint release that changed its Royalty-free license file is one cause.
   Read the new text,
   and in particular its section 2 (attribution):
   the Licenses page of the desktop Settings must keep showing the `AboutSlint` widget,
@@ -232,6 +235,14 @@ Read the message:
   Then replace `desktop-app/notices/slint-royalty-free-2.0.md` and the SHA-256 in `bin/third-party-notices.mjs`.
   A new license identifier (a version other than `LicenseRef-Slint-Royalty-free-2.0`) fails the gate first;
   see `doc/troubleshooting/cargo-about-licenseref-text-is-dropped.md` for why the script supplies the text.
+  A rewrap by this repository is the other cause,
+  and then the license changed nothing:
+  compare the vendored file with `LICENSES/LicenseRef-Slint-Royalty-free-2.0.md` of a Slint crate in the cargo
+  registry (`sha256sum` both,
+  they hold the pinned `5167f5056e85...`),
+  restore the crate's bytes,
+  and leave the SHA-256 alone.
+  `doc/troubleshooting/cargo-about-licenseref-text-is-dropped.md` tells the two causes apart.
 - cargo-about naming `cfg_block` (or another crate with a `clarify` entry) means the crate's license file changed:
   read the new file and update the license and the SHA-256 in that entry.
 - `links crates the notice does not cover` means `cargo tree` found a linked crate that cargo-about did not list;

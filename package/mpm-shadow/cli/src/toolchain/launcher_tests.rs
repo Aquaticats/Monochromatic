@@ -68,8 +68,11 @@ fn a_global_launcher_warns_with_the_global_upgrade_command() {
     let rig = Rig::new();
     let record = LaunchRecord { scope: ScopeKind::Global, ..record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4") };
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
-    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4"), &record.real)));
-    assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm update -g {TOOL}`")));
+    assert_eq!(
+        launch.warning,
+        Some(warning_naming_program(&older_lock_message_for(ScopeKind::Global, TOOL, "0.4.0", "0.4.4", &record.lock_file), &record.real))
+    );
+    assert!(launch.warning.unwrap_or_default().contains(&format!("`mpm-shadow update -g {TOOL}`")));
 }
 
 #[test]
@@ -84,7 +87,7 @@ fn a_current_link_that_forwards_to_the_other_roots_current_still_names_the_versi
     let launch = prepare_launch(&record, Some(&lock_text("0.4.4")));
     assert_eq!(
         launch.warning,
-        Some(warning_naming_program(&older_lock_message(TOOL, "0.4.4", "0.4.5"), &record.real)),
+        Some(warning_naming_program(&older_lock_message(TOOL, "0.4.4", "0.4.5", &record.lock_file), &record.real)),
         "the version behind the chain, not the word current"
     );
 }
@@ -94,8 +97,20 @@ fn the_launcher_warns_when_the_version_that_runs_is_newer_than_the_lock() {
     let rig = Rig::new();
     let record = record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4");
     let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
-    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(TOOL, "0.4.0", "0.4.4"), &record.real)));
+    assert_eq!(launch.warning, Some(warning_naming_program(&older_lock_message(TOOL, "0.4.0", "0.4.4", &record.lock_file), &record.real)));
     assert_eq!(launch.program, record.real);
+}
+
+#[test]
+fn the_older_lock_warning_names_the_lock_file_it_compared() {
+    let rig = Rig::new();
+    let record = record_with_current(rig._directory.path(), &["0.4.4"], "0.4.4");
+    let launch = prepare_launch(&record, Some(&lock_text("0.4.0")));
+    let warning = launch.warning.expect("the lock is older than the version that runs");
+    assert!(
+        warning.contains(&record.lock_file.display().to_string()),
+        "the warning names the lock file it read, so a reader can act on it: {warning}"
+    );
 }
 
 #[test]
@@ -294,4 +309,110 @@ fn the_warning_names_the_program_under_current_when_the_recorded_folder_was_dele
     let warning: String = launch.warning.expect("the lock is older than the version that runs");
     assert!(warning.ends_with(&format!("; starting {}", started.display())), "{warning}");
     assert!(!warning.contains(&recorded.display().to_string()), "the deleted path is never named as the one started: {warning}");
+}
+
+/// The environment variable that makes a copy of the test binary act as the installed `mpm-shadow` of the test below;
+/// it holds the file the child writes the launcher's bytes to.
+#[cfg(target_os = "linux")]
+const INSTALLED_SHADOW_CHILD: &str = "MPM_SHADOW_TEST_INSTALLED_SHADOW_CHILD";
+
+/// The worktree root the child builds its scope from.
+#[cfg(target_os = "linux")]
+const INSTALLED_SHADOW_ROOT: &str = "MPM_SHADOW_TEST_INSTALLED_SHADOW_ROOT";
+
+/// The full test name the child is asked to run.
+#[cfg(target_os = "linux")]
+const INSTALLED_SHADOW_TEST: &str = "toolchain::launcher_tests::a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow";
+
+/// The bytes of the newest installed `mpm-shadow` the test below places.
+#[cfg(target_os = "linux")]
+const NEWEST_SHADOW: &[u8] = b"the newest installed mpm-shadow\n";
+
+/// Where an install of `mpm-shadow` at `version` puts the program,
+/// in the layout a release archive unpacks into.
+#[cfg(target_os = "linux")]
+fn shadow_install_program(toolchain_root: &Path, version: &str) -> PathBuf {
+    return toolchain_root.join("mpm-shadow").join(version).join(format!("monochromatic-mpm-shadow-{version}-linux")).join("mpm-shadow");
+}
+
+/// Writes `content` as the program of `mpm-shadow` at `version` in `toolchain_root`
+/// and points that root's `current` link at the version.
+#[cfg(target_os = "linux")]
+fn install_shadow(toolchain_root: &Path, version: &str, content: &[u8]) -> PathBuf {
+    let program: PathBuf = shadow_install_program(toolchain_root, version);
+    fs::create_dir_all(program.parent().expect("a parent")).expect("make the install");
+    fs::write(&program, content).expect("write the program");
+    fs::set_permissions(&program, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("make the program executable");
+    let link: PathBuf = toolchain_root.join("mpm-shadow").join("current");
+    let _ = fs::remove_file(&link);
+    std::os::unix::fs::symlink(version, &link).expect("link current");
+    return program;
+}
+
+/// The child half of the test below:
+/// asks `ensure_launcher` for a launcher and writes the bytes it placed.
+#[cfg(target_os = "linux")]
+fn make_a_launcher_from_wherever_it_runs(report: &Path) {
+    use super::scope::{EnvMap, Scope, repo_scope};
+    let env: EnvMap = EnvMap::from_process();
+    let root: PathBuf = PathBuf::from(env.get(INSTALLED_SHADOW_ROOT).expect("the worktree root this child is told about"));
+    let scope: Scope = repo_scope(&root, &env).expect("a scope");
+    let real: PathBuf = scope.toolchain_root.join("demo").join("current").join("bin").join("tool");
+    let launcher: PathBuf = ensure_launcher(&scope, TOOL, "git", &real).expect("a launcher is made");
+    fs::write(report, fs::read(&launcher).expect("the launcher's bytes")).expect("write the report");
+}
+
+/// What:
+/// A launcher is a copy of the newest installed `mpm-shadow`,
+/// not of the `mpm-shadow` that ran `install`.
+/// Why:
+/// The installer is whichever copy the tree (or the machine) ran,
+/// so a launcher copied from it can be older than the newest installed shadow
+/// and then follows no `current` link and never rewrites its record;
+/// that is how the machine-global `git` launcher stayed a 0.2.7-alpha.2 copy and started a deleted 0.6.0 folder.
+/// The child runs from an old version folder of the tree's own root while `current` names a newer one,
+/// which sits in the tree's root first and in the machine-global root second.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow() {
+    if let Ok(report) = std::env::var(INSTALLED_SHADOW_CHILD) {
+        make_a_launcher_from_wherever_it_runs(Path::new(&report));
+        return;
+    }
+    for newest_in_the_other_root in [false, true] {
+        let rig = Rig::new();
+        let own_root: PathBuf = rig.scope.toolchain_root.clone();
+        let other_root: PathBuf = rig.scope.other_toolchain_root.clone();
+        let newest_root: &Path = if newest_in_the_other_root { &other_root } else { &own_root };
+        let newest: PathBuf = install_shadow(newest_root, "0.2.1", NEWEST_SHADOW);
+        // The running copy: this test binary, placed where an older install of the same tool lives.
+        let running: PathBuf = shadow_install_program(&own_root, "0.2.0");
+        fs::create_dir_all(running.parent().expect("a parent")).expect("make the old install");
+        fs::copy(std::env::current_exe().expect("the test binary"), &running).expect("copy the test binary");
+        fs::set_permissions(&running, std::os::unix::fs::PermissionsExt::from_mode(0o755)).expect("make it executable");
+        if newest_in_the_other_root {
+            std::os::unix::fs::symlink("0.2.0", own_root.join("mpm-shadow").join("current")).expect("the running copy is what this root's current names");
+        }
+        let report: PathBuf = rig._directory.path().join("launcher-report");
+        let output: std::process::Output = std::process::Command::new(&running)
+            .args(["--exact", INSTALLED_SHADOW_TEST, "--nocapture", "--test-threads", "1"])
+            .env(INSTALLED_SHADOW_CHILD, &report)
+            .env(INSTALLED_SHADOW_ROOT, &rig.scope.root)
+            .env("HOME", &rig.scope.home)
+            .output()
+            .expect("start the copy");
+        assert!(
+            output.status.success(),
+            "the child failed with {:?} (newest in the other root: {newest_in_the_other_root}):\n{}\n{}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            fs::read(&report).expect("the child reported the launcher's bytes"),
+            NEWEST_SHADOW,
+            "the launcher is a copy of {}, not of the installer that ran (newest in the other root: {newest_in_the_other_root})",
+            newest.display()
+        );
+    }
 }

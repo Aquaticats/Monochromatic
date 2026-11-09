@@ -1,5 +1,25 @@
 # cli-git native policy engine
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:lint:rust` is retired (2026-10-06 `0b49ae109e`) and
+> `mise run //:lint:monochromatic-lint -- package/git-policy/cli` lints that Rust today.
+
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:native:lint:rust` went on 2026-10-06 (`0b49ae109e`),
+`//package/git-policy/cli:native:clippy` lints the native wrapper;
+`//package/git-policy/cli:lint:monochromatic-lint` lints the repository sources.
+
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

@@ -13,7 +13,7 @@ for this before was a cold run.
 
 This document is long and append-only.
 What follows is where things stand;
- everything below it is the record of getting here,
+ everything from the `Landed` heading onward is the record of getting here,
 including four claims that were withdrawn.
 
 ### Landed
@@ -134,7 +134,10 @@ Neither fix caused the shift:
 
 ### What these timings can and cannot support
 
-Read this before quoting any number above as the effect of any one change.
+Read this before quoting any number from the "Current state,
+2026-08-08" heading to
+"The two holes left open,
+then closed" as the effect of any one change.
 
 Four warm sweeps of one unchanged build measured **57.3s,
  58.9s,
@@ -251,7 +254,8 @@ Warm 67.3s to 58.3s and cold 247.0s to 207.5s,
  diagnostics byte-identical to
 the pinned digests.
 The sweep is corroboration rather than the evidence;
- the evidence is the probe below.
+ the evidence is the probe under "The decode cache TypeScript already keeps,
+and the call that emptied it".
 
 `SourceFileCache` in `typescript/dist/api/sourceFileCache.js` is keyed by path,
  parse options and
@@ -879,7 +883,8 @@ So deserialising the entire cache costs a quarter of a second against 171 second
 The read and validate path is eliminated as the explanation,
  and with cache misses already
 eliminated at 0.7 per cent,
- both candidates named in the previous section are gone.
+ both candidates named in "Measured without touching the plugin:
+the cache is not the problem" are gone.
 
 One number worth carrying to whoever continues:
  the confounded run counted 4899 `loadSource`
@@ -957,7 +962,8 @@ is now established rather than blocked.
 
 #### Withdrawn too: `source` is not ninety-five per cent
 
-The phase split recorded earlier came from a single instrumented run,
+The phase split recorded under "Which phase,
+measured" came from a single instrumented run,
  which is the same
 mistake as the miss rate and was not noticed at the time.
 Re-measured with the two-run method:
@@ -1312,7 +1318,8 @@ That removes most of the 63.8 warm worker-seconds now spent before the cache che
 changing which index is selected for any file:
  the set it keys on is identical either way,
  by
-the argument above rather than by measurement.
+the argument under `The filter does not depend on the active file, so the memo is sound`
+rather than by measurement.
 
 Still not implemented,
  and the remaining risk is no longer soundness but placement:
@@ -1506,7 +1513,9 @@ neither yields to a cache.
 
 ### Correction: "productive work" was an inference, and it reopened
 
-The previous section concluded there was no waste left inside this rule.
+The section titled "The last component is productive work,
+not overhead" concluded there was
+ no waste left inside this rule.
 That was reached from where verification sits in the call tree,
  not from measuring inside it,
 which is the same fault as the two withdrawn figures wearing different clothes:
@@ -1930,7 +1939,8 @@ The second is oxlint's file distribution,
 
 The fingerprint at 15.0s is the one piece with a known and different remedy,
  under the
-text-equality condition recorded above,
+text-equality condition recorded in "The fingerprint does depend on the active file,
+unlike the previous two",
  and it is a fifth of what the scope derivation costs.
 
 #### Why the fingerprint costs 20.7ms: it reads the project from disk
@@ -2036,7 +2046,8 @@ Measured,
  and **2 reused
 the memo (0.3 per cent)**.
 
-Both candidates in the previous section were wrong.
+Both candidates in "The fingerprint memo landed and delivered about a second,
+not fifteen" were wrong.
 The overlay never differed from disk,
  so byte-order marks and line endings were not the
 problem,

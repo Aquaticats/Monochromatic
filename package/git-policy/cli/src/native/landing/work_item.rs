@@ -26,9 +26,11 @@
 use crate::claim_time::ClaimTime;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::service_timing::log;
+pub use crate::work_item_kinds_and_their_names::WorkKind;
 pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
 pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -37,52 +39,6 @@ pub const VERSION: u64 = 1;
 
 /// Directory under the worktree's own Git directory (`WorkItem::git_dir`) that holds the state directories.
 pub const WORK_DIRECTORY: &str = "monochromatic-git-policy-cli/work";
-
-/// What:
-///  The kind of work an item asks for.
-/// Why:
-///   One record format carries every asynchronous job;
-/// the kind picks the consumer's handler.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type WorkKind = 'review' | 'push' | 'maintenance';
-/// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum WorkKind {
-    /// The standards-review shadow run.
-    Review,
-    /// An auto-push of the branch.
-    Push,
-    /// Repository maintenance.
-    Maintenance,
-    /// Emptying a directory of left-out files that a snapshot-made worktree set aside.
-    Trash,
-}
-
-/// Methods over a kind.
-impl WorkKind {
-    /// The kind's name,
-    /// which is also the start of an item's id.
-    pub fn name(self) -> &'static str {
-        return match self {
-            WorkKind::Review => "review",
-            WorkKind::Push => "push",
-            WorkKind::Maintenance => "maintenance",
-            WorkKind::Trash => "trash",
-        };
-    }
-
-    /// The kind a name spells.
-    pub fn from_name(name: &str) -> Option<WorkKind> {
-        for kind in [WorkKind::Review, WorkKind::Push, WorkKind::Maintenance, WorkKind::Trash] {
-            if kind.name() == name {
-                return Some(kind);
-            }
-        }
-        return None;
-    }
-}
 
 /// What:
 ///  One work item:
@@ -232,59 +188,101 @@ fn text_field(value: &Value, name: &str) -> Result<String, String> {
 }
 
 /// What:
-///  Whether an item of this identity has a claim file in `claimed` or `recovering`.
+///  The ids of the items that hold a claim file in `claimed` or `recovering`,
+/// from one listing of each.
 /// Why:
-///  `enqueue` treats an item that is being worked on as already known.
+///  `enqueue_all` treats an item that is being worked on as already known,
+/// and a round of items must answer that
+///  for all of them from one listing per directory rather than one per item (`RG2`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// [CLAIMED, RECOVERING].some((state) => entriesOldestFirst(workDir, state).some(([name]) => idOfEntry(name) === id))
+/// new Set([CLAIMED, RECOVERING].flatMap((state) => entriesOldestFirst(workDir, state).map(([name]) => idOfEntry(name))))
 /// ```
-fn is_claimed_or_recovering(work_dir: &Path, id: &str) -> bool {
+fn claimed_or_recovering_ids(work_dir: &Path) -> HashSet<String> {
+    let mut held: HashSet<String> = HashSet::new();
     for state in [CLAIMED, RECOVERING] {
         for (name, _modified) in entries_oldest_first(work_dir, state) {
-            if id_of_entry(name.as_str()) == id {
-                return true;
-            }
+            held.insert(String::from(id_of_entry(name.as_str())));
         }
     }
-    return false;
+    return held;
 }
 
 /// What:
-///  Write the item as a pending record,
+///  Write `item` as a pending record,
 /// whole or absent,
-/// unless its id is already in any state.
+/// unless its id is already in any state,
+/// and answer whether it was added.
 ///  The producer never waits for a consumer and never reads anything back.
 /// Why:
 ///   The id is the idempotency key;
 /// the exclusive publish makes two racing producers agree on one winner.
+/// This is `enqueue_all` for one item.
 ///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeExclusive(join(workDir, 'pending', item.id), item.encode())
-/// ```
+/// # Errors
+///
+/// As `enqueue_all`.
 pub fn enqueue(work_dir: &Path, item: &WorkItem) -> Result<Enqueued, String> {
+    let answers: Vec<Enqueued> = enqueue_all(work_dir, std::slice::from_ref(item))?;
+    let Some(answer) = answers.first() else {
+        return Err(format!("the round of the one item {} answered nothing", item.id()));
+    };
+    return Ok(*answer);
+}
+
+/// What:
+///  Write every item of one producer's round as a pending record,
+/// whole or absent,
+/// unless its id is already in any state,
+/// answering what happened to each in the order given.
+/// Why:
+///   The id is the idempotency key;
+/// the exclusive publish makes two racing producers agree on one winner.
+/// A round that asked `claimed` and `recovering` once per item cost one listing
+///  per item,
+/// so a producer of N items cost N listings (`RG2`);
+/// the round takes each of those listings once.
+/// The price is the window the listing opens:
+/// an item that a consumer claims
+///  after the round listed the claims is queued again,
+/// because nothing reads the queue back.
+///
+/// # Errors
+///
+/// A state directory that cannot be made,
+/// or a pending record that cannot be written for a reason other than its id
+/// being there already.
+pub fn enqueue_all(work_dir: &Path, items: &[WorkItem]) -> Result<Vec<Enqueued>, String> {
     for state in [PENDING, CLAIMED, DONE, FAILED] {
         if let Err(error) = create_private_directory_all(state_directory(work_dir, state).as_path()) {
             return Err(format!("creating the {state} directory failed: {error}"));
         }
     }
-    let id: String = item.id();
-    // The states are looked at in the order an item moves through them, so an item that moves on while they are looked at is
-    //  found in the next one: looking at `done` first could miss an item that settled after that look and left `claimed`
-    //  before the look at it.
-    if is_claimed_or_recovering(work_dir, id.as_str()) {
-        return Ok(Enqueued::Known);
+    // The claims are listed once for the whole round; `done` and `failed` are named by the id alone, so each item asks
+    //  about them by name and no listing sees them.
+    let mut held: HashSet<String> = claimed_or_recovering_ids(work_dir);
+    let mut answers: Vec<Enqueued> = Vec::with_capacity(items.len());
+    for item in items {
+        let id: String = item.id();
+        // A round holds every id once: a second item of one id finds the first one's record where the round put it.
+        if held.contains(id.as_str())
+            || state_directory(work_dir, DONE).join(id.as_str()).exists()
+            || state_directory(work_dir, FAILED).join(id.as_str()).exists()
+        {
+            answers.push(Enqueued::Known);
+            continue;
+        }
+        match write_private_file_unsynced(state_directory(work_dir, PENDING).join(id.as_str()).as_path(), item.encode().as_bytes()) {
+            Ok(()) => {
+                held.insert(id);
+                answers.push(Enqueued::Added);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => answers.push(Enqueued::Known),
+            Err(error) => return Err(format!("writing the work item {id} failed: {error}")),
+        }
     }
-    if state_directory(work_dir, DONE).join(id.as_str()).exists() || state_directory(work_dir, FAILED).join(id.as_str()).exists() {
-        return Ok(Enqueued::Known);
-    }
-    return match write_private_file_unsynced(state_directory(work_dir, PENDING).join(id.as_str()).as_path(), item.encode().as_bytes()) {
-        Ok(()) => Ok(Enqueued::Added),
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(Enqueued::Known),
-        Err(error) => Err(format!("writing the work item {id} failed: {error}")),
-    };
+    return Ok(answers);
 }
 
 /// What:
@@ -430,6 +428,35 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 }
 
 /// What:
+///  Claims every pending item of the given kinds,
+/// from one listing of `pending`,
+/// oldest first.
+/// Why:
+///   A drain that claims its work with `claim_next_of` lists and sorts `pending` for each claim,
+/// so a queue of N items
+///  costs N listings and N sorts (`RG2`).
+/// The round takes the listing once and tries every entry of it,
+/// so a drain of N
+///  items costs one listing.
+/// Each claim still carries the reading of the moment it is taken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claimed = []; for (const name of entriesOldestFirst(workDir, 'pending')) { const item = await take(name, now()); if (item) claimed.push(item) }; return claimed
+/// ```
+pub fn claim_all_of(work_dir: &Path, kinds: &[WorkKind]) -> Result<Vec<Claimed>, String> {
+    let mut claimed: Vec<Claimed> = Vec::new();
+    for (id, queued) in entries_oldest_first(work_dir, PENDING) {
+        // Each claim carries the reading of the moment it is taken, not of the start of the round, which a long round makes
+        //  most of a lease old.
+        if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, &ClaimTime::read(), &stamp_modification_time)? {
+            claimed.push(taken);
+        }
+    }
+    return Ok(claimed);
+}
+
+/// What:
 ///  `claim_next_of` with the stamp of the claim's modification time given,
 /// so a test can make the stamp fail.
 /// Why:
@@ -451,66 +478,89 @@ pub fn claim_next_of(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind]) -> Re
 /// ```
 fn claim_next_stamped(work_dir: &Path, now: &ClaimTime, kinds: &[WorkKind], stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
     for (id, queued) in entries_oldest_first(work_dir, PENDING) {
-        let mut found_kind: Option<&WorkKind> = None;
-        for candidate in kinds {
-            if id.starts_with(format!("{}-", candidate.name()).as_str()) {
-                found_kind = Some(candidate);
-                break;
-            }
-        }
-        let Some(kind) = found_kind else {
-            continue;
-        };
-        // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
-        if !is_object_name(&id[kind.name().len() + 1..]) {
-            quarantine_pending(work_dir, id.as_str(), format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
-            continue;
-        }
-        let name: String = claim_file_name(id.as_str(), new_generation()?.as_str(), now);
-        let pending_path: PathBuf = state_directory(work_dir, PENDING).join(id.as_str());
-        let staged: PathBuf = state_directory(work_dir, RECOVERING).join(name.as_str());
-        let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
-        if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
-            continue;
-        }
-        let stamped: std::io::Result<()> = stamp(staged.as_path());
-        let published: std::io::Result<()> = match stamped {
-            Ok(()) => std::fs::rename(staged.as_path(), claimed_path.as_path()),
-            Err(error) => Err(error),
-        };
-        if let Err(error) = published {
-            log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
-            // The staged file is this instance's alone:
-            // the age it had is put back before it is queued again,
-            // whatever the stamp did.
-            let opened: std::io::Result<std::fs::File> = std::fs::File::open(staged.as_path());
-            let restored: std::io::Result<()> = match opened {
-                Ok(file) => file.set_modified(queued),
-                Err(open_error) => Err(open_error),
-            };
-            let requeued: std::io::Result<()> = match restored {
-                Ok(()) => std::fs::rename(staged.as_path(), pending_path.as_path()),
-                Err(restore_error) => Err(restore_error),
-            };
-            if let Err(requeue_error) = requeued {
-                log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());
-            }
-            continue;
-        }
-        let text: String = match std::fs::read_to_string(claimed_path.as_path()) {
-            Ok(read) => read,
-            Err(error) => return Err(format!("reading the claim of {id} failed: {error}")),
-        };
-        match WorkItem::decode(text.as_str()) {
-            // The record is the work the file name says;
-            // a record of other work would be settled as done under this id.
-            Ok(item) if item.id() == id => return Ok(Some(Claimed { id, name, item })),
-            _ => {
-                let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id.as_str()));
-            }
+        if let Some(taken) = take_entry(work_dir, id.as_str(), queued, kinds, now, stamp)? {
+            return Ok(Some(taken));
         }
     }
     return Ok(None);
+}
+
+/// What:
+///  Claims the pending entry `id` of one of `kinds`,
+/// or answers nothing when it is no entry to claim.
+/// Why:
+///   The two ways of claiming,
+/// one item at a time and a whole round,
+/// differ only in the listing they walk,
+/// so one function
+///  takes an entry and each caller drives it through its own listing.
+/// `queued` is the entry's modification time,
+///  which a claim that cannot be taken puts back.
+///
+/// # Errors
+///
+/// A generation that cannot be made,
+/// or a claim that cannot be read.
+fn take_entry(work_dir: &Path, id: &str, queued: SystemTime, kinds: &[WorkKind], now: &ClaimTime, stamp: Stamp<'_>) -> Result<Option<Claimed>, String> {
+    let mut found_kind: Option<&WorkKind> = None;
+    for candidate in kinds {
+        if id.starts_with(format!("{}-", candidate.name()).as_str()) {
+            found_kind = Some(candidate);
+            break;
+        }
+    }
+    let Some(kind) = found_kind else {
+        return Ok(None);
+    };
+    // An id that is not a kind and an object name could make names that do not fit; it never becomes a claim.
+    if !is_object_name(&id[kind.name().len() + 1..]) {
+        quarantine_pending(work_dir, id, format!("is not a kind and an object name of at most {MAX_OBJECT_NAME_LENGTH} letters and digits").as_str());
+        return Ok(None);
+    }
+    let name: String = claim_file_name(id, new_generation()?.as_str(), now);
+    let pending_path: PathBuf = state_directory(work_dir, PENDING).join(id);
+    let staged: PathBuf = state_directory(work_dir, RECOVERING).join(name.as_str());
+    let claimed_path: PathBuf = state_directory(work_dir, CLAIMED).join(name.as_str());
+    if create_private_directory_all(state_directory(work_dir, RECOVERING).as_path()).is_err() || std::fs::rename(pending_path.as_path(), staged.as_path()).is_err() {
+        return Ok(None);
+    }
+    let stamped: std::io::Result<()> = stamp(staged.as_path());
+    let published: std::io::Result<()> = match stamped {
+        Ok(()) => std::fs::rename(staged.as_path(), claimed_path.as_path()),
+        Err(error) => Err(error),
+    };
+    if let Err(error) = published {
+        log(format!("the claim of {id} could not be taken, so the item stays queued: {error}").as_str());
+        // The staged file is this instance's alone:
+        // the age it had is put back before it is queued again,
+        // whatever the stamp did.
+        let opened: std::io::Result<std::fs::File> = std::fs::File::open(staged.as_path());
+        let restored: std::io::Result<()> = match opened {
+            Ok(file) => file.set_modified(queued),
+            Err(open_error) => Err(open_error),
+        };
+        let requeued: std::io::Result<()> = match restored {
+            Ok(()) => std::fs::rename(staged.as_path(), pending_path.as_path()),
+            Err(restore_error) => Err(restore_error),
+        };
+        if let Err(requeue_error) = requeued {
+            log(format!("the staged claim of {id} could not be queued again; its lease will run out and recover it: {requeue_error}").as_str());
+        }
+        return Ok(None);
+    }
+    let text: String = match std::fs::read_to_string(claimed_path.as_path()) {
+        Ok(read) => read,
+        Err(error) => return Err(format!("reading the claim of {id} failed: {error}")),
+    };
+    return match WorkItem::decode(text.as_str()) {
+        // The record is the work the file name says;
+        // a record of other work would be settled as done under this id.
+        Ok(item) if item.id() == id => Ok(Some(Claimed { id: id.to_owned(), name, item })),
+        _ => {
+            let _ = std::fs::rename(claimed_path.as_path(), state_directory(work_dir, FAILED).join(id));
+            Ok(None)
+        }
+    };
 }
 
 /// Moves the entry `id` of `pending` to `failed` and says why,

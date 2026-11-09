@@ -219,7 +219,7 @@ Redrawing round three.
 It is graded,
 its verdict is recorded,
 and its value is
-the diagnosis above.
+the diagnosis under Where the project actually stands.
 
 Changing the editor before `#66` is understood.
 Without a working damage

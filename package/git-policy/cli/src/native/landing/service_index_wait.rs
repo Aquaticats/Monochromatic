@@ -15,7 +15,10 @@
 //!  foreign program's and keeps the behavior of native Git.
 //! The wait blocks on an inotify watch set before the first look,
 //!  so a release between the look and the wait is not missed.
-//! A service the mark proves to run is waited for with no bound.
+//! A service the mark proves to run is waited for until the lock goes or `SERVICE_HOLD_CEILING` passes
+//!  (ten minutes,
+//! `wait_ceilings.rs`);
+//! at the ceiling the command runs and reports what Git says.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -176,11 +179,16 @@ pub fn foreign_holds(real_index: &Path) -> bool {
     return holder_of(lock_path_of(real_index).as_path()) == Holder::Foreign;
 }
 
-/// The line for the person while the wait lasts.
-fn waiting_line(command: &str, waited: Duration) -> String {
+/// The line for the person while the wait lasts:
+/// what it waits for,
+/// how long it has lasted,
+/// and how long it lasts in all before the command runs.
+fn waiting_line(command: &str, waited: Duration, ceiling: Duration) -> String {
     return format!(
-        "monochromatic-git-policy-cli: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this waits for as long as the service holds the index.\n",
-        waited.as_secs()
+        "monochromatic-git-policy-cli: git {command} is waiting for the commit service to finish a commit in this repository, {} seconds so far; this \
+         waits for at most {} seconds in all, and then git {command} runs and reports what Git says.\n",
+        waited.as_secs(),
+        ceiling.as_secs()
     );
 }
 
@@ -292,7 +300,7 @@ fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadenc
         }
         if ticker.due(elapsed) {
             // A closed terminal is not a reason to stop the command the person asked for.
-            note_line(out, waiting_line(command, elapsed).as_str());
+            note_line(out, waiting_line(command, elapsed, ceiling).as_str());
         }
         let pause: Duration = ticker.next_in(elapsed).min(ceiling.saturating_sub(elapsed)).max(Duration::from_millis(1));
         match watch.as_ref() {

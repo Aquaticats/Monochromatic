@@ -32,7 +32,8 @@
 
 use crate::config_snapshot::canonical_bool;
 use crate::diagnostic_log::debug;
-use crate::transaction_git::{GitContext, GitRequest, run_git};
+use crate::transaction_git::{GitContext, GitRequest};
+use crate::transaction_git_awaiting::run_git_awaiting;
 use std::path::Path;
 
 /// The key this section reads,
@@ -258,9 +259,9 @@ pub fn render_fsmonitor(entries: &[FsmonitorEntry]) -> String {
 /// ```ts
 /// await fsmonitorReport({ context, cwd });
 /// ```
-pub fn fsmonitor_report(context: &GitContext, cwd: &Path) -> String {
+pub async fn fsmonitor_report(context: &GitContext, cwd: &Path) -> String {
     let request: GitRequest = GitRequest::new(cwd, &["config", "--list", "--show-origin", "--show-scope", "-z"]);
-    let output = match run_git(context, &request) {
+    let output = match run_git_awaiting(context, &request).await {
         Ok(finished) => finished,
         Err(error) => {
             debug("fsmonitorReport", format!("git config --list could not start: {error}").as_str());

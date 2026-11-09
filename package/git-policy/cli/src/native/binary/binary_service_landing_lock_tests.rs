@@ -76,6 +76,16 @@ pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_secon
 ///  its first argument),
 /// started once its lock exists.
 /// The commit leads a process group of its own that dies with the test.
+///
+/// It names `b.txt`,
+/// and only `b.txt`:
+/// `--all` would stage every change in the worktree,
+/// including the file the control
+///  commits while the editor is open,
+/// so the control's own change would land in the foreign commit and the landing that is
+///  built again after the branch moved would meet the same file changed on both sides and refuse the commit
+///  (`concurrent-commit/replay-conflict`,
+/// 2026-11-08).
 fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str) -> Child {
     let editor: PathBuf = fixture.root.join("holding-editor");
     executable(editor.as_path(), format!("#!/bin/sh\n{editor_body}printf 'foreign\\n' > \"$1\"\n").as_bytes());
@@ -83,7 +93,7 @@ fn foreign_commit_with_editor(fixture: &Fixture, repo: &Path, editor_body: &str)
     // Git 2.54 can leave its process number beside the lock, which is what lets the service name the holder.
     git(fixture, repo, &["config", "core.lockfilePid", "true"]);
     std::fs::write(repo.join("b.txt"), "foreign edit\n").expect("b.txt");
-    let child: Child = spawn_owned(direct(fixture).current_dir(repo).args(["commit", "--all", "--quiet"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped())).expect("foreign commit");
+    let child: Child = spawn_owned(direct(fixture).current_dir(repo).args(["commit", "--quiet", "--", "b.txt"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped())).expect("foreign commit");
     let began: Instant = Instant::now();
     while !repo.join(".git/index.lock").exists() {
         assert!(began.elapsed() < PATIENCE, "the foreign commit never took the lock");
@@ -115,6 +125,25 @@ pub(super) fn foreign_commit_until_released(fixture: &Fixture, repo: &Path, hold
     return (foreign_commit_with_editor(fixture, repo, body.as_str()), release);
 }
 
+/// What:
+///  Check that the foreign holder's commit changes only the file the control leaves alone.
+/// Why:
+///   The control writes its own file while the holder's editor is open,
+/// and a holder that stages the whole worktree would land that
+///  change too,
+/// so the commit built again after the branch moved would conflict with the holder on a file the control never meant to share.
+/// The control then failed with `left: Some(1)`,
+/// `right: Some(0)` and the wrapper's `replay-conflict` finding (2026-11-08).
+fn assert_the_holder_changed_only_its_own_file(fixture: &Fixture, repo: &Path) {
+    let foreign: String = git_text(fixture, repo, &["log", "--max-count=1", "--format=%H", "--grep", "^foreign$"]).trim().to_string();
+    assert!(!foreign.is_empty(), "the holder's commit is on the branch");
+    assert_eq!(
+        git_text(fixture, repo, &["show", "--name-only", "--format=", foreign.as_str()]).trim(),
+        "b.txt",
+        "the holder's commit changes only b.txt, never the file the control commits"
+    );
+}
+
 /// The holder keeps the lock for longer than the old five tries of a tenth of a second:
 /// the commit waits,
 /// lands on top of the
@@ -134,6 +163,7 @@ fn a_commit_waits_for_a_foreign_commit_that_holds_the_index_and_lands_on_top_of_
     let served = observe(&mut command, b"");
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "the holder's own commit succeeds: {}", String::from_utf8_lossy(&held.stderr));
+    assert_the_holder_changed_only_its_own_file(&fixture, &repo);
     assert_eq!(served.code, Some(0), "{}", String::from_utf8_lossy(&served.stderr));
     assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");
     assert_eq!(git_text(&fixture, &repo, &["status", "--short"]), "", "the index shows both commits");
@@ -149,11 +179,11 @@ const RELEASED_HOLD_SECONDS: u32 = 0;
 /// at one notice a second,
 /// more seconds of waiting than
 ///  the second an owner nothing proves alive used to be given,
-/// so only a wait with no bound lasts this long.
+/// so a wait that lasts past that second is what the control reads.
 const NOTICES_BEYOND_BACKOFF: usize = 4;
 
 /// The holder is proven alive (Git's lock PID file names it),
-/// so the commit waits for it however long it holds the lock,
+/// so the commit waits for it until the holder lets go,
 /// with
 ///  the holder named,
 /// and lands on top of the holder's commit when the holder lets go:
@@ -163,7 +193,7 @@ const NOTICES_BEYOND_BACKOFF: usize = 4;
 /// so the outcome does not depend on how fast the host runs
 ///  the commit and the wait is known to have gone on past that second.
 #[test]
-fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_lands_on_top() {
+fn a_foreign_holder_proven_alive_is_waited_for_until_it_lets_go_and_the_commit_lands_on_top() {
     let fixture: Fixture = fixture("landing-lock-no-bound");
     let repo: PathBuf = base_repository(&fixture);
     let name: String = format!("ll-nobound-{}", std::process::id());
@@ -178,6 +208,7 @@ fn a_foreign_holder_proven_alive_is_waited_for_with_no_bound_and_the_commit_land
     });
     let held = holder.wait_with_output().expect("the foreign commit ends");
     assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert_the_holder_changed_only_its_own_file(&fixture, &repo);
     assert_eq!(watched.code, Some(0), "{}", watched.stderr);
     assert!(!watched.stderr.contains("was not made") && !watched.stderr.contains("giving up"), "{}", watched.stderr);
     assert_eq!(git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]), "foreign\nmine\n");

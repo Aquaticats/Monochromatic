@@ -147,6 +147,12 @@ corners,
 `package/music-player/android-app/app/src/debug/kotlin/dev/monochromatic/musicplayer/DesignCandidateActivity.kt:1115-1227`
 on the prototype branch.
 
+`package/music-player/android-app/app/src/debug/kotlin/dev/monochromatic/musicplayer/DesignCandidateActivity.kt`
+exists only on an unmerged branch (newest commit `a61a4dd476` (fix(music-player-android-app):
+cover
+picker P5 container no longer moves the title when it opens) on 2026-10-10) and is not in the
+working tree.
+
 ```kotlin
 Column(
     modifier = Modifier.fillMaxWidth().selectableGroup(),

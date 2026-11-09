@@ -10,6 +10,23 @@ live provider and approval checks did not establish interactive bypass parity.
 This is an owned migration regression,
 not evidence of an upstream keyboard failure.
 
+The paths and tasks cited throughout this record name the tree as it stood when each
+incident was recorded.
+The legacy extension sources it names under `package/pi-plugin/auto-mode/src/` were
+removed on 2026-10-19 by `7ac15b19b4`
+(refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild),
+and that directory holds only `index.ts` today.
+The native build tree under `package/pi-plugin/auto-mode/native/` was retired on
+2026-10-19 by `ff55ced353`
+(refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build),
+and no directory by that name remains.
+The package declares only `build`,
+`lint` and `test:unit` today,
+so the `build:native*` and `test:native:*` commands in this record no longer resolve
+and nothing replaces them.
+
 ### Root cause
 
 The legacy extension registers the shortcut in
@@ -606,6 +623,14 @@ With that entry order,
 `mise run //package/pi-plugin/auto-mode:test:native:serializer-receipts` passes the new manager publication tests,
 the original serializer emission tests,
 and all copied-system/payload/transcript controls.
+That address no longer resolves,
+and neither does any other `test:native:*`,
+`build:native*`,
+or `lint:native:syntax` address in this file:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and deleted
+`package/pi-plugin/auto-mode/native/` with those tasks.
+No task in the working tree runs those native modules today;
+`mise run //package/pi-plugin/auto-mode:test:unit` is the package's only test task.
 The separate normal SDK fixture still accounts for five contributions and executes three fixture children,
 with zero provider requests.
 That successful entry order verified the intended consumer;
@@ -727,6 +752,9 @@ Reproduce the committed entry checks after building:
 mise run //package/pi-plugin/auto-mode:test:native:direct-imports
 ```
 
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
+
 ### What did not work before the entry split
 
 - Importing the manager directly fails before the test body.
@@ -846,6 +874,9 @@ mise run //package/pi-plugin/auto-mode:build:native:owned
 mise run //package/pi-plugin/auto-mode:test:native:sdk-stream
 mise run //package/pi-plugin/auto-mode:test:native:serializer-receipts
 ```
+
+`ff55ced353` (2026-10-19) removed all three tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 Do not replace the failed identity comparison with content equality or remove provenance validation.
 The verified consumer correction follows the native normalization edge.
@@ -1040,6 +1071,8 @@ The maintained CLI fixture had the same ordering defect independently of the off
 After rebuilding the owned artifact,
 `mise run //package/pi-plugin/auto-mode:test:native:process-network`
 failed with Node's `AssertionError [ERR_ASSERTION]: Pi replaced the CLI fixture network blocker`.
+That address no longer resolves:
+`ff55ced353` (2026-10-19) removed it with the native Pi build.
 The received function was Undici's `fetch`;
 the expected function was the fixture's `rejectFixtureNetwork`.
 The assertion runs before its data-URL probe,
@@ -7259,6 +7292,10 @@ Installed Pi sources are never patched.
 `mise run //package/pi-plugin/auto-mode:build:native` emits the upstream modules,
 copies maintained owned inputs,
 and applies the native transformations inside the package's `dist/native` directory.
+That address no longer resolves:
+`ff55ced353` (2026-10-19) retired the native Pi build and removed `build:native`,
+`build:native:owned`,
+and every `test:native:*` task with it.
 The optional `PI_AUTO_MODE_SOURCE` points at a source checkout only during this build;
 the emitted host does not read that checkout.
 The build rejects a mismatched source revision or installed Pi release.
@@ -7316,6 +7353,10 @@ Its initial resource reload calls the original trust resolver through the policy
 The fixture makes no external provider request.
 The separate-process `test:native:cli-process` check also passes:
 the candidate returns the expected Qwen RPC state and exits without stderr output.
+Both addresses no longer resolve:
+`ff55ced353` (2026-10-19) removed `test:native:host-lifecycle`,
+`test:native:cli-process`,
+and the native build they ran.
 It uses disposable state,
 synthetic credentials,
 offline mode,
@@ -7418,6 +7459,8 @@ Deny,
 Stop,
 cancellation during selection,
 and reload before selection.
+That address no longer resolves:
+`ff55ced353` (2026-10-19) removed it with the native Pi build.
 The selections are fixture responses;
 they are not genuine human approvals.
 All these cases pass through the native context.
@@ -7861,6 +7904,9 @@ mise run //package/pi-plugin/auto-mode:test:native:approval-context
 mise run //package/pi-plugin/auto-mode:test:native:cli-process
 ```
 
+`ff55ced353` (2026-10-19) removed those three tasks with the native Pi build;
+no task in the working tree runs the native modules today.
+
 Then the unchanged full lint task completed its diagnostic sweep on its own:
 
 ```bash
@@ -7994,6 +8040,11 @@ mise run //package/pi-plugin/auto-mode:lint:types
 mise run //package/pi-plugin/auto-mode:build:native:owned
 mise run //package/pi-plugin/auto-mode:test:native:domain
 ```
+
+`ff55ced353` (2026-10-19) removed `build:native:owned` and `test:native:domain`
+with the native Pi build;
+`lint:types` still resolves.
+No task in the working tree runs the native modules today.
 
 The corrected source passes scoped lint and package types.
 The rebuilt native permission,
@@ -8134,6 +8185,9 @@ mise run //package/pi-plugin/auto-mode:lint:types
 mise run //package/pi-plugin/auto-mode:test:native:return
 ```
 
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
+
 The owned build also passes with Node `26.11.1`.
 Node prints `ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time`
 when the native preparation stage first erases TypeScript annotations.
@@ -8215,6 +8269,9 @@ mise run //package/pi-plugin/auto-mode:lint:native:syntax
 mise run //package/pi-plugin/auto-mode:build:native:owned
 mise run //package/pi-plugin/auto-mode:test:native:domain
 ```
+
+`ff55ced353` (2026-10-19) removed those three tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 Node parsed all 157 maintained native modules after correction.
 The rebuild passed,
@@ -8305,6 +8362,9 @@ mise run //package/pi-plugin/auto-mode:build:js:node
 mise run //package/pi-plugin/auto-mode:build:native:owned
 ```
 
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
+
 `mise.toml:561` defines the child as
 `rolldown --configLoader native --config rolldown.node.config.ts`.
 That task passed with Rolldown 1.2.13,
@@ -8389,6 +8449,11 @@ mise run //package/pi-plugin/auto-mode:lint:types
 mise run //package/pi-plugin/auto-mode:test:native:host-lifecycle
 mise run //package/pi-plugin/auto-mode:test:native:cli-process
 ```
+
+`ff55ced353` (2026-10-19) removed `build:native`,
+`test:native:host-lifecycle`,
+and `test:native:cli-process` with the native Pi build;
+`lint:types` still resolves.
 
 These commands passed against source tag `v1.2.0` and its recorded commit.
 The lifecycle check retained original construction,
@@ -8492,6 +8557,9 @@ and zero child executions:
 mise run //package/pi-plugin/auto-mode:build:native:owned
 mise run //package/pi-plugin/auto-mode:test:native:progress-events
 ```
+
+`ff55ced353` (2026-10-19) removed both tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 The ordinary failure moves the native observation from revision zero,
 pending zero,
@@ -8691,6 +8759,9 @@ The existing process fixture is the regression control:
 mise run //package/pi-plugin/auto-mode:test:native:cli-process
 ```
 
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
+
 It failed with the initialization error before the correction.
 After the correction it returned the requested Qwen model and idle RPC state,
 then exited successfully with empty stderr and zero provider requests.
@@ -8765,6 +8836,9 @@ in `${HOME}/temp/agent/pi-missing-effect-owner-red-test-20261014.log`.
 # Run from repository root after rebuilding maintained and native artifacts.
 mise run //package/pi-plugin/auto-mode:test:native:single-call
 ```
+
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
 
 With the optional call in commit `b3581b0be0`,
 both single-call forms execute one child and return its original result.
@@ -8936,6 +9010,9 @@ mise run //package/pi-plugin/auto-mode:test:native:retained-context-capacity
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback:case stop
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback:case cancel
 ```
+
+`ff55ced353` (2026-10-19) removed those three tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 ### Rejected alternatives and workaround limits
 
@@ -9293,6 +9370,9 @@ Run the maintained consumers from a built package:
 mise run //package/pi-plugin/auto-mode:test:native:streaming-context-capacity
 mise run //package/pi-plugin/auto-mode:test:native:input-content
 ```
+
+`ff55ced353` (2026-10-19) removed both tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 The task limits the probe Node heap to 512 MiB and enables explicit collection.
 The updated same-test comparison uses a private copy of `native-release-q83LlN`

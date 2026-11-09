@@ -131,7 +131,6 @@ catalog:
   'hb-subset-wasm': '>=0.5.0'
   'hyphen': '>=1.14.1'
   'ignore': '>=7.0.14'
-  'isomorphic-git': '>=1.27.0'
   'json-schema-typed': '>=9.0.0'
   'jsonc-eslint-parser': '>=3.3.0'
   'jsonc-parser': '>=3.3.1'
@@ -316,12 +315,15 @@ overrides:
   '@ungap/structured-clone': 'link:package/pnpm-override/shim-ungap-structured-clone'
   # Remove abort-controller globally. It is a polyfill of the WHATWG
   # AbortController for Node < 15. Our supported runtimes (Node 22+, Bun)
-  # all ship a native AbortController on globalThis. The only transitive
-  # importer is readable-stream@4 (pulled in by isomorphic-git), which
-  # already guards the require with `globalThis.AbortController ||
+  # all ship a native AbortController on globalThis. Its only former
+  # transitive importer was readable-stream@4 (pulled in by isomorphic-git),
+  # which already guards the require with `globalThis.AbortController ||
   # require('abort-controller').AbortController` in pipeline.js,
   # duplexify.js, and operators.js -- the `||` short-circuits to the
-  # native constructor before the require evaluates. Removing the package
+  # native constructor before the require evaluates. readable-stream left the
+  # resolved graph with its consumers, so nothing in the tree depends on
+  # abort-controller now (`pnpm why abort-controller` resolves nothing) and
+  # the removal stands as defense in depth. Removing the package
   # also drops the sole importer of event-target-shim (1739 LOC,
   # last commit 2021-01, abandoned), reducing supply-chain surface.
   # See doc/troubleshooting/dependencies.md and doc/dependency-blocklist.md.
@@ -435,26 +437,34 @@ overrides:
   # See doc/decision/proper-lockfile-removal.md and
   # doc/troubleshooting/dependencies.md.
   'proper-lockfile': 'link:package/pnpm-override/shim-proper-lockfile'
-  # Substitute readable-stream@3 (winston, winston-transport) and
-  # readable-stream@4 (isomorphic-git) with a single workspace shim that
-  # re-exports node:stream. Both upstream versions are userland mirrors of
-  # node:stream that originally targeted retired Node releases; on Node 22+
-  # they ship 3,005 LOC of duplicate stream machinery whose only purpose was
-  # back-compat with versions that no longer matter. The shim's index.cjs
-  # mirrors the end-state shape of readable-stream@3's entry (default export
-  # is Stream.Readable with every node:stream property defined as an own
-  # property on it, plus .Stream pointing at the module itself), and its
-  # lib/_stream_*.js subpaths re-export the matching node:stream class so
-  # winston-transport's deep import of readable-stream/lib/_stream_writable.js
-  # resolves unchanged. The shim uses Object.defineProperty rather than
-  # Object.assign because node:stream.Readable inherits a getter-only
-  # promises accessor on Node 22+ that makes the upstream Object.assign
-  # pattern throw at module load. The substitution also makes the transitive
-  # abort-controller fallback guards inside readable-stream@4's pipeline.js,
-  # duplexify.js, and operators.js unreachable, formally closing the loop on
-  # the 'abort-controller': '-' override above.
+  # Substitute readable-stream@3 and readable-stream@4 with a single
+  # workspace shim that re-exports node:stream. Both upstream versions are
+  # userland mirrors of node:stream that originally targeted retired Node
+  # releases; on Node 22+ they ship 3,005 LOC of duplicate stream machinery
+  # whose only purpose was back-compat with versions that no longer matter.
+  # The shim's index.cjs mirrors the end-state shape of readable-stream@3's
+  # entry (default export is Stream.Readable with every node:stream property
+  # defined as an own property on it, plus .Stream pointing at the module
+  # itself), and its lib/_stream_*.js subpaths re-export the matching
+  # node:stream class so a deep import of
+  # readable-stream/lib/_stream_writable.js resolves unchanged. The shim uses
+  # Object.defineProperty rather than Object.assign because
+  # node:stream.Readable inherits a getter-only promises accessor on Node 22+
+  # that makes the upstream Object.assign pattern throw at module load.
+  # No workspace package depends on readable-stream today: the lockfile holds
+  # no readable-stream dependency edge and `pnpm why readable-stream`
+  # resolves nothing, so the entry is dormant defense in depth. The 2026
+  # audit's three consumers were winston, winston-transport, and
+  # isomorphic-git, and those chains left with their packages:
+  # package-deprecated/mcp/nvim carried winston and winston-transport, and
+  # package-paused/webapp-forge/{server,stress} carried isomorphic-git;
+  # neither tree matches the `package/*/*` workspace glob. The substitution
+  # also keeps the abort-controller fallback guards inside
+  # readable-stream@4's pipeline.js, duplexify.js, and operators.js
+  # unreachable, closing the loop on the 'abort-controller': '-' override
+  # above.
   # See doc/decision/readable-stream-shim.md for the full audit, including
-  # the enumerated consumer surface and the verification plan.
+  # the enumerated consumer surface (historical) and the verification plan.
   'readable-stream': 'link:package/pnpm-override/shim-readable-stream'
   # Patch [ERR_PNPM_TRUST_DOWNGRADE]: semver@6.3.1 failed verification with possible package takeover.
   'semver': '>=7.8.5'
@@ -463,8 +473,13 @@ overrides:
   # and GHSA-vmh5-mc38-953g / CVE-2026-9697: undici >=8.0.0 <8.5.0
   # carries WebSocket denial-of-service, shared-cache information disclosure,
   # and SOCKS5 ProxyAgent TLS certificate validation bypass advisories.
-  # Current @earendil-works/pi-coding-agent 0.79.7 still pins undici 8.3.0,
-  # so a workspace-wide security floor is needed until upstream bumps it.
+  # The resolved graph reaches undici 8.12.4, above this floor, through
+  # @earendil-works/pi-coding-agent 1.5.0 (catalog '>=1.5.0') and
+  # @electron/get 5.1.0 (via @electron/packager and electron 45.2.3);
+  # openai 7.19.0 lists undici only as an optional peer. The floor was
+  # written when pi-coding-agent 0.79.7 pinned undici 8.3.0. pi-ai's own
+  # undici request is dropped by the '@earendil-works/pi-ai>undici' entry
+  # above.
   'undici': '>=8.5.0'
   # Patch GHSA-58qx-3vcg-4xpx / CVE-2026-45736: ws <8.20.1 discloses
   # uninitialized memory when a non-Uint8Array TypedArray (e.g.

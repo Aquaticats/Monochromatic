@@ -48,6 +48,14 @@ refuses absent trust with the observed diagnostic:
 'cli-git configuration is not trusted; run `git cli-git trust` after reviewing it.',
 ```
 
+The paths this record names under `package/git-policy/cli/src/trust/` were removed on 2026-10-13 in
+`642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust
+workflow);
+no file in the working tree carries them now.
+
 The policy bytes were compared with the development worktree and matched.
 Trust still needed to be granted through the tool's native reviewed-policy flow.
 `package/git-policy/cli/src/trust/account-root.ts:35`

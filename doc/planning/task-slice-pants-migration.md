@@ -9,7 +9,7 @@ No `doc/decision/` record yet,
 ## Corrections applied 2026-10-29
 
 Two corrections from the user
- re-derived the decisions below.
+ re-derived the decisions in this document.
 
 - "We don't care about how much work hop 2 would take."
  Hop 2's cost is not a design input.

@@ -1,5 +1,13 @@
 # Translation repair history 2026-08-23 to 2026-08-24: keeping the ballots of the refinement recheck and the accept gate
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src/corpus-run/slice-cache-store.ts` is now
+> `package/translation-repair/slice-cache/src/corpus-run/slice-cache-store.ts`
+> (2026-10-18 `4bd1aea8d5`).
+> `//package/module/translation-repair:rendering-audit-settled` is now
+> `//package/translation-repair/probe:rendering-audit-settled` (2026-10-18 `4bd1aea8d5`).
+
 The refinement recheck and the accept gate each recording their ballots on the settled artifact,
 why a resumed run cannot be crashed by the new fields,
 how much evidence was being discarded,
@@ -547,7 +555,7 @@ Every record that bought a recheck round kept its ballots,
 and the accept gate's panel readings are on the artifact per claim.
 Both live-artifact VUBs are met and both tasks close.
 
-This also confirms the reading recorded above rather than merely being consistent with it.
+This also confirms the launch-ordering diagnosis rather than merely being consistent with it.
 The 160 records with no reading came from passes whose builds predate the fields;
 the first entry settled by a pass launched after them carries every field on every eligible record.
 No code changed between the two observations.

@@ -6,7 +6,7 @@
 //! and waits for a holder proven alive,
 //! and for an owner nothing proves
 //! alive,
-//! with no bound.
+//! until the ceiling (`MERGE_LOCK_CEILING`).
 //! Why:
 //!  Merges must wait for a transient holder and never remove a lock,
 //! so each ending is pinned with a stand-in holder,
@@ -109,7 +109,8 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     let text: String = sink.text();
     assert!(text.contains("cannot be proven alive") && text.contains("has the lock open"), "what is known is said: {text}");
     assert!(text.contains(format!("removing the file {}", lock.display()).as_str()), "the way out is named: {text}");
-    assert!(!text.contains("stops waiting"), "an unproven owner is never given up on: {text}");
+    assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
+    assert!(!text.contains("stops waiting"), "a notice while the wait goes on never says the command stopped; only the ceiling's line does: {text}");
     remove(root.as_path());
 }
 
@@ -117,16 +118,19 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
 /// far more than the second an owner nothing proves alive used to be waited for.
 const LONG_HOLD: Duration = Duration::from_millis(2500);
 
-/// The time a control gives a wait that must end at once before it calls it hung.
-const DEAD_OWNER_PATIENCE: Duration = Duration::from_secs(10);
+/// The shortest ceiling a wait can be given:
+/// the wait's clock has already run out when it begins,
+/// so an ending that comes before the ceiling is proven to take no time over it,
+/// however long the host stalls.
+const NO_CEILING: Duration = Duration::ZERO;
 
 /// A PID file that names a process which no longer runs ends the wait at once,
 /// because nothing will release that lock;
 /// the
 ///  diagnostic names the process.
-/// The wait runs on a thread and the control gives it a few seconds,
-/// so a dead owner waited for
-///  like a live one fails the control instead of hanging it.
+/// The ceiling is already out when the wait begins,
+/// so a dead owner waited for like a live one ends in the ceiling's words instead,
+/// at once and without a stopwatch to read.
 #[test]
 fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
     let root: std::path::PathBuf = fixture("holder-wait-dead");
@@ -136,16 +140,11 @@ fn a_dead_owner_ends_the_wait_at_once_with_the_process_named() {
     let gone: i64 = i64::from(gone_process_id());
     std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {gone}\n")).expect("the PID file");
     let sink: SharedSink = SharedSink::default();
-    let (finished, ended) = std::sync::mpsc::channel::<IndexWait>();
-    let waiter_index: std::path::PathBuf = index.clone();
-    let waiter_sink: SharedSink = sink.clone();
-    std::thread::spawn(move || {
-        let outcome: IndexWait = wait_for_index_release(waiter_index.as_path(), "merge", quick(), &mut waiter_sink.clone());
-        let _sent = finished.send(outcome);
-    });
-    let outcome: IndexWait = ended.recv_timeout(DEAD_OWNER_PATIENCE).expect("a dead owner was waited for like a live one");
+    let outcome: IndexWait = wait_for_index_release_within(index.as_path(), "merge", NO_CEILING, quick(), &mut sink.clone());
     assert!(matches!(outcome, IndexWait::OwnerGone(_)), "{outcome:?}");
-    assert!(sink.text().contains(format!("PID {gone}, which no longer runs").as_str()), "{}", sink.text());
+    let text: String = sink.text();
+    assert!(text.contains(format!("PID {gone}, which no longer runs").as_str()), "{text}");
+    assert!(!text.contains("still held after"), "a dead owner is not waited for: {text}");
     assert!(lock.exists(), "the wait removes no lock");
     remove(root.as_path());
 }
@@ -177,26 +176,18 @@ fn where_no_watch_can_be_set_the_merge_wait_polls_until_the_lock_goes() {
 /// so only the controls of the ceiling itself reach it.
 const LONG_CEILING: Duration = Duration::from_secs(3600);
 
-/// The ceiling the controls of the ceiling give the wait,
-/// and the time they give it before they call it hung.
+/// The ceiling the controls of the ceiling give the wait.
+/// The wait ends by itself at this ceiling,
+/// so the control reads the ending rather than timing it,
+/// and a wait that never ends is the whole run's watchdog to report.
 const SHORT_CEILING: Duration = Duration::from_millis(300);
-const CEILING_PATIENCE: Duration = Duration::from_secs(10);
 
-/// Runs the wait with the short ceiling on a thread,
-/// and returns what it ended with and said,
-/// or nothing when it was still waiting
-///  after `CEILING_PATIENCE`.
-fn wait_at_the_ceiling(index: &std::path::Path) -> Option<(IndexWait, String)> {
-    let (finished, ended) = std::sync::mpsc::channel();
+/// Runs the wait with the short ceiling on the control's own thread,
+/// and returns what it ended with and said.
+fn wait_at_the_ceiling(index: &std::path::Path) -> (IndexWait, String) {
     let sink: SharedSink = SharedSink::default();
-    let reader: SharedSink = sink.clone();
-    let index_path: std::path::PathBuf = index.to_path_buf();
-    std::thread::spawn(move || {
-        let outcome: IndexWait = wait_for_index_release_within(index_path.as_path(), "merge", SHORT_CEILING, quick(), &mut sink.clone());
-        let _sent = finished.send(outcome);
-    });
-    let outcome: IndexWait = ended.recv_timeout(CEILING_PATIENCE).ok()?;
-    return Some((outcome, reader.text()));
+    let outcome: IndexWait = wait_for_index_release_within(index, "merge", SHORT_CEILING, quick(), &mut sink.clone());
+    return (outcome, sink.text());
 }
 
 /// A holder proven alive that keeps the lock past the ceiling is given up on:
@@ -210,7 +201,7 @@ fn a_holder_proven_alive_is_given_up_on_at_the_ceiling() {
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock");
     std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
-    let (outcome, text) = wait_at_the_ceiling(index.as_path()).expect("the wait ended at its ceiling");
+    let (outcome, text) = wait_at_the_ceiling(index.as_path());
     assert!(matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING), "{outcome:?}");
     assert!(text.contains("still held after") && text.contains(format!("PID {}", std::process::id()).as_str()), "{text}");
     assert!(lock.exists(), "the wait removes no lock");
@@ -218,6 +209,7 @@ fn a_holder_proven_alive_is_given_up_on_at_the_ceiling() {
 }
 
 /// An owner nothing proves alive is given up on at the ceiling too,
+/// after the whole ceiling has passed,
 /// with what was looked at.
 #[test]
 fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
@@ -225,20 +217,22 @@ fn an_owner_nothing_proves_alive_is_given_up_on_at_the_ceiling() {
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("the lock");
-    let (outcome, text) = wait_at_the_ceiling(index.as_path()).expect("the wait ended at its ceiling");
-    assert!(matches!(outcome, IndexWait::GaveUp(_)), "{outcome:?}");
+    let (outcome, text) = wait_at_the_ceiling(index.as_path());
+    assert!(matches!(outcome, IndexWait::GaveUp(waited) if waited >= SHORT_CEILING), "{outcome:?}");
     assert!(text.contains("still held after") && text.contains("an owner nothing proves alive"), "{text}");
     assert!(lock.exists());
     remove(root.as_path());
 }
 
-/// A holder proven alive is waited for with no bound:
+/// A holder proven alive is waited for until it lets go:
 /// the wait goes on through the whole hold,
 /// repeats its line naming the
-///  holder without ever saying it gives up,
-/// and ends when the holder lets go.
+///  holder,
+/// and ends when the holder lets go,
+/// well inside the one-minute ceiling it takes (`MERGE_LOCK_CEILING`,
+/// the control of that ceiling is `a_holder_proven_alive_is_given_up_on_at_the_ceiling`).
 #[test]
-fn a_holder_proven_alive_is_waited_for_with_no_bound() {
+fn a_holder_proven_alive_is_waited_for_until_the_lock_is_released() {
     let root: std::path::PathBuf = fixture("holder-wait-alive");
     let index: std::path::PathBuf = root.join("index");
     let lock: std::path::PathBuf = root.join("index.lock");
@@ -259,7 +253,8 @@ fn a_holder_proven_alive_is_waited_for_with_no_bound() {
     let text: String = sink.text();
     assert!(text.contains("proven by its Git lock PID file"), "{text}");
     assert!(text.contains("still waiting for"), "the line repeats while the holder holds: {text}");
-    assert!(!text.contains("giving up") && !text.contains("stops waiting"), "a proven holder is never given up on: {text}");
+    assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
+    assert!(!text.contains("giving up") && !text.contains("stops waiting"), "a notice while the wait goes on never says the wait ended; only the ceiling's line does: {text}");
     remove(root.as_path());
 }
 

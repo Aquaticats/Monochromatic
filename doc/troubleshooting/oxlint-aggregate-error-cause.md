@@ -152,6 +152,12 @@ The Pi implementation is
 Its `createAssessmentRetentionError` function receives both original failures explicitly
 and preserves the original aggregate message and ordered `errors` array.
 
+`package/pi-plugin/auto-mode/native/contract/collector/program-rule-batch-sdk-copy-v2/input/judgment-assessment.ts`
+was removed on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native
+Pi build);
+no file in the working tree carries it now.
+
 The behavioral patch is:
 
 ```diff

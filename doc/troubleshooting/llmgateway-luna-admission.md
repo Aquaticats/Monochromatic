@@ -24,6 +24,21 @@ The shared question scope is defined in
 `package/pi-plugin/auto-mode/native/contract/integration/action-policy/permission-review-scope.ts`.
 Both automatic review phases consume it.
 
+The paths this record names under `package/pi-plugin/auto-mode/native/contract/integration/` were
+removed on 2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi
+build);
+no file in the working tree carries them now.
+`package/pi-plugin/auto-mode/src/request-material-obligations.ts` was removed on 2026-10-19 in
+`7ac15b19b4` (refactor(pi-plugin-auto-mode):
+remove legacy source for ground-up rebuild);
+no file
+in the working tree carries it now.
+None of the `mise run` targets this record names resolves today:
+those tasks were removed on
+2026-10-19 in `ff55ced353` (refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build).
+
 `package/pi-plugin/auto-mode/native/contract/integration/policy-source/decision-context.mjs:31`
 selects readable project policy sources and visible conversation before clause indexing:
 
@@ -94,6 +109,10 @@ mise run //package/pi-plugin/auto-mode:test:native:startup-relevance
 mise run //package/pi-plugin/auto-mode:test:native:decision-context
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 ```
+
+Those three addresses no longer resolve:
+commit `ff55ced353` (2026-10-19) retired the native Pi build and deleted
+`package/pi-plugin/auto-mode/native/` with its `test:native:*` tasks.
 
 The full reported conversation replay executes nine original calls across six groups without confirmation.
 The live explicit prohibited-read control blocks both calls without confirmation.
@@ -251,6 +270,9 @@ It reconstructs the authored false prerequisite from the actual tagged logger's 
 # Repository root; authored provider replies and disposable native sessions
 mise run //package/pi-plugin/auto-mode:test:native:decision-fallback
 ```
+
+`ff55ced353` (2026-10-19) removed that task with the native Pi build;
+no task in the working tree runs the native modules today.
 
 The earlier synthetic working-directory policy did not establish behavior under the real repository policy.
 The older original logs cannot be repaired retroactively.
@@ -501,6 +523,9 @@ Local built-consumer verification needs no provider credential:
 mise run //package/pi-plugin/auto-mode:test:decision-wire
 mise run //package/pi-plugin/auto-mode:test:semantic-operating-policy
 ```
+
+`ff55ced353` (2026-10-19) removed both tasks with the native Pi build;
+no task in the working tree runs the native modules today.
 
 Those commands verify the adapter and admission rule;
 they do not reproduce provider distributions.

@@ -44,6 +44,12 @@ The legitimate scratch read should not have reached the reviewer.
 
 ### Lexical home and canonical directory identity were compared at different boundaries
 
+`package/pi-plugin/auto-mode/src/temp-allowlist.ts`,
+`.../src/read-only-bash-proof.ts`,
+`.../src/read-only-bash-word-proof.ts`,
+and `.../src/index.unit.test.ts` were all removed on 2026-10-17 by `a3955898f1`;
+the excerpts and line ranges below record their last state.
+
 Before commit `b05363ad9`,
 `package/pi-plugin/auto-mode/src/temp-allowlist.ts:128-134` derived the candidate directly from lexical home:
 
@@ -157,6 +163,12 @@ for (const command of executedCommands) {
 }
 ```
 
+The paths this record names under `package/pi-plugin/auto-mode/src/` were removed on 2026-10-17 in
+`a3955898f1` (refactor(pi-plugin-auto-mode):
+remove superseded extension pipeline);
+no file in the
+working tree carries them now.
+
 The shared analyzer now preserves each parsed argument value with its original shell spelling at
 `package/agent-harness-shared/shell-command-analyzer/src/types.ts:130-164`.
 It also preserves literal loop source spellings at lines 10 to 28.
@@ -269,6 +281,10 @@ mise run buildAndTest -- \
 mise run //package/agent-harness-shared/shell-command-analyzer:lint:types
 mise run //package/pi-plugin/auto-mode:lint:types
 ```
+
+The second address is gone:
+`a3955898f1` (2026-10-17) removed `package/pi-plugin/auto-mode/src/index.unit.test.ts`.
+The other three still resolve.
 
 The analyzer test passed after building its shipped artifact.
 The auto-mode entry-point test passed after building the extension artifact.

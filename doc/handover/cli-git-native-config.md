@@ -1,5 +1,39 @@
 # cli-git native repository configuration
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/git-policy/cli:native:interop` is retired (2026-11-01 `cd67a90f6c`) and no
+> interop task exists today.
+> `//package/git-policy/cli:native:config:differential` is retired (2026-10-13 `a2b56c548c`)
+> and no task of that name exists today.
+> `package/module` is gone (2026-10-29 `592d78b143`);
+> its packages sit at `package/<name>/<variant>` such as `package/kv-store/core` and
+> `package/llm/llm-type` today.
+
+Note 2026-11-08:
+these tasks this document names no longer exist:
+`//package/git-policy/cli:native:interop` went on 2026-11-01 (`cd67a90f6c`);
+`//package/git-policy/cli:native:config:differential` went on 2026-10-13 (`a2b56c548c`);
+
+Note 2026-11-08:
+the `package/module/...` paths this document names are names inside a throwaway fixture
+repository it built to exercise the dependent-version policy;
+the repository-level `package/module` category has not existed since 2026-10-29
+(`592d78b143`).
+`package/module/a/package.json`
+`package/module/b/package.json`
+`package/module/[ab]/src/index.ts`
+and `package/module/a/src/index.ts` are names inside that fixture repository.
+
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,

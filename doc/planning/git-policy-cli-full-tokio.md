@@ -1874,7 +1874,7 @@ so no step waits for the layout moves.
   `mise run //package/git-policy/cli:native:lock:members` checked the 17 newly locked versions against the release-age and trust policy (all passed).
 - Linux calls (`rustix`):
   started with `getrlimit` and the pidfd;
-  the file calls move with the safe-file-saving replacement below.
+  the file calls move with the safe-file-saving replacement in the `Safe file saving` section.
 
 ### Step T4, children without a blocking wait (partly)
 
@@ -1960,7 +1960,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
 
 ### Safe file saving: the publish replaced, 2026-11-07T07:55:00-05:00
 
-- The owner's answer on G1 is recorded above,
+- The owner's answer on G1 is recorded in the Safe file saving section,
   verbatim:
   "Keep the fallback (Recommended)".
 - `1cff4935cd` records it;
@@ -2090,7 +2090,7 @@ the publish answered by neither `renameat2` with `RENAME_NOREPLACE` nor a hard l
      `tempfile-v2.56.0.c` (tag `v2.56.0`).
 - The index lock without links,
   branch `fix/git-policy-cli-index-lock-without-links`:
-  item 2 above is built.
+  item 2 of the coordinator's settlements is built.
   `907416dba7` is the red test
   (`a_filesystem_with_neither_no_replace_rename_nor_links_does_not_stop_a_commit`:
   `EOPNOTSUPP` on `link`,
@@ -2543,7 +2543,8 @@ Neither is a T5 regression.
   as a process held in a stalled disk call does,
   or one that the
   scheduler did not run (this host once took 6.03 s of wall time for a check and a rename,
-  section c above;
+  section c under the heading
+  `The coordinator's three settlements after T5, 2026-11-07T10:20:00-05:00 to 2026-11-07T11:10:00-05:00`;
   whether disk or scheduler is not measured).
   A load of 70 on the gate's few CPUs is the trigger;
   the cause is the escalation
@@ -3742,7 +3743,8 @@ not by gate reruns.
 - Not starvation of the look:
   the service's answer line of the failing gate run named `lock_holder="Process 80482"` with `lock_looks=1`,
   so the one look returned `ProvenAlive`,
-  and in every instrumented run below the only holder notice was proven.
+  and in every instrumented run under "Counts of the one test under the gate's limits"
+  the only holder notice was proven.
   The look did not reach its ceiling in any run.
   The pool's busy count was not recorded,
   because no look waited on the pool.
@@ -3899,7 +3901,7 @@ and why").
   `LAST_RESORT` (the alarm) = `SETTLE_CEILING` plus `STOP_GRACE`,
   29.096 s;
   the manager's default stop timeout was taken to be 90 s and this crate's unit set none (wrong,
-  see "Owner answer of 2026-11-08" below:
+  see the "Owner answer of 2026-11-08 and what it changed" section:
   the host's default is 15 s,
   and the unit now sets its own).
 
@@ -3944,7 +3946,8 @@ the shutdown now writes its one line without waiting (`send_without_waiting`).
 
 #### Owner answer of 2026-11-08 and what it changed
 
-The coordinator put the first judgment call below to the owner (question tool,
+The coordinator put the first judgment call in the `Judgment calls open to the owner's veto` section
+to the owner (question tool,
 verbatim answer "B:
 let a branch write finish (Recommended)").
 The option read:
@@ -3988,7 +3991,36 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
   The commit is not copied to `refs/cli-git/kept/<n>` in that case,
   because the landing is still inside the write when the service ends and cannot unwind;
   recovery reads the open intent as it does after any kill.
-  Whether the commit should also be copied to a kept ref at the limit is not decided.
+  Whether the commit should also be copied to a kept ref at the limit is decided (2026-11-08,
+  branch `fix/git-policy-cli-kept-ref-for-a-branch-write-past-the-stop`):
+  it is,
+  by the recovery that settles the batch,
+  never by the stop.
+  What that touched was read first:
+  a start of the service does not settle its own journal
+  (only an earlier release's shared journal is settled at a start),
+  the next batch settles it,
+  and that drop left the commit on the landing's scratch branch alone,
+  which a commit Git built never has.
+  The drop now writes `refs/cli-git/kept/<n>` before the intent goes
+  (`keep_what_the_branch_does_not_show` in `service_land_finish.rs`),
+  it is a side-ref write,
+  so a stop cuts it like any other Git of a landing,
+  and a drop whose kept write fails is logged with Git's words and still drops,
+  so a ref nobody can write does not leave every later commit waiting on the batch's index lock.
+  The stop waits for nothing more than it did,
+  so the ref is named once the worktree commits again.
+  Main's own sweep of a dropped batch's scratch reference came in the merge (`f293f8f58d`,
+  `service_scratch_ref_of_a_dropped_batch.rs`),
+  so the drop keeps this commit and then removes that reference;
+  a kept reference that already names another commit is never replaced,
+  and the scratch reference then stays too.
+  Controls,
+  red first (`70d04ae08a`):
+  `a_restart_keeps_the_commit_of_a_batch_whose_branch_never_moved_on_a_kept_ref`,
+  `a_restart_keeps_a_commit_git_built_that_landed_no_ref_on_a_kept_ref`
+  and
+  `the_commit_of_a_branch_write_that_outlived_the_stop_is_kept_on_a_kept_ref_by_the_next_commit`.
 - The measured host facts behind the unit:
   the live unit had `KillMode=control-group` and `TimeoutStopUSec=15s`
   from `DefaultTimeoutStopSec=15s` in `/etc/systemd/user.conf.d/timeout.conf`,
@@ -4014,7 +4046,7 @@ Built on `fix/git-policy-cli-stop-lets-branch-write-finish`:
 
 #### Judgment calls open to the owner's veto
 
-- Superseded on 2026-11-08 by the owner's answer above:
+- Superseded on 2026-11-08 by the owner's answer in the `Owner answer of 2026-11-08 and what it changed` section:
   a stop ends a branch write too (the landing's `Unbounded` step),
   with `SIGTERM` first,
   the kill after `STOP_GRACE`,
@@ -4154,6 +4186,879 @@ The bar (every paired delta far under five seconds) holds.
 The after binary was built before the fix of the shutdown's start;
 the fix changes nothing a commit through the service runs.
 
+### Step T12, the runner's jobs on the runtime and one bound for the process, 2026-11-08T18:40:00-05:00
+
+Branch `feat/git-policy-cli-tokio-steps-12-and-13`,
+from main at `1a907ccfb9`.
+Two commits:
+`2b1f830568` (the bound and the runner) and
+`c1e6a78a4c` (the lint and Clippy fixes).
+
+#### Where the plan and the code disagree, told as the coordinator asked
+
+The plan's T12 reads "the parallel runner and the scoped threads ... become tasks and `spawn_blocking` jobs under
+the semaphore of the round;
+the nine `HostResources::read` call sites read the budget through the new owner".
+The code does not allow that as one step,
+for two reasons:
+
+- A job of the blocking pool must own what it reads (`spawn_blocking` requires `'static`),
+  and the scoped threads of
+  `parallel_runner.rs` and `side_by_side_threads.rs`
+  borrow the caller's items,
+  lanes and work for the length of one thread scope.
+  So every call site must hand over shared values (`Arc`)
+  instead of borrows,
+  and the seven `run_ordered` call sites
+  (`worktree/worktree_convert_command.rs`,
+  `worktree/worktree_trash_entries.rs`,
+  `push/manual_push_probe.rs`,
+  `push/manual_push_lifecycle.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `landing/service_round.rs`,
+  and the controls) plus the nine `run_all_side_by_side`/`run_beside_caller` sites must change that way,
+  one at a time,
+  since a change of the runner's signature reaches all of them at once.
+- The work of `landing/service_round.rs` runs Git:
+  `drain_directories` calls
+  `drain_planned` → `run_due_push_retries` and `drain_pending` → the `WorkHandlers` of the landing
+  (`landing/service_work.rs`),
+  and those start Git children.
+  A pool job reaches `run_git`,
+  which enters the runtime through `run_on_runtime`,
+  and that bridge refuses a call from inside the runtime (`RuntimeError::Nested`).
+  So the round's conversion needs the leaf-first `async` Git that T11 named and did not build:
+  there is no `async fn run_git` in `transaction/transaction_git.rs` today
+  (T11 left the note in
+  "What T11 did not convert,
+  and why";
+  79 production files and 203 mentions).
+
+So this step is the part that needs neither:
+the two pieces every later call-site conversion rests on.
+
+#### What landed
+
+- `foundation/blocking_jobs_within_the_budget.rs`:
+  the process's one bound on blocking jobs,
+  a `tokio::sync::Semaphore` made once,
+  sized by
+  `runtime_plan::budgeted_workers` (budget ∩ `RLIMIT_NPROC`/`pids.max` ∩ address space)
+  and by `hold_blocking_jobs_to`,
+  whose permits a job takes before the pool is asked for a thread.
+  The size is the same derivation the runtime's worker count uses
+  (`runtime_plan.rs` now has one function for both),
+  so more jobs than threads cannot run.
+- `foundation/parallel_runner_on_the_runtime.rs`:
+  the same ordered run as `parallel_runner.rs` (input order,
+  the live lines of the head item,
+  a lane's items one after another)
+  with each item as one job of the pool under that bound,
+  the consumer on the calling task,
+  and `run_ordered_and_wait_here` as the face a caller that is still synchronous uses
+  (it enters the runtime and refuses from inside it).
+  The reporting is shared with the scoped runner:
+  `Cursor`,
+  the message type and the lane-coverage check are `pub(crate)` in `parallel_runner.rs`,
+  so the two cannot report differently.
+- `service/service_main.rs`:
+  the service holds its blocking jobs to `SERVICE_WORKER_CAP`,
+  as it holds its workers.
+
+The seven call sites are not converted;
+the scoped runner stays beside the new one until they are.
+The nine `HostResources::read` sites still read the budget themselves;
+the bound is what now limits how much of it runs at once.
+
+#### A refused `spawn_blocking` swallows the job, measured
+
+The design of a permit was changed by a measurement,
+not by a preference.
+When the system refuses a thread,
+`spawn_blocking` pushes the job into the pool's queue and *then* panics
+(`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+`spawn_task`:
+the queue push precedes the thread start,
+and `Err(NoThreads)` leaves the task queued with no thread to run it).
+The queued job keeps everything it captured for the life of the process,
+so:
+
+- a permit moved into the job is lost for good.
+  Planted control (the permit put back into the closure):
+  `where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back` failed with
+  "the place of a job refused a thread was never given back:
+  Elapsed(())" after 30 s.
+- a sending end moved into the job never drops,
+  so a consumer that ends when the channel closes never ends.
+  Planted control (the consumer reading until the channel closed):
+  `where_no_thread_can_start_the_run_is_a_plain_error` hung to nextest's 300 s timeout
+  (`TIMEOUT [ 300.007s]`).
+
+So the place is held by the awaiting frame
+(no shipped caller stops waiting for one of these jobs;
+the doc beside it says so),
+and the consumer ends when every job has *returned*,
+counted by `SlotsStillRunning`,
+and then drains what the jobs already sent.
+Both controls pass in 0.016 s and 0.025 s once the design carries this.
+
+#### Controls
+
+`foundation/blocking_jobs_within_the_budget_tests.rs` (5):
+`a_job_gives_its_value`,
+`the_budget_is_at_least_one_place_and_a_cap_holds_it_lower`,
+`no_more_jobs_run_at_once_than_the_budget_allows` (a burst of six held to the two places it asked for;
+reports the most places held at once),
+`a_job_that_panics_gives_its_place_back`,
+`where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back` (the child that is refused every thread,
+two jobs,
+both refused,
+the job never ran,
+no thread started for the second wait).
+
+`foundation/parallel_runner_on_the_runtime_tests.rs` (5):
+`every_item_runs_and_the_report_keeps_input_order` (the first item ends last and the report keeps input order),
+`items_run_at_the_same_time` (a rendezvous of the jobs the runner promises at once;
+a serial run can never pass it),
+`the_process_bound_holds_the_items_to_one_at_a_time`,
+`where_no_thread_can_start_the_run_is_a_plain_error`,
+`a_lane_set_that_leaves_an_item_out_is_refused`.
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:test:host -- foundation::blocking_jobs_within_the_budget foundation::parallel_runner foundation::parallel_runner_on_the_runtime foundation::runtime_plan`:
+27 tests run,
+27 passed.
+The scoped runner's 12 controls and the side-by-side,
+scoped-start and blocking-job controls ran unchanged in an earlier run of the same filter (37 tests run,
+37 passed before the two no-thread fixes below landed as they are).
+`native:clippy` clean;
+package `lint` 0 errors and 0 warnings with the closure check run.
+Not run:
+the container gate (it builds the gate image;
+the tree has not been through it),
+`native:perf` (the plan asks for it after T12),
+and the mutation campaign.
+
+#### The overlap control expects the runner's bound, not a typed four, 2026-11-08T20:30:54-05:00
+
+`items_run_at_the_same_time` asked one run for four workers and expected four items at a single point.
+The jobs of this runner are bounded by the process's bound on blocking jobs,
+which `budgeted_workers` sizes from `available_parallelism`,
+so a container's CPU quota lowers it:
+measured in the test's own cgroup,
+`CPUQuota=200%` gave `available_parallelism` 2 and `budgeted_blocking_jobs()` 2,
+and a probe of four items kept at most 2 inside their job at once (51.6 ms in two waves),
+against `available_parallelism` 6 and a bound of 5 (26.8 ms) at the session's 600% allowance.
+The old control failed there in 10.011 s with `left: 2` against `right: 4`,
+which is the two items that did start waiting out `PATIENCE`.
+So the control was wrong and not the runner:
+the runner says in its module doc that it runs its items under that bound,
+and its `workers` field names the bound now too,
+where the typed four had read as a guarantee.
+The control derives the count from the runner's promise (`jobs_that_may_overlap`:
+the workers it asks for,
+the lanes and `budgeted_blocking_jobs()`) and runs exactly that many items at a rendezvous of that size;
+where the bound is one it prints why it has nothing to measure and returns,
+because one job at a time can never meet another.
+Planted control:
+with `at_once` in `run_ordered_on_the_runtime` set to one,
+the control fails in 10.016 s with `left: 1` against `right: 2`,
+so it still catches a runner that runs its items one after another.
+Both allowances:
+`mise run //package/git-policy/cli:native:test:host -- foundation::parallel_runner_on_the_runtime`
+passed 9 of 9 at `CPUQuota=200%` and at the session's 600%,
+with `items_run_at_the_same_time` in 0.007 s and in 0.009 s.
+Commit `520d8991c2` on `fix/git-policy-cli-parallel-runner-control-holds-at-any-cpu-count`,
+with an independent review's corrections to three sentences that claimed more than the bound guarantees
+in `98f51f9d37`:
+the bound is a ceiling every job of the process shares and not a reservation one run keeps,
+and it comes from the CPU allowance with the thread,
+address-space and cap limits.
+
+### Step T12, the leaf-first asynchronous Git and the ordered runner that awaits, 2026-11-08T19:29:56-05:00
+
+Branch `feat/git-policy-cli-tokio-steps-12-and-13` in
+`.claude/worktrees/pi-tokio-async-git-leaf`,
+from `6240b51a7a` (the merge of "Step T12,
+the runner's jobs on the runtime").
+Two commits:
+`e0359dc84c` (the asynchronous Git runner and the awaited watched
+run) and `a2f901dd92` (the ordered runner for work that awaits a Git child).
+
+#### What the previous step left, and what this one had to build first
+
+The section "Step T12,
+the runner's jobs on the runtime" ends with one leaf
+missing:
+`transaction/transaction_git.rs` had no `async fn`,
+so the round of the landing could not move onto the runtime runner,
+because a
+pool job that reaches `run_git` meets the refusal of
+`run_on_runtime` (`RuntimeError::Nested`).
+This step builds that leaf and the runner the round needs after it.
+
+The synchronous face of a Git step enters the runtime for one reason:
+a step that is ended at its ceiling (`StepBound::EndAt`) registers its pipes
+with the reactor,
+and `attach_pipes` does that through
+`run_on_runtime`.
+Everything else of a step is already a wait of the
+synchronous caller's thread or of the watcher task.
+
+#### The two faces, and why both exist
+
+- `transaction/transaction_git_awaiting.rs` is the same runner with the
+  entering taken out:
+  the pipes are registered on the runtime the caller
+  already runs on,
+  the child is started by `spawn_retrying_without_blocking`
+  (the awaiting start retry that already existed),
+  its output is read by
+  `StepPipes::read_until_the_child_ends_awaiting`,
+  and its end is awaited
+  through the pidfd of `OwnedChild`.
+  `run_git_awaiting` and `run_git_checked_awaiting` are its two entries.
+- The synchronous face stays exactly as it was,
+  and for a measured reason:
+  it is not only the callers that are still synchronous that need it.
+  A step
+  whose bound is `Unbounded` or `LeaveRunning` makes no pipes at all,
+  so the
+  synchronous face works today from inside the runtime for those bounds,
+  which the branch write of a landing is.
+  A bridge that entered the runtime
+  around the whole runner would have taken that away from every pool job that
+  moves a branch,
+  so the leaf is added beside the face and not under it.
+- What the two cannot differ in is shared rather than copied:
+  `build_command`,
+  `input_file`,
+  `step_subject`,
+  `terms_for_request`,
+  `step_bound`,
+  `checked_from` and `refused_by_the_system` are the synchronous file's items,
+  made `pub(crate)` for the awaiting file;
+  `ending_of_a_watched_step`
+  (`push/child_watch_step_bounds_and_errors.rs`) words the stop,
+  the ceiling
+  and the quiet window once for both;
+  `watched_timeout_text` moved beside it
+  so a file that words an ending does not use the file that runs the wait.
+- `push/child_watch_output_watched_on_the_runtime.rs` is the watched run of a
+  step as a future:
+  `attach_pipes_awaiting`,
+  the awaiting start,
+  the pipe read
+  and the child's end.
+  A step that is left running (a write that may not be
+  cut) is waited for by a task of the runtime with the runtime's timer,
+  and
+  the thread the synchronous face starts for that is not started here.
+
+#### The place a worker was held, measured
+
+The synchronous face closes a watch by dropping it,
+and `Drop` waits for the
+watcher task with `recv_timeout` on the calling thread.
+That is right for a
+synchronous caller and wrong on a worker:
+while the workers of a small
+runtime are inside those waits,
+the very tasks that would end them cannot
+run,
+so each watch pays the whole `WATCHER_END_BOUND` (19.1 s).
+
+Measured before the fix (`foundation/parallel_runner_on_the_runtime_awaiting_tests.rs`,
+`an_item_may_await_a_git_child`):
+four awaited Git steps of 3.6 ms each took
+38.2 s,
+and one awaited step alone took 19.1 s.
+`ChildWatch::close_awaiting` closes the same watch from a task,
+awaiting the
+watcher's own end with the same bound,
+and the four steps take 10.8 ms.
+The synchronous face keeps its blocking drop,
+which the measurement of
+`WATCHER_END_BOUND` was made under.
+The rule this gives any later helper:
+a synchronous `Drop` that waits for a
+task must not run on a worker,
+so a face that runs on the runtime closes its
+own watches.
+
+#### The ordered runner that awaits
+
+`foundation/parallel_runner_on_the_runtime.rs` runs each item as a job of the
+blocking pool,
+and a job cannot await anything,
+so the round of the landing
+could not use it whatever the Git leaf looked like.
+`foundation/parallel_runner_on_the_runtime_awaiting.rs` runs each lane as a
+task of the runtime instead (`run_ordered_awaiting_on_the_runtime`,
+`OrderedAwaitingWork`):
+
+- a lane's items run one after another inside one task,
+  which is what keeps
+  two items of one worktree apart,
+  and lanes run side by side,
+  bounded by
+  `workers`;
+- an item that also waits on storage puts that one call on the blocking pool
+  inside its own work (`run_blocking_job_within_the_budget`),
+  so the
+  process's one bound still covers the storage and the worker awaiting Git
+  stays free;
+- the consumer,
+  the drain of what the jobs already sent and the join are
+  `finish_the_run`,
+  shared with the blocking form,
+  so the input order,
+  the
+  live lines of the head item and the counting of jobs that returned stay one
+  code.
+  The blocking form's behaviour is unchanged.
+- `OrderedAwaitingWork::run` hands back a boxed future rather than being an
+  `async fn`,
+  because the work travels as `Arc<dyn OrderedAwaitingWork>` and a
+  trait with an `async` method cannot be made into a `dyn` value.
+
+#### What is not converted, and why that is not a gap of this step
+
+No production call site was converted,
+so no command changes behaviour.
+Converting one call site makes its function `async`,
+which makes its callers
+either `async` or a bridge that enters the runtime,
+and that chain runs up to
+the command or to the service loop.
+The 67 production files that call
+`run_git` are therefore converted one folder at a time from the top of their
+own chains,
+and the round of the landing is the last of them:
+its items run
+the landing's handlers (`landing/service_work.rs`),
+so every step below them
+becomes a future first.
+
+#### Controls
+
+`transaction/transaction_git_awaiting_tests.rs` (7):
+`a_query_awaited_on_the_runtime_gives_gits_answer`,
+`an_input_awaited_on_the_runtime_reaches_git_and_comes_back_hashed` (a 4 MiB
+input),
+`a_failure_awaited_on_the_runtime_names_the_command`,
+`a_branch_write_awaited_in_a_landing_task_moves_the_ref` (the `Unbounded`
+bound,
+from a task that carries a landing's state),
+`a_run_leaves_no_descriptor_open`,
+`the_synchronous_face_of_the_same_query_is_refused_from_inside_the_runtime`
+(the positive control:
+without it the first control could pass for a reason
+other than the one it claims),
+and
+`a_branch_write_of_the_landing_asked_of_the_synchronous_face_inside_the_runtime_still_lands`,
+which pins why the synchronous face was not turned into a bridge:
+a step with an `Unbounded` bound makes no pipes,
+and the pipes are the only reason that face enters the runtime.
+
+`push/child_watch_output_watched_on_the_runtime_tests.rs` (5):
+`a_step_awaited_on_the_runtime_returns_every_byte_of_both_streams` (a step
+that writes beyond the kept tail on both streams),
+`the_synchronous_face_of_the_same_step_is_refused_from_inside_the_runtime`,
+`a_step_that_is_never_ended_is_awaited_to_its_own_end`,
+`a_step_awaited_on_the_runtime_leaves_no_descriptor_open`,
+`a_step_on_a_directory_of_its_own_runs_and_leaves_its_marker`.
+
+`foundation/parallel_runner_on_the_runtime_awaiting_tests.rs` (4):
+`every_item_runs_and_the_report_keeps_input_order`,
+`items_run_at_the_same_time` (a rendezvous of four on a `tokio::sync::Barrier`),
+`a_lane_runs_its_items_one_after_another`,
+`an_item_may_await_a_git_child` (a real `git rev-parse` per item,
+which is
+also the measurement of the watch's drop above).
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:check`:
+clean.
+`native:clippy`:
+clean.
+`native:test:host -- foundation:: parallel_runner:: transaction:: push::child_watch`:
+335 tests run,
+335 passed.
+`mise run lint:monochromatic-lint` on every file this step touched:
+clean,
+after `format:monochromatic-lint` inserted the line breaks it asks for in
+three of them.
+The whole lib suite,
+once,
+at the end
+(`native:test:host`,
+with `CLI_GIT_TEST_ROOT` under a short path so a Unix
+socket fits `SUN_LEN`):
+4794 tests run,
+4794 passed (one slow),
+8 skipped.
+The whole binary-level suite,
+once
+(`native:test:binary:host`,
+same short root):
+733 tests run,
+733 passed (two
+slow),
+3 skipped.
+The package lint (`//package/git-policy/cli:lint`,
+`monochromatic-lint
+--max-warnings 0` over the package plus Clippy):
+0 errors,
+0 warnings.
+Two runs before those look like defects and are not:
+- with a small `TasksMax` on the run's own control group,
+  two LFS controls
+  failed with "cannot fork() for git-lfs filter-process:
+  Resource temporarily
+  unavailable",
+  which is the bound the run was given,
+  not the code;
+- without the short fixture root,
+  `service_mode::the_same_start_with_the_real_git_listens` fails as
+  `doc/handover/cli-git-rust-implementation.md` recorded on a clean checkout:
+  its socket path under `CARGO_TARGET_DIR` is longer than `SUN_LEN`.
+Not run:
+the container gate (it builds the gate image and this tree has not been
+through it),
+`native:perf`,
+and the mutation campaign (paused by the owner).
+
+### Step T12, the first production folder on the awaited Git runner, 2026-11-08T21:05:00-05:00
+
+Branch `feat/git-policy-cli-tokio-call-sites-from-the-top-of-each-chain` in
+`.claude/worktrees/pi-tokio-convert-the-first-call-sites`,
+from main at `bbadfac560`.
+Two commits:
+`a669e2a59a` (the control that fails to compile) and
+`ae4e1a57c7` (the conversion that turns it green).
+
+#### Which folder, measured first
+
+The handover's "Exact next steps" item 1 asks for one folder whose chain to a
+boundary is short.
+The chains were measured,
+not guessed:
+
+- A call graph over the production sources (every `*.rs` under `src/native`
+  minus `*_tests.rs` and the word-merge corpus,
+  comments and string literals
+  stripped,
+  each `fn` body brace-matched) found 79 distinct
+  (file,
+  function) pairs that call a `run_git*` entry,
+  in 49 files.
+  A plain text count of the same entries gives 111 mentions in 68 files,
+  which includes doc comments.
+- Each such function's ancestor set was then read back with `rg` on its own
+  name,
+  one level at a time,
+  so a chain is a list of functions one can check
+  by hand rather than a number from the graph.
+
+What that gave,
+for the folders the brief does not reserve:
+
+- `health/` (3 sites):
+  `fsmonitor_report` is reached by
+  `main` > `run_process` > `plan_invocation` > `plan_management` >
+  `plan_management_with_section` > `plan_doctor` > `doctor_action_with_section`,
+  and inside the folder the three Git readouts are called by nothing but each
+  other and the folder's own controls.
+  Six functions above the folder,
+  three
+  inside it,
+  and the chain closes.
+- `conflict/` (7 sites):
+  `paths_with_markers` and `marker_sizes` hang below
+  `report_landing` > `service_commit` > `run_timed` > `run_commit_command` >
+  `run_commit_if_real` > `run_wrapped_command` > `plan_with_real_git` >
+  `plan_invocation`,
+  which is the commit path,
+  and the commit path is the one
+  the five-second bar and the budget controls measure.
+- `commit/` (19),
+  `landing/` (27),
+  `merge/` (15):
+  9 to 14 hops,
+  all of them
+  through the commit or the landing,
+  and `landing/` is reserved by the brief.
+- `standards_review/` (4):
+  `read_patch` is reached through
+  `service/service_review.rs` and `repository_link_check/`,
+  16 hops.
+- `shadow/` (10):
+  `list_real_refs` and `write_shadow_refs` are reached through
+  `create_shadow_repository_carrying` > `build_with_git` in `landing/`.
+- `config/` (1):
+  `read_config_snapshot` has eight production callers,
+  one in
+  `landing/` and one in `worktree_copying/`,
+  both reserved by the brief.
+- `repair/` (1):
+  `manifest_directories` sits under `repair_cargo` >
+  `repair_worktree` in `worktree_copying/`.
+- `worktree/` (5):
+  `untracked_file` and `trash_location_is_ignored` are items
+  of `run_beside_caller` (`side_by_side_threads.rs`),
+  so they move with the
+  runner and not before it.
+- `candidate/` (5):
+  the landing's attempt rounds,
+  which is item 2.
+- `push/` (4),
+  `invocation/` (5):
+  `manual_push_range` and `git_version` are
+  reached from the commit path and from `lock/`.
+
+So `health/` is the folder item 1 asks for:
+the shortest chain,
+and the only
+one whose subtree ends where it starts.
+`landing/`,
+`lock/`,
+the `worktree_copy` files and the printed wait messages
+were not touched.
+
+#### The design
+
+- `health/doctor.rs`:
+  `query`,
+  `locate_hooks` and
+  `doctor_action_with_section` are futures and ask Git through
+  `run_git_awaiting`,
+  so no step of the report enters the runtime for the
+  pipes of a step that is ended at its ceiling.
+  `doctor_action` keeps its signature and is the synchronous face:
+  it enters
+  the runtime once for the whole report,
+  which is the shape
+  `captured_child_run_to_its_end::output_of_blocking` and
+  `bounded_query::run_bounded_query` already use.
+- `health/doctor_config.rs`:
+  `config_findings` and `top_level` are futures.
+- `health/doctor_fsmonitor.rs`:
+  `fsmonitor_report` is a future.
+- `config/config_snapshot.rs`:
+  `read_config_snapshot_awaiting` is the second
+  face of one read.
+  The request,
+  the parse and the debug lines are
+  `config_listing_request` and `snapshot_of`,
+  shared with the synchronous face,
+  so the two cannot differ in what they read or what they record.
+  The synchronous read keeps every caller it has,
+  because two of them are in
+  reserved folders;
+  a conversion of the read itself is item 2's work.
+- `invocation/management.rs`:
+  `plan_doctor` enters the runtime once around the
+  report and turns a refused entry into the command's own failure action
+  (`doctor::doctor_failure`,
+  whose prefix is the doctor's),
+  so a report that could not be started reads like every other doctor failure.
+
+Two rules from the previous agent are kept:
+
+- No synchronous `Drop` that waits for a task runs on a worker.
+  The report is
+  one task,
+  and its watches are closed by `run_git_awaiting`,
+  which closes them
+  with `ChildWatch::close_awaiting`.
+- Nothing waits for a job.
+  The report starts no blocking job,
+  and the one
+  runtime entry is made by the synchronous face,
+  on the calling thread.
+
+One limit of this step,
+said rather than hidden:
+the report's storage reads (the hooks directory scan,
+the configuration file and the
+`/proc` reads of the filesystem section) run on the worker that carries the
+report rather than on the blocking pool.
+Each is one short read of a known small file or directory,
+they happen once per doctor run,
+and putting them on the pool would need owned copies of what they read for a
+`'static` job;
+the landing's round is where that shape is decided,
+so this step does not set a second one.
+
+A second contract this step changes,
+said plainly:
+`doctor_action_with_section` takes its filesystem section as
+`&dyn Fn(&Path, Option<&Path>) -> String`,
+and that function is now called **on** the runtime instead of before it.
+The production callback
+(`invocation/management.rs`,
+`filesystem_section_with_link_line` >
+`doctor_filesystem::host_section` >
+`repository_link_check::doctor_link_line`)
+enters no runtime and starts no thread,
+which was read in those files and is what the binary suite's
+`subvolume::the_doctor_ends_with_the_filesystem_section_and_keeps_its_status`
+exercises,
+but a caller may no longer hand the doctor a section that enters the runtime.
+The callback is also not `Sync`,
+so the report's future is not `Send`;
+it is driven by `block_on` on the calling thread and is not spawnable,
+which is what the bridge does and all it does.
+
+#### What could not be converted, and why
+
+- `invocation/forwarded_command.rs::read_config_value` stays as it is.
+  Converting it would build the process's runtime on the forwarded-command
+  path,
+  and the guard `binary_forwarded_command_makes_no_thread_tests.rs`
+  plus the owner's choice 1 (lazy,
+  at the first wrapper code that needs it;
+  measured at +0.3 to +0.5 ms and about 125 minor faults on every forwarded
+  command) exist to keep that path free of the runtime.
+  A conversion here is a decision about that measurement,
+  not a call-site edit.
+- The three "pure-file" sites of item 3 (`worktree/worktree_trash_entries.rs`,
+  `subvolume/subvolume_index_refresh_of_every_worktree.rs`,
+  `worktree/worktree_convert_command.rs`) stay on the blocking runner for now,
+  and the next agent should read this before starting them.
+  The awaited runner takes `Arc<[T]>` items,
+  `Arc<[Vec<usize>]>` lanes and
+  `Arc<dyn OrderedAwaitingWork<T, R>>` work,
+  and a task spawned on the runtime
+  must be `'static`.
+  Each of the three lends the runner something that is not owned:
+  - `subvolume/` lends `rewrite: &RewriteOne<'a>`,
+    a borrowed closure,
+    and
+    `IndexLock<'a>`,
+    which holds a borrowed token from the caller;
+  - `worktree/worktree_convert_command.rs` lends `platform: &dyn Platform` and
+    `interrupt: &Interrupt`.
+  So converting one means owning those first:
+    `Arc<dyn Fn ... + Send + Sync>`,
+  an owned `IndexLock`,
+    and `Arc<dyn Platform + Send + Sync>`.
+  That changes the signatures `subvolume_migrate.rs`,
+    `subvolume_rollback.rs`
+  and `subvolume_index_parallel_tests.rs` are written against,
+    and the
+  controls that pass closures borrowing a `Rendezvous` and an `AtomicUsize`.
+- There is a second,
+  larger obstacle on the same three sites:
+  an item that says
+  its lines while it works.
+  `run_blocking_job_within_the_budget` takes `J: FnOnce() -> T + Send + 'static`,
+  and the sink an item says its lines through (`LinesToTheConsumer`) is lent to
+  the item's future for the length of the run,
+  so it cannot travel into a
+  `'static` job.
+  A site whose items say lines as they go therefore needs either a buffered
+  report or a new way for a blocking job to hand a line back to the consumer.
+  The landing's round and the three pure-file sites all say lines while they
+  work,
+  so this is a decision the next agent has to make before item 3 moves.
+
+#### Controls
+
+`health/doctor_tests.rs` (three new):
+
+- `the_report_is_built_on_the_runtime_it_is_awaited_on`:
+  the whole report,
+  awaited on the runtime,
+  with a hook in the default directory,
+  ends with
+  status 1 and lists that hook by path.
+  It is the conversion's proof:
+  it can pass only when no step of the report
+  calls the synchronous face.
+  The in-process readers are switched off in that control
+  (`repo_read_hook::switch_off`),
+  because a reader that answered a question without a child would let the
+  control hold whatever face the step used.
+  Planted control:
+  with `query` put back to the synchronous `run_git`,
+  the control fails with
+  "git rev-parse --path-format=absolute --git-common-dir --absolute-git-dir
+  could not start:
+  the runtime that runs this command's waits was asked for from inside itself"
+  and is restored.
+  Its red half,
+  `a669e2a59a`,
+  is a compile failure:
+  the compiler answers
+  "the trait `std::future::Future` is not implemented for
+  `invocation::action::Action`" and suggests making `doctor_action_with_section`
+  asynchronous.
+- `the_two_faces_of_the_report_agree`:
+  the synchronous face and the awaited
+  report give the same status,
+  standard output and standard error,
+  field for
+  field,
+  on a repository with a configured hook,
+  a traditional hook and the
+  fsmonitor note.
+  It compares the bridge with the report it wraps,
+  which is what the bridge has to keep;
+  what pins the report against **before** this step is the exact-output
+  controls that were already here
+  (the folder's 66 others and the binary suite's nine),
+  every one of which compares a whole action,
+  and none of which changed.
+- `the_synchronous_face_of_the_report_is_refused_from_inside_the_runtime`:
+  the positive control,
+  so the first control cannot pass for another reason.
+  The refusal reaches the caller as a doctor failure (status 2) whose message
+  names the runtime asked for from inside itself,
+  not as a panic.
+
+The existing controls were moved onto the runtime and say so in one helper per
+file:
+`located` (`doctor_tests.rs`),
+`findings_of` (`doctor_config_tests.rs`),
+`fsmonitor_of` (`doctor_fsmonitor_tests.rs`) and `with_section`
+(`doctor_filesystem_tests.rs`).
+
+#### Checks
+
+`mise run //package/git-policy/cli:native:test:host -- health::`:
+69 tests run,
+69 passed,
+three of them new here.
+`native:test:binary:host -- doctor`:
+9 tests run,
+9 passed,
+including
+`doctor_outside_a_repository_still_exits_two`.
+`native:clippy`:
+clean.
+`monochromatic-lint --max-warnings 0` on the nine changed files:
+0 findings
+after `//:format:monochromatic-lint` inserted the three line breaks it asks for.
+The whole suites,
+at the tip,
+with `CLI_GIT_TEST_ROOT=/var/tmp/cg/cli-git/fixtures/root` and the run's own
+control group at `TasksMax=4000`:
+`native:test:host` 4807 run,
+4807 passed (1 slow),
+8 skipped;
+`native:test:binary:host` 733 run,
+733 passed (10 slow),
+3 skipped.
+A lib run before the last two commits showed one failure,
+`worktree_copying::worktree_copy_stage::tests::a_stamp_comes_only_from_a_clone_of_a_settled_file`,
+which asserts that a file written this instant is still inside the timestamp
+granularity;
+the same binary passed it three times out of three when asked alone,
+and the tip run of the whole suite passed it too.
+It is in a folder this branch does not touch,
+and the suspected cause is the twenty milliseconds the control allows between
+the write and the clone,
+against the load of the whole suite,
+which is a suspicion and not a measured cause.
+The fixture root has two length limits,
+not one,
+which the earlier sections did not record:
+it must be short enough for a Unix socket under it to fit `SUN_LEN`,
+**and** at least six path segments deep,
+because `worktree_add_binding`'s control
+`a_relative_pointer_without_links_is_bound` resolves `../../../../../../..`
+from a fixture directory and fails when that lands above `/`.
+Measured on this tree:
+`/var/tmp/cg-fixtures` (three segments) fails that control and
+`/var/tmp/cg/cli-git/fixtures/root` (six) passes it,
+the same test binary both times.
+
+#### Latency, and why this host cannot answer the commit bar today
+
+Three `native:perf` runs,
+on a host where other sessions and these two suites had been running,
+the third arm a binary without this step's change
+(main's tip `bbadfac560`,
+the nine files put back,
+built and measured minutes after the second arm,
+then restored):
+
+- Arm 1,
+  this tree (2026-11-08T20:55:14-05:00):
+  forwarded commands added median 1.7,
+  1.9,
+  1.6 and 1.9 ms;
+  commit through the service added median 83.2 ms and paired delta maximum
+  1220.1 ms;
+  signed commit 45.8 ms,
+  maximum 137.5 ms;
+  no bound broken.
+- Arm 2,
+  the same binary
+  (2026-11-08T20:59:22-05:00):
+  forwarded 1.6,
+  1.9,
+  1.6 and 1.8 ms;
+  commit 213.8 ms,
+  maximum 5437.5 ms;
+  signed 178.1 ms,
+  maximum 2188.6 ms;
+  the commit bound broken.
+- Arm 3,
+  without this step's change
+  (2026-11-08T21:01:22-05:00):
+  forwarded 1.8,
+  2.1,
+  1.7 and 1.5 ms;
+  commit 382.7 ms,
+  maximum 10801.4 ms;
+  signed 59.9 ms,
+  maximum 687.1 ms;
+  the commit bound broken,
+  by twice as much as arm 2.
+
+What that says,
+and what it does not:
+
+- Forwarded commands are inside the record either way (1.4 to 2.2 ms in the T11
+  section;
+  1.5 to 2.1 ms here),
+  and no arm broke that bound.
+- The commit bar is **broken in this window**,
+  by arm 2 (maximum 5437.5 ms against the 5000 ms bound)
+  and by arm 3 (10801.4 ms),
+  and it was met by arm 1 (1220.1 ms).
+  The unchanged tree broke it twice as far,
+  which says the branch does not carry the violation,
+  and it does not make the violation go away:
+  the bar is the owner's requirement on the commit path,
+  and on this host,
+  at this time,
+  the tree does not meet it.
+- Two runs of the **same** binary differ by 2.6 times (83.2 against 213.8 ms)
+  and the run of the **unchanged** tree is 382.7 ms,
+  so the run-to-run spread is larger than any plausible effect of this step.
+  That is the whole of what these three arms can attribute.
+  The one file this step changes that the commit path does run is
+  `config/config_snapshot.rs`:
+  its synchronous read keeps its command line,
+  its parse and its order,
+  with the body split into `config_listing_request` and `snapshot_of`,
+  and the commit path's other readers are untouched.
+  The doctor has no caller outside `health/` and `plan_doctor`,
+  so a doctor run cannot be in a commit at all.
+- The T11 record of 19.6 to 26.0 ms was taken under much less load.
+  The next step for these numbers is the one the earlier sections used:
+  alternate the two binaries arm by arm,
+  a same-binary pair for the spread,
+  and repeat until the arms separate,
+  under whatever load the host carries then.
+  It is not a matter of waiting for a quiet host.
+
 ### Where the remaining steps stand after T5
 
 - T6 to T12 convert code that waits one thing after another (the retry sleeps of `start_retry.rs`,
@@ -4192,6 +5097,46 @@ the final removal and lint),
 the replacement of `private_storage.rs`,
 the descriptor-limit sweeps of the child helper,
 and the mutation campaign.
+- After T12's first part (2026-11-08T18:40:00-05:00,
+"Step T12,
+the runner's jobs on the runtime"):
+  the bound and the runtime runner exist and are tested;
+  what is left of T12 is the per-call-site conversion of seven `run_ordered` sites and nine
+  `run_all_side_by_side`/`run_beside_caller` sites to shared state,
+  and that conversion of the service round needs the leaf-first `async` Git first.
+  T13's lint (no `std::thread`,
+  no `std::process::Command` outside the guarded start,
+  no `thread::sleep`) cannot be tightened until those call sites are converted,
+  since `scoped_start.rs`,
+  `side_by_side_threads.rs` and 30-odd other files still start threads.
+- After the leaf-first asynchronous Git and the awaited runner
+  (2026-11-08T19:29:56-05:00,
+  "Step T12,
+  the leaf-first asynchronous Git and the ordered runner that awaits"):
+  a Git step can be awaited by a task of the runtime
+  (`transaction_git_awaiting.rs`) and a round can run items that await one
+  (`parallel_runner_on_the_runtime_awaiting.rs`),
+  and no production call site uses either.
+  What is left of T12 is the conversion itself,
+  one folder at a time from the top of each chain,
+  and `landing/service_round.rs` last,
+  because its items run the landing's handlers.
+- After the first production folder
+  (2026-11-08T21:05:00-05:00,
+  "Step T12,
+  the first production folder on the awaited Git runner"):
+  `health/` awaits its Git reads on the runtime and the report of
+  `git monochromatic-git-policy-cli doctor` is built by one task,
+  with `plan_doctor` and `doctor_action` as the synchronous faces that enter
+  the runtime once.
+  A shared read whose other callers are in reserved folders gets a second face
+  beside its synchronous one
+  (`config_snapshot::read_config_snapshot_awaiting`).
+  What is left is unchanged in order,
+  and item 3 now has two measured obstacles recorded in that section:
+  the borrowed state each pure-file site lends the blocking runner,
+  and the live lines an item says,
+  which a `'static` blocking job cannot carry.
 
 ## Open choices for the owner
 
@@ -4591,7 +5536,7 @@ The owner's answer to choice 6 says a signal reaches only the children of the op
 and that a stop of the service is an operation of its own.
 Before T7 a commit prepared inside the service swapped the service's stop handler for the length of the Git step,
 so a stop of the service reached that one Git (and the service went on running).
-T7 builds the owner's rule literally (option A below),
+T7 builds the owner's rule literally (option A),
 which leaves that Git running when the service is stopped.
 
 - A.

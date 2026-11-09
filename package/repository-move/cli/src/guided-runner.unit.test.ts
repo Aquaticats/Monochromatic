@@ -1040,6 +1040,8 @@ await describe({
               expect(stageOf('c25-pnpm-links',).check,).toContain('test ! -s',);
               expect(await text('c26-kopia-snapshot',),).toContain('kopia snapshot create',);
               expect(await text('c27-container-bind',),).toContain('--mount type=bind',);
+              // The repository's own containers all run this way, and a private SELinux label on the folder denies any other.
+              expect(await text('c27-container-bind',),).toContain('--security-opt label=disable',);
               expect(stageOf('c28-ide-through-link',).assertion,).toBeDefined();
               const texts = await Promise.all(after.map(async (id,) => await text(id,),),);
               for (const [index, id,] of after.entries()) {

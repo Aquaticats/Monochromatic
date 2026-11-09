@@ -1,5 +1,18 @@
 # cli-git CAC migration assessment handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/management-parser.ts` is deleted (2026-10-13 `642b6d72cb`) and
+> the Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/parser/argv.ts` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/parse-global-options.ts` is deleted (2026-10-13 `642b6d72cb`)
+> and the Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/music-player/desktop-app/src/ui_binding_tests.rs` is deleted
+> (2026-10-11 `f36cef6b43`) and the accepted design replaced that window then.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -153,6 +166,8 @@ The measured source map at baseline is:
   is the shared subset parser used by management and Git-region parsers.
   It is 415 physical lines and has eighteen direct unit cases.
 - `package/git-policy/cli/src/parser/` contains twenty production TypeScript files and 3,953 physical lines.
+  (moved on 2026-10-13 with the TypeScript wrapper:
+  now `package/git-policy/cli/src/native/command/`)
   Most of this surface is Git-specific classification rather than generic command routing.
 - `parseArgv` or `tryParseArgv` is consumed by management plus the `add`,
   `clean`,

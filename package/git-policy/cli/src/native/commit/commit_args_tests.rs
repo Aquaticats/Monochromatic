@@ -22,6 +22,20 @@ fn normalise_splits_inline_values_and_keeps_the_tail() {
     assert_eq!(normalise_commit_args(&args(&["-mé"])), args(&["-m", "é"]));
 }
 
+/// An option whose value is attached (`-S<keyid>`,
+/// `-u<mode>`) keeps its value in the same token,
+/// even when the value spells a letter that carries a value elsewhere;
+/// the tail of such a token is a value and never a cluster of flags.
+#[test]
+fn normalise_keeps_attached_optional_values_whole() {
+    assert_eq!(normalise_commit_args(&args(&["-S6ABCDEF"])), args(&["-S6ABCDEF"]));
+    assert_eq!(normalise_commit_args(&args(&["-unormal"])), args(&["-unormal"]));
+    assert_eq!(normalise_commit_args(&args(&["-aS6ABCDEF"])), args(&["-aS6ABCDEF"]));
+    assert_eq!(normalise_commit_args(&args(&["-Sanother", "file.txt"])), args(&["-Sanother", "file.txt"]));
+    assert_eq!(without_all_flag(&args(&["-aunormal"])), args(&["-unormal"]));
+    assert_eq!(without_all_flag(&args(&["-aS6ABCDEF"])), args(&["-S6ABCDEF"]));
+}
+
 /// Global options that redirect Git are dropped with their values;
 /// other globals stay in order.
 #[test]
