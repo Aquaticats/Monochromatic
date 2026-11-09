@@ -252,7 +252,12 @@ pub(crate) fn settle(git: &GitContext, intent: &Intent, journal: &Path) -> Settl
     }
     match indexed_state(journal, intent.seq, intent.new.as_str()) {
         // The installed index is recorded: it is not replayed, and only the conclusion state may be left.
-        Indexed::Installed => return settled_of(cleanup_done(git, repository, intent, journal)),
+        Indexed::Installed => {
+            // The index was installed and recorded, so nothing is owed: a kill between that installation and the landing's own
+            //  settling leaves the record behind, and this is where it goes.
+            crate::owed_index_update::settle(intent.git_dir.as_path(), intent.seq);
+            return settled_of(cleanup_done(git, repository, intent, journal));
+        }
         // A record that cannot be read may say the index was installed: the batch stays open and the index alone.
         Indexed::Unreadable => {
             crate::service_error!("batch {} stays open: its completion record cannot be read, so the index is left as it is", intent.seq);

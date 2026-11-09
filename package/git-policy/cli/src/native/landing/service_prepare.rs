@@ -193,6 +193,9 @@ pub fn prepare<F: RepositoryFacts>(
     };
     // The parts the word-level second pass merged when a retry combined the change with the branch, told with the commit.
     let mut word_merge_events: Option<PolicyEvent> = None;
+    // The file the commit copies its index from, as it was before the copy: a live index that is another file later has entries
+    //  the copy does not, and those are what the commit must not record.
+    let index_witness: crate::service_land_start::IndexWitness = crate::service_land_start::witness_of(capture.layout.real_index_path.as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
     if let Some(again) = retry {
         // The change this command captured when it started, on the branch as it is now; the worktree is not read.
         let site: MergeSite<'_> = MergeSite {
@@ -234,6 +237,7 @@ pub fn prepare<F: RepositoryFacts>(
             TransactionMode::Index => Some(indexes.commit_index.as_path()),
             TransactionMode::ExplicitPath => None,
         },
+        &index_witness,
     );
     if inputs.first
         && let Some(notice) = crate::owed_index_update::excluded_notice(excluded.as_slice())

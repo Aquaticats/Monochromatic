@@ -49,13 +49,24 @@ fn commit_index_of(world: &World) -> PathBuf {
 }
 
 /// What a commit does about the world's owed records,
-/// with its own index given (nothing for an explicit-path commit).
+/// with its own index given (nothing for an explicit-path commit),
+/// and the index file as it is now,
+/// since the copy the commit made is current and nothing moved after it.
 fn exclude(world: &World, commit_index: Option<&Path>) -> Vec<String> {
+    let captured: crate::service_land_start::IndexWitness =
+        crate::service_land_start::witness_of(real_index_of(world).as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
+    return crate::owed_index_update::exclude_what_a_landed_commit_left(&world.context.git, world.repo.join(".git").as_path(), real_index_of(world).as_path(), commit_index, &captured);
+}
+
+/// The same with the index file the commit copied named as gone,
+/// which is what a writer that replaced the index leaves behind.
+fn exclude_after_the_index_moved(world: &World, commit_index: Option<&Path>, of_index: &Path) -> Vec<String> {
     return crate::owed_index_update::exclude_what_a_landed_commit_left(
         &world.context.git,
         world.repo.join(".git").as_path(),
-        real_index_of(world).as_path(),
+        of_index,
         commit_index,
+        &crate::service_land_start::IndexWitness::Absent,
     );
 }
 
@@ -214,8 +225,10 @@ fn a_record_of_another_branch_is_forgotten() {
     git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/other"]);
     git(world.repo.as_path(), &["update-index", "--add", "--", "tracked.txt"]);
     let commit_index: PathBuf = commit_index_of(&world);
+    // The staged entry is the branch's own content, not what the landing replaced: nothing is left out, and no commit removes
+    //  a record another command's snapshot may still need.
     assert_eq!(exclude(&world, Some(commit_index.as_path())), Vec::<String>::new(), "nothing of the other branch's landing is applied here");
-    assert!(!owed_of(&world, 1).exists(), "the record can never apply on this branch and is forgotten");
+    assert!(owed_of(&world, 1).exists(), "the record stays for the commands that still hold a stale snapshot");
     let _ = base;
     remove(world.root.as_path());
 }
@@ -277,7 +290,6 @@ fn a_stale_snapshot_is_left_out_even_when_the_live_index_is_caught_up() {
     assert_eq!(git_text(world.repo.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "");
     assert_eq!(exclude(&world, Some(commit_index.as_path())), vec![String::from("one.txt")], "the snapshot's stale entry is left out");
     assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "", "the commit cannot land the deletion");
-    assert!(!owed_of(&world, 1).exists(), "nothing is owed any more and the record is forgotten");
     remove(world.root.as_path());
 }
 
@@ -340,5 +352,101 @@ fn a_record_of_a_detached_head_does_not_apply_after_attaching_to_a_branch() {
     let commit_index: PathBuf = commit_index_of(&world);
     assert_eq!(exclude(&world, Some(commit_index.as_path())), Vec::<String>::new(), "the detached head's record does not apply to the branch");
     assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "A\tone.txt", "the branch's staging is committed");
+    remove(world.root.as_path());
+}
+
+/// A record another command removed does not leave a snapshot already copied unprotected:
+/// a path whose live entry moved after the copy is left out of the commit,
+/// because what the snapshot would record there is not the person's current intent.
+#[test]
+fn a_snapshot_older_than_the_live_index_is_left_out_after_another_command_removed_the_record() {
+    let world: World = world("service-land-owed-older-snapshot");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // A commit copies the stale index here, and another command catches the live index up and settles the record.
+    let commit_index: PathBuf = commit_index_of(&world);
+    git(world.repo.as_path(), &["add", "one.txt"]);
+    crate::owed_index_update::settle(world.repo.join(".git").as_path(), 1);
+    assert_eq!(git_text(world.repo.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "");
+    // Nothing in the record covers it now; the commit's own index is still older than the index, so its entry is left out.
+    // The record is gone, and the commit's copy is older than the index: that is all the guard needs.
+    let left: Vec<String> = exclude_after_the_index_moved(&world, Some(commit_index.as_path()), real_index_of(&world).as_path());
+    assert_eq!(left, vec![String::from("one.txt")], "the entry the copy would record is left out and said");
+    assert_eq!(
+        index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]),
+        "",
+        "the more a stale snapshot would record is not the person's current intent, so the commit records nothing about it"
+    );
+    remove(world.root.as_path());
+}
+
+/// A history reset that replaced the index leaves no content the landing replaced,
+/// so the person's staging on that path is committed and not left out.
+#[test]
+fn a_record_of_a_landing_a_reset_replaced_does_not_leave_a_person_staging_out() {
+    let world: World = world("service-land-owed-reset-hard");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // Real Git's reset --hard to before the landing replaces the index with that commit's.
+    git(world.repo.as_path(), &["reset", "--hard", base.as_str()]);
+    std::fs::write(world.repo.join("one.txt"), "mine\n").expect("write");
+    git(world.repo.as_path(), &["add", "one.txt"]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    assert_eq!(exclude(&world, Some(commit_index.as_path())), Vec::<String>::new(), "nothing the landing replaced is in the index any more");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "A\tone.txt", "their staging is committed");
+    remove(world.root.as_path());
+}
+
+/// An obligation of an alternate index applies to a commit of that index even after the worktree attaches to a branch:
+/// the record asks what the index holds,
+/// not what the head is called.
+#[test]
+fn an_alternate_indexes_obligation_survives_attaching_a_detached_head() {
+    let world: World = world("service-land-owed-alternate-attach");
+    let base: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    git(world.repo.as_path(), &["checkout", "--quiet", "--detach", base.as_str()]);
+    let mut landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    landed.reference = String::from("HEAD");
+    landed.index = world.root.join("alternate.index");
+    std::fs::copy(real_index_of(&world), landed.index.as_path()).expect("the alternate index starts as the worktree's");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The worktree attaches to a branch at the landed commit, and the alternate index keeps its stale entry.
+    git(world.repo.as_path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
+    git(world.repo.as_path(), &["update-ref", "refs/heads/main", "HEAD"]);
+    let alternate: PathBuf = world.root.join("alternate.index");
+    let commit_index: PathBuf = world.root.join("commit.index");
+    std::fs::copy(alternate.as_path(), commit_index.as_path()).expect("a commit of that index copies it");
+    let left: Vec<String> = exclude_after_the_index_moved(&world, Some(commit_index.as_path()), alternate.as_path());
+    assert_eq!(left, vec![String::from("one.txt")], "the alternate index's stale entry is left out");
+    assert_eq!(
+        index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]),
+        "",
+        "the commit cannot record the landed file as deleted"
+    );
+    remove(world.root.as_path());
+}
+
+/// Recovery settles an obligation whose installation it finds recorded:
+/// a kill between the installation and the landing's own settling leaves nothing that would withhold a later staging.
+#[test]
+fn recovery_settles_the_record_of_an_installation_it_finds_recorded() {
+    let world: World = world("service-land-owed-installed");
+    let landed: CommitRequest = request(&world, "landed", "one.txt", "one\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The installation was made and recorded, and the kill came before the landing settled the record.
+    git(world.repo.as_path(), &["read-tree", "HEAD"]);
+    let installed: String = git_text(world.repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(batch_path(world.context.journal.as_path(), 1, crate::service_journal::INDEXED_EXTENSION), format!("{installed}\n")).expect("the completion record");
+    assert!(owed_of(&world, 1).exists(), "the kill left the record");
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    assert_eq!(reports, vec![RecoveryReport { seq: 1, decision: Recovery::Finish, handled: Handled::Finished }], "the batch is finished");
+    assert!(!owed_of(&world, 1).exists(), "nothing is owed, so the record is settled");
+    // A later staging of that path is committed, not left out.
+    std::fs::write(world.repo.join("one.txt"), "mine\n").expect("write");
+    git(world.repo.as_path(), &["add", "one.txt"]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    assert_eq!(exclude(&world, Some(commit_index.as_path())), Vec::<String>::new(), "their staging is not taken for an owed entry");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["diff-index", "--cached", "--name-status", "HEAD"]), "M\tone.txt", "their change is committed");
     remove(world.root.as_path());
 }
