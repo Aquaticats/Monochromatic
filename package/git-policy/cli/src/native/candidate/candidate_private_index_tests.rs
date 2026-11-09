@@ -299,3 +299,47 @@ fn a_copy_without_an_owner_record_is_kept_and_every_published_copy_has_one() {
     assert_eq!(entries(root.as_path()), vec!["index"]);
     remove(root.as_path());
 }
+
+/// What:
+///  A copy whose `owner` record is a FIFO nobody writes to does not hold up a new copy.
+/// Why:
+///   Finding of the fifth review:
+/// a directory named with this release's prefix can hold any file at `owner`,
+/// and reading a FIFO with no writer waits for one that never comes,
+/// so the sweep before every private index waited for ever and the command with it.
+///  The record is opened without blocking and judged by its own type,
+/// so a pipe proves nothing and its copy is kept,
+/// and the new copy is made.
+#[cfg(target_os = "linux")]
+#[test]
+fn an_owner_record_that_is_a_fifo_does_not_hold_up_a_new_copy() {
+    use std::os::unix::ffi::OsStrExt as _;
+    let root: PathBuf = fixture("private-index-fifo");
+    let real: PathBuf = root.join("index");
+    std::fs::write(&real, b"DIRC").expect("real index");
+    let blocked: PathBuf = root.join(format!("{PRIVATE_INDEX_PREFIX}4194304-9-0"));
+    std::fs::create_dir(&blocked).expect("a copy directory");
+    std::fs::write(blocked.join("index"), b"stale copy").expect("stale copy");
+    let record: PathBuf = blocked.join("owner");
+    let path: std::ffi::CString = std::ffi::CString::new(record.as_os_str().as_bytes()).expect("a path without a NUL");
+    // SAFETY: `mkfifo` takes a valid C string and a mode; it touches no memory of this process.
+    let made: libc::c_int = unsafe { libc::mkfifo(path.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "mkfifo: {}", std::io::Error::last_os_error());
+    // The creation runs on a thread of its own, so a wait that never answers fails this control instead of hanging it.
+    let (told, heard): (std::sync::mpsc::Sender<bool>, std::sync::mpsc::Receiver<bool>) = std::sync::mpsc::channel();
+    let for_the_copy: PathBuf = real.clone();
+    let made_on_a_thread: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let _told = told.send(PrivateIndex::create(for_the_copy.as_path()).is_ok());
+    });
+    let answered: Option<bool> = heard.recv_timeout(Duration::from_secs(10)).ok();
+    assert_eq!(
+        answered,
+        Some(true),
+        "a private index was not created beside an owner record that is a FIFO with no writer"
+    );
+    assert!(blocked.exists(), "a record that proves nothing keeps its copy");
+    std::fs::remove_dir_all(&blocked).expect("the unproven copy");
+    drop(made_on_a_thread);
+    assert_eq!(entries(root.as_path()), vec!["index"]);
+    remove(root.as_path());
+}
