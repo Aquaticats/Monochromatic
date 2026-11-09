@@ -136,7 +136,7 @@ fn the_markdown_rewrite_lands_in_the_commit_index() {
         facts,
         os_arguments(&[]),
         LifecycleContent::Requested(CandidateRequest::Staged(vec![OsString::from("README.md")])),
-        Vec::<PathBuf>::new(),
+        Vec::new(),
     );
     let config: crate::config_schema::CliGitConfig =
         crate::config_parse::parse_config(r#"{"policies":{"markdown/autofix":"warn"}}"#).expect("policy config");
