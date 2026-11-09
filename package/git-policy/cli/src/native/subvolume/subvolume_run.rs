@@ -20,6 +20,7 @@
 //! ```
 
 use crate::subvolume_error::{Interrupt, MigrateError};
+use crate::subvolume_file_write_steps::write_beside_then_rename;
 use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
 use crate::subvolume_platform::Platform;
@@ -102,6 +103,15 @@ pub struct Run<'a> {
     /// Relative paths of files this user may not read,
     /// which stay in the old tree.
     pub unreadable: BTreeSet<PathBuf>,
+    /// Relative paths of entries the old tree has,
+    /// the checkout lacks,
+    /// and that are older than the catch-up,
+    /// so carrying them would undo a deletion made in the checkout.
+    pub left_out: BTreeSet<PathBuf>,
+    /// Relative paths of entries the old tree has where the checkout holds another kind of entry,
+    /// which the carry kept as the newer one,
+    /// so nothing from the old tree reached the checkout at that path.
+    pub conflicts: BTreeSet<PathBuf>,
 }
 
 impl Run<'_> {
@@ -127,7 +137,7 @@ impl Run<'_> {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
             Err(error) => return Err(MigrateError::io("read the list of unreadable files", layout.unreadable_path.as_path(), &error)),
         };
-        return Ok(Run { platform, layout, journal, interrupt, say, unreadable });
+        return Ok(Run { platform, layout, journal, interrupt, say, unreadable, left_out: BTreeSet::new(), conflicts: BTreeSet::new() });
     }
 
     /// Send one line to the progress sink.
@@ -203,6 +213,7 @@ impl Run<'_> {
     pub fn pass_late(&mut self, label: &str, source: &Path, destination: &Path, since: i64) -> Result<SyncStats, MigrateError> {
         let stats: SyncStats = self.pass_core(label, source, destination, SyncOptions { delete: false, update_only: true, excluded: &[], created_since: Some(since) })?;
         self.record_unreadable(label, &stats)?;
+        self.record_left_out(&stats)?;
         for path in &stats.copied_sample {
             self.line(format!("{label}: carried {}", path.display()).as_str());
         }
@@ -233,7 +244,73 @@ impl Run<'_> {
         return Ok(stats);
     }
 
-    /// Write the unreadable-file list beside the checkout.
+    /// What:
+    ///  Record the entries the pass did not carry:
+    /// those it left out because they are older than the catch-up,
+    /// and those whose path
+    ///  in the destination holds another kind of entry,
+    /// and write the list beside the checkout.
+    /// Why:
+    ///   A left-out entry is either a file deleted from the checkout on purpose or a file restored into the old tree
+    /// after the migration,
+    /// and only the person can tell which.
+    /// The deletion of the old tree names them and stops until the person accepts the loss,
+    /// and a list written down is what a kill between two runs keeps.
+    /// An entry this user may not read is left out here too,
+    /// but it is the unreadable list's entry,
+    /// which names it and has its own flag:
+    /// one entry never asks for two flags.
+    /// A path whose entry in the destination is of another kind is not carried either,
+    /// so it is recorded the
+    ///  same way:
+    /// otherwise the old tree's directory there,
+    /// and the only copy of what it holds,
+    /// goes with the tree.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// run.recordLeftOut(stats) // writes <parent>/.cli-git-migrate-<name>.left-out.txt
+    /// ```
+    fn record_left_out(&mut self, stats: &SyncStats) -> Result<(), MigrateError> {
+        for path in &stats.conflicts {
+            if !self.unreadable.contains(path) {
+                self.conflicts.insert(path.clone());
+            }
+        }
+        for path in &stats.left_out {
+            if !self.unreadable.contains(path) {
+                self.left_out.insert(path.clone());
+            }
+        }
+        if self.left_out.is_empty() && self.conflicts.is_empty() {
+            return Ok(());
+        }
+        return self.write_left_out();
+    }
+
+    /// Write the list of left-out entries beside the checkout.
+    /// The write replaces a name that is there,
+    /// a symbolic link included,
+    /// and never writes through it.
+    fn write_left_out(&self) -> Result<(), MigrateError> {
+        let mut text: String = String::new();
+        for path in &self.left_out {
+            text.push_str(path.to_string_lossy().as_ref());
+            text.push('\n');
+        }
+        for path in &self.conflicts {
+            text.push_str(path.to_string_lossy().as_ref());
+            text.push('\n');
+        }
+        return MigrateError::from_io_result(
+            write_beside_then_rename(self.layout.left_out_path.as_path(), text.as_bytes()),
+            "write the list of entries the carry left out",
+            self.layout.left_out_path.as_path(),
+        );
+    }
+
+    /// Write the unreadable-file list beside the checkout,
+    /// through the same replacing write as the left-out list.
     fn write_unreadable(&self) -> Result<(), MigrateError> {
         let mut text: String = String::new();
         for path in &self.unreadable {

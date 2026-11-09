@@ -7,13 +7,15 @@ import {
   runBypassOperation,
   runBypassOperationAllowingFailure,
   runNamespaceIp,
+  runWgQuickerCli,
+} from './tunnel-bypass-command-fixture.ts';
+import { stageWgQuickerCli, } from './tunnel-bypass-command-fixture-staging.ts';
+import {
   runSudo,
   runSudoAllowingFailure,
-  runWgQuickerCli,
-  stageWgQuickerCli,
-  type BypassFixture,
   writeRootFixtureFile,
-} from './tunnel-bypass-command-fixture.ts';
+} from './tunnel-bypass-command-fixture-sudo.ts';
+import type { BypassFixture, } from './tunnel-bypass-command-fixture-types.ts';
 import { createBypassFixture, } from './tunnel-bypass.integration-fixture.ts';
 
 /**

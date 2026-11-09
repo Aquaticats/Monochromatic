@@ -9,15 +9,13 @@ import { mkdtemp, } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { join, } from 'node:path';
 
-import {
-  runBypassOperationAllowingFailure,
-  type BypassFixture,
-} from './tunnel-bypass-command-fixture.ts';
+import { runBypassOperationAllowingFailure, } from './tunnel-bypass-command-fixture.ts';
 import {
   cleanupBypassFixture,
   setupHostLinks,
   setupNamespaceLinks,
 } from './tunnel-bypass-network-fixture.ts';
+import type { BypassFixture, } from './tunnel-bypass-command-fixture-types.ts';
 
 /**
  PID characters retained for short Linux device names.

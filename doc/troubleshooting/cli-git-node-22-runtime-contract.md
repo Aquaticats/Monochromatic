@@ -2,6 +2,16 @@
 
 ## Resolution policy
 
+This policy is the pre-native state and no longer holds:
+`package/git-policy/cli/package.json` carries no `engines` field today
+(its description calls the package the verification harness of the native Rust wrapper),
+`package/git-policy/cli/src/runtime-contract.host-evidence.ts` was removed on 2026-10-13 in `642b6d72cb`,
+and neither the package,
+the root manifest nor the mise configuration declares a `verify:supported-runtime` task.
+The native executable's runtime floor is its own Rust toolchain,
+not a Node line,
+so nothing in the tree carries the policy the paragraphs below describe.
+
 Issue #429 aligned cli-git's declared floor with the latest published Node LTS line.
 Issue #475 keeps that exact floor and adds the verified newer Node line.
 `package/git-policy/cli/package.json` is the source of truth and carries one caret branch per supported line,

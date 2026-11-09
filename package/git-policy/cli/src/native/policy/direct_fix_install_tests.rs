@@ -26,12 +26,80 @@ use super::{
 };
 use crate::direct_fix_install_journal_sweep::reap_interrupted_installs;
 use crate::candidate_object::CandidateMode;
+use crate::direct_fix_install_attributes::{Attribute, attributes_of};
 use crate::direct_fix_install_journal::{RECORD_FILE, read_record};
 use crate::direct_fix_install_writes::{Kept, write_new};
 use crate::test_support::{fixture, git, remove, repository};
+use std::ffi::CString;
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+
+/// What:
+///  Give `path` the extended attribute `name` with `value`;
+///  false when the filesystem refuses it.
+/// Why:
+///  A control that plants an attribute must know whether the filesystem can hold one,
+///  so a refusal is reported as a control that did not run rather than as a defect.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const planted = (path, name, value) => { try { setxattrSync(path, name, value); return true } catch { return false } };
+/// ```
+fn set_attribute(path: &Path, name: &[u8], value: &[u8]) -> bool {
+    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+        return false;
+    };
+    // SAFETY: both strings are NUL-terminated and outlive the call; `value` holds `value.len()` initialised bytes.
+    let result: libc::c_int = unsafe {
+        libc::lsetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            value.as_ptr().cast(),
+            value.len(),
+            0,
+        )
+    };
+    return result == 0;
+}
+
+/// What:
+///  The value of the extended attribute `name` of `path`,
+///  or nothing when it has none.
+/// Why:
+///  The control must read the person's data back from the same name and by the same rule the fix does,
+///  never through the file's own bytes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const attribute = (path, name) => { try { return getxattrSync(path, name) } catch { return undefined } };
+/// ```
+fn attribute(path: &Path, name: &[u8]) -> Option<Vec<u8>> {
+    let (Ok(name_text), Ok(path_text)) = (CString::new(name), CString::new(path.as_os_str().as_bytes())) else {
+        return None;
+    };
+    // SAFETY: a null buffer with size 0 asks the system for the length of the value.
+    let size: isize = unsafe { libc::lgetxattr(path_text.as_ptr(), name_text.as_ptr(), std::ptr::null_mut(), 0) };
+    if size < 0 {
+        return None;
+    }
+    let mut value: Vec<u8> = vec![0; usize::try_from(size).ok()?];
+    // SAFETY: `value` holds `size` writable bytes.
+    let read: isize = unsafe {
+        libc::lgetxattr(
+            path_text.as_ptr(),
+            name_text.as_ptr(),
+            value.as_mut_ptr().cast(),
+            value.len(),
+        )
+    };
+    if read < 0 {
+        return None;
+    }
+    value.truncate(usize::try_from(read).ok()?);
+    return Some(value);
+}
 
 /// A worktree with a regular file at the top,
 ///  an executable one below,
@@ -80,6 +148,53 @@ fn changes() -> Vec<InstallChange> {
             replacement: Rc::from(&b"#!/bin/sh\n"[..]),
         },
     ];
+}
+
+
+/// What:
+///  An access-control list that grants a second entry beside the owner's,
+/// as the bytes the kernel stores under `system.posix_acl_access`.
+/// Why:
+///  An access-control list decides who may read the file,
+///  and it is the one extended attribute with a shape of its own;
+///  a control that plants it must build exactly what the kernel checks,
+///  so the fix is shown to carry a list and not only a user attribute.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const blob = pack('<I', 2) + [[1, 6, -1], [2, 4, owner], [4, 4, -1], [0x10, 4, -1], [0x20, 0, -1]].map(([tag, perm, id]) => pack('<HHI', tag, perm, id)).join('');
+/// ```
+fn access_list() -> Vec<u8> {
+    return access_list_with_owner(0o6, 0);
+}
+
+/// What:
+///  The same list with the owner's own permission given,
+/// as the bytes a directory stores under `system.posix_acl_default`.
+/// Why:
+///  A default list is what a directory hands to every file created inside it,
+///  and the owner's own permission in it decides what the created object may be used for:
+///  a list whose owner may not enter leaves a created directory unusable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const blob = acl(2, [[1, ownerPermission, -1], [2, 4, namedAccount], [4, 4, -1], [0x10, 4, -1], [0x20, 0, -1]])
+/// ```
+fn access_list_with_owner(owner_permission: u16, named_account: u32) -> Vec<u8> {
+    let mut blob: Vec<u8> = u32::to_le_bytes(2).to_vec();
+    let entries: [(u16, u16, u32); 5] = [
+        (0x01, owner_permission, u32::MAX),
+        (0x02, 0o4, named_account),
+        (0x04, 0o4, u32::MAX),
+        (0x10, 0o4, u32::MAX),
+        (0x20, 0o0, u32::MAX),
+    ];
+    for (tag, permission, identifier) in entries {
+        blob.extend_from_slice(u16::to_le_bytes(tag).as_slice());
+        blob.extend_from_slice(u16::to_le_bytes(permission).as_slice());
+        blob.extend_from_slice(u32::to_le_bytes(identifier).as_slice());
+    }
+    return blob;
 }
 
 /// One correction of the top-level file.
@@ -248,6 +363,157 @@ fn the_mode_owner_and_kind_of_a_file_survive_a_fix() {
     remove(fixture_tree.root.as_path());
 }
 
+/// What:
+///  The extended attributes a file carries survive a fix,
+///  and one the replacement cannot be given stops the fix with a word.
+/// Why:
+///  A user attribute is the person's data outside the file's bytes,
+///  which Git never stores and no commit can bring back;
+///  a replacement that drops it deletes the only copy without saying so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(a, 'user.draft', 'only-copy-of-draft'); await installCorrections(...); expect(getxattr(a, 'user.draft')).toBe('only-copy-of-draft')
+/// ```
+#[test]
+fn the_extended_attributes_of_a_file_survive_a_fix() {
+    let fixture_tree: Tree = tree("install-attributes");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    // The value is the person's only copy: nothing in Git, and nothing in the fix's journal, holds it.
+    if !set_attribute(path.as_path(), b"user.draft", b"only-copy-of-draft") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, changes().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(
+        std::fs::read(&path).expect("a"),
+        b"a\n",
+        "the fix installed its correction"
+    );
+    assert_eq!(
+        attribute(path.as_path(), b"user.draft"),
+        Some(b"only-copy-of-draft".to_vec()),
+        "the data the file carried outside its bytes is still there"
+    );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+
+/// What:
+///  The access-control list of a file survives a fix,
+///  so who may read the file does not change under the person's hands.
+/// Why:
+///  The list is an extended attribute the kernel reads to decide access;
+///  a replacement that carried only the mode would widen or narrow the file
+///  for every account the person granted or denied.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(a, 'system.posix_acl_access', acl); await installCorrections(...); expect(getxattr(a, 'system.posix_acl_access')).toEqual(acl)
+/// ```
+#[test]
+fn the_access_control_list_of_a_file_survives_a_fix() {
+    let fixture_tree: Tree = tree("install-access-list");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    let list: Vec<u8> = access_list();
+    if !set_attribute(path.as_path(), b"system.posix_acl_access", list.as_slice()) {
+        eprintln!(
+            "ACL CONTROL NOT RUN: this filesystem refuses an access-control list ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        Some(list.clone()),
+        "the list is on the file before the fix"
+    );
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, one_change().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(std::fs::read(&path).expect("a"), b"a\n", "the fix installed its correction");
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        Some(list),
+        "who may read the file is unchanged"
+    );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+/// An account the person's file never named,
+///  and one this control can plant without owning it.
+const ANOTHER_ACCOUNT: u32 = 4321;
+
+/// What:
+///  A fix never grants an account access the file never granted,
+///  by the list a directory hands to every file created inside it.
+/// Why:
+///  The replacement is created in the Git directory,
+///  and a default access-control list there is copied onto it;
+///  the corrected file would then be readable by an account the person's file never named,
+///  and comparing the displaced original cannot see it,
+///  because the unexpected list belongs to the replacement.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // setxattr(gitDir, 'system.posix_acl_default', acl); await installCorrections(...); expect(getxattr(a, 'system.posix_acl_access')).toBeUndefined()
+/// ```
+#[test]
+fn a_replacement_never_gains_an_access_control_list_the_file_never_had() {
+    let fixture_tree: Tree = tree("install-inherited-access-list");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    // The Git directory holds every journal, so a default list there is copied to every replacement created in it.
+    if !set_attribute(
+        fixture_tree.root.as_path(),
+        b"system.posix_acl_default",
+        access_list_with_owner(0o7, ANOTHER_ACCOUNT).as_slice(),
+    ) {
+        eprintln!(
+            "ACL CONTROL NOT RUN: this filesystem refuses a default access-control list ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    let carried: Vec<Attribute> = attributes_of(path.as_path(), "reading a file").expect("read");
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        None,
+        "the file names no account before the fix"
+    );
+    let mode: u32 = std::fs::metadata(&path).expect("a").permissions().mode() & 0o7777;
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.root, &fixture_tree.index, one_change().as_slice()),
+        Ok(super::InstallOutcome::default())
+    );
+    assert_eq!(std::fs::read(&path).expect("a"), b"a\n", "the fix installed its correction");
+    assert_eq!(
+        attribute(path.as_path(), b"system.posix_acl_access"),
+        None,
+        "the corrected file grants nobody access the original did not"
+    );
+    assert_eq!(
+        attributes_of(path.as_path(), "reading a file").expect("read"),
+        carried,
+        "the corrected file carries exactly what the file it replaced did"
+    );
+    let after: u32 = std::fs::metadata(&path).expect("a").permissions().mode() & 0o7777;
+    assert_eq!(after, mode, "and the permission bits it had");
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
 /// A selected path that is not a regular file stops the fix before any file changes.
 #[test]
 fn a_file_that_is_not_a_regular_file_stops_before_any_change() {
@@ -368,6 +634,65 @@ fn a_permission_change_made_while_the_fix_ran_is_refused_and_kept() {
         contents(&fixture_tree.top),
         (b"a".to_vec(), b"#!/bin/sh".to_vec())
     );
+    assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
+    remove(fixture_tree.root.as_path());
+}
+
+
+/// What:
+///  An attribute the person changed while the fix ran is refused and kept,
+///  like a change of its bytes or its mode.
+/// Why:
+///  The fix installs the attributes it read;
+///  a person who saves a value into the file's own attribute while the fix
+///  runs would get the older value back,
+///  and the displaced comparison of bytes,
+///  mode and owner cannot see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const prepared = prepare(...);
+/// // setxattr(a, 'user.draft', 'second');
+/// // const refused = install(prepared); // 'changed while'
+/// // expect(getxattr(a, 'user.draft')).toBe('second');
+/// ```
+#[test]
+fn an_attribute_change_made_while_the_fix_ran_is_refused_and_kept() {
+    let fixture_tree: Tree = tree("install-attribute-change");
+    let path: PathBuf = fixture_tree.top.join("a.txt");
+    if !set_attribute(path.as_path(), b"user.draft", b"first") {
+        eprintln!(
+            "XATTR CONTROL NOT RUN: this filesystem refuses user extended attributes ({})",
+            std::io::Error::last_os_error()
+        );
+        remove(fixture_tree.root.as_path());
+        return;
+    }
+    let before: Option<Vec<u8>> = read_index(&fixture_tree.index).expect("index");
+    let prepared: Vec<Prepared> =
+        super::prepare_replacements(&fixture_tree.top, &fixture_tree.root, one_change().as_slice())
+            .expect("prepared");
+    assert!(set_attribute(path.as_path(), b"user.draft", b"second"), "the person saves a newer value");
+    let mut notices: Vec<String> = Vec::new();
+    let refused: String = install_prepared(
+        prepared.as_slice(),
+        &fixture_tree.index,
+        &before,
+        &mut notices,
+    )
+    .expect_err("an attribute changed under the fix");
+    assert!(
+        refused.starts_with(
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file changed while monochromatic-git-policy-cli fix ran"
+        ),
+        "{refused}"
+    );
+    assert_eq!(
+        attribute(path.as_path(), b"user.draft"),
+        Some(b"second".to_vec()),
+        "the person's newer value is back on the file"
+    );
+    assert_eq!(std::fs::read(&path).expect("a"), b"a", "the fix left the person's bytes alone");
     assert_eq!(journals(&fixture_tree.root), Vec::<PathBuf>::new());
     remove(fixture_tree.root.as_path());
 }
@@ -962,6 +1287,7 @@ fn a_replacement_never_changes_the_owner() {
         mode: 0o644,
         uid: 0,
         gid: 0,
+        attributes: Vec::new(),
     };
     match write_new(path.as_path(), b"x\n", &asked) {
         // A process that may give the file away gives it.
@@ -1278,8 +1604,11 @@ fn a_replacement_keeps_the_group_the_file_had() {
     let other: Option<u32> = groups[..usize::try_from(counted).expect("a count")].iter().map(|id| return *id).find(|id| return *id != own);
     let Some(other_gid) = other else {
         // Positive control: without a second group this control cannot run, and says so.
+        eprintln!(
+            "GROUP CONTROL NOT RUN: this process belongs to one group only, so a set-group-ID directory cannot hand out another"
+        );
         remove(root.as_path());
-        panic!("this process belongs to one group only, so a set-group-ID directory cannot hand out another");
+        return;
     };
     let mut shared_for_chgrp: std::process::Command = std::process::Command::new("chgrp");
     let changed: std::process::Output = shared_for_chgrp
@@ -1294,6 +1623,7 @@ fn a_replacement_keeps_the_group_the_file_had() {
         mode: 0o640,
         uid: unsafe { libc::geteuid() },
         gid: own,
+        attributes: carried_by_a_new_file_in(shared.as_path()),
     };
     write_new(path.as_path(), b"x\n", &asked).expect("the replacement is written");
     /// `MetadataExt` adds the group.
@@ -1301,6 +1631,26 @@ fn a_replacement_keeps_the_group_the_file_had() {
     let actual: u32 = std::fs::metadata(&path).expect("written").gid();
     assert_eq!(actual, own, "the replacement keeps the group it was asked for");
     remove(root.as_path());
+}
+
+/// What:
+///  The extended attributes a file this directory creates carries,
+///  as the list a fix reads from a file that has none of its own.
+/// Why:
+///  A replacement is created in that directory and must end with exactly the list it is given,
+///  and the file system gives every file here an identity of its own;
+///  a control that named an empty list would describe a file this directory cannot create.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // writeFile(prototype, 'x'); const carried = attributesOf(prototype); unlink(prototype); return carried;
+/// ```
+fn carried_by_a_new_file_in(directory: &Path) -> Vec<Attribute> {
+    let prototype: PathBuf = directory.join("prototype.txt");
+    std::fs::write(&prototype, b"x\n").expect("a prototype");
+    let carried: Vec<Attribute> = attributes_of(prototype.as_path(), "reading a file").expect("read");
+    std::fs::remove_file(&prototype).expect("the prototype is removed");
+    return carried;
 }
 
 /// What:

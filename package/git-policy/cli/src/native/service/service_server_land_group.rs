@@ -262,17 +262,17 @@ pub(crate) fn hold_the_pushes_of(intent: &crate::service_journal::Intent) {
     }
 }
 
-/// Forgets the pushes of a batch that does not land.
-pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
-    let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
-    for commit in &intent.commits {
-        crate::work_item::forget_held(work_dir.as_path(), format!("push-{commit}").as_str());
-    }
-}
-
-/// Holds one push record for a commit a batch lands.
-fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
-    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+/// The push record of one landed commit of a worktree,
+/// named by the item's own id:
+/// the kind,
+/// the commit and the digest of the branch.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const item = { kind: 'push', repository, gitDir, branchRef: reference, oid: commit, parent, created: nowIso(), tries: 0 };
+/// ```
+fn push_item_of(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) -> crate::work_item::WorkItem {
+    return crate::work_item::WorkItem {
         kind: crate::work_item::WorkKind::Push,
         repository: repository.to_path_buf(),
         git_dir: git_dir.to_path_buf(),
@@ -282,6 +282,23 @@ fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: 
         created: crate::iso_time::now_iso(),
         tries: 0,
     };
+}
+
+/// Forgets the pushes of a batch that does not land,
+/// under the name this release writes and under the name a release before it wrote.
+pub(crate) fn forget_the_pushes_of(intent: &crate::service_journal::Intent) {
+    let work_dir: std::path::PathBuf = crate::service_work::work_directory(intent.git_dir.as_path());
+    for commit in &intent.commits {
+        let item: crate::work_item::WorkItem = push_item_of(intent.repository.as_path(), intent.git_dir.as_path(), intent.reference.as_str(), commit.as_str(), intent.old.as_str());
+        for name in [item.id(), item.id_before_the_branch()] {
+            crate::work_item::forget_held(work_dir.as_path(), name.as_str());
+        }
+    }
+}
+
+/// Holds one push record for a commit a batch lands.
+fn hold_one(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, commit: &str, parent: &str) {
+    let item: crate::work_item::WorkItem = push_item_of(repository, git_dir, reference, commit, parent);
     let work_dir: std::path::PathBuf = crate::service_work::work_directory(git_dir);
     if let Err(reason) = crate::work_item::hold(work_dir.as_path(), &item) {
         crate::service_error!("the push of the landed commit {commit} could not be held for its gate ({reason})");

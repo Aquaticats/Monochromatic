@@ -12,7 +12,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 
-import { stageWgQuickerCli, } from './tunnel-bypass-command-fixture.ts';
+import { stageWgQuickerCli, } from './tunnel-bypass-command-fixture-staging.ts';
 
 /**
  Resolver module shape loaded from the staged copy.

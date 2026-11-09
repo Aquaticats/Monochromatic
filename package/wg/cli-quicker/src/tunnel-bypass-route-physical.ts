@@ -172,7 +172,7 @@ export async function readPhysicalDefaults(): Promise<readonly FamilyRoute[]> {
       if (!isCopyableDefault({ tokens, },)) {
         throw new BypassRouteError(
           `The default route "${line.trim()}" has a form that wg-quicker does not copy into the bypass table `
-          + '(it copies only via, dev, onlink and metric); the application bypass is not installed.',
+            + '(it copies only via, dev, onlink and metric); the application bypass is not installed.',
         );
       }
       routes.push({

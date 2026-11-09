@@ -48,39 +48,38 @@ fn staged_journal(source: &Path, destination: &Path) -> PendingJournal {
     return create_journal_for(common.as_path(), destination, &snapshot, &dead_copy_owner()).expect("journal");
 }
 
-/// A linked worktree of the repository is registered;
-/// a removed or re-pointed one is not,
-/// and a pointer that names a directory which is not there,
-/// or that is no whole pointer at all,
-/// proves nothing either way.
+/// A repository's registrations decide whether a destination is registered:
+/// the linked worktree it holds is,
+/// and a directory no registration names is not,
+/// whatever the destination's own `.git` file holds.
 #[cfg(unix)]
 #[test]
-fn registration_follows_the_linked_pointer() {
+fn registration_answers_from_the_repository_registrations() {
     let root: PathBuf = fixture("recovery-registration");
     let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     assert_eq!(
-        destination_registration(common.as_path(), topic.as_path()).expect("registered"),
+        destination_registration(common.as_path(), topic.as_path()),
         Registration::Registered
     );
     let absent: PathBuf = root.join("absent");
     assert_eq!(
-        destination_registration(common.as_path(), absent.as_path()).expect("absent"),
+        destination_registration(common.as_path(), absent.as_path()),
         Registration::Unregistered
     );
     let other: PathBuf = root.join("other");
     std::fs::create_dir(other.as_path()).expect("other");
     std::fs::write(other.join(".git"), b"gitdir: /nonexistent/admin\n").expect("dangling pointer");
     assert_eq!(
-        destination_registration(common.as_path(), other.as_path()).expect("dangling"),
-        Registration::PointerUnfollowable
+        destination_registration(common.as_path(), other.as_path()),
+        Registration::Unregistered
     );
     let plain: PathBuf = root.join("plain");
     std::fs::create_dir(plain.as_path()).expect("plain");
     std::fs::write(plain.join(".git"), b"not a pointer\n").expect("plain pointer");
     assert_eq!(
-        destination_registration(common.as_path(), plain.as_path()).expect("plain"),
-        Registration::PointerUnfollowable
+        destination_registration(common.as_path(), plain.as_path()),
+        Registration::Unregistered
     );
     remove(root.as_path());
 }
@@ -106,7 +105,7 @@ fn a_pointer_that_ends_in_a_carriage_return_is_still_followed() {
     remove(root.as_path());
 }
 
-/// A destination whose pointer names a directory that is not there is not proven to be unregistered,
+/// A destination whose pointer names a directory that is not there is still registered,
 /// so its pending copy is kept and reported with its journal and stage whole.
 #[test]
 fn a_pointer_that_cannot_be_followed_keeps_the_pending_copy() {
@@ -119,16 +118,94 @@ fn a_pointer_that_cannot_be_followed_keeps_the_pending_copy() {
     let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
-    assert!(notice.contains("could not be followed"), "{notice}");
+    assert!(notice.contains("still registers"), "{notice}");
     assert!(stage.exists(), "the stage stays for the copy that may still be registered");
     assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
     assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
     remove(root.as_path());
 }
 
-/// A `.git` file that claims a pointer and names no directory is not an absence of the registration,
-/// while a pointer to a directory outside the repository's administrative directories is one,
-/// and so is any pointer when the common directory has no linked worktree at all.
+/// A copy whose stage recorded the registration it was made for,
+/// as an add's copy does.
+fn staged_journal_of_a_bound_copy(source: &Path, topic: &Path) -> (PendingJournal, PathBuf) {
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let binding = crate::worktree_add_binding::bind_registration(common.as_path(), topic).expect("binding").binding;
+    let pending: PendingJournal = staged_journal(source, topic);
+    let container: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    crate::worktree_copy_stage_binding::record_stage_binding(container.as_path(), &binding).expect("recorded");
+    return (pending, container);
+}
+
+/// A rewrite killed after `gitdir: /repo/.git` leaves a pointer that resolves to an existing directory outside
+/// `worktrees/`,
+/// while the registration under `worktrees/` still names the destination:
+/// recovery keeps the pending copy and reports the pointer it could not confirm.
+#[test]
+fn a_pointer_left_naming_the_repository_directory_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-pointer-repository");
+    let (source, topic) = linked_source(root.as_path());
+    let (_pending, stage) = staged_journal_of_a_bound_copy(source.as_path(), topic.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    // The path a rewrite reaches before the last component of the registration is written; it exists, and it is not
+    // the registrations directory.
+    std::fs::write(topic.join(".git"), format!("gitdir: {}\n", common.display()).as_bytes()).expect("a pointer cut before its last component");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("still registers"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that is still registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// A command that replaces a pointer by unlinking it and creating it again leaves the destination without one for a
+/// moment,
+/// and its registration still names it:
+/// recovery keeps the pending copy instead of discarding it.
+#[test]
+fn a_pointer_missing_while_it_is_replaced_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-pointer-replacing");
+    let (source, topic) = linked_source(root.as_path());
+    let (_pending, stage) = staged_journal_of_a_bound_copy(source.as_path(), topic.as_path());
+    std::fs::remove_file(topic.join(".git")).expect("the pointer is gone while it is replaced");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("still registers"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that is still registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// A pointer that names a symbolic link pointing at itself cannot be resolved at all,
+/// and the registration under `worktrees/` still names the destination:
+/// the recovery check answers instead of failing,
+/// and the pending copy stays.
+#[test]
+fn a_pointer_naming_a_symlink_loop_keeps_the_pending_copy_and_still_answers() {
+    let root: PathBuf = fixture("recovery-pointer-symlink-loop");
+    let (source, topic) = linked_source(root.as_path());
+    let (_pending, stage) = staged_journal_of_a_bound_copy(source.as_path(), topic.as_path());
+    std::os::unix::fs::symlink("loop", topic.join("loop")).expect("a link to itself");
+    std::fs::write(topic.join(".git"), b"gitdir: loop\n").expect("a pointer into the loop");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("the recovery check answers instead of failing");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("still registers"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that is still registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    remove(root.as_path());
+}
+
+/// The registrations answer for a destination whose pointer names nothing,
+/// names a directory outside the repository,
+/// or names anything at all while the common directory has no linked worktree:
+/// no registration names it,
+/// so no copy is its.
 #[test]
 fn registration_answers_a_pointer_that_names_nothing_and_one_that_names_elsewhere() {
     let root: PathBuf = fixture("recovery-registration-pointers");
@@ -138,8 +215,8 @@ fn registration_answers_a_pointer_that_names_nothing_and_one_that_names_elsewher
     std::fs::create_dir(naming_nothing.as_path()).expect("destination");
     std::fs::write(naming_nothing.join(".git"), b"gitdir: \r\n").expect("a pointer with no directory");
     assert_eq!(
-        destination_registration(common.as_path(), naming_nothing.as_path()).expect("names nothing"),
-        Registration::PointerUnfollowable
+        destination_registration(common.as_path(), naming_nothing.as_path()),
+        Registration::Unregistered
     );
     let elsewhere: PathBuf = root.join("admin");
     std::fs::create_dir(elsewhere.as_path()).expect("a directory that is no administrative directory");
@@ -147,13 +224,13 @@ fn registration_answers_a_pointer_that_names_nothing_and_one_that_names_elsewher
     std::fs::create_dir(foreign.as_path()).expect("destination");
     std::fs::write(foreign.join(".git"), format!("gitdir: {}\n", elsewhere.display()).as_bytes()).expect("a pointer outside the repository");
     assert_eq!(
-        destination_registration(common.as_path(), foreign.as_path()).expect("elsewhere"),
+        destination_registration(common.as_path(), foreign.as_path()),
         Registration::Unregistered
     );
     let without_worktrees: PathBuf = root.join("common-without-worktrees");
     std::fs::create_dir(without_worktrees.as_path()).expect("a common directory with no worktrees");
     assert_eq!(
-        destination_registration(without_worktrees.as_path(), foreign.as_path()).expect("no worktrees directory"),
+        destination_registration(without_worktrees.as_path(), foreign.as_path()),
         Registration::Unregistered
     );
     remove(root.as_path());
@@ -187,10 +264,127 @@ fn a_pointer_left_empty_by_an_interrupted_rewrite_keeps_the_pending_copy() {
     let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
     assert_eq!(report.recovered, 0);
     let notice: &String = report.notices.first().expect("one notice");
-    assert!(notice.contains("could not be followed"), "{notice}");
+    assert!(notice.contains("still registers"), "{notice}");
     assert!(stage.exists(), "the stage stays for the copy that is still registered");
     assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
     assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// The administrative directory of the destination's registration,
+/// read before a test disturbs the `gitdir` file inside it.
+fn registration_of(common: &Path, destination: &Path) -> PathBuf {
+    return match registration_naming(common, destination) {
+        NamedRegistration::Named(admin) => admin,
+        other => panic!("the registration is there: {other:?}"),
+    };
+}
+
+/// A command that truncates a registration's `gitdir` file and pauses before rewriting it leaves the file empty,
+/// while the administrative directory,
+/// the destination and its pointer stay as they were:
+/// nothing was read that could prove no registration names the destination,
+/// so recovery keeps the journal and the stage and says so.
+#[test]
+fn a_gitdir_left_empty_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-registration-gitdir-empty");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
+    std::fs::write(admin.join("gitdir").as_path(), b"").expect("a gitdir cut off before its path");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be examined"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// A command that unlinks a registration's `gitdir` file before writing it again leaves it gone for a moment,
+/// while the administrative directory,
+/// the destination and its pointer stay as they were:
+/// a file that was not there to read proves nothing,
+/// so recovery keeps the journal and the stage and says so.
+#[test]
+fn a_gitdir_unlinked_while_it_is_written_again_keeps_the_pending_copy() {
+    let root: PathBuf = fixture("recovery-registration-gitdir-gone");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
+    std::fs::remove_file(admin.join("gitdir").as_path()).expect("the gitdir is gone while it is written again");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be examined"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// A command that makes a directory unsearchable for a moment leaves every path through it unresolved,
+/// while the registration,
+/// the destination and its pointer stay unchanged:
+/// resolution failing for a reason other than absence proves nothing,
+/// so recovery keeps the journal and the stage and says so.
+#[cfg(unix)]
+#[test]
+fn a_gitdir_that_cannot_be_resolved_keeps_the_pending_copy() {
+    use std::os::unix::fs::PermissionsExt;
+    let root: PathBuf = fixture("recovery-registration-unresolvable");
+    let (source, topic) = linked_source(root.as_path());
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let admin: PathBuf = registration_of(common.as_path(), topic.as_path());
+    let closed: PathBuf = root.join("closed");
+    std::fs::create_dir(closed.as_path()).expect("a directory another command closes for a moment");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o000)).expect("no search through it");
+    std::fs::write(admin.join("gitdir").as_path(), format!("{}/see/.git\n", closed.display()).as_bytes()).expect("a gitdir recorded through the closed directory");
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    std::fs::set_permissions(closed.as_path(), std::fs::Permissions::from_mode(0o700)).expect("searchable again");
+    assert_eq!(report.recovered, 0);
+    let notice: &String = report.notices.first().expect("one notice");
+    assert!(notice.contains("could not be examined"), "{notice}");
+    assert!(stage.exists(), "the stage stays for the copy of a worktree that may still be registered");
+    assert_eq!(read_pending_journals(common.as_path()).expect("pending").len(), 1, "the journal stays");
+    assert!(!topic.join("cache/data").exists(), "nothing was written into the destination");
+    remove(root.as_path());
+}
+
+/// `bind_registration` removes the terminating line feed alone,
+/// so a registration whose `gitdir` begins with a space names the worktree inside the registration,
+/// and a pending copy for that worktree is resumed rather than discarded.
+#[cfg(unix)]
+#[test]
+fn a_recorded_path_that_begins_with_a_space_keeps_the_pending_copy() {
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("recovery-registration-leading-space");
+    let (source, _topic) = linked_source(root.as_path());
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let worktrees: PathBuf = std::fs::canonicalize(common.join("worktrees")).expect("worktrees");
+    let admin: PathBuf = worktrees.join("space");
+    std::fs::create_dir(admin.as_path()).expect("an administrative directory");
+    let destination: PathBuf = admin.join(std::ffi::OsStr::from_bytes(b" \xff"));
+    std::fs::create_dir(destination.as_path()).expect("the worktree the registration names");
+    std::fs::write(destination.join(".git"), format!("gitdir: {}\n", admin.display()).as_bytes()).expect("the pointer back to the registration");
+    std::fs::write(admin.join("gitdir"), b" \xff/.git\n").expect("a gitdir recorded relative to the registration");
+    // The pair Git would leave passes the binding every copy is made against, so the space is part of the path it records.
+    let _bound = crate::worktree_add_binding::bind_registration(common.as_path(), destination.as_path()).expect("a registration the binding accepts");
+    let pending: PendingJournal = staged_journal(source.as_path(), destination.as_path());
+    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_path());
+    let report: RecoveryReport = recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 1, "{:?}", report.notices);
+    assert!(report.notices.is_empty(), "{:?}", report.notices);
+    assert_eq!(std::fs::read(destination.join("cache/data")).expect("resumed copy"), b"payload");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty());
+    assert!(!stage.exists(), "a finished copy takes its stage with it");
     remove(root.as_path());
 }
 
@@ -207,16 +401,13 @@ fn a_pointer_that_is_a_named_pipe_is_answered_without_waiting() {
     make_pipe(destination.join(".git").as_path());
     let (sender, receiver) = std::sync::mpsc::channel::<Registration>();
     std::thread::spawn(move || {
-        let answer: Registration = match destination_registration(common.as_path(), destination.as_path()) {
-            Ok(answer) => answer,
-            Err(failure) => panic!("the registration is answered: {}", failure.0),
-        };
-        sender.send(answer).expect("sent");
+        let answer: Registration = destination_registration(common.as_path(), destination.as_path());
+        let _sent: Result<(), _> = sender.send(answer);
     });
     let answer: Registration = receiver
         .recv_timeout(PATIENCE)
         .expect("the registration is answered without waiting for a writer");
-    assert_eq!(answer, Registration::PointerUnfollowable);
+    assert_eq!(answer, Registration::Unregistered);
     remove(root.as_path());
 }
 
@@ -233,9 +424,9 @@ fn registration_answers_a_pointer_left_half_written() {
         std::fs::create_dir(destination.as_path()).expect("destination");
         std::fs::write(destination.join(".git"), content).expect("a pointer cut off mid-word");
         assert_eq!(
-            destination_registration(common.as_path(), destination.as_path()).expect("answered"),
-            Registration::PointerUnfollowable,
-            "{name}"
+            destination_registration(common.as_path(), destination.as_path()),
+            Registration::Unregistered,
+            "{name}: no registration names this directory, so nothing is kept for it"
         );
     }
     remove(root.as_path());
@@ -325,6 +516,42 @@ fn interrupted_installation_is_resumed() {
     assert_eq!(
         std::fs::read(topic.join("cache/data")).expect("resumed copy"),
         b"payload"
+    );
+    assert!(
+        read_pending_journals(common.as_path())
+            .expect("pending")
+            .is_empty()
+    );
+    remove(root.as_path());
+}
+
+/// A resumption that cannot finish ends the transaction with a notice that names the failure,
+/// keeps the destination's own differing entry,
+/// and is not counted as recovered.
+#[cfg(unix)]
+#[test]
+fn a_resumed_installation_that_fails_ends_with_a_notice() {
+    let root: PathBuf = fixture("recovery-failed-resumption");
+    let (source, topic) = linked_source(root.as_path());
+    // The destination holds its own entry at a staged path, so finishing the copy would overwrite it.
+    std::fs::create_dir_all(topic.join("cache")).expect("destination cache");
+    std::fs::write(topic.join("cache/data"), b"differs").expect("differing entry");
+    let pending: PendingJournal = staged_journal(source.as_path(), topic.as_path());
+    write_journal(pending.path.as_path(), &Journal { phase: Phase::Installing, ..pending.journal.clone() }).expect("installing phase");
+    let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
+    let report: RecoveryReport =
+        recover_worktree_copy_transactions(common.as_path()).expect("recovered");
+    assert_eq!(report.recovered, 0);
+    let destination: String = quote(topic.to_string_lossy().as_ref());
+    assert_eq!(
+        report.notices,
+        vec![format!(
+            "monochromatic-git-policy-cli: ended an interrupted ignored-state copy into {destination} without finishing it. monochromatic-git-policy-cli: ignored-state installation failed for {destination}. Cause: monochromatic-git-policy-cli: ignored-state copy would overwrite differing destination entry \"cache/data\" in {destination}."
+        )]
+    );
+    assert_eq!(
+        std::fs::read(topic.join("cache/data")).expect("kept"),
+        b"differs"
     );
     assert!(
         read_pending_journals(common.as_path())
@@ -603,25 +830,25 @@ fn incumbent_written_journal_is_recovered_natively() {
 }
 
 /// A destination under something that is not a directory is unregistered,
-///  while a pointer that cannot be read as a plain file proves nothing either way:
-///  it neither discards a copy nor stops the command that found it.
+///  while a registered worktree whose `.git` file cannot be read as a plain file is unconfirmed:
+///  it is neither discarded nor a fault that stops the command that found it.
 #[cfg(unix)]
 #[test]
-fn registration_tells_a_missing_destination_from_an_unreadable_one() {
+fn registration_tells_a_missing_destination_from_an_unreadable_pointer() {
     let root: PathBuf = std::fs::canonicalize(fixture("recovery-registration-faults")).expect("canonical");
-    let (source, _topic) = linked_source(root.as_path());
+    let (source, topic) = linked_source(root.as_path());
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     let file: PathBuf = root.join("a-file");
     std::fs::write(file.as_path(), b"not a directory").expect("file");
     assert_eq!(
-        destination_registration(common.as_path(), file.join("below").as_path()).expect("under a file"),
+        destination_registration(common.as_path(), file.join("below").as_path()),
         Registration::Unregistered
     );
-    let unreadable: PathBuf = root.join("unreadable");
-    std::fs::create_dir_all(unreadable.join(".git")).expect("a directory where the pointer file belongs");
+    std::fs::remove_file(topic.join(".git")).expect("the pointer goes");
+    std::fs::create_dir(topic.join(".git")).expect("a directory where the pointer file belongs");
     assert_eq!(
-        destination_registration(common.as_path(), unreadable.as_path()).expect("a directory is not a pointer"),
-        Registration::PointerUnfollowable
+        destination_registration(common.as_path(), topic.as_path()),
+        Registration::Unconfirmed
     );
     remove(root.as_path());
 }
@@ -857,7 +1084,7 @@ fn a_registration_under_a_path_that_is_not_text_is_read() {
     let canonical: PathBuf = std::fs::canonicalize(destination).expect("canonical destination");
     let common: PathBuf = std::fs::canonicalize(source.join(".git")).expect("common");
     assert_eq!(
-        destination_registration(common.as_path(), canonical.as_path()).expect("read"),
+        destination_registration(common.as_path(), canonical.as_path()),
         Registration::Registered,
         "the registration is read from the pointer Git wrote"
     );

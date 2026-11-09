@@ -18,6 +18,8 @@
 
 /// The record and its writer.
 use super::{CommitTiming, ReachTrace, SubmitTrace, TIMING_FILE, TIMING_SCHEMA_VERSION, UNANNOUNCED, whole_milliseconds};
+use crate::commit_prepare_part_durations::PreparePart;
+use crate::time_spent_outside_the_phases::OutsideThePhases;
 use crate::command_test_support::{fixture, remove};
 use crate::discard_audit::AUDIT_FILE;
 use crate::service_instance::instance_of;
@@ -50,6 +52,19 @@ const LANDING_READS_MS: u64 = 53;
 const LANDING_READ_BRANCH_MS: u64 = 2;
 const LANDING_READ_WITNESS_MS: u64 = 5;
 const LANDING_SYNC_INDEX_MS: u64 = 7;
+
+/// The stretches of the preparation the controls record,
+/// two of one name,
+/// so a sum and its count both show.
+const LAYOUT_MS: u64 = 7;
+const CAPTURE_MS: u64 = 11;
+/// How many stretches the controls say were dropped.
+const PREPARE_PARTS_DROPPED: usize = 3;
+
+/// Time the controls give the two costs outside the phases.
+const SCRATCH_REMOVAL_MS: u64 = 47;
+const REMOVALS_THAT_DID_NOT_FINISH: u64 = 2;
+const STANDARD_ERROR_MS: u64 = 53;
 
 /// The figures of the landing the controls state.
 fn landing_figures() -> LandingFigures {
@@ -99,6 +114,17 @@ fn filled(root: &Path) -> (CommitTiming, Duration) {
     timing.after_landing = Duration::from_millis(AFTER_LANDING_MS);
     timing.gate = Duration::from_millis(GATE_MS);
     timing.handoff = Duration::from_millis(HANDOFF_MS);
+    timing.prepare_parts = vec![
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+        PreparePart { name: String::from("capture"), took: Duration::from_millis(CAPTURE_MS) },
+        PreparePart { name: String::from("layout"), took: Duration::from_millis(LAYOUT_MS) },
+    ];
+    timing.prepare_parts_dropped = PREPARE_PARTS_DROPPED;
+    timing.outside = OutsideThePhases {
+        scratch_removal: Duration::from_millis(SCRATCH_REMOVAL_MS),
+        removals_that_did_not_finish: REMOVALS_THAT_DID_NOT_FINISH,
+        standard_error: Duration::from_millis(STANDARD_ERROR_MS),
+    };
     let covered: Duration = timing.prepare + timing.build + timing.provision + timing.submit.total + timing.after_landing + timing.gate + timing.handoff;
     return (timing, covered);
 }
@@ -160,6 +186,14 @@ fn the_phases_and_the_remainder_add_up_to_the_total() {
     let total: Duration = covered + Duration::from_millis(UNCOVERED_MS);
     let value: serde_json::Value = parsed(timing.line(total, 0).as_str());
     assert_eq!(value["otherMs"], UNCOVERED_MS);
+    assert_eq!(value["scratchRemovalMs"], SCRATCH_REMOVAL_MS);
+    assert_eq!(value["removalsThatDidNotFinish"], REMOVALS_THAT_DID_NOT_FINISH);
+    assert_eq!(value["stderrMs"], STANDARD_ERROR_MS);
+    assert_eq!(value["prepareParts"]["layout"]["ms"], LAYOUT_MS * 2);
+    assert_eq!(value["prepareParts"]["layout"]["calls"], 2);
+    assert_eq!(value["prepareParts"]["capture"]["ms"], CAPTURE_MS);
+    assert_eq!(value["prepareParts"]["capture"]["calls"], 1);
+    assert_eq!(value["preparePartsDropped"], PREPARE_PARTS_DROPPED);
     let phases: u64 = ["prepareMs", "buildMs", "provisionMs", "submitMs", "afterLandingMs", "gateMs", "handoffMs", "otherMs"]
         .iter()
         .map(|name| { return value[*name].as_u64().expect("a number"); })
@@ -306,7 +340,7 @@ fn the_holder_kind_follows_what_the_notice_says() {
         "unproven"
     );
     assert_eq!(
-        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made").as_str()),
+        holder_kind_of(crate::index_lock_evidence::dead_owner_diagnostic(Path::new("/r/.git/index.lock"), 9, "this commit was not made", crate::index_lock_evidence::DEAD_OWNER_LOCK_LEFT).as_str()),
         "unproven",
         "the diagnostic that ends a wait is not a holder proven alive"
     );

@@ -186,6 +186,25 @@ pub fn run_metadata_git(
 }
 
 /// What:
+///  `run_metadata_git` with variables of the inherited environment removed before the start.
+/// Why:
+///   Most callers keep every variable;
+/// a listing built on a pathspec the wrapper wrote does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runMetadataGitWithout(realGit, args, overlay, remove): Promise<MetadataOutput>;
+/// ```
+pub fn run_metadata_git_without(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    remove: &[&str],
+) -> std::io::Result<MetadataOutput> {
+    return run_metadata_git_without_within(real_git, arguments, overlay, remove, READ_CEILING);
+}
+
+/// What:
 ///  `run_metadata_git` with the ceiling the caller chose,
 ///  which the controls shorten.
 /// Why:
@@ -204,8 +223,32 @@ pub fn run_metadata_git_within(
     overlay: &[(OsString, OsString)],
     ceiling: Duration,
 ) -> std::io::Result<MetadataOutput> {
+    return run_metadata_git_without_within(real_git, arguments, overlay, &[], ceiling);
+}
+
+/// What:
+///  `run_metadata_git_within` with variables of the inherited environment removed before the start.
+/// Why:
+///   A listing built on a pathspec the wrapper wrote must not read the caller's pathspec mode,
+///  and removals reach every mode a value could set,
+///  which no option does for case-insensitive matching.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function runMetadataGitWithout(realGit, args, overlay, remove, ceiling): Promise<MetadataOutput>;
+/// ```
+pub fn run_metadata_git_without_within(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    remove: &[&str],
+    ceiling: Duration,
+) -> std::io::Result<MetadataOutput> {
     // An exact read-only command line the in-process readers know costs no Git process.
-    if let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice()) {
+    // A removal keeps the answer here too: the readers would otherwise judge the caller's mode.
+    if remove.is_empty()
+        && let Some(answered) = try_metadata(arguments, crate::git_system_config::with_real_git(overlay, real_git).as_slice())
+    {
         return Ok(answered);
     }
     let subject: String = read_subject(real_git, arguments);
@@ -219,6 +262,9 @@ pub fn run_metadata_git_within(
     // const output = await spawnWatched(command, { waitingFor: subject, ceiling });
     // ```
     let mut command: std::process::Command = git_command(real_git, arguments, overlay);
+    for name in remove {
+        command.env_remove(name);
+    }
     // The wrapper reads the repository itself here, with the output captured and the input closed, so nothing of the
     //  person's runs under this start and a wrapper that arrives as its Git came from the file that Git is
     //  (`started_as_git.rs`).

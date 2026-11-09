@@ -446,6 +446,9 @@ fn the_markdown_options_reach_the_post_commit_policy() {
     remove(&root);
 }
 
-/// A pattern with an unclosed brace group,
-/// which the exclude matcher refuses.
-const UNCOMPILABLE_PATTERN: &str = "a{b";
+/// A trailing escape,
+/// which the glob compiler refuses and Git matches nothing with.
+/// A literal brace and a character range that runs backwards are no longer such patterns:
+/// each is read the way Git reads it (`markdown_exclude`,
+/// `monochromatic_lint::gitignore_pattern`).
+const UNCOMPILABLE_PATTERN: &str = "a\\";

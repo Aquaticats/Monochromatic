@@ -25,7 +25,6 @@
 //! ```
 
 use crate::service_client_settings_and_watches::RECONNECTS;
-use crate::service_client_listen_and_ask_to_retire::connect;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
 use crate::service_client_listen_and_ask_to_retire::{Heard, listen, read_message};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
@@ -350,51 +349,6 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
         }
     }
     return Err(ClientFailure::WithdrawalUnconfirmed { blocker });
-}
-
-/// A scratch directory handed to the service:
-/// the service removes it when this value is dropped,
-/// and when the process that
-///  holds it dies by any means,
-/// because the connection is the only thing that says the directory is still wanted.
-pub struct ScratchWatch {
-    /// The open connection.
-    /// Close-on-exec,
-    /// so no program the wrapper starts keeps it open after the wrapper is gone.
-    _connection: UnixStream,
-}
-
-/// What:
-///  Hands the commit's scratch directory to the service,
-/// which removes it when the connection closes.
-/// Why:
-///   A client killed without warning cannot remove what it made,
-/// and no one can tell afterwards whether it is gone or
-///  stopped:
-/// the open connection is the signal,
-/// without a process id and without a lock.
-/// The announcement is written at once
-///  and the greeting is not waited for,
-/// so a service that is frozen or still starting takes it when it reads,
-/// and a client
-///  killed meanwhile still loses its directory.
-/// A service that is not running takes nothing,
-/// and a service of another release
-///  refuses a message it does not know and closes nothing of the client's;
-/// in both the client removes the directory itself
-///  when it ends,
-/// as it always has.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const watch = watchScratch(config, gitDir, path) // undefined when nothing listens
-/// ```
-pub fn watch_scratch(config: &ClientConfig, git_dir: &std::path::Path, path: &std::path::Path) -> Option<ScratchWatch> {
-    let mut connection: UnixStream = connect(&config.address).ok()?;
-    let mut line: String = encode_client(&ClientMessage::Scratch { git_dir: git_dir.to_path_buf(), path: path.to_path_buf() });
-    line.push('\n');
-    connection.write_all(line.as_bytes()).ok()?;
-    return Some(ScratchWatch { _connection: connection });
 }
 
 /// What:

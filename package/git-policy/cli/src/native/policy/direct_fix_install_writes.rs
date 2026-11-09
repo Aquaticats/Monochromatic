@@ -17,6 +17,10 @@
 
 /// `Path` is a borrowed filesystem path.
 use std::path::Path;
+/// One extended attribute of the file a replacement stands in for,
+///  the call that gives it to the replacement,
+///  and why that could not be done exactly.
+use crate::direct_fix_install_attributes::{self, Attribute, AttributeRefusal};
 
 /// What:
 ///  Swap the two files `first` and `second` name in one step.
@@ -98,12 +102,17 @@ pub fn exchange(first: &Path, second: &Path) -> std::io::Result<()> {
 ///  a replacement that belongs to another account is a file handed over,
 /// not a
 ///       correction.
-///  What a replacement does not
-///       carry is named beside `InstallChange`.
+///  What a replacement carries is the permission bits,
+///  the owner and every extended attribute the file
+///       listed;
+///  it does not carry the inode number,
+///  the birth time or a share of a hard link,
+///  whose other
+///       name keeps the bytes it had (`SPEC.md` names each limit).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeFile(path, bytes, { mode: kept.mode, flag: 'wx' }); await fchmod(fd, kept.mode); await fchown(fd, kept.uid, kept.gid);
+/// await writeFile(path, bytes, { mode: kept.mode, flag: 'wx' }); await fchown(fd, kept.uid, kept.gid); await giveTo(fd, kept.attributes); await fchmod(fd, kept.mode);
 /// ```
 pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> Result<(), WriteFailure> {
     /// `Write` adds `write_all` to the open file.
@@ -136,18 +145,25 @@ pub(crate) fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> Result<(), Wr
 
 /// What:
 ///  What the file being replaced had,
-///  which its replacement keeps.
+///  which its replacement keeps:
+///  its permission bits,
+///  its owner,
+///  and the extended attributes it carries outside its bytes.
 /// Why:
 ///  A new file carries the umask's mode and the running user's identity;
 ///  both must be
 ///       replaced by the destination's,
 ///  or the fix publishes a private file and changes who may write it.
+///  An
+///       extended attribute is the person's data that no commit holds,
+///  so a replacement that did not
+///       carry it would delete the only copy (`direct_fix_install_attributes.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Kept = { mode: number; uid: number; gid: number };
+/// type Kept = { mode: number; uid: number; gid: number; attributes: Attribute[] };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Kept {
     /// The destination's permission bits,
     ///  the set-user-id,
@@ -157,19 +173,27 @@ pub(crate) struct Kept {
     pub(crate) uid: u32,
     /// The destination's group.
     pub(crate) gid: u32,
+    /// The extended attributes the destination lists,
+    ///  in name order;
+    ///  empty when the system has none.
+    pub(crate) attributes: Vec<Attribute>,
 }
 
 impl Kept {
     /// What:
     ///  The mode and owner of the file a replacement stands in for.
     /// Why:
-    ///   Both are read from the name before anything is written,
-    ///  so the replacement cannot be given the
-    ///       umask's mode or the running user's identity by accident.
+    ///   Mode and owner are what the file's description carries;
+    ///  the extended attributes come from the file
+    ///       itself (`attributes_of`),
+    ///  so this reads no attribute and never guesses one.
+    ///  A caller that
+    ///       judges a file reads its attributes beside this
+    ///  (`direct_fix_install_judging::state_of`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// const kept = { mode: st.mode & 0o7777, uid: st.uid, gid: st.gid };
+    /// const kept = { mode: st.mode & 0o7777, uid: st.uid, gid: st.gid, attributes: [] };
     /// ```
     pub(crate) fn of(described: &std::fs::Metadata) -> Kept {
         #[cfg(unix)]
@@ -181,6 +205,7 @@ impl Kept {
                 mode: described.permissions().mode() & 0o7777,
                 uid: described.uid(),
                 gid: described.gid(),
+                attributes: Vec::new(),
             };
         }
         // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
@@ -192,46 +217,88 @@ impl Kept {
                 mode: 0,
                 uid: 0,
                 gid: 0,
+                attributes: Vec::new(),
             };
         }
     }
 }
 
+impl Kept {
+    /// What:
+    ///  Whether what a file carries now is the state `kept` names,
+    ///  apart from the security labels the
+    ///       kernel and its policy assign.
+    /// Why:
+    ///  A label is assigned by the system,
+    /// not written by a person:
+    ///  a fix carries it when the system lets it
+    ///  and warns when it cannot,
+    ///  so a replacement that lacks the label the file had is still this fix's own file.
+    ///  Comparing
+    ///       labels would keep a journal holding the fix's own bytes and would report a correction as the
+    ///       person's save.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const sameState = (now, kept) => now.mode === kept.mode && now.uid === kept.uid && now.gid === kept.gid && sameData(now.attributes, kept.attributes);
+    /// ```
+    pub(crate) fn same_as(&self, kept: &Kept) -> bool {
+        return self.mode == kept.mode
+            && self.uid == kept.uid
+            && self.gid == kept.gid
+            && direct_fix_install_attributes::same_data(
+                self.attributes.as_slice(),
+                kept.attributes.as_slice(),
+            );
+    }
+}
+
 /// What:
-///  Give the open replacement the permission bits and owner it keeps.
+///  Give the open replacement the permission bits,
+///  the owner and the extended attributes it keeps.
 ///  `&std::fs::File` borrows the written file.
 /// Why:
-///  `fchmod` and `fchown` act on the descriptor,
-///  so no other process can swap the name between the
-///       write and the change.
-///  The order is the owner first and the permission bits second:
-///  changing a
-///       file's owner clears its set-user-id and set-group-id bits on Linux,
-///  even when the owner and the
-///  group stay the same (`chmod 4755 f; chown $(id -u):$(id -g) f`
-///  leaves `755`,
-///  measured on this host on
-///  2026-11-09),
+///  `fchmod`,
+///  `fchown` and `fsetxattr` act on the descriptor,
+///  so no other process can swap the name between
+///       the write and the change.
+///  The order is the owner first,
+///  the extended attributes second and the permission bits
+///       last:
+///  changing a file's owner clears its set-user-id and set-group-id bits on Linux,
+///  even
+///       when the owner and the group stay the same (`chmod 4755 f; chown $(id -u):$(id -g) f`
+///  leaves
+///       `755`,
+///  measured on this host on 2026-11-09),
+///  and setting an access-control list sets the
+///       group's permission bits from the list's mask,
 ///  so restoring the bits first would lose them.
-///  An owner this process may not give is a
-///       failure:
-/// the replacement would belong to the user running the fix,
-///  which silently hands the
-///       person's file to another account.
-///  The comparison is against what the new file
-///  actually carries,
+///  An owner
+///       this process may not give is a failure:
+///  the replacement would belong to the user running the fix,
+///  which
+///       silently hands the person's file to another account.
+///  An extended attribute this process may not
+///       set is a failure too:
+///  the person's data would be gone with no word,
+///  so the whole write is refused
+///       and the original file is never replaced
+///  (`direct_fix_install_attributes.rs`).
+///  The owner comparison is
+///       against what the new file actually carries,
 ///  read from its own descriptor,
 ///  never against this process's own
-///  credentials:
-///  a directory with its set-group-ID bit gives every new file that directory's
-///  group,
-///  so a file created here can belong to a group this process is not in,
-///  and comparing with
-///  the process would skip the very change that has to be made.
+///       credentials:
+///  a directory with its set-group-ID bit gives every new file that directory's group,
+///  so a
+///       file created here can belong to a group this process is not in,
+///  and comparing with the process
+///       would skip the very change that has to be made.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const actual = fstatSync(fd); if (actual.uid !== kept.uid || actual.gid !== kept.gid) fchownSync(fd, kept.uid, kept.gid); fchmodSync(fd, kept.mode);
+/// const actual = fstatSync(fd); if (actual.uid !== kept.uid || actual.gid !== kept.gid) fchownSync(fd, kept.uid, kept.gid); giveTo(fd, kept.attributes); fchmodSync(fd, kept.mode);
 /// ```
 #[cfg(unix)]
 fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), WriteFailure> {
@@ -262,6 +329,30 @@ fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), W
             });
         }
     }
+    // What: The person's extended attributes go on the replacement before the permission bits, because setting an
+    //       access-control list sets the group's bits from the list's mask, and any attribute the file never had is taken
+    //       off in the same step.
+    // Why:  A refusal here means the replacement cannot carry exactly what the original held: either it would delete data
+    //       of the person's or it would grant access the original never granted, so the whole write fails and the
+    //       original file is never replaced.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // const refused = giveTo(file, kept.attributes); if (refused) return { kind: refused.kind, name: refused.attribute.name };
+    // ```
+    if let Err(refusal) = direct_fix_install_attributes::give_to(file, kept.attributes.as_slice()) {
+        return Err(match refusal {
+            AttributeRefusal::NotGiven { attribute, reason } => WriteFailure::AttributeKept {
+                name: attribute.display_name(),
+                reason,
+            },
+            AttributeRefusal::NotRemoved { attribute, reason } => WriteFailure::AttributeAdded {
+                name: attribute.display_name(),
+                reason,
+            },
+            AttributeRefusal::ListFailed { reason } => WriteFailure::Io(reason),
+        });
+    }
     // SAFETY: `fchmod` takes a descriptor this file owns and plain numbers; it reads no memory of this process.
     let bits_set: libc::c_int = unsafe { libc::fchmod(descriptor, kept.mode as libc::mode_t) };
     if bits_set != 0 {
@@ -277,10 +368,25 @@ fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) -> Result<(), W
 ///  the person must be told that the file
 ///       would change hands,
 ///  which is not the same as a full disk or a read-only directory.
+///  An extended
+///       attribute this process may not set is its own answer too:
+///  the file carries data outside its bytes that a
+///       replacement could not keep,
+///  so the person is told which attribute it was and that nothing was
+///       changed.
+///  An attribute the replacement cannot be rid of is a third answer:
+///  a directory's default
+///       access-control list was copied onto the replacement,
+///  so installing it would grant an account access
+///       the person's file never granted.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type WriteFailure = { kind: 'io'; error: Error } | { kind: 'owner-kept'; uid: number; gid: number; reason: Error };
+/// type WriteFailure =
+///   | { kind: 'io'; error: Error }
+///   | { kind: 'owner-kept'; uid: number; gid: number; reason: Error }
+///   | { kind: 'attribute-kept'; name: string; reason: Error }
+///   | { kind: 'attribute-added'; name: string; reason: Error };
 /// ```
 #[derive(Debug)]
 pub(crate) enum WriteFailure {
@@ -292,6 +398,23 @@ pub(crate) enum WriteFailure {
         uid: u32,
         /// The group the destination had.
         gid: u32,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The replacement cannot be given an extended attribute the destination carries.
+    AttributeKept {
+        /// The attribute's name,
+        ///  as the system spells it.
+        name: String,
+        /// Why the system refused.
+        reason: std::io::Error,
+    },
+    /// The replacement carries an extended attribute the destination never had,
+    ///  and this process may not take it off.
+    AttributeAdded {
+        /// The attribute's name,
+        ///  as the system spells it.
+        name: String,
         /// Why the system refused.
         reason: std::io::Error,
     },
@@ -314,6 +437,14 @@ impl std::fmt::Display for WriteFailure {
             Self::OwnerKept { uid, gid, reason } => write!(
                 formatter,
                 "the file belongs to uid {uid} and gid {gid}, and this process may not give the replacement that owner ({reason}), so installing it would hand the file to the user running the fix"
+            ),
+            Self::AttributeKept { name, reason } => write!(
+                formatter,
+                "the file carries the extended attribute {name}, which is data no commit holds, and this process may not give the replacement that attribute ({reason}), so installing it would delete that data"
+            ),
+            Self::AttributeAdded { name, reason } => write!(
+                formatter,
+                "the replacement carries the extended attribute {name}, which the file it replaces never had, and this process may not take it off ({reason}), so installing it would grant access the original never granted"
             ),
         };
     }

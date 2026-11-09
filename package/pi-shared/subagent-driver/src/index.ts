@@ -20,6 +20,7 @@ export {
   writeCheckedRuns,
 } from './checked-runs.ts';
 export {
+  COMMAND_ANSWER_MILLISECONDS,
   FEED_PREVIEW_CHARACTERS,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
@@ -33,6 +34,9 @@ export {
   TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
 export type {
+  CommandAnswer,
+  CommandEnding,
+  CompactionOfPi,
   DriverOptions,
   EndReason,
   EventObservation,
@@ -77,6 +81,7 @@ export {
 } from './record-of-pi-run.ts';
 export {
   CLEAN_END_REASONS,
+  endReasonOfPromptWait,
   finalEndReason,
 } from './end-reasons.ts';
 export {
@@ -94,6 +99,15 @@ export {
 } from './supervise-pi-run.ts';
 export { watchUntilEnded, } from './watch-pi-run.ts';
 export type { WatchRequest, } from './watch-request.ts';
+export {
+  type StartWaitingRequest,
+  startWaitingForAnAnswer,
+  type WaitingForAnAnswer,
+} from './wait-for-an-answer.ts';
+export {
+  putTheRunAway,
+  type RunPutAway,
+} from './put-the-run-away.ts';
 export {
   answerModelError,
   type RetryWaiting,

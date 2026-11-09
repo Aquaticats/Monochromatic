@@ -146,6 +146,7 @@ fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &st
         commit: None,
         cleanup: None,
         index: git_dir.join("index"),
+        scratch: git_dir.join("monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
         captured: 0,
     };
 }

@@ -228,7 +228,7 @@ fn each_eligible_candidate_reaches_the_linter_once_in_order() {
     ];
     for trigger in [Trigger::PreForward, Trigger::DirectCheck] {
         assert_eq!(
-            check_markdown(&mut content, &add_all(), &mut facts, &mut state, trigger),
+            check_markdown(&mut content, &add_all(), &mut facts, &mut state, trigger, false),
             PolicyOutcome::Findings(expected.clone()),
             "{trigger:?}"
         );
@@ -253,7 +253,7 @@ fn each_eligible_candidate_reaches_the_linter_once_in_order() {
         &add_all(),
         &mut facts,
         &mut state,
-        Trigger::DirectFix,
+        Trigger::DirectFix, false,
     );
     assert_eq!(
         fixed,
@@ -292,7 +292,7 @@ fn single(answer: Answer, trigger: Trigger) -> PolicyOutcome {
         &add_all(),
         &mut facts_for(repo.as_path()),
         &mut state,
-        trigger,
+        trigger, false,
     );
     remove(root.as_path());
     return outcome;
@@ -339,7 +339,7 @@ fn a_candidate_the_linter_cannot_check_fails_the_policy() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::PolicyIncomplete,
@@ -356,14 +356,20 @@ fn a_candidate_the_linter_cannot_check_fails_the_policy() {
 fn exclude_patterns_that_do_not_compile_fail_the_policy() {
     let root: PathBuf = fixture("markdown-bad-exclude");
     let repo: PathBuf = single_repository(root.as_path());
-    let (mut state, log) = scripted_state(rewrite, &["a{b"]);
+    // What: A trailing escape is the shape left that the glob compiler refuses, and Git matches nothing with.
+    // Why:  A literal brace and a character range that runs backwards are no longer such patterns: both are read
+    //       the way Git reads them (`markdown::markdown_exclude`, `monochromatic_lint::gitignore_pattern`).
+    //
+    // In TS you'd write (pseudocode):
+    // // scriptedState(rewrite, ['a\\']) and expect the policy to fail naming that pattern.
+    let (mut state, log) = scripted_state(rewrite, &["a\\"]);
     for _ in 0..2 {
         match check_markdown(
             &mut ContentState::new(),
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::PreForward,
+            Trigger::PreForward, false,
         ) {
             PolicyOutcome::Failed {
                 code: EngineFailureCode::PolicyIncomplete,
@@ -372,7 +378,7 @@ fn exclude_patterns_that_do_not_compile_fail_the_policy() {
             } => {
                 assert!(
                     message.starts_with(
-                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a{b\": "
+                        "monochromatic-git-policy-cli could not compile the markdown/autofix exclude pattern \"a\\\\\": "
                     ) && message.ends_with(UNCHECKED_REMEDY),
                     "{message}"
                 );
@@ -397,7 +403,7 @@ fn nothing_to_lint_lints_nothing() {
             &LifecycleContent::None,
             &mut idle,
             &mut state,
-            Trigger::DirectFix
+            Trigger::DirectFix, false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -408,7 +414,7 @@ fn nothing_to_lint_lints_nothing() {
             &add_all(),
             &mut scripted_facts(),
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -425,7 +431,7 @@ fn nothing_to_lint_lints_nothing() {
             &add_all(),
             &mut facts_for(repo.as_path()),
             &mut state,
-            Trigger::DirectFix
+            Trigger::DirectFix, false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -450,7 +456,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut text_only,
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Findings(Vec::new())
     );
@@ -464,7 +470,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut unlocated,
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -480,7 +486,7 @@ fn the_top_level_is_asked_only_when_a_candidate_needs_the_linter() {
             &add_all(),
             &mut bare,
             &mut state,
-            Trigger::PreForward
+            Trigger::PreForward, false
         ),
         PolicyOutcome::Failed {
             code: EngineFailureCode::ContentUnavailable,
@@ -523,7 +529,7 @@ fn unreadable_candidate_bytes_are_content_unavailable() {
         &add_all(),
         &mut facts,
         &mut state,
-        Trigger::PreForward,
+        Trigger::PreForward, false,
     ) {
         PolicyOutcome::Failed { code, .. } => {
             assert_eq!(code, EngineFailureCode::ContentUnavailable)
@@ -556,4 +562,46 @@ fn markdown_paths_are_the_linter_s() {
     ] {
         assert_eq!(is_markdown_path(path), expected, "{path:?}");
     }
+}
+
+/// What:
+///  A literal brace in an exclude pattern names exactly the file Git names,
+///  so the alternate-group reading never excludes a file Git checks.
+/// Why:
+///  The option is documented as gitignore syntax,
+///  where a brace is ordinary text:
+///  reading it as `{old,new}` would silently leave `notesold.md` unchecked and check
+///  `notes{old,new}.md`,
+///  which is a wrong exclusion with no word about it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // scriptedState(rewrite, ['notes{old,new}.md']); const outcome = checkMarkdown(...); expect(outcome.findings.map((f) => f.path.text())).toEqual(['notesold.md']);
+/// ```
+#[test]
+fn a_literal_brace_in_an_exclude_pattern_excludes_only_its_own_file() {
+    let root: PathBuf = fixture("markdown-brace-exclude");
+    let repo: PathBuf = single_repository(root.as_path());
+    std::fs::write(repo.join("notes{old,new}.md"), b"![x](img.png)\n").expect("the literal name");
+    std::fs::write(repo.join("notesold.md"), b"![x](img.png)\n").expect("the alternate-group name");
+    let (mut state, log) = scripted_state(rewrite, &["notes{old,new}.md"]);
+    let outcome: PolicyOutcome = check_markdown(
+        &mut ContentState::new(),
+        &add_all(),
+        &mut facts_for(repo.as_path()),
+        &mut state,
+        Trigger::DirectCheck, false,
+    );
+    assert_eq!(
+        outcome,
+        PolicyOutcome::Findings(vec![autofix(b"a.md", false), autofix(b"notesold.md", false)]),
+        "the file the pattern names is excluded and the one it does not name is checked"
+    );
+    let linted: Vec<Vec<u8>> = log
+        .borrow()
+        .iter()
+        .map(|request| return request.path.clone())
+        .collect();
+    assert_eq!(linted, vec![b"a.md".to_vec(), b"notesold.md".to_vec()]);
+    remove(root.as_path());
 }

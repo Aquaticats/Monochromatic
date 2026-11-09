@@ -52,14 +52,6 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             }
             return Ok(ClientMessage::Withdraw { id: id.to_string() });
         }
-        "scratch" => {
-            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
-            let path: PathBuf = path_bytes::read_field(&value, "path")?;
-            if !is_scratch_path(path.as_path(), git_dir.as_path()) {
-                return Err(String::from("scratch directory is not acceptable"));
-            }
-            return Ok(ClientMessage::Scratch { git_dir, path });
-        }
         "warm" => {
             let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
             let repository: PathBuf = path_bytes::read_field(&value, "repository")?;
@@ -116,6 +108,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
         index: path_bytes::read_field(&value, "index")?,
+        scratch: path_bytes::read_field(&value, "scratch")?,
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         // A `cleanup` that is absent or null asks for none.
         cleanup: match value.get("cleanup") {
@@ -135,12 +128,12 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     // A cleanup, when asked for, belongs to a commit built elsewhere and names absolute directories without NUL; none is fine.
     let cleanup_clean: bool = match request.cleanup.as_ref() {
         Some(cleanup) => {
+            // The directory is the commit's own scratch tree, so it has to be one: inside the repository scratch directory this
+            //  release makes it in, or inside the worktree's Git directory as a release before this one made it.
             request.commit.is_some()
                 && cleanup.git_dir.is_absolute()
-                && cleanup.scratch.is_absolute()
-                && cleanup.scratch.starts_with(&cleanup.git_dir)
+                && is_scratch_path(cleanup.scratch.as_path(), cleanup.git_dir.as_path())
                 && !cleanup.git_dir.to_string_lossy().contains('\0')
-                && !cleanup.scratch.to_string_lossy().contains('\0')
         }
         None => true,
     };
@@ -158,6 +151,10 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         && !request.git_dir.to_string_lossy().contains('\0')
         && request.index.is_absolute()
         && !request.index.to_string_lossy().contains('\0')
+        // The tree the service is asked to remove has to be one the wrapper makes, in one of the two places it makes them,
+        //  or a request could name any directory of the account for removal.
+        && request.scratch.is_absolute()
+        && is_scratch_path(request.scratch.as_path(), request.git_dir.as_path())
         && !request.committer.contains(['\0', '\n'])
         && author_clean
         // An amend the service builds names the tree it makes; a commit built elsewhere is named whole; any other request

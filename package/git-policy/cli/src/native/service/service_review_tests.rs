@@ -100,7 +100,7 @@ fn a_code_commit_is_reviewed_and_appended() {
     let seen: String = mock.finish().seen;
     assert!(seen.contains("src/a.ts"), "the request carries the changed file");
     let log: String = log_of(&fixture);
-    assert!(log.starts_with("- Date:\n"), "the live log holds the entry from its first line: {log}");
+    assert!(log.starts_with("\n- Date:\n"), "the live log holds the entry after the line feed every write begins with: {log}");
     assert_eq!(tracked_log_of(&fixture), TRACKED_LOG_CONTENT, "the tracked log is never written");
     assert!(log.contains("`feat(a): add a`"));
     assert!(log.contains("cost_verdict: no (yes 0.1 no 0.9)"));

@@ -59,7 +59,7 @@
 //! ```
 
 /// When a long wait prints its notices.
-use crate::wait_progress::{Cadence, WaitReporter};
+use crate::wait_progress::{Cadence, Ticker};
 /// The longest quiet gap of each tool,
 /// kept for the timing records.
 use crate::quiet_ledger;
@@ -171,9 +171,103 @@ fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bo
 }
 
 /// What:
+///  Where a wait's notices go,
+///  owned so that one can be written on a thread of its own and given back.
+/// Why:
+///  A notice is advisory output,
+///  and the stream behind it may be a pipe whose reader has stopped draining it,
+///  so the write can block for ever.
+///  An owned sink is one a thread can hold while the waiting thread keeps judging its
+///       deadlines and receiving the job's result;
+///  a borrowed sink would keep the waiting thread inside the write.
+///  Nothing is lost when a write never returns:
+///  that thread ends with the process,
+///  and this linter prints no further notice,
+///  which is what a stream nobody reads can show anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NoticeSink = { writer?: Writable }; // undefined once a write never came back
+/// ```
+pub type NoticeSink = Option<Box<dyn Write + Send>>;
+
+/// The name a notice's thread is given,
+///  so a stack of a stuck command names what it is.
+const NOTICE_THREAD_NAME: &str = "cli-git-markdown-notice";
+
+/// What:
+///  Start a thread that writes `line` to `sink` and hands the sink back.
+/// Why:
+///   The waiting thread must not be the one that blocks,
+///  and the sink must come back for the next notice,
+///  so the thread returns it over a channel the wait polls.
+///  A thread the system will not start costs that notice and every later one,
+///  because the sink went with it:
+///  a notice is advisory,
+///  and the wait itself goes on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeOnThread = (sink, line) => { const finished = channel(); thread(() => { writeln(sink, line); finished.send(sink) }); return finished; };
+/// ```
+fn write_on_a_thread(
+    sink: Box<dyn Write + Send>,
+    line: String,
+) -> Option<Receiver<Box<dyn Write + Send>>> {
+    let (finished, written): (Sender<Box<dyn Write + Send>>, Receiver<Box<dyn Write + Send>>) =
+        channel();
+    let started = std::thread::Builder::new()
+        .name(String::from(NOTICE_THREAD_NAME))
+        .spawn(move || {
+            let mut writing: Box<dyn Write + Send> = sink;
+            // Terminal output error: a notice is advisory; a failed write must not stop the wait.
+            let _written = writeln!(writing, "{line}");
+            // A waiter that answered already is gone, and then there is nothing to hand the sink to.
+            let _handed_back = finished.send(writing);
+        });
+    return match started {
+        Ok(_thread) => Some(written),
+        Err(_unstartable) => None,
+    };
+}
+
+/// What:
+///  Take back the sink of a notice write that is still in the air,
+///  so a later notice can use it.
+/// Why:
+///  A job can answer while its notice is being written on another thread,
+///  and the sink comes back on a channel this wait owns;
+///  returning without collecting it would drop the channel,
+///  and the sink with it,
+///  so every later candidate of the same linter would print no notice at all.
+///  The wait lasts one poll and no longer:
+///  a stream that never takes the line must not hold the answer the
+///       person asked for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const collectReturnedSink = (writing, notices) => { const answer = writing?.take()?.recvTimeout(NOTICE_POLL); if (answer) notices.value = answer; };
+/// ```
+fn collect_returned_sink(
+    writing: &mut Option<Receiver<Box<dyn Write + Send>>>,
+    notices: &mut NoticeSink,
+) {
+    let Some(finished) = writing.take() else {
+        let _ = notices;
+        return;
+    };
+    if let Ok(returned) = finished.recv_timeout(NOTICE_POLL) {
+        *notices = Some(returned);
+    }
+}
+
+/// What:
 ///  Wait for the job's thread to report,
 ///  printing notices at the cadence,
-///  until the thread has shown no sign of work for the window.
+///  until the thread has shown no sign of work for the window or the ceiling is reached.
+///  `cadence` times the notices and
+///  `&mut NoticeSink` lends the sink the next notice is written from,
+///  and takes back the one a finished write returns.
 /// Why:
 ///  The wait sleeps on the channel,
 ///  so a job that finishes wakes it at once,
@@ -181,26 +275,40 @@ fn notice_line(waiting_for: &str, waited: Duration, window: Duration, repeat: bo
 ///  The thread's number arrives first on its own channel;
 /// until it does the thread is starting,
 /// which is not quiet.
+///  Every deadline is judged before a notice is started and never after it,
+///  and the notice itself is written on another thread,
+///  so a stream that never takes the line cannot move any deadline.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function waitFor<T>(receiver, ids, windowMs, reporter): Promise<T>; // throws GuardFailure
+/// async function waitFor<T>(receiver, ids, limits, sink, waitingFor): Promise<T>; // throws GuardFailure
 /// ```
 fn wait_for<T>(
     receiver: &Receiver<Result<T, String>>,
     thread_numbers: &Receiver<i32>,
     limits: GuardLimits,
+    cadence: Cadence,
     waiting_for: &str,
-    reporter: &mut WaitReporter<'_>,
+    notices: &mut NoticeSink,
 ) -> (Result<T, GuardFailure>, Duration) {
     let window: Duration = limits.window;
     let began: Instant = Instant::now();
+    let mut ticker: Ticker = Ticker::new(cadence);
+    let mut printed: u32 = 0;
+    let mut writing: Option<Receiver<Box<dyn Write + Send>>> = None;
     let mut clock: Option<ThreadClock> = None;
     let mut longest: Duration = Duration::ZERO;
     loop {
-        // A notice that is due goes out before the thread is judged, so an abandoned job was announced.
-        if let Some(due) = reporter.notice_due() {
-            reporter.print_notice(notice_line(waiting_for, due.waited, window, due.repeat).as_str());
+        // What: A notice write that came back hands its sink over, so the next due notice can use it.
+        // Why:  The write happens on its own thread; collecting it here is what keeps one notice in flight at a time.
+        //
+        // In TS you'd write (pseudocode):
+        // if (writing?.tryRecv()) { sink = returned; writing = undefined; }
+        if let Some(finished) = writing.as_ref()
+            && let Ok(returned) = finished.try_recv()
+        {
+            *notices = Some(returned);
+            writing = None;
         }
         if clock.is_none()
             && let Ok(number) = thread_numbers.try_recv()
@@ -211,19 +319,54 @@ fn wait_for<T>(
             let quiet: bool = watching.quiet();
             longest = watching.longest_quiet();
             if quiet {
+                collect_returned_sink(&mut writing, notices);
                 return (Err(GuardFailure::Quiet(window)), longest);
             }
         }
         // The ceiling abandons a job that keeps showing work, as the window abandons one that shows none (owner, 2026-11-04,
         // "Silence plus a ceiling (Recommended)").
         if began.elapsed() >= limits.ceiling {
+            collect_returned_sink(&mut writing, notices);
             return (Err(GuardFailure::Ceiling(limits.ceiling)), longest);
         }
-        match receiver.recv_timeout(NOTICE_POLL) {
-            Ok(Ok(value)) => return (Ok(value), longest),
-            Ok(Err(reason)) => return (Err(GuardFailure::Panicked(reason)), longest),
+        // What: A notice that is due goes out now that no deadline says to stop, on a thread of its own.
+        // Why:  An abandoned job was announced, and the wait never holds the stream that carries the announcement.
+        //
+        // In TS you'd write (pseudocode):
+        // if (writing === undefined && sink !== undefined && ticker.due(elapsed)) writing = writeOnThread(sink.take(), line);
+        if writing.is_none() {
+            let waited: Duration = began.elapsed();
+            if ticker.due(waited)
+                && let Some(sink) = notices.take()
+            {
+                let line: String = notice_line(waiting_for, waited, window, printed > 0);
+                printed += 1;
+                writing = write_on_a_thread(sink, line);
+            }
+        }
+        // What: The job answers while its notice may still be in the air, so the sink is taken back before the
+        //       answer leaves.
+        // Why:  Dropping the channel here would drop the sink the notice thread returns, and the linter's later
+        //       candidates would print no notice.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const answered = receiver.recvTimeout(NOTICE_POLL); collectReturnedSink(writing, notices); if (answered) return answered;
+        // ```
+        let answered: Result<Result<T, String>, RecvTimeoutError> = receiver.recv_timeout(NOTICE_POLL);
+        match answered {
+            Ok(value) => {
+                collect_returned_sink(&mut writing, notices);
+                return match value {
+                    Ok(done) => (Ok(done), longest),
+                    Err(reason) => (Err(GuardFailure::Panicked(reason)), longest),
+                };
+            }
             Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return (Err(GuardFailure::Vanished), longest),
+            Err(RecvTimeoutError::Disconnected) => {
+                collect_returned_sink(&mut writing, notices);
+                return (Err(GuardFailure::Vanished), longest);
+            }
         }
     }
 }
@@ -248,7 +391,9 @@ const NOTICE_POLL: Duration = Duration::from_millis(50);
 /// Why:
 ///  See the module comment.
 ///  The caller names what it waits for ("monochromatic-lint to check docs/a.md"),
-///  which the notices print.
+///  which the notices print,
+///  and hands over the sink they go to (`NoticeSink`),
+///  so no deadline of this wait can be held by a stream that never takes a line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -259,7 +404,7 @@ pub fn run_guarded<T: Send + 'static>(
     limits: GuardLimits,
     cadence: Cadence,
     waiting_for: &str,
-    notices: &mut dyn Write,
+    notices: &mut NoticeSink,
 ) -> Result<T, GuardFailure> {
     let (sender, receiver): (Sender<Result<T, String>>, Receiver<Result<T, String>>) = channel();
     let (numbers, thread_numbers): (Sender<i32>, Receiver<i32>) = channel();
@@ -278,8 +423,8 @@ pub fn run_guarded<T: Send + 'static>(
     if let Err(error) = spawned {
         return Err(GuardFailure::Start(error.to_string()));
     }
-    let mut reporter: WaitReporter<'_> = WaitReporter::start(cadence, notices);
-    let (result, longest): (Result<T, GuardFailure>, Duration) = wait_for(&receiver, &thread_numbers, limits, waiting_for, &mut reporter);
+    let (result, longest): (Result<T, GuardFailure>, Duration) =
+        wait_for(&receiver, &thread_numbers, limits, cadence, waiting_for, notices);
     quiet_ledger::note("monochromatic-lint", longest, matches!(result, Err(GuardFailure::Quiet(_))));
     return result;
 }

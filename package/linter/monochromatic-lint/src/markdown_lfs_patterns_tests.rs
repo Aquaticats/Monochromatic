@@ -9,8 +9,9 @@
 //! describe(lfsTrackedMatcher.name, () => { /* extension, scoped, unset, empty */ });
 //! ```
 
-/// Import the matcher and the attribute translation.
-use super::{PathPatterns, lfs_tracked_patterns};
+/// Import the matcher,
+/// its refusal type and the attribute translation.
+use super::{PathPatternError, PathPatterns, lfs_tracked_patterns};
 
 /// Attribute lines mirroring the repository's `.gitattributes`.
 const ATTRIBUTES: &str = "* text=auto eol=lf\n\n# raster formats\n*.png filter=lfs diff=lfs merge=lfs -text\n*.jpg\tfilter=lfs diff=lfs merge=lfs -text\ndesign/*.bin filter=lfs\npackage/*/asset/readme/*.png !filter !diff !merge";
@@ -48,10 +49,45 @@ fn attribute_lines_become_ordered_patterns() {
         lfs_tracked_patterns(
             "a.bin -filter\r\n  b.bin \t filter=lfs  \r\nc.bin filter=other\nd.bin"
         ),
-        ["!a.bin", "b.bin"]
+        ["!a.bin", "b.bin", "!c.bin"]
     );
     assert!(lfs_tracked_patterns("").is_empty());
     assert!(lfs_tracked_patterns("# *.png filter=lfs\n \n").is_empty());
+}
+
+/// What:
+///  A later filter assignment that is not `filter=lfs` replaces an earlier one,
+///  exactly as Git resolves the attribute.
+/// Why:
+///  Git answers `filter: other` for `*.png filter=lfs` followed by `*.png filter=other`,
+///  so the image is not LFS-tracked and its Markdown link must be left alone;
+///  ignoring the second line rewrites an ordinary image to an LFS object URL Git never stored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(lfsTrackedMatcher('*.png filter=lfs\n*.png filter=other\n').matches('pkg/asset/shot.png')).toBe(false);
+/// ```
+#[test]
+fn a_later_filter_assignment_that_is_not_lfs_untracks_the_path() {
+    // Measured with native Git 2.56.0: `git check-attr filter -- pkg/asset/shot.png` answers `filter: other`.
+    let overridden: PathPatterns = tracked("*.png filter=lfs\n*.png filter=other\n");
+    assert!(
+        !overridden.matches("pkg/asset/shot.png"),
+        "Git says the image is not LFS-tracked"
+    );
+    // The positive control: the same image is tracked without the replacing line.
+    assert!(tracked("*.png filter=lfs\n").matches("pkg/asset/shot.png"));
+    // Every other assignment replaces it too: set, unset, unspecified and an empty value.
+    for replacement in ["filter=other", "filter", "filter=", "-filter", "!filter"] {
+        let text: String = format!("*.png filter=lfs\n*.png {replacement}\n");
+        assert!(
+            !tracked(text.as_str()).matches("shot.png"),
+            "Git gives the image no lfs filter after {replacement}"
+        );
+    }
+    // Two assignments on one line: the last one wins, as Git reads them left to right.
+    assert!(!tracked("*.png filter=lfs filter=other\n").matches("shot.png"));
+    assert!(tracked("*.png filter=other filter=lfs\n").matches("shot.png"));
 }
 
 /// An extension pattern matches anywhere in the tree;
@@ -95,15 +131,36 @@ fn directory_patterns_cover_descendants_and_outrank_file_negations() {
     assert!(!patterns(&[]).matches("docs/keep.md"));
 }
 
-/// A pattern the compiler rejects is an error naming the pattern;
-///  an unclosed class is a literal,
-///  as in git.
+/// What:
+///  A pattern the compiler rejects is an error naming the pattern,
+///  and the two shapes Git reads differently from it are read as Git reads them:
+///  an unclosed class is a literal `[`,
+///  and a range that runs backwards is the character that opens it.
+/// Why:
+///  The matcher is documented as gitignore syntax,
+///  so a pattern native Git accepts must not fail the run that reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(() => new PathPatterns(['a/\\'])).toThrow(/a/);
+/// // expect(new PathPatterns(['[z-a].png']).matches('z.png')).toBe(true);
+/// ```
 #[test]
 fn invalid_patterns_are_errors() {
-    let error = PathPatterns::new(&[String::from("a/[z-a].png")]).expect_err("reversed range");
-    assert!(error.message.contains("a/[z-a].png"), "{}", error.message);
+    let error: PathPatternError =
+        PathPatterns::new(&[String::from("a/\\")]).expect_err("a trailing escape");
+    assert!(error.message.contains(r#""a/\\""#), "{}", error.message);
     assert_eq!(error.to_string(), error.message);
     let literal: PathPatterns = patterns(&["a/["]);
     assert!(literal.matches("a/["));
     assert!(!literal.matches("a/b"));
+    let backwards: PathPatterns = patterns(&["[z-a].png"]);
+    assert!(
+        backwards.matches("z.png"),
+        "Git matches the character that opens the range"
+    );
+    assert!(
+        !backwards.matches("a.png"),
+        "and not the one that closes it"
+    );
 }
