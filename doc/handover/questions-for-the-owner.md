@@ -120,8 +120,12 @@ The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now
 because a cross-vendor review found a push could stay stranded,
 and a held push with no living owner would otherwise wait forever,
 against your "nothing should ever wait forever or indefinitely".
-A check that is still running is never overtaken:
-only a command proven gone has its push released.
+The intent is that a check still running is never overtaken and that only a command proven gone has its push released.
+The review `landing-route-round-5` found two defects in that behaviour,
+and both go back to the branch's agent whatever you answer here:
+a command that has not yet written its owner record can be taken for gone,
+and a commit whose checks ran and blocked it can be pushed by a later recovery.
+This question is only about a commit whose checks never ran.
 
 The cost is that a commit whose checks never ran can reach the remote.
 The alternative keeps that commit local until someone pushes it,
