@@ -182,6 +182,30 @@ pub fn build_with_deadline<B>(plan: RuntimePlan, deadline: Duration, multi_threa
 where
     B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
 {
+    return build_with_deadline_and(plan, deadline, multi_thread_builder, current_thread);
+}
+
+/// What:
+///  `build_with_deadline` with the stand-in given as `fallback`.
+/// Why:
+///   The window in which a late build can be lost is the caller's own stand-in:
+/// a runtime sent after the deadline but before
+///  the channel is closed is neither received nor kept.
+/// A control can only order a build into that window if the caller can be held inside
+///  the stand-in,
+/// which is what this parameter is for;
+/// the process builds its own runtime through `build_with_deadline`,
+///  whose stand-in is the current-thread runtime.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const built = buildWithDeadlineAnd(plan, deadline, multiThread, fallback);
+/// ```
+fn build_with_deadline_and<B, F>(plan: RuntimePlan, deadline: Duration, multi_thread_builder: B, fallback: F) -> std::io::Result<BuiltRuntime>
+where
+    B: FnOnce(usize, usize) -> std::io::Result<Runtime> + Send + 'static,
+    F: FnOnce() -> std::io::Result<Runtime>,
+{
     let RuntimePlan::MultiThread { workers, blocking_threads } = plan else {
         return Ok(BuiltRuntime { runtime: current_thread()?, flavor: BuiltFlavor::CurrentThread });
     };
@@ -214,7 +238,7 @@ where
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => BuiltFlavor::CurrentThreadAfterFailure,
         },
     };
-    return Ok(BuiltRuntime { runtime: current_thread()?, flavor: flavor_when_replaced });
+    return Ok(BuiltRuntime { runtime: fallback()?, flavor: flavor_when_replaced });
 }
 
 /// What:
