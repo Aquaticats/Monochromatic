@@ -341,7 +341,9 @@ pub fn word_merge_notice(files: &[MergedFile]) -> Option<PolicyEvent> {
 /// ```
 fn toplevel_of(stdout: &[u8]) -> PathBuf {
     let text: String = String::from_utf8_lossy(stdout).into_owned();
-    return PathBuf::from(text.trim_end_matches(['\n', '\r']));
+    // Exactly one terminator goes, so a directory whose name ends in a line break keeps it.
+    let without_terminator: &str = text.strip_suffix("\r\n").unwrap_or_else(|| { return text.strip_suffix('\n').unwrap_or(text.as_str()); });
+    return PathBuf::from(without_terminator);
 }
 
 fn word_pass(site: &MergeSite<'_>, tip: &str, merge: (&str, &[Conflict]), paths: Vec<Vec<u8>>) -> Merged {

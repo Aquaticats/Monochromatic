@@ -423,3 +423,16 @@ fn a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file() 
     assert_eq!(paths, vec![b"data.txt".to_vec()], "the excluded path is the one reported");
     remove(world.root.as_path());
 }
+
+/// What:
+///  A directory whose name ends in a line break keeps it.
+/// Why:
+///   Git's toplevel output ends with the directory's own line break and then the line's terminator,
+/// so removing every line break removes one byte of the path
+/// (cross-vendor review round 2, finding 8).
+#[test]
+fn the_toplevel_keeps_a_line_break_that_belongs_to_a_directory_name() {
+    assert_eq!(toplevel_of(b"/tmp/a repository \n\n"), PathBuf::from("/tmp/a repository \n"), "only the line's terminator is removed");
+    assert_eq!(toplevel_of(b"/tmp/repo\r\n"), PathBuf::from("/tmp/repo"), "a carriage return and its line feed go together");
+    assert_eq!(toplevel_of(b"/tmp/repo\n"), PathBuf::from("/tmp/repo"), "one line break is the terminator");
+}
