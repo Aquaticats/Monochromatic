@@ -350,6 +350,65 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
 }
 
 /// What:
+///  A relative executable-search entry is searched from the directory Git changed into,
+///  not from the one the caller stood in before `-C`.
+/// Why:
+///   `-C` changes Git's directory before it looks a command up
+///  (`git.c:316` to `git.c:328`, then `git.c:988`),
+///  and a `PATH` entry without
+///       a leading separator is resolved against that directory;
+///  a reading that resolves it against the caller's directory finds a program Git never runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // A/bin/git-wipe exists, B is a repository without a bin, PATH=bin:/usr/bin:/bin, git -C ../B ... wipe
+/// // real Git: alias's reset runs; the wrapper: refused
+/// ```
+#[test]
+fn a_relative_search_entry_is_read_from_the_directory_git_changed_into() {
+    let fixture: Fixture = fixture("alias-expansion-relative-path-entry");
+    let caller: PathBuf = fixture.root.join("A");
+    std::fs::create_dir(caller.as_path()).expect("caller directory");
+    let program_directory: PathBuf = caller.join("bin");
+    std::fs::create_dir(program_directory.as_path()).expect("program directory");
+    executable(
+        program_directory.join("git-wipe").as_path(),
+        b"#!/bin/sh\necho 'EXTERNAL: no mutation'\n",
+    );
+    let control: PathBuf = repository_with_unstaged_work(&fixture, "B");
+    let refused: PathBuf = repository_with_unstaged_work(&fixture, "C");
+    let path: &OsStr = OsStr::new("bin:/usr/bin:/bin");
+    let control_arguments: [&str; 5] = ["-C", "../B", "-c", "alias.wipe=reset --hard", "wipe"];
+    let refused_arguments: [&str; 5] = ["-C", "../C", "-c", "alias.wipe=reset --hard", "wipe"];
+    // The positive control: real Git searches `B/bin`, finds no program, and the alias discards the work.
+    let direct_run: Observed = observe(
+        direct(&fixture)
+            .current_dir(caller.as_path())
+            .args(control_arguments)
+            .env("PATH", path),
+        b"",
+    );
+    let direct_stdout: String = String::from_utf8_lossy(&direct_run.stdout).into_owned();
+    assert!(
+        !direct_stdout.contains("EXTERNAL"),
+        "the positive control ran the program instead of the alias: {direct_stdout}"
+    );
+    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let observed: Observed = observe(
+        wrapper_program(&fixture)
+            .current_dir(caller.as_path())
+            .args(refused_arguments)
+            .env("PATH", path),
+        b"",
+    );
+    let stdout: String = String::from_utf8_lossy(&observed.stdout).into_owned();
+    assert!(!stdout.contains("EXTERNAL"), "the wrapper ran a program Git does not run: {stdout}");
+    assert_ne!(observed.code, Some(0), "the wrapper ran the alias's reset: {}", stderr_of(&observed));
+    assert_eq!(tracked(refused.as_path()), USER_DATA, "the alias discarded the work");
+    remove(&fixture);
+}
+
+/// What:
 ///  The same refusal from a clean linked worktree,
 ///  where the guard of uncommitted work has nothing to reject and the copy of a
 ///       main checkout is not involved.

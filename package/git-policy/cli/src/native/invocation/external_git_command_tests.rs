@@ -229,6 +229,67 @@ fn a_relative_exec_path_is_searched_where_git_searches_it() {
     remove(root.as_path());
 }
 
+/// What:
+///  A `PATH` entry without a leading separator is read from the directory Git runs in,
+///  which the caller's `-C` options move.
+/// Why:
+///  `-C` changes Git's directory before it looks a command up
+///  (`git.c:316` to `git.c:328`,
+///  then `git.c:988`),
+///  and `locate_in_PATH` joins each entry to the file as it stands
+///  (`run-command.c:203` to `:218`),
+///  so a program only the caller's own directory holds is one Git never runs,
+///  and
+///  a reading that resolved the entry against the caller's directory found it and left the alias to Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// dashedExternalSelected({ environment: { PATH: '../programs/bin:/usr/bin:/bin' }, globals: ['-C', '../B'], currentDirectory: caller })
+/// ```
+#[test]
+fn a_relative_path_entry_is_read_from_the_directory_git_changed_into() {
+    let root: PathBuf = scratch("external-relative-path-entry");
+    let caller: PathBuf = root.join("A");
+    let moved: PathBuf = root.join("B");
+    let programs: PathBuf = root.join("programs/bin");
+    std::fs::create_dir_all(&caller).expect("caller directory");
+    std::fs::create_dir(&moved).expect("moved directory");
+    std::fs::create_dir_all(&programs).expect("program directory");
+    program(programs.join("git-audit-relative").as_path());
+    let pairs: Vec<(&str, &str)> = vec![("PATH", "../programs/bin:/usr/bin:/bin")];
+    let given: Vec<OsString> = globals(&["-C", "../B"]);
+    let answer: bool = dashed_external_selected(
+        &context(),
+        environment(pairs.as_slice()).as_slice(),
+        given.as_slice(),
+        Some(caller.as_path()),
+        OsStr::new("audit-relative"),
+    );
+    assert_eq!(
+        answer,
+        git_runs_external_with_globals(caller.as_path(), pairs.as_slice(), &["-C", "../B"], "audit-relative")
+    );
+    assert!(answer, "the program the moved entry names was not found");
+    // A program only the directory the caller stood in holds is one Git never runs after `-C`.
+    let caller_programs: PathBuf = caller.join("bin");
+    std::fs::create_dir(caller_programs.as_path()).expect("caller program directory");
+    program(caller_programs.join("git-audit-here").as_path());
+    let here: Vec<(&str, &str)> = vec![("PATH", "bin:/usr/bin:/bin")];
+    let answer_here: bool = dashed_external_selected(
+        &context(),
+        environment(here.as_slice()).as_slice(),
+        given.as_slice(),
+        Some(caller.as_path()),
+        OsStr::new("audit-here"),
+    );
+    assert_eq!(
+        answer_here,
+        git_runs_external_with_globals(caller.as_path(), here.as_slice(), &["-C", "../B"], "audit-here")
+    );
+    assert!(!answer_here, "a program only the caller's own directory holds was taken as the command");
+    remove(root.as_path());
+}
+
 /// A file without the owner execute bit is skipped,
 ///  as Git skips it,
 ///  and the exec path Git reports is the one its own search uses.
@@ -275,7 +336,7 @@ fn the_reported_exec_path_loses_only_its_record_terminator() {
 #[test]
 fn git_reports_the_exec_path_the_search_uses() {
     let root: PathBuf = scratch("external-exec-path-query");
-    let reported: Option<OsString> = printed_exec_path(&context(), &[]);
+    let reported: Option<OsString> = printed_exec_path(&context(), &[], root.as_path());
     let expected: String = String::from_utf8_lossy(&git_output(root.as_path(), &["--exec-path"]).stdout)
         .trim_end_matches('\n')
         .to_owned();

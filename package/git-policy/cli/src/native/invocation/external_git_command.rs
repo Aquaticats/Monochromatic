@@ -131,9 +131,12 @@ pub fn dashed_external_selected(
 ///  The order only matters to Git;
 ///  this caller asks whether any
 ///  entry holds the program.
-///  A relative exec path is made absolute against the directory Git runs in before Git adds it
-///  (`exec-cmd.c:325` to `exec-cmd.c:330`),
-///  so that directory is read first.
+///  Every entry without a leading separator is resolved against the directory Git runs in,
+///  as the
+///  kernel resolves it for `run-command.c:203` to `:218`,
+///  so that directory is read first;
+///  a relative exec path is made absolute against it as well
+///  (`exec-cmd.c:325` to `exec-cmd.c:330`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,18 +148,20 @@ fn search_directories(
     globals: &[OsString],
     current_directory: Option<&Path>,
 ) -> Option<Vec<PathBuf>> {
-    let directory: PathBuf = effective_directory(current_directory?, globals);
+    let start: &Path = current_directory?;
+    let directory: PathBuf = effective_directory(start, globals);
     let mut directories: Vec<PathBuf> = Vec::new();
     let path: OsString = environment_value(environment, "PATH").unwrap_or_default();
     for entry in std::env::split_paths(path.as_os_str()) {
-        // POSIX specifies an empty entry as the current directory, and Git reads it that way too.
-        if entry.as_os_str().is_empty() {
-            directories.push(PathBuf::from("."));
+        // POSIX specifies an empty entry as the current directory, and Git reads it that way too; any other entry
+        //  without a leading separator is that same relative directory, read from where Git runs.
+        if entry.as_os_str().is_empty() || !entry.is_absolute() {
+            directories.push(directory.join(entry));
         } else {
             directories.push(entry);
         }
     }
-    let exec_path: PathBuf = exec_path(context, environment, globals, directory.as_path())?;
+    let exec_path: PathBuf = exec_path(context, environment, globals, directory.as_path(), start)?;
     // An empty answer adds no executables directory at all (`exec-cmd.c:325`), so the search keeps to `PATH`.
     if !exec_path.as_os_str().is_empty() {
         directories.push(exec_path);
@@ -210,13 +215,14 @@ fn effective_directory(start: &Path, globals: &[OsString]) -> PathBuf {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function execPath({ context, environment, globals, directory }): string | undefined;
+/// function execPath({ context, environment, globals, directory, start }): string | undefined;
 /// ```
 fn exec_path(
     context: &GitContext,
     environment: &[(OsString, OsString)],
     globals: &[OsString],
     directory: &Path,
+    start: &Path,
 ) -> Option<PathBuf> {
     if let Some(configured) = exec_path_option(globals) {
         return Some(usable_exec_path(configured, directory));
@@ -227,7 +233,7 @@ fn exec_path(
     {
         return Some(usable_exec_path(configured, directory));
     }
-    return Some(usable_exec_path(printed_exec_path(context, globals)?, directory));
+    return Some(usable_exec_path(printed_exec_path(context, globals, start)?, directory));
 }
 
 /// What:
@@ -258,17 +264,22 @@ fn usable_exec_path(configured: OsString, directory: &Path) -> PathBuf {
 ///  `--exec-path` prints the path Git uses and exits without opening a repository
 ///  (`git.c:181` to `:188`),
 ///  so asking it is the only way to read the path Git was built with.
+///  The question runs in the directory the wrapper was started in,
+///  because Git's own `-C` options in the
+///  caller's globals apply there and nowhere else.
 ///  The answer ends with one newline,
 ///  which is the record terminator and not part of the path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function printedExecPath({ context, globals }): string | undefined;
+/// function printedExecPath({ context, globals, start }): string | undefined;
 /// ```
-fn printed_exec_path(context: &GitContext, globals: &[OsString]) -> Option<OsString> {
+fn printed_exec_path(context: &GitContext, globals: &[OsString], start: &Path) -> Option<OsString> {
     let mut arguments: Vec<OsString> = globals.to_vec();
     arguments.push(OsString::from("--exec-path"));
-    let mut request: GitRequest = GitRequest::new(Path::new("."), arguments.as_slice());
+    // Git answers from the directory it was started in, where its own `-C` options apply; asking from any other
+    //  directory would run a chain the caller never wrote.
+    let mut request: GitRequest = GitRequest::new(start, arguments.as_slice());
     request.without_prefix = true;
     match run_git(context, &request) {
         Ok(output) if output.succeeded() => return Some(without_record_terminator(output.stdout.as_slice())),
