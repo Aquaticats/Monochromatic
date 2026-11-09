@@ -7,8 +7,9 @@
 //!  shell aliases and worktree creation.
 
 use super::*;
-use crate::test_support::isolated_overlay;
+use crate::test_support::{fixture, git_output, isolated_overlay, remove};
 use crate::transaction_git::GitContext;
+use std::path::PathBuf;
 
 /// A context whose only aliases are the given name and value pairs,
 ///  read by real Git.
@@ -100,6 +101,64 @@ fn a_value_with_a_leading_space_is_unresolved_and_not_trimmed_into_a_command() {
     let resolved: ResolvedCommand = resolve_forwarded_command(&context, &args(&["fixturetrim"]));
     assert_eq!(resolved.route, Route::Unresolved);
     assert!(!resolved.is_builtin());
+}
+
+/// Git refuses an alias whose expansion moves the directory or sets an environment variable,
+///  and runs
+///  nothing,
+///  so the wrapper must leave that alias to Git.
+///  `-c`,
+///  `--config-env`,
+///  `--exec-path=` and an empty `-C` are not refusals,
+///  and Git runs those.
+#[test]
+fn an_alias_whose_expansion_changes_the_environment_is_left_to_git() {
+    let root: PathBuf = fixture("alias-environment-refusal");
+    for value in [
+        "-C . status",
+        "--git-dir=/tmp/git status",
+        "--work-tree /tmp status",
+        "--namespace n status",
+        "--bare status",
+        "--literal-pathspecs status",
+        "--no-literal-pathspecs status",
+        "--glob-pathspecs status",
+        "--noglob-pathspecs status",
+        "--icase-pathspecs status",
+        "--no-optional-locks status",
+        "--shallow-file /tmp/shallow status",
+        "--attr-source /tmp/attrs status",
+        "--no-advice status",
+        "-P status",
+        "--no-lazy-fetch status",
+        "--no-replace-objects status",
+    ] {
+        let context: GitContext = context_with_aliases(&[("fixtureenv", value)]);
+        let resolved: ResolvedCommand = resolve_forwarded_command(&context, &args(&["fixtureenv"]));
+        assert_eq!(resolved.route, Route::Unresolved, "{value}");
+        let spelling: String = format!("alias.fixtureenv={value}");
+        let output: std::process::Output = git_output(root.as_path(), &["-c", spelling.as_str(), "fixtureenv"]);
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(!output.status.success(), "{value}: Git ran the alias: {stderr}");
+        assert!(stderr.contains("changes environment variables"), "{value}: {stderr}");
+    }
+    for value in [
+        "-c a.b=c status",
+        "--config-env=a.b=HOME status",
+        "--exec-path=/tmp status",
+        "-p status",
+        "-C \"\" status",
+    ] {
+        let context: GitContext = context_with_aliases(&[("fixtureenv", value)]);
+        let resolved: ResolvedCommand = resolve_forwarded_command(&context, &args(&["fixtureenv"]));
+        assert_eq!(resolved.route, Route::Alias, "{value}");
+        assert_eq!(resolved.word(), b"status", "{value}");
+        let spelling: String = format!("alias.fixtureenv={value}");
+        let output: std::process::Output = git_output(root.as_path(), &["-c", spelling.as_str(), "fixtureenv"]);
+        let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert!(!stderr.contains("changes environment variables"), "{value}: {stderr}");
+    }
+    remove(root.as_path());
 }
 
 /// A built-in named directly is resolved without an alias lookup and keeps its global options.

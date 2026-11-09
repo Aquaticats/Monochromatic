@@ -23,8 +23,9 @@
 use crate::diagnostic_log::debug;
 /// The built-in command names.
 use crate::git_builtins::is_git_builtin;
-/// The global-option layout.
-use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
+/// The global-option layout,
+///  and the alias-only refusal about the environment.
+use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout, prefix_changes_environment};
 /// Running real Git.
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 /// `OsString` is owned operating-system text of raw bytes.
@@ -379,8 +380,22 @@ pub fn resolve_forwarded_command(context: &GitContext, arguments: &[OsString]) -
         if words.is_empty() {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
         }
+        let expanded_words: Vec<OsString> = os_words(words);
+        // Git refuses an alias whose expansion moves the directory or sets an environment variable, and runs nothing
+        //  (git.c:418): `git -c 'alias.audit=-C elsewhere reset --hard' audit` is such a refusal, not a reset.
+        if prefix_changes_environment(expanded_words.as_slice()) {
+            debug(
+                "resolveForwardedCommand",
+                format!(
+                    "alias {} changes the environment, so Git refuses it",
+                    name.to_string_lossy()
+                )
+                .as_str(),
+            );
+            return resolved(current.as_slice(), &layout, Route::Unresolved);
+        }
         let mut expanded: Vec<OsString> = global.to_vec();
-        expanded.extend(os_words(words));
+        expanded.extend(expanded_words);
         expanded.extend(current[layout.prefix_len + 1..].iter().cloned());
         debug(
             "resolveForwardedCommand",
