@@ -4944,12 +4944,17 @@ so it stays one clock reading,
 taken from the wait's own line instead of from before the staging a slow flush can stretch
 (10.2 s against a 400 ms hold,
 measured 2026-11-08 in "The disposal's notice stream and the thread it did not need").
-The bound is a fifth of the interval that repeats the holder's line:
+The bound is half of the interval that repeats the holder's line:
 over ten runs the wake came 400.35 to 400.51 ms after the line,
 and 10.0018 to 10.0090 s over three runs with the watch blinded to the lock's removal.
 The old bound sat at the whole interval,
 which is where the blinded arm lands,
 so it was a knife edge of about a millisecond rather than a separation.
+A fifth of that interval was tried first and failed once,
+in a run of the thirty-six controls beside it with other agents building on this host,
+and that failure's message carried no reading of the interval,
+so the bound sits at the half,
+which reads a stall of up to 4.6 s as an event and still refuses the timer.
 
 A witness that the line did not repeat cannot replace that reading:
 the line was said once in both arms,
