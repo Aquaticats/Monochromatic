@@ -55,10 +55,11 @@ a Claude subagent is a second pass.
 Background it;
 never poll or kill it;
 it may never return.
-If you ask GPT to find issues,
-it will find issues.
-Be sure to dismiss them via your own judgement at some point.
-Sometimes they just nitpick.
+Told to find issues,
+it returns issues whether or not any are worth fixing:
+weigh each finding with your own judgement,
+fix those that earn it,
+and dismiss the rest.
 
 Agent-authored pages and documents stay on this machine:
 open local files in the user's browser;
