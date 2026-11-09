@@ -7,7 +7,7 @@ use super::fakes::{FakeHttp, Rig};
 use super::hash::sha256_hex;
 use super::model::{Artifact, Declaration, Request};
 use super::update_android_conda::{cmdline_packages, resolve_android, resolve_conda};
-use super::update_github::{asset_digest, glob_matches, resolve_github};
+use super::update_github::{asset_digest, glob_matches, release_by_tag, resolve_github};
 use super::update_github_assets::pick_asset;
 use super::update_go_zig::{resolve_go_module, resolve_go_runtime, resolve_zig};
 use super::update_java_aws::{resolve_aws, resolve_java};
@@ -573,4 +573,17 @@ fn a_non_sha256_asset_digest_falls_back_to_hashing_the_download() {
     assert_eq!(asset_digest(&rig.context(), &none, url).expect("hashed"), sha256_hex(b"the bytes"));
     let recorded = serde_json::json!({"name": "tool.tar.gz", "digest": "sha256:abc"});
     assert_eq!(asset_digest(&rig.context(), &recorded, url).expect("recorded"), "abc");
+}
+
+/// A tag is one URL path segment:
+/// characters such as `#`, `?` and `%` are percent-encoded, so the request cannot lose its path at a fragment
+/// or ask for a different tag, and `+` is encoded too because a path treats it literally.
+#[test]
+fn a_release_tag_is_percent_encoded_as_one_path_segment() {
+    let rig = Rig::new();
+    let url = "https://api.github.com/repos/o/r/releases/tags/v1.0%231%2B2";
+    rig.http.serve(url, b"{\"tag_name\": \"v1.0#1+2\"}");
+    let release = release_by_tag(&rig.context(), "o/r", "v1.0#1+2").expect("the encoded tag resolves");
+    assert_eq!(release["tag_name"], "v1.0#1+2");
+    assert_eq!(rig.http.requests(), vec![url.to_string()]);
 }

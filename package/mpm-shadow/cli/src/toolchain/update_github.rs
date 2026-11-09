@@ -109,9 +109,28 @@ pub fn find_asset<'a>(release: &'a Value, name: &str) -> Option<&'a Value> {
     return None;
 }
 
+/// One URL path segment:
+/// every byte outside the unreserved set is percent-encoded.
+/// Why:
+/// A git tag may hold `#`, `?`, `%` and `+`;
+/// left as they are, they end the path at a fragment,
+/// start a query or spell another character,
+/// so the request would name a different release or none.
+fn encode_path_segment(text: &str) -> String {
+    let mut encoded: String = String::new();
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    return encoded;
+}
+
 /// The release object of one tag of a repository.
 pub fn release_by_tag(ctx: &Context, repo: &str, tag: &str) -> Result<Value, ResolveError> {
-    let url: String = format!("https://api.github.com/repos/{repo}/releases/tags/{}", tag.replace('+', "%2B"));
+    let url: String = format!("https://api.github.com/repos/{repo}/releases/tags/{}", encode_path_segment(tag));
     return get_json(ctx, &url, &api_headers(ctx));
 }
 
