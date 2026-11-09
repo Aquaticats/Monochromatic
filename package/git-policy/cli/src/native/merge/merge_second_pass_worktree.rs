@@ -39,16 +39,16 @@ use crate::merge_second_pass::{AttributeSource, Conflict, ContextRunner, GitRepl
 use crate::merge_second_pass_finish::{finish, plan_finish, split_cmdline};
 use crate::journald_native::CLIENT_IDENTIFIER;
 use crate::merge_second_pass_tree::announce;
-use crate::path_bytes::{os_from_path_bytes, path_message_text};
+use crate::path_bytes::path_message_text;
 use crate::private_storage::read_regular_file;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
+use crate::merge_second_pass_worktree_unchanged::{Before, Held, Kept, held_paths, still_the_same};
+use crate::merge_second_pass_worktree_words::{closing_words, ending_command, moved_words, unfinished_words};
 use crate::repo_read_object::to_hex;
 use crate::transaction_git::GitContext;
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "wordMergeWorktree";
@@ -56,8 +56,7 @@ const TAG: &str = "wordMergeWorktree";
 /// The largest index file this reads.
 const INDEX_LIMIT_BYTES: u64 = 1 << 30;
 
-/// The line prefix of every line this module writes.
-const LINE_PREFIX: &str = "monochromatic-git-policy-cli: ";
+pub(super) use crate::merge_second_pass_worktree_words::LINE_PREFIX;
 
 /// The commands whose conflicts get the pass;
 /// a pull's own merge or rebase stops in the same state the command would.
@@ -215,205 +214,6 @@ fn install(runner: &dyn GitRunner, merged: &[Merged], oids: &[String]) -> Result
     return Ok(());
 }
 
-/// What a worktree path held when the conflicts were read.
-/// Why:
-///   The pass computes a merge from the index stages and then replaces the worktree file.
-/// A file that moved in between holds
-///  bytes the merge was never computed from,
-/// and writing over it discards them.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Held {
-    /// The file's length in bytes.
-    size: u64,
-    /// Its last modification time,
-    /// when the system reports one.
-    modified: Option<SystemTime>,
-    /// Its device and inode on a system that numbers them,
-    /// so a replacement of the same length at the same time still shows.
-    numbers: Option<(u64, u64)>,
-}
-
-/// What the worktree holds at `path` now,
-/// or nothing when it cannot be read.
-fn worktree_state(path: &Path) -> Option<Held> {
-    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
-    #[cfg(unix)]
-    let numbers: Option<(u64, u64)> = {
-        use std::os::unix::fs::MetadataExt;
-        Some((metadata.dev(), metadata.ino()))
-    };
-    #[cfg(not(unix))]
-    let numbers: Option<(u64, u64)> = None;
-    return Some(Held { size: metadata.len(), modified: metadata.modified().ok(), numbers });
-}
-
-/// The path a stage names, below the top of the worktree.
-fn path_under(root: &Path, path: &[u8]) -> PathBuf {
-    return root.join(os_from_path_bytes(path));
-}
-
-/// What the worktree holds at each of `paths`.
-fn held_paths(root: &Path, paths: &BTreeSet<Vec<u8>>) -> BTreeMap<Vec<u8>, Option<Held>> {
-    let mut held: BTreeMap<Vec<u8>, Option<Held>> = BTreeMap::new();
-    for path in paths {
-        held.insert(path.clone(), worktree_state(path_under(root, path).as_path()));
-    }
-    return held;
-}
-
-/// What the install must find before it replaces anything.
-pub struct Before<'a> {
-    /// The top of the worktree,
-    /// whose paths the stages name.
-    worktree_root: &'a Path,
-    /// The index as it is now,
-    /// read again after the merge was computed.
-    entries: &'a [IndexEntry],
-    /// What the worktree held at each path when the conflicts were read.
-    held: &'a BTreeMap<Vec<u8>, Option<Held>>,
-}
-
-/// What the install may replace,
-/// and the paths it may not.
-struct Kept {
-    /// The merged files whose index stages and worktree file are still what the merge was computed from.
-    files: Vec<Merged>,
-    /// Their blobs,
-    /// in the same order.
-    oids: Vec<String>,
-    /// The paths that moved,
-    /// which the install leaves as it finds them.
-    moved: Vec<Vec<u8>>,
-}
-
-/// What:
-///  Whether the index stages and the worktree file of `file` are still what the merge was computed from.
-/// Why:
-///   Another command that resolved the conflict and staged it leaves a stage 0 entry where the merge read three stages,
-/// and a file a person
-///  edited is not the file Git left;
-/// either way the merged bytes were computed from something else.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const same = (file) => stagesOf(index, file.path) === file.stages && stat(file.path) === recorded;
-/// ```
-fn still_holds(before: &Before<'_>, file: &Merged) -> bool {
-    let only: BTreeSet<Vec<u8>> = [file.path.clone()].into_iter().collect();
-    let now: Vec<Conflict> = conflicts_of_index(before.entries, &only);
-    if now.as_slice() != [file.stages.clone()] {
-        return false;
-    }
-    let Some(recorded) = before.held.get(&file.path) else { return false };
-    return *recorded == worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
-}
-
-/// What:
-///  Keep only the merged files whose path still holds what the merge was computed from,
-/// and name the paths that moved.
-/// Why:
-///   The person's own resolution,
-/// a commit another session made,
-/// or any other command may touch the conflict between the read and the
-///  install;
-/// the pass then leaves that path exactly as it is and says which one it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function stillTheSame(before, merged, oids) { ... } // { files, oids, moved }
-/// ```
-fn still_the_same(before: &Before<'_>, merged: Vec<Merged>, oids: Vec<String>) -> Kept {
-    let mut kept: Kept = Kept { files: Vec::new(), oids: Vec::new(), moved: Vec::new() };
-    for (file, oid) in merged.into_iter().zip(oids) {
-        if still_holds(before, &file) {
-            kept.files.push(file);
-            kept.oids.push(oid);
-        } else {
-            kept.moved.push(file.path.clone());
-        }
-    }
-    return kept;
-}
-
-/// The sentence that names the paths the pass left because they moved.
-fn moved_words(moved: &[String]) -> String {
-    return format!(
-        "{LINE_PREFIX}{REPORT_MARK}: changed while the second merge pass computed its merge, so it is left as it is now: {}. ",
-        moved.join(", ")
-    );
-}
-
-/// The sentence after the list of staged files.
-fn closing_words(operation: &str, remaining: usize) -> String {
-    let rest: String = if remaining == 0 {
-        format!("no conflicted file is left; finish the {operation} the way Git said above")
-    } else {
-        format!("resolve the files Git still lists as conflicted, then finish the {operation} the way Git said above")
-    };
-    return format!("Review a merged file with `git diff --cached -- <file>`; {rest}.");
-}
-
-/// What:
-///  The command that ends an operation the wrapper did not finish.
-/// Why:
-///   The line after a failed finish must name a way on that works for the operation at hand;
-/// Git ends a merge with `git commit`,
-/// and a
-///  rebase,
-/// a cherry-pick and a revert with their own `--continue`.
-/// Which operation is in progress is read from the state files Git writes,
-/// so a `pull` that runs a rebase
-///  is told the rebase's command,
-/// and the operation's own word is only the fallback for a state file that is gone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const endingCommand = (gitDir, operation) => endingCommandOf(gitDir) ?? ({rebase: 'git rebase --continue', 'cherry-pick': 'git cherry-pick --continue', revert: 'git revert --continue'}[operation] ?? 'git commit');
-/// ```
-fn ending_command(git_dir: &Path, operation: &str) -> &'static str {
-    if let Some(in_progress) = crate::merge_second_pass_finish::ending_command_of(git_dir) {
-        return in_progress;
-    }
-    return match operation {
-        "rebase" => "`git rebase --continue`",
-        "cherry-pick" => "`git cherry-pick --continue`",
-        "revert" => "`git revert --continue`",
-        _ => "`git commit`",
-    };
-}
-
-/// What:
-///  The line that says what is left after a finish that did not end the operation.
-/// Why:
-///   The ending step's own text is about that step alone:
-/// a commit that could not be made ends with
-///  "Nothing in the repository changed.",
-/// which is true of the commit and false of the merge,
-/// whose conflicts the pass
-///  replaced with staged files before the commit started.
-/// The last word a person reads must name the state they will find,
-/// and a continuation that stopped on
-///  the next change leaves files conflicted again,
-/// so the conflict is not gone and saying it is describes a state nobody has.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const line = (operation, staged, conflicted, ending) => `${LINE_PREFIX}${REPORT_MARK}: the ${operation} did not finish: the files the second merge pass staged as resolved are ${staged}, and ${conflicted.length === 0 ? 'no file is conflicted' : `${conflicted.join(', ')} ${conflicted.length === 1 ? 'is' : 'are'} conflicted again where the ending step stopped`}; run ${ending} to end the ${operation}.`;
-/// ```
-fn unfinished_words(operation: &str, staged: &str, conflicted: &[String], ending: &str) -> String {
-    let kept: String = format!("the files the second merge pass staged as resolved are {staged}");
-    if conflicted.is_empty() {
-        return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and no file is conflicted; run {ending} to end the {operation}.");
-    }
-    let one: bool = conflicted.len() == 1;
-    return format!(
-        "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and {} {} conflicted again where the ending step stopped; resolve {} and run {ending} to end the {operation}.",
-        conflicted.join(", "),
-        if one { "is" } else { "are" },
-        if one { "it" } else { "them" },
-    );
-}
-
 /// What:
 ///  After a forwarded operation that exited with a non-zero status,
 /// re-merge the conflicts it created.
@@ -454,11 +254,13 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     // From the top of the worktree, so the paths of the stages mean what they say.
     let runner: ContextRunner<'_> = ContextRunner { context: &context, cwd: layout.worktree_root.as_path(), without_prefix: false, object_directory: None, environment: Vec::new() };
     // A rule file the merge left conflicted is Git's marker file in the worktree, so no rule of it can be read: the pass re-merges nothing rather than trust a line between the markers.
-    let source: AttributeSource<'_> = if conflicted_paths(entries.as_slice()).iter().any(|path| { return is_attributes_path(path.as_slice()); }) {
-        AttributeSource::Unknown
-    } else {
-        AttributeSource::Invocation
-    };
+    let mut attributes_conflict: bool = false;
+    for path in conflicted_paths(entries.as_slice()) {
+        if is_attributes_path(path.as_slice()) {
+            attributes_conflict = true;
+        }
+    }
+    let source: AttributeSource<'_> = if attributes_conflict { AttributeSource::Unknown } else { AttributeSource::Invocation };
     let verdicts: Vec<Verdict> = match second_pass(&runner, conflicts.as_slice(), source) {
         Ok(found) => found,
         Err(reason) => {
@@ -553,10 +355,12 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let ended: i32 = finish(&plan, &forward.command, forward.environment.as_slice(), stderr);
     if ended != 0 {
         // The ending step's words are its own; the merge changed before it ran, and the person must be told what the index holds now.
-        let conflicted_now: Vec<String> = match index_entries(&layout) {
-            Some(entries_after) => conflicted_paths(entries_after.as_slice()).iter().map(|path| { return path_message_text(path.as_slice()); }).collect(),
-            None => Vec::new(),
-        };
+        let mut conflicted_now: Vec<String> = Vec::new();
+        if let Some(entries_after) = index_entries(&layout) {
+            for path in conflicted_paths(entries_after.as_slice()) {
+                conflicted_now.push(path_message_text(path.as_slice()));
+            }
+        }
         let ending: &'static str = ending_command(layout.git_dir.as_path(), operation.as_str());
         let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str(), conflicted_now.as_slice(), ending));
         if let Err(error) = stderr.write_all(after.as_bytes()) {

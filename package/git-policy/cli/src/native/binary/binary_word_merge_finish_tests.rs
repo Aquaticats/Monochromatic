@@ -789,7 +789,8 @@ fn two_stops_ready(name: &str) -> (Fixture, PathBuf) {
 ///   `git rebase --continue` commits the resolved pick and stops on the next one's conflict,
 /// so the file the wrapper staged is
 ///  unmerged again when it prints
-/// (cross-vendor review of this branch, finding 5):
+/// (cross-vendor review of this branch,
+/// finding 5):
 /// "the conflict is gone" and "stays staged as resolved"
 ///  describe a state the person does not have.
 #[test]
@@ -815,7 +816,8 @@ fn a_rebase_that_stops_again_is_told_what_is_conflicted_now() {
 ///   A pull runs either a merge or a rebase as its child (`builtin/pull.c`),
 /// so the operation's own word says
 ///  nothing about which command ends it
-/// (cross-vendor review of this branch, finding 6);
+/// (cross-vendor review of this branch,
+/// finding 6);
 /// `git commit` does not resume the rebase or
 ///  process its remaining commits.
 #[test]

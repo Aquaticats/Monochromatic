@@ -123,13 +123,15 @@ fn configured_attribute_tree(probe: &AttributeProbe<'_>) -> Option<Option<String
 }
 
 /// What:
-///  The value the invocation's own `-c` options give `attr.tree`, the last one winning,
+///  The value the invocation's own `-c` options give `attr.tree`,
+/// the last one winning,
 /// or nothing when the command line names no attribute tree.
 /// Why:
 ///   Git takes a `-c name=value` above every configuration file (`git_config_from_parameters`),
 /// so a value given there is the one Git uses
 ///  whether a file sets the key or not;
-/// a value no tree resolves to is ignored, as a configured one is,
+/// a value no tree resolves to is ignored,
+/// as a configured one is,
 /// and is told apart from
 ///  none at all here.
 ///
@@ -144,7 +146,8 @@ fn command_line_attribute_tree(prefix: &[OsString]) -> Option<Option<String>> {
         if token.to_str() != Some("-c") {
             continue;
         }
-        let Some(given) = tokens.next().and_then(|value| { return value.to_str(); }) else { continue };
+        let Some(next) = tokens.next() else { continue };
+        let Some(given) = next.to_str() else { continue };
         // `-c name=value` sets it, and `-c name` alone sets `true`, which no tree resolves to.
         match given.split_once('=') {
             Some((ATTRIBUTE_TREE_KEY, value)) if !value.is_empty() => named = Some(Some(value.to_owned())),
@@ -202,7 +205,12 @@ fn attribute_choice(probe: &AttributeProbe<'_>) -> AttributeChoice {
             return AttributeChoice::ThePerson;
         }
     }
-    let Some(configured) = command_line_attribute_tree(probe.global_prefix).or_else(|| { return configured_attribute_tree(probe); }) else {
+    let named: Option<Option<String>> = command_line_attribute_tree(probe.global_prefix);
+    let read: Option<Option<String>> = match named {
+        Some(from_the_command_line) => Some(from_the_command_line),
+        None => configured_attribute_tree(probe),
+    };
+    let Some(configured) = read else {
         debug(TAG, "attr.tree cannot be read, so no attribute tree is named");
         return AttributeChoice::ThePerson;
     };
@@ -251,7 +259,12 @@ pub fn attribute_tree_variables(tip: &str, probe: &AttributeProbe<'_>) -> Vec<(O
 /// const anyAttributesConflict = (conflicts: Conflict[]) => conflicts.some((conflict) => isAttributesPath(conflict.path));
 /// ```
 fn any_attributes_conflict(conflicts: &[Conflict]) -> bool {
-    return conflicts.iter().any(|conflict| { return is_attributes_path(conflict.path.as_slice()); });
+    for conflict in conflicts {
+        if is_attributes_path(conflict.path.as_slice()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:

@@ -276,7 +276,8 @@ fn common_variables_cost_no_git_start_and_a_variable_that_moves_an_answer_costs_
 /// Why:
 ///   Git's precedence puts a command-line configuration above every file,
 /// and the pass read only the files
-///  (cross-vendor review of this branch, finding 3):
+///  (cross-vendor review of this branch,
+/// finding 3):
 /// the choice came out `Free`,
 /// the tree the merge produced was named,
 /// and `check-attr --source=`

@@ -27,7 +27,8 @@
 
 /// The failure type of the auto-push coordination.
 use crate::auto_push_single_flight::SingleFlightError;
-/// The diagnostic log, for a start whose input thread could not be made.
+/// The diagnostic log,
+/// for a start whose input thread could not be made.
 use crate::diagnostic_log::debug;
 /// The deadline runner shared with the push,
 /// and its stop causes.

@@ -388,7 +388,8 @@ fn a_configured_attribute_tree_is_not_overridden() {
 /// and trimming the line Git printed takes that space with it,
 /// so every command of the
 ///  second pass then runs in a directory that does not exist and the commit is refused as an uncombinable change
-/// (cross-vendor review of this branch, finding 7).
+/// (cross-vendor review of this branch,
+/// finding 7).
 #[test]
 fn the_toplevel_keeps_a_trailing_space_in_a_directory_name() {
     assert_eq!(toplevel_of(b"/tmp/a repository \n"), PathBuf::from("/tmp/a repository "), "the space a directory's name ends in is part of the path");
@@ -404,7 +405,8 @@ fn the_toplevel_keeps_a_trailing_space_in_a_directory_name() {
 /// so only the tree the replay's merge produced holds it,
 /// and reading the landed tip alone
 ///  let the file be word-merged into a commit
-/// (cross-vendor review of this branch, finding 2;
+/// (cross-vendor review of this branch,
+/// finding 2;
 /// the audit recorded this control as missing for the replay).
 #[test]
 fn a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file() {

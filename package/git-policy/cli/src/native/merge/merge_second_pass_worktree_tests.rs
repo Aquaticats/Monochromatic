@@ -86,7 +86,8 @@ fn the_closing_words_say_whether_a_conflict_remains() {
 /// Why:
 ///   `git pull` runs either a merge or a rebase as a child,
 /// so the operation's own word cannot name the command that ends it
-/// (cross-vendor review of this branch, finding 6).
+/// (cross-vendor review of this branch,
+/// finding 6).
 #[test]
 fn the_ending_command_is_the_one_the_state_files_name() {
     let root: PathBuf = crate::test_support::fixture("second-pass-ending-command");
@@ -165,13 +166,15 @@ fn a_failed_staging_writes_nothing_to_the_worktree() {
     assert_eq!(runner.calls.borrow().len(), 1);
 }
 
-/// The index entries of a repository's index, as the pass reads them in process.
+/// The index entries of a repository's index,
+/// as the pass reads them in process.
 fn entries_of(repo: &Path) -> Vec<IndexEntry> {
     let bytes: Vec<u8> = std::fs::read(repo.join(".git/index")).expect("the index");
     return parse_index(bytes.as_slice(), crate::repo_read_layout::ObjectFormat::Sha1).expect("an index the in-process reader takes");
 }
 
-/// The text of the index entry at stage 0 of a path, or nothing when the path has no resolved entry.
+/// The text of the index entry at stage 0 of a path,
+/// or nothing when the path has no resolved entry.
 fn staged_text(repo: &Path, path: &str) -> Option<String> {
     let shown: std::process::Output = crate::test_support::git_output(repo, &["show", format!(":0:{path}").as_str()]);
     return if shown.status.code() == Some(0) { Some(String::from_utf8_lossy(&shown.stdout).into_owned()) } else { None };
@@ -192,7 +195,9 @@ fn stopped_merge(name: &str) -> (World, Vec<IndexEntry>) {
     return (world, entries);
 }
 
-/// The one file of a stopped merge, merged by word, with its blob written.
+/// The one file of a stopped merge,
+/// merged by word,
+/// with its blob written.
 fn merged_of(world: &World, entries: &[IndexEntry]) -> (Merged, String, BTreeMap<Vec<u8>, Option<Held>>) {
     let created: BTreeSet<Vec<u8>> = [b"a.md".to_vec()].into_iter().collect();
     let conflicts: Vec<Conflict> = conflicts_of_index(entries, &created);

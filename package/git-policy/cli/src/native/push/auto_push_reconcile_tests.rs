@@ -797,7 +797,8 @@ fn unrelated_histories_are_merged() {
 /// so a driver blocked on a read that never comes held the push
 ///  worker,
 /// its claim and the drain of that repository for good
-/// (cross-vendor review of this branch, finding 4).
+/// (cross-vendor review of this branch,
+/// finding 4).
 /// The window is the push's own,
 /// so it is set to one second here and the grace is the one a stopped query gets.
 #[test]
@@ -836,7 +837,8 @@ fn a_merge_driver_that_never_returns_stops_the_reconcile_merge() {
 /// Why:
 ///   The rule arrives with the side being merged,
 /// so only the tree the merge produced holds it
-/// (cross-vendor review of this branch, finding 2;
+/// (cross-vendor review of this branch,
+/// finding 2;
 /// the audit recorded this control as missing).
 /// Reading the first side's tip
 ///  let the file be word-merged and published.

@@ -7425,10 +7425,12 @@ A file the pass does not install moved while it computed the merge
 or a person edited it),
 and one line names each such path:
 the index stages are read again just before the install,
-and the worktree file's device, inode, length and modification time are compared with what they were when the
-stages were read,
+and the worktree file's device,
+inode,
+length and modification time are compared with what they were when the stages were read,
 so a path that moved in either place keeps the version that is there now and is never replaced by the pass.
-Where every merged file moved, nothing is installed and that line alone is printed.
+Where every merged file moved,
+nothing is installed and that line alone is printed.
 When a finish is planned the line says the wrapper finishes the operation below;
 otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,
@@ -7661,7 +7663,8 @@ A `-c attr.tree=<spec>` on the command line is a configuration value Git takes a
 (`git_config_from_parameters`),
 so a resolving one there is the person's choice even where a file sets the key,
 and one that is no tree is ignored as a configured one is;
-`-c attr.tree` with no value sets `true`, which no tree resolves to.
+`-c attr.tree` with no value sets `true`,
+which no tree resolves to.
 The wrapper sets `GIT_ATTR_SOURCE` to the first side's tip (the isolated merge's `HEAD`,
 the
 reconcile merge's branch tip,

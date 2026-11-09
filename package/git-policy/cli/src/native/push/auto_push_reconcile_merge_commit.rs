@@ -32,7 +32,10 @@ pub(crate) struct PushRunner<'a> {
     pub(crate) git: &'a PushGit,
 }
 
-/// The bytes one `git cat-file --batch` header may take: the object name, its kind, the size and the line feed.
+/// The bytes one `git cat-file --batch` header may take:
+/// the object name,
+/// its kind,
+/// the size and the line feed.
 const CAT_FILE_HEADER_BYTES: u64 = 128;
 
 /// What:
@@ -54,7 +57,12 @@ fn answer_cap(arguments: &[&str], input: Option<&[u8]>) -> u64 {
     if arguments.first() != Some(&"cat-file") {
         return MAX_PUSH_OUTPUT;
     }
-    let asked: u64 = input.unwrap_or_default().iter().filter(|byte| { return **byte == b'\n'; }).count() as u64;
+    let mut asked: u64 = 0;
+    for byte in input.unwrap_or_default() {
+        if *byte == b'\n' {
+            asked += 1;
+        }
+    }
     return asked.saturating_mul(LARGEST_STAGE_BYTES.saturating_add(CAT_FILE_HEADER_BYTES)).max(MAX_PUSH_OUTPUT);
 }
 

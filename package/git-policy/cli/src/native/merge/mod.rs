@@ -37,6 +37,13 @@ pub mod merge_second_pass_tree;
 /// cherry-pick or revert that Git stopped with a conflict.
 pub mod merge_second_pass_worktree;
 
+/// What the word-level second pass will not replace:
+/// a path another command moved while it computed its merge.
+pub mod merge_second_pass_worktree_unchanged;
+
+/// The sentences the word-level second pass ends a stopped operation with.
+pub mod merge_second_pass_worktree_words;
+
 /// The finish of a stopped operation,
 /// like a clean run,
 /// after the second pass resolved every conflicted file.

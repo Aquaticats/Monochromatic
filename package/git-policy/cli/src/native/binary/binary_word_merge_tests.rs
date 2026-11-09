@@ -415,10 +415,12 @@ fn an_isolated_merge_with_one_unresolvable_file_among_resolvable_ones_is_refused
 ///  A `.gitattributes` the merge itself left conflicted names no rule,
 /// so a file whose rule is inside that conflict keeps its conflict.
 /// Why:
-///   The worktree copy is Git's marker file, and its last matching line is the second side's rule;
+///   The worktree copy is Git's marker file,
+/// and its last matching line is the second side's rule;
 /// reading it would let a
 ///  rule the resolved file does not carry decide the merge
-/// (cross-vendor review of this branch, finding 2).
+/// (cross-vendor review of this branch,
+/// finding 2).
 /// A rule file that conflicts is the same unknown as the one a merge from objects refuses,
 /// so nothing is merged.
 #[test]
@@ -460,7 +462,8 @@ fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass
 /// Why:
 ///   Git puts a command-line configuration above every file,
 /// so a tree that excludes the file must govern the pass
-/// (cross-vendor review of this branch, finding 3).
+/// (cross-vendor review of this branch,
+/// finding 3).
 /// The pass named the merge's own tree over it,
 /// and the merge was committed although a rule the
 ///  person asked for forbids it.
