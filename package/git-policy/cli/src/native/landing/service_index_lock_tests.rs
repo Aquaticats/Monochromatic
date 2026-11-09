@@ -213,7 +213,7 @@ fn a_wait_ends_when_the_foreign_holder_lets_go_and_does_not_wake_itself() {
 /// the wait ends only when the holder lets go,
 /// and the lock is taken then.
 /// The hold begins when the wait has spoken,
-/// so it is the wait's own line that ends the hold and the verdict reads no stopwatch.
+/// so it is the wait's own line that ends the hold.
 #[test]
 fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     let (root, index) = index_in("index-lock-unproven-unbounded");
