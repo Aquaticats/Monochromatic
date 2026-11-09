@@ -526,6 +526,30 @@ fn the_archive_prune_rule_keeps_the_newest_finished_version_and_never_judges_by_
     assert!(none_finished.is_empty(), "with no finished version nothing is deleted");
 }
 
+/// A prune that cannot repoint an archive's `current` deletes nothing:
+/// the link moves to the newest finished version before the older one goes,
+/// so a run that stops at the link has never deleted the version the link named.
+#[test]
+fn an_archive_prune_that_cannot_repoint_current_deletes_no_version() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for version in ["0.2.0", "0.2.1"] {
+        finish_archive(&root, version);
+    }
+    // `current` is a directory here, so the atomic link write cannot land: the prune stops at the repoint.
+    fs::create_dir(current_link_of(&root, ID).expect("a plain name")).expect("squat the link");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), named_lock("0.2.0")).expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    let error = pruned.expect_err("the link cannot be written over a directory");
+    assert!(error.message.contains("current"), "the message names the link: {error}");
+    assert!(
+        tool_directory(&root, ID).expect("a plain name").join("0.2.0").is_dir(),
+        "the version `current` named was deleted"
+    );
+    assert!(tool_directory(&root, ID).expect("a plain name").join("0.2.1").is_dir(), "the newest finished version was deleted");
+}
+
 #[test]
 fn the_prune_command_removes_older_release_archives_a_lock_names_and_leaves_other_archive_tools_alone() {
     let rig = Rig::new();

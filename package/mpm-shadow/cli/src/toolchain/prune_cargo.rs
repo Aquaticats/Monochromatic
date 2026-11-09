@@ -251,6 +251,14 @@ pub(super) fn named_by_all(
 /// ```
 fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run: bool) -> Result<Vec<PathBuf>, ToolchainError> {
     let present = present_archive_versions(&scope.toolchain_root, named);
+    if !dry_run {
+        // What: every named archive tool's `current` is repointed before anything is deleted.
+        // Why: it names the newest finished version, which is never one of the deletions below,
+        // so moving the link first leaves a run killed at any later point with a link that resolves.
+        for (id, archive) in named {
+            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)?;
+        }
+    }
     let mut removed: Vec<PathBuf> = Vec::new();
     for (id, version) in plan_archive_prune(&present) {
         let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)?;
@@ -258,11 +266,6 @@ fn prune_archives(scope: &Scope, named: &BTreeMap<String, NamedArchive>, dry_run
             return Err(ToolchainError::failure(format!("cannot remove {}: {error}", directory.display())));
         }
         removed.push(directory);
-    }
-    if !dry_run {
-        for (id, archive) in named {
-            point_current_at_newest_archive(&scope.toolchain_root, id, &archive.first_bin)?;
-        }
     }
     return Ok(removed);
 }
