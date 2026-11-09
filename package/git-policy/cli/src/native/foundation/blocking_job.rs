@@ -14,13 +14,15 @@
 //! A refusal here proves less than it looks:
 //! the pool pushes the job into its queue *before* it asks for a thread
 //! (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
-//!  `spawn_task`: the task is pushed at line 624 and the thread asked for at
+//!  `spawn_task`:
+//! the task is pushed at line 624 and the thread asked for at
 //!  line 628),
 //! so the closure this call gave up on stays queued and the pool's next thread
 //!  runs it.
 //! This runner therefore claims only that the step may still run
 //!  (`BlockingJobError::MayStillRunAfterItsThreadWasRefused`).
-//! The strong answer, that the step will not run and changed nothing,
+//! The strong answer,
+//! that the step will not run and changed nothing,
 //!  belongs to the caller that takes the claim on the step's work before it
 //! answers (`blocking_jobs_within_the_budget.rs`,
 //! `the_claim_a_job_takes_before_running_it.rs`).

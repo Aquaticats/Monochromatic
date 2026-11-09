@@ -43,14 +43,16 @@ fn where_no_thread_can_start_the_job_fails_plainly_and_gives_no_value() {
 
 /// What:
 ///  A runner that takes no claim on the job's work says only what it knows:
-/// the pool had already queued the step, so it may still run later.
+/// the pool had already queued the step,
+/// so it may still run later.
 /// Why:
 ///   The pool pushes the job before it asks for a thread
 /// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`),
 /// so "the step changed nothing" is false here.
 ///  A caller that takes the claim can say it (`blocking_jobs_within_the_budget.rs`);
-/// this runner cannot, and
+/// this runner cannot,
+/// and
 ///  its message must not borrow that claim's words.
 #[test]
 fn a_refusal_from_this_runner_says_the_step_may_still_run_and_claims_no_state_of_it() {

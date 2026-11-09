@@ -363,7 +363,8 @@ fn a_job_whose_caller_stopped_waiting_does_not_run_afterwards() {
 /// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`,
 ///  which queues before it asks for a thread).
-/// The runner underneath promises neither: its refusal says the queued closure
+/// The runner underneath promises neither:
+/// its refusal says the queued closure
 /// may still run (`BlockingJobError::MayStillRunAfterItsThreadWasRefused`),
 ///  and the claim taken here is what turns that into a fact.
 /// A message that says the step had not started is false where the job took

@@ -254,7 +254,8 @@ fn the_repository_estimate_is_the_measurement_rounded_up_to_a_power_of_two() {
 const FIRST_PAUSE: Duration = Duration::from_secs(3);
 
 /// How far two readings of the same lease may differ:
-/// each world reads the clock for itself, and a round takes time.
+/// each world reads the clock for itself,
+/// and a round takes time.
 const LEASE_READING_SLACK: Duration = Duration::from_secs(5);
 
 /// Handlers whose pushes could pass,
@@ -348,7 +349,8 @@ fn rendered(answer: &RoundAnswer, directories: &[Assignment]) -> Vec<String> {
 ///  and gives the answer a drain of one directory at a time gives.
 /// Why:
 ///   This is the oracle the round is compared against:
-/// the same item work, with no runner between them,
+/// the same item work,
+/// with no runner between them,
 /// so a difference is the runner's
 ///  ordering or assembly and never the drain's own behaviour.
 ///
