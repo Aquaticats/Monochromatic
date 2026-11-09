@@ -2,7 +2,8 @@
 //! Small named helpers the toolchain modules share:
 //! text predicates,
 //! a tool lookup by id,
-//! and file-name conversions.
+//! file-name conversions,
+//! and the one atomic file write.
 //! Why:
 //! The unified linter asks for a named function wherever a closure captures nothing or only borrows;
 //! these are those functions,
@@ -17,9 +18,13 @@
 
 /// Imports `OsString` from `std::ffi`.
 use std::ffi::OsString;
-/// Imports `Path` from `std::path`.
-use std::path::Path;
+/// Imports the file-system module the atomic write uses.
+use std::fs;
+/// Imports `Path` and `PathBuf` from `std::path`.
+use std::path::{Path, PathBuf};
 
+/// Imports the toolchain error type.
+use super::error::ToolchainError;
 /// Imports the locked tool type.
 use super::model::LockedTool;
 
@@ -93,4 +98,36 @@ pub fn file_name_os(path: &Path) -> OsString {
 /// A version segment as a number (0 when it is not one).
 pub fn number_or_zero(part: &str) -> u64 {
     return part.parse::<u64>().unwrap_or(0);
+}
+
+/// What:
+/// Writes `bytes` to `target` through a dot-named temporary beside it and a rename,
+/// so a reader sees the old file or the new one,
+/// never half of it.
+/// Why:
+/// Every file this crate replaces (a launcher,
+/// a launch record,
+/// the lock) is read by other programs without a lock,
+/// and one owner keeps the temporary naming and the failure handling from drifting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function writeAtomically(target: string, bytes: Uint8Array): void
+/// ```
+pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainError> {
+    let mut temporary_name: OsString = OsString::from(".");
+    temporary_name.push(file_name_os(target));
+    temporary_name.push(format!(".{}.tmp", std::process::id()));
+    let temporary: PathBuf = target.with_file_name(temporary_name);
+    if let Err(error) = fs::write(&temporary, bytes) {
+        // Best effort: a partial temporary is useless, and the error below is what matters.
+        let _ = fs::remove_file(&temporary);
+        return Err(ToolchainError::failure(format!("cannot write {}: {error}", temporary.display())));
+    }
+    if let Err(error) = fs::rename(&temporary, target) {
+        // Best effort: the temporary file is useless now, and a failed removal changes nothing for the caller.
+        let _ = fs::remove_file(&temporary);
+        return Err(ToolchainError::failure(format!("cannot replace {}: {error}", target.display())));
+    }
+    return Ok(());
 }

@@ -370,3 +370,97 @@ fn the_changes_of_a_commit_are_found_without_reading_the_unchanged_directories()
     assert!(decoded < directories as u64, "only the trees along the changed path are read, not every directory: {decoded} entries decoded");
     remove(root.as_path());
 }
+
+/// What:
+///  The index at `path` with the extension `signature` and `body` added before its trailer,
+///  its trailer recomputed,
+/// as a newer Git writes an extension the readers do not know.
+/// Why:
+///   The finding this control pins is a shape no Git on the gate image writes yet,
+/// so the control builds it the way the format allows:
+/// a signature,
+/// a big-endian length,
+/// the body,
+/// then the checksum of everything before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withIndexExtension(indexPath, 'ZZZZ', Uint8Array.from([1, 2, 3, 4]));
+/// ```
+fn with_index_extension(path: &Path, signature: &[u8; 4], body: &[u8]) {
+    let bytes: Vec<u8> = std::fs::read(path).expect("the index");
+    let (content, trailer) = bytes.split_at(bytes.len() - 20);
+    let mut extended: Vec<u8> = content.to_vec();
+    extended.extend_from_slice(signature);
+    extended.extend_from_slice(&(body.len() as u32).to_be_bytes());
+    extended.extend_from_slice(body);
+    let digest: [u8; 20] = crate::subvolume_sha::sha1(extended.as_slice());
+    assert_eq!(digest.len(), trailer.len(), "the fixture's index is a SHA-1 one");
+    extended.extend_from_slice(digest.as_slice());
+    std::fs::write(path, extended).expect("write the extended index");
+}
+
+/// An index carrying an optional extension the readers do not know is left to Git:
+/// Git words the extension on standard error,
+/// and an answer that stays silent is not Git's.
+#[test]
+fn an_unknown_index_extension_is_declined() {
+    let root = fixture("repo-read-query-unknown-extension");
+    let repo = staged_repository(root.as_path(), "unknown", "sha1");
+    with_index_extension(repo.join(".git/index").as_path(), b"ZZZZ", b"body");
+    let said: String = String::from_utf8(git_output(repo.as_path(), &["ls-files", "--stage", "-z"]).stderr).expect("UTF-8");
+    assert_eq!(said, "ignoring ZZZZ extension\n", "Git words this extension on standard error and still answers");
+    let answered = compare(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    assert!(!answered, "the readers must leave an extension whose words they do not reproduce to Git");
+    remove(root.as_path());
+}
+
+/// The extensions Git reads without a word are still answered,
+/// each as real Git itself writes it:
+/// `TREE` in every index,
+/// `UNTR` after a status with the untracked cache on,
+/// `EOIE` after an index write that records the end of the entries,
+/// `REUC` after a conflict is resolved,
+/// and `FSMN` in the shape `write_fsmonitor` writes.
+#[test]
+fn the_index_extensions_git_reads_silently_are_answered() {
+    let root = fixture("repo-read-query-known-extensions");
+    let repo = staged_repository(root.as_path(), "known", "sha1");
+    answered(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    git(repo.as_path(), &["-c", "core.untrackedCache=true", "status", "--porcelain"]);
+    assert!(
+        std::fs::read(repo.join(".git/index")).expect("index").windows(4).any(|window| { return window == b"UNTR"; }),
+        "the untracked cache is in the index"
+    );
+    answered(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    git(repo.as_path(), &["-c", "index.recordEndOfIndexEntries=true", "-c", "index.recordOffsetTable=true", "update-index", "--index-version", "4"]);
+    assert!(
+        std::fs::read(repo.join(".git/index")).expect("index").windows(4).any(|window| { return window == b"EOIE"; }),
+        "the end-of-index-entries table is in the index"
+    );
+    answered(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    let conflicted = root.join("resolved");
+    std::fs::create_dir(&conflicted).expect("dir");
+    git(conflicted.as_path(), &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(conflicted.join("f"), "base\n").expect("f");
+    git(conflicted.as_path(), &["add", "f"]);
+    git(conflicted.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(conflicted.as_path(), &["switch", "--quiet", "--create", "side"]);
+    std::fs::write(conflicted.join("f"), "side\n").expect("f");
+    git(conflicted.as_path(), &["commit", "--quiet", "--all", "--message=side"]);
+    git(conflicted.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(conflicted.join("f"), "main\n").expect("f");
+    git(conflicted.as_path(), &["commit", "--quiet", "--all", "--message=main"]);
+    assert!(!git_output(conflicted.as_path(), &["merge", "side"]).status.success(), "the merge conflicts");
+    git(conflicted.as_path(), &["checkout", "--quiet", "--theirs", "f"]);
+    git(conflicted.as_path(), &["add", "f"]);
+    assert!(
+        std::fs::read(conflicted.join(".git/index")).expect("index").windows(4).any(|window| { return window == b"REUC"; }),
+        "the resolve-undo record is in the index"
+    );
+    answered(root.as_path(), conflicted.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    with_index_extension(repo.join(".git/index").as_path(), b"FSMN", crate::index_fsmonitor::write_fsmonitor(b"token", &[]).as_slice());
+    assert_eq!(git_output(repo.as_path(), &["ls-files", "--stage", "-z"]).stderr, Vec::<u8>::new(), "Git reads this fsmonitor extension without a word");
+    answered(root.as_path(), repo.as_path(), &["ls-files", "--stage", "-z", "--full-name"]);
+    remove(root.as_path());
+}

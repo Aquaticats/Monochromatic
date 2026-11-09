@@ -161,3 +161,17 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     let removals = plan_prune(&found, &named(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]));
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
 }
+
+/// An explicit `--lock` path that does not exist refuses the prune:
+/// a deletion command must not read a mistyped path as protecting nothing.
+#[test]
+fn an_explicit_lock_file_that_does_not_exist_refuses_the_prune_and_deletes_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    let missing: PathBuf = rig._directory.path().join("clone").join("toolchain.lock.json");
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&missing), false).expect_err("the named lock does not exist");
+    assert!(error.message.contains(&missing.display().to_string()), "the message names the path: {error}");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
+}
