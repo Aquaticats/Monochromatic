@@ -125,23 +125,49 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress
+#### Reviews and landings in progress (2026-11-09T00:56:19-05:00)
 
-- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
-  round five answers the review of round four and passes 206 tests.
-  Its own cross-vendor review is running.
-- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
-  the review of the destination reservation found defects on the ordinary route,
-  among them that a normal add into an already-made empty subvolume copies no ignored files.
-  Not ready to merge;
-  the agent has the review.
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
-  the review found a message that promises indexes were left alone when a job may have rewritten one,
-  and bound tests that can pass without contention.
-  The agent is on those.
-- `fix/git-policy-cli-binary-suite-holds-under-contention`:
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`,
+  at `66c35466ea`:
+  the cross-vendor review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-2-sol.txt`)
+  says a rewrite reported as never started can stay queued in Tokio and run later,
+  so the report's promise that the index stayed as it was can be false.
+  Not ready to merge.
+  Run 3 of its agent is on that finding.
+- `fix/git-policy-cli-push-route-records-and-ceilings`,
+  at `5b0393dbf6`:
+  its agent reports all eleven audit findings fixed,
+  and a cross-vendor review is running.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
+  at `3509de3e01`:
+  its round answers all seven review findings,
+  and a cross-vendor review of that round is running.
+  Its agent says two gaps remain.
+  A held push whose client died before the answer is promoted by nothing.
+  A repair whose exclusion fails at the Git level still lets the commit go on,
+  with its index's content and one warning.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
+  at `493e72d1e9`:
+  the library suite passed 4835 of 4835,
+  and a cross-vendor review of the last round is running.
+  The fix for a ladder rung that already made its destination has no test of its own,
+  and the two-process race has no failing test,
+  because nothing can hold a wrapper at a named step.
+- `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
   finished,
-  being checked on top of main.
+  and a cross-vendor review is running.
+  It raises the ceiling to 16,332 ms,
+  makes the stop keep looking for a step that starts late,
+  and logs what ran below each step.
+  Of the three slow commits,
+  171,383 ms and 26,256 ms are the retry index without stat data,
+  fixed in 0.6.1-alpha.4.
+  The cause of 36,651 ms is not established.
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`,
+  `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
+  `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
+  and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  their agents are working through their reviews.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
