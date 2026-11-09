@@ -300,7 +300,16 @@ and the value is checked and ignored.
   no PID file and no holder a complete scan finds,
   which the service removes (owner,
   2026-11-07,
-  "Service removes it"),
+  "Service removes it").
+  The proof counts the service's own descriptors through the gated read of item 3 above
+  (`src/native/process/open_file_of_a_descriptor.rs`),
+  so a descriptor of its own on a file system whose attributes are not in memory is never asked for its device and inode:
+  one that names a file a repository could hold makes the count unknown and the lock stays,
+  and one that is no file of a repository (a pipe,
+  a socket,
+  a memory or device file,
+  a file under `/proc` or `/sys`) is skipped.
+  A descriptor that ended while it was being counted names nothing.
   and this key no longer sets anything.
   `git monochromatic-git-policy-cli doctor` names the key when a file sets it and says to remove it.
 - `landing.reserveAfterLostRaces`:

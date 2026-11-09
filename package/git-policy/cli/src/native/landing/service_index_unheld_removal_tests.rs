@@ -388,3 +388,33 @@ fn a_descriptor_the_scan_could_not_identify_keeps_the_lock() {
     assert!(lock.exists());
     remove(root.as_path());
 }
+
+/// The removal reads this process's own descriptors through the one reader that refuses a file system whose attributes
+/// are not in the memory of the kernel:
+/// `std::fs::metadata` on every `/proc/self/fd` entry asks each file system for its own attributes,
+/// and one that has
+/// stopped waits there as it waits on a path walk
+/// (cross-vendor review of 2026-11-09,
+/// finding 2).
+#[test]
+fn this_processes_descriptors_are_read_through_the_gated_reader() {
+    let source: &str = include_str!("service_index_unheld_removal.rs");
+    assert!(!source.contains("fs::metadata("), "no descriptor of this process is read with `metadata`");
+    assert!(source.contains("opened_file_of("), "the gated reader is what reads them");
+}
+
+/// A descriptor of this process that is no file of a repository at all
+/// (a pipe,
+/// a socket,
+/// an anonymous inode,
+/// a device,
+/// a file under `/proc`)
+/// cannot name the lock,
+/// so it does not make the count unknown either:
+/// the removal would never act if it did.
+#[test]
+fn a_pipe_or_a_device_of_this_process_does_not_make_the_count_unknown() {
+    /// The device of a lock this host cannot have.
+    const NOWHERE: u64 = 0;
+    assert_eq!(own_descriptors_of(NOWHERE, NOWHERE), 0, "the counts of this process's pipes and devices name no lock, and are not unknown");
+}
