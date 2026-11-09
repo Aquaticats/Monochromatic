@@ -109,3 +109,38 @@ fn no_more_items_are_inside_their_work_at_once_than_the_run_asks_for() {
     let reached: usize = most.load(Ordering::SeqCst);
     assert_eq!(reached, WORKERS, "the run started {reached} items at once, and it was asked for {WORKERS}");
 }
+
+/// A job that breaks on one item while it builds that item's future,
+/// before any future of its own exists.
+struct PanicsWhileBuilding {
+    /// The item that breaks.
+    at: usize,
+}
+
+impl ConcurrentAwaitingWork<usize, usize> for PanicsWhileBuilding {
+    fn run<'a>(&'a self, item: &'a usize) -> Pin<Box<dyn Future<Output = usize> + Send + 'a>> {
+        assert_ne!(*item, self.at, "this item breaks before its work starts");
+        return Box::pin(async move { return *item * 10; });
+    }
+}
+
+/// What:
+///  A panic while one item's future is being built is that item's failure,
+///  and the items before and after it keep their own results.
+/// Why:
+///   `ConcurrentAwaitingWork::run` hands back the future the guard waits on,
+/// so it is called before the guard exists:
+/// a job that panics there ends the whole task,
+/// and with it the results that task had already finished and the items it had not taken yet.
+///  A repair of six workspaces must not lose five of them to one.
+#[test]
+fn a_panic_while_an_items_future_is_built_stays_that_items() {
+    let items: Arc<[usize]> = Arc::from(vec![0_usize, 1, 2]);
+    let results: Vec<Result<usize, String>> =
+        runtime().block_on(map_concurrent_awaiting(Arc::clone(&items), 1, Arc::new(item_label), Arc::new(PanicsWhileBuilding { at: 1 })));
+    assert_eq!(results.len(), items.len(), "{results:?}");
+    assert_eq!(results[0].as_ref().ok(), Some(&0), "the item before the panic kept its result: {results:?}");
+    let reason: &String = results[1].as_ref().expect_err("the item that broke fails");
+    assert!(reason.contains("item 1") && reason.contains("before its work starts"), "{reason}");
+    assert_eq!(results[2].as_ref().ok(), Some(&20), "the item after the panic still ran: {results:?}");
+}
