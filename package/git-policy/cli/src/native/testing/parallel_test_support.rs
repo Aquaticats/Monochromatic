@@ -83,21 +83,20 @@ impl Rendezvous {
 /// the one.
 pub(crate) const ONE_PLACE: usize = 1;
 
-/// How long the job of the place control holds the only place,
-/// so the work it measures has time to reach its own job.
-/// A second is far more than an item needs to start when it takes no place at all
-/// (the plant of `worktree/worktree_convert_parallel_tests.rs` starts at once),
-///  and it bounds the one way these controls can pass without proving anything:
-/// work that reached its own job later than this would find the place given back.
-pub(crate) const HELD_BY_ANOTHER_JOB: Duration = Duration::from_millis(1000);
-
 /// What:
 ///  Holds the process's one place on blocking jobs on a task of the runtime,
-///  and gives it back after `HELD_BY_ANOTHER_JOB`.
+///  and gives it back when a job of the work under test asks for a place.
 /// Why:
 ///   A control can then show that the work it measures waits for a place,
 ///  which only a job of the blocking pool does;
-///  work that ran on a worker of the runtime instead would start at once.
+///  work that ran on a worker of the runtime instead would start at once and never ask.
+/// A clock would not do:
+///  a holder that gave the place back after a fixed wait would hand it over before work that
+/// bypasses the bound ever tried,
+///  so that work would read `given_back` as true and pass.
+/// The answer on `finished` is what the work under test asked:
+///  true when a job of it was waiting for a place,
+/// which is the proof that it reached the process's bound.
 /// The place is known to be taken before this returns,
 ///  so the work that follows either waits for it or did not take one.
 /// The bound is held for the life of the process (`hold_blocking_jobs_to`),
@@ -105,21 +104,22 @@ pub(crate) const HELD_BY_ANOTHER_JOB: Duration = Duration::from_millis(1000);
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [givenBack, finished] = holdTheOnlyPlace();
+/// const [givenBack, finished] = holdTheOnlyPlace(); const asked = finished.recv(); // true when the work asked
 /// ```
-pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<()>) {
+pub(crate) fn hold_the_only_place() -> (std::sync::Arc<std::sync::atomic::AtomicBool>, std::sync::mpsc::Receiver<bool>) {
     use std::sync::atomic::{AtomicBool, Ordering};
     crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(ONE_PLACE);
     let given_back: std::sync::Arc<AtomicBool> = std::sync::Arc::new(AtomicBool::new(false));
     let (taken, has_taken) = std::sync::mpsc::channel::<()>();
-    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let (done, finished) = std::sync::mpsc::channel::<bool>();
     let flag: std::sync::Arc<AtomicBool> = std::sync::Arc::clone(&given_back);
     let holder = crate::lazy_runtime::spawn_on_runtime(async move {
         let _outcome = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
             let _told = taken.send(());
-            std::thread::sleep(HELD_BY_ANOTHER_JOB);
+            // The place goes back on an ask from the work under test, never merely because time passed.
+            let asked: bool = crate::blocking_jobs_within_the_budget::jobs_waiting_for_a_place::wait_until_a_job_waits(PATIENCE);
             flag.store(true, Ordering::SeqCst);
-            let _sent = done.send(());
+            let _sent = done.send(asked);
         })
         .await;
     });
