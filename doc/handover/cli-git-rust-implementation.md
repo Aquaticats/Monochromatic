@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:46:00-05:00)
+#### Reviews and landings in progress (2026-11-09T05:07:00-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -142,14 +142,16 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the next brief asks for a seam so they run at any quota.
   Run 5 of its agent is on them.
 - `fix/git-policy-cli-push-route-records-and-ceilings`:
-  its agent reports the nine findings of the first review fixed,
-  760 of 760 selected tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/push-route-round-2-sol.txt`) names eight more,
-  among them a retry plan lost to a kill after its notice promised it,
-  a rollback that rewrites the branch the person switched to,
-  and a deleted branch retried without end.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  run 3 of its agent reports the eight findings of the second review fixed,
+  and 783 of 783 selected tests pass on top of main.
+  The third review (`${HOME}/temp/agent/reviews/push-route-round-3-sol.txt`) names a rollback that can discard a person's staged edit,
+  a takeover or give-back of a notice that overwrites a newer one,
+  a query answering success from a request it could not write whole,
+  and a hook's nested push read as the branch having been deleted.
+  Round 4 is meant to be the last before this branch lands,
+  and it waits for a free agent slot:
+  resume the run `push-route-findings-fixed` as run 4,
+  with `push-route-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   The session picked the fixture root on the disk over a per-run tmpfs,
   because the package documents that a shared tmpfs fills up (issue 1809).
 - `fix/git-policy-cli-unit-test-watchdog-judges-progress` landed on main as `904f005a34`,
@@ -161,22 +163,23 @@ The old tree kept for the rollback stays until the owner deletes it.
   The sixth review (`${HOME}/temp/agent/reviews/landing-route-round-6-sol.txt`) names more,
   most of them in what earlier rounds added,
   so the branch is not converging by adding fixes.
-  Run 8 removes instead:
+  Run 8 removed instead,
+  a net 56 lines:
   nothing releases a held push by judging whether a process is alive,
   the repair does nothing unless the worktree has an owed record,
   and an unreadable file is no longer taken for an absent one.
   That reverses the session's earlier pick,
   recorded in `questions-for-the-owner.md` as open to veto.
-  Run 8 also reproduces,
-  without fixing,
-  whether a later commit's push carries a commit its checks blocked:
-  a queued push sends the whole branch (`push/auto_push.rs:230-245`) and `SPEC.md:4637` says no push runs a `pre-push` hook.
-  If it does,
-  that goes to the owner.
-  On top of main 1254 of 1255 selected tests pass.
-  The one failure is in `landing::service_work::push_retry_tests`,
-  a module whose failures the push branch traces to a patience shorter than a contended push,
-  which is a fit and not yet a proof.
+  Run 8 also reproduced that a later commit's push carries a held commit,
+  because a queued push sends the whole branch (`push/auto_push.rs:230-245`),
+  and its report says a commit a policy blocked goes the same way.
+  `What should the next push do with a commit its checks blocked?` is now in `questions-for-the-owner.md`,
+  because `README.md:2194` promises such a commit stays local.
+  The branch's tests on top of main and the eighth review
+  (`${HOME}/temp/agent/reviews/landing-route-round-8-sol.txt`) are running.
+  Open by its report:
+  a wrapper killed between an approving check and the rename leaves the push held with a notice that says the check never ran,
+  and with no owed record a snapshot older than the live index is unprotected.
   `fix/git-policy-cli-tests-that-fail-only-in-a-suite`,
   a new agent,
   measures those and the other tests that fail only in a suite or against a wall-clock bound.
@@ -210,13 +213,34 @@ The old tree kept for the rollback stays until the owner deletes it.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
 - `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`:
-  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/worktree-removal-round-2-sol.txt`) names three plain defects,
-  among them a FIFO that makes a commit wait forever,
-  and two races that need another program to rename a directory inside a small window.
-  Two subvolume tests abort near 120 seconds on the branch merged with main,
-  even run alone.
-  Run 3 of its agent is on the three defects and judges the races.
-  After that round it lands.
+  run 3 of its agent reports the FIFO wait and the other plain defects fixed,
+  and writes down the two races that need another program inside a small window.
+  The session merged main into it by hand,
+  keeping both sides of `subvolume_file_write_steps.rs`,
+  and its tests on top of main are running.
+  The third review (`${HOME}/temp/agent/reviews/worktree-removal-round-3-sol.txt`) names a resumed rollback that deletes a directory the migration never made,
+  and a stale record that refuses a removal nothing can clear.
+  Round 4 is meant to be the last before this branch lands,
+  and it waits for a free agent slot:
+  resume the run `worktree-removal-findings-fixed` as run 4,
+  with `worktree-removal-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+- `fix/git-policy-cli-child-processes-end-and-signals-reach-them`:
+  its agent reports the findings of `doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md` fixed,
+  and 517 of 517 selected tests pass on top of main.
+  The first review (`${HOME}/temp/agent/reviews/process-and-child-lifetime-round-1-sol.txt`) names a query ceiling that can kill an unrelated process,
+  a thread joined with no deadline,
+  and a finished step's answer thrown away because a helper still holds stderr.
+  Not ready to merge.
+  Run 2 of its agent is on them.
+- `fix/git-policy-cli-intent-to-add-keeps-stat-data`,
+  a new agent:
+  one `git add -N` entry makes every commit in that worktree hash the whole tree,
+  which the driver agent measured stopping its commits at the ceiling.
+- `fix/git-policy-cli-commit-scratch-removal-off-the-path`,
+  a new agent:
+  it takes the removal of the scratch tree off the path the person waits on,
+  and adds timings for what `prepareMs` spends,
+  from the proposals in `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`:
   its agent fixes what the audit `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md` found.
   Its first run reached the three-hour limit,
@@ -267,14 +291,11 @@ The old tree kept for the rollback stays until the owner deletes it.
   ("cli-git never deletes a lock") waits for the owner.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
-  run 2 of its agent reports the broken control and the five findings of the first review fixed.
-  On top of main 1311 of 1313 selected tests pass,
-  and the two failures are in `landing::service_work::push_retry_tests`.
-  The review (`${HOME}/temp/agent/reviews/path-bytes-round-2-sol.txt`) names a service from before the change committing a file under a replacement name,
-  a request too long for the protocol where the old route would have worked,
-  and a retry plan of another directory deleted.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  run 3 of its agent reports the second review's three findings fixed,
+  and the third review (`${HOME}/temp/agent/reviews/path-bytes-round-3-sol.txt`) names one:
+  a record that cannot be read lets cleanup delete another directory's retry plan.
+  Run 4 of its agent is on it,
+  meant to be the last before this branch lands.
   Issue 6005 is commented on or closed after it lands.
 - `fix/git-policy-cli-entry-and-service-lifecycle-findings`:
   its cross-vendor review (`${HOME}/temp/agent/reviews/entry-and-service-round-1-sol.txt`) names four defects,
@@ -294,10 +315,10 @@ The old tree kept for the rollback stays until the owner deletes it.
   A launcher that both clears its environment and `exec`s into the wrapper stays uncounted,
   because nothing of the process survives to read.
 - `doc/planning/cli-git-tests-that-pass-without-their-race.md` names controls that rest on a fixed time window.
-  The agent `controls-witness-their-race-by-ordering` ended on a provider error,
-  "Stream ended without finish_reason",
-  which is the failure the driver branch now retries.
-  Run 2 of its agent is resuming it.
+  Run 3 of the agent `controls-witness-their-race-by-ordering` reports its six findings fixed,
+  with no production file changed.
+  Its tests on top of main are running,
+  and it lands if they pass.
 - `fix/git-policy-cli-dependent-version-reads-the-real-publish-list`:
   run 2 of its agent reports that a missing publish configuration does not fail a commit,
   proved by a real wrapped commit through the service,
@@ -436,11 +457,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   three runs ended within minutes on a Cloudflare 520 or a request timeout,
   and Pi's automatic retry is off in the owner's settings.
   The agent `driver-resumes-after-provider-errors` built retries on the branch `fix/pi-shared-subagent-driver-resumes-after-provider-errors`.
-  It builds and passes on top of main,
-  and the review (`${HOME}/temp/agent/reviews/driver-retries-round-1-sol.txt`) names a retry sent into a run an inbox message started,
-  and a failure that a handled prompt turns into a clean finish.
-  Not ready to merge.
-  Run 2 of its agent is on them.
+  Run 2 of its agent reports the first review's findings and four more fixed,
+  and all 31 test groups pass on top of main.
+  The second review (`${HOME}/temp/agent/reviews/driver-retries-round-2-sol.txt`) is running,
+  and the branch lands if it comes back clean.
+  One visible change:
+  a run whose failure nothing recovered now reports `model-error` and exits non-zero even when the stop file ends it.
 - Test results of branches taken before `8dc110a1fd` can show `SIGABRT` near 120 seconds from the old watchdog.
   Rerun those tests after merging main before judging a branch by them.
 

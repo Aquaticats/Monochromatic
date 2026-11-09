@@ -268,6 +268,30 @@ the same cap did not reproduce it later.
 - The connection's file alone at `CPUQuota=10%`:
   passes.
 
+## Two tests that decided their ending on the host's speed, found 2026-11-09
+
+Two tests in the driver's file passed on a quiet host and failed on the one this was written on,
+at load average 83 on four processors,
+after the retry work of that branch added runs to the file.
+
+- The test that a message dropped during a retry wait goes after the retry prompt
+  asserted the message went as a `prompt`.
+  The driver chooses `steer` or `prompt` from `record.isRunning()` at the moment the message is delivered,
+  and Pi's settle for the retry's own run can be unread while the read of Pi's answer finishes.
+  On a loaded host the message then went as a steer to a run Pi had just finished.
+  The order of the messages is what the finding was about,
+  so the test now reads the messages themselves and not the command that carried each one.
+- The test that a retry is held while an inbox-started run is going
+  gave the run a 3 s wall clock and let the wall clock end it.
+  On that host the stand-in's own start-up spent the 3 s:
+  the feed showed `state` at 3003 ms and the first prompt was answered `no answer in 0 ms`.
+  The run now has the file's ordinary 300 s backstop,
+  and the test ends it with the stop file after waiting out the looks in which a retry that should not go would have gone.
+
+The stop file ending such a run reports `model-error`, not `stop-file`:
+a failure stays until a reply succeeds,
+so a run stopped while its failure is unanswered has not finished its task.
+
 ## Limits of this record
 
 - The failing test name from the original report was never kept,
