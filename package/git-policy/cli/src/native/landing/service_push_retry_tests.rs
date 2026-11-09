@@ -279,28 +279,55 @@ fn a_push_that_lands_cancels_the_plan_of_its_branch() {
 /// so nothing in the wait was starved and the child itself was slow.
 /// The journal of one of these controls kept `push_ms=23058` in a run of 85 of them,
 /// against 1.2 to 3 s for the same push alone.
-/// Main answered that figure with a patience above it;
-/// this branch answers it with the run's own progress (`test_support::STILL_WORKING_WINDOW`),
-/// and the control below keeps the figure tied to that window instead of to a stated patience.
+/// Main answered that figure with a patience above it,
+/// and that patience is kept here as the figure a control's wait has to cover;
+/// the wait itself is
+///  this branch's (`test_support::STILL_WORKING_WINDOW`),
+/// so the guarantee main chose survives the mechanism that replaced it.
 const LONGEST_CONTENDED_PUSH: Duration = Duration::from_millis(23_100);
+
+/// Half of the longest contended push,
+/// so that the patience allows that figure and half again.
+const HALF_A_CONTENDED_PUSH: Duration = Duration::from_millis(11_550);
+
+/// How long a control's wait allowed for a service to deliver while this was a wall clock:
+/// the longest contended push and half of it again,
+/// its first pause,
+/// and the slack the schedule adds.
+///  Kept as a figure, not as a bound:
+/// a wait that ended on it failed while the push went on to land.
+const RESTART_PATIENCE: Duration = LONGEST_CONTENDED_PUSH
+    .saturating_add(HALF_A_CONTENDED_PUSH)
+    .saturating_add(PAUSE)
+    .saturating_add(RETRY_SLACK);
 
 /// What:
 ///  The window a control's wait allows is above the longest push measured while the whole suite ran,
-///  and a lost plan is still found out inside it.
+///  and above the patience main chose for it,
+///  so a delivery that was waited for under that patience is waited for here,
+///  and a lost plan is still found out inside the window.
 /// Why:
 ///   A push held by the host is waited for while the run works,
 /// so the window has to be the longest such push or longer;
 ///  a plan that was lost shows nothing and ends the wait at the window.
+/// Main measured no gap over 44 ms in a push's own wait loop while `git-receive-pack` sat in
+///  uninterruptible I/O,
+/// so a window of the run's silence covers the delivery that patience covered.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(STILL_WORKING_WINDOW).toBeGreaterThan(LONGEST_CONTENDED_PUSH);
+/// expect(STILL_WORKING_WINDOW).toBeGreaterThan(RESTART_PATIENCE);
 /// ```
 #[test]
 fn the_controls_window_covers_the_longest_push_measured_under_the_suite() {
     assert!(
         crate::test_support::STILL_WORKING_WINDOW > LONGEST_CONTENDED_PUSH,
         "{:?} is not above the {LONGEST_CONTENDED_PUSH:?} a contended push measured",
+        crate::test_support::STILL_WORKING_WINDOW
+    );
+    assert!(
+        crate::test_support::STILL_WORKING_WINDOW > RESTART_PATIENCE,
+        "{:?} is not above the {RESTART_PATIENCE:?} main allowed a delivery",
         crate::test_support::STILL_WORKING_WINDOW
     );
 }
