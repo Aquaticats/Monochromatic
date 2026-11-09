@@ -261,7 +261,7 @@ fn an_input_writer_gives_up_when_the_command_takes_nothing() {
     let mut child: Child = command.spawn().expect("a child that never reads");
     let pipe: Option<ChildStdin> = child.stdin.take();
     let window: Duration = Duration::from_millis(200);
-    let writer: std::thread::JoinHandle<()> = feed_standard_input(pipe, vec![b'x'; 1 << 20], window).expect("a thread to write the input");
+    let writer: InputWriter = feed_standard_input(pipe, vec![b'x'; 1 << 20], window).expect("a thread to write the input");
     // The join is bounded here too: a writer that waited for the child would outlast this wait.
     let (done, waited) = std::sync::mpsc::channel::<()>();
     let observer = std::thread::spawn(move || {
@@ -273,4 +273,47 @@ fn an_input_writer_gives_up_when_the_command_takes_nothing() {
     let _reaped = child.wait();
     observer.join().expect("the observer ends");
     assert!(gave_up, "the writer gave up on a command that took none of its input");
+}
+
+/// What:
+///  A query whose request could not be written whole is a failure,
+/// never a success made from a prefix of it.
+/// Why:
+///   A command can keep its own quiet meter busy with progress on one stream
+/// while it postpones reading its request,
+/// the writer then gives up and closes the input,
+/// and the command answers from the prefix it has;
+/// that answer is not made from the
+///  request the caller wrote.
+#[cfg(unix)]
+#[test]
+fn a_request_that_could_not_be_written_whole_is_a_failure() {
+    let root: std::path::PathBuf = crate::test_support::fixture("query-request-cut");
+    let shim: std::path::PathBuf = root.join("command-that-reads-late");
+    // It shows work every 300 ms for three seconds without reading its input, then reads what is there and exits 0, which is
+    //  longer than the writer waits and shorter than the quiet window of the query.
+    std::fs::write(shim.as_path(), "#!/bin/sh\ni=0\nwhile [ $i -lt 10 ]; do echo tick >&2; sleep 0.3; i=$((i+1)); done\ncat > /dev/null\nexit 0\n").expect("stand-in");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    let failure: SingleFlightError = run_bounded_git(
+        Command::new(shim.as_path()),
+        "hash-object --stdin",
+        Duration::from_secs(2),
+        Duration::from_millis(500),
+        scratch_environment().as_slice(),
+        Some(vec![b'x'; 1 << 20]),
+    )
+    .expect_err("the request was cut, so the answer is not the command's answer to it");
+    match &failure {
+        SingleFlightError::Git { arguments, code, stderr } => {
+            assert_eq!(arguments, "hash-object --stdin");
+            assert_eq!(*code, None);
+            assert!(stderr.contains("could not be written whole"), "{stderr}");
+            assert!(stderr.contains("took none of its input"), "{stderr}");
+        }
+        other => panic!("expected a Git failure, got {other}"),
+    }
+    crate::test_support::remove(root.as_path());
 }
