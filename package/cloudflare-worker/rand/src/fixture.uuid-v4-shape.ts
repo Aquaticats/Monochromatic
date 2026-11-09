@@ -74,11 +74,12 @@ export function isUuidV4(text: string,): boolean {
   if (text.length !== UUID_LENGTH) {
     return false;
   }
-  for (let index = 0; index < UUID_LENGTH; index += 1) {
-    /**
-     Character at this position.
-     */
-    const character = text.charAt(index,);
+  /**
+   Candidate characters, one entry per UTF-16 code unit so a position here
+   means the same thing it does in the length check above.
+   */
+  const characters = text.split('',);
+  for (const [index, character,] of characters.entries()) {
     if (UUID_DASH_POSITIONS.has(index,)) {
       if (character !== '-') {
         return false;
