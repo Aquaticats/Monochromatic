@@ -145,7 +145,7 @@ Some files contain consumer-specific adapters that become thinner rather than di
 
 `agent-harness-shared` is a top-level category for reusable harness and extension infrastructure
  that is not itself an extension.
-A package belongs there when two or more harnesses or packages consume it and its public API is reusable outside
+A package belongs there when more than one agent harness consumes it and its public API is reusable outside
 one extension's command,
  rendering,
  or config surface.
