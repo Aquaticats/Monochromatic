@@ -36,12 +36,12 @@ use std::collections::BTreeMap;
 /// whose content would leave the machine as this file's excerpt.
 /// Text appears only
 ///  where a person or the model reads a label,
-/// in `display`,
+/// through its `Display`,
 /// never where an object is named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class ChangedPath { constructor(readonly bytes: Uint8Array) {} display() { return decodeLossily(this.bytes) } }
+/// class ChangedPath { constructor(readonly bytes: Uint8Array) {} toString() { return decodeLossily(this.bytes) } }
 /// ```
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct ChangedPath {
