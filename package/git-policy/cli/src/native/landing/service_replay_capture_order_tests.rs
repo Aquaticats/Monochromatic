@@ -138,7 +138,7 @@ fn the_stamps_of_the_commits_that_changed_a_path_decide_it() {
     assert_eq!(order.get(path_of(0).as_slice()), Some(&CaptureOrderDecision::Prepared), "a commit captured before this one keeps the captured bytes");
     assert_eq!(order.get(path_of(1).as_slice()), Some(&CaptureOrderDecision::Landed), "a commit captured after this one keeps the landed bytes");
     assert_eq!(order.get(path_of(2).as_slice()), Some(&CaptureOrderDecision::Unordered), "a commit the service never landed is not decided by order");
-    assert_eq!(order.get(&b"never-changed.txt".to_vec()), Some(&CaptureOrderDecision::Unordered), "a path the history never changed is not decided by order");
+    assert_eq!(order.get(b"never-changed.txt".as_slice()), Some(&CaptureOrderDecision::Unordered), "a path the history never changed is not decided by order");
     // A capture with no stamp of its own is not decided by order at all.
     let unsampled: Captured = captured_of(&history, 0, vec![landed(early, 10)]);
     let undecided: BTreeMap<Vec<u8>, CaptureOrderDecision> =
@@ -264,11 +264,11 @@ fn a_merge_that_changed_a_path_counts_as_a_commit_that_changed_it() {
     let captured: Captured = captured_of_kind(base.as_str(), 100, vec![landed(side_commit.as_str(), 10), landed(merge_commit.as_str(), 20)]);
     let order: BTreeMap<Vec<u8>, CaptureOrderDecision> =
         capture_order_of_each(&site, &captured, tip.as_str(), p.as_slice()).expect("the capture order");
-    assert_eq!(order.get(&b"p.txt".to_vec()), Some(&CaptureOrderDecision::Prepared), "the merge is one of the commits, and its stamp is earlier");
+    assert_eq!(order.get(b"p.txt".as_slice()), Some(&CaptureOrderDecision::Prepared), "the merge is one of the commits, and its stamp is earlier");
     // The merge is a commit this service never landed, so the order of the path is unknown.
     let unknown_merge: Captured = captured_of_kind(base.as_str(), 100, vec![landed(side_commit.as_str(), 10), landed(main_commit.as_str(), 10)]);
     let held_back: BTreeMap<Vec<u8>, CaptureOrderDecision> =
         capture_order_of_each(&site, &unknown_merge, tip.as_str(), p.as_slice()).expect("the capture order");
-    assert_eq!(held_back.get(&b"p.txt".to_vec()), Some(&CaptureOrderDecision::Unordered), "a merge the service never landed leaves the order unknown");
+    assert_eq!(held_back.get(b"p.txt".as_slice()), Some(&CaptureOrderDecision::Unordered), "a merge the service never landed leaves the order unknown");
     remove(root.as_path());
 }

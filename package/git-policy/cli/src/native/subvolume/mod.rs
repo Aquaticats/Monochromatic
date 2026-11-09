@@ -164,6 +164,11 @@ pub mod subvolume_migrate;
 #[cfg(target_os = "linux")]
 pub mod subvolume_rollback;
 
+/// Which directory the rollback deletes as the migration's stage,
+/// and the refusal when it is not the subvolume the migration made.
+#[cfg(target_os = "linux")]
+pub mod subvolume_rollback_stage;
+
 /// Removing a subvolume and every subvolume nested in it,
 /// deepest first.
 pub mod subvolume_rollback_subvolume_removal;
