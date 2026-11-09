@@ -412,6 +412,50 @@ impl ChildWatch {
     }
 }
 
+// What:
+//  A control that refuses the thread that waits for a step left running,
+//  as a process at its thread limit does with `EAGAIN` from `pthread_create`.
+// Why:
+//   The refusal cannot be produced on demand here:
+//   a thread limit low enough to refuse this thread refuses the control's own threads too,
+//   so the system's answer is injected
+//   (`native_commit_waiting_notice.rs` injects the same refusal the same way).
+//  The thread is started by the thread that runs the step, so the control is of that thread.
+#[cfg(test)]
+thread_local! {
+    /// How many waiter threads the next starts are refused.
+    static WAITER_THREAD_REFUSALS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Refuse the next `count` threads that would wait for a step left running.
+#[cfg(test)]
+pub(crate) fn refuse_the_next_left_running_waiter(count: usize) {
+    WAITER_THREAD_REFUSALS.with(|left| { left.set(count); });
+}
+
+/// What:
+///  The refusal a control armed,
+///  standing in for a system that cannot make another thread.
+/// Why:
+///  The start of the thread that waits for a step left running answers a refused thread the way it answers any other,
+/// and only a control tells the two apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusedNow = () => armedRefusal-- > 0 ? new Error('refused') : undefined;
+/// ```
+fn a_waiter_thread_is_refused_now() -> Option<std::io::Error> {
+    #[cfg(test)]
+    if WAITER_THREAD_REFUSALS.with(|left| {
+        let armed: usize = left.get();
+        left.set(armed.saturating_sub(1));
+        return armed > 0;
+    }) {
+        return Some(std::io::Error::other("a control refused the thread that waits for a step left running"));
+    }
+    return None;
+}
+
 /// How long dropping a watch waits for its task to end:
 /// the bound of "nothing should ever wait forever" on a wait that is over in
 ///  a few hundred microseconds.
@@ -623,11 +667,28 @@ pub fn output_watched_within_for_a_stop(
             // The child moves to a thread that waits for it and collects its output, so the command can stop waiting and the child
             // goes on; the thread reaps it when it ends.
             let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
-            let waiter = std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
-                let mut leaving: Child = child;
-                // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
-                let _abandoned = sender.send(leaving.wait());
-            });
+            // The child is handed over through a channel rather than moved into the closure, so a refused start leaves it here
+            //  (`a_waiter_thread_is_refused_now`, and a system at its thread limit below).
+            let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
+            let waiter = match a_waiter_thread_is_refused_now() {
+                Some(refusal) => {
+                    // Nothing was given the receiver, so it is dropped here: the channel closes, and the child comes back to this
+                    //  command below to be reaped rather than left in a queue nobody reads.
+                    drop(taken);
+                    Err(refusal)
+                }
+                None => std::thread::Builder::new().name(String::from("cli-git-left-running-step")).spawn(move || {
+                    // A refused start drops this receiver with the closure, and the child is handed back to the caller below.
+                    let Ok(mut leaving) = taken.recv() else { return };
+                    // The command may have stopped waiting; a closed channel is that case, and there is nobody to tell.
+                    let _abandoned = sender.send(leaving.wait());
+                }),
+            };
+            // A child dropped with a refused start would run on unreaped and stay a zombie of this process once it ended, so it is
+            //  kept by whoever can still collect it: the thread above, or a reaper of its own where no thread could start.
+            if let Err(std::sync::mpsc::SendError(unwaited)) = hand_over.send(child) {
+                crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(unwaited);
+            }
             if let Err(error) = waiter {
                 watch.end();
                 return Err(std::io::Error::other(format!("{waiting_for} was started but no thread could be started to wait for it: {error}")));

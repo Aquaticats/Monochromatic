@@ -1324,3 +1324,64 @@ fn a_step_ended_at_the_ceiling_its_wait_carried_takes_the_processes_it_started_w
     assert!(failure.to_string().contains("the longest the wrapper lets one step run"), "the step ended at its ceiling: {failure}");
     assert!(gone, "the process the step started was left running after the step was reported ended at its ceiling");
 }
+
+/// What:
+///  A step left running whose waiter thread the system refuses is still collected when it ends.
+/// Why:
+///  The child was moved into the closure of the refused start,
+/// and the start's failure dropped that closure and the child
+///  with it. A dropped `Child` is neither ended nor reaped,
+/// so the step the command had just started ran on with an owner,
+///  and became a zombie of this process for the rest of its life once it ended
+///  (the fifth review's finding 3).
+///  The step ends when this control releases it, and nothing may keep it a zombie afterwards.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_step_left_running_whose_waiter_thread_is_refused_is_still_collected() {
+    let directory: PathBuf = crate::test_support::fixture("child-watch-refused-waiter");
+    let pid_file: PathBuf = directory.join("pid");
+    let release: PathBuf = directory.join("release");
+    let script: PathBuf = directory.join("step.sh");
+    std::fs::write(
+        &script,
+        format!("echo $$ > '{pid}'\nwhile [ ! -e '{release}' ]; do sleep 0.02; done\n", pid = pid_file.display(), release = release.display()),
+    )
+    .expect("the step");
+    crate::child_watch::refuse_the_next_left_running_waiter(1);
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.arg(script.as_path());
+    let bound: StepBound = StepBound::LeaveRunning { after: Duration::from_millis(300), extra: Duration::from_millis(300) };
+    let failure: std::io::Error = output_watched_within(&mut command, "a write", "a write", terms(Duration::from_secs(3600), &sink), false, bound)
+        .expect_err("no thread could be started to wait for the step");
+    // The step was started before the thread was refused, and it writes its number as it begins.
+    let waited_for_the_number: Instant = Instant::now();
+    while waited_for_the_number.elapsed() < Duration::from_secs(5) && !pid_file.exists() {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let pid: i32 = std::fs::read_to_string(&pid_file).expect("the step recorded its process").trim().parse().expect("a process number");
+    // The start time proves which process the number names, so a number that passed to another one is not read as the step.
+    let started: u64 = crate::process_tree::use_of(pid).expect("the step runs as it waits").started;
+    // The step ends now, and its end must be collected by whoever owns it.
+    std::fs::write(&release, b"").expect("let the step end");
+    let looked_from: Instant = Instant::now();
+    let mut collected: bool = false;
+    while !collected && looked_from.elapsed() < Duration::from_secs(10) {
+        match crate::process_tree::use_of(pid) {
+            // The step is gone, or its number names a process that started later: this one's end was collected.
+            None => collected = true,
+            Some(seen) if seen.started != started => collected = true,
+            // A process that is still there is the step, waiting as a zombie for a wait that never comes.
+            Some(_still_there) => std::thread::sleep(Duration::from_millis(20)),
+        }
+    }
+    // The assertions come after the cleanup, so a failing control leaves nothing running.
+    if !collected {
+        // SAFETY: `kill` takes two integers and touches no memory; the number is the step this control started, and a zombie
+        //  ignores it.
+        let _ended = unsafe { libc::kill(pid, libc::SIGKILL) };
+    }
+    crate::test_support::remove(directory.as_path());
+    assert!(failure.to_string().contains("no thread could be started to wait for it"), "the refusal is what this control armed: {failure}");
+    assert!(collected, "the step that was left running stayed a zombie after it ended: nothing collected it");
+}
