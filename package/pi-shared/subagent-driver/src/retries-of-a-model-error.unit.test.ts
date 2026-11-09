@@ -121,6 +121,30 @@ await describe({
       },
     },),
     it({
+      name: 'reads a status that asks for another attempt as transient, the timeouts included',
+      fn: async () => {
+        expect(kindOfModelError('408 Request Timeout',),).toBe('transient',);
+        expect(kindOfModelError('522 Connection timed out',),).toBe('transient',);
+        expect(kindOfModelError('425 Too Early',),).toBe('transient',);
+        expect(kindOfModelError('521 Web Server Is Down',),).toBe('transient',);
+        expect(kindOfModelError('523 Origin Is Unreachable',),).toBe('transient',);
+        // The control: a status that refuses the request itself stays a failure no attempt can fix.
+        expect(kindOfModelError('501 Not Implemented',),).toBe('permanent',);
+        expect(kindOfModelError('400 Bad Request: max_tokens must not exceed 500',),).toBe('permanent',);
+      },
+    },),
+    it({
+      name: 'reads a status that refused the credentials before any word of its body',
+      fn: async () => {
+        // The body names a page about rate limits, which is no rate limit this attempt could wait out.
+        expect(kindOfModelError('401 Unauthorized: Invalid API key. See /docs/rate-limits for details.',),)
+          .toBe('permanent',);
+        expect(kindOfModelError('403 Forbidden: too many requests for this workspace',),).toBe('permanent',);
+        // What the round before established: a rate limit that names an API key is still a rate limit.
+        expect(kindOfModelError('429 Too many requests for this API key; retry_after=1',),).toBe('throttled',);
+      },
+    },),
+    it({
       name: 'reads a rate limit that names what it limited as a rate limit, not as a bad credential',
       fn: async () => {
         expect(kindOfModelError('429 Too many requests for this API key; retry_after=1',),).toBe('throttled',);

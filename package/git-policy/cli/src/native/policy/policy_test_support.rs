@@ -58,6 +58,11 @@ pub(crate) struct ScriptedFacts {
     /// The repository real Git prepares candidates in;
     ///  none makes preparation fail.
     pub(crate) candidates_repository: Option<PathBuf>,
+    /// The invocation's own Git directory,
+    ///  where a fix keeps its journals;
+    ///  none is the answer of a provider that knows
+    ///       neither the location nor the file system.
+    pub(crate) git_dir: Option<PathBuf>,
 }
 
 impl RepositoryFacts for ScriptedFacts {
@@ -95,6 +100,12 @@ impl RepositoryFacts for ScriptedFacts {
     /// Log the question,
     ///  then prepare with real Git in the scripted repository,
     ///  or fail.
+    /// Answer with the scripted Git directory,
+    ///  so a fix's journals land where a sweep looks for them.
+    fn known_git_dir(&mut self) -> Option<PathBuf> {
+        return self.git_dir.clone();
+    }
+
     fn candidates(
         &mut self,
         request: &CandidateRequest,
@@ -182,6 +193,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         remote_guess: Ok(false),
         asked: Vec::<String>::new(),
         candidates_repository: None,
+        git_dir: None,
     };
 }
 

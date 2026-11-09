@@ -41,6 +41,21 @@ use crate::candidate_object::{ObjectId, parse_object_id};
 /// ```
 use std::io::{BufRead, Read};
 
+/// How many bytes one bounded read of an object larger than the ceiling keeps in memory:
+///  a buffer of its own,
+///  never the object.
+/// Why:
+///  The object's bytes are thrown away,
+///  so this is the whole memory cost of reading one too large
+///  to check;
+///  64 KiB is one page of this host's large pages and a size `read` returns in one call on a pipe.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const DISCARD_BUFFER_BYTES = 65536;
+/// ```
+const DISCARD_BUFFER_BYTES: usize = 64 * 1024;
+
 /// What:
 ///  The longest reply header accepted,
 ///  in bytes,
@@ -109,6 +124,18 @@ pub enum BatchReply {
         kind: ObjectKind,
         /// Exactly the declared number of content bytes.
         bytes: Vec<u8>,
+    },
+    /// The object exists and is larger than a content check reads whole;
+    ///  its content was consumed
+    ///       and not kept.
+    TooLarge {
+        /// The full object name Git resolved the request to.
+        object: ObjectId,
+        /// The stored object type.
+        kind: ObjectKind,
+        /// The declared number of content bytes,
+        ///  which is more than the ceiling.
+        size: usize,
     },
     /// Git could not resolve the request to an object.
     Missing,
@@ -319,6 +346,32 @@ fn parse_found_header(header: &[u8]) -> Option<(ObjectId, ObjectKind, usize)> {
     return Some((object, kind, size));
 }
 
+/// The most content bytes one check reads whole,
+///  in bytes.
+/// Why:
+///  Reading one staged file whole costs about twice its size:
+///  a 256 MiB file took 546,816 KiB of
+///       resident memory (`/usr/bin/time --verbose`,
+///  the audit's `fixture-big-blob`),
+///  so an unbounded read lets one
+///       asset in a commit spend the host's memory and get the wrapper killed with no policy
+///       message.
+///  Value:
+///  32 MiB,
+///  which is 1.57 times the largest file this repository tracks (20,453,084
+///       bytes,
+///  `package/music-player/design/questions/archive/search-filename-policy-withdrawn.html`,
+///  counted on 2026-11-09 with `git ls-files -z | xargs -0 du -b`:
+///  15 tracked files
+///       are over 8 MiB,
+///  5 over 16 MiB and none over 32 MiB),
+///  so no content this repository commits is
+///       skipped,
+///  and one read costs at most about 67 MiB at the 2.1 times the measurement shows.
+///  A file
+///       above it is consumed and skipped with a named report instead of read.
+pub const CONTENT_CEILING: usize = 32 * 1024 * 1024;
+
 /// What:
 ///  Read exactly `size` content bytes and the line feed that follows them.
 /// Why:
@@ -391,6 +444,27 @@ pub fn read_batch_reply(
     stream: &mut dyn BufRead,
     request: &[u8],
 ) -> Result<BatchReply, CandidateError> {
+    return read_batch_reply_within(stream, request, CONTENT_CEILING);
+}
+
+/// What:
+///  `read_batch_reply` with the ceiling the caller chose,
+///  which the controls shorten.
+/// Why:
+///   A control cannot stage 32 MiB to prove the bound,
+///  and the seam is the ceiling itself,
+///  never the size
+///       of a file the control writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function readBatchReplyWithin(stream, request, ceiling): Promise<BatchReply>;
+/// ```
+pub fn read_batch_reply_within(
+    stream: &mut dyn BufRead,
+    request: &[u8],
+    ceiling: usize,
+) -> Result<BatchReply, CandidateError> {
     // A trailing `?` returns the failure to our caller, or unwraps the header.
     let header: Vec<u8> = read_header_line(stream)?;
     // What: `.strip_suffix(..)` is `Some(prefix)` when the header ends with ` missing`.
@@ -425,6 +499,39 @@ pub fn read_batch_reply(
             CandidateFailure::ReplyMismatched,
             "answered with a different object than the one requested",
         ));
+    }
+    if size > ceiling {
+        // What: The content and its terminator are consumed and thrown away in bounded reads.
+        // Why:  The reply must stay framed for the next request, and the whole point of the ceiling is that its
+        //       bytes are never held.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // await skipExactly(stream, size); await readExactly(stream, 1); return { kind: 'too-large', size };
+        // ```
+        let mut discarded: usize = 0;
+        let mut buffer: [u8; DISCARD_BUFFER_BYTES] = [0_u8; DISCARD_BUFFER_BYTES];
+        while discarded < size {
+            let wanted: usize = (size - discarded).min(DISCARD_BUFFER_BYTES);
+            match stream.read(&mut buffer[..wanted]) {
+                Ok(0) => break,
+                Ok(read) => discarded += read,
+                Err(error) => {
+                    return Err(reply_failure(
+                        CandidateFailure::ReaderEnded,
+                        format!("could not be read ({error})").as_str(),
+                    ));
+                }
+            }
+        }
+        let mut terminator: [u8; 1] = [0_u8; 1];
+        if discarded != size || stream.read_exact(&mut terminator).is_err() {
+            return Err(reply_failure(
+                CandidateFailure::ReplyTruncated,
+                "ended before the declared object size",
+            ));
+        }
+        return Ok(BatchReply::TooLarge { object, kind, size });
     }
     let bytes: Vec<u8> = read_content(stream, size)?;
     return Ok(BatchReply::Found {

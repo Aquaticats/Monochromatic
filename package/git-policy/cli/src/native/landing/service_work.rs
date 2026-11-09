@@ -316,7 +316,7 @@ impl GitHandlers {
     }
 
     fn push_git(&self, item: &WorkItem) -> PushGit {
-        let cwd: PathBuf = PathBuf::from(item.repository.as_str());
+        let cwd: PathBuf = item.repository.clone();
         // Git writes a `~pid.lock` file beside every lock it takes when `core.lockfilePid` is on, which names the owner of a lock
         //  that a stopped push leaves behind; the service's own environment does not turn it on. The overlay also says never to ask for
         //  a login (`never_prompt_overlay`): the host's askpass program is in this environment, and a dialog nobody answers is a push that waits.
@@ -368,7 +368,7 @@ impl WorkHandlers for GitHandlers {
     }
 
     fn maintenance(&self, item: &WorkItem) -> Verdict {
-        return match run_auto_maintenance_with(&self.context, Path::new(item.repository.as_str()), None) {
+        return match run_auto_maintenance_with(&self.context, item.repository.as_path(), None) {
             Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
             Ok(_) => Verdict::Done,
             Err(error) => Verdict::Failed(format!("{error:?}")),
@@ -376,7 +376,7 @@ impl WorkHandlers for GitHandlers {
     }
 
     fn review(&self, item: &WorkItem) -> Verdict {
-        let key: Option<ReviewKey> = self.review_key_of(Path::new(item.git_dir.as_str()));
+        let key: Option<ReviewKey> = self.review_key_of(item.git_dir.as_path());
         #[cfg_attr(not(test), expect(unused_mut, reason = "only a test replaces the endpoint"))]
         let mut options: ReviewOptions = options_for(item, &review_variables(key.as_ref()));
         #[cfg(test)]
