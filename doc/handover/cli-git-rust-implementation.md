@@ -227,22 +227,29 @@ The old tree kept for the rollback stays until the owner deletes it.
   path bytes in every field of the owed index record,
   and the landing findings of `merge-route-round-6-sol.txt`),
   `locks-and-transactions-findings-fixed` run 3,
-  and `subvolume-conversion-findings-fixed` run 3.
+  `subvolume-conversion-findings-fixed` run 3,
+  `merge-route-findings-fixed` run 7,
+  `conflict-resolution-findings-fixed` run 3,
+  and the new agents `markdown-route-findings-fixed` and `standards-review-findings-fixed`
+  for the defects in the audits of those routes under `doc/planning/`.
   The lock and conversion branches do not land before those runs:
   their reviews (`locks-and-transactions-round-2-sol.txt`,
   `subvolume-conversion-round-1-sol.txt`) name ways to remove a live lock and to delete a person's file.
 - Waiting for a free agent slot,
   in this order:
-  `merge-route-findings-fixed` run 7 with `merge-route-round-7-prompt.md`,
-  a new agent `markdown-route-findings-fixed` with `markdown-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-markdown-route-findings-on-main.md`,
-  `conflict-resolution-findings-fixed` run 3 with `conflict-resolution-round-3-prompt.md`,
-  for the findings of `conflict-resolution-round-2-sol.txt` other than the window between revalidation and install,
-  a new agent `standards-review-findings-fixed` with `standards-review-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-standards-review-route-findings-on-main.md`,
+  `process-and-child-lifetime-findings-fixed` run 4 with `process-and-child-lifetime-merge-of-main-prompt.md`,
+  to finish the merge of main left open in its worktree,
+  whose conflicts come from `e8f75c09e8`;
   a new agent `health-route-findings-fixed` with `health-route-findings-fixed-prompt.md`,
-  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`,
+  for the defects in `doc/planning/cli-git-health-route-findings-on-main.md`;
   and a new agent `commit-ceiling-and-private-index-follow-ups` with `commit-ceiling-and-private-index-follow-ups-prompt.md`.
+- Finished their runs and are being checked on top of main:
+  `worktree-add-findings-fixed` and `discarding-commands-findings-fixed`,
+  whose last runs both ended at the wall clock during a final test run,
+  so those two checks stand in for it.
+  `push-route-findings-fixed` had its merge conflict in the notice code resolved by this session,
+  keeping the branch's rule that a notice leaves its record only once its words were written;
+  its check and the review of `56d3ab1f0f~1..bcd87c1f15` come next.
 - The commit-ceiling branch landed as `e8f75c09e8`,
   with 495 of 495 selected tests on top of main.
   Its last review (`scratch-commit-ceiling-round-5-sol.txt`) was started over a range that crossed a merge of main,

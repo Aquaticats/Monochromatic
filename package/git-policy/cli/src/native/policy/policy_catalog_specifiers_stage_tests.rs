@@ -22,6 +22,8 @@ use crate::policy_content::LifecycleContent;
 use crate::policy_engine::{StageEnd, StageRequest, StageResult, pass_exit_code, run_policy_stage};
 use crate::policy_events::PolicyEvent;
 use crate::policy_registry::{PolicyId, Severity};
+/// The tool-cache exemption entry these checks are built with.
+use crate::effective_target::ToolCacheDirectory;
 use crate::policy_test_support::{ScriptedFacts, scripted_facts, with_severity};
 use crate::policy_trigger::Trigger;
 use crate::test_support::{fixture, remove, repository};
@@ -38,7 +40,7 @@ fn checks_over(repo: &Path) -> ShippedChecks<ScriptedFacts> {
         facts,
         os(&["add", "package.json"]),
         LifecycleContent::Requested(CandidateRequest::Add(os(&["package.json"]))),
-        Vec::<PathBuf>::new(),
+        Vec::<ToolCacheDirectory>::new(),
     );
 }
 
