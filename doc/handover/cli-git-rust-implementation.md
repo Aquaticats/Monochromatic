@@ -5276,6 +5276,25 @@ An alias reaches no guard,
 `git stash drop` in a clean linked worktree discards the repository's stash,
 and `git branch -D` is unguarded.
 
+No review covers the settings and dependent-version route either:
+the settings file the wrapper reads before anything else,
+the Git configuration snapshot,
+the rules files the configuration names,
+and the dependent bumps a commit is supposed to make.
+Its audit,
+with two findings ranked by what they risk losing,
+both reproduced,
+is `doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`
+(2026-11-09;
+main at `70b67c6ef2`).
+The ripple reads whichever `packages:` line comes first in the generated
+registry configuration,
+so a second list above the publish set leaves both `check` and `fix` silent
+about a stale dependent;
+and a wrapped commit never plans a bump at all,
+against the owner's decision of 2026-09-15,
+which `SPEC.md` now contradicts.
+
 Not P1-labelled:
 the four Critical findings of the commits-never-fail review are open by construction (see "Commits,
 merges and pushes that never fail").
