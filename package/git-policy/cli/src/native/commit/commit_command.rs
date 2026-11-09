@@ -216,6 +216,11 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         Ok(found) => found,
         Err(stop) => return report_stop(stop),
     };
+    // A test kills the wrapper here: the commit is on the branch and answered, and everything the command still owes (the
+    //  push, the upkeep and the notice of them) is written after this point (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+    //  finding 3). The marker is inert unless `CLI_GIT_TEST_ONLY_SERVICE_FAULT` names it, so a command that is not a test reaches
+    //  nothing.
+    crate::service_fault::reach("after-answer");
     write_stderr(render_policy_events(0, served.result.events.as_slice()).as_str());
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";

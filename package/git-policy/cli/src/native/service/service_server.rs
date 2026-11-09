@@ -302,7 +302,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         listener,
         ConnectionShared {
             queue: acceptor_queue,
-            work: work_sender,
+            work: work_sender.clone(),
             busy: Arc::clone(&busy),
             board: Arc::clone(&board),
             release: settings.release.clone(),
@@ -454,7 +454,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 board.end_group(ids.as_slice());
                 continue;
             }
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, &work_sender);
             board.end_group(ids.as_slice());
             // The batch after this one is numbered one more and lands on this index (a worktree has one), so its marker is
             //  made and flushed now, while the service is idle, and the next commit only places it.

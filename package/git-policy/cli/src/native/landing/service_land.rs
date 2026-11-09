@@ -482,6 +482,11 @@ mod fsync_tests;
 #[path = "service_land_built_tests.rs"]
 mod built_tests;
 
+/// Controls for the push a landed commit leaves before its client is answered stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_owed_push_tests.rs"]
+mod owed_push_tests;
+
 /// Controls for the index update a landed batch owes stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_owed_index_tests.rs"]

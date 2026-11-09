@@ -17,6 +17,7 @@
 //! ```
 
 use crate::service_server_queue_types_and_send::Queued;
+use crate::service_work::Wake;
 use crate::service_journal::{BatchClaim, Recovery, claim_batch};
 use crate::service_land_follow::storage_failure;
 use crate::service_index_lock::{Announce, Announcer};
@@ -28,7 +29,9 @@ use crate::service_protocol::{
     CommitRequest, FailureCode, ServiceMessage,
 };
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use tokio::sync::mpsc::UnboundedSender;
 /// Finishes the open batches this instance owns:
 /// those of its worktree when it serves one,
 /// all of them in a development run.
@@ -148,9 +151,56 @@ impl Announcer for AnnounceToStreams<'_> {
     }
 }
 
+/// What:
+///  Leaves the push record of a commit this service landed,
+/// before the client that asked for it is answered.
+/// Why:
+///   The wrapper hands the push over after the answer,
+/// and a wrapper killed or closed between the answer and that hand-off
+///  leaves no push record,
+/// so the commit is never pushed and nothing says so
+/// (`doc/planning/cli-git-commit-and-landing-route-findings-on-main.md`,
+/// finding 3).
+/// The service knows the commit landed,
+/// and the record's id is the commit's,
+/// so a record the wrapper also
+///  writes is the same record:
+/// whichever is written first wins and the other is skipped.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await leaveTheOwedPush(workDirectory(gitDir), request, commit);
+/// ```
+pub(crate) fn leave_the_owed_push(request: &CommitRequest, commit: &str) {
+    let item: crate::work_item::WorkItem = crate::work_item::WorkItem {
+        kind: crate::work_item::WorkKind::Push,
+        repository: request.repository.display().to_string(),
+        git_dir: request.git_dir.display().to_string(),
+        branch_ref: request.reference.clone(),
+        oid: commit.to_string(),
+        parent: request.base.clone(),
+        created: crate::iso_time::now_iso(),
+        tries: 0,
+    };
+    let work_dir: PathBuf = crate::service_work::work_directory(request.git_dir.as_path());
+    // A push record that cannot be written is said: the wrapper's own hand-off is the only other writer, and a command whose
+    //  client is gone has none.
+    if let Err(reason) = crate::work_item::enqueue(work_dir.as_path(), &item) {
+        crate::service_error!("the push of the landed commit {commit} could not be left for the work queue ({reason})");
+    }
+}
+
 /// Lands one group of jobs that share a branch,
 /// and answers each client.
-pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mut u64, group: Vec<Queued>, landed: &mut HashMap<String, String>, captures: &mut CaptureMemory) {
+pub(crate) fn land_group(
+    context: &LandContext,
+    instance: Option<&str>,
+    seq: &mut u64,
+    group: Vec<Queued>,
+    landed: &mut HashMap<String, String>,
+    captures: &mut CaptureMemory,
+    wake: &UnboundedSender<Wake>,
+) {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
     let mut again: Vec<Queued> = Vec::new();
@@ -242,6 +292,9 @@ pub(crate) fn land_group(context: &LandContext, instance: Option<&str>, seq: &mu
                         // The compiled rules of the repository are warmed on the blocking pool, off this thread and off the answer's path.
                         let paths: Vec<String> = request.changes.iter().map(path_of_change).collect();
                         crate::service_rules_precompile::after_landing(context.journal.as_path(), request.repository.as_path(), paths.as_slice());
+                        // The push is recorded before the answer, so a client killed between the two cannot lose it.
+                        leave_the_owed_push(request, commit.as_str());
+                        let _woken = wake.send((request.git_dir.clone(), None));
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false });
                         "landed"
