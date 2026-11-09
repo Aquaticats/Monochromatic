@@ -179,6 +179,40 @@ fn a_step_that_ended_before_its_ceiling_reports_no_stop() {
     assert_eq!(notice.finish(), None);
 }
 
+/// What:
+///  A step that was not there yet when the ceiling's look happened is still stopped once it runs.
+/// Why:
+///   A start the host held up (a full process table,
+/// memory pressure,
+/// a scheduling stall) puts the process below this one after the ceiling has passed,
+/// and a look that finds nothing is then a statement about the start,
+/// not about the step.
+///  A commit whose step ran 36,651 ms landed under a 3,006 ms ceiling on 2026-11-08,
+/// and the record could not say which of the two it was;
+/// this control holds the reading that a missing process never takes the ceiling away.
+#[test]
+fn a_step_that_appeared_after_the_ceiling_look_is_still_stopped() {
+    let cadence: Cadence = Cadence { grace: Duration::from_secs(60), interval: Duration::from_secs(60) };
+    let notice: NativeCommitNotice = NativeCommitNotice::start_within(NoticeStart {
+        snapshot: None,
+        commit_arguments: &words(&["-m", "x"]),
+        cadence,
+        ceiling: Duration::from_millis(200),
+        sink: Box::new(Buffer::default()),
+    });
+    // The start is held up past the ceiling, as a start on a host with no process to spare is.
+    std::thread::sleep(Duration::from_millis(400));
+    let mut step: std::process::Child = sleeping_step();
+    let ended: Option<i32> = ended_by_signal(&mut step);
+    let stopped: Option<Duration> = notice.finish();
+    if ended.is_none() {
+        step.kill().expect("cleanup");
+        step.wait().expect("reaped");
+    }
+    assert!(ended.is_some(), "a step that started after the ceiling's look ran on with no ceiling and was never stopped");
+    assert!(stopped.is_some_and(|after| { return after >= Duration::from_millis(200); }), "{stopped:?}");
+}
+
 /// The words of a stop say what ended,
 /// after how long,
 /// why this long,
