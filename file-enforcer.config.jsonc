@@ -177,7 +177,12 @@
     {
       "kind": "package-licenses",
       "id": "package-licenses",
-      "manifests": ["package/*/*/package.json", "package/*/*/Cargo.toml"],
+      "manifests": [
+        "package/*/*/package.json",
+        "package/*/*/Cargo.toml",
+        "package/*/*/*/package.json",
+        "package/*/*/*/Cargo.toml",
+      ],
       "directory": "LICENSES",
       "texts": {
         "CC-BY-SA-4.0": "LICENSES/CC-BY-SA-4.0.txt",

@@ -2,9 +2,11 @@
 //!  Reads of the files ref storage that answer a question without a Git process,
 //!  and refuse to answer anything they cannot prove equal to Git's answer.
 //! Why:
-//!  `git symbolic-ref --quiet HEAD` only reads the worktree's `HEAD` file and,
-//!  for a branch,
-//! checks that the branch is not itself a symbolic ref.
+//!  `git symbolic-ref --quiet HEAD` reads the worktree's `HEAD` file,
+//!  and for a branch its loose branch file,
+//!  following a chain of symbolic branch files to the name at its end and printing that,
+//!  an end that does not exist included (git 2.56.0;
+//! only a cycle fails).
 //!  A strict reader of the plain spellings saves a process on every commit,
 //!  and every other spelling (a different ref name shape,
 //! a link,
@@ -176,7 +178,9 @@ pub fn is_plain_branch_name(name: &str) -> bool {
 /// if there is one,
 /// is a plain object name.
 /// Why:
-///   `symbolic-ref` follows a branch that is itself a symbolic ref and fails on a broken one;
+///   `symbolic-ref` follows a chain of symbolic branch files to the name at its end,
+///  an end that does not exist included,
+///  and fails only on a cycle;
 ///  a missing loose file is an unborn or packed branch,
 ///  and packed refs cannot be symbolic.
 ///

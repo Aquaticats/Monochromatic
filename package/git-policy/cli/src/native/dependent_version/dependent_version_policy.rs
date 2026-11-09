@@ -17,6 +17,9 @@
 //! which adds that
 //!      manifest to the commit (`dependent-version-bump-policy.ts:178-235`).
 //!
+//! `dependent-version-bump-policy.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // await findDependentBumps(context);

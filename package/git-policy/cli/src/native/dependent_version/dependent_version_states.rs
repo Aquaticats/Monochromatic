@@ -10,6 +10,11 @@
 //! and each manifest's base text is parsed
 //!      before its current text (`dependent-bump-workflow.ts:150-174`).
 //!
+//! The `.ts` names here are the TypeScript wrapper's,
+//!  deleted on 2026-10-13 in `642b6d72cb`,
+//!  where `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/<name>` reads each:
+//!  `dependent-version-bump-policy.ts` and `dependent-bump-workflow.ts`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const states = (await reader.manifests()).map(readManifestState);

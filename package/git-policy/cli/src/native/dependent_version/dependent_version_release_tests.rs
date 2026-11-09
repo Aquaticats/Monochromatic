@@ -6,6 +6,9 @@
 //! Why:
 //! A wrong increment or a wrong quote changes a patch or a finding message.
 //!
+//! `dependent-version-bump.unit.test.ts` was deleted on 2026-10-13 in `a2b56c548c` with the TypeScript wrapper,
+//!  and `git show a2b56c548c^:package/git-policy/repository/src/dependent-version-bump.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(patchBumpVersion({ name: 'a', version: '1.2.9' })).toBe('1.2.10');
