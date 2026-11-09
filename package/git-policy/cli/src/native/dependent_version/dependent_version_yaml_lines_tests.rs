@@ -70,7 +70,8 @@ fn refuses_a_tab_and_a_document_marker() {
     );
 }
 
-/// A dash opens an item only with a space or nothing after it.
+/// A dash opens an item only with the one space the generator writes,
+/// or nothing after it.
 #[test]
 fn tells_an_item_from_a_scalar_that_begins_with_a_dash() {
     assert!(is_item("-"));
@@ -79,9 +80,10 @@ fn tells_an_item_from_a_scalar_that_begins_with_a_dash() {
     assert!(!is_item("'- a'"));
     assert_eq!(item_content("- '@s/a'"), "'@s/a'");
     assert_eq!(item_content("-"), "");
-    assert_eq!(item_content("-   spaced"), "spaced");
-    assert_eq!(item_content("-\tapp"), "app");
-    assert!(is_item("-\tapp"));
+    // A wider gap and a tab are not items this reader reads; `read_lines` refuses them.
+    assert!(!is_item("-   spaced"));
+    assert!(!is_item("-\tapp"));
+    assert!(!is_item("- \tapp"));
 }
 
 /// A key ends at a colon a space or the line end follows,
@@ -236,7 +238,13 @@ fn reads_a_tab_and_refuses_every_form_it_does_not_read() {
     assert_eq!(read_scalar("app\t# published"), Ok(String::from("app")));
     assert_eq!(read_scalar("app\t"), Ok(String::from("app")));
     assert_eq!(read_scalar("app\tb"), Ok(String::from("app\tb")));
-    assert_eq!(item_content("- \tapp"), "app");
+    assert_eq!(
+        read_lines("a:\n  - \tapp\n"),
+        Err(YamlProblem::new(
+            2,
+            "puts a tab after the space that follows its dash, which this reader does not read"
+        ))
+    );
     assert_eq!(
         read_scalar("repo:\texample"),
         Err(String::from(

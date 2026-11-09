@@ -28,21 +28,28 @@
 
 /// The line-level reader this file builds on.
 use crate::dependent_version_yaml_lines::{
-    YamlLine, YamlProblem, is_item, item_content, read_lines, read_scalar, split_key,
+    GENERATED_ITEM_GAP, YamlLine, YamlProblem, is_item, item_content, read_lines, read_scalar,
+    split_key,
 };
+/// `HashSet` holds the keys of one mapping for the duplicate check.
+use std::collections::HashSet;
 
 /// What:
 /// How far the keys of an item's compact mapping sit from the item's dash:
 /// the dash and
-///       the space after it.
+///       the one space `GENERATED_ITEM_GAP` names.
 /// Why:
-///  `- key: value` opens a mapping whose later keys line up under `key`.
+///  `- key: value` opens a mapping whose later keys line up under `key`,
+/// and
+///       `read_lines` refuses any line whose dash is followed by more than that one
+///       space,
+/// so the column this constant names is the column the text holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ITEM_KEY_INDENT = 2;
+/// const ITEM_KEY_INDENT = 1 + GENERATED_ITEM_GAP;
 /// ```
-const ITEM_KEY_INDENT: usize = 2;
+const ITEM_KEY_INDENT: usize = 1 + GENERATED_ITEM_GAP;
 
 /// What:
 /// One node of the block structure.
@@ -238,26 +245,6 @@ fn parse_sequence(lines: &[YamlLine<'_>], index: usize) -> Result<(YamlNode, usi
 }
 
 /// What:
-/// Whether a mapping already holds an entry named `key`.
-/// Why:
-///  A repeated key would give one name two values,
-/// and the diagnostic has to name it
-///       rather than keep the first.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// entries.some(([name]) => name === key);
-/// ```
-fn already_holds(entries: &[(String, YamlNode)], key: &str) -> bool {
-    for entry in entries {
-        if entry.0 == key {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// What:
 /// The mapping whose first entry is `content` at `indent`,
 /// or the one that starts at
 ///       `index`,
@@ -280,6 +267,10 @@ fn parse_mapping(
     first_number: usize,
 ) -> Result<(YamlNode, usize), YamlProblem> {
     let mut entries: Vec<(String, YamlNode)> = Vec::new();
+    // One entry per key: the set answers the repeat in constant time, where scanning the
+    // entries would make a mapping of unbounded keys quadratic in its length.  `std`'s
+    // hashing is randomized, so hostile keys cannot pick collisions.
+    let mut held: HashSet<String> = HashSet::new();
     let mut at: usize = index;
     let mut pending: Option<(&str, usize)> = None;
     if let Some(content) = first {
@@ -308,7 +299,7 @@ fn parse_mapping(
             Ok(None) => return Err(YamlProblem::new(number, "holds no key and colon")),
             Err(reason) => return Err(YamlProblem::new(number, &reason)),
         };
-        if already_holds(&entries, key.as_str()) {
+        if !held.insert(key.clone()) {
             return Err(YamlProblem::new(
                 number,
                 &format!("names the key {key:?} a second time"),
