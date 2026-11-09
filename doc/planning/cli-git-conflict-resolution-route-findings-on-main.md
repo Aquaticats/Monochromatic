@@ -124,7 +124,7 @@ quoted with their lines:
 - `SPEC.md:7506`:
   "The `doc/handover/*.md merge=union` line of `.gitattributes` therefore applies in them."
 
-Findings 1 and 2 are the measured consequences of an item the planning document already
+Findings 1 is the measured consequence of an item the planning document already
 lists as needing the owner's decision
 (`doc/planning/cli-git-merge-auto-resolution.md`,
 2026-11-03T03:39:36-05:00 entry,
@@ -136,7 +136,7 @@ lists as needing the owner's decision
 
 The choice is recorded;
 what its consequence costs is not,
-and that is what the two findings add.
+and that is what finding 1 adds.
 
 Already recorded,
 and therefore not reported here:
@@ -145,7 +145,7 @@ the pass's install window (`doc/handover/cli-git-rust-implementation.md`,
 which quotes the merge and repair audit's item 7 about a kill between the staging and the file write),
 and the two limits this audit's inputs do not reach (a stage over 8 MiB,
 and the cost bound).
-Neither that section nor the planning document names findings 1 to 4;
+Neither that section nor the planning document names findings 1 to 3;
 the attribute-source item quoted above is the closest,
 and it states the choice,
 not the consequence measured here.
@@ -207,6 +207,9 @@ Read from the code:
 `merge_isolation_apply.rs:134` names the first side's tip
 (`attribute_tree_variables(head, &probe)`)
 as the attribute tree of a merge that reads no worktree,
+unless the person's own `--attr-source`,
+`GIT_ATTR_SOURCE` or a resolving `attr.tree` already names one
+(`merge_second_pass_tree.rs:141`),
 and `merge_second_pass.rs:233` asks `git check-attr` for the `merge` attribute of each candidate
 under that tree.
 
@@ -243,7 +246,7 @@ at exit `0`.
 The attribute is invisible because the first side's tree has no `.gitattributes`:
 the file arrives with the side being merged.
 
-Two comparisons say this is the wrapper's own choice and not Git's:
+Two comparisons bound what this shows:
 
 - The same input with the line in the base commit (`attributes-in-base-isolated`)
   is refused instead:
@@ -251,13 +254,17 @@ Two comparisons say this is the wrapper's own choice and not Git's:
   core finding `merge-isolation/merge-conflict`,
   "merging it into the current branch conflicts in data.lock",
   nothing written.
-  So the guard works when the first side's tree carries the line,
-  and not otherwise.
+  So the code that honours the setting works;
+  what reaches it is the first side's tree.
 - Real Git never produces that content for the pair:
   in a clean checkout (`attributes-added-by-theirs`)
   it stops with exit `1`,
   `data.lock` keeps Git's conflict markers,
   and `.gitattributes` is staged as a new file.
+  This shows Git does not word-combine the file;
+  whether a rule the merge introduces should govern the pass is the open item quoted in
+  "Decisions this route answers to",
+  and this page measures what the current answer costs.
 
 What it risks:
 a file whose `merge` setting says a driver,
@@ -271,99 +278,23 @@ anything a machine regenerates).
 `SPEC.md:7506` says the `.gitattributes` line "therefore applies in them",
 which holds only when the first side's tree already has it.
 The same source feeds the auto-push reconcile merge
-(`auto_push_reconcile_merge_commit.rs:111`,
-`:114`)
+(`auto_push_reconcile_merge_commit.rs:115`)
 and the commit replay
 (`service_replay.rs:347`),
 so the published and replayed merges have the same hole.
 
 Suggestion:
 ask `check-attr` against the tree the merge will produce
-(`git check-attr --source=<tree>` with the merge tree)
+(`git check-attr --source=<tree>`,
+which Git 2.56.0 accepts with `--stdin -z`;
+measured on the pair above:
+`--source=HEAD^{tree}` answers `unspecified` for `data.lock`
+and `--source=topic^{tree}` answers `binary`)
 rather than the first side's tip,
 and treat a `.gitattributes` that is itself conflicted in that tree as unknown,
 which keeps the file's conflict instead of merging it.
 
-### 2. A merge in a worktree loses the `merge` exclusion when the exclusion line is itself in conflict
-
-Reproduced (`attributes-guard-lost`).
-Read from the code:
-`merge_second_pass_worktree.rs:264` runs the pass's Git from the top of the worktree
-with no attribute source,
-so `git check-attr` (`merge_second_pass.rs:233`) reads the worktree copy of `.gitattributes`,
-which during a conflicted merge is the copy holding Git's markers.
-
-Input,
-three commits:
-
-- base:
-  `.gitattributes` is `data.lock merge=binary`,
-  and `data.lock` is `port=1 host=a zone=z`.
-- ours:
-  `.gitattributes` becomes `data.lck merge=binary`,
-  and `data.lock` becomes `port=9 host=a zone=z`.
-- theirs:
-  `.gitattributes` becomes `data.lok merge=binary`,
-  and `data.lock` becomes `port=1 host=b zone=z`.
-
-Both sides change the guard line itself,
-so `.gitattributes` conflicts,
-and the worktree copy is then the marker file,
-in which neither `*.lck` nor `*.lok` nor `data.lock merge=binary` is a whole line.
-
-Real Git,
-exit `1`:
-
-```text
-.gitattributes="<<<<<<< HEAD\ndata.lck merge=binary\n=======\ndata.lok merge=binary\n>>>>>>> topic\n"
-data.lock="<<<<<<< HEAD\nport=9 host=a zone=z\n=======\nport=1 host=b zone=z\n>>>>>>> topic\n"
-unmerged=[".gitattributes", "data.lock"]
-```
-
-The wrapper,
-exit `1`:
-
-```text
-stderr="monochromatic-git-policy-cli: word-level merge: data.lock: part 1 of 1:
- base line 1, ours line 1, theirs line 1 became \"port=9 host=b zone=z\\n\"\n
- monochromatic-git-policy-cli: word-level merge: staged as resolved by the second merge pass: data.lock.
- Review a merged file with `git diff --cached -- <file>`; resolve the files Git still lists as conflicted,
- then finish the merge the way Git said above.\n"
-.gitattributes="<<<<<<< HEAD\ndata.lck merge=binary\n=======\ndata.lok merge=binary\n>>>>>>> topic\n"
-data.lock="port=9 host=b zone=z\n"
-unmerged=[".gitattributes"]
-status=["UU .gitattributes", "M  data.lock"]
-```
-
-The control `attributes-guard-intact` is the same merge with the guard line outside the conflict:
-there Git prints `warning: Cannot merge binary files: data.lock (HEAD vs. topic)`,
-the wrapper leaves `data.lock` alone,
-and both arms agree on `UU` for both paths.
-So the guard is lost exactly when the rule is in the conflicted hunk,
-which is the case the person is about to resolve.
-
-What it risks:
-the pass removes the conflict stages of a file the base commit declared unmergeable,
-while the person is still resolving the file that declares it.
-If they resolve `.gitattributes` and commit,
-the hybrid is committed with nothing else said.
-The two versions survive in `HEAD` and `MERGE_HEAD`,
-so no content is unrecoverable,
-but the conflict is gone,
-and it comes back only through a command nothing in the output names
-(`git checkout --merge -- data.lock` rebuilds the three stages;
-verified in this arm).
-Once the operation is committed the same command exits `0` and leaves no stage
-(verified in finding 1's arm),
-so nothing rebuilds the choice then.
-
-Suggestion:
-fail closed for the whole pass when any attribute file that can apply to a candidate
-is itself unmerged
-(`git ls-files -u` names `.gitattributes`),
-since a rule that cannot be read is not a rule that says "text".
-
-### 3. The part list gives coordinates the same command destroys
+### 2. The part list gives coordinates the same command destroys
 
 Reproduced (`plain-resolved`).
 Read from the code:
@@ -422,7 +353,7 @@ Suggestion:
 put the three stage object names in the part line and in the journal entry,
 so `git cat-file blob <oid>` reaches each input after the stages are gone.
 
-### 4. A finish that cannot commit says nothing in the repository changed, and drops the line that says what it did
+### 3. A finish that cannot commit says nothing in the repository changed, and drops the line that says what it did
 
 Reproduced (`plain-resolved`),
 on a machine whose account has no user service manager,
@@ -486,6 +417,55 @@ Suggestion:
 print the closing line whenever the finish does not print a line of its own about the staged files,
 or render the commit failure's last sentence from what the command as a whole changed.
 
+## Withdrawn by measurement
+
+The first draft of this page carried a second finding:
+a merge in a worktree loses a `merge` exclusion when the exclusion line is itself in conflict,
+because `git check-attr` reads a worktree `.gitattributes` that holds Git's markers.
+The measurement does not support it,
+and it is recorded here so nobody derives it a second time.
+
+The input that suggested it (`attributes-guard-lost`) is:
+
+- base:
+  `.gitattributes` is `data.lock merge=binary`,
+  and `data.lock` is `port=1 host=a zone=z`.
+- ours:
+  `.gitattributes` becomes `data.lck merge=binary`,
+  and `data.lock` becomes `port=9 host=a zone=z`.
+- theirs:
+  `.gitattributes` becomes `data.lok merge=binary`,
+  and `data.lock` becomes `port=1 host=b zone=z`.
+
+The wrapper word-merged `data.lock` where Git left it conflicted,
+but the cause is not the markers:
+neither side's tree,
+and not the merge result,
+guards `data.lock` any more,
+so reading it as text is what the attribute source in force says,
+and Git's own worktree read agrees.
+Two inputs settle it:
+
+- `attributes-two-attributes`:
+  both sides keep `data.lock merge=binary` on the same line and differ in the third attribute
+  (`merge=binary -text` against `merge=binary text`),
+  so the guard line itself is inside the conflict hunk and the worktree copy is a marker file.
+  Both arms print `warning: Cannot merge binary files: data.lock (HEAD vs. topic)`,
+  leave both paths `UU`,
+  and the wrapper runs no pass at all.
+  Git's markers surround whole lines and never split one,
+  so a rule both sides still carry survives in the marker file.
+- `attributes-guard-intact`:
+  with the guard line outside the conflict,
+  both arms also leave `data.lock` alone.
+
+What the draft got right is the direction finding 1 takes:
+which `.gitattributes` a merge reads is the open item quoted in
+"Decisions this route answers to",
+and the worktree arm reads the copy Git left in the worktree,
+markers included,
+which is the source Git itself uses for a worktree merge.
+
 ## Checked and found sound
 
 Each item names the `mergeprobe.ts` case and what the route did.
@@ -532,7 +512,7 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   resolved to exactly both sides' edits,
   byte for byte.
   (The report line is lossy;
-  see finding 3.)
+  see finding 2.)
 - Very long lines (`long-line`,
   one 400 kB line):
   left as Git's conflict.
@@ -540,6 +520,22 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   Git merges it cleanly,
   so the pass is not involved,
   and both arms agree.
+- A guard line that both sides still carry,
+  inside the conflict hunk itself (`attributes-two-attributes`):
+  the worktree `.gitattributes` is then a marker file,
+  the rule still reads as `merge=binary`,
+  no pass runs,
+  and both arms agree on `UU` for both paths.
+  (The draft finding this replaced is in "Withdrawn by measurement".)
+- A guard line outside the conflict (`attributes-guard-intact`):
+  the wrapper leaves the guarded file alone,
+  as Git does.
+- A guard line only the base carries,
+  and both sides rename (`attributes-guard-lost`):
+  the wrapper word-merges the file and Git leaves it conflicted,
+  which is the attribute source talking,
+  not the markers;
+  the input is in "Withdrawn by measurement" because it does not support the finding it first suggested.
 - A path that is a symbolic link (`symlink`):
   never a candidate,
   because the stages' modes are not a plain file's
@@ -579,7 +575,7 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
 - The reconcile merge and the commit replay end to end.
   Both were read,
   and both call the same `attribute_tree_variables` and `resolve_tree`,
-  so findings 1 and 3 reach them by the same functions;
+  so findings 1 and 2 reach them by the same functions;
   exercising them needs a service,
   a remote and a staged push,
   which this audit did not build.
@@ -603,8 +599,9 @@ the wrapper's arm matches real Git's arm or leaves Git's conflict exactly as Git
   and the first is the same class,
   so this audit reports it as accepted rather than as a finding.
 - Whether a `merge` exclusion added by the *first* side and removed by the second should keep guarding the file.
-  This audit measured the two cases it can state
-  (findings 1 and 2);
+  This audit measured the case it can state (finding 1),
+  and the two inputs that withdrew the worktree variant
+  ("Withdrawn by measurement");
   the general question of which `.gitattributes` a merge should read is the open item quoted in
   "Decisions this route answers to".
 - Windows and macOS,
