@@ -656,23 +656,44 @@ The old tree kept for the rollback stays until the owner deletes it.
   The session aborted that one connection and detached the mount,
   and `shared-rules-for-pi-briefs.md` now requires a private mount namespace for any probe that mounts.
 - `fix/git-policy-cli-worktree-add-keeps-ignored-files-and-names-interrupted-adds`:
-  its agent reports the five findings of `doc/planning/cli-git-worktree-add-route-findings-on-main.md` fixed.
-  On top of main 661 of 664 selected tests pass:
-  two snapshot tests fail in about 0.2 seconds beside what it changed,
-  and the third is the tokio branch's order control.
-  The review (`${HOME}/temp/agent/reviews/worktree-add-round-1-sol.txt`) names a snapshot of a linked worktree that still carries another command's credentials,
-  and a ceiling that also kills the person's own command.
-  By its own report,
-  the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
-  Run 2 of its agent reports six findings handled,
-  674 of 674 selected tests pass on top of main,
-  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) names another command's stage carried into the new worktree as unignored trash,
-  a lock-removal instruction quoted for JSON and not for a shell,
-  a helper reported as ended when only Git was reaped,
-  and a checkout filter that reads the terminal stopped by the new process group.
-  Not ready to merge.
-  Run 3 of its agent is on them.
-  The container gate has not run.
+  run 4 settled all five findings of the third review (`${HOME}/temp/agent/reviews/worktree-add-round-3-sol.txt`),
+  after merging main `421ab69c3e`
+  (conflicts in `forwarding.rs`,
+  `forwarding_tests.rs` and `worktree_trash_dispose.rs`):
+  an earlier add's trash is moved into this add's and emptied with it,
+  a stage container is removed before the worktree is installed (measured:
+  460 ms to remove 20,000 one-kilobyte files against 0.1 ms to rename),
+  the `gitdir:` pointer is read on bytes as Git's `read_gitfile_gently` does,
+  the ceiling's line says a helper keeps a caller's stream open,
+  and the partially restored checkout the finished-check cannot judge is written into `SPEC.md` with no mechanism added.
+  985 of 985 selected tests pass (`worktree::`,
+  `worktree_copying::`,
+  `invocation::`),
+  clippy passes,
+  and `monochromatic-lint` passes on every file this branch changed;
+  the package-wide run stops on `src/native/testing/test_support.rs`,
+  which is 315 code lines against the limit of 300 in main itself (`0b6f191324`),
+  a file this branch never touched.
+  The merge resolution removed the trash hand-over (`hand_over`,
+  `Reach`,
+  `Router`,
+  `Provisioner` and the `units_record_dir` line main added inside it),
+  which this branch had already deleted on purpose in `285267a6f2` for the second review's finding 2;
+  `units_record_dir_of` itself and its two other uses are untouched.
+  Open:
+  the interrupted-add remedy the report prints still cannot run as printed,
+  because `git -C <destination> reset --hard` is refused by the `linked-worktree-only` policy
+  ("this worktree has uncommitted changes to tracked files",
+  exit 1),
+  so the report and the policy need the owner's choice between allowing it for a destination the wrapper recorded
+  and printing `--no-enforce-worktree` with the reason;
+  a linked worktree's snapshot sets another command's stage aside silently,
+  while the main checkout's snapshot names the categories it left out;
+  and `worktree_copy_recovery.rs:108` still reads the same pointer as text,
+  so its fix can point at `worktree_add_binding::pointer_target` when it lands.
+  The container gate has not run on this round.
+  Not ready to merge;
+  merge after the gate run and the owner's answer on the remedy.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
   437 of 437 selected tests pass on top of main,
