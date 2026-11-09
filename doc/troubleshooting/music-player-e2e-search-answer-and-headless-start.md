@@ -402,11 +402,11 @@ two questions about the click on `WIDE_CLICK_POINTS.longFolder` in
 `package/music-player/desktop-e2e/src/wide-interaction.ts`:
 whether the app dropped the press or the harness never delivered it,
 and why the app logged nothing for it.
-Both are answered here,
-and neither side lost the click:
-the app received it within a millisecond and wrote no line about it,
-so the check waited for whatever line came next,
-which under the session's CPU quota took seconds.
+In the eleven runs whose session log was kept,
+the app received the click within a millisecond and wrote no line about it,
+so the check waited for whatever line came next.
+The one run of the twelve whose log was not kept took 14.5 s to answer;
+what it would have shown is not traced.
 
 ### What was measured, and on what
 
@@ -454,7 +454,9 @@ and in all eleven the click crossed the boundary at once:
   3202 and 4520 ms after the click.
   Its `reason` was `focus` in every one of the eleven:
   the click itself wrote no line,
-  so the check saw the new folder only when the next event wrote one.
+  so the check saw the new folder only when a later event wrote one.
+  That the later event was the click's own deferred focus change is likely and untraced:
+  what is measured is that the click's dispatch wrote none of the eleven.
 
 The two lines that decide it,
 from one run of that batch:
@@ -463,22 +465,29 @@ INFO nested_wayland_session::input: sending a click: motion, press and release x
 DEBUG music_player::ui_wire: a pointer event reached a folder name folder="Gotta Montage line" kind="down"
 ```
 
-The app was not busy either.
-Across the wait it used 20 to 140 ms of CPU and read 24 to 1232 bytes,
-and its threads were sleeping in 32 to 1089 of the 100 ms samples,
+Around each wait the probe read the app's own cost:
+20 to 140 ms of CPU and 24 to 1232 bytes read,
+with its threads sleeping in 32 to 1089 of the 100 ms samples,
 running in 0 to 3 and in disk wait in 0 to 30.
-The unit,
-though,
-was held back:
-a failing check of the same session kept
+Those totals count the app alone,
+not the compositor that shares its quota,
+and a sleeping thread is not a thread the scheduler refused to run,
+so they say the app was not computing,
+not why it was held.
+The session was also throttled,
+read from the accounting one earlier failing check of the same session kept,
+which is a cumulative figure and not a window around the click:
 `nr_periods 583`,
 `nr_throttled 166`,
 `throttled_usec 43914974`,
-`usage_usec 3103195` and `io.pressure some avg10=29.59`,
-so the compositor and the app shared 0.15 CPU and lost their turn in a third of the periods
-while the disk was also contended.
+`usage_usec 3103195` and `io.pressure some avg10=29.59`.
+That the shared 15 percent quota and the disk contention are what delayed the line is a guess:
+the measurement shows the unit was held back during the session,
+not that the same periods covered the wait.
 
-The whole-run answer times of the twelve were
+The whole-run times from sending the click to the check's predicate being met,
+twelve runs,
+were
 81,
 101,
 101,
@@ -525,20 +534,23 @@ not a longer wait.
 After the fix,
 twenty-one runs of the same filter and cap,
 the last five on a release build of the final tree:
-- Nineteen reached the click,
+- Twenty reached the click,
   and none of them failed on it.
 - Nine of them measured the answer,
-  on a binary that logged how long the click took:
-  all nine gave 41 ms from the click to the `folder-select` line,
-  which is exactly `STATE_POLL_MS`.
-  The third run of that batch,
-  before the timing probe was in place,
+  on a binary that timed the check's own wait:
+  all nine met the check's predicate after about 40 ms,
+  one `STATE_POLL_MS` poll interval.
+  The probe timed the wait,
+  not which line met it;
+  the window test asserts that the line is the `folder-select` one and names the opened folder.
+  The other runs of that batch,
+  before the probe was in place,
   passed inside the 6 s wait.
-- Two runs of the first batch never reached the click,
-  stopping at the seek setup with `timed out waiting for pause for the seek checks`,
+- One run stopped before the click,
+  at the seek setup with `timed out waiting for pause for the seek checks`,
   the load-induced failure the heading
   `Three wide-session checks failed together at host load 40 to 55` records.
-- Three runs failed some of the playback checks the same heading names
+- Four runs failed some of the playback checks the same heading names
   (`play/enter-plays-row`,
   `play/space-button`,
   `audio/private-sink`,
