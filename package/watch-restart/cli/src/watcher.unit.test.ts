@@ -7,7 +7,8 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   mkdir,
-  mkdtemp,
+  mkdtempDisposable,
+  type DisposableTempDir,
   rename,
   rm,
   symlink,
@@ -48,11 +49,12 @@ const NO_EVENT_WAIT_MS = 400;
  
  @example
  ```ts
- const dir = await makeTmpDir();
+ await using directory = await makeTmpDir();
+ const dir = directory.path;
  ```
  */
-async function makeTmpDir(): Promise<string> {
-  return mkdtemp(join(scratchRoot(), 'watch-restart-watcher-',),);
+async function makeTmpDir(): Promise<DisposableTempDir> {
+  return mkdtempDisposable(join(scratchRoot(), 'watch-restart-watcher-',),);
 }
 
 /**
@@ -102,7 +104,8 @@ await describe({
         it({
           name: 'pre-populates hashCache with the file digest',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'pre.txt',);
             await writeFile(file, 'hello',);
             const { watcher, hashCache, events, } = await buildWatcher([dir,],);
@@ -116,13 +119,13 @@ await describe({
             expect(events,).toHaveLength(0,);
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'does not call onEvent for files seen during initial walk',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             await writeFile(join(dir, 'a.txt',), 'aaa',);
             await writeFile(join(dir, 'b.txt',), 'bbb',);
             const { watcher, events, } = await buildWatcher([dir,],);
@@ -131,7 +134,6 @@ await describe({
             expect(events,).toHaveLength(0,);
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
       ],
@@ -142,7 +144,8 @@ await describe({
         it({
           name: 'emits an `add` event for newly created files',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const { watcher, events, } = await buildWatcher([dir,],);
 
             const file = join(dir, 'new.txt',);
@@ -158,13 +161,13 @@ await describe({
             expect(nonNullishOrThrow(adds[0],).ext,).toBe('.txt',);
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'emits a `change` event when an existing file is modified',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'edit.txt',);
             await writeFile(file, 'v1',);
             const { watcher, events, } = await buildWatcher([dir,],);
@@ -179,13 +182,13 @@ await describe({
             expect(nonNullishOrThrow(changes[0],).path,).toBe(resolve(file,),);
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'emits an `unlink` event when a file is deleted',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'gone.txt',);
             await writeFile(file, 'bye',);
             const { watcher, hashCache, events, } = await buildWatcher([dir,],);
@@ -207,7 +210,6 @@ await describe({
             ).toBe(false,);
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
@@ -222,7 +224,8 @@ await describe({
           skip:
             'flaky against chokidar atomic+awaitWriteFinish timing; covered by editord dev-loop integration verification',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const file = join(dir, 'atomic.txt',);
             await writeFile(file, 'original-contents',);
             const { watcher, events, } = await buildWatcher([dir,],);
@@ -239,7 +242,6 @@ await describe({
             expect(changesOnFile.length,).toBeGreaterThanOrEqual(1,);
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
       ],
@@ -250,7 +252,8 @@ await describe({
         it({
           name: 'relativePath is relative to the deepest matching root',
           fn: async () => {
-            const root = await makeTmpDir();
+            await using rootDirectory = await makeTmpDir();
+            const root = rootDirectory.path;
             const inner = join(root, 'inner',);
             await mkdir(inner,);
             const { watcher, events, } = await buildWatcher([root, inner,],);
@@ -267,7 +270,6 @@ await describe({
             expect(nonNullishOrThrow(adds[0],).relativePath,).toBe('leaf.txt',);
 
             await watcher.stop();
-            await rm(root, { recursive: true, },);
           },
         },),
       ],
@@ -278,7 +280,8 @@ await describe({
         it({
           name: 'depth caps subdirectory traversal during the initial walk',
           fn: async () => {
-            const root = await makeTmpDir();
+            await using rootDirectory = await makeTmpDir();
+            const root = rootDirectory.path;
             await mkdir(
               join(root, 'a', 'b', 'c',),
               { recursive: true, },
@@ -321,13 +324,13 @@ await describe({
             ).toBe(false,);
 
             await watcher.stop();
-            await rm(root, { recursive: true, },);
           },
         },),
         it({
           name: 'poll mode emits live events on file changes',
           fn: async () => {
-            const root = await makeTmpDir();
+            await using rootDirectory = await makeTmpDir();
+            const root = rootDirectory.path;
             const events: WatchEvent[] = [];
             const hashCache = new HashCache();
             const watcher = new Watcher({
@@ -352,14 +355,15 @@ await describe({
             expect(adds.length,).toBeGreaterThanOrEqual(1,);
 
             await watcher.stop();
-            await rm(root, { recursive: true, },);
           },
         },),
         it({
           name: 'followSymlinks: true pre-populates files inside a symlinked directory',
           fn: async () => {
-            const root = await makeTmpDir();
-            const external = await makeTmpDir();
+            await using rootDirectory = await makeTmpDir();
+            const root = rootDirectory.path;
+            await using externalDirectory = await makeTmpDir();
+            const external = externalDirectory.path;
             const externalFile = join(external, 'linked-file.txt',);
             await writeFile(externalFile, 'inside',);
             await symlink(external, join(root, 'link',),);
@@ -383,15 +387,15 @@ await describe({
             expect(hashCache.has(linkedPath,),).toBe(true,);
 
             await watcher.stop();
-            await rm(root, { recursive: true, },);
-            await rm(external, { recursive: true, },);
           },
         },),
         it({
           name: 'followSymlinks default (false) skips files inside symlinked directories',
           fn: async () => {
-            const root = await makeTmpDir();
-            const external = await makeTmpDir();
+            await using rootDirectory = await makeTmpDir();
+            const root = rootDirectory.path;
+            await using externalDirectory = await makeTmpDir();
+            const external = externalDirectory.path;
             const externalFile = join(external, 'linked-file.txt',);
             await writeFile(externalFile, 'inside',);
             await symlink(external, join(root, 'link',),);
@@ -414,8 +418,6 @@ await describe({
             expect(hashCache.has(linkedPath,),).toBe(false,);
 
             await watcher.stop();
-            await rm(root, { recursive: true, },);
-            await rm(external, { recursive: true, },);
           },
         },),
       ],
@@ -426,7 +428,8 @@ await describe({
         it({
           name: 'stop() resolves and prevents further events',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             const { watcher, events, } = await buildWatcher([dir,],);
 
             await watcher.stop();
@@ -436,13 +439,13 @@ await describe({
 
             expect(events,).toHaveLength(0,);
 
-            await rm(dir, { recursive: true, },);
           },
         },),
         it({
           name: 'untilReady() is idempotent on subsequent calls',
           fn: async () => {
-            const dir = await makeTmpDir();
+            await using dirDirectory = await makeTmpDir();
+            const dir = dirDirectory.path;
             await writeFile(join(dir, 'a.txt',), 'a',);
             const { watcher, } = await buildWatcher([dir,],);
 
@@ -450,7 +453,6 @@ await describe({
             await watcher.untilReady();
 
             await watcher.stop();
-            await rm(dir, { recursive: true, },);
           },
         },),
       ],
