@@ -268,7 +268,44 @@ function pendingProjectionOps(): void {
 }
 
 /**
- Reach the public tagged-value factories independently of edit operations.
+ Wrapper-shaped payloads the encoder must reject, so the validation arms are
+ reachable: a payload that would inject a key or comment, one of the wrong type
+ for its kind, and one claiming a kind no wrapper defines.
+ */
+const REJECTED_WRAPPER_PAYLOADS: readonly unknown[] = [
+  {
+    tomlKind: 'integer',
+    value: '1\nbad = "x"',
+  },
+  {
+    tomlKind: 'integer',
+    value: 1.5,
+  },
+  {
+    tomlKind: 'float',
+    value: 'Infinity',
+  },
+  {
+    tomlKind: 'local-date',
+    value: '2026-01-01 # x',
+  },
+  {
+    tomlKind: 'local-date-time',
+    value: '2026-05-14T10:00:00Z',
+  },
+  {
+    tomlKind: 'local-time',
+    value: '10:00:00\n',
+  },
+  {
+    tomlKind: 'no-such-kind',
+    value: 'x',
+  },
+];
+
+/**
+ Reach the public tagged-value factories and the wrapper payload validation
+ that guards interpolation, independently of edit operations.
  */
 function wrapperOps(): void {
   tomlInteger(1,);
@@ -276,6 +313,17 @@ function wrapperOps(): void {
   tomlLocalDate('2026-05-14',);
   tomlLocalDateTime('2026-05-14T10:00:00',);
   tomlLocalTime('10:00:00',);
+  for (const value of REJECTED_WRAPPER_PAYLOADS) {
+    attempt({
+      thunk: function rejectWrapped() {
+        tomlSet({
+          edit: emptyTomlEdit(),
+          path: ['wrapped',],
+          value,
+        },);
+      },
+    },);
+  }
 }
 
 //endregion Capture-free operation bodies
