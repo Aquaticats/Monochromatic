@@ -1573,13 +1573,15 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
 }
 
 /// The longest a control waits for the landing's own word that it is waiting for the index lock.
-/// The bound only ends a run that is already broken: a landing that never says the word stopped before its wait,
-/// and a
-///  control that waited without one would be held until the test watchdog ends the process
+/// The bound only ends a run that is already broken:
+/// a landing that never says the word stopped before its wait,
+/// and a control that waited without one would be held until the test watchdog ends the process
 /// (`testing/test_support.rs`,
-///  `RUN_LIMIT`, two minutes).
+/// `RUN_LIMIT`,
+/// two minutes).
 /// It is the ceiling the landing itself gives a foreign holder
-/// (`wait_ceilings.rs`, `LANDING_LOCK_CEILING`),
+/// (`wait_ceilings.rs`,
+/// `LANDING_LOCK_CEILING`),
 /// which is above the longest measured landing phase before the wait.
 const WAIT_WORD_CEILING: std::time::Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
 
