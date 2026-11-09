@@ -26,19 +26,22 @@ const SETTLE: std::time::Duration = std::time::Duration::from_secs(30);
 /// How often a control looks again while it waits.
 const POLL: std::time::Duration = std::time::Duration::from_millis(20);
 
-/// The names of a commit's scratch trees and of a saved message,
-/// which are the entries a wrapped commit makes and removes.
-const REMOVED_BY_THE_WRAPPER: [&str; 3] = [
+/// The names of a commit's scratch trees,
+/// which are the entries a wrapped command makes and removes.
+///  A saved message is not one of them:
+///  the wrapper writes that when it keeps the text a person typed,
+///  nothing removes it,
+///  and the command's own message names the file it is in.
+const REMOVED_BY_THE_WRAPPER: [&str; 2] = [
     "monochromatic-git-policy-cli-service-",
     "cli-git-service-",
-    "monochromatic-git-policy-cli-saved-message-",
 ];
 
 /// What:
 ///  Everything the wrapper would have removed and did not,
 ///  in the worktree's Git directory and in the repository scratch directory beside it.
 /// Why:
-///   Nothing of these belongs in a repository after a command has ended,
+///   No scratch tree of a command that has ended belongs in a repository,
 ///  and one that stays goes to the next sweep instead.
 ///
 /// In TS you'd write (pseudocode):
