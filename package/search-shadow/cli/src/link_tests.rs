@@ -97,10 +97,9 @@ fn removes_a_stale_link_when_the_real_tool_is_gone() {
     assert!(links_directory.join("rg").symlink_metadata().is_err());
 }
 
-/// Linking again is idempotent and replaces what is in the way
-/// and never takes a shadow link for the real tool.
+/// Linking again is idempotent and never takes a shadow link for the real tool.
 #[test]
-fn linking_again_replaces_what_is_there_and_skips_its_own_links() {
+fn linking_again_keeps_its_own_links_and_skips_them_as_candidates() {
     let world = crate::test_scratch::scratch();
     let tools = world.path().join("tools");
     fs::create_dir(&tools).expect("make the tools directory");
@@ -108,8 +107,6 @@ fn linking_again_replaces_what_is_there_and_skips_its_own_links() {
     let executable = world.path().join("search-shadow");
     write_tool(world.path(), "search-shadow");
     let links_directory = world.path().join("bin");
-    fs::create_dir(&links_directory).expect("make the links directory");
-    fs::write(links_directory.join("rg"), "old regular file").expect("write an old file in the way");
     // The links directory comes first on PATH, as in real use; its links must not count as real tools.
     let path_variable = format!("{}:{}", links_directory.display(), tools.display());
 
@@ -119,4 +116,71 @@ fn linking_again_replaces_what_is_there_and_skips_its_own_links() {
     assert_eq!(fs::read_link(links_directory.join("rg")).expect("read the link"), executable);
     assert_eq!(second.linked, vec![links_directory.join("rg")]);
     assert!(second.removed.is_empty());
+}
+
+/// A regular file of a shadowed name is somebody's own file,
+/// so it stays where it is and the run reports it instead of replacing it.
+#[test]
+fn leaves_a_regular_file_in_the_way_alone() {
+    let world = crate::test_scratch::scratch();
+    let tools = world.path().join("tools");
+    fs::create_dir(&tools).expect("make the tools directory");
+    write_tool(&tools, "rg");
+    let executable = world.path().join("search-shadow");
+    write_tool(world.path(), "search-shadow");
+    let links_directory = world.path().join("bin");
+    fs::create_dir(&links_directory).expect("make the links directory");
+    fs::write(links_directory.join("rg"), "old regular file").expect("write an old file in the way");
+    let path_variable = format!("{}:{}", links_directory.display(), tools.display());
+
+    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+
+    // `fs::read_to_string` reads the file back; the content proves nothing wrote over it.
+    assert_eq!(fs::read_to_string(links_directory.join("rg")).expect("read the file"), "old regular file");
+    assert!(report.linked.is_empty());
+}
+
+/// A directory of a shadowed name is left alone too,
+/// and it does not stop the other names from being linked.
+#[test]
+fn leaves_a_directory_in_the_way_alone_and_links_the_rest() {
+    let world = crate::test_scratch::scratch();
+    let tools = world.path().join("tools");
+    fs::create_dir(&tools).expect("make the tools directory");
+    write_tool(&tools, "rg");
+    write_tool(&tools, "grep");
+    let executable = world.path().join("search-shadow");
+    write_tool(world.path(), "search-shadow");
+    let links_directory = world.path().join("bin");
+    fs::create_dir_all(links_directory.join("rg")).expect("make a directory named like the tool");
+    let path_variable = format!("{}:{}", links_directory.display(), tools.display());
+
+    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+
+    assert!(links_directory.join("rg").is_dir());
+    assert_eq!(report.linked, vec![links_directory.join("grep")]);
+}
+
+/// A symbolic link that points at something other than a shadow is somebody else's link,
+/// so it stays where it is.
+#[test]
+fn leaves_a_link_to_another_program_alone() {
+    let world = crate::test_scratch::scratch();
+    let tools = world.path().join("tools");
+    fs::create_dir(&tools).expect("make the tools directory");
+    write_tool(&tools, "find");
+    let elsewhere = world.path().join("elsewhere");
+    fs::create_dir(&elsewhere).expect("make the other directory");
+    write_tool(&elsewhere, "my-own-find");
+    let executable = world.path().join("search-shadow");
+    write_tool(world.path(), "search-shadow");
+    let links_directory = world.path().join("bin");
+    fs::create_dir(&links_directory).expect("make the links directory");
+    std::os::unix::fs::symlink(elsewhere.join("my-own-find"), links_directory.join("find")).expect("write the foreign link");
+    let path_variable = format!("{}:{}", links_directory.display(), tools.display());
+
+    let report = link_shadows(&links_directory, &executable, &path_variable).expect("create the links");
+
+    assert_eq!(fs::read_link(links_directory.join("find")).expect("read the link"), elsewhere.join("my-own-find"));
+    assert!(report.linked.is_empty());
 }
