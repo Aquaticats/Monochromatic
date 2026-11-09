@@ -18,6 +18,9 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 import type { ShellCommandContext, } from './types.ts';
 import {
   EMPTY_REDIRECTS,
+  EMPTY_VISIT_RESULT,
+  visitResultForUnreadNodeKind,
+  type VisitResult,
   type WorkItem,
 } from './internal-types.ts';
 
@@ -176,20 +179,25 @@ function wordsWorkItems(
 }
 
 /**
- Build nested word items from parameter expansion.
- 
+ Build nested word work from parameter expansion.
+
+ Every operation form that carries words is listed here,
+ and the parser's own `Unknown` operation is reported as unread rather than
+ treated as wordless: its operator keeps the source text the parser could not
+ split into words.
+
  @param part - parameter expansion part
- 
+
  @param context - execution context inherited by nested words
- 
- @returns word work items in source order
- 
+
+ @returns word work items in source order, or the unread operation kind
+
  @example
  ```ts
- parameterWordItems({ part, context });
+ parameterExpansionResult({ part, context });
  ```
  */
-function parameterWordItems(
+function parameterExpansionResult(
   {
     part,
     context,
@@ -197,7 +205,7 @@ function parameterWordItems(
     readonly part: ForeignBorrowed<UnbashParameterExpansionPart>;
     readonly context: ShellCommandContext;
   },
-): WorkItem[] {
+): VisitResult {
   /**
    Index substitutions execute independently of an optional parameter operation.
    */
@@ -208,45 +216,73 @@ function parameterWordItems(
   /**
    Discriminated operation contains only the words belonging to that expansion form.
    */
-  const {operation} = part;
-  if (operation === undefined)
-    return indexItems;
-  if ('operand' in operation) {
-    return [
-      ...indexItems,
-      ...(operation.operand === undefined ? [] : wordWorkItems({
-        word: operation.operand,
-        context,
-      },)),
-    ];
+  const { operation, } = part;
+  if (operation === undefined) {
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: indexItems,
+    };
+  }
+  /**
+   Parser kind of this operation, kept so an operation no visitor covers is named.
+   */
+  const operationKind: string = operation.type;
+  if (operation.type === 'Unknown')
+    return visitResultForUnreadNodeKind(operationKind,);
+  if ((operation.type === 'Default')
+    || (operation.type === 'Remove')
+    || (operation.type === 'CaseModification')
+    || (operation.type === 'Transform')) {
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: [
+        ...indexItems,
+        ...(operation.operand === undefined ? [] : wordWorkItems({
+          word: operation.operand,
+          context,
+        },)),
+      ],
+    };
   }
   if (operation.type === 'Slice') {
-    return [
-      ...indexItems,
-      ...wordWorkItems({
-        word: operation.offset,
-        context,
-      },),
-      ...(operation.length === undefined ? [] : wordWorkItems({
-        word: operation.length,
-        context,
-      },)),
-    ];
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: [
+        ...indexItems,
+        ...wordWorkItems({
+          word: operation.offset,
+          context,
+        },),
+        ...(operation.length === undefined ? [] : wordWorkItems({
+          word: operation.length,
+          context,
+        },)),
+      ],
+    };
   }
   if (operation.type === 'Replace') {
-    return [
-      ...indexItems,
-      ...wordWorkItems({
-        word: operation.pattern,
-        context,
-      },),
-      ...wordWorkItems({
-        word: operation.replacement,
-        context,
-      },),
-    ];
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: [
+        ...indexItems,
+        ...wordWorkItems({
+          word: operation.pattern,
+          context,
+        },),
+        ...wordWorkItems({
+          word: operation.replacement,
+          context,
+        },),
+      ],
+    };
   }
-  return indexItems;
+  if (operation.type === 'Names') {
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: indexItems,
+    };
+  }
+  return visitResultForUnreadNodeKind(operationKind,);
 }
 
 /**
@@ -472,7 +508,7 @@ export {
   commandWordItems,
   nodeWorkItem,
   nodeWorkItems,
-  parameterWordItems,
+  parameterExpansionResult,
   redirectWordItems,
   redirectWorkItems,
   statementWorkItems,

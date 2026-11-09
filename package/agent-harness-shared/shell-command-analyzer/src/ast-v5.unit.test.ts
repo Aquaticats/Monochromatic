@@ -49,9 +49,9 @@ const NESTED_SUBSTITUTION_FORMS: readonly SubstitutionForm[] = [
   { source: 'echo ?(a|$(touch marker))', marker: 'marker', processSubstitution: false, },
   { source: 'echo [$(touch marker)]', marker: 'marker', processSubstitution: false, },
   { source: 'echo $(( 1$(touch marker) ))', marker: 'marker', processSubstitution: false, },
-  { source: 'echo $(( ${value:-$(touch marker)} ))', marker: 'marker', processSubstitution: false, },
+  { source: `echo $(( \${value:-$(touch marker)} ))`, marker: 'marker', processSubstitution: false, },
   { source: 'echo $(( 1@(a|$(touch marker)) ))', marker: 'marker', processSubstitution: false, },
-  { source: 'echo ${value:-{x,$(touch marker)}}', marker: 'marker', processSubstitution: false, },
+  { source: `echo \${value:-{x,$(touch marker)}}`, marker: 'marker', processSubstitution: false, },
   { source: 'echo {a,@(b|$(touch marker))}', marker: 'marker', processSubstitution: false, },
   { source: 'echo hi > {a,$(touch marker)}', marker: 'marker', processSubstitution: false, },
   { source: 'cat <<< {a,$(touch marker)}', marker: 'marker', processSubstitution: false, },
@@ -295,7 +295,7 @@ await describe({
         it({
           name: 'names a parameter operation the analyzer cannot read',
           fn: async function testUnreadParameterOperation() {
-            const result = analyzeShellCommand('echo ${value;text}',);
+            const result = analyzeShellCommand(`echo \${value;text}`,);
             expect(result.parsed,).toBe(true,);
             expect(result.notUnderstoodNodeKinds,).toEqual(['Unknown',],);
           },
@@ -303,7 +303,7 @@ await describe({
         it({
           name: 'names no unread node kind for a readable parameter default',
           fn: async function testReadParameterOperation() {
-            const result = analyzeShellCommand('echo ${value:-text}',);
+            const result = analyzeShellCommand(`echo \${value:-text}`,);
             expect(result.parsed,).toBe(true,);
             expect(result.notUnderstoodNodeKinds,).toEqual([],);
           },

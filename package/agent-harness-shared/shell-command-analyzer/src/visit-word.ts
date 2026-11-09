@@ -1,6 +1,12 @@
 /**
  Word visitors for `unbash` shell command analysis.
  
+ Every word part the parser can produce is answered here.
+ A part that carries a `parts` array is descended whatever its type is,
+ because that array is the only place the shell grammar puts a nested word;
+ the leaf types below are the ones whose grammar has no child list at all.
+ Any other part is named as unread instead of returning an empty result.
+ 
  @module
  */
 
@@ -12,11 +18,52 @@ import type {
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   EMPTY_VISIT_RESULT,
+  visitResultForUnreadNodeKind,
   type VisitResult,
 } from './internal-types.ts';
 import { visitExpansion, } from './nested.ts';
 import type { ShellCommandContext, } from './types.ts';
-import { parameterWordItems, } from './work-items.ts';
+import { parameterExpansionResult, } from './work-items.ts';
+
+//region Fixtures
+
+/**
+ Word part types whose grammar holds no child list, so no command can nest in them.
+
+ `Literal`, `SingleQuoted`, and `SimpleExpansion` carry only text,
+ `AnsiCQuoted` decodes backslash escapes without any expansion,
+ and `Glob` appears here for the `star` and `question` kinds,
+ whose `parts` field is typed `undefined`;
+ a `bracket` glob carries a child list and is therefore never a leaf.
+ */
+const COMMAND_FREE_WORD_PART_TYPES: ReadonlySet<string> = new Set([
+  'Literal',
+  'SingleQuoted',
+  'SimpleExpansion',
+  'AnsiCQuoted',
+],);
+
+//endregion Fixtures
+
+/**
+ Read the child list a word part carries, when the parser gives it one.
+
+ @param part - word part or quoted child to inspect
+
+ @returns whether the part's grammar holds a child list, narrowing to it
+
+ @example
+ ```ts
+ if (carriesWordParts(part,)) descend(part.parts);
+ ```
+ */
+function carriesWordParts(
+  part: ForeignBorrowed<UnbashWordPart | UnbashDoubleQuotedChild>,
+): part is ForeignBorrowed<UnbashWordPart> & {
+  readonly parts: readonly ForeignBorrowed<UnbashWordPart | UnbashDoubleQuotedChild>[]
+} {
+  return ('parts' in part) && Array.isArray(part.parts,);
+}
 
 /**
  Build child work from one word.
@@ -74,32 +121,20 @@ function visitPart(
     readonly context: ShellCommandContext;
   },
 ): VisitResult {
-  if ((part.type === 'DoubleQuoted') || (part.type === 'LocaleString')) {
-    return {
-      ...EMPTY_VISIT_RESULT,
-      workItems: [{
-        kind: 'parts',
-        parts: part.parts,
-        context,
-      },],
-    };
-  }
-  if (part.type === 'ParameterExpansion') {
-    return {
-      ...EMPTY_VISIT_RESULT,
-      workItems: parameterWordItems({
-        part,
-        context,
-      },),
-    };
-  }
+  if (part.type === 'ParameterExpansion')
+    return parameterExpansionResult({
+      part,
+      context,
+    },);
   if ((part.type === 'CommandExpansion') || (part.type === 'ProcessSubstitution')) {
     return visitExpansion({
       expansion: part,
       context,
     },);
   }
-  if ((part.type === 'ArithmeticExpansion') && (part.expression !== undefined)) {
+  if (part.type === 'ArithmeticExpansion') {
+    if (part.expression === undefined)
+      return EMPTY_VISIT_RESULT;
     return {
       ...EMPTY_VISIT_RESULT,
       workItems: [{
@@ -109,7 +144,23 @@ function visitPart(
       },],
     };
   }
-  return EMPTY_VISIT_RESULT;
+  /**
+   A part whose grammar holds a child list covers `DoubleQuoted`, `LocaleString`,
+   `BraceExpansion`, `ExtendedGlob`, and a `bracket` glob.
+   */
+  if (carriesWordParts(part,)) {
+    return {
+      ...EMPTY_VISIT_RESULT,
+      workItems: [{
+        kind: 'parts',
+        parts: part.parts,
+        context,
+      },],
+    };
+  }
+  if ((part.type === 'Glob') || COMMAND_FREE_WORD_PART_TYPES.has(part.type,))
+    return EMPTY_VISIT_RESULT;
+  return visitResultForUnreadNodeKind(part.type,);
 }
 
 /**
@@ -168,6 +219,11 @@ function visitParts(
     },
     parseErrors: results.flatMap(function resultParseErrors(result,): VisitResult['parseErrors'] {
       return result.parseErrors;
+    },),
+    notUnderstoodNodeKinds: results.flatMap(function resultNotUnderstoodNodeKinds(
+      result,
+    ): VisitResult['notUnderstoodNodeKinds'] {
+      return result.notUnderstoodNodeKinds;
     },),
   };
 }
