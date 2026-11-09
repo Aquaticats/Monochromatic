@@ -255,6 +255,7 @@ fn behaviour_lines(name: &str) -> String {
     return match name {
         "rg" => format!(
             "- refuses the short flag -r anywhere (in ripgrep it is --replace, not grep's recursive flag)\n\
+             - refuses a pipe on standard input beside a named search path (ripgrep reads the path and never the pipe, so the piped lines would be dropped)\n\
              - refuses --hidden, --no-ignore*, -u or -. with no search path and no piped input from a git repository root, {escape}\n",
         ),
         "grep" | "egrep" | "fgrep" => format!(
