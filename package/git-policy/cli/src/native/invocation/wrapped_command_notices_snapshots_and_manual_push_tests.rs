@@ -174,12 +174,12 @@ fn a_push_from_a_bare_repository_looks_at_that_repository() {
         lfs: false,
     };
     let tracking: std::collections::BTreeMap<String, Vec<String>> =
-        crate::manual_push_range::tracking_commits(&push, &[String::from("origin")]).expect("the bare repository's tracking refs are read there");
+        crate::manual_push_range_published_tips::tracking_commits(&push, &[String::from("origin")]).expect("the bare repository's tracking refs are read there");
     assert!(tracking.get("origin").expect("the remote asked for").is_empty(), "it has no remote-tracking refs");
     // The positive control: the same query in the fixture root, which is no repository, fails.
     let elsewhere: PushGit = PushGit { cwd: root.clone(), ..push };
     let refused: crate::manual_push_range::ManualPushRangeError =
-        crate::manual_push_range::tracking_commits(&elsewhere, &[String::from("origin")]).expect_err("a directory that is no repository cannot answer");
+        crate::manual_push_range_published_tips::tracking_commits(&elsewhere, &[String::from("origin")]).expect_err("a directory that is no repository cannot answer");
     assert!(refused.message.contains("not a git repository"), "{}", refused.message);
     remove(root.as_path());
 }
