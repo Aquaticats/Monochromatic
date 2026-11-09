@@ -20,6 +20,7 @@ export {
 } from './oxlint-augment.ts';
 export {
   detectNativeAnalysisCrash,
+  NO_NATIVE_ANALYSIS_CRASH,
   type NativeAnalysisCrash,
 } from './oxlint-analysis-crash.ts';
 export {
@@ -93,6 +94,7 @@ export {
 export { buildTscArgs, } from './tsc-args.ts';
 export {
   type CapturedSubprocessFailure,
+  AnalysisCrashError,
   isCapturedSubprocessFailure,
   ToolKilledBySignalError,
   ToolNotStartedError,

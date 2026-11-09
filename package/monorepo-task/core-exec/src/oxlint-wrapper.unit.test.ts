@@ -78,6 +78,56 @@ type WrapperRun = {
 };
 
 /**
+ Fixture folder that removes itself when the run is over.
+ */
+type FixtureDirectory = {
+  readonly path: string;
+  readonly [Symbol.dispose]: () => void;
+};
+
+/**
+ Makes a fixture folder holding a stand-in `oxlint` for one run shape.
+
+ @param mode - Run shape the stand-in imitates
+
+ @returns The folder and the `PATH` that finds its stand-in
+
+ @example
+ ```ts
+ using fixture = makeFixture({ mode: 'clean', },);
+ ```
+ */
+function makeFixture({
+  mode,
+}: {
+  readonly mode: string;
+},): FixtureDirectory {
+  /**
+   Fresh folder under this package's test scratch, so parallel cases never share one.
+   */
+  const path = join(
+    PACKAGE_DIRECTORY,
+    'dist',
+    'temp',
+    'test',
+    `oxlint-wrapper-${mode}-${Date.now()}-${Math.random().toString(36,).slice(2, 8,)}`,
+  );
+  mkdirSync(path, { recursive: true, },);
+  /**
+   Stand-in program, which the wrapper finds by name on `PATH`.
+   */
+  const stubPath = join(path, 'oxlint',);
+  writeFileSync(stubPath, STUB,);
+  chmodSync(stubPath, 0o755,);
+  return {
+    path,
+    [Symbol.dispose]() {
+      rmSync(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
+/**
  Runs the built wrapper with a stand-in `oxlint` first on `PATH`.
 
  @param mode - Run shape the stand-in imitates
@@ -94,39 +144,18 @@ async function runWrapper({
 }: {
   readonly mode: string;
 }): Promise<WrapperRun> {
-  /**
-   Fresh fixture folder, holding this run's stand-in `oxlint`.
-   */
-  const directory = join(
-    PACKAGE_DIRECTORY,
-    'dist',
-    'temp',
-    'test',
-    `oxlint-wrapper-${mode}-${Date.now()}-${Math.random().toString(36,).slice(2, 8,)}`,
+  using fixture = makeFixture({ mode, },);
+  return await spawn(process.execPath, [ENTRY,], {
+    cwd: fixture.path,
+    env: { PATH: `${fixture.path}:/usr/bin:/bin`, [STUB_MODE_VARIABLE]: mode, },
+  },).then(
+    function finished(result,) {
+      return { exitCode: 0, stdout: result.stdout, stderr: result.stderr, };
+    },
+    function failed(error: SubprocessError,) {
+      return { exitCode: error.exitCode ?? (-1), stdout: error.stdout, stderr: error.stderr, };
+    },
   );
-  mkdirSync(directory, { recursive: true, },);
-  try {
-    /**
-     Stand-in program, which the wrapper finds by name on `PATH`.
-     */
-    const stubPath = join(directory, 'oxlint',);
-    writeFileSync(stubPath, STUB,);
-    chmodSync(stubPath, 0o755,);
-    return await spawn(process.execPath, [ENTRY,], {
-      cwd: directory,
-      env: { PATH: `${directory}:/usr/bin:/bin`, [STUB_MODE_VARIABLE]: mode, },
-    },).then(
-      function finished(result,) {
-        return { exitCode: 0, stdout: result.stdout, stderr: result.stderr, };
-      },
-      function failed(error: SubprocessError,) {
-        return { exitCode: error.exitCode ?? (-1), stdout: error.stdout, stderr: error.stderr, };
-      },
-    );
-  }
-  finally {
-    rmSync(directory, { recursive: true, force: true, },);
-  }
 }
 
 await describe({
