@@ -162,6 +162,84 @@ fn the_index_update_of_derived_paths_survives_an_inherited_literal_pathspec_mode
     remove(root.as_path());
 }
 
+/// A repository holding two names that differ only in case,
+/// where the commit asked about changes only `a.txt`,
+/// the index and the worktree stand at the commit before it,
+/// and `A.txt` holds staged contents that exist in the index and the object store alone.
+fn index_with_a_staged_case_twin(name: &str) -> (PathBuf, PathBuf, String) {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("A.txt"), b"upper\n").expect("write A.txt");
+    std::fs::write(repo.join("a.txt"), b"lower\n").expect("write a.txt");
+    git(repo.as_path(), &["add", "--", "A.txt", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base", "--", "A.txt", "a.txt"]);
+    let first: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("a.txt"), b"lower changed\n").expect("change a.txt");
+    git(repo.as_path(), &["commit", "--quiet", "--message=change", "--", "a.txt"]);
+    let second: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    // `-u` has no long form: it is the only spelling that also updates the worktree.
+    git(repo.as_path(), &["read-tree", "--reset", "-u", first.as_str()]);
+    std::fs::write(repo.join("A.txt"), b"staged only\n").expect("stage other contents");
+    git(repo.as_path(), &["add", "--", "A.txt"]);
+    std::fs::write(repo.join("A.txt"), b"worktree again\n").expect("overwrite the worktree copy");
+    return (root, repo, second);
+}
+
+/// The contents the index holds for one path.
+fn staged_contents(repo: &Path, path: &str) -> String {
+    return git_text(repo, &["show", format!(":{path}").as_str()]);
+}
+
+/// A pathspec mode that turns magic off and leaves matching case-insensitive,
+/// as a shell holding both variables hands the service.
+fn inherited_literal_and_case_insensitive_pathspec_context() -> GitContext {
+    let mut context = git_context();
+    context.overlay.push((std::ffi::OsString::from("GIT_LITERAL_PATHSPECS"), std::ffi::OsString::from("1")));
+    context.overlay.push((std::ffi::OsString::from("GIT_ICASE_PATHSPECS"), std::ffi::OsString::from("1")));
+    return context;
+}
+
+/// A case-insensitive reading of the module's own `:(top,literal)a.txt` must not reach `A.txt`:
+/// the index entry the batch selected takes the commit's version,
+/// and the staged entry it never selected stays as it was,
+/// whether the paths come as text,
+/// as bytes,
+/// or from the branch the landing replaced.
+#[test]
+fn the_index_update_of_listed_paths_leaves_an_unselected_case_twin_alone() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-listed-icase-mode");
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_and_case_insensitive_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Listed(&[String::from("a.txt")])).expect("the listed path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// The same for a list of names handed over as bytes,
+/// which `reset` reads from its standard input.
+#[test]
+fn the_index_update_of_named_paths_leaves_an_unselected_case_twin_alone() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-named-icase-mode");
+    let index: PathBuf = repo.join(".git/index");
+    update_index(&inherited_literal_and_case_insensitive_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Named(&[b"a.txt".to_vec()])).expect("the named path is installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
+/// The same for the paths derived from the branch and the commit,
+/// which take the same standard-input route.
+#[test]
+fn the_index_update_of_derived_paths_leaves_an_unselected_case_twin_alone() {
+    let (root, repo, second) = index_with_a_staged_case_twin("service-follow-derived-icase-mode");
+    let index: PathBuf = repo.join(".git/index");
+    let old: String = git_text(repo.as_path(), &["rev-parse", format!("{second}^").as_str()]);
+    update_index(&inherited_literal_and_case_insensitive_pathspec_context(), repo.as_path(), index.as_path(), second.as_str(), IndexPaths::Derived { old: old.as_str() }).expect("the derived paths are installed");
+    assert_eq!(staged_contents(repo.as_path(), "a.txt"), "lower changed", "the selected path takes the commit's entry");
+    assert_eq!(staged_contents(repo.as_path(), "A.txt"), "staged only", "the staged entry the batch never selected stays");
+    remove(root.as_path());
+}
+
 /// A removal request whose scratch directory is gone and whose copy was never kept compares nothing,
 /// so it removes nothing and says so:
 /// answering success left the worktree's `MERGE_HEAD` behind,
