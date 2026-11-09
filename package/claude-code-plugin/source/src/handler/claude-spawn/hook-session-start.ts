@@ -25,6 +25,7 @@ import {
 import {
   BY_PID_DIR,
   type PidMapping,
+  parseSpawnState,
   SPAWNS_DIR,
   type SpawnState,
 } from './paths.ts';
@@ -122,12 +123,10 @@ async function handleSessionStart({
         jsonPath,
         'utf8',
       );
-      /* oxlint-disable typescript/no-unsafe-type-assertion -- trusted file written by our own CLI */
       /**
        Parsed spawn state; an empty `sessionId` field signals an unclaimed slot.
        */
-      const state = JSON.parse(raw,) as SpawnState;
-      /* oxlint-enable typescript/no-unsafe-type-assertion */
+      const state = parseSpawnState(raw,);
 
       if (state.sessionId
         === '') {

@@ -28,9 +28,17 @@ import {
   NOTHING_TO_REPORT,
 } from './inject.ts';
 import {
+  parseSpawnState,
   SPAWNS_DIR,
   type SpawnState,
 } from './paths.ts';
+
+import {
+  makeHookInputParser,
+  makeJsonWriter,
+  type JsonWriter,
+  type Parser,
+} from '../../runtime/handler-runtime.ts';
 
 /**
  Captured at module load. After tsdown bundles the source package into the
@@ -97,12 +105,10 @@ async function updateChildOnStop(
       filePath,
       'utf8',
     );
-    /* oxlint-disable typescript/no-unsafe-type-assertion -- trusted file written by our own CLI */
     /**
-     Parsed spawn state; the cast is safe because only the spawn-claude CLI writes this file.
+     Parsed spawn state; only the spawn-claude CLI writes this file.
      */
-    const state = JSON.parse(existing,) as SpawnState;
-    /* oxlint-enable typescript/no-unsafe-type-assertion */
+    const state = parseSpawnState(existing,);
 
     if (state.sessionId
       === sessionId) {
@@ -267,19 +273,18 @@ async function claudeSpawnHandler(event: ReadonlyDeep<HookInput>,): Promise<Clau
 /**
  Parses raw stdin as a {@link HookInput} (any union member; narrowed at dispatch).
  
- @param raw - JSON payload from Claude Code stdin
- 
- @returns parsed hook event union
- 
  @example
  ```ts
  const event = claudeSpawnParser(await text(process.stdin));
  ```
  */
-function claudeSpawnParser(raw: string,): HookInput {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-  return JSON.parse(raw,) as HookInput;
-}
+const claudeSpawnParser: Parser<HookInput> = makeHookInputParser<HookInput>();
+
+/**
+ Serializes the JSON arm of {@link ClaudeSpawnOutput}, whose payload shape is the
+ child's own, through the runtime's one JSON writer.
+ */
+const writeJsonPayload: JsonWriter<unknown> = makeJsonWriter<unknown>();
 
 /**
  Renders the discriminated output to stdout. Raw variants are written
@@ -301,7 +306,7 @@ function claudeSpawnWriter(output: ClaudeSpawnOutput,): string {
   if (output.kind
     === 'raw')
     return output.text;
-  return JSON.stringify(output.payload,);
+  return writeJsonPayload(output.payload,);
 }
 
 export type { ClaudeSpawnOutput, };

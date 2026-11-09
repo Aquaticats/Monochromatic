@@ -21,6 +21,7 @@ import {
 import { join, } from 'node:path';
 
 import {
+  parseSpawnState,
   SPAWNS_DIR,
   type SpawnState,
 } from './paths.ts';
@@ -146,12 +147,10 @@ async function readCompletedChild(
       filePath,
       'utf8',
     );
-    /* oxlint-disable typescript/no-unsafe-type-assertion -- trusted file written by our own CLI */
     /**
      Parsed spawn state used to filter by parent session and stopped status.
      */
-    const state = JSON.parse(raw,) as SpawnState;
-    /* oxlint-enable typescript/no-unsafe-type-assertion */
+    const state = parseSpawnState(raw,);
 
     if (state.parentSessionId
       !== parentSessionId)

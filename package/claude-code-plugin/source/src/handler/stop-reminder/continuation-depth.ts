@@ -23,6 +23,11 @@ import { createReadStream, } from 'node:fs';
 import { stat, } from 'node:fs/promises';
 import { buffer, } from 'node:stream/consumers';
 
+import {
+  makeOwnedFileParser,
+  type OwnedFileParser,
+} from '../../runtime/handler-runtime.ts';
+
 /**
  Marker identifying this hook's own forced-continuation feedback in a transcript.
  
@@ -173,14 +178,18 @@ function isHumanTurnRecord(record: TranscriptRecord,): boolean {
  */
 function parseRecord(line: string,): TranscriptRecord | typeof UNPARSABLE {
   try {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSONL written by Claude Code
-    return JSON.parse(line,) as TranscriptRecord;
+    return parseTranscriptRecord(line,);
   }
   catch (error) {
     void error;
     return UNPARSABLE;
   }
 }
+
+/**
+ Parser for one transcript line, asserted once for every reader in this folder.
+ */
+const parseTranscriptRecord: OwnedFileParser<TranscriptRecord> = makeOwnedFileParser<TranscriptRecord>();
 
 /**
  Sentinel for a transcript line that is not valid JSON.

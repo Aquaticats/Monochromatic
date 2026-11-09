@@ -9,6 +9,11 @@
  */
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
+import {
+  makeOwnedFileParser,
+  type OwnedFileParser,
+} from '../../runtime/handler-runtime.ts';
 import { open, } from 'node:fs/promises';
 
 import type { TranscriptContentBlock, } from '@monochromatic-dev/claude-code-plugin-hook-type/ts';
@@ -72,6 +77,11 @@ function isString(value: unknown,): value is string {
 }
 
 /**
+ Parser for one transcript row, asserted once for every reader.
+ */
+const parseTranscriptRow: OwnedFileParser<TranscriptRow> = makeOwnedFileParser<TranscriptRow>();
+
+/**
  Parses one transcript JSONL line,
  or returns {@link NOT_PARSED} when the line is not a record.
 
@@ -86,8 +96,7 @@ function isString(value: unknown,): value is string {
  */
 function parseRecord(line: string,): TranscriptRow | typeof NOT_PARSED {
   try {
-    /* oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowing a machine-written transcript line after its parse succeeds */
-    return JSON.parse(line,) as TranscriptRow;
+    return parseTranscriptRow(line,);
   } catch (error) {
     loggerForRows.warn(`skipping an unparseable transcript row: ${String(error,)}`,);
     return NOT_PARSED;

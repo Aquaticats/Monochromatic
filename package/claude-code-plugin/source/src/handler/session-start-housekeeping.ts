@@ -11,7 +11,9 @@ import {
 import { join, } from 'node:path';
 
 import {
+  makeHookInputParser,
   NO_STDOUT,
+  type Parser,
   type WriterOutput,
 } from '../runtime/handler-runtime.ts';
 
@@ -390,19 +392,12 @@ async function performHousekeeping(
  
  Input is trusted; it comes from Claude Code's hook dispatch system.
  
- @param raw - JSON payload from Claude Code stdin
- 
- @returns parsed SessionStart event
- 
  @example
  ```ts
  const event = sessionStartHousekeepingParser(await text(process.stdin));
  ```
  */
-function sessionStartHousekeepingParser(raw: string,): SessionStartInput {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-  return JSON.parse(raw,) as SessionStartInput;
-}
+const sessionStartHousekeepingParser: Parser<SessionStartInput> = makeHookInputParser<SessionStartInput>();
 
 /**
  Returns {@link NO_STDOUT}; the legacy hook produced no stdout, and the
