@@ -421,19 +421,21 @@ fn btrfs_a_subtree_the_sweep_cannot_examine_is_left_where_it_is_and_named() {
     let repo: PathBuf = main_with_state(root.as_path());
     let earlier: String = "b".repeat(40);
     let wrapper: String = format!("{TRASH_PARENT}/{earlier}/wrapper/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
-    put(repo.as_path(), format!("{wrapper}/payload/credentials").as_str(), b"another worktree's token\n");
+    let token: PathBuf = Path::new(wrapper.as_str()).join("payload/credentials");
+    put(repo.as_path(), token.to_str().expect("a path of text"), b"another worktree's token\n");
     let unsearchable: PathBuf = repo.join(TRASH_PARENT).join(&earlier);
     std::fs::set_permissions(&unsearchable, std::os::unix::fs::PermissionsExt::from_mode(0o600)).expect("a directory that can be listed and renamed but not looked inside");
     let restore: RestoreMode = RestoreMode { path: unsearchable.clone() };
     let (stage, source) = unpruned_snapshot(root.as_path(), repo.as_path());
     let restore_stage: RestoreMode = RestoreMode { path: stage.join(TRASH_PARENT).join(&earlier) };
     let outcome: Result<Pruned, String> = prune_snapshot(stage.as_path(), &source);
-    let reason: String = outcome.clone().expect_err(format!("pruning must refuse a subtree it cannot examine, but it returned {outcome:?} and the credentials are {}", if stage.join(TRASH_PARENT).join(&earlier).join("wrapper").join("payload/credentials").exists() { "still there" } else { "gone" }).as_str());
+    let reason: String = outcome.clone().expect_err(format!("pruning must refuse a subtree it cannot examine, but it returned {outcome:?} and the credentials are {}", if stage.join(&token).exists() { "still there" } else { "gone" }).as_str());
     assert!(reason.contains(format!("{TRASH_PARENT}/{earlier}/wrapper").as_str()), "the reason names the subtree it could not examine: {reason}");
-    assert!(stage.join(TRASH_PARENT).join(&earlier).join("wrapper").join("payload/credentials").exists(), "the subtree keeps its files where it is");
+    // The mode is put back before anything is looked at inside the subtree: without its search bit no lookup below it succeeds.
     drop(restore_stage);
-    assert!(repo.join(TRASH_PARENT).join(&earlier).join("wrapper").join("payload/credentials").exists(), "and the source keeps them too");
     drop(restore);
+    assert!(stage.join(&token).exists(), "the subtree keeps its files where it is");
+    assert!(repo.join(&token).exists(), "and the source keeps them too");
     remove(root.as_path());
 }
 
