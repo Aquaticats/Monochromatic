@@ -246,9 +246,8 @@ was removed on 2026-05-16 (recovered ~167 ms on Mono,
  ~433 ms on Linux).
 Historical blocks below still describe the subprocess as the contemporary
 implementation.
-That wording is preserved deliberately:
-the regression
-history is the file's reason for existing.
+That wording is preserved deliberately,
+because the regression history is the file's reason for existing.
 
 ## Last benched
 
