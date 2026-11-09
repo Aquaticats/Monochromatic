@@ -117,8 +117,10 @@ fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
     };
 }
 
-/// The hatch directly after the subcommand runs every guarded form,
-/// and Git then does what it was asked.
+/// The hatch directly after the subcommand runs every guarded form the policy knows:
+/// the wrapper's own rejection is what each of them loses,
+/// and no form's hatch token reaches Git,
+/// which then answers for itself.
 #[test]
 fn the_hatch_after_the_subcommand_runs_each_form() {
     let fixture: Fixture = fixture("discard-hatch");
