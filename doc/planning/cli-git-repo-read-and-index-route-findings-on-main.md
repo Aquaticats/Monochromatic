@@ -394,6 +394,24 @@ and still answers `TREE`,
 `EOIE`,
 `IEOT` and the `REUC` and `FSMN` bodies that read as Git reads them.
 
+Amended on 2026-11-09 (commit `2c347b79c8`,
+its controls in `cfaa62bb64`):
+`IEOT` is not silent on any body.
+Git reads the table only when `index.threads` turns threaded loading on and a valid `EOIE`
+is present,
+and the cross-vendor review's case holds.
+Reproduced on Git 2.56.0:
+an index written with `index.threads=4` and `index.recordOffsetTable=true`,
+its `IEOT` version byte changed to 2 and the trailing checksum resealed,
+makes Git print `error: invalid IEOT version 2` and answer,
+where the reader answered with empty standard error.
+Two further bodies Git words or dies on came out of the same reproduction:
+a first block one byte off ends Git without a word,
+and a first block pointing into the header prints
+`fatal: unknown index entry format 0xc0110000`,
+so the reader now answers an `IEOT` body only when it is version 1 and every block begins where
+this reader parsed an entry and together they cover all of them.
+
 `repo_read/repo_read_query.rs:324` returns an `Answer`
 whose `stderr` is empty for every query except the two the readers word
 themselves
@@ -457,6 +475,21 @@ Measured on this repository in the release profile,
 the answer costs more than the Git start it replaces,
 so the widening fixes what the reader can answer,
 not what it saves.
+
+Answered on 2026-11-09 (commits `6f8d629abe` for the object check,
+`b2481ec2a4` for the limit):
+the measured cost of the listing is now bounded instead of reduced to nothing.
+The answer took 13.7 ms at the median against 3.8 ms for `git for-each-ref`,
+and 10.8 ms of it was the object check;
+asking the packs before the loose paths removed 6.6 ms of that,
+leaving 7.1 ms for the answer on this repository.
+Because the layout read and the ref walk already take 1.8 ms,
+the two meet near 490 refs,
+so `REF_LISTING_LIMIT` (256) declines a longer listing before the object database is opened
+and Git answers it.
+A repository past the limit pays the layout read (0.5 ms) and the count of `packed-refs`
+before Git starts,
+where the answer cost 9.9 ms more than that start.
 
 `repo_read/repo_read_refs.rs:102` accepts a ref name only when every component is
 made of ASCII letters,
