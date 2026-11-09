@@ -67,17 +67,17 @@ function attemptAfterTheError({
   readonly problem: string
 },): RetryTaken {
   /**
-   Which attempt this is, counting from one.
+   How many attempts the run has made already.
    */
-  const attempt = watch.record
-    .retriesTaken() + 1;
+  const taken = watch.record
+    .retriesTaken();
   return {
-    attempt,
+    attempt: taken + 1,
     of: watch.options
       .retryCap,
     delayMilliseconds: retryDelayMilliseconds({
       problem,
-      retryNumber: attempt,
+      retryNumber: taken + 1,
       baseSeconds: watch.options
         .retryBaseSeconds,
     },),
@@ -198,8 +198,12 @@ export async function answerModelError(
     settlesAtAttempt,
   } = retry;
   if (settlesAtAttempt !== undefined) {
-    if (watch.record
-      .settledCount() <= settlesAtAttempt) {
+    /**
+     How many settles Pi has produced, which tells whether the attempt that went has ended.
+     */
+    const settled = watch.record
+      .settledCount();
+    if (settled <= settlesAtAttempt) {
       // An attempt has gone and Pi has not finished with it: the attempt's own settle is what tells the driver whether the
       // failure it answered is recovered, so nothing else is scheduled or sent until one comes.
       return 'still-running';
@@ -262,10 +266,10 @@ export async function answerModelError(
   /**
    How long this attempt waits.
    */
-  const delayMilliseconds = attemptAfterTheError({
+  const { delayMilliseconds, } = attemptAfterTheError({
     watch,
     problem: failure.problem,
-  },).delayMilliseconds;
+  },);
   retry.at = Date.now() + Math.min(
     delayMilliseconds,
     millisecondsLeftUntil(watch.deadline,),

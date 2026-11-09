@@ -376,6 +376,26 @@ function idleLongEnough(watch: WatchRequest,): boolean {
 }
 
 /**
+ Tells whether the run may end as one that came back with nothing to report: Pi has rested long enough, and no failure it settled
+ on is still unanswered.
+
+ A failure stays until a reply succeeds, so a prompt Pi only handled leaves the run ending on that failure rather than making it
+ look like a run that finished its task with nothing to say.
+
+ @param watch - watch request
+
+ @returns whether the run ends here
+ */
+function mayEndIdle(watch: WatchRequest,): boolean {
+  /**
+   The failure the run settled on, when nothing after it recovered.
+   */
+  const failure = watch.record
+    .unrecoveredModelError();
+  return (!failure.failed) && idleLongEnough(watch,);
+}
+
+/**
  Checks the limits and delivers the next inbox message, on every tick, until something ends the run. One message per tick keeps
  them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
  stalled answer cannot keep the stop file or the wall clock from being seen.
@@ -430,11 +450,8 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         name: nextMessage,
       },);
     }
-    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on. A run whose
-    // failure nothing recovered is not finished either: the failure stays until a reply succeeds, so a prompt Pi only handled
-    // ends the run on that failure rather than making it read as one that came back with nothing to report.
-    else if ((retry.at === undefined) && (!watch.record
-      .unrecoveredModelError().failed) && idleLongEnough(watch,)) {
+    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
+    else if ((retry.at === undefined) && mayEndIdle(watch,)) {
       return 'idle';
     }
   }

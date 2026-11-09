@@ -220,6 +220,15 @@ in the shape the providers write it:
   an abort the coordinator asked for,
   and a quota or plan limit nothing refills.
 
+A status is read only where the error text starts with one,
+which is where a response writes it:
+`400 Bad Request: max_tokens must not exceed 500` states a limit on the request,
+and the `500` in it is no server status.
+A rate limit is decided before the words about credentials,
+because a rate limit names what it limited:
+`429 Too many requests for this API key` is about the key being asked too often,
+not about a key that is wrong.
+
 A shape the driver does not recognise is left alone,
 which is how such a run ended before this existed:
 only a failure that is known to pass is waited out.
@@ -252,6 +261,13 @@ so no attempt is waited for past the run's own bound,
 and a run that ends on its error names how many attempts it made at that error,
 counted from the last reply that succeeded.
 
+An attempt waits for Pi to rest as well as for its own delay:
+a prompt handed to a Pi that is at work is queued behind that run or refused,
+and the error the attempt would answer may still be recovered by that run's own reply.
+A failure stays in the summary until a reply succeeds:
+a prompt Pi consumes without starting a run and without replying recovers nothing,
+so the run ends on the failure it began with rather than as a run that came back.
+
 A person reading the run afterwards sees each attempt twice:
 a `retry` line on `feed.jsonl` carrying its number,
 the bound it sits under,
@@ -259,11 +275,12 @@ its wait,
 what kind of failure it answers and that failure's text;
 and `retries` in `summary.json`,
 which is zero for a run that never needed one.
-The `retry` line is written when the attempt is decided on,
-so an attempt followed by no `retry_prompt` line was decided on and never sent:
-that happens when the stop file,
-the wall clock or Pi's own exit ends the run during the wait,
-and the run then ends for that reason rather than on the model error.
+The `retry` line is written when the attempt goes,
+immediately before its `retry_prompt` line,
+so an attempt is counted only once it was sent.
+A wait the stop file, the wall clock or Pi's own exit cuts short leaves the failure standing with no attempt behind it:
+the run ends for that reason,
+and `modelError` still names what the model said.
 `rateLimitErrors` counts the model errors that named a rate limit or a quota,
 whether or not another attempt could fix them,
 because those are measured apart from other failures.
