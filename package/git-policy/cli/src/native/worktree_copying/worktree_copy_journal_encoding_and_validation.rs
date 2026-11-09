@@ -320,7 +320,7 @@ pub fn is_canonical_absolute(path: &Path) -> bool {
         return true;
     }
     return rest
-        .split(|byte| *byte == b'/')
+        .split(|byte| return *byte == b'/')
         .all(|component| return !component.is_empty() && component != b"." && component != b"..");
 }
 
