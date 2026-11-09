@@ -203,6 +203,23 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in the question tool, recorded 2026-11-09T01:14:41-05:00
+
+An audit (`doc/planning/cli-git-discarding-commands-route-findings-on-main.md`) reproduced two discarding commands outside the wrapper's recorded rule.
+
+- `git worktree remove`:
+  "Log only",
+  with the note
+  "This one is pretty intentional because agents are just as likely to run a rm rf,
+  so preventing git worktree remove buys us nothing."
+  Git runs as it does today,
+  and the wrapper adds an audit line naming the worktree and what the removal took.
+- `git branch -D` from the main worktree:
+  "Allow,
+  add audit line (Recommended)".
+  Git runs as it does today,
+  and the wrapper records the branch and its commit so the branch can be restored.
+
 ## Answered in a plain message, recorded 2026-11-09T00:52:14-05:00
 
 - How many Pi agents run at once:
