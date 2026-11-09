@@ -2238,6 +2238,9 @@ importers:
       '@monochromatic-dev/mutation-test-cli-cargo-mutants':
         specifier: workspace:*
         version: link:../../mutation-test/cli-cargo-mutants
+      '@monochromatic-dev/or-throw-core':
+        specifier: workspace:*
+        version: link:../../or-throw/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6

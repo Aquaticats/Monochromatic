@@ -92,43 +92,96 @@ Issue 6005 stays open for its surviving instance,
 
 #### The 860 move
 
-`package/repository-move/cli/src/run-repository-move.ts status` is the live record;
-stages through `c26-kopia-snapshot` are done.
+The cut-over finished at 2026-11-09T05:27:00+00:00:
+`package/repository-move/cli/src/run-repository-move.ts status` records every stage through `c28-ide-through-link`.
 Kopia no longer backs this repository up,
 by the owner's word recorded in `questions-for-the-owner.md`,
 so a folder vanishing during a read can no longer fail that stage.
+
+The last checks were made through the link spelling.
+`c27-container-bind` started a container that read the Git folder.
+A container created first and started afterwards did the same (W13 of `doc/planning/repository-on-the-860-drive.md`).
+`c28` opened the installed IDE in a headless nested compositor:
+the file tree listed the repository,
+`README.md` opened,
+and a content search returned matches from `package/git-policy/cli/SPEC.md` and other files.
+That IDE shows the physical path `/var/mnt/encrypted/repository/Monochromatic/README.md`,
+so it resolves the link rather than keeping the spelling it was given,
+as the stage's text says it does.
+Its language servers did not start in that check,
+which used an empty settings folder so the run left the owner's alone;
+`mise` reported no global version there.
+They were not otherwise checked through the link.
 
 `c27-container-bind` stopped because the repository's top folder carries the private label
 `container_file_t:s0:c311,c738`,
 which SELinux enforces against any container that did not get that label.
 Every container this repository runs passes `--security-opt label=disable`,
 and the stage did not.
-It now does.
+It now does (`73428ae89d`).
 What gave the folder that label is not known.
 
-Next:
-rerun the cut-over from that stage.
-After it come the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
-and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
+`922fa7d1fb` merged the move tool's fixes,
+and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress
+#### Reviews and landings in progress (2026-11-09T00:56:19-05:00)
 
-- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
-  round five answers the review of round four and passes 206 tests.
-  Its own cross-vendor review is running.
-- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`:
-  the review of the destination reservation found defects on the ordinary route,
-  among them that a normal add into an already-made empty subvolume copies no ignored files.
-  Not ready to merge;
-  the agent has the review.
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
-  the review found a message that promises indexes were left alone when a job may have rewritten one,
-  and bound tests that can pass without contention.
-  The agent is on those.
-- `fix/git-policy-cli-binary-suite-holds-under-contention`:
-  finished,
-  being checked on top of main.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`,
+  at `66c35466ea`:
+  the cross-vendor review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-2-sol.txt`)
+  says a rewrite reported as never started can stay queued in Tokio and run later,
+  so the report's promise that the index stayed as it was can be false.
+  Not ready to merge.
+  Run 3 of its agent is on that finding.
+- `fix/git-policy-cli-push-route-records-and-ceilings`,
+  at `5b0393dbf6`:
+  its agent reports all eleven audit findings fixed,
+  and a cross-vendor review is running.
+- `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`,
+  at `3509de3e01`:
+  the cross-vendor review of its latest round
+  (`${HOME}/temp/agent/reviews/landing-route-round-3-sol.txt`)
+  names seven more defects,
+  among them a failed reset that commits a deletion and an approved push left stranded.
+  Not ready to merge.
+  This one waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `landing-route-findings-fixed` as run 4,
+  with `landing-route-findings-fixed-round-4-prompt.md` and the session file named in run 3's `summary.json`.
+- `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
+  at `493e72d1e9`:
+  the library suite passed 4835 of 4835.
+  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
+  names three more ways a new worktree can end up unfilled or filled by the wrong command,
+  so it is not ready to merge.
+  This one waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `copy-route-records-before-git` as run 6,
+  with `copy-route-records-round-6-prompt.md` and the session file named in run 5's `summary.json`.
+  The fix for a ladder rung that already made its destination has no test of its own,
+  and the two-process race has no failing test,
+  because nothing can hold a wrapper at a named step.
+- `fix/git-policy-cli-scratch-commit-ceiling-and-three-slow-commits`:
+  the cross-vendor review (`${HOME}/temp/agent/reviews/scratch-commit-ceiling-round-1-sol.txt`)
+  names defects in the stop,
+  among them a blocked notice write that keeps the command from returning and a signal that can reach a reused process id.
+  Not ready to merge.
+  This one waits for a free agent slot too:
+  resume the run `scratch-commit-ceiling-and-three-slow-commits` as run 2,
+  with `scratch-commit-ceiling-round-2-prompt.md` and the session file named in run 1's `summary.json`.
+  It raises the ceiling to 16,332 ms,
+  makes the stop keep looking for a step that starts late,
+  and logs what ran below each step.
+  Of the three slow commits,
+  171,383 ms and 26,256 ms are the retry index without stat data,
+  fixed in 0.6.1-alpha.4.
+  The cause of 36,651 ms is not established.
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`,
+  `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
+  `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
+  and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
+  their agents are working through their reviews.
 
 Running agents are the `pi-*.service` user units,
 each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.

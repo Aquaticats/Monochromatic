@@ -62,7 +62,7 @@ export default {
   'generate:rules': {
     description: 'Regenerate the embedded data/builtin-rules.txt baseline from the vendored betterleaks config',
     run: [
-      'node src/mise.port-betterleaks.ts',
+      'node bin/port-betterleaks.ts',
       'cargo run --release --manifest-path ../../forbidden-strings/core.bench/Cargo.toml --bin dialectport',
     ],
   },
