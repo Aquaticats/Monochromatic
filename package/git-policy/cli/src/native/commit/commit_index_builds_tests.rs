@@ -157,6 +157,32 @@ fn a_retry_from_a_copy_of_the_real_index_is_noted_as_keeping_the_stat_data() {
     remove(root.as_path());
 }
 
+/// A rebuild after the branch moved leaves no intent-to-add entry in the index the scratch commit reads:
+/// the copy leaves the mark out,
+/// where a mark whose mode and object name equal the tree's own entry survives the reset,
+/// and the commit then leaves that path out of its tree
+/// (measured in the gate image on 2026-11-09:
+/// after `read-tree --reset` the entry still carries flags `20004000`,
+/// and `write-tree` over an index a later `add` invalidated lists only the named file).
+#[test]
+fn a_retry_leaves_no_intent_to_add_entry_for_the_scratch_commit() {
+    let root: PathBuf = fixture("index-builds-intent-empty-retry");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("empty"), "").expect("empty file");
+    git(repo.as_path(), &["add", "empty"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=empty"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "empty"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "empty"]);
+    let tree: String = git_text(repo.as_path(), &["rev-parse", format!("{base}^{{tree}}").as_str()]);
+    initialize_retry_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, tree.as_str()).expect("retry index");
+    let bytes: Vec<u8> = std::fs::read(indexes.commit_index.as_path()).expect("the rebuilt index");
+    let index = crate::index_full::parse_full_index(bytes.as_slice(), 20).expect("an index this reader takes");
+    let entry = index.entries.into_iter().find(|entry| { return entry.path == b"empty"; }).expect("the rebuilt index holds the tracked file");
+    assert_eq!(entry.extended & crate::index_full::INTENT_TO_ADD, 0, "a mark the commit reads would leave the tracked file out of its tree");
+    remove(root.as_path());
+}
+
 /// The selection an index commit makes:
 /// the whole index,
 /// nothing named.
