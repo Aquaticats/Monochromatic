@@ -8,10 +8,13 @@
 //! the signal would then end a command of the person's that has nothing to do with the stop.
 //!  A pidfd is made while the number is proven to name the member (its start time read before and after the open),
 //! and `pidfd_send_signal` reaches the process that descriptor names or fails.
-//! Where the kernel has no pidfds the start time is read again right before the signal,
-//! and the interval that leaves is the one a descriptor closes.
+//!  A member the kernel refuses a descriptor for is not signalled at all:
+//! a signal by number after a proof is still a signal to a number,
+//! and the process the proof named can end and its number pass to another command before the call
+//! (finding 2 of the second review).
 //!  Each call also answers what the signal came to (`Delivered`),
-//! so a caller records a stop only when a signal was really taken.
+//! so a caller records a stop only when a signal was really taken,
+//! and keeps its ceiling armed when nothing could be proven.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -21,28 +24,31 @@
 /// The member's number and start time,
 /// and the tree it was read from.
 use crate::process_tree::TreeMember;
-/// Whether the number still names that member,
-/// read again right before a signal where the kernel has no pidfd.
-use crate::process_tree::still_running;
 
 /// What:
 ///  What a signal came to.
 /// Why:
 ///   A stop is recorded only when a signal was really sent,
 /// so a member the kernel refused to signal is a different answer from one it took.
+///  A member that could not be proven at all is a third answer:
+/// it says nothing about whether the process is still there,
+/// so a caller must not read it as an end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Delivered = 'sent' | 'gone';
+/// type Delivered = 'sent' | 'gone' | 'unproven';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Delivered {
-    /// The kernel took the signal for the process that was found.
+    /// The kernel took the signal for the process that was pinned.
     Sent,
-    /// The process is gone,
-    /// or the number names another one now,
+    /// No process has that number any more,
     /// so nothing was sent.
     Gone,
+    /// Nothing was sent, and nothing is known about the member:
+    /// the kernel refused a descriptor,
+    /// or the signal cannot be named to it.
+    Unproven,
 }
 
 /// What:
@@ -60,15 +66,36 @@ pub enum Delivered {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pinned = PinnedMember.open(found); pinned?.signal('SIGKILL');
+/// const pinned = PinnedMember.open(found); if (pinned.kind === 'held') pinned.signal('SIGKILL');
 /// ```
 #[cfg(target_os = "linux")]
 pub struct PinnedMember {
-    /// The number and start time the tree read.
-    member: TreeMember,
-    /// The descriptor the kernel made for that process,
-    /// where it makes pidfds.
-    descriptor: Option<std::os::fd::OwnedFd>,
+    /// The descriptor the kernel made for the process the tree found.
+    descriptor: std::os::fd::OwnedFd,
+}
+
+/// What:
+///  What pinning a member came to.
+/// Why:
+///   Three answers must stay apart:
+/// the member is held by a descriptor and can be signalled;
+/// the number names no process any more, so the member is gone;
+/// and the member could not be proven,
+/// so no signal may be sent and no end may be concluded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Pinned = { kind: 'held'; member: PinnedMember } | { kind: 'gone' } | { kind: 'unproven' };
+/// ```
+#[cfg(target_os = "linux")]
+pub enum Pinned {
+    /// The member, held by a descriptor that names it for good.
+    Held(PinnedMember),
+    /// No process has that number any more.
+    Gone,
+    /// The member could not be proven:
+    /// the kernel refused a descriptor, so nothing may be sent.
+    Unproven,
 }
 
 // What:
@@ -126,47 +153,45 @@ impl PinnedMember {
     /// its start time is read,
     /// the descriptor is opened,
     /// and its start time is read again.
-    /// Nothing when the number names another process or none.
+    /// `Gone` when the number names another process or none,
+    /// and `Unproven` when the kernel refuses a descriptor for it.
     /// Why:
     ///   Both reads must answer the recorded start time for the descriptor to be that process's:
     /// a number that came back would have to be handed to the process that held it before.
+    ///  A member without a descriptor is never signalled:
+    /// the last proof and the signal would be two operations again,
+    /// which is the interval a descriptor exists to close.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const pinned = PinnedMember.open(found);
     /// ```
-    pub fn open(member: &TreeMember) -> Option<Self> {
+    pub fn open(member: &TreeMember) -> Pinned {
         if crate::process_tree::identity_of(member.pid) != Some((member.started, false)) {
-            return None;
+            return Pinned::Gone;
         }
-        let descriptor: Option<std::os::fd::OwnedFd> = pidfd_of(member.pid);
+        let Some(descriptor) = pidfd_of(member.pid) else {
+            return Pinned::Unproven;
+        };
         // The number named the member before and after the descriptor was made, so the descriptor is that process's.
         if crate::process_tree::identity_of(member.pid) != Some((member.started, false)) {
-            return None;
+            return Pinned::Gone;
         }
-        return Some(Self { member: member.clone(), descriptor });
+        return Pinned::Held(Self { descriptor });
     }
 
     /// Send `signal` to the pinned process,
     /// and to no other.
     pub fn signal(&self, signal: i32) -> Delivered {
-        if let Some(descriptor) = &self.descriptor
-            && let Some(named) = rustix::process::Signal::from_named_raw(signal)
-        {
-            return match rustix::process::pidfd_send_signal(descriptor, named) {
-                Ok(()) => Delivered::Sent,
-                // The kernel took the descriptor but the process it names has ended: nothing of the person's was reached.
-                Err(_) => Delivered::Gone,
-            };
-        }
-        // Without a descriptor the start time is read again right before the signal,
-        // so the interval that remains is the one a descriptor closes.
-        if !still_running(&self.member) {
-            return Delivered::Gone;
-        }
-        // SAFETY: `kill` takes two integers and touches no memory of this process.
-        let result: libc::c_int = unsafe { libc::kill(self.member.pid, signal) };
-        return if result == 0 { Delivered::Sent } else { Delivered::Gone };
+        let Some(named) = rustix::process::Signal::from_named_raw(signal) else {
+            // A signal this build cannot name to the kernel: nothing is sent, and a real-time signal is the only case.
+            return Delivered::Unproven;
+        };
+        return match rustix::process::pidfd_send_signal(&self.descriptor, named) {
+            Ok(()) => Delivered::Sent,
+            // The kernel took the descriptor but the process it names has ended: nothing of the person's was reached.
+            Err(_) => Delivered::Gone,
+        };
     }
 }
 
@@ -188,31 +213,24 @@ pub fn signal_members(members: &[TreeMember], signal: i32) -> Vec<Delivered> {
     let mut reported: Vec<Delivered> = Vec::with_capacity(members.len());
     for member in members {
         let delivered: Delivered = match PinnedMember::open(member) {
-            Some(pinned) => pinned.signal(signal),
-            None => Delivered::Gone,
+            Pinned::Held(pinned) => pinned.signal(signal),
+            Pinned::Gone => Delivered::Gone,
+            Pinned::Unproven => Delivered::Unproven,
         };
         reported.push(delivered);
     }
     return reported;
 }
 
-/// The same where the kernel has no pidfd:
-/// the start time is read again right before each signal,
-/// and the interval that leaves is the one a descriptor closes.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+/// Where the kernel has no pidfd at all,
+/// every member is unproven:
+/// a signal by number after a proof is the race this module exists to remove,
+/// and a platform without descriptors cannot close it.
+/// Owner decision, 2026-11-09: "Ignore Win and mac until I say so."
+// UNTESTED: no gate compiles or runs this branch, and the owner keeps macOS and Windows out of scope.
 #[cfg(all(unix, not(target_os = "linux")))]
-pub fn signal_members(members: &[TreeMember], signal: i32) -> Vec<Delivered> {
-    let mut reported: Vec<Delivered> = Vec::with_capacity(members.len());
-    for member in members {
-        if !still_running(member) {
-            reported.push(Delivered::Gone);
-            continue;
-        }
-        // SAFETY: `kill` takes no pointers; a failure is reported because the process may have ended since the check.
-        let result: libc::c_int = unsafe { libc::kill(member.pid, signal) };
-        reported.push(if result == 0 { Delivered::Sent } else { Delivered::Gone });
-    }
-    return reported;
+pub fn signal_members(members: &[TreeMember], _signal: i32) -> Vec<Delivered> {
+    return vec![Delivered::Unproven; members.len()];
 }
 
 /// Platforms without signals stop only the root.

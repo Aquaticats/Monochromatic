@@ -79,7 +79,12 @@ pub fn ceiling_came(step: i32) -> CeilingCame {
         return CeilingCame::Unknown;
     };
     let stopped_the_step: bool = match member_read(step) {
-        MemberRead::Found(member) => kill_members(std::slice::from_ref(&member)).contains(&Delivered::Sent),
+        MemberRead::Found(member) => match kill_members(std::slice::from_ref(&member)).first() {
+            Some(Delivered::Sent) => true,
+            // Nothing could be proven about the step, so nothing is concluded about it either.
+            Some(Delivered::Unproven) => return CeilingCame::Unknown,
+            _ => false,
+        },
         MemberRead::Gone => false,
         MemberRead::Unreadable => return CeilingCame::Unknown,
     };
