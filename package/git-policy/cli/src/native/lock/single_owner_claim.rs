@@ -308,7 +308,7 @@ fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateE
     match foreign_owner_standing(namespace.as_deref(), path) {
         Some(Ok(())) => return Ok(Some(*pid)),
         // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old claim of another namespace is neither taken nor trusted.
-        Some(Err(expired)) => return Err(MigrateError::Journal(expired.describe(*pid))),
+        Some(Err(refused)) => return Err(MigrateError::Journal(refused.describe(*pid))),
         None => {}
     }
     return match process_birth_identity(*pid) {

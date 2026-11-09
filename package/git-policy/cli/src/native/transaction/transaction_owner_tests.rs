@@ -137,7 +137,7 @@ fn a_refused_probe_is_an_error() {
             "a signalable PID 1 is not linux:1"
         ),
         Err(OwnerLivenessError::Identity(error)) => panic!("unexpected identity failure: {error}"),
-        Err(OwnerLivenessError::ExpiredForeign(text)) => panic!("a bare PID is no foreign record: {text}"),
+        Err(OwnerLivenessError::ForeignRecordRefused(text)) => panic!("a bare PID is no foreign record: {text}"),
     }
 }
 

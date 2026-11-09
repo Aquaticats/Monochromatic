@@ -95,12 +95,13 @@ pub enum OwnerLivenessError {
     Probe(std::io::Error),
     /// The birth identity could not be read.
     Identity(ProcessIdentityError),
-    /// The record names another PID namespace and is older than the patience:
-    /// neither alive nor dead.
+    /// The record names another PID namespace and is neither alive nor dead:
+    /// its measured age is past the patience,
+    /// or its own time cannot be trusted.
     /// The text is the error to
     ///  stop with (`pid_namespace.rs`,
-    /// `ExpiredForeignRecord`).
-    ExpiredForeign(String),
+    /// `RefusedForeignRecord`).
+    ForeignRecordRefused(String),
 }
 
 /// What:
@@ -264,7 +265,7 @@ pub fn classify_transaction_owner_record(
 ) -> Result<OwnerLiveness, OwnerLivenessError> {
     match foreign_owner_standing(owner.owner_pid_namespace.as_deref(), owner_path) {
         Some(Ok(())) => return Ok(OwnerLiveness::Alive),
-        Some(Err(expired)) => return Err(OwnerLivenessError::ExpiredForeign(expired.describe(owner.owner_pid))),
+        Some(Err(refused)) => return Err(OwnerLivenessError::ForeignRecordRefused(refused.describe(owner.owner_pid))),
         None => {}
     }
     return classify_transaction_owner(owner.owner_pid, owner.owner_identity.as_str());

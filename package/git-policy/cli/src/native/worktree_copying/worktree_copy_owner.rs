@@ -27,7 +27,7 @@
 //! if (!CopyOwner.fromToken(token).isAlive(path)) { /* the item may be taken over */ }
 //! ```
 
-use crate::pid_namespace::{ExpiredForeignRecord, current_pid_namespace, foreign_owner_standing};
+use crate::pid_namespace::{RefusedForeignRecord, current_pid_namespace, foreign_owner_standing};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure_of};
 use std::path::Path;
@@ -176,7 +176,7 @@ impl CopyOwner {
     /// "Refuse and name it (Recommended)").
     pub fn expired_foreign_refusal(&self, item: &Path) -> Option<WorktreeCopyError> {
         return match foreign_owner_standing(self.pid_namespace.as_deref(), item) {
-            Some(Err(expired)) => Some(WorktreeCopyError(expired.describe(self.pid))),
+            Some(Err(refused)) => Some(WorktreeCopyError(refused.describe(self.pid))),
             Some(Ok(())) | None => None,
         };
     }
@@ -205,9 +205,9 @@ impl CopyOwner {
 
     /// `is_alive` from a standing that was read already,
     /// so one decision never reads the age twice.
-    fn alive_by(&self, standing: Option<Result<(), ExpiredForeignRecord>>) -> Result<bool, WorktreeCopyError> {
+    fn alive_by(&self, standing: Option<Result<(), RefusedForeignRecord>>) -> Result<bool, WorktreeCopyError> {
         match standing {
-            Some(Err(expired)) => return Err(WorktreeCopyError(expired.describe(self.pid))),
+            Some(Err(refused)) => return Err(WorktreeCopyError(refused.describe(self.pid))),
             Some(Ok(())) => return Ok(true),
             None => {}
         }
@@ -248,8 +248,8 @@ pub fn token_owner_is_dead(token: Option<&str>, item: &Path) -> Result<bool, Wor
         return Ok(true);
     };
     let standing = foreign_owner_standing(owner.pid_namespace.as_deref(), item);
-    if let Some(Err(expired)) = &standing {
-        return Err(WorktreeCopyError(expired.describe(owner.pid)));
+    if let Some(Err(refused)) = &standing {
+        return Err(WorktreeCopyError(refused.describe(owner.pid)));
     }
     // `match` on the proof: only a clean answer of "not running" is a dead owner; what the platform will not say is not proof.
     match owner.alive_by(standing) {
