@@ -438,7 +438,7 @@ These facts held for the earlier gallery and are the starting point for the next
   Crop those captures to the application-owned media cards.
 - Crop app captures to exclude the status bar and the navigation bar,
   which can carry a carrier name.
-- The earlier note that unfolded and tabletop looked the same came from an app that ignored the fold.
+- Unfolded and tabletop captures looked the same because the app ignored the fold.
   The app now reads the fold through WindowManager (D110),
   so capture both postures again.
 

@@ -1375,7 +1375,7 @@ The planner modules and their tests are byte for byte those of the gated commit 
   ran as a user unit started with `systemd-run --user`
   so that it would outlive the agent's shell;
   each step is the package task named in its section.
-- The Oxlint 1.86.0 default formatter aborted earlier in this work
+- The Oxlint 1.86.0 default formatter aborted
   (a panic at `apps/oxlint/src/output_formatter/default.rs:181:14`)
   while linting a harness file with many findings;
   `--format=unix` worked.
