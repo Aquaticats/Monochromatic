@@ -105,7 +105,7 @@ so its findings are stale regardless of what it says.
 A third review,
 on the displacement instrument,
 came back and its findings are
-recorded above under what was adopted and what was refused.
+recorded as adopted or refused.
 
 ONE JUDGEMENT TO CARRY FORWARD,
 since it cost the most time to learn tonight.

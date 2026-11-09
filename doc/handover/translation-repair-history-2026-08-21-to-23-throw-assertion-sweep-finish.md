@@ -21,7 +21,7 @@ and the stop condition in the index applies.
 This section is the durable record of the finish,
 because until it was written the gate numbers and the one real defect the sweep caught
 lived only in commit messages and task descriptions,
-which is precisely the state that produced the false-citation chain recorded earlier in this file.
+which is precisely the state that produced the false-citation chain that `translation-repair-history-2026-08-21-to-23-advisor-attribution-and-live-pass-warnings.md` records.
 
 ### What landed
 

@@ -15,7 +15,7 @@
 
 use super::*;
 use crate::fs_kind::FilesystemKind;
-use crate::subvolume_arguments::MigrateArguments;
+use crate::subvolume_arguments::{MigrateArguments, MigrateMode, MIGRATE_RISK_NOTICE};
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_platform::Platform;
 use crate::subvolume_preflight::layout_of;
@@ -380,5 +380,65 @@ fn the_linked_worktrees_index_locks_are_held_in_both_trees_before_the_exchange()
             assert!(tree.join(lock).exists(), "{} holds {lock}", tree.display());
         }
     }
+    remove(parent.as_path());
+}
+
+/// How often a notice stands among the lines a run said.
+fn said(lines: &[String], notice: &str) -> usize {
+    return lines.iter().filter(|line: &&String| { return line.as_str() == notice; }).count();
+}
+
+/// A run that changes the checkout says the risk once,
+/// before the first line about the checkout,
+/// and never the conversion's own notice:
+/// one command prints one notice.
+#[test]
+fn a_run_says_the_risk_once_before_it_changes_anything() {
+    let (parent, root) = checkout_with_worktree("migrate-risk");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    assert_eq!(lines.first().map(String::as_str), Some(MIGRATE_RISK_NOTICE), "before anything is changed: {lines:#?}");
+    assert_eq!(said(lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once: {lines:#?}");
+    assert_eq!(said(lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "the conversion's notice is not this command's: {lines:#?}");
+    remove(parent.as_path());
+}
+
+/// The preview and a refusal before the first step say no risk,
+/// because they change nothing.
+#[test]
+fn a_preview_and_a_refusal_say_no_risk() {
+    let (parent, root) = checkout_with_worktree("migrate-risk-none");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let preview: MigrateArguments = MigrateArguments { dry_run: true, ..migrate_arguments() };
+    let (preview_code, preview_lines) = run_command(&platform, &preview, root.as_path(), &Interrupt::never());
+    assert_eq!(preview_code, DONE, "{preview_lines:#?}");
+    assert_eq!(said(preview_lines.as_slice(), MIGRATE_RISK_NOTICE), 0, "a preview changes nothing: {preview_lines:#?}");
+    let mut unsuitable: PlainPlatform = PlainPlatform::new();
+    unsuitable.kind = FilesystemKind::Overlayfs;
+    let (refused_code, refused_lines) = run_command(&unsuitable, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(refused_code, REFUSED, "{refused_lines:#?}");
+    assert_eq!(said(refused_lines.as_slice(), MIGRATE_RISK_NOTICE), 0, "a refusal leaves the checkout alone: {refused_lines:#?}");
+    remove(parent.as_path());
+}
+
+/// The two modes that delete a tree each say the risk once,
+/// and neither repeats the conversion's notice.
+#[test]
+fn the_deleting_modes_say_the_risk_once() {
+    let (parent, root) = checkout_with_worktree("migrate-risk-delete");
+    let platform: PlainPlatform = PlainPlatform::new();
+    assert_eq!(run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never()).0, DONE);
+    let rollback: MigrateArguments = MigrateArguments { mode: MigrateMode::Rollback, ..migrate_arguments() };
+    let (rollback_code, rollback_lines) = run_command(&platform, &rollback, root.as_path(), &Interrupt::never());
+    assert_eq!(rollback_code, DONE, "{rollback_lines:#?}");
+    assert_eq!(said(rollback_lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once by a rollback: {rollback_lines:#?}");
+    assert_eq!(said(rollback_lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "{rollback_lines:#?}");
+    assert_eq!(run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never()).0, DONE);
+    let remove_old: MigrateArguments = MigrateArguments { mode: MigrateMode::RemoveOld, ..migrate_arguments() };
+    let (remove_code, remove_lines) = run_command(&platform, &remove_old, root.as_path(), &Interrupt::never());
+    assert_eq!(remove_code, DONE, "{remove_lines:#?}");
+    assert_eq!(said(remove_lines.as_slice(), MIGRATE_RISK_NOTICE), 1, "said once by a removal of the old tree: {remove_lines:#?}");
+    assert_eq!(said(remove_lines.as_slice(), crate::worktree_convert_arguments::RISK_NOTICE), 0, "{remove_lines:#?}");
     remove(parent.as_path());
 }

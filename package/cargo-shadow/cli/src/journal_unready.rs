@@ -157,18 +157,28 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
     // A name that is visible is not yet an acknowledgement that survives a crash: the reader makes the file and its directory entry
     // durable before it relies on them, and an acknowledgement it cannot make durable does not count (round 9, 8a).
     // The file first, then the directory entry that names it; a failure of either one means the acknowledgement does not count.
+    // Each barrier is the real operation, and a test replaces its result, so a failure takes the path of a failure of the kernel
+    // (sixth pass, group 13).
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementFileSync) {
-        return false;
-    }
-    if !fs::File::open(&file).and_then(sync_opened).is_ok() {
+    let file_durable: bool = if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementFileSync) {
+        false
+    } else {
+        fs::File::open(&file).and_then(sync_opened).is_ok()
+    };
+    #[cfg(not(test))]
+    let file_durable: bool = fs::File::open(&file).and_then(sync_opened).is_ok();
+    if !file_durable {
         return false;
     }
     #[cfg(test)]
-    if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDirectorySync) {
-        return false;
-    }
-    return sync_directory(directory).is_ok();
+    let directory_durable: bool = if crate::failpoints::fires(crate::failpoints::Point::AcknowledgementDirectorySync) {
+        false
+    } else {
+        sync_directory(directory).is_ok()
+    };
+    #[cfg(not(test))]
+    let directory_durable: bool = sync_directory(directory).is_ok();
+    return directory_durable;
 }
 
 /// What:
@@ -182,10 +192,11 @@ pub(crate) fn is_acknowledged(directory: &Path) -> bool {
 /// function acknowledgeHint(directory: string): string
 /// ```
 fn acknowledge_hint(directory: &Path) -> String {
+    let quoted: String = crate::arrival::shell_quote(&directory.display().to_string());
     return format!(
         "the journal {} was kept. When every process or worker of that run that can modify the workspace has stopped, run: cargo-shadow acknowledge {}",
         directory.display(),
-        directory.display()
+        quoted
     );
 }
 

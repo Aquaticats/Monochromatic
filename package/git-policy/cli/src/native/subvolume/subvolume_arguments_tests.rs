@@ -114,3 +114,15 @@ fn the_help_names_every_option() {
         assert!(MIGRATE_HELP.contains(option), "{option} missing from the help");
     }
 }
+
+/// The help states the risk the person accepts by running the command,
+/// and the notice says the same thing in one line.
+#[test]
+fn the_help_and_the_notice_state_the_risk() {
+    assert!(MIGRATE_HELP.contains("Risk, accepted by running the command"));
+    assert!(MIGRATE_HELP.contains("other programs may be"));
+    assert!(MIGRATE_HELP.contains("changing the same files"));
+    assert!(MIGRATE_HELP.contains("says so once on standard error"));
+    assert!(!MIGRATE_RISK_NOTICE.contains('\n'), "the notice is one line");
+    assert!(MIGRATE_RISK_NOTICE.contains("that risk is yours"));
+}

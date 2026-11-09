@@ -18,6 +18,101 @@ or where the likely pick is unclear.
 The non-destructive choices the session made itself are listed at the end,
 so any of them can be undone.
 
+## Open: decisions a read-only audit of all recorded work found, recorded 2026-11-08T16:05:49-05:00
+
+None of these has been asked yet,
+and none is holding up running work.
+Each record is cited so the context is one read away.
+
+- Does the 2026-11-04 pause still cover the commit protocol that makes commits unable to fail by construction?
+  Your words then:
+  "aside from layout + linting fixes,
+  pause everything else - but let work already in flight run to their natural
+  conclusions".
+  Other wrapper work has resumed since,
+  but `feat/git-policy-cli-commit-protocol-models` and `fix/git-policy-cli-commits-never-fail` have not moved.
+  This matters because an agent's scratch commit stopped at its ceiling under load on 2026-11-08,
+  and an identical retry succeeded,
+  against your "Commits should never fail."
+- Should the Claude Code guardrail be registered in `~/.claude/settings.json`?
+  A real-Git commit from the coordinator's session went through on 2026-11-08,
+  because `~/.claude/settings.json` does not name the guardrail;
+  fed directly,
+  the hook refuses it.
+  Pi agents are covered.
+  Details:
+  `doc/handover/pi-agents-blocked-from-real-git.md`.
+- Pi agents started through the driver no longer inherit a credential-named variable (`9ae27d221e`).
+  Three choices follow from it.
+  Should interactive Pi sessions get the same rule as a plugin?
+  Should mise get its own GitHub token home (`github.credential_command` or `mise token github`),
+  since a subagent's `mise` now runs anonymously at 60 requests an hour instead of 4,875?
+  Should `SSH_AUTH_SOCK` be allowed through for `ssh m1` probes?
+  Nothing has proved it necessary.
+- The btrfs host run (`native:test:host:btrfs`) runs only when someone starts it.
+  Should a systemd timer run it,
+  and should the gate count the `BTRFS CONTROL NOT RUN` lines so a skipped control fails?
+- `mpm-shadow` launcher records named a folder carrying the version,
+  so any newer install left them dangling (299 of 1051 records at 2026-11-08T18:17:00-05:00).
+  The fix on `fix/mpm-shadow-launcher-records-and-lock-warning` records a path that names no version.
+  The records already dangling heal on the launcher's next run,
+  which is the coordinator's pick with the veto open;
+  the alternative is an `mpm install` sweep over every worktree after the release.
+  The newest-installed launcher pick has no `doc/decision/` record yet.
+- The rule codes `MXR`,
+  `RDC`,
+  `GCW` and `WXG` are retired but not reserved.
+  Rule `CRN` puts them in `forbidden-strings.append.local.txt`,
+  which is gitignored and is the owner's file;
+  that reservation is the last unmet line of issue 1720.
+- The umbrella list (`225a3b6318`) left open points:
+  how to split its Windows and release-gate entries,
+  whether its release-artifact gate meant a packaged-tarball gate,
+  which of its disagreeing maintenance mutation records is right,
+  and whether to relink the 16,177 dangling links it counted in 172 of 239 readable worktrees.
+- The questions that end `doc/planning/cli-git-shipped-limits-audit.md`,
+  which ask what each shipped limit should cite.
+- Does "never discard user data" cover the audit history?
+  The timing logs and the push trigger log keep one older generation,
+  so a rotation drops the one before it.
+- Should the unmerged branch `worktree-agent-ab3dd6294f9d91284` be kept or dropped,
+  and should the lock-based copy modules main still ships be reviewed?
+  The branch holds open review findings and fixes that exist nowhere else.
+- Should `package-paused/dev-script/inference-canary`,
+  `package-paused/webapp-edu/paper2vn` and the wrapper's own test runners get the container limits?
+- Should the mount unit's stop block guard its `luksClose`?
+  A stop with no mapper now fails where the old stop hid the failure
+  (`doc/handover/repository-move-dangling-link-items.md`).
+- May the stale detached worktrees under `.claude/worktrees/` be removed?
+- May the dead `cli-git@` units of the old name and the 0.5.34 install folder be removed?
+- Should there be an operator override that forces the native Git route when the commit service misbehaves?
+- Rotate `MISE_GITHUB_TOKEN`?
+  A Pi agent ran `env | rg` on 2026-11-08 and its output held the token's value.
+  The value is in that agent's session file,
+  named by `sessionStats.sessionFile` in `${HOME}/temp/agent/pi-runs/wrapper-small-robustness-items-1/summary.json`,
+  and tool output goes to the model provider.
+  The count of matches was read without printing the value.
+  Every running agent has since been told never to print the environment,
+  and `pi-as-subagent` now requires that sentence in every prompt.
+- May the root `vm-builder` run replace the existing VM?
+  `mise run //package/vm-builder/cli:run` overwrites `/var/lib/libvirt/images/monochromatic-dev.qcow2`,
+  dated 2026-03-31,
+  and force-stops and undefines any domain of that name.
+  Your authorization of `sudo` did not name that,
+  so only the build half (`image:build`) was run.
+- How long should `FOREIGN_OWNER_PATIENCE` be?
+  It ships at twenty minutes,
+  stated as twice the longest a merge waits,
+  but a merge has waited at most one minute since 2026-11-07,
+  so that basis would give two
+  (`doc/planning/cli-git-shipped-limits-audit.md`).
+
+Checked and not asked,
+because you have already answered them:
+deleting the merged branches with nondescript names (done with your approval),
+and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
+The two library layout questions stay at your "Not yet.".
+
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
 
 - How subagents are used from now on,
@@ -74,6 +169,12 @@ so any of them can be undone.
   "Feel free to use worktrees.
   I said "be okay with pi committing directly to main",
   not that they have to."
+- How to stop the formatter re-wrapping the vendored Slint license,
+  whose bytes must match a published checksum
+  (options:
+  rename it to `.txt`,
+  or turn the rewrap rule off for `package/music-player/desktop-app/notices/**`):
+  "Rule exception for notices/".
 
 ## Answered in plain messages and the question tool, recorded 2026-11-08T06:45:53-05:00
 
@@ -431,15 +532,6 @@ saying nothing keeps it.
   against your rule that nothing waits forever;
   the coordinator picked a measured ceiling,
   with the claim expiring by its lease if that ceiling passes.
-- mpm-shadow's launchers (the small programs that start `git`,
-  the linter and every other locked tool) are copies of whichever mpm-shadow ran the install,
-  not of the newest one installed;
-  that is how the global `git` launcher stayed an alpha.2 copy and started a deleted 0.6.0 wrapper from systemd units
-  (fixed in mpm-shadow 0.2.7-alpha.6,
-  diagnosis in `doc/troubleshooting/mpm-shadow-launcher-names-a-deleted-release-folder-after-a-newer-install.md`).
-  The coordinator picked:
-  launchers are copies of the newest installed mpm-shadow.
-  Queued behind the Git wrapper work.
 - An equivalent mutant that no test can kill
   (`workspace_count -> 0` in `package/linter/monochromatic-lint/src/rust_file_engine_syntax.rs`,
   a function that already returns 0)
@@ -478,13 +570,9 @@ the daily timer runs at 04:30 and never at login.
     run records 14 days and 2 GiB per folder,
     caps 12 GiB in a checkout and 24 GiB in the shared build folder,
     each measured (`doc/planning/lean-build-dirs.md`).
-- Work queued without a question:
-  the timer runs its mechanisms under one 3-hour limit,
-  so a long units pass starves the Podman pass (cheap mechanisms first);
-  Podman refused 1,350 of 1,601 judged images for three fixable reasons
-  (working containers need `--external`,
-  multi-tag images need `rmi repository:tag`,
-  children vanish with their parent).
+- The timer's pass order and Podman's three refusals are fixed in the sources (merge `a5b31ab7de`);
+  the facts are in `doc/handover/cargo-shadow-lean-build-folders.md`,
+  and they reach the timer with the next `cargo-shadow` release.
 
 ## Open: where a blank at the end of a row goes in the IDE (not asked yet; the owner asked to focus on the Git wrapper)
 
@@ -523,7 +611,38 @@ or adopt the CSS rule (the tests change).
   The 860 move is run by the coordinator,
   not handed to the owner;
   its runner becomes TypeScript (sent to the preparation agent).
-  The wizard skill itself is to emit TypeScript (queued).
+  The coordinator read that as a request to convert the wizard skill to TypeScript and queued the conversion.
+  The queued item is withdrawn,
+  on the owner's later words:
+  "No,
+  why would there be a wizard skill at all?"
+  Nothing was built.
+  The skill was third-party
+  (`mattpocock/skills`,
+  in `~/.agents/skills/wizard` since 2026-08-18,
+  outside this repository).
+  The owner then:
+  "Remove and Blocklist the wizard skill."
+  and
+  "But do keep matt's other skills."
+  Done:
+  `skills remove wizard --global` took out the install and its lock entry,
+  leaving the pack's other 31 lock entries;
+  the dead link in `~/.pi/agent/skills` and the local copy under `~/.claude/skills/synced` are deleted;
+  Claude Code's user setting `skillOverrides` holds `wizard: off`
+  (the `Skill` tool then refuses it);
+  Pi's user setting `skills` holds `!**/wizard/**`
+  (real Pi offers 27 skills before and after,
+  and none is named `wizard`;
+  on a disposable home the control offered both a `wizard` and another skill,
+  and the exclusion left only the other).
+  Still open for the owner:
+  the owner's claude.ai account still holds the skill
+  (manifest entry `skill_013SXR5gmg1zWJZpmYLYuP1m`),
+  so account sync may bring the local copy back,
+  where both settings keep it off.
+  A headless browser stopped at claude.ai's `Just a moment...` page,
+  so only the owner can delete it there.
 - The plugin bundle drift check (options A,
   B,
   C):

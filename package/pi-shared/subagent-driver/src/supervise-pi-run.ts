@@ -4,22 +4,38 @@
  @module
  */
 
-import {
-  mkdir,
-  readFile,
-  rename,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   type ConnectionToPi,
   startConnectionToPi,
 } from './connection-to-pi.ts';
 import {
+  COMMAND_ANSWER_MILLISECONDS,
   FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
+  SHUTDOWN_GRACE_MILLISECONDS,
+  SHUTDOWN_STAGES,
+  TEARDOWN_ANSWER_MILLISECONDS,
+  TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
+import {
+  answerMillisecondsBefore,
+  millisecondsLeftUntil,
+} from './deadline.ts';
+import {
+  CLEAN_END_REASONS,
+  finalEndReason,
+} from './end-reasons.ts';
+import {
+  type EnvironmentWithoutCredentials,
+  stripCredentialsFromEnvironment,
+} from './environment-without-credentials.ts';
+import {
+  DRIVER_USAGE,
+  DriverOptionsError,
+} from './parse-driver-options.ts';
 import type {
   DriverOptions,
   EndReason,
@@ -27,6 +43,7 @@ import type {
   RunSummary,
 } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   fieldsOf,
   recordsIn,
@@ -36,6 +53,7 @@ import {
   type WatchRequest,
   watchUntilEnded,
 } from './watch-pi-run.ts';
+import { writeSummary, } from './write-summary.ts';
 
 /**
  A driver started by a Pi that a driver runs.
@@ -56,14 +74,6 @@ export class PiRunEndedEarlyError extends Error {
    */
   override readonly name = 'PiRunEndedEarlyError';
 }
-
-/**
- Reasons a run ends on its own terms.
- */
-const CLEAN_END_REASONS: ReadonlySet<EndReason> = new Set<EndReason>([
-  'idle',
-  'stop-file',
-],);
 
 /**
  Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
@@ -89,44 +99,6 @@ function piCommandLine(options: DriverOptions,): readonly string[] {
 }
 
 /**
- Writes the summary so that a reader sees all of it or none.
-
- @param runFolder - run's folder
-
- @param summary - what to write
- */
-async function writeSummary({
-  runFolder,
-  summary,
-}: {
-  readonly runFolder: string;
-  readonly summary: RunSummary
-},): Promise<void> {
-  /**
-   Where the summary is written first.
-   */
-  const unfinished = join(
-    runFolder,
-    '.summary.json.unfinished',
-  );
-  await writeFile(
-    unfinished,
-    `${JSON.stringify(
-      summary,
-      null,
-      2,
-    )}\n`,
-  );
-  await rename(
-    unfinished,
-    join(
-      runFolder,
-      'summary.json',
-    ),
-  );
-}
-
-/**
  Notes the model and commands Pi starts with, which show at a glance what the run is using.
 
  @param connection - running Pi
@@ -136,11 +108,15 @@ async function writeSummary({
 async function noteStartingState({
   connection,
   record,
+  deadline,
 }: WatchRequest,): Promise<void> {
   /**
-   Pi's state.
+   Pi's state, waited for only as long as the run has left.
    */
-  const state = fieldsOf((await connection.send({ command: { type: 'get_state', }, },)).data,);
+  const state = fieldsOf((await connection.send({
+    command: { type: 'get_state', },
+    answerMilliseconds: answerMillisecondsBefore(deadline,),
+  },)).data,);
   record.note({
     kind: 'state',
     model: fieldsOf(state.model,)
@@ -150,7 +126,10 @@ async function noteStartingState({
   /**
    Pi's commands.
    */
-  const { commands, } = fieldsOf((await connection.send({ command: { type: 'get_commands', }, },)).data,);
+  const { commands, } = fieldsOf((await connection.send({
+    command: { type: 'get_commands', },
+    answerMilliseconds: answerMillisecondsBefore(deadline,),
+  },)).data,);
   record.note({
     kind: 'commands',
     names: recordsIn(commands,)
@@ -175,21 +154,22 @@ async function sendFirstPrompt({
   connection,
   record,
   options,
+  deadline,
 }: WatchRequest,): Promise<RunProgress> {
   /**
-   The prompt.
+   The prompt, which must be an ordinary file: a named pipe would wait for a writer.
    */
-  const prompt = await readFile(
-    options.promptFile,
-    'utf8',
-  );
+  const prompt = await readOrdinaryFile(options.promptFile,);
   /**
-   Pi's answer.
+   Pi's answer, waited for only as long as the run has left.
    */
-  const answer = await connection.send({ command: {
-    type: 'prompt',
-    message: prompt,
-  }, },);
+  const answer = await connection.send({
+    command: {
+      type: 'prompt',
+      message: prompt,
+    },
+    answerMilliseconds: answerMillisecondsBefore(deadline,),
+  },);
   /**
    What Pi did with the prompt.
    */
@@ -207,7 +187,10 @@ async function sendFirstPrompt({
   if (answer.success !== false) {
     return 'still-running';
   }
-  return connection.hasExited() ? 'pi-exited' : 'prompt-rejected';
+  if (connection.hasExited()) {
+    return 'pi-exited';
+  }
+  return (millisecondsLeftUntil(deadline,) === 0) ? 'wall-clock' : 'prompt-rejected';
 }
 
 /**
@@ -219,6 +202,9 @@ async function sendFirstPrompt({
  */
 async function endReasonOfRun(watch: WatchRequest,): Promise<EndReason> {
   try {
+    if (millisecondsLeftUntil(watch.deadline,) === 0) {
+      return 'wall-clock';
+    }
     await noteStartingState(watch,);
     /**
      Where the run stands once the prompt is sent.
@@ -234,8 +220,9 @@ async function endReasonOfRun(watch: WatchRequest,): Promise<EndReason> {
 }
 
 /**
- Runs Pi once and writes everything the caller reads afterwards. `summary.json` appears last, so its presence means the feed is
- complete and Pi has gone.
+ Runs Pi once and writes everything the caller reads afterwards. `summary.json` appears last, so its presence means the driver
+ has finished putting the run away. `piExit` is there only when Pi's exit was seen, and `piHasExited` says whether the driver
+ could confirm Pi had gone.
 
  @param options - options of this run
 
@@ -267,9 +254,16 @@ export async function supervisePiRun(
     );
   }
   /**
+   The wall limit in milliseconds, which is what every deadline and timer is computed from.
+   */
+  const wallMilliseconds = options.wallSeconds * MILLISECONDS_PER_SECOND;
+  if ((!Number.isFinite(wallMilliseconds,)) || (!Number.isFinite(Date.now() + wallMilliseconds,))) {
+    throw new DriverOptionsError(`--wall-seconds must be a number of seconds whose milliseconds stay finite; it was "${String(options.wallSeconds,)}".\nUsage: ${DRIVER_USAGE}`,);
+  }
+  /**
    When the run must be over, counted from before Pi starts so that Pi's start-up is inside the limit.
    */
-  const deadline = Date.now() + (options.wallSeconds * MILLISECONDS_PER_SECOND);
+  const deadline = Date.now() + wallMilliseconds;
   /**
    Where messages for Pi arrive.
    */
@@ -284,10 +278,20 @@ export async function supervisePiRun(
   /**
    The run's feed and counts.
    */
-  const record = startRecordOfPiRun(join(
+  const record = startRecordOfPiRun({ feedFile: join(
     options.runFolder,
     'feed.jsonl',
-  ),);
+  ), },);
+  /**
+   What Pi starts with: the driver's own environment with every credential-named variable removed, except the allow list in
+   `environment-without-credentials.ts`, which names what stays and why. This bounds what an inherited environment holds, not
+   what a command can reach: the credential stores stay where they are.
+   */
+  const givenToPi: EnvironmentWithoutCredentials = stripCredentialsFromEnvironment({ environment, },);
+  record.note({
+    kind: 'environment',
+    removedNames: givenToPi.removedNames,
+  },);
   /**
    Declines a dialog, which would otherwise wait for an answer forever.
 
@@ -307,7 +311,7 @@ export async function supervisePiRun(
     piArguments: piCommandLine(options,),
     workingFolder: options.workingFolder,
     environment: {
-      ...environment,
+      ...givenToPi.environment,
       [NESTED_RUN_VARIABLE]: '1',
     },
     standardErrorFile: join(
@@ -355,20 +359,84 @@ export async function supervisePiRun(
     deadline,
   },);
   /**
+   When putting the run away must be over, counted from now: the wall clock bounds the run, and this bounds everything after it.
+   */
+  const teardownDeadline = Date.now() + TEARDOWN_MILLISECONDS;
+
+  /**
+   How long one stage of putting the run away may take: its own bound, or what is left of the teardown's.
+
+   @param stageMilliseconds - the stage's own bound
+
+   @returns the milliseconds this stage may take
+   */
+  function withinTeardown(stageMilliseconds: number,): number {
+    return Math.min(
+      stageMilliseconds,
+      millisecondsLeftUntil(teardownDeadline,),
+    );
+  }
+
+  /**
    Pi's own statistics, asked for while it can still answer.
    */
-  const stats = await connection.send({ command: { type: 'get_session_stats', }, },);
+  const stats = await connection.send({
+    command: { type: 'get_session_stats', },
+    answerMilliseconds: withinTeardown(TEARDOWN_ANSWER_MILLISECONDS,),
+  },);
   if (record.isRunning()) {
-    await connection.send({ command: { type: 'abort', }, },);
+    await connection.send({
+      command: { type: 'abort', },
+      answerMilliseconds: withinTeardown(TEARDOWN_ANSWER_MILLISECONDS,),
+    },);
   }
-  await connection.shutDown();
+  /**
+   How Pi's ending went: every stage of it shares what the teardown has left, so one stage cannot spend another's.
+   */
+  const shutDown = await connection.shutDown({
+    graceMilliseconds: Math.max(
+      1,
+      Math.floor(withinTeardown(SHUTDOWN_GRACE_MILLISECONDS * SHUTDOWN_STAGES,) / SHUTDOWN_STAGES),
+    ),
+  },);
+  if (!shutDown.stopped) {
+    record.note({
+      kind: 'problem',
+      problem: shutDown.reason,
+    },);
+  }
   await record.close();
+  /**
+   The error Pi settled on, when nothing after it recovered.
+   */
+  const modelError = record.unrecoveredModelError();
+  /**
+   Why the feed is incomplete, when writing it failed.
+   */
+  const feedProblem = record.feedProblem();
+  /**
+   Why the run ended, once those two are known.
+   */
+  /**
+   How Pi ended, which the summary and the reason both read.
+   */
+  const piExit = connection.exitDetails();
+  /**
+   Why the run ended, once every late failure is known.
+   */
+  const finalReason = finalEndReason({
+    endReason,
+    stopped: shutDown.stopped,
+    modelError,
+    feedProblem,
+    piExit,
+  },);
   /**
    What the caller reads.
    */
   const summary = record.summarize({
-    endReason,
-    piExit: connection.exitDetails(),
+    endReason: finalReason,
+    piExit,
     piHasExited: connection.hasExited(),
     sessionStats: stats.data ?? stats.error
       ?? null,
@@ -377,9 +445,9 @@ export async function supervisePiRun(
     runFolder: options.runFolder,
     summary,
   },);
-  if (!CLEAN_END_REASONS.has(endReason,)) {
+  if (!CLEAN_END_REASONS.has(summary.endReason,)) {
     throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${endReason}". The summary is in ${join(
+      `The Pi run ended with "${summary.endReason}". The summary is in ${join(
         options.runFolder,
         'summary.json',
       )} and Pi's standard error in ${

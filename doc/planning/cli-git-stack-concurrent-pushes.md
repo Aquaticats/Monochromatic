@@ -155,7 +155,7 @@ When the wrapper forwarded an explicit `git push` and the result matches `was_re
 
 ## Decisions
 
-The user answered the three questions below on 2026-10-29,
+The user answered the three questions in `Decision questions as asked` on 2026-10-29,
 taking the recommended option each time:
 merge,
 any non-force single-branch update,

@@ -308,7 +308,10 @@ Both rules are off for `**/tests/**`,
 `**/fixture/**`,
 `**/test-fixture/**`,
 and `**/invalid/**` (`default.toml:28-78`).
-The last three go beyond `AGENTS.md` MXR and RDC.
+The last three go beyond `AGENTS.md` MXR and RDC (MXR and RDC:
+retired from `AGENTS.md` 2026-09-29;
+`rust/max-lines`,
+`rust/require-rustdoc` and `MXL` now).
 The walker is gitignore-aware and picks only `.rs` files;
 an explicitly named file bypasses the walk.
 Owner:
@@ -640,8 +643,12 @@ registered as `markdown/autofix` in `cli-git.config.ts:22-43`.
    or hook runs either linter,
    apart from cli-git.
 - `AGENTS.md`:
-   MXR names `monochromatic-rust-linter`;
-   RDC names `require-rustdoc` and the cxx-qt carve-out;
+   MXR names `monochromatic-rust-linter` (MXR:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines` and `MXL` now);
+   RDC names `require-rustdoc` and the cxx-qt carve-out (RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/require-rustdoc` now);
    MXL,
    LN3,
    MD1,

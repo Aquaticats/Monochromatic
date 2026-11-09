@@ -233,7 +233,8 @@ and each item is a pass and a reading rather than a build.
 3.  Run the entry with the comma-shaped one-line element.
 4.  Run one entry whose consolidation completes unstarved on this build,
     which no run has yet done.
-5.  Read each page the way the three above were read,
+5.  Read each page the way the comma-element,
+    consolidation and double-quoted-path runs were read,
     and record the reading in the planning document and the readiness document.
 
 No smaller item stays open from earlier days.

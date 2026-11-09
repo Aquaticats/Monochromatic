@@ -111,7 +111,10 @@ Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users
    (`rg --files-with-matches --ignore-case unsafe` over the linter packages exited 1).
 - Rules that apply to every design:
    `MXR` (300 code lines per `.rs` file) and `RDC` (rustdoc on every documentable item,
-  private included).
+  private included) (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
   A local `zbus` `#[proxy]` trait needs `///` on every method;
    depending on a generated proxy crate moves that code out of the repository.
 
@@ -615,7 +618,7 @@ was forbidden by the caller.
    safe `CommandFdExt::fd_mappings` that installs a `pre_exec` closure internally
    (`SRC/command-fds-0.3.3/src/lib.rs:129-151`,
   verified),
-  which disables `std`'s `posix_spawn` path (see below).
+  which disables `std`'s `posix_spawn` path (see the `std` on the repository's nightly entry).
   docs.rs 86.67% documented.
 - `pidfd` 0.2.4 (2019-12-20),
   `pidfd-util` 0.1.0 (2026-03-03,
@@ -1684,7 +1687,7 @@ C3-A > C3-B > C3-C > C3-D > `tower-lsp-server` > `ajj` > `karyon_jsonrpc` >
     `tokio_util::codec::LinesCodec`,
     `reflink-copy`,
     and `jsonrpsee` return as candidates;
-    their documentation problems are recorded above.
+    their documentation problems are recorded in the `Candidates` sections of C1 to C5.
     `LinesCodec`'s behavior after an overlong line was measured (`Err`,
     `None`,
     resume).

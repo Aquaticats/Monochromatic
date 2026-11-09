@@ -55,7 +55,7 @@ re-read against the measurement:
     auditing re-sliced text would audit a different input than the judges saw.
 -   STORE `targetText` WHOLE.
     Costs under one percent,
-    which is the finding above.
+    which is the finding in `The premise the question rests on is wrong`.
 -   STORE A HASH plus the corpus commit,
     and accept that reconstruction needs the checkout.
     `#96` calls this the cheapest and says it is "the one to argue against rather than for".

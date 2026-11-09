@@ -127,6 +127,19 @@ fn restart_manager_lines_are_parsed() {
 
 /// The proc scan finds the holders of the lock by device and inode,
 ///  reads their command names,
+/// The mount number the fake descriptor records name.
+const FAKE_MOUNT: u64 = 40;
+
+/// Write the record of descriptor `number` of the process at `process`,
+/// as the kernel writes it:
+/// the mount it was reached through and the inode of the open file.
+fn describe_descriptor(process: &Path, number: u32, mount: u64, inode: u64) {
+    let records: PathBuf = process.join("fdinfo");
+    std::fs::create_dir_all(records.as_path()).expect("descriptor records");
+    std::fs::write(records.join(number.to_string()), format!("pos:\t0\nflags:\t0100000\nmnt_id:\t{mount}\nino:\t{inode}\n")).expect("one record");
+    std::fs::create_dir_all(process.join("fd")).expect("descriptor directory");
+}
+
 /// skips the scanning process itself,
 ///  and reports only unreadable descriptor directories.
 #[test]
@@ -137,30 +150,36 @@ fn the_proc_scan_matches_descriptors_by_identity() {
     let other: PathBuf = root.join("other");
     std::fs::write(&other, b"").expect("other file");
     let proc_root: PathBuf = root.join("proc");
-    let (device, inode): (u64, u64) = identity_of(lock.as_path());
-
-    std::fs::create_dir_all(proc_root.join("100/fd")).expect("holder fd");
-    std::os::unix::fs::symlink(&lock, proc_root.join("100/fd/3")).expect("holder link");
+    let (_, inode): (u64, u64) = identity_of(lock.as_path());
+    let (_, other_inode): (u64, u64) = identity_of(other.as_path());
+    describe_descriptor(proc_root.join("100").as_path(), 3, FAKE_MOUNT, inode);
     std::fs::write(proc_root.join("100/comm"), "git\n").expect("holder comm");
-    std::fs::create_dir_all(proc_root.join("101/fd")).expect("other fd");
-    std::os::unix::fs::symlink(&other, proc_root.join("101/fd/3")).expect("other link");
-    std::fs::create_dir_all(proc_root.join("7/fd")).expect("own fd");
-    std::os::unix::fs::symlink(&lock, proc_root.join("7/fd/3")).expect("own link");
-    std::fs::create_dir_all(proc_root.join("104/fd")).expect("dangling fd");
+    describe_descriptor(proc_root.join("101").as_path(), 3, FAKE_MOUNT, other_inode);
+    describe_descriptor(proc_root.join("7").as_path(), 3, FAKE_MOUNT, inode);
+    // A descriptor whose name is gone is still the open file: its record names the inode the lock has.
+    std::fs::create_dir_all(proc_root.join("104/fd")).expect("vanished name");
     std::os::unix::fs::symlink(root.join("vanished"), proc_root.join("104/fd/4")).expect("dangling link");
+    describe_descriptor(proc_root.join("104").as_path(), 4, FAKE_MOUNT, inode);
     std::fs::create_dir_all(proc_root.join("self")).expect("self directory");
     std::fs::create_dir_all(proc_root.join("105")).expect("exited process");
     std::fs::create_dir_all(proc_root.join("103")).expect("unreadable process");
-    std::fs::write(proc_root.join("103/fd"), b"not a directory").expect("unreadable fd");
+    std::fs::write(proc_root.join("103/fdinfo"), b"not a directory").expect("unreadable records");
 
-    let evidence: HolderEvidence = scan_proc_fd_holders(proc_root.as_path(), device, inode, 7);
+    let evidence: HolderEvidence = scan_proc_fd_holders(proc_root.as_path(), FAKE_MOUNT, inode, 7);
     assert_eq!(evidence.method, "proc-fd");
     assert_eq!(
         evidence.holders,
-        vec![Holder {
-            pid: 100,
-            command: Some(String::from("git")),
-        }]
+        vec![
+            Holder {
+                pid: 104,
+                command: None,
+            },
+            Holder {
+                pid: 100,
+                command: Some(String::from("git")),
+            },
+        ],
+        "the holder is found through its descriptor record, and the own process and another file are not holders: {evidence:?}"
     );
     assert_eq!(evidence.partial.len(), 1);
     assert!(evidence.partial[0].starts_with("PID 103: "));
@@ -179,23 +198,22 @@ fn a_scan_cut_short_looks_at_the_newest_processes_first() {
     let root: PathBuf = fixture("holders-newest-first");
     let lock: PathBuf = root.join("index.lock");
     std::fs::write(&lock, b"").expect("lock");
-    let (device, inode): (u64, u64) = identity_of(lock.as_path());
+    let (_, inode): (u64, u64) = identity_of(lock.as_path());
     let other: PathBuf = root.join("other");
     std::fs::write(&other, b"x").expect("another file");
+    let (_, other_inode): (u64, u64) = identity_of(other.as_path());
     let proc_root: PathBuf = root.join("proc");
     // Many old processes that hold other files, and the holder with the highest number.
     let old_processes: std::ops::Range<u32> = 100..140;
     for number in old_processes.clone() {
-        std::fs::create_dir_all(proc_root.join(number.to_string()).join("fd")).expect("fd directory");
-        std::os::unix::fs::symlink(&other, proc_root.join(number.to_string()).join("fd/3")).expect("link");
+        describe_descriptor(proc_root.join(number.to_string()).as_path(), 3, FAKE_MOUNT, other_inode);
     }
     let holder_number: u32 = old_processes.end + 5000;
-    std::fs::create_dir_all(proc_root.join(holder_number.to_string()).join("fd")).expect("holder fd directory");
-    std::os::unix::fs::symlink(&lock, proc_root.join(holder_number.to_string()).join("fd/3")).expect("holder link");
+    describe_descriptor(proc_root.join(holder_number.to_string()).as_path(), 3, FAKE_MOUNT, inode);
     std::fs::write(proc_root.join(holder_number.to_string()).join("comm"), b"git\n").expect("holder name");
     // The scan may look at a handful of processes before it is cut, far fewer than the host has.
     let few: usize = 5;
-    let evidence: HolderEvidence = scan_proc_fd_holders_stopping(proc_root.as_path(), device, inode, 7, ScanLimit { deadline: None, processes: Some(few) });
+    let evidence: HolderEvidence = scan_proc_fd_holders_stopping(proc_root.as_path(), FAKE_MOUNT, inode, 7, ScanLimit { deadline: None, processes: Some(few) });
     assert_eq!(
         evidence.holders,
         vec![Holder { pid: i64::from(holder_number), command: Some(String::from("git")) }],

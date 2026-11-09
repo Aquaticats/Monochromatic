@@ -48,7 +48,7 @@ all "not closed"),
 amended after the cross-vendor review of this contract (`cargo-shadow-sol-contract-1.txt`,
 "fit after the named edits"),
 which also
-supplied the acceptance list below.
+supplied the acceptance list under the `Acceptance list` heading.
 This file specifies transaction safety (acceptance,
 rollback,
 kept copies,
@@ -97,7 +97,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   Verified absence counts only for a run that recorded its end (a `settled` line in the journal,
   written after the launcher was
   reaped and the scope shown empty),
-  or whose launcher is recorded and shown gone (the launcher record below):
+  or whose launcher is recorded and shown gone (the launcher record in the `Record the launcher` pick):
   until then an absent scope may be one the launcher has not made yet,
   and a scope that exists
   with `populated 0` may be one whose launcher the manager has not attached yet (the manager creates the control group and attaches
@@ -262,7 +262,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   this is the process model,
   not a measurement against a manager that handles a request after its sender died.
   The earlier choice of round 10 (refuse every unsettled scope,
-  acknowledge) stays as the fallback for the list above.
+  acknowledge) stays as the fallback for the launcher-line cases of guarantee A1.
   Verified absence is proof under amended assumption c and one invariant of the manager:
   systemd removes a scope only when it is empty or after stopping its members
   (probed:
@@ -384,7 +384,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   `the_kept_files_warning_point_is_exact_and_repeated_runs_agree`,
   `kept_names_beside_the_lockfile_and_stranded_temporaries_count_toward_the_warning`.
 - **K2.**
-  A kept copy's directory entries are durable when preservation reports success (assumption b below).
+  A kept copy's directory entries are durable when preservation reports success (assumption b).
   Test:
   `the_walk_stops_at_the_first_directory_that_existed_before_the_transaction`,
   `a_directory_left_unsynced_by_a_failed_attempt_is_not_taken_as_durable`,
@@ -467,7 +467,7 @@ The weaker path (third part) keeps only the guarantees marked as holding there.
   `write`,
   `fsync`,
   `rename`) have no deadline of their own;
-  they are covered by the progress assumption d below,
+  they are covered by the progress assumption d,
   which mirrors the owner's "Assume the final disk save would never be cut
   short."
   Test:
@@ -711,7 +711,7 @@ Round 10 (9a D2 and section 4) makes the identity strict and authoritative:
   this purpose;
   a boot id that a runtime replaces by a bind mount (`systemd-nspawn` does,
   with a random id per container start) fails
-  the check above,
+  the check that the boot id file is the kernel's own file,
   so such a container gets the acknowledgement,
   not the clearance.
 Tests:
@@ -1954,7 +1954,8 @@ The second certification pass (`cargo-shadow-cert2-sol-1.txt` to `-4.txt`) judge
 with no production
 defect,
 only test-discrimination and bundle defects.
-Each item below names the test that now carries it and says whether a planted regression turned an earlier assertion red;
+Each item of `Round 17 additions` names the test that now carries it
+and says whether a planted regression turned an earlier assertion red;
 where no
 cheap plant exists the entry says so.
 No row is certified by this map.
@@ -2114,13 +2115,18 @@ No row is certified by this map.
   `a_launcher_record_that_names_a_hard_linked_alias_of_the_shadow_is_skipped`;
   both red with the identity set emptied,
   planted).
-  The older integration test is renamed `a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs`:
-  it
-  shows the process-bound guard ends a chain of a launcher that has no record,
-  with an append-only counter,
-  and does not claim
-  "skipped";
-  the skipping is `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`.
+  The bounded fallback and the loop guard of an unrecorded launcher that leads back are gone (owner decision of 2026-11-04,
+  option A):
+  the second cargo-shadow stops at once at the arrival stop with exit status 2,
+  and no test named
+  `a_launcher_without_a_record_is_ended_by_the_loop_guard_within_a_bounded_number_of_runs` exists any more.
+  The current evidence is
+  `started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_for_the_real_cargo`,
+  `an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its_message_fixes_the_problem_when_copied`
+  (whose append-only launcher entry trace is depth-aware:
+  every launcher invocation is at the first shadow's depth,
+  so no second shadow re-enters one) and
+  `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2`.
 - **V5,
   A3.**
   Production defect:
@@ -2517,7 +2523,8 @@ Substantive findings and their state:
   a hit there reaches the arrival stop of the second cargo-shadow (exit status 2),
   so nothing runs twice.
   The
-  owner has not been asked to accept this residual beyond the rule above;
+  owner has not been asked to accept this residual beyond the
+  `Check-to-start race, closed for compiled programs` rule;
   it is stated,
   not hidden.
 - **Group 2 and group 4 named fixes.**
@@ -2552,7 +2559,8 @@ Substantive findings and their state:
   "one greater than the maximum PID") no longer counts as an
   acknowledging process.
   Limits that stay,
-  stated so the claim above is read as it is:
+  stated so the `Check-to-start race, closed for compiled programs` claim
+  is read as it is:
   the descriptor start pins the file object that was checked,
   not its bytes (an in-place rewrite,
   or an `ETXTBSY` refusal while a
@@ -2579,9 +2587,14 @@ Substantive findings and their state:
 
 - The strong-path tests that do not run a transaction rely on the host having a delegated scope (`delegated_route`) and on the
   runner choosing it when it has one;
-  the tests that read a journal record or the program's own group show the choice
-  (`assert_scope_record`,
-  the program's group).
+  `assert_scope_record` proves that the journal holds the record of the scope the runner opened,
+  and the program's own group
+  proves where the program ran;
+  neither alone proves the payload was placed:
+  the record is the intent,
+  and the
+  program's group is the placement (group 1 wording,
+  sixth pass).
 - The identity tests give the recovery a different identity;
   no machine was rebooted.
 - Nothing else in the launcher identity or the boot rule reads a time-namespace-relative value:

@@ -177,7 +177,7 @@ The R2 check task has not run,
 since the objects reach R2 on push.
 
 Later on 2026-10-14 two branches changed Android and desktop images that show the Settings list or the track rows.
-The record below says who retook what,
+The record in this handover says who retook what,
 and the final state of each image.
 
 The branch `feat/auto-play-on-select` (D129,
@@ -282,7 +282,7 @@ after every gallery branch had been pushed to `main`,
 //package/config/lfs-r2-worker:check:markdown-urls` ran and printed `26/26 Worker object URLs verified`,
 with every
 embedded README gallery URL answering `ok`,
-so the R2 check noted above has now run.
+so the R2 URL check task has now run.
 Opening the README on github.com
 in a logged-out browser was not done.
 

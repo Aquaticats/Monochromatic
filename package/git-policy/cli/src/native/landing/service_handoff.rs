@@ -24,7 +24,7 @@ use crate::service_messages::ClientFailure;
 use crate::service_work::work_directory;
 use crate::service_review_key::{ReviewKey, key_from_environment};
 use crate::standards_review_input::has_shadow_log;
-use crate::work_item::{WorkItem, WorkKind, enqueue};
+use crate::work_item::{WorkItem, WorkKind, enqueue, enqueue_all};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -99,8 +99,11 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
     let work_dir: PathBuf = work_directory(handoff.git_dir.as_path());
     // A review is left only where the repository keeps a shadow log; the file is the repository's own switch.
     let review: &[WorkKind] = if has_shadow_log(handoff.repository.as_path()) { &[WorkKind::Review] } else { &[] };
+    // One round for the commit's records: each state directory the queue asks about is listed once, however many kinds the
+    //  commit leaves.
+    let mut items: Vec<WorkItem> = Vec::new();
     for kind in HANDED_OVER.iter().chain(review.iter()).copied() {
-        let item: WorkItem = WorkItem {
+        items.push(WorkItem {
             kind,
             repository: handoff.repository.display().to_string(),
             git_dir: handoff.git_dir.display().to_string(),
@@ -109,9 +112,9 @@ pub fn hand_over_with_key(handoff: &ServiceHandoff, landed: &str, review_key: Op
             parent: handoff.parent.clone(),
             created: now_iso(),
             tries: 0,
-        };
-        enqueue(work_dir.as_path(), &item).map_err(ClientFailure::WorkNotHandedOver)?;
+        });
     }
+    enqueue_all(work_dir.as_path(), items.as_slice()).map_err(ClientFailure::WorkNotHandedOver)?;
     return wake(&handoff.config, handoff.git_dir.as_path(), review_key, notices);
 }
 

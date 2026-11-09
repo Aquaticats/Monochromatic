@@ -478,8 +478,29 @@ await describe({
         expect(runArguments).toContain('--no-fail-fast');
         for (const line of lines.filter(function isCompile(candidate) {
           return candidate.includes('--no-run');
-        }))
+        })) {
           expect(line).not.toContain('--no-fail-fast');
+          // A compile step runs nothing, so it carries none of the reporting options of a run either.
+          expect(line).not.toContain('--success-output=final');
+        }
+      },
+    }),
+    it({
+      name: 'shows the captured output of every passing test, so a control that did not run names itself',
+      fn: async () => {
+        /**
+         The image's default command, which is what a gate log's test run starts as.
+         */
+        const command = lastStage(testContainerfile({
+          base: baseImage,
+          jobs: 1,
+          settingsFile: 'cli-git.config.jsonc',
+        })).find(function isCommand(line) {
+          return instructionOf(line) === 'CMD';
+        });
+        // A btrfs control on the gate's overlay prints "BTRFS CONTROL NOT RUN: <name> (<reason>)" and passes, so its
+        // line is output of a successful test; nextest hides that output for a green run unless it is asked for.
+        expect(command).toContain('--success-output=final');
       },
     }),
   ],

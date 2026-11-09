@@ -1,16 +1,21 @@
 /**
- What the stand-in Pi does with a prompt in each test scenario, and how it writes records.
+ What the stand-in Pi does with a prompt or a steer in each test scenario, and how it writes records.
 
  @module
  */
 
-import {
-  env,
-  exit,
-  stdout,
-} from 'node:process';
+import { stdout, } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
-import type { PiRecord, } from './driver-types.ts';
+import {
+  FEED_PREVIEW_CHARACTERS,
+  POLL_MILLISECONDS,
+  type PiRecord,
+} from '../dist/final/node/index.mjs';
+import {
+  scenario,
+  seen,
+  writeLogLine,
+} from './stand-in-pi-log-fixture.ts';
 
 /**
  Status the crashing scenarios exit with.
@@ -18,14 +23,20 @@ import type { PiRecord, } from './driver-types.ts';
 export const CRASH_STATUS = 3;
 
 /**
- Milliseconds before the later crash, so the driver has started watching.
- */
-const LATE_CRASH_MILLISECONDS = 300;
-
-/**
  Milliseconds between the halves of a record written in two pieces.
  */
 const SPLIT_WRITE_MILLISECONDS = 50;
+
+/**
+ How many looks at the inbox a delayed answer spans, so a driver that sends the next message without waiting for this answer has
+ sent it before the answer comes.
+ */
+const LOOKS_A_DELAYED_ANSWER_SPANS = 3;
+
+/**
+ Milliseconds a delayed answer takes.
+ */
+export const SLOW_ANSWER_MILLISECONDS: number = POLL_MILLISECONDS * LOOKS_A_DELAYED_ANSWER_SPANS;
 
 /**
  Turns the many-turns scenario starts, above any cap the tests set.
@@ -45,17 +56,22 @@ const LINE_SEPARATOR_CODE_POINT = 0x20_28;
 /**
  A Unicode line separator, valid inside a JSON string and not a line ending there.
  */
-const LINE_SEPARATOR = String.fromCodePoint(LINE_SEPARATOR_CODE_POINT,);
+export const LINE_SEPARATOR: string = String.fromCodePoint(LINE_SEPARATOR_CODE_POINT,);
 
 /**
- The behaviour chosen by the test.
+ The error text the model-error scenarios end with.
  */
-export const scenario: string = env.STAND_IN_PI_SCENARIO ?? 'normal';
+export const MODEL_ERROR_TEXT = 'no key for this provider';
 
 /**
- How many prompts have arrived.
+ The reply of the retry that recovers from a model error.
  */
-export const seen = { prompts: 0, };
+export const RECOVERED_REPLY = 'recovered';
+
+/**
+ The text the standard-error scenario writes, so a test can see the copy reach its file.
+ */
+export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard error';
 
 /**
  Writes one record.
@@ -127,6 +143,32 @@ function finishRun(text: string,): void {
 }
 
 /**
+ Writes an assistant message that ended in a model error.
+
+ @param error - what the model said
+ */
+function finishRunInError(error: string,): void {
+  emit({ type: 'agent_start', },);
+  emit({ type: 'turn_start', },);
+  emit({
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [],
+      stopReason: 'error',
+      errorMessage: error,
+      usage: {
+        input: 1,
+        output: 0,
+        cost: { total: 0, },
+      },
+    },
+  },);
+  emit({ type: 'agent_end', },);
+  emit({ type: 'agent_settled', },);
+}
+
+/**
  Writes a record in two pieces, split inside a two-byte character, holding a Unicode line separator.
 
  @param text - assistant's reply, which must hold the two-byte character
@@ -160,17 +202,20 @@ async function emitFinalReplyInTwoPieces(text: string,): Promise<void> {
 }
 
 /**
- Scenarios that take time over a prompt.
+ Answers a command after a delay, without holding up the reading of the next one, so a test can see whether the driver waited.
+
+ @param id - command's identifier
+ */
+async function answerSlowly(id: unknown,): Promise<void> {
+  await wait(SLOW_ANSWER_MILLISECONDS,);
+  seen.answering -= 1;
+  answer({ id, },);
+}
+
+/**
+ Scenarios that take time over a prompt or a steer.
  */
 const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> = new Map<string, (id: unknown,) => Promise<void>>([
-  [
-    'crash-later',
-    async function crashLater(id,) {
-      answer({ id, },);
-      await wait(LATE_CRASH_MILLISECONDS,);
-      exit(CRASH_STATUS,);
-    },
-  ],
   [
     'split-record',
     async function splitRecord(id,) {
@@ -183,7 +228,19 @@ const waitingPromptPlays: ReadonlyMap<string, (id: unknown,) => Promise<void>> =
 ],);
 
 /**
- What the other scenarios do with a prompt. A scenario missing from both maps finishes a normal run.
+ One sentence of the long reply.
+ */
+const LONG_REPLY_SENTENCE = 'a reply long enough to need cutting.';
+
+/**
+ A reply longer than a feed line keeps, so a summary that held only the preview would show.
+ */
+export const LONG_REPLY: string = `${LONG_REPLY_SENTENCE} `.repeat(
+  Math.ceil((FEED_PREVIEW_CHARACTERS.assistantText * 2) / (LONG_REPLY_SENTENCE.length + 1),),
+);
+
+/**
+ What the other scenarios do with a prompt or a steer. A scenario missing from both maps finishes a normal run.
  */
 const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string, (id: unknown,) => void>([
   [
@@ -199,7 +256,7 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
   ],
   [
     'reject-inbox',
-    function rejectLaterPrompts(id,) {
+    function rejectLaterMessages(id,) {
       if (seen.prompts > 1) {
         emit({
           type: 'response',
@@ -230,11 +287,22 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
     },
   ],
   [
+    'silent-inbox',
+    function acceptThenStaySilent(id,) {
+      if (seen.prompts > 1) {
+        return;
+      }
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+    },
+  ],
+  [
     'settle-gap',
     function endWithoutSettling(id,) {
       answer({ id, },);
       emit({ type: 'agent_start', },);
       emit({ type: 'agent_end', },);
+      void writeLogLine('marker agent_end',);
     },
   ],
   [
@@ -306,10 +374,48 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
       finishRun('after the noise',);
     },
   ],
+  [
+    'long-reply',
+    function finishLong(id,) {
+      answer({ id, },);
+      finishRun(LONG_REPLY,);
+    },
+  ],
+  [
+    'model-error',
+    function endInError(id,) {
+      answer({ id, },);
+      finishRunInError(MODEL_ERROR_TEXT,);
+    },
+  ],
+  [
+    'recovered-error',
+    function retryAfterError(id,) {
+      answer({ id, },);
+      finishRunInError(MODEL_ERROR_TEXT,);
+      emit({ type: 'auto_retry_start', },);
+      finishRun(RECOVERED_REPLY,);
+    },
+  ],
+  [
+    'crash-on-steer',
+    function startThenWait(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+    },
+  ],
+  [
+    'slow-answer',
+    function answerAfterWaiting(id,) {
+      seen.answering += 1;
+      emit({ type: 'agent_start', },);
+      void answerSlowly(id,);
+    },
+  ],
 ],);
 
 /**
- Plays out a prompt according to the scenario.
+ Plays out a prompt or a steer according to the scenario.
 
  @param id - command's identifier
 

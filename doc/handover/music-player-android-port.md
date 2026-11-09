@@ -27,7 +27,7 @@ handover adds the working state,
    the build phase has started.
    The derisking milestone (toolchain + scaffold + Media3
   skeleton playing real audio on the Pixel 6) is DONE and committed.
-   See "Build progress" below.
+   See "Build progress (this session)".
 - The real Media3 variant is well underway:
    the pure logic is ported to Kotlin (56 tests),
    the real Compose UI is
@@ -108,7 +108,7 @@ handover adds the working state,
   plays correctly (the human-ears check the volume-0 tests could not provide;
    channel order / glitch-free output now
   verified by the user).
-   The Media3-vs-Rust metric comparison (#13) is DONE and decisive (below):
+   The Media3-vs-Rust metric comparison (#13) is DONE and decisive (the `Metric comparison (#13)` block records the numbers):
    rust is ~86-187x
   faster at the same decode + true-peak operation on the same tracks.
    WINNER:
@@ -202,7 +202,7 @@ Session redesign features (later session,
 `doc/decision/music-player-{session-source-root,jit-shuffle,live-update-rescan}.md`,
  each "applies to both") is now
 ported to Android.
- The deferred Session persistence seam (below) is wired,
+ The deferred Session persistence seam is wired,
  and restore auto-correction + live updating
 are built.
  Five commits:
@@ -376,6 +376,11 @@ Milestone 1,
    `install:media3`,
    `lint`,
    `clean`) shell to the committed Gradle wrapper.
+  The media3 and hybrid flavors,
+  the tasks `build:media3`,
+  `install:media3` and the
+  `-media3` APK names were dropped on 2026-06-13 by `19f591bb27`;
+  `build` and `install` remain.
 - On-device verification (Pixel 6,
    flock-guarded):
    the `media3` APK installs,
@@ -633,6 +638,9 @@ Milestone 1,
    just do not re-pick a folder.
   Rebuild + reinstall with `mise run //package/music-player/android-app:build:media3` then
   `adb -s 1C171FDF600KWW install -r app/build/outputs/apk/media3/debug/app-media3-debug.apk`;
+  (`build:media3` was retired 2026-06-13 by `19f591bb27`;
+  run the `build` task and install
+  `app/build/outputs/apk/debug/app-debug.apk`)
    re-grant with
   `adb -s 1C171FDF600KWW shell pm grant dev.monochromatic.musicplayer.media3 android.permission.READ_MEDIA_AUDIO`
   (and `... android.permission.POST_NOTIFICATIONS`).
@@ -830,6 +838,8 @@ Then the performance pass (see "True-peak measure performance"):
 `cd64fce2` `maxInteriorAbs` window-term hoist (~20% meter).
  `becdcd16` had reverted the block-the-start design
 back to async and added the debug-signed release build + `build:media3:release` task.
+ (`build:media3:release` was dropped on 2026-06-13 by `19f591bb27`;
+ the debug-signed release build is `build:release`.)
 
 Native Rust toolchain (this session):
  `d97ea46e` derisks the cargo-ndk -> JNI path the full-Rust variant needs,

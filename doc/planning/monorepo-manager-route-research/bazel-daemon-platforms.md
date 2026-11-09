@@ -720,7 +720,7 @@ inferred].
 ## 7. Platforms and CI
 
 0.x is Linux-only;
-the macOS and Windows findings below matter for HC5 later.
+the macOS and Windows findings in `7. Platforms and CI` matter for HC5 later.
 
 - Linux:
   `linux-sandbox` uses user,

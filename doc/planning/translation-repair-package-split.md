@@ -18,7 +18,7 @@ measured" and "Measured after the move" were added after the move.
 
 ## Lint cost, measured
 
-All runs below are oxlint 1.87.0 on the package as it stood at `94ebefa1e3`,
+The runs under the `Lint cost, measured` heading are oxlint 1.87.0 on the package as it stood at `94ebefa1e3`,
 in the keyless worktree `w165` after a fresh build,
 timed with `/usr/bin/time`.
 
@@ -684,7 +684,7 @@ and the rest left in place:
   the fixture package's 6,
   the remaining package's 2429.
   Every case the baseline gate g99b passed and the pilot did not
-  belongs to a reader in the list above:
+  belongs to a reader listed under the Readers that find a file by path heading:
   the source scans,
   the message-class inventory,
   the task-runner guard reach

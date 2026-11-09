@@ -20,6 +20,11 @@ pub(crate) mod smart_http_support;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+/// The configuration and attribute locations a content decision reads in a fixture;
+/// never part of the release executable.
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) mod fixture_content_decision;
+
 /// A Git stand-in that logs each start and runs the real Git;
 ///  never part of the release executable.
 #[cfg(test)]

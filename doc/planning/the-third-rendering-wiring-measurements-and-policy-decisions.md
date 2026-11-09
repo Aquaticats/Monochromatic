@@ -78,7 +78,7 @@ which is the instrument and the panel agreeing.
 ### What the control turned up on its own
 
 The other 2 are a defect,
-and a different one from the question above.
+and a different one from the question the `The question` section asks.
 `lintong#2` and `Weideriche_#0`,
 both in run 8,
 shipped a consolidation that the ballots name faulty MORE often than the standing text:

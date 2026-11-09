@@ -19,8 +19,7 @@ What remains is not the channel.
  An iterator member's channel being narrow says the call
 reaches nothing surprising;
  it says nothing about what the returned iterator carries,
- and every finding
-below is about the second question.
+ and every finding in this note is about the second question.
 
 ## What the residue actually is
 

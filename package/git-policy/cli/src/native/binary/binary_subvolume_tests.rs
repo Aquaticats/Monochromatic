@@ -17,7 +17,7 @@
 //! ```
 
 /// Import the shared fixtures and bounded process helpers.
-use super::support::{Fixture, Observed, fixture, git, remove, repository, run_direct, run_wrapped};
+use super::support::{Fixture, Observed, fixture, git, on_btrfs_or_acknowledged, remove, repository, run_direct, run_wrapped};
 use git_policy_cli::doctor_filesystem::SECTION_MARKER;
 use git_policy_cli::fs_kind::{FilesystemKind, filesystem_kind};
 use std::ffi::OsStr;
@@ -51,25 +51,6 @@ fn populated_repository(fixture: &Fixture) -> PathBuf {
     std::fs::create_dir_all(repo.join("ignored/pkg")).expect("ignored directory");
     std::fs::write(repo.join("ignored/pkg/index.js"), b"module.exports = 1;\n").expect("ignored file");
     return repo;
-}
-
-/// Whether the fixture root is on btrfs;
-/// where it is not,
-/// the run must have said so,
-/// and one loud line names the control.
-fn on_btrfs_or_acknowledged(fixture: &Fixture, control: &str) -> bool {
-    let kind = filesystem_kind(fixture.root.as_path());
-    if kind == Ok(FilesystemKind::Btrfs) {
-        return true;
-    }
-    let acknowledged: bool = std::env::var_os("CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED").is_some_and(|value| { return !value.is_empty(); });
-    assert!(
-        acknowledged,
-        "the control {control} needs a btrfs fixture root, but {} is on {kind:?}; set CLI_GIT_TEST_ROOT to a directory on btrfs, or set CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED=1",
-        fixture.root.display()
-    );
-    eprintln!("BTRFS CONTROL NOT RUN: {control} (fixture root {} is on {kind:?})", fixture.root.display());
-    return false;
 }
 
 /// The inode number of a path.

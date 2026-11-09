@@ -612,6 +612,10 @@ The least-trusting command completed with `built-trust-consumer-ok`:
 mise run //package/git-policy/cli:test:built:trust
 ```
 
+That address no longer resolves:
+commit `642b6d72cb` (2026-10-13) deleted the TypeScript wrapper with its tasks
+and the `src/trust/` fixture tree this command ran.
+
 That run also retained strict relative-source invalidation,
 relaxed rebuild,
 package warnings,

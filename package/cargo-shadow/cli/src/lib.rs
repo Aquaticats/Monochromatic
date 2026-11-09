@@ -516,6 +516,10 @@ mod git_fallback_tests;
 #[cfg(test)]
 mod wait_bound_tests;
 
+/// The tests of the runner that starts the real cargo for the install and update steps.
+#[cfg(test)]
+mod cargo_run_tests;
+
 /// The tests of the bounded child runs.
 #[cfg(test)]
 mod bounded_run_tests;
@@ -933,6 +937,10 @@ pub mod lean_lock_probe;
 /// The scan of `/proc` for processes using a path.
 pub mod lean_proc_scan;
 
+/// The tests of the process scan and of what it cannot read.
+#[cfg(test)]
+mod lean_proc_scan_tests;
+
 /// The one way the lean-folder tools remove an entry.
 pub mod lean_removal;
 
@@ -998,6 +1006,10 @@ pub mod lean_run_records;
 #[cfg(test)]
 mod lean_run_records_tests;
 
+/// The tests of the wiring of the run-record retention to the tasks that write records.
+#[cfg(test)]
+mod lean_records_wiring_tests;
+
 /// The checkouts of a repository,
 /// found from the Git directory's files.
 pub mod lean_checkouts;
@@ -1043,6 +1055,10 @@ pub mod lean_run_steps;
 
 /// The lean-folder run.
 pub mod lean_run;
+
+/// The tests of the order a run takes its mechanisms in.
+#[cfg(test)]
+mod lean_run_tests;
 
 /// Mechanism F:
 /// the daily systemd user timer and its installer.

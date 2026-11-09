@@ -563,7 +563,8 @@ lookarounds,
    `$`=line-end lookahead,
    `\b`/`\B`=word-boundary
   lookaround pairs.
-   Validated 19/19 against known answers (see below).
+   Validated against the 19 known-answer anchor cases that `/tmp/agent/val_expected.txt` and
+  `/var/home/user/Downloads/extended-regexes/leanval2.lean` hold.
    KNOWN
   UNFAITHFUL for lookbehind whose body contains a lookahead or anchor
   (`(?<=(?=...)...)`,
@@ -728,7 +729,7 @@ contradicting itself is unambiguous.
 
 ## The 23 bugs (files in doc/audit/resharp-fuzz-2026-06-04/)
 
-BUG-21 through BUG-27 are detailed in the Current status section above.
+BUG-21 through BUG-27 are detailed in the `Current status (2026-06-04 18:55)` section.
  BUG-1 through
 BUG-20 follow;
  BUG-19/20 are in the status section's timing list.
@@ -1033,8 +1034,8 @@ which needs no oracle;
    `fafirst|fan` span gaps are BUG-13/14.
 - `--streambatch` (STREAMEXTRA:
    stream span not in find_all):
-   DEAD END,
-   see below.
+   DEAD END;
+  the `Spot-checked, no bug in samples (NOT confirmed robust)` section says why.
 - `--ci1 <hexpat> <hexhay>`:
    resharp case_insensitive(ascii) is_match/find_all.
 - `--fa1 <hexpat> <hexhay> <cfgidx>`:

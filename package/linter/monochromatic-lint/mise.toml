@@ -106,7 +106,8 @@ run = "node bin/mutate-container.ts"
 [tasks."mutation:rust-style"]
 description = "Mutate the sidecar test rule with its focused baseline in the bounded source snapshot"
 depends = ["test:rust-style"]
-run = "node bin/mutate-container.ts --rust-style"
+# Mechanism D: this task writes records of its own and depends on no task that sweeps, so it sweeps the run records first.
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-container.ts --rust-style"]
 
 [tasks."mutation:markdown"]
 description = "Mutate native Markdown modules against their tests after full container tests and Clippy"
@@ -160,7 +161,8 @@ run = "node bin/mutate-container.ts --semantic"
 
 [tasks."mutation:coverage"]
 description = "Prove from listings that the mutation scopes together hold every mutant of the unscoped listing, name by name, without building"
-run = "node bin/mutate-container.ts --coverage"
+# Mechanism D: this task writes records of its own and depends on no task that sweeps, so it sweeps the run records first.
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-container.ts --coverage"]
 
 [tasks."mutation:list:executable"]
 description = "Inspect the executable mutant scope without mutating or building source"
@@ -196,7 +198,9 @@ run = "node bin/mutate-container.ts --list --inferred-constants"
 
 [tasks."test:container"]
 description = "Run artifact tests in a mount-free, network-disabled 2 GiB / 2 CPU container"
-run = "node bin/test-container.ts"
+# Mechanism D: the run-record retention of this package's target/verification, swept before a run writes another record
+# through cargo-shadow's own sweep; every mutation task depends on this one, so the sweep runs before them too.
+run = ["cargo-shadow lean records target/verification", "node bin/test-container.ts"]
 
 [tasks."test:rust-style"]
 description = "Verify the sidecar test rule independently of unfinished Markdown adapters, under the same container bounds"
@@ -338,7 +342,8 @@ console.log('Handoff rendered to target/verification/processors-handover.html');
 
 [tasks."mutation:processors"]
 description = "Remove concrete processor safety guards in a mount-free bounded immutable snapshot; `-- --memory <size> --cpus <count> --pids-limit <count>` override the 2g, 2 CPUs and 512 PIDs defaults"
-run = "node bin/mutate-processors.ts"
+# Mechanism D: this task writes records of its own and depends on no task that sweeps, so it sweeps the run records first.
+run = ["cargo-shadow lean records target/verification", "node bin/mutate-processors.ts"]
 
 [tasks."processors:tools"]
 description = "Read the installed mutation and Rust consumer compiler interfaces before invoking them"

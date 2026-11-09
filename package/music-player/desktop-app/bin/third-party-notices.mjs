@@ -210,7 +210,10 @@ const slintLicensePath = join(
   'slint-royalty-free-2.0.md'
 );
 // SHA-256 of the license file in every Slint crate 1.18.1 (LICENSES/LicenseRef-Slint-Royalty-free-2.0.md), identical to
-// the file on slint-ui/slint master on 2026-10-18. A changed file stops the task until it is reviewed.
+// the file on slint-ui/slint master on 2026-10-18. A changed file stops the task until it is reviewed: an upstream
+// release that reworded the license needs the new text and this constant, and a reflow of the vendored copy (the
+// Markdown rewrap did that twice, see doc/troubleshooting/cargo-about-licenseref-text-is-dropped.md) needs the
+// vendored copy restored, because the crates' own files are compared with this same constant.
 const slintLicenseChecksum = '5167f5056e850419106ab6265efbdca7cba4d99c849d1445ca0bbf6a1e2315fe';
 const slintCrates = new Map();
 for (const item of about.crates) {

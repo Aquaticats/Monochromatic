@@ -615,6 +615,11 @@ mise run //package/desktop-daemon/editord:dev
     └── watchexec ...
 ```
 
+Neither that address nor the one in the symptom paragraph resolves from the repository root today:
+commit `592d78b143` (2026-10-29) moved the package to
+`package-paused/desktop-daemon/editord`,
+whose `mise.toml` still declares `dev`.
+
 `bun` and the other two parallel tasks (`watch:build:js:client`,
 `watch:build:css`) exit cleanly.
  `watchexec` does not.

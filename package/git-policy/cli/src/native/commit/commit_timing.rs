@@ -29,6 +29,7 @@
 //! ```
 
 use crate::wrapper_names_old_and_new::COMMIT_TIMING_LOG;
+use crate::commit_index_builds::{IndexBuild, drain_index_builds, index_builds_json};
 use crate::diagnostic_log::debug;
 use crate::discard_audit::append_line;
 use crate::iso_time::now_iso;
@@ -285,6 +286,11 @@ pub struct CommitTiming {
     /// one,
     /// and one more for each time the service sent the commit back or Git built it again.
     pub attempts: usize,
+    /// How each build of the private commit index was made and whether it kept the real index's cached stat data,
+    /// in the order built,
+    /// taken from the ledger when the record is written (`commit_index_builds.rs`):
+    /// empty for a commit that stopped before it built an index.
+    pub index_builds: Vec<IndexBuild>,
     /// Policies,
     /// hooks,
     /// the private index,
@@ -344,6 +350,7 @@ impl CommitTiming {
             request: None,
             outcome: "stopped",
             attempts: 0,
+            index_builds: Vec::new(),
             prepare: Duration::ZERO,
             build: Duration::ZERO,
             provision: Duration::ZERO,
@@ -391,7 +398,7 @@ impl CommitTiming {
         return format!(
             "{{\"schemaVersion\":{TIMING_SCHEMA_VERSION},\"time\":{},\"level\":\"{level}\",\"startMillis\":{},\"pid\":{},\"release\":{},\"instance\":{},\"gitDir\":{},\
              \"requestId\":{request},\"branch\":{branch},\"outcome\":{},\"exitCode\":{exit_code},\"totalMs\":{},\
-             \"prepareMs\":{},\"attempts\":{},\"buildMs\":{},\"provisionMs\":{},\
+             \"prepareMs\":{},\"attempts\":{},\"indexBuilds\":{},\"buildMs\":{},\"provisionMs\":{},\
              \"submitMs\":{},\"sends\":{},\"reachMs\":{},\"connectTries\":{},\"refusedConnects\":{},\"startWaitMs\":{},\
              \"updateRounds\":{},\"releasesSeen\":{},\"answeredByRelease\":{answered_by},\
              \"answerWaitMs\":{},\"positions\":[{}],\"waitingNotices\":{},\"lockHolderKind\":{},\"reconnects\":{},\
@@ -407,6 +414,7 @@ impl CommitTiming {
             total.as_millis(),
             self.prepare.as_millis(),
             self.attempts,
+            index_builds_json(self.index_builds.as_slice()),
             self.build.as_millis(),
             self.provision.as_millis(),
             self.submit.total.as_millis(),
@@ -455,6 +463,7 @@ impl CommitTiming {
         let mut with_quiet: CommitTiming = self.clone();
         with_quiet.quiet = drain();
         (with_quiet.steps, with_quiet.steps_dropped) = drain_steps(self.began);
+        with_quiet.index_builds = drain_index_builds();
         let line: String = with_quiet.line(self.began.elapsed(), exit_code);
         if let Err(error) = append_line(target.as_path(), line.as_bytes()) {
             debug(TAG, &format!("the timing record could not be written to {}: {error}", target.display()));

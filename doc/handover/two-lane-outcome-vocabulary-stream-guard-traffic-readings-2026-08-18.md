@@ -109,7 +109,7 @@ positives,
 all the word "cute" in a rationale about 撒娇.
 
 SUPERSEDED,
-and the figure below was a MID-FLIGHT FLOOR read before the pass finished.
+and the traffic figure was a MID-FLIGHT FLOOR read before the pass finished.
 Read to
 the end of the log by `#121`:
 SIXTEEN OF NINETEEN cuts,

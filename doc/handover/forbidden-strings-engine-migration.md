@@ -41,9 +41,11 @@ Updated:
    return ASAP).
 - Skip-list gate fix DONE (`37286df18` plus a trust refresh;
    pushed):
-  both ported file paths added to `SCANNER_SELF_MATCH_PATHS`
-  (canonical source `package/git-policy/forbidden-strings/src/scan-candidates.ts`;
-  the CLI copy is file-enforcer-generated).
+  both ported file paths added to `SCANNER_SELF_MATCH_PATHS`;
+  the canonical source was `package/git-policy/forbidden-strings/src/scan-candidates.ts`,
+  now `package/git-policy/cli/src/native/candidate/scanner_adapter.rs`
+  (deleted 2026-10-13 by `a2b56c548c`),
+  and the CLI copy is file-enforcer-generated.
   CORRECTION (caught by the port-rerun agent):
   the first throwaway-worktree verification was weaker than recorded;
   the append file has no self-matching line,
@@ -911,7 +913,7 @@ Running (completion notifications arrive automatically):
 - #376 rule-file port,
    opus.
    RETURNED;
-   see URGENT section above.
+   see the "URGENT context for the post-compact session" section.
   Bench sidecar plus data files plus repo-root append file plus review doc.
   Settled semantics in the issue:
   512 quantifier caps,

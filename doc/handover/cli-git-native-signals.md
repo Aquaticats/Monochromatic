@@ -1,5 +1,14 @@
 # Native cli-git signals and automatic maintenance lane
 
+Scratch note 2026-11-08:
+the `target/verification/...` records and the `.claude/worktrees/...` folders this document
+names never entered the tree.
+The first are gitignored outputs of the gate
+mutation
+and interop runs;
+the second were lane worktrees removed when their lane closed.
+The counts and dates quoted with them are what those runs recorded.
+
 Note 2026-11-04T22:23:58-05:00:
 the program `cli-git-native` is renamed `monochromatic-git-policy-cli`,
 the command word `git cli-git` becomes `git monochromatic-git-policy-cli`,
@@ -46,7 +55,7 @@ Neither module is wired into the commit refusal (`Unported::CommitTransaction` i
 - `5d5ca284c1` `fix(git-policy-cli): make the early-signal test's child a direct sleep and add a pre-spawn relay regression test`
   (on `feat/cli-git-native-signals-fix`,
   not on this lane's branch;
-  see `Early-signal test flake` below)
+  see the `Early-signal test flake` section)
 - `4a525a744c` `test(git-policy-cli): gate the relay statics lock to unix, where the tests that use it are compiled`
   (same branch,
   follows `5d5ca284c1`)

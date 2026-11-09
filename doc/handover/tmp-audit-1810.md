@@ -265,7 +265,7 @@ TypeScript:
 
 ## Update, end of the first pass
 
-Landed since the sections above (all `Refs #1810`):
+Landed since the "Done and committed" and "Findings" sections (all `Refs #1810`):
 
 - Both guards are on main as `df9d65a071`,
   on purpose red:
@@ -338,11 +338,11 @@ Still red or open:
   `mutation-test` and `wg/cli-quicker` have only a
   type check;
   the container runners and `inspect-bundle.ts` need a container or compositor.
-- Close #1810 with `Closes #1810` on the last fixing commit once the lists above are empty.
+- Close #1810 with `Closes #1810` on the last fixing commit once the "Still red or open" lists are empty.
 
 ## Final state of this pass
 
-Everything in "Still red or open" above that could be done without another session was done afterwards:
+Everything in "Still red or open" that could be done without another session was done afterwards:
 
 - The rule now also sees `await import('node:os')` destructuring (`5c30c5eb80`),
   lints clean itself (`86bf2c19fe`),
