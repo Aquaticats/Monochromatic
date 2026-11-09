@@ -7,6 +7,9 @@
 >  Live provisioning runs `mise run toolchain:install` against `toolchain.lock.json`
 >  (`doc/troubleshooting/mpm-toolchain-migration.md`).
 
+Note 2026-11-09T16:56:27-05:00:
+`doc/handover/mise-lock-2026-10-20-followup.md` left the tree on 2026-10-28 in `9903b2e748`.
+
 ## Symptom
 
 The `cargo-publish` workflow failed at the step "Install only the tools this workflow needs" (`mise install rust`)

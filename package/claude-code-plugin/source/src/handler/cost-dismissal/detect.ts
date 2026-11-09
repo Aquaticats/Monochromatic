@@ -120,4 +120,7 @@ function findSizeDismissal(block: string,): readonly CostDismissalHit[] {
 
 export type { CostDismissalHit, };
 
-export { BLOCK_HASH_CHARS, findSizeDismissal, };
+export {
+  BLOCK_HASH_CHARS,
+  findSizeDismissal,
+};

@@ -1,5 +1,14 @@
 # Auto-mode on Pi 1.2.0 blocks authorized tool groups
 
+Note 2026-11-09T16:46:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/native/contract/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+
 ## Process metadata and queued custom inputs on 2026-10-17
 
 ### Symptoms and separate incidents

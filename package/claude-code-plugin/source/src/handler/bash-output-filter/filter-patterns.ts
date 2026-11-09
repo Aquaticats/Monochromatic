@@ -11,6 +11,8 @@
 
 import { realpath, } from 'node:fs/promises';
 
+import { tagged, } from '@monochromatic-dev/logger-core/ts';
+
 import {
   isDigit,
   isWhitespace,
@@ -40,6 +42,11 @@ const MAX_REPEATED_CHARS = 3;
  A unique symbol avoids using an empty string as an out-of-band value.
  */
 const PATH_PREFIX_ABSENT: unique symbol = Symbol('bash-output-filter/path-prefix-absent',);
+
+/**
+ Module logger for path resolution.
+ */
+const loggerForPaths = tagged({ tag: 'bash-output-filter-paths', },);
 
 /**
  Path prefix used by path-collapsing transforms, or {@link PATH_PREFIX_ABSENT}
@@ -83,7 +90,14 @@ async function resolveRealHome(): Promise<PathPrefix> {
     const resolved = await realpath(HOME_DIR,);
     return resolved === HOME_DIR ? PATH_PREFIX_ABSENT : resolved;
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // Collapsing is then disabled rather than guessed at, and the caught value
+    // still shows why the alternate spelling is unavailable.
+    tagged({
+      tag: resolveRealHome.name,
+      l: loggerForPaths,
+    },)
+      .debug(`home directory has no second spelling: ${String(error,)}`,);
     return PATH_PREFIX_ABSENT;
   }
 }
@@ -106,7 +120,13 @@ function resolveCwdPrefix(): PathPrefix {
     const cwd = process.cwd();
     return withTrailingSlash(cwd,);
   }
-  catch (_error: unknown) {
+  catch (error: unknown) {
+    // A deleted or unreadable working directory disables cwd collapsing.
+    tagged({
+      tag: resolveCwdPrefix.name,
+      l: loggerForPaths,
+    },)
+      .debug(`working directory could not be read: ${String(error,)}`,);
     return PATH_PREFIX_ABSENT;
   }
 }

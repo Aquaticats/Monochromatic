@@ -32,6 +32,10 @@ export const NO_QUERY_ATTR: unique symbol = Symbol('import-attributes/no-query-a
  
  @returns Attribute type string if present, {@link NO_QUERY_ATTR} otherwise
  
+ The value is returned as written, registered handler or not: whether a type can
+ actually be loaded is the load hook's check, which leaves an unknown type to other
+ loaders.
+ 
  @example
  ```ts
  extractAttrType('./file.sql?__importattr=text'); // 'text'
@@ -73,6 +77,9 @@ export function extractAttrType(id: string,): string | typeof NO_QUERY_ATTR {
  @param id - Module ID with `?__importattr=<type>`
  
  @returns File path without the attribute query parameter
+ 
+ Everything from the marker onward is removed, later query parameters included, so a
+ tagged ID always yields the file path the handler reads.
  
  @example
  ```ts

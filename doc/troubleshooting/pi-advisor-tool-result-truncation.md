@@ -1,5 +1,9 @@
 # Pi Advisor with SDK 1.0.0: source reads lose their tails in review context
 
+Note 2026-11-09T16:51:44-05:00:
+`package/pi-plugin/advisor/src/context.ts` is now `package/agent-harness-shared/advisor/src/context.ts`,
+moved 2026-10-20 in `093f32832a`.
+
 ## Symptom
 
 The primary agent read complete source files,

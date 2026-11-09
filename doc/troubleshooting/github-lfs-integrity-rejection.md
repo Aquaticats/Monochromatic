@@ -1,5 +1,9 @@
 # GitHub rejects a Git 2.56.0 push with GH009 while retaining the local commit
 
+Note 2026-11-09T16:50:29-05:00:
+`package/git-policy/cli/src/native/auto_push.rs` is now `package/git-policy/cli/src/native/push/auto_push.rs`,
+moved 2026-11-03 in `d88fd7ab2a`.
+
 ## Symptom
 
 On 2026-10-15,

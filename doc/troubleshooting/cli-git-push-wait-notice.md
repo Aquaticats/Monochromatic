@@ -11,6 +11,15 @@ The new names arrive with the first release after this date;
 this repository switches its installed program and its settings file when it installs that release.
 This record keeps the names of its time.
 
+Note 2026-11-09T16:50:29-05:00:
+these citations in this record name paths that no longer exist.
+`package/git-policy/cli/src/native/auto_push.rs` is now `package/git-policy/cli/src/native/push/auto_push.rs`,
+moved 2026-11-03 in `d88fd7ab2a`.
+`package/git-policy/cli/src/native/bounded_push.rs` is now
+`package/git-policy/cli/src/native/push/bounded_push.rs`,
+moved 2026-11-03 in `d88fd7ab2a`.
+`package/git-policy/cli/src/native/owner_lock.rs` left the tree on 2026-11-01 in `69d275d92b`.
+
 ## Status since 2026-11-01
 
 This record describes release 0.1.4,

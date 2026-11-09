@@ -1,5 +1,10 @@
 # Pi 0.87.1 input labels and copied entries do not establish human authority
 
+Note 2026-11-09T16:49:15-05:00:
+these citations in this record name paths that no longer exist.
+`package/pi-plugin/auto-mode/src/guard-command.ts` left the tree on 2026-10-17 in `a3955898f1`.
+`package/pi-plugin/auto-mode/src/context.ts` left the tree on 2026-10-17 in `a3955898f1`.
+
 ## Symptom and relevance
 
 An auto-mode authorization collector must not equate a user-role transcript message with human authorization.

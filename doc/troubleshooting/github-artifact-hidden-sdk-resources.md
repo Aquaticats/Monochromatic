@@ -1,5 +1,10 @@
 # GitHub `upload-artifact` at `043fb46d` omits compiled SDK dot resources by default
 
+Note 2026-11-09T16:46:15-05:00:
+`package/pi-plugin/auto-mode/native/` is not in the tree;
+its files were deleted over several commits,
+most of them on 2026-10-19 in `ff55ced353`.
+
 ## Symptom
 
 The frozen-source native host build succeeded,

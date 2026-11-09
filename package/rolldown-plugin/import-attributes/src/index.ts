@@ -10,9 +10,11 @@
  2. Intercepting dynamic import resolution by scanning the importer's source
  3. Loading matched files with the appropriate transform (e.g. text -> default string export)
  
- Static imports are handled via `transform` (rewriting specifiers before rolldown scans them).
- Dynamic imports require special handling because rolldown's Rust scanner discovers
- dependencies from the original AST before `transform` runs on the importing file.
+ Static and dynamic attribute syntax are both handled via `transform`, which
+ rewrites a specifier before rolldown scans the module it belongs to.
+ The importer scan in `resolveId` is the fallback for a specifier the transform
+ left untagged: measured on rolldown 1.3.0, a rewritten dynamic import resolves
+ from its tagged specifier and never reaches the scan.
  
  @example
  ```ts
@@ -32,7 +34,14 @@ import {
   dirname,
   resolve,
 } from 'node:path';
-import type { Plugin, } from 'rolldown';
+import type {
+  LoadResult,
+  Plugin,
+  PluginContext,
+  ResolveIdExtraOptions,
+  ResolveIdResult,
+  TransformResult,
+} from 'rolldown';
 
 import { NO_ATTR_TYPE, } from './ast-extract.ts';
 import { HANDLERS, } from './handlers.ts';
@@ -49,6 +58,120 @@ import {
 } from './transform.ts';
 
 export { importAttributesPlugin, };
+
+//region Resolve and tag
+
+/**
+ Returns the file path of module ID, without any query parameters.
+ 
+ An importer ID can carry a query of its own (`main.ts?variant=1`), and only the
+ path before it names a file that exists on disk, so both the record read and the
+ directory used for a relative fallback take this form.
+ 
+ @param id - module ID that may carry a query string
+ 
+ @returns path before the first `?`, or the ID itself when it carries none
+ 
+ @example
+ ```ts
+ filePathOf('/project/src/main.ts?__importattr=text'); // '/project/src/main.ts'
+ ```
+ */
+function filePathOf(id: string,): string {
+  return id.split('?',)[0]
+    ?? id;
+}
+
+/**
+ Resolves one specifier and tags the result with the attribute query, so the
+ load hook can hand the file to the handler for that attribute type.
+ 
+ Both resolveId entry paths call this: the query-tagged specifier the transform
+ already rewrote, and the untagged specifier whose clause the importer scan
+ found. Rolldown's own resolver answers first; when it returns `null` a relative
+ specifier falls back to the importer-relative absolute path, which is how a
+ file rolldown cannot resolve on its own still loads through the handler.
+ 
+ @param context - plugin context whose `resolve` runs rolldown's resolver
+ 
+ @param specifier - specifier to resolve, already stripped of any attribute query
+ 
+ @param importer - importing module; absent when rolldown reports an entry module
+ 
+ @param attrType - attribute type encoded into the resolved ID
+ 
+ @param options - extra options the resolveId hook received; forwarded as a copy
+ 
+ @returns tagged resolution, or `null` when neither the resolver nor the relative fallback applies
+ 
+ @example
+ ```ts
+ const resolved = await resolveTaggedSpecifier({
+   context: this,
+   specifier: './schema.sql',
+   importer: '/project/src/main.ts',
+   attrType: 'text',
+   options,
+ });
+ // resolved.id: '/project/src/schema.sql?__importattr=text'
+ ```
+ */
+async function resolveTaggedSpecifier({
+  context,
+  specifier,
+  importer,
+  attrType,
+  options,
+}: {
+  readonly context: PluginContext;
+  readonly specifier: string;
+  readonly importer?: string;
+  readonly attrType: string;
+  readonly options: ResolveIdExtraOptions;
+},): Promise<ResolveIdResult> {
+  /**
+   Resolved descriptor from the underlying resolver; `null` triggers the relative-path fallback.
+   */
+  const resolved = await context.resolve(
+    specifier,
+    importer,
+    {
+      ...options,
+      skipSelf: true,
+    },
+  );
+
+  if (resolved !== null) {
+    return {
+      id: `${resolved.id}?${ATTR_QUERY_KEY}=${attrType}`,
+      external: false,
+    };
+  }
+
+  /**
+   An entry has no directory to resolve against, and an absolute or bare specifier has no relative base either.
+   */
+  if ((importer === undefined) || (!specifier.startsWith('.',)))
+    return null;
+
+  /**
+   Importer directory used as the base for the relative-resolution fallback; the attribute query is not part of the path.
+   */
+  const importerDir = dirname(filePathOf(importer,),);
+  /**
+   Absolute path produced when the resolver could not locate the target.
+   */
+  const absolutePath = resolve(
+    importerDir,
+    specifier,
+  );
+  return {
+    id: `${absolutePath}?${ATTR_QUERY_KEY}=${attrType}`,
+    external: false,
+  };
+}
+
+//endregion Resolve and tag
 
 //region Plugin factory
 
@@ -69,13 +192,6 @@ export { importAttributesPlugin, };
  ```
  */
 function importAttributesPlugin(): Plugin {
-  /**
-   Cache of importer file sources, keyed by absolute path.
-   Prevents re-reading the same file when multiple imports from it
-   trigger `resolveId` before `transform` has run.
-   */
-  const importerSourceCache = new Map<string, string>();
-
   return {
     name: 'import-attributes',
 
@@ -86,7 +202,7 @@ function importAttributesPlugin(): Plugin {
     transform(
       code,
       id,
-    ) {
+    ): TransformResult {
       /**
        Transformed module, or {@link NO_TRANSFORM} when no attribute clause was present.
        */
@@ -106,7 +222,8 @@ function importAttributesPlugin(): Plugin {
      scanner before transform ran (for dynamic imports where the scanner
      processes the original AST).
      
-     @mutates options through the this.resolve Rolldown capability
+     The options object is read, never written: `this.resolve` receives a fresh
+     spread copy with `skipSelf: true`, so a caller can reuse its own object.
      
      For untagged specifiers, scans the importer's source via
      {@link scanImporterForAttribute} to check whether the import had a
@@ -116,121 +233,49 @@ function importAttributesPlugin(): Plugin {
       source,
       importer,
       options,
-    ) {
+    ): Promise<ResolveIdResult> {
       /**
        Check for query-param-tagged specifiers (from static imports after transform).
        */
       const queryAttrType = extractAttrType(source,);
       if (queryAttrType !== NO_QUERY_ATTR) {
         /**
-         Specifier without the attribute query so the downstream resolver can locate the file.
+         Tagged specifier: the transform already decided the type, so only resolution and relative fallback remain.
          */
-        const cleanSource = stripAttrQuery(source,);
-
-        /**
-         Resolved descriptor from the underlying resolver; `null` triggers the relative-path fallback.
-         */
-        const resolved = await this.resolve(
-          cleanSource,
-          importer,
-          {
-            ...options,
-            skipSelf: true,
-          },
-        );
-
-        if (resolved !== null) {
-          return {
-            id: `${resolved.id}?${ATTR_QUERY_KEY}=${queryAttrType}`,
-            external: false,
-          };
-        }
-
-        if ((importer !== undefined) && (cleanSource
-          .startsWith('.',))) {
-          /**
-           Importer directory used as the base for resolving the relative specifier.
-           */
-          const importerDir = dirname(importer.split('?',)[0]
-            ?? importer,);
-          /**
-           Absolute path produced when the resolver could not locate the target.
-           */
-          const absolutePath = resolve(
-            importerDir,
-            cleanSource,
-          );
-          return {
-            id: `${absolutePath}?${ATTR_QUERY_KEY}=${queryAttrType}`,
-            external: false,
-          };
-        }
-
-        return null;
+        return await resolveTaggedSpecifier({
+          context: this,
+          specifier: stripAttrQuery(source,),
+          ...(importer === undefined ? {} : { importer, }),
+          attrType: queryAttrType,
+          options,
+        },);
       }
+
+      /*
+       Every remaining case handles an untagged specifier, where only the
+       importer's own source can say whether an attribute clause was written.
+       */
+      if (importer === undefined)
+        return null;
 
       /**
-       For untagged specifiers from an importer, scan the importer's source
-       to check if this import has an attribute clause.
-       This catches dynamic imports that rolldown's scanner discovered
-       from the original AST before `transform` could rewrite them.
+       Attribute type discovered by scanning the importer's AST for this specifier.
        */
-      if (importer !== undefined) {
-        /**
-         Importer path stripped of any attribute query; used both as scan target and base directory.
-         */
-        const cleanImporter = importer.split('?',)[0]
-          ?? importer;
-        /**
-         Attribute type discovered by scanning the importer's AST for this specifier.
-         */
-        const attrType = await scanImporterForAttribute({
-          specifier: source,
-          importerPath: cleanImporter,
-          importerSourceCache,
-        },);
+      const attrType = await scanImporterForAttribute({
+        specifier: source,
+        importerPath: filePathOf(importer,),
+      },);
 
-        if (attrType !== NO_ATTR_TYPE) {
-          /**
-           Resolved descriptor for an untagged dynamic-import specifier; `null` triggers the relative fallback.
-           */
-          const resolved = await this.resolve(
-            source,
-            importer,
-            {
-              ...options,
-              skipSelf: true,
-            },
-          );
+      if (attrType === NO_ATTR_TYPE)
+        return null;
 
-          if (resolved !== null) {
-            return {
-              id: `${resolved.id}?${ATTR_QUERY_KEY}=${attrType}`,
-              external: false,
-            };
-          }
-
-          if (source.startsWith('.',)) {
-            /**
-             Importer directory used as the base for the relative-resolution fallback.
-             */
-            const importerDir = dirname(cleanImporter,);
-            /**
-             Absolute path produced when the resolver returned `null`.
-             */
-            const absolutePath = resolve(
-              importerDir,
-              source,
-            );
-            return {
-              id: `${absolutePath}?${ATTR_QUERY_KEY}=${attrType}`,
-              external: false,
-            };
-          }
-        }
-      }
-
-      return null;
+      return await resolveTaggedSpecifier({
+        context: this,
+        specifier: source,
+        importer,
+        attrType,
+        options,
+      },);
     },
 
     /**
@@ -238,7 +283,7 @@ function importAttributesPlugin(): Plugin {
      {@link NO_QUERY_ATTR}) by reading the file and passing its content
      through the registered {@link HANDLERS} handler.
      */
-    async load(id,) {
+    async load(id,): Promise<LoadResult> {
       /**
        Attribute type encoded in the requested ID; absent IDs are left to other loaders.
        */
@@ -278,3 +323,70 @@ function importAttributesPlugin(): Plugin {
 }
 
 //endregion Plugin factory
+
+//region Built-artifact test surface
+
+/**
+ Query-parameter codec for the attribute marker, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  ATTR_QUERY_KEY,
+  extractAttrType,
+  NO_QUERY_ATTR,
+  stripAttrQuery,
+} from './patterns.ts';
+
+/**
+ AST attribute-type extraction, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  extractTypeFromAttributes,
+  extractTypeFromOptions,
+  getStringLiteralValue,
+  NO_ATTR_TYPE,
+  NON_STRING_NODE,
+  staticDeclAttrType,
+} from './ast-extract.ts';
+
+/**
+ Attribute handlers, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  HANDLERS,
+  textHandler,
+} from './handlers.ts';
+
+/**
+ Source-span replacement helpers, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  collectStaticReplacements,
+  skipWithClauseWhitespace,
+} from './transform-helpers.ts';
+
+/**
+ The transform-hook implementation, exported for built-artifact verification.
+
+ @internal
+ */
+export {
+  NO_TRANSFORM,
+  transformImportAttributes,
+} from './transform.ts';
+
+/**
+ The importer-source scanner, exported for built-artifact verification.
+
+ @internal
+ */
+export { scanImporterForAttribute, } from './scan-importer.ts';
+
+//endregion Built-artifact test surface

@@ -39,7 +39,7 @@ use crate::index_holder_wait::{CLEARS_A_DEAD_OWNERS_LOCK, RECOVERY_CONSEQUENCE};
 /// The index reading,
 /// and the take of a worktree file a merge must replace or delete,
 /// re-exported so a caller of the recovery keeps one path.
-pub use crate::merge_isolation_index_reading::{entry_of, index_entries, index_standings, standing_of_index};
+pub use crate::merge_isolation_index_reading::{entries_by_path, index_entries, index_standings, standing_of_index};
 pub use crate::merge_isolation_take_asides::{
     Take, TakeFailure, TakenOnDisk, finish_asides, put_back, put_back_stranded_takes, remove_empty_parents,
     restore_what_git_did_not_write, take_aside,
@@ -73,6 +73,36 @@ pub struct RecoveryPlace {
     pub common_dir: PathBuf,
     /// The Git directory of the worktree whose index recovery writes.
     pub git_dir: PathBuf,
+}
+
+/// What:
+///  The place recovery runs in when a command that started its own merge has to settle it.
+/// Why:
+///   The two directories stay apart:
+///  the worktree's own Git directory is what recovery writes through,
+///  and the repository's common one is where every worktree of it keeps what they share.
+///  A linked worktree's own Git directory lives under the main repository's `worktrees` directory,
+///  and only its `commondir` file names the repository's own
+///  (`foundation/common_directory_of_a_git_directory.rs`),
+///  so filling the common field with the worktree's directory would point every reader of it
+///  at a directory that goes away with the worktree.
+///  The context carries the invocation's common directory;
+///  one built without it still knows the worktree's Git directory, whose `commondir` names the rest.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const place = { git, cwd: root, commonDir: context.commonDir ?? commonDirectoryOf(gitDir), gitDir };
+/// ```
+impl RecoveryPlace {
+    /// The place a settling command needs,
+    /// from its context and the two directories.
+    pub fn settling(git: &GitContext, git_dir: &Path, root: &Path) -> RecoveryPlace {
+        let common_dir: PathBuf = match git.common_dir.as_ref() {
+            Some(found) => found.clone(),
+            None => crate::common_directory_of_a_git_directory::common_directory_of(git_dir),
+        };
+        return RecoveryPlace { git: GitContext { global_prefix: Vec::new(), ..git.clone() }, cwd: root.to_path_buf(), common_dir, git_dir: git_dir.to_path_buf() };
+    }
 }
 
 /// What recovery did for one record.
