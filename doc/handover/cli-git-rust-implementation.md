@@ -641,16 +641,11 @@ Two readings are open:
 
 Still to do:
 
-- The landing's in-process index reset writes the commit's paths with all-zero stat data
-  (`index/index_reset.rs` `StatData::default()`,
-  as `git reset --no-refresh` does),
-  where native `git commit` leaves the worktree's stat data.
-  The next commit therefore finds those paths stale and refreshes them once,
-  through the question here,
-  one Git start and one hash per path the previous commit landed and this one does not name.
-  Native Git pays nothing for them.
-- The question's pass is single-threaded;
-  preloading it across threads as Git's `core.preloadIndex` does would cut the 56 ms above to about Git's 10 ms.
+- The landing's in-process index reset wrote the commit's paths with all-zero stat data,
+  which the next commit refreshed once;
+  closed by the section below.
+- The question's pass was single-threaded;
+  closed by the section below.
 - A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
   (Git answers a held lock at once,
   measured 0.00 s,
@@ -659,6 +654,305 @@ Still to do:
   bounded by `LANDING_LOCK_CEILING`.
 - The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
   `native:perf` compares paired commit deltas and is the run for it.
+
+### The landing records the stat data it can prove, and the staleness question walks its entries in parallel (2026-11-08T19:20:00-05:00)
+
+Branch `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`.
+
+What changed:
+
+- The in-process index reset takes a `WorktreeStat` source
+  (`src/native/index/index_reset.rs`),
+  and the landing names one that records the worktree's stat data
+  (`src/native/index/index_reset_worktree_stat.rs`)
+  for a path whose file provably holds the entry's bytes.
+  The proof is a set of facts together,
+  as narrowed by the cross-vendor review of 2026-11-09 (commit `91c7dafc9c`,
+  which answers its five findings):
+  the path is a regular file whose directories on the way are real ones on the worktree's device,
+  reached below a root held open without following a link (a symbolic link is left to Git,
+  since it is rare and a link read across a swap of its parent cannot be proven to be the one examined);
+  the file's raw bytes hash to the entry's object name read as a blob;
+  no attribute Git applies converts these bytes, and the bytes hold no carriage return
+  (`ContentJudge::conversion_is_the_identity`,
+  read in process from the files Git itself would read,
+  with `attr.tree` and `GIT_ATTR_SOURCE` refused and an unestablished fact refusing the record);
+  the state of the one inode read is the same before,
+  during and after the read and the path still names it;
+  and the file is older than the index file being written,
+  compared to the nanosecond as Git's `is_racy_stat` compares them.
+  Everything else keeps the all-zero value `git reset --no-refresh` writes:
+  a file as new as the index (racily clean to Git),
+  another kind of file,
+  a symlink,
+  a file above `CONTENT_LIMIT`,
+  a file that changed while it was read,
+  a path a conversion may change,
+  and a path no file holds.
+  The review's raw-byte finding is why the earlier sentence here,
+  that a conversion could only cost a refresh,
+  is gone:
+  a clean filter,
+  `ident` or a `working-tree-encoding` can leave raw bytes equal to the blob while Git's view of the file is another
+  blob,
+  and a reader trusting the recorded stat data would then call the file clean.
+  The open does not block (`fs_beneath::open_file_at`, `O_NONBLOCK`),
+  so a fifo renamed over the path is refused by its type instead of holding the landing's index lock for a writer.
+  One landing reads at most `CONTENT_LIMIT` bytes in all,
+  every read is charged including one the stability checks refuse,
+  and a read takes at most what is left of the bound,
+  so a file grown after its first examination is not read past it.
+  The attribute facts cost one `git var GIT_ATTR_SYSTEM` the first time a given real Git has no cache entry for them
+  (traced from a fresh `XDG_CACHE_HOME`: one `execve`, then none),
+  and the steady state adds no Git start;
+  the check itself took 0.094 to 0.104 ms for a landing of 200 paths in five directories,
+  and the whole proof 2.9 to 3.1 ms (about 15 microseconds a path).
+  The 4,000 newest non-merge commits of this repository change a median of 27 KB
+  (p90 209 KB,
+  p99 3.3 MB,
+  largest 23.1 MB,
+  `package/git-policy/cli/e2e/commit-shape-trace.json`),
+  so no commit there spends the bound.
+- The staleness question
+  (`src/native/commit/commit_index_stat_staleness.rs`)
+  walks its entries in contiguous slices on several threads,
+  one linear walk in all,
+  from `STAT_WALK_BREAK_EVEN_ENTRIES` entries up,
+  with the worker count of `parallel_budget.rs`;
+  a worker that panicked counts as one that found a stale entry.
+  It still reads the index's bytes and takes no lock.
+
+Controls, each written before its fix:
+
+- `src/native/index/index_reset_worktree_stat_tests.rs`:
+  a file that holds the entry's bytes records the file's stat data,
+  one that holds other bytes of the same size records nothing,
+  one as new as the index records nothing while the same file older than it records,
+  a symbolic link records nothing,
+  one that changed while it was read records nothing,
+  one above the content bound records nothing,
+  a path of another kind,
+  a missing path and a gitlink record nothing,
+  and the review's four:
+  a clean filter,
+  a `working-tree-encoding` and an `ident` each refuse while a path they do not name records;
+  a carriage return refuses while the same bytes without one record;
+  a fifo renamed over the path before the open is not opened for reading (bounded at five seconds,
+  which it timed out at before the fix);
+  a read the stability checks refuse is still charged;
+  and one read takes at most what is left of the bound.
+- `src/native/index/index_reset_recorded_stat_tests.rs`:
+  a path the worktree still holds records the file's stat data while a path edited after its capture keeps the zero value and
+  its edit stays in `git status`,
+  a file older than the index records its stat data while one dated after it records nothing,
+  and the commit after a landing asks for no refresh for the paths that landing recorded.
+- `src/native/commit/commit_index_stat_staleness_tests.rs`:
+  the sliced walk answers exactly what the one linear walk answers for one to eight threads on a clean index and on one whose
+  file moved inode,
+  and a walk below the break-even uses one thread.
+- `src/native/index/index_reset_file_tests.rs`:
+  the root commit case compares the two indexes with the stat data zeroed,
+  since the landing now records values where `git reset --no-refresh` writes zeros;
+  every other differential control still compares the files byte for byte.
+
+Failing output of the new controls, before their fix:
+
+- With the proof replaced by a plain `lstat` of the path (no content,
+  stability or racy check),
+  eight controls failed,
+  among them `a_path_the_worktree_holds_records_the_files_stat_data_and_one_edited_after_its_capture_records_none`
+  ("a path edited after its capture keeps the zero stat data Git hashes",
+  the edit would have been hidden),
+  `a_file_that_changed_while_it_was_read_records_nothing`,
+  `a_file_as_new_as_the_index_records_nothing`,
+  `a_file_that_holds_other_bytes_records_nothing`,
+  and `a_file_edited_in_the_same_second_as_its_stat_data_was_read_records_nothing`
+  ("the reset is the plain case",
+  the recorded racily clean entry made the update decline to Git).
+- With the landing's `WorktreeStat::None`,
+  all three controls of `index_reset_recorded_stat_tests.rs` failed
+  ("the path the worktree holds records the file's stat data",
+  "an older file records its stat data",
+  and the commit after a landing needing the refresh).
+
+The measurements and what is still open are in the section after this one.
+
+### The second review of the recorded stat data (2026-11-09T04:30:00-05:00)
+
+The second cross-vendor review found four defects in the proof and named three things it could not determine.
+
+What it found, and what each answer was:
+
+- An attributes file the index holds applies where the worktree's copy is missing,
+  and the proof treated a missing file as no attributes:
+  real Git falls back to the index (`attr.c` `prepare_attr_stack`),
+  probed on Git 2.56.0
+  (`git check-attr filter -- a.txt` still answers `filter: weird` after the worktree's `.gitattributes` is removed,
+  and a sparse checkout whose cone excludes the file reads the index the same way).
+  Fixed in `be7d25c004`:
+  the landing collects the directories whose `.gitattributes` the index holds
+  (`indexed_attribute_directories`,
+  from the entries before the reset and the tree it installs),
+  and the proof refuses a path whose ancestry has such a directory without a worktree copy,
+  from the root down.
+  A path with no indexed copy in its ancestry is unaffected.
+- An unsuccessful read escaped the content bound:
+  the overflow probe read one byte past the room and the caller charged the room,
+  and a partial read that then failed charged nothing.
+  Fixed in `1d16a4aa5e`:
+  the read is one linear pass in `READ_CHUNK` pieces charged as they arrive,
+  capped at the room,
+  and the size the open handle reports decides whether a file is read at all,
+  so nothing is read past the bound and nothing charged for it.
+  Its controls count the bytes the file hands over, through the new read seam,
+  rather than the counter they feed.
+- Attribute reads bypassed the bound and the parsed files stayed cached without one.
+  Fixed in `c5989ba4eb`:
+  `ContentJudge` charges every attribute byte it reads to the landing's budget
+  (`charge_attributes_to`),
+  refuses a file that does not fit,
+  and keeps no more than it charged.
+  A refusal costs the record and never the commit:
+  the reset still proceeds and the entry keeps the zero value.
+  The attribute reading moved to `worktree_clean_content_attributes.rs` for the line limit.
+- A stalled regular-file read has no time bound, and `O_NONBLOCK` does not supply one.
+  It holds:
+  `guarded` is panic protection only (`repo_read_hook.rs:73`),
+  and every ceiling in the landing wraps a child process (`child_watch`) or a client's wait,
+  never an in-process read.
+  What bounds the person is the client's `ANSWER_CEILING` (20 minutes,
+  `wait_ceilings.rs:34`):
+  the client then withdraws the request,
+  the service takes a withdrawal between two landings,
+  and a landing inside the read reports `WithdrawalUnconfirmed` with the step it is stuck in,
+  so the commit is reported and never lands by itself.
+  What we add over native Git:
+  native `git commit` reads the same files synchronously while holding `index.lock`,
+  so a stalled mount stalls it too,
+  but only its own process;
+  our read holds the service's landing thread,
+  and that worktree's other commits queue behind it.
+  Not fixed here:
+  a time bound needs the proof on a worker thread with a deadline
+  (the judge and its caches borrow the landing, so a bounded job would be a per-landing worker that is abandoned on a
+  stall,
+  leaving a thread and a file handle behind each time),
+  which is a cost on the commit path and a leak on the mount it guards,
+  and moving the proof before the lock costs a wide change through the landing's recovery paths
+  and work repeated on every rebuild.
+  The read is bounded in bytes (32 MiB) and the proof costs 2.9 to 3.1 ms for 200 paths,
+  three orders of magnitude inside the owner's five-second bound for a filesystem that answers at all.
+  The bound that was declined is measured:
+  a worker thread serving the proof's requests costs 0.047 ms to start and join,
+  and 1.239 ms with one round trip for each of 200 paths,
+  against the proof's own 2.9 to 3.1 ms,
+  so the dispatch is not what declined it:
+  the worker would own the judge and its cached attributes (the decision borrows the landing today),
+  be abandoned on each stall with its thread and file handle,
+  and need its own control for a read that never returns.
+  That is open work for the owner to weigh, not a silent gap.
+
+What the review could not determine, checked here:
+
+- Attribute matching with case folding and Unicode:
+  `may_apply` answers "may apply" for every spelling it does not model (a quote,
+  an escape,
+  a bracket class,
+  `**`,
+  a trailing slash,
+  a comparison over the work limit),
+  and compares the modelled ones byte for byte,
+  which is Git's own case-sensitive byte matcher (`wildmatch` with `WM_PATHNAME` and no case folding);
+  a "does not apply" answer is therefore one Git would also not match.
+- The nanosecond racy comparison:
+  `IndexStamp::is_racy` is Git's `is_racy_stat` with `USE_NSEC`,
+  and a Git built without nanosecond times compares whole seconds,
+  which marks more entries racily clean than the proof does,
+  so it can only hash more than the proof recorded and never hide an edit.
+  The build here (Git 2.56.0) does not report the option in `git version --build-options`.
+- Sparse indexes and sparse checkouts:
+  `index.sparse` and `core.splitIndex` are in the reset's declined configuration
+  (`index_settings.rs`),
+  so no proof runs for such an index,
+  and the configuration control now covers both keys;
+  a sparse checkout's missing files and missing `.gitattributes` are refused by the proof's own checks.
+
+### What the recorded stat data and the parallel walk measured (2026-11-08T19:45:00-05:00)
+
+Measured on this host (8 CPUs,
+other sessions running),
+with alternating arms and the same binary with the feature switched off as the control,
+so the only difference between the arms is the recording and the parallel walk.
+
+The commit after a commit,
+in throwaway repositories of twelve files where each commit names one path
+(the path the previous commit landed is the one this one does not name),
+traced with `strace -f -e trace=execve,openat` around the second commit,
+three rounds per arm,
+the same counts in every round:
+
+- The arm with the recording off started eight Git processes in that commit,
+  and its debug log has the line `refreshStatData … holds the worktree's stat data now`:
+  the staleness question asked for the `git update-index --refresh` that hashes the path the previous commit landed.
+- The arm with the recording on started seven Git processes,
+  and its debug log carries no `refreshStatData` line:
+  the question answered "not needed",
+  so the commit paid no Git start and no hash for that path.
+- The reads the trace attributes to that path varied between rounds (one or two with the recording off,
+  one with it on),
+  because the wrapper's own checks read it too;
+  the Git starts and the refresh line did not vary.
+- Re-measured after the review's fixes of 2026-11-09 (commit `91c7dafc9c`),
+  which add the attribute facts to the proof:
+  the counts are the same,
+  because the first commit of each fixture warms the attributes cache and the second pays no start for it.
+- The wall clock of that commit was 891 and 1,854 ms with the recording off and 960 and 755 ms with it on in
+  four untraced runs,
+  a spread larger than any difference between the arms,
+  so this host under other sessions' load cannot show the saving as milliseconds;
+  the counters above are what the saving is.
+
+The staleness question's walk,
+release build,
+on a throwaway repository of 22,200 committed files
+(no locks taken,
+the index's bytes read in process),
+medians of nine walks for the whole pass and of twenty-five for the shorter ones:
+
+- One thread,
+  no thread started: 160.12 ms.
+  Seven workers,
+  the budget of this 8-CPU host: 30.56 ms.
+  Eight: 27.45 ms.
+  The whole question,
+  index bytes and walk together: 19.37 ms.
+- The break-even is 32 entries:
+  16 entries took 0.125 ms on one thread and 0.145 ms on seven,
+  so the threads lost there;
+  32 took 0.218 ms against 0.158 ms,
+  64 0.391 ms against 0.193 ms,
+  128 0.786 ms against 0.289 ms,
+  256 1.651 ms against 0.479 ms,
+  512 3.223 ms against 0.858 ms,
+  2,048 13.335 ms against 2.912 ms.
+  `STAT_WALK_BREAK_EVEN_ENTRIES` holds that 32 with the table beside it.
+
+Still to do:
+
+- The refresh a commit still asks for when a landed path was edited in the same instant as the index it landed in:
+  such an entry is racily clean to Git,
+  so it keeps the all-zero stat data and the next commit hashes it,
+  as native Git does.
+- The whole question's own index read and parse were not parallelised;
+  they are 19.37 ms of the 22,200-entry measurement above,
+  against Git's 10 ms for the same stat pass.
+- The cost the recording adds to a landing was not measured end to end:
+  it hashes the bytes of each path it can prove,
+  in process,
+  inside the landing's index lock,
+  at most `CONTENT_LIMIT` bytes per landing,
+  where 32 MiB of SHA-1 costs 10 to 20 ms on this host;
+  `native:perf` is the run that would show it against native Git.
 
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 

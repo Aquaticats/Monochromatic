@@ -82,6 +82,29 @@ impl ConversionEnvironment {
 }
 
 /// What:
+///  The configuration and attributes files the real Git this command forwards to reads,
+/// for a decision about how Git would convert a file.
+/// Why:
+///   Git rewrites a file's bytes on the way into the index where an attribute converts them,
+/// so a file is only proven unchanged under the
+///  attributes Git would apply.
+/// The facts are learned from the forward-target variable,
+/// which names the Git this command resolved itself,
+/// never from
+///  the wrapper's own environment,
+/// which does not carry it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const environment = ConversionEnvironment.fromVariables({ ...process.env, ...overlay, [FORWARD_TARGET]: realGit });
+/// ```
+pub fn for_context(context: &crate::transaction_git::GitContext) -> ConversionEnvironment {
+    let mut variables: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    variables.extend(crate::git_system_config::with_real_git(context.overlay.as_slice(), context.real_git.as_path()));
+    return ConversionEnvironment::from_variables(variables.as_slice());
+}
+
+/// What:
 ///  Whether the environment sets the variable `wanted`,
 /// to any value.
 /// Why:
