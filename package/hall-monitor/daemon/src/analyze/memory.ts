@@ -5,14 +5,20 @@ import {
 
 /**
  How long capture sets are retained in the buffer before pruning.
+
+ Exported so a test states the cutoff it asserts against instead of repeating
+ the window.
  */
-const RETENTION_MS = 10 * SECONDS_PER_MINUTE
+export const RETENTION_MS: number = 10 * SECONDS_PER_MINUTE
   * MS_PER_SECOND;
 
 /**
  Maximum number of capture sets kept in the rolling buffer.
+
+ Exported so a test states the capacity it asserts against instead of
+ repeating the number.
  */
-const MAX_ENTRIES = 3;
+export const MAX_ENTRIES: number = 3;
 
 /**
  Screenshot and webcam frame pair captured at a single point in time.
@@ -41,7 +47,7 @@ export type CaptureSet = {
  Rolling buffer of recent capture sets, oldest first; runtime-trimmed to at
  most {@link MAX_ENTRIES} entries by {@link store}.
  */
-type CaptureBuffer = readonly CaptureSet[];
+export type CaptureBuffer = readonly CaptureSet[];
 
 /**
  Module-singleton mutable state for the rolling capture buffer; wrapped so it satisfies no-module-root-let.
@@ -49,8 +55,13 @@ type CaptureBuffer = readonly CaptureSet[];
 const state: { buffer: CaptureBuffer; } = { buffer: [], };
 
 /**
- Appends a capture set to the rolling buffer, evicting the oldest entry
- if the buffer is at capacity, then runs {@link prune} to drop expired sets.
+ Appends a capture set to the rolling buffer, evicting the oldest entry when
+ the buffer is at capacity.
+ 
+ Retention is {@link getRecent}'s job: it is the one place a reader asks what
+ is still fresh, so this function needs no clock reading and an expired set
+ waits in the buffer at most until the next read (bounded by
+ {@link MAX_ENTRIES} sets).
  
  @param set - capture set to store
  
@@ -60,21 +71,17 @@ const state: { buffer: CaptureBuffer; } = { buffer: [], };
  ```
  */
 export function store(set: CaptureSet,): void {
-  /**
-   Updated buffer with the new set appended; trimmed to the most recent {@link MAX_ENTRIES} entries.
-   */
-  const next = [
-    ...state.buffer,
+  state.buffer = appendedCaptureBuffer({
+    buffer: state.buffer,
     set,
-  ]
-    .slice(-MAX_ENTRIES,);
-  state.buffer = next;
-  prune();
+  },);
 }
 
 /**
- Runs {@link prune} then returns a shallow copy of all non-expired capture
- sets in the buffer.
+ Drops the expired sets, then returns a shallow copy of what remains.
+ 
+ A set captured exactly {@link RETENTION_MS} ago is still returned; one
+ captured a millisecond earlier is not.
  
  @returns array of recent capture sets, oldest first
  
@@ -85,8 +92,81 @@ export function store(set: CaptureSet,): void {
  ```
  */
 export function getRecent(): CaptureSet[] {
-  prune();
+  state.buffer = retainedCaptureBuffer({
+    buffer: state.buffer,
+    now: Date.now(),
+  },);
   return [...state.buffer,];
+}
+
+/**
+ Appends a capture set to a buffer, keeping only the newest {@link MAX_ENTRIES}
+ entries.
+ 
+ @param buffer - buffer to append to
+ 
+ @param set - capture set to append
+ 
+ @returns the appended buffer, oldest first
+ 
+ @example
+ ```ts
+ appendedCaptureBuffer({ buffer: [], set: captureSet }); // [captureSet]
+ ```
+ */
+export function appendedCaptureBuffer(
+  {
+    buffer,
+    set,
+  }: {
+    readonly buffer: CaptureBuffer;
+    readonly set: CaptureSet;
+  },
+): CaptureBuffer {
+  return [
+    ...buffer,
+    set,
+  ]
+    .slice(-MAX_ENTRIES,);
+}
+
+/**
+ Keeps only the capture sets newer than the retention cutoff, which is
+ {@link RETENTION_MS} before the given clock reading. A set captured exactly
+ at the cutoff is kept, so the window is inclusive at its oldest end.
+ 
+ @param buffer - buffer to trim
+ 
+ @param now - Unix epoch milliseconds to measure the cutoff from
+ 
+ @returns the retained sets, oldest first
+ 
+ @example
+ ```ts
+ retainedCaptureBuffer({ buffer, now: Date.now() }).length; // sets captured in the last 10 min
+ ```
+ */
+export function retainedCaptureBuffer(
+  {
+    buffer,
+    now,
+  }: {
+    readonly buffer: CaptureBuffer;
+    readonly now: number;
+  },
+): CaptureBuffer {
+  /**
+   Oldest timestamp to keep; sets older than this are dropped.
+   */
+  const cutoff = now
+    - RETENTION_MS;
+  return buffer
+    .filter(function checkRetention(set,) {
+      return isAfterCutoff({
+        cutoff,
+        set,
+      },);
+    },);
 }
 
 /**
@@ -114,22 +194,4 @@ function isAfterCutoff(
 ): boolean {
   return set.timestamp
     >= cutoff;
-}
-
-/**
- Removes capture sets older than {@link RETENTION_MS} from the buffer.
- */
-function prune(): void {
-  /**
-   Oldest timestamp to keep; sets older than this are filtered out.
-   */
-  const cutoff = Date.now()
-    - RETENTION_MS;
-  state.buffer = state.buffer
-    .filter(function checkRetention(set,) {
-      return isAfterCutoff({
-        cutoff,
-        set,
-      },);
-    },);
 }

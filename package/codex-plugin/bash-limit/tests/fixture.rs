@@ -1,0 +1,153 @@
+//! What:
+//! The disposable fixture's own guarantees:
+//! the shared scratch root created under an injected home is owner-only,
+//! and the native hook works from a fixture built there.
+//! Why:
+//! `AGENTS.md` (rule ATH) requires `${HOME}/temp/agent` to be created and then made `0700`,
+//! because trust checks reject group and other bits.
+//! Every other test calls the fixture in the process's real home,
+//! where the directory already exists,
+//! so only a fresh home shows the mode it is created with.
+//!
+//! In TS you'd write (pseudocode):
+//! ```ts
+//! // fixture.integration.test.ts
+//! const home = mktemp({ dir: targetTmp });
+//! const parent = fixtureIn(home);
+//! assert.equal(statSync(join(home, 'temp/agent')).mode & 0o777, 0o700);
+//! ```
+
+/// Import the shared fixture and native process helpers.
+mod support;
+
+/// Import filesystem operations,
+/// the I/O error type and child processes.
+use std::{fs, io, process::Command};
+
+/// Import the permission bits the mode assertion reads.
+use std::os::unix::fs::PermissionsExt;
+
+/// Import the owned path type.
+use std::path::{Path, PathBuf};
+
+/// Import the one definition of the owner-only mode,
+/// so the assertion cannot drift from the fixture.
+use support::OWNER_ONLY_MODE;
+
+/// What:
+/// `const GROUP_READABLE_MODE: u32 = 0o755;` is the mode `create_dir_all` leaves under the usual `0022` umask:
+/// owner read,
+/// write and search,
+/// group and other read and search.
+/// Why:
+/// A case that starts from a known loose directory needs a name for it,
+/// and the group and other bits are the whole difference the fix removes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GROUP_READABLE_MODE = 0o755;
+/// ```
+const GROUP_READABLE_MODE: u32 = 0o755;
+
+/// What:
+/// `fn fresh_home() -> io::Result<PathBuf>` declares a helper that makes an empty,
+/// unused home directory under
+/// Cargo's per-target temporary directory.
+/// Why:
+/// A test of the scratch root's creation needs a home where that directory does not exist yet,
+/// and `mktemp` creates its own directory owner-only,
+/// unlike a hand-made path under a shared parent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const freshHome = (): string => spawnSync('mktemp', ['--directory', join(targetTmp, 'fresh-home-XXXXXXXX')]).stdout.trim();
+/// ```
+fn fresh_home() -> io::Result<PathBuf> {
+    let output = Command::new("mktemp")
+        .arg("--directory")
+        .arg(Path::new(env!("CARGO_TARGET_TMPDIR")).join("fresh-home-XXXXXXXX"))
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(String::from_utf8_lossy(&output.stderr).into_owned()));
+    }
+    let text = String::from_utf8(output.stdout).map_err(io::Error::other)?;
+    return Ok(PathBuf::from(text.trim_end()));
+}
+
+/// What:
+/// `fn mode_of(path: &Path) -> io::Result<u32>` declares a helper returning the permission bits of a path,
+/// with the file-type bits masked off.
+/// Why:
+/// A raw `st_mode` carries the type as well,
+/// and only the nine permission bits are the claim.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const modeOf = (path: string): number => statSync(path).mode & 0o777;
+/// ```
+fn mode_of(path: &Path) -> io::Result<u32> {
+    return Ok(fs::metadata(path)?.permissions().mode() & 0o777);
+}
+
+/// A fresh injected home gets its shared scratch root created owner-only,
+/// and the native hook initializes the fixture built there.
+#[test]
+fn a_fresh_home_gets_an_owner_only_scratch_root() -> io::Result<()> {
+    let home = fresh_home()?;
+    // The fixture creates `${home}/temp/agent` because the home holds nothing yet.
+    let parent = support::fixture_in(&home)?;
+    let scratch = home.join("temp").join("agent");
+
+    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} is not owner-only", scratch.display());
+    assert!(parent.starts_with(&scratch), "{} is outside {}", parent.display(), scratch.display());
+
+    // The fixture built under that home is usable: the hook initializes it and allows a plain command.
+    let path = parent.to_str().ok_or_else(|| { return io::Error::other("fixture path encoding"); })?;
+    let initialized = support::invoke(&["--initialize", path], "")?;
+    assert!(initialized.status.success(), "{initialized:?}");
+    let allowed = support::invoke(&["--hook", path], &support::event("true")?)?;
+    assert!(allowed.status.success(), "{allowed:?}");
+
+    fs::remove_dir_all(&home)?;
+    return Ok(());
+}
+
+/// A scratch root an earlier run left readable by the group and by anyone else
+/// is made owner-only before the fixture builds in it.
+///
+/// Unlike the fresh-home case this does not depend on the process umask:
+/// the directory exists with a known loose mode before the fixture touches it,
+/// so the case fails whenever the fix stops correcting a directory that is already there.
+#[test]
+fn the_fixture_tightens_a_scratch_root_left_loose() -> io::Result<()> {
+    let home = fresh_home()?;
+    let scratch = home
+        .join("temp")
+        .join("agent");
+    fs::create_dir_all(&scratch)?;
+    fs::set_permissions(&scratch, fs::Permissions::from_mode(GROUP_READABLE_MODE))?;
+    // Prove the fixture starts from the loose mode it is meant to correct.
+    assert_eq!(mode_of(&scratch)?, GROUP_READABLE_MODE, "the loose fixture setup did not take");
+
+    support::fixture_in(&home)?;
+
+    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} stayed loose", scratch.display());
+
+    fs::remove_dir_all(&home)?;
+    return Ok(());
+}
+
+/// The shared scratch root under the process's own home is owner-only as well,
+/// which is the state every other test in this package inherits.
+/// This holds whether the fixture created the directory or found it already there.
+#[test]
+fn the_scratch_root_under_the_process_home_is_owner_only() -> io::Result<()> {
+    let parent = support::fixture()?;
+    let home = std::env::var("HOME").map_err(io::Error::other)?;
+    let scratch = Path::new(&home).join("temp").join("agent");
+
+    assert_eq!(mode_of(&scratch)?, OWNER_ONLY_MODE, "{} is not owner-only", scratch.display());
+
+    fs::remove_dir_all(parent)?;
+    return Ok(());
+}
