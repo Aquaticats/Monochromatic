@@ -71,9 +71,11 @@ fn do_nothing() {}
 /// The largest index file this reads.
 ///  A plain file is read to its end,
 /// so the bound is what keeps a file that is not an index from being read whole into memory;
-///  the largest index this repository has is 2,786,564 bytes (measured 2026-11-03,
-/// `subvolume_index_refresh_of_every_worktree.rs`),
+///  the largest index this repository holds is 3,097,973 bytes (measured 2026-11-09,
+/// one of its linked worktrees' `.git/worktrees/<name>/index`),
 /// and a gigabyte is that with room for a repository several hundred times larger.
+///  The merge pass reads an index up to the same bound (`INDEX_LIMIT_BYTES`,
+/// `merge_second_pass_worktree.rs`).
 const INDEX_FILE_LIMIT: u64 = 1 << 30;
 
 /// What:

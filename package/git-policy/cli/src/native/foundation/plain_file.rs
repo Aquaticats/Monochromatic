@@ -33,15 +33,16 @@ use std::path::Path;
 /// a journal,
 /// a registration's `gitdir`,
 /// a worktree's `.git` file,
-/// a repository's
-///  configuration or a list of paths.
-///  Exempt from a citation under `LQM` (class:
-/// display cap):
-/// it bounds the record files this program
-///  writes itself or Git writes,
-/// and a file larger than it is refused with its path named rather than truncated.
-/// Classed once in
-///  `doc/planning/cli-git-shipped-limits-audit.md`.
+/// a repository's configuration or a list of paths.
+///  A file past the bound is refused with its path named rather than read whole,
+/// so no record beside a checkout decides how much memory a command reads.
+///  The measurement beside the value,
+/// on this repository on 2026-11-09:
+/// its `.git/config` is 74,878 bytes,
+///  its longest registration `gitdir` 122 bytes and its longest worktree `.git` file 106.
+///  A list of unreadable files has no measurement:
+/// it holds one path per entry the migration
+///  could not read.
 pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 
 /// What:

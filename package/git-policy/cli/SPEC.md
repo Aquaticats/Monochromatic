@@ -1503,8 +1503,14 @@ handle,
 so a named pipe at any of them ends that run with the file named instead of waiting for a writer
 that never comes while the claim of the checkout is held.
 An index is read up to a gigabyte,
-the largest index this repository has measured at 2,786,564 bytes and the bound the merge pass
-uses.
+the largest index this repository held at 3,097,973 bytes (measured 2026-11-09) and the bound the
+merge pass uses;
+the record files beside a checkout (a journal,
+a list of unreadable files,
+a registration's `gitdir`,
+a `.git` file and a repository's configuration) are read up to a mebibyte,
+and a longer one is refused with its path named
+rather than read whole.
 A dry run reconciles an exchange the journal has not recorded in memory,
 as a real run does,
 and writes nothing.
