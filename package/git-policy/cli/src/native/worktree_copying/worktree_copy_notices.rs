@@ -131,21 +131,31 @@ pub(crate) fn not_this_commands_destination_notice(destination: &Path, ownership
 
 /// What:
 ///  Whether the destination is absent,
-/// or an empty directory holding nothing Git made.
+/// or an empty directory holding nothing Git made,
+/// in the cases where this command can
+///  tell.
 /// Why:
 ///   A `git worktree add` that Git refused for a reason of its own leaves the empty directory this command reserved;
 /// there is
 ///  then no worktree to explain a missing copy for and nothing to report.
+/// Only an absent directory is
+///  evidence that nothing is there:
+/// any other refusal,
+/// a destination this command may not read included,
+/// means it cannot say what
+///  the directory holds,
+/// so the answer is that there may be a worktree,
+/// and its unfinished record stays.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function nothingButAReservation(destination: string): boolean; // absent, or an empty directory
+/// function nothingButAReservation(destination: string): boolean; // absent, or an empty directory it may read
 /// ```
 pub(crate) fn nothing_but_a_reservation(destination: &Path) -> bool {
-    // `match` on the listing: an absent path and an empty directory both mean Git made nothing here.
+    // `match` on the listing: only absence and an empty directory mean Git made nothing here.
     return match std::fs::read_dir(destination) {
         Ok(mut entries) => entries.next().is_none(),
-        Err(_absent) => true,
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
     };
 }
 
