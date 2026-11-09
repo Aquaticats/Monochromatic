@@ -21,6 +21,7 @@ use crate::worktree_copy_manifest::{
 use crate::worktree_copy_prune::Prune;
 use crate::worktree_copy_selection::{filesystem_path, shown_repository_path};
 use crate::json_record::quote;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -347,6 +348,10 @@ pub fn assert_final_source_equivalence_pruned(
 /// the walks take as long as the slower of the two,
 ///  and both are storage waits rather than work on a worker that polls tasks.
 /// A walk that panicked is the failure the scoped thread's panic was.
+/// The verdict is this branch's:
+/// every difference is named by relative path,
+/// so a caller that may
+///  tolerate one knows which one it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -360,6 +365,77 @@ async fn assert_final_source_equivalence_pruned_awaiting(
     staged_entries: &[WorktreeCopyEntry],
     check: &FinalCheck<'_>,
 ) -> Result<(), WorktreeCopyError> {
+    let differences: Differences = differences_from_the_source(source_root, stage_root, selected_roots, excluded_source_roots, staged_entries, check).await?;
+    if !differences.gone.is_empty() || !differences.appeared.is_empty() {
+        return Err(failure_with_cause(
+            "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
+            None,
+        ));
+    }
+    if let Some(first) = differences.changed.first() {
+        let message: String = format!(
+            "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
+            quote(shown_repository_path(first.as_slice()).as_str())
+        );
+        return Err(failure_with_cause(message.as_str(), None));
+    }
+    return Ok(());
+}
+
+/// What:
+///  What the source and the stage walks say about the manifest the copy made,
+/// by relative path.
+/// Why:
+///   The caller has to know which entries went away,
+/// which ones changed under the copy,
+/// and which ones appeared after the listing:
+/// a vanished entry has nothing left to copy,
+/// an entry that
+///  keeps changing is retried and then left in its source,
+/// and an entry that appeared was never in the listing.
+/// Paths,
+///  not positions,
+/// are what makes the three tellable apart once the walks disagree on how many entries there are.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Differences = { gone: Uint8Array[]; changed: Uint8Array[]; appeared: Uint8Array[] };
+/// ```
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct Differences {
+    /// Manifest entries the source no longer holds,
+    /// as the bytes of each name.
+    pub gone: Vec<Vec<u8>>,
+    /// Manifest entries whose shape or bytes the source and the stage disagree about,
+    /// as the bytes of each name.
+    pub changed: Vec<Vec<u8>>,
+    /// Source paths the listing did not name,
+    /// which appeared while the copy ran,
+    /// as the bytes of each name.
+    pub appeared: Vec<Vec<u8>>,
+}
+
+/// What:
+///  Walk the source and the stage beside each other and compare them with the manifest,
+/// by relative
+///  path.
+/// Why:
+///   Two walks taken at one instant are the only evidence the stage matches the source,
+/// and a
+///  difference has to be named by its path so the caller can retry or leave out exactly that entry.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function differencesFromTheSource(...): Differences;
+/// ```
+pub async fn differences_from_the_source(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[Vec<u8>],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<Differences, WorktreeCopyError> {
     // The source and the stage are independent trees, so their two walks run side by side.
     let (source_joined, stage_walked): (Result<Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>, crate::blocking_job::BlockingJobError>, Result<Vec<WorktreeCopyEntry>, WorktreeCopyError>) =
         run_beside_the_caller_on_the_runtime(
@@ -374,32 +450,88 @@ async fn assert_final_source_equivalence_pruned_awaiting(
     };
     let final_source: Vec<WorktreeCopyEntry> = source_walked?;
     let final_stage: Vec<WorktreeCopyEntry> = stage_walked?;
-    if final_source.len() != staged_entries.len() || final_stage.len() != staged_entries.len() {
-        return Err(failure_with_cause(
-            "monochromatic-git-policy-cli: ignored source paths changed while snapshot was staged.",
-            None,
-        ));
+    let mut by_source: BTreeMap<&[u8], &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in &final_source {
+        by_source.insert(entry.relative_path.as_slice(), entry);
     }
+    let mut by_stage: BTreeMap<&[u8], &WorktreeCopyEntry> = BTreeMap::new();
+    for entry in &final_stage {
+        by_stage.insert(entry.relative_path.as_slice(), entry);
+    }
+    let mut differences: Differences = Differences::default();
     for (index, staged) in staged_entries.iter().enumerate() {
-        let source_entry: &WorktreeCopyEntry = &final_source[index];
-        let stage_entry: &WorktreeCopyEntry = &final_stage[index];
-        let same_shape: bool = source_entry.kind == staged.kind
-            && source_entry.mode == staged.mode
-            && source_entry.relative_path == staged.relative_path
-            && stage_entry.kind == staged.kind
-            && stage_entry.mode == staged.mode
-            && stage_entry.relative_path == staged.relative_path;
+        let path: &[u8] = staged.relative_path.as_slice();
+        let Some(source_entry) = by_source.get(path) else {
+            differences.gone.push(path.to_vec());
+            continue;
+        };
+        let same_shape: bool = match by_stage.get(path) {
+            Some(stage_entry) => {
+                source_entry.kind == staged.kind
+                    && source_entry.mode == staged.mode
+                    && stage_entry.kind == staged.kind
+                    && stage_entry.mode == staged.mode
+                    && stage_entry.relative_path == staged.relative_path
+            }
+            None => false,
+        };
         let stamp: Option<&FileStamp> = check.stamps.get(index).and_then(Option::as_ref);
         // The content check runs last so the cheap shape checks fail fast without reading large files.
         if !same_shape || !entry_matches_stamped(stage_root, source_root, staged, stamp)? {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: ignored source entry changed while copying: {}.",
-                quote(shown_repository_path(staged.relative_path.as_slice()).as_str())
-            );
-            return Err(failure_with_cause(message.as_str(), None));
+            differences.changed.push(path.to_vec());
         }
     }
-    return Ok(());
+    let mut staged_paths: BTreeSet<&[u8]> = BTreeSet::new();
+    for entry in staged_entries {
+        staged_paths.insert(entry.relative_path.as_slice());
+    }
+    for path in by_source.keys() {
+        if !staged_paths.contains(path) {
+            differences.appeared.push((*path).to_vec());
+        }
+    }
+    return Ok(differences);
+}
+
+/// What:
+///  `differences_from_the_source` for a caller that is not a task of the runtime:
+/// the walks run on the process's runtime and this face waits for them.
+/// Why:
+///   The staging of one created worktree's ignored state is synchronous,
+/// and its settling loop asks
+///  this question once per pass;
+/// a caller that is itself a task of the runtime awaits
+///  `differences_from_the_source` instead,
+/// because a job of the pool is already inside the runtime and
+///  the synchronous face refuses there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function differencesFromTheSource({ sourceRoot, stageRoot, selectedRoots, excludedSourceRoots, stagedEntries, check }): Differences;
+/// ```
+pub fn differences_from_the_source_sync(
+    source_root: &Path,
+    stage_root: &Path,
+    selected_roots: &[Vec<u8>],
+    excluded_source_roots: &[PathBuf],
+    staged_entries: &[WorktreeCopyEntry],
+    check: &FinalCheck<'_>,
+) -> Result<Differences, WorktreeCopyError> {
+    return match crate::lazy_runtime::run_on_runtime(differences_from_the_source(
+        source_root,
+        stage_root,
+        selected_roots,
+        excluded_source_roots,
+        staged_entries,
+        check,
+    )) {
+        Ok(differences) => differences,
+        // Neither walk ran, and the reason the runtime could not make them is why.
+        Err(refusal) => Err(failure_with_cause(
+            format!("monochromatic-git-policy-cli: the source could not be checked after staging ({refusal}).").as_str(),
+            None,
+        )),
+    };
 }
 
 /// Compare controls stay out of the release executable.
