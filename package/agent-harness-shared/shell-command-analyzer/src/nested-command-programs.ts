@@ -27,10 +27,23 @@ type NestedCommandProgram = {
    */
   readonly commandOptions: ReadonlySet<string>;
   /**
-   Words that end the command named by such an option.
-   `find` ends one with `;` or, for the batched form, `+`.
+   Options whose command may end with the batching word,
+   as `find -exec COMMAND {} +` batches matches into one run.
+   */
+  readonly batchingCommandOptions: ReadonlySet<string>;
+  /**
+   Words that always end the command named by such an option.
    */
   readonly terminators: ReadonlySet<string>;
+  /**
+   Word that ends a batching command only when it follows the placeholder,
+   since an ordinary argument may spell it too.
+   */
+  readonly batchingTerminator: string;
+  /**
+   Placeholder a batching command names last, which the batching word follows.
+   */
+  readonly batchingPlaceholder: string;
 };
 
 //endregion Types
@@ -49,10 +62,13 @@ const NESTED_COMMAND_PROGRAMS: readonly NestedCommandProgram[] = [
       '-ok',
       '-okdir',
     ],),
-    terminators: new Set([
-      '+',
-      ';',
+    batchingCommandOptions: new Set([
+      '-exec',
+      '-execdir',
     ],),
+    terminators: new Set([';',],),
+    batchingTerminator: '+',
+    batchingPlaceholder: '{}',
   },
 ];
 

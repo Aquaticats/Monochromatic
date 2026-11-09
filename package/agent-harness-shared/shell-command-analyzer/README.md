@@ -133,15 +133,26 @@ in `src/program-wrappers-that-own-only-options.ts` and
 A split-string payload carries a command line,
 and GNU `env` appends the words after the payload to that command line,
 so `env -S'/usr/bin/git' commit` is read as `/usr/bin/git commit`.
-`flock -c` carries a command string the same way.
+`flock -c` carries one whole command string instead,
+which is that command and nothing after it.
 `eval` and `watch` join the words after their options into one shell source line
 instead of taking them as one program and its arguments,
 so `eval '/usr/bin/git commit'` and `watch '/usr/bin/git commit'` are read as that command.
+`watch -x` and `watch --exec` switch it to running those words as a program
+and its arguments,
+which is read as those words.
 `busybox` names its applet in its first word,
 so `busybox sh -c '/usr/bin/git commit'` is read as `sh -c '/usr/bin/git commit'`.
+`systemd-run -E NAME=VALUE` and `--setenv=NAME=VALUE` count as assignments
+for the command the unit runs,
+the way an `env` prefix does.
 A nested shell `-c` script string is analyzed too,
 from a work list rather than by recursion,
 and it inherits the search path its launcher was given.
+
+A wrapper owns one positional number at most,
+which is why `taskset 1 cc` reads `cc` as the program
+and not as a second mask.
 
 ### Programs that run a command named among their arguments
 
@@ -151,7 +162,10 @@ so those words are read as their own command line:
 `-execdir`,
 `-ok`,
 and `-okdir`,
-each ended by `;` or by `+` in the batched form.
+Each ends at a `;` word.
+`-exec` and `-execdir` also end at a `+` word,
+but only directly after the `{}` placeholder,
+because any other argument may spell `+` as data.
 `find . -exec /usr/bin/git commit {} \;` is refused,
 and `find . -exec git commit {} \;` reaches the wrapper.
 
@@ -220,6 +234,19 @@ such as `python -c` or `node -e`.
 
 A `git` word handed to another host with `ssh` stays allowed,
 as the section on that form says.
+
+A short-option cluster whose last letter takes a separate value hides the program:
+`ssh -vp 22 build-host /usr/bin/git commit`,
+`systemd-run -qu build -- /usr/bin/git commit`,
+`watch -tn 1 '/usr/bin/git commit'`,
+and `flock -xw 5 /repo.lock /usr/bin/git commit`
+read that value as a program or as the wrapper's own leading word.
+A `find` expression whose operand spells one of those command options
+(`find . -name '-exec' -exec /usr/bin/git commit {} \;`) is read as that option too.
+A unit property that carries the environment
+(`systemd-run --property=Environment=PATH=/usr/bin -- sh -c 'git commit'`)
+is read for its option only,
+never for its property value.
 
 A `sudo` that resets the search path to its own `secure_path` is not detected:
 that value lives in the sudoers configuration,

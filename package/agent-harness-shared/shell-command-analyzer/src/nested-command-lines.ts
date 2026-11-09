@@ -48,16 +48,33 @@ function commandWordsAfterOption({
   readonly program: NestedCommandProgram;
 },): readonly string[] {
   /**
+   Option that introduced the command, whose own grammar settles its terms.
+   */
+  const option = argumentWords[commandOptionIndex] ?? '';
+  /**
    Words after the option, which run to the end when no terminator follows.
    */
   const afterOption = argumentWords.slice(commandOptionIndex + 1,);
   /**
+   Whether this option has a batching form at all, as `find -ok` does not.
+   */
+  const batches = program
+    .batchingCommandOptions
+    .has(option,);
+  /**
    Offset of the word ending the command, or -1 when the arguments hold none.
    */
-  const terminatorIndex = afterOption.findIndex(function endsCommand(word,): boolean {
-    return program
+  const terminatorIndex = afterOption.findIndex(function endsCommand(
+    word,
+    offset,
+  ): boolean {
+    if (program
       .terminators
-      .has(word,);
+      .has(word,))
+      return true;
+    return batches
+      && (word === program.batchingTerminator)
+      && ((afterOption[offset - 1] ?? '') === program.batchingPlaceholder);
   },);
   return terminatorIndex === (-1)
     ? afterOption

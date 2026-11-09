@@ -28,9 +28,21 @@ type CommandWrapper = {
    */
   readonly optionsWithValue: ReadonlySet<string>;
   /**
-   Options whose value is a command line the wrapper splits and runs.
+   Options whose value is a command line the wrapper splits and runs,
+   keeping the words after the option value as arguments of that command.
    */
   readonly payloadOptions: ReadonlySet<string>;
+  /**
+   Options whose value is a whole shell command line the wrapper runs,
+   with no words after it belonging to that command,
+   as `flock -c` does.
+   */
+  readonly commandStringOptions: ReadonlySet<string>;
+  /**
+   Options whose value is a `NAME=VALUE` assignment the wrapper applies to the
+   launched program's environment, as `systemd-run -E` does.
+   */
+  readonly setenvOptions: ReadonlySet<string>;
   /**
    Options that run the wrapped program on the platform default search path
    instead of the caller's, as `command -p` and `env -i` do.
@@ -61,6 +73,11 @@ type CommandWrapper = {
    and `ssh` sends them to the remote login shell.
    */
   readonly joinsRemainderAsShellSource?: boolean;
+  /**
+   Options that switch such a wrapper to running its remaining words as a
+   program and its arguments instead, as `watch -x` does.
+   */
+  readonly programArgumentsFlags?: ReadonlySet<string>;
   /**
    Whether the wrapped program runs on another host,
    whose search path and installed wrappers this command text does not carry.
