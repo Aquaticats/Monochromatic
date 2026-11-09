@@ -3,11 +3,16 @@
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 /**
  Logger for this module, re-tagged with the enclosing function name at each
  site.
  */
-const lineReaderLogger = tagged({ tag: 'mcp-stdio-line-reader', },);
+const lineReaderLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'line-reader',
+},);
 
 /**
  Yields complete lines from a byte stream, buffering partial reads across chunk boundaries.

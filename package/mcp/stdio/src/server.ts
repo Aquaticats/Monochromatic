@@ -12,6 +12,8 @@ import {
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 import { DEFAULT_CACHE_HINT, } from './protocol.ts';
 
 import type { Implementation, } from './protocol-meta.ts';
@@ -52,7 +54,10 @@ import {
  Logger for this module, re-tagged with the enclosing function name at each
  site.
  */
-const serverLogger = tagged({ tag: 'mcp-stdio-server', },);
+const serverLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'server',
+},);
 
 //endregion Logging
 

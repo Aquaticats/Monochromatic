@@ -3,6 +3,8 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 import type { JsonRpcId, } from './json-rpc.ts';
 
 //region Logging
@@ -11,7 +13,10 @@ import type { JsonRpcId, } from './json-rpc.ts';
  Logger for this module, re-tagged with the enclosing function name at each
  site.
  */
-const queueLogger = tagged({ tag: 'mcp-stdio-transport-queue', },);
+const queueLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'transport-queue',
+},);
 
 //endregion Logging
 

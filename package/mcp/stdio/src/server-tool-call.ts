@@ -3,6 +3,8 @@
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 import {
   JSON_RPC_INVALID_PARAMS,
   type JsonRpcOutbound,
@@ -30,7 +32,10 @@ import {
  Logger for this module, re-tagged with the enclosing function name at each
  site.
  */
-const toolCallLogger = tagged({ tag: 'mcp-stdio-tool-call', },);
+const toolCallLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'tool-call',
+},);
 
 //endregion Logging
 

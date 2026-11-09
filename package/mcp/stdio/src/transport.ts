@@ -6,6 +6,8 @@ import type { Writable, } from 'node:stream';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 import {
   isJsonRpcMessage,
   JSON_RPC_INTERNAL_ERROR,
@@ -37,7 +39,10 @@ import {
 
  Nothing here reaches stdout: stdout carries the JSON-RPC frames themselves.
  */
-const transportLogger = tagged({ tag: 'mcp-stdio-transport', },);
+const transportLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'transport',
+},);
 
 //endregion Logging
 

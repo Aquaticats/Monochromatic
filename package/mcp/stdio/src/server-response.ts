@@ -12,6 +12,8 @@ import {
 
 import { tagged, } from '@monochromatic-dev/logger-core/ts';
 
+import { diagnosticLogger, } from './diagnostic-logger.ts';
+
 import { SUPPORTED_PROTOCOL_VERSIONS, } from './protocol.ts';
 
 import {
@@ -25,7 +27,10 @@ import {
  Logger for this module, re-tagged with the enclosing function name at each
  site.
  */
-const responseLogger = tagged({ tag: 'mcp-stdio-response', },);
+const responseLogger = tagged({
+  l: diagnosticLogger,
+  tag: 'response',
+},);
 
 //endregion Logging
 
