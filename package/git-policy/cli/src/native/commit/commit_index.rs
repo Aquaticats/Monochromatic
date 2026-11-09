@@ -502,9 +502,11 @@ pub fn list_unmerged_index_paths(
     cwd: &Path,
     commit_index: &Path,
 ) -> Result<Vec<Vec<u8>>, GitFailure> {
+    // `--full-name`: the names are handed to `:(top,literal)<path>` specs and to the person, and a commit run
+    // from a subdirectory would otherwise be answered with names read from that directory.
     let output: GitOutput = run_git_checked(
         context,
-        &indexed_request(cwd, &["ls-files", "--unmerged", "-z"], Some(commit_index), None),
+        &indexed_request(cwd, &["ls-files", "--unmerged", "-z", "--full-name"], Some(commit_index), None),
     )?;
     let mut paths: Vec<Vec<u8>> = Vec::new();
     for record in output.stdout.split(is_nul_byte) {
