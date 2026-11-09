@@ -53,6 +53,9 @@ use crate::start_retry::RetryStart;
 use std::ffi::OsString;
 /// The real Git whose directory leads `PATH`.
 use std::path::Path;
+/// One job of the process's bound on blocking work,
+/// for the filesystem lookups a task may not make.
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
 /// The child and its standard error.
 use std::process::{Command, Stdio};
 /// Reading the captured standard error back.
@@ -349,7 +352,14 @@ pub fn run_upload_bounded(git: &PushGit, plan: &UploadPlan) -> Result<Option<Pus
 /// for (const command of uploadCommands(git, plan)) { const attempt = await runBoundedPushAwaiting(command); if (attempt.exitCode) return explained(attempt); }
 /// ```
 pub async fn run_upload_bounded_awaiting(git: &PushGit, plan: &UploadPlan) -> Result<Option<PushAttempt>, SingleFlightError> {
-    let Some(commands) = upload_commands(git, plan) else {
+    // The lookup of `git-lfs` on the caller's `PATH` asks the filesystem, so it is a job of the blocking pool and never the
+    //  task that other work of the round shares (`run_blocking_job_within_the_budget`).
+    let looked_up: PushGit = git.clone();
+    let planned: UploadPlan = plan.clone();
+    let Some(commands) = run_blocking_job_within_the_budget(move || { return upload_commands(&looked_up, &planned); })
+        .await
+        .map_err(refused_job)?
+    else {
         return Ok(Some(missing_program_attempt()));
     };
     for command in commands {
@@ -397,6 +407,22 @@ fn upload_commands(git: &PushGit, plan: &UploadPlan) -> Option<Vec<Command>> {
         }
     }
     return Some(commands);
+}
+
+/// What:
+///  The failure of an upload whose job of the blocking pool the system refused.
+/// Why:
+///   The awaited face of the upload starts its program lookup as a job,
+/// and a job the system refused a thread for never ran,
+/// so the upload could not be
+///  planned and the push must not be started in its place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// SingleFlightError.Start(new Error(refusal.message));
+/// ```
+pub(crate) fn refused_job(refusal: crate::blocking_job::BlockingJobError) -> SingleFlightError {
+    return SingleFlightError::Start(std::io::Error::other(refusal.to_string()));
 }
 
 /// What:

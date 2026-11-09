@@ -33,7 +33,8 @@ use crate::lfs_push_precheck::lfs_refusal;
 /// Narrows the plan to the objects the push introduces.
 use crate::lfs_object_plan::narrow_plan;
 /// What to upload and the bounded run of it.
-use crate::lfs_upload::{run_upload_bounded, run_upload_bounded_awaiting};
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::lfs_upload::{refused_job, run_upload_bounded, run_upload_bounded_awaiting};
 /// The repository found from the files.
 use crate::git_system_config::with_real_git;
 use crate::repo_read_layout::read_layout_after_success;
@@ -43,6 +44,8 @@ use crate::lfs_upload_plan::{
 };
 /// Owned OS strings for Git arguments.
 use std::ffi::OsString;
+/// The directory the worktree's layout is read from.
+use std::path::PathBuf;
 
 /// Exit status of a push the wrapper refused before anything started.
 const REFUSED_EXIT_CODE: i64 = 1;
@@ -200,8 +203,17 @@ pub fn run_push(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, Si
 pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<PushAttempt, SingleFlightError> {
     let region: &[OsString] = arguments.get(1..).unwrap_or_default();
     if git.lfs {
-        if let Some(refusal) = lfs_refusal(&[], region, git.environment.as_slice()) {
-            return Ok(PushAttempt { exit_code: REFUSED_EXIT_CODE, output: strip_one_line_break(refusal.as_str()).to_owned() });
+        // The pre-check looks `git-lfs` up on the caller's `PATH`, which asks the filesystem, so it is a job of the
+        //  blocking pool and never the task that other work of the round shares.
+        let looked_up: PushGit = git.clone();
+        let region_owned: Vec<OsString> = region.to_vec();
+        let refusal: Option<String> = run_blocking_job_within_the_budget(move || {
+            return lfs_refusal(&[], region_owned.as_slice(), looked_up.environment.as_slice());
+        })
+        .await
+        .map_err(refused_job)?;
+        if let Some(refused) = refusal {
+            return Ok(PushAttempt { exit_code: REFUSED_EXIT_CODE, output: strip_one_line_break(refused.as_str()).to_owned() });
         }
         let mut query: PushQueryAwaiting<'_> = PushQueryAwaiting { git };
         let read: Result<Settings, PlanError> = read_settings_awaiting(&mut query).await;
@@ -213,7 +225,13 @@ pub async fn run_push_awaiting(git: &PushGit, arguments: &[OsString]) -> Result<
             Ok(Some(plan)) => {
                 // The plan came from Git queries that exited with status 0, so Git had its say about the values it consults;
                 //  the files are read again, and a plan that cannot be narrowed is still pushed by `git-lfs` and Git.
-                let layout = read_layout_after_success(git.cwd.as_path(), with_real_git(git.environment.as_slice(), git.real_git.as_path()).as_slice());
+                // The reading of the worktree's layout asks the filesystem, so it is a job of the blocking pool and never
+                //  the task that other work of the round shares.
+                let directory: PathBuf = git.cwd.clone();
+                let config: Vec<(OsString, OsString)> = with_real_git(git.environment.as_slice(), git.real_git.as_path());
+                let layout = run_blocking_job_within_the_budget(move || { return read_layout_after_success(directory.as_path(), config.as_slice()); })
+                    .await
+                    .map_err(refused_job)?;
                 if let Some(narrowed) = narrow_plan(plan, layout.as_ref())
                     && let Some(failed) = run_upload_bounded_awaiting(git, &narrowed).await? {
                     return Ok(failed);
