@@ -387,10 +387,10 @@ fn a_shell_alias_searches_for_an_executable_where_git_runs_it() {
     );
     assert_eq!(external.route, Route::ShellAlias);
     assert_eq!(external.shell_command, None, "the program is reachable, so Git runs it");
-    let stdout: String = real_git_stdout(root.as_path(), absolute.as_str(), invocation.as_slice());
+    let reachable_stdout: String = real_git_stdout(root.as_path(), absolute.as_str(), invocation.as_slice());
     assert!(
-        stdout.contains("external"),
-        "the control did not reach the program, so the relative case proves nothing: {stdout}"
+        reachable_stdout.contains("external"),
+        "the control did not reach the program, so the relative case proves nothing: {reachable_stdout}"
     );
     std::env::set_current_dir(started_in.as_path()).expect("leave the fixture before removing it");
     remove(root.as_path());
