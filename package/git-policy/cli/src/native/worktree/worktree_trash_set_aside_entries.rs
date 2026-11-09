@@ -55,6 +55,9 @@ use std::path::{Path, PathBuf};
 /// `.git` included,
 /// because the directory it was
 ///  handed is itself another checkout and a container can stand beside that marker.
+/// A directory nobody could look inside is never
+///  taken for one with nothing to sweep:
+/// it is a reason for the caller to keep what holds it where it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -73,7 +76,7 @@ pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Pat
             path_failure(remove_tree_beneath(shown, &directory, child.as_os_str(), None), path.as_path(), "cannot be removed")?;
             continue;
         }
-        if !is_directory_entry_at(&directory, child.as_os_str()) {
+        if !is_directory_entry_at(&directory, child.as_os_str(), path.as_path())? {
             continue;
         }
         remove_containers_beneath(&directory, child.as_os_str(), path.as_path())?;
@@ -83,19 +86,32 @@ pub(super) fn remove_containers_beneath(holder: &File, name: &OsStr, shown: &Pat
 
 /// What:
 ///  Whether the entry `name` of `directory` is a directory,
-/// not a link to one.
+/// not a link to one,
+/// and the reason when nobody could look at it.
 /// Why:
 ///   Only a directory is walked,
 /// so a link named like a directory is never followed out of the snapshot.
 /// The answer comes from the held handle,
 /// so no path is resolved twice.
+/// A subtree the sweep could not examine is not a subtree with nothing in it:
+/// an entry that
+///  cannot be looked at is a reason to keep what holds it where it is,
+/// and the caller names it.
+/// An entry that
+///  is gone by now is neither,
+/// because there is nothing left to sweep.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// lstatSync(join(handlePath(directory), name)).isDirectory()
+/// const isDirectoryEntryAt = (directory, name, shown) => { let found; try { found = lstatSync(join(handlePath(directory), name)); } catch (error) { if (error.code === 'ENOENT') return false; throw `${shown} cannot be examined (${error})`; } return found.isDirectory(); };
 /// ```
-fn is_directory_entry_at(directory: &File, name: &OsStr) -> bool {
-    return crate::fs_beneath::entry_metadata_at(directory, name).is_ok_and(is_directory_metadata);
+fn is_directory_entry_at(directory: &File, name: &OsStr, shown: &Path) -> Result<bool, String> {
+    let found: std::fs::Metadata = match crate::fs_beneath::entry_metadata_at(directory, name) {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return path_failure::<bool, std::io::Error>(Err(error), shown, "cannot be examined"),
+    };
+    return Ok(is_directory_metadata(found));
 }
 
 /// Whether a metadata is a directory's.

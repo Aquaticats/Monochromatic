@@ -630,7 +630,9 @@ Read-only commands,
      at any depth,
      a nested worktree and another checkout among them,
    so nothing of another command's reaches the trash through that route either;
-     the sweep reads no file and follows no link.
+     the sweep reads no file and follows no link,
+     and a directory it cannot look inside
+   stops the leave-out with that path named instead of counting as one with nothing to sweep.
    Another command's stage container is not put in that trash at all:
      it is removed before the worktree is installed,
      so

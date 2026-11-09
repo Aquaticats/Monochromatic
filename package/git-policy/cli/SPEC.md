@@ -1173,6 +1173,10 @@ because that directory is itself another checkout and a container can stand
  beside that marker,
 reads no file and
 follows no link.
+A directory the sweep cannot look inside is never taken for one with nothing to
+ sweep:
+the leave-out refuses and names it,
+so nothing is set aside on a guess.
 Everything else the leave-out sets aside,
 the caches,
 the other checkouts and the run
