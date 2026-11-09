@@ -693,7 +693,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   already naming a finished newer version,
   then settles the link when the kept version had vanished,
   with the instant between each read and the write written down beside the code and in the package README.
-  723 of 723 tests and Clippy pass on top of main (`84e9497694`).
+  723 of 723 tests and Clippy passed on top of main (`84e9497694`).
+  Run 7 fixed the two findings of the sixth review
+  (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-6-sol.txt`):
+  `59d4f10a6f` gives `point_current_at` the versions the caller deletes,
+  so the guard that leaves a newer link alone does not preserve a link naming a version the plan removes;
+  the link then ends on the finished version that survives instead of being unlinked;
+  `0b3b57c203` reports a repoint failure through `after_removing`,
+  so it names the links the same pass already removed.
+  725 of 725 tests and Clippy pass on top of main (`daa12c3c76`).
   Open:
   a row naming a bare `nightly` with a dated version text still reads `ok`,
   the tag characters `+`,
