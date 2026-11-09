@@ -59,6 +59,18 @@ impl Stage {
         return self.git_dir.join("packed-refs.lock");
     }
 
+    /// The reftable backend's lock of its list of tables,
+    /// which every writer of a reference takes (`reftable/stack.c`,
+    /// `reftable_stack_init_addition`).
+    pub fn tables_lock(&self) -> PathBuf {
+        return self.git_dir.join("reftable").join("tables.list.lock");
+    }
+
+    /// The pid file Git writes beside that lock under `core.lockfilePid`.
+    pub fn tables_pid_file(&self) -> PathBuf {
+        return self.git_dir.join("reftable").join("tables.list~pid.lock");
+    }
+
     /// The staging file of the packed references.
     pub fn packed_staging(&self) -> PathBuf {
         return self.git_dir.join("packed-refs.new");
@@ -94,6 +106,25 @@ pub fn stage(name: &str, lockfile_pid: bool) -> Stage {
     git(repo.as_path(), &["fetch", "--quiet", "origin"]);
     git(repo.as_path(), &["pack-refs", "--all"]);
     git(remote.as_path(), &["branch", "--delete", "--force", "gone"]);
+    if lockfile_pid {
+        git(repo.as_path(), &["config", "core.lockfilePid", "true"]);
+    }
+    let git_dir: PathBuf = repo.join(".git");
+    let ready: PathBuf = root.join("ready");
+    return Stage { root, repo, git_dir, ready };
+}
+
+/// Build a stage whose references the reftable backend keeps:
+/// a repository with one commit and no remote,
+/// which is all a held `update-ref --stdin` needs.
+/// The reftable backend keeps its references and its lock in the `reftable` directory of the Git directory,
+/// so none of the files a files-backend repository locks exists.
+pub fn reftable_stage(name: &str, lockfile_pid: bool) -> Stage {
+    let root: PathBuf = fixture(name);
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir(repo.as_path()).expect("repository directory");
+    git(repo.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=initial"]);
     if lockfile_pid {
         git(repo.as_path(), &["config", "core.lockfilePid", "true"]);
     }
@@ -264,7 +295,7 @@ impl Drop for Helper {
 /// the veto keeps its own controls,
 /// which name the holder they plant.
 pub fn judge() -> crate::stale_ref_lock_judge::Judge {
-    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, pid_view_complete: true, boot: None, scan_scope: Some(Vec::new()), ..crate::stale_ref_lock_judge::Judge::here() };
+    return crate::stale_ref_lock_judge::Judge { margin: Duration::ZERO, boot: None, scan_scope: Some(Vec::new()), ..crate::stale_ref_lock_judge::Judge::here() };
 }
 
 /// Make a new commit and start `git push origin main`,

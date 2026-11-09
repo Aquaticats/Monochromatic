@@ -1170,7 +1170,7 @@ fn each_stream_is_found_by_its_own_pipe() {
     let identity: Option<(u64, u64)> = crate::step_output_read_whole_through_pipes::pipe_identity(error_read.as_fd());
     let named: Vec<i64> = match identity {
         Some((mount, inode)) => {
-            crate::process_use::processes_using(&crate::process_use::UseTarget::File { mount, inode }).users.iter().map(|user| { return user.pid; }).collect()
+            crate::process_use::processes_using(&crate::process_use::UseTarget::Mounted { mount, inode }).users.iter().map(|user| { return user.pid; }).collect()
         }
         None => Vec::new(),
     };

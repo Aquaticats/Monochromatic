@@ -81,6 +81,7 @@ const REASON_MARKER: &str = "Lock kept:";
 const INVENTORY: &[&str] = &[
     "service/journald_native.rs",
     "commit/commit_index_builds.rs",
+    "commit/commit_prepare_part_durations.rs",
 ];
 
 /// Every `.rs` file below `root`,
