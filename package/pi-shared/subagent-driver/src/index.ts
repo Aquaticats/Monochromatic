@@ -114,6 +114,7 @@ export {
 export {
   type FinishedRunEvidence,
   evidenceFromRunsFolder,
+  NO_SAMPLE,
   percentileOf,
 } from './overdue-limits.ts';
 export {
