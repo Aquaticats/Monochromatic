@@ -5223,7 +5223,7 @@ The wrapper recognizes its flag only before Git's `--` separator and removes it 
 
 ### Bulk staging
 
-`add-explicit` decides from the arguments alone and starts no process.
+`add-explicit` decides from the arguments and the caller's pathspec-mode variable alone, reads no file and starts no process.
 It rejects `-A`,
 `--all`,
 `-u`
@@ -5250,6 +5250,17 @@ pathspec magic and globs can select the same set in further spellings.
 so the command stops as an engine failure naming `content-unavailable` before the policy is asked.
 The rejection names every matched token as the caller wrote it and offers
 `--no-enforce-bulk-add` for one invocation.
+A token that names the working directory still does so whatever pathspec mode the caller set,
+so `.` and `./` stay bulk under `--literal-pathspecs` or `GIT_LITERAL_PATHSPECS=1`;
+every other spelling of the list is one plain name under that mode
+(so `**` stages a file named `**`,
+and `:/` names no file and is left to Git's own refusal),
+and the policy reads the caller's mode
+(the last of `--literal-pathspecs` and `--no-literal-pathspecs` among its global options,
+and otherwise the variable's own boolean reading)
+before it judges a spelling.
+A variable value Git would refuse to read as a boolean is no mode,
+so an unmodelled spelling keeps the rejection rather than lifting it.
 
 ## Whole-sequence fixing
 

@@ -13,7 +13,7 @@
 /// The parser,
 ///  its table,
 ///  the oracles and the real-Git fixture helpers.
-use super::{ADD_ESCAPE_HATCH, ADD_TABLE, AddRegion, BulkKind, BulkMatch, parse_add_region};
+use super::{ADD_ESCAPE_HATCH, ADD_TABLE, AddRegion, BulkKind, BulkMatch, caller_global_prefix, literal_pathspecs_enabled, parse_add_region, stages_in_bulk};
 use crate::command_options::OptionErrorKind;
 use crate::command_test_completion::{git_completion, render_completion};
 use crate::command_test_support::{
@@ -251,6 +251,65 @@ fn table_and_bulk_spellings_match_git() {
     std::fs::write(root.join("-A"), b"new.txt\n").expect("write pathspec file");
     git(root.as_path(), &["add", "--pathspec-from-file", "-A"]);
     assert_eq!(staged(root.as_path()), "new.txt");
+    remove(directory.as_path());
+}
+
+/// The caller's mode is the last literal global option it wrote,
+/// and otherwise the variable's own boolean reading;
+/// an unset value and one Git would refuse to read as a boolean are no mode,
+/// so the rejection stands for a spelling this reading does not model.
+#[test]
+fn the_caller_mode_is_its_last_literal_option_then_the_variable() {
+    let literal = |values: &[&str], variable: Option<&str>| -> bool {
+        let prefix: Vec<std::ffi::OsString> = os_arguments(values);
+        return literal_pathspecs_enabled(prefix.as_slice(), variable.map(std::ffi::OsStr::new));
+    };
+    assert!(!literal(&[], None));
+    assert!(literal(&["--literal-pathspecs"], None));
+    assert!(!literal(&["--no-literal-pathspecs"], None));
+    assert!(!literal(&["--literal-pathspecs", "--no-literal-pathspecs"], None), "the later option wins");
+    assert!(literal(&["--no-literal-pathspecs", "--literal-pathspecs"], None));
+    assert!(literal(&["-C", "dir", "-c", "core.pager=cat", "--literal-pathspecs"], None), "other global options do not disturb it");
+    for (value, expected) in [("1", true), ("true", true), ("yes", true), ("ON", true), ("0", false), ("false", false), ("", false), ("banana", false)] {
+        assert_eq!(literal(&[], Some(value)), expected, "GIT_LITERAL_PATHSPECS={value:?}");
+        assert!(!literal(&["--no-literal-pathspecs"], Some(value)), "an option the caller wrote overrides the variable");
+    }
+}
+
+/// `caller_global_prefix` is the tokens before the subcommand word and nothing after it.
+#[test]
+fn the_caller_global_prefix_stops_at_the_subcommand() {
+    let prefix = |values: &[&str]| -> Vec<String> {
+        return caller_global_prefix(os_arguments(values).as_slice()).iter().map(|word| { return word.to_string_lossy().into_owned(); }).collect();
+    };
+    assert_eq!(prefix(&["add", "--", "**"]), Vec::<String>::new());
+    assert_eq!(prefix(&["--literal-pathspecs", "add", "--", "**"]), vec![String::from("--literal-pathspecs")]);
+    assert_eq!(prefix(&["-C", "dir", "--no-pager", "add", "-A"]), vec![String::from("-C"), String::from("dir"), String::from("--no-pager")]);
+}
+
+/// Git's own answer for the spellings under literal mode,
+/// which is what `stages_in_bulk` reads:
+/// each names one file,
+/// and the working directory still takes everything below it.
+#[test]
+fn literal_mode_stages_the_literal_file_in_git() {
+    let (directory, root): (PathBuf, PathBuf) = repository_with_tracked_file("add-literal-mode");
+    for spelling in ["*", "**", ":(top)", ":(glob)**"] {
+        std::fs::write(root.join(spelling), b"literal\n").expect("write the literal file");
+        git(root.as_path(), &["--literal-pathspecs", "add", "--", spelling]);
+        assert_eq!(staged(root.as_path()), spelling, "{spelling}");
+        git(root.as_path(), &["reset", "--quiet"]);
+        std::fs::remove_file(root.join(spelling)).expect("remove the literal file");
+    }
+    std::fs::write(root.join("top.txt"), b"top\n").expect("write top file");
+    std::fs::create_dir(root.join("sub")).expect("sub directory");
+    std::fs::write(root.join("sub/below.txt"), b"below\n").expect("write below file");
+    for spelling in [".", "./"] {
+        git(root.as_path(), &["--literal-pathspecs", "add", "--", spelling]);
+        assert_eq!(staged(root.as_path()), "sub/below.txt\ntop.txt", "{spelling}");
+        git(root.as_path(), &["reset", "--quiet"]);
+    }
+    assert!(stages_in_bulk(b"**", true) == false && stages_in_bulk(b"**", false) && stages_in_bulk(b".", true));
     remove(directory.as_path());
 }
 
