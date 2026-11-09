@@ -3,8 +3,9 @@
 //! and every refusal the decoder promises is real.
 
 use super::*;
+use crate::command_test_support::{fixture, remove};
 use crate::service_review_key::ReviewKey;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 const BLOB: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -28,6 +29,7 @@ fn request() -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/work/repo/.git/index"),
+        scratch: PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f-0"),
         captured: 7_000_000_000,
     };
 }
@@ -154,6 +156,58 @@ fn unacceptable_requests_are_refused() {
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
+/// What:
+///  A request names the scratch tree the service removes,
+///  and no other directory can be named in its place.
+/// Why:
+///   The service removes that tree once the landing is over,
+///  so a request that could name any path would have the service delete what it did not make.
+///  The tree is the one the wrapper created,
+///  named directly inside the worktree's repository scratch directory or its Git directory.
+#[test]
+fn a_request_names_only_the_wrapper_scratch_tree_it_wants_removed() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
+    let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["scratch"].as_str(), sent.scratch.to_str(), "the request says where its tree is");
+    let without: serde_json::Value = {
+        let mut fields: serde_json::Map<String, serde_json::Value> = value.as_object().expect("an object").clone();
+        fields.remove("scratch");
+        fields.remove("scratchHex");
+        serde_json::Value::Object(fields)
+    };
+    assert!(decode_client(without.to_string().as_str()).is_err(), "a request that names no tree");
+    for refused in [
+        PathBuf::from("/etc/passwd"),
+        PathBuf::from("/work/repo/.git/notes"),
+        PathBuf::from("/work/repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-"),
+        PathBuf::from("/work/repo/.git/deeper/monochromatic-git-policy-cli-service-0a1b"),
+    ] {
+        let mut bad: CommitRequest = request();
+        bad.scratch = refused.clone();
+        assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{}", refused.display());
+    }
+}
+
+/// What:
+///  A commit request names its tree on the wire,
+///  and a line of the version before that field is no request this release serves.
+/// Why:
+///   A service built before the field works the tree out from the request's index,
+///  which is the worktree's real index and not a tree,
+///  so it would land the commit and leave the tree to the age sweep.
+///  The version is what keeps such a service from being handed the request.
+#[test]
+fn a_commit_request_carries_the_version_that_names_its_tree() {
+    let sent: CommitRequest = request();
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
+    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["version"].as_u64(), Some(u64::from(PROTOCOL_VERSION)), "the request names this release's protocol");
+    // The version before the field, which served a request without it.
+    value["version"] = serde_json::Value::from(8);
+    assert_eq!(decode_client(value.to_string().as_str()), Err(String::from("unsupported version")), "the version before refuses it");
+}
+
 /// The retire message round trips,
 /// and is accepted from a client of another protocol version,
 /// which is how a service of
@@ -243,13 +297,13 @@ fn a_message_of_a_repository_that_is_not_text_round_trips() {
     sent.common_dir = git_dir.clone();
     sent.git_dir = git_dir.clone();
     sent.index = git_dir.join("index");
+    sent.scratch = git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d");
     // A cleanup belongs to a commit built elsewhere, which is the only request that names one.
     sent.commit = Some(String::from(BLOB));
     sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
     for message in [
         ClientMessage::Work { git_dir: git_dir.clone(), review_key: None },
         ClientMessage::Warm { git_dir: git_dir.clone(), repository },
-        ClientMessage::Scratch { git_dir: git_dir.clone(), path: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d") },
         ClientMessage::Commit(Box::new(sent)),
     ] {
         assert_eq!(decode_client(encode_client(&message).as_str()), Ok(message.clone()), "{message:?}");
@@ -355,46 +409,99 @@ fn a_request_without_a_capture_stamp_has_an_unknown_one() {
     assert_eq!(decoded.captured, 0);
 }
 
-/// A scratch announcement survives encoding.
+/// A cleanup and a request's scratch tree name the wrapper's own directory names directly inside the
+///  repository scratch directory of the worktree,
+/// or directly inside the worktree's own Git directory as a release before this one made it,
+/// and nothing else,
+/// which is the check `the_tree_of` asks before the service removes a tree.
 #[test]
-fn a_scratch_announcement_round_trips() {
-    let sent: ClientMessage = ClientMessage::Scratch {
-        git_dir: PathBuf::from("/work/repo/.git/worktrees/w"),
-        path: PathBuf::from("/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-0a1b2c3d-4e5f"),
-    };
-    let line: String = encode_client(&sent);
-    assert!(!line.contains('\n'));
-    assert_eq!(decode_client(line.as_str()), Ok(sent));
+fn a_scratch_path_names_only_a_scratch_directory_of_the_worktree() {
+    let root: PathBuf = fixture("protocol-scratch-names");
+    let common: PathBuf = root.join("repo/.git");
+    let git_dir: PathBuf = common.join("worktrees/w");
+    std::fs::create_dir_all(&git_dir).expect("worktree git directory");
+    std::fs::write(git_dir.join("commondir"), b"../..\n").expect("commondir");
+    let swept: PathBuf = common.join("monochromatic-git-policy-cli-scratch");
+    let accepted = |path: PathBuf| -> bool { return is_scratch_path(path.as_path(), git_dir.as_path()); };
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b-2c";
+    assert!(accepted(swept.join(name)), "the place this release makes the tree in");
+    assert!(accepted(git_dir.join(name)), "the place a release before this one made it in");
+    for refused in [
+        swept.join("monochromatic-git-policy-cli-service-"),
+        swept.join("monochromatic-git-policy-cli-service-a b"),
+        swept.join("monochromatic-git-policy-cli-service-../x"),
+        swept.join("notes"),
+        swept.join("cli-git-input-0a1b"),
+        swept.join("deeper").join(name),
+        git_dir.join("monochromatic-git-policy-cli-service-"),
+        git_dir.join("notes"),
+        git_dir.join("index"),
+        git_dir.join("deeper").join(name),
+        common.join(name),
+        common.join("worktrees/other").join(name),
+        root.join("elsewhere").join(name),
+        PathBuf::from("monochromatic-git-policy-cli-service-x"),
+        PathBuf::from("/"),
+        PathBuf::from(format!("{}/{name}\u{0}", swept.display())),
+    ] {
+        assert!(!accepted(refused.clone()), "{}", refused.display());
+    }
+    assert!(!accepted(root.join("precious")), "a directory the wrapper did not make is never accepted");
+    remove(root.as_path());
 }
 
-/// The service removes what a scratch announcement names,
-/// so only the wrapper's own directory names directly inside the
-///  worktree's own Git directory are accepted;
-/// every other path is refused at the decoder.
+/// The service removes what a request's cleanup names,
+/// so only a commit's own scratch directory is accepted there,
+/// in either of the two places the wrapper makes one,
+/// and every other directory is refused at the decoder.
 #[test]
-fn a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree() {
-    let git_dir: &str = "/work/repo/.git/worktrees/w";
-    let accepted = |path: &str| -> bool { return is_scratch_path(Path::new(path), Path::new(git_dir)); };
-    assert!(accepted("/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-0a1b-2c"));
+fn a_cleanup_names_only_a_scratch_directory_of_the_worktree() {
+    let root: PathBuf = fixture("protocol-cleanup-names");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let name: &str = "monochromatic-git-policy-cli-service-0a1b-2c";
+    let swept: PathBuf = common.join("monochromatic-git-policy-cli-scratch");
+    let asked = |scratch: PathBuf| -> String {
+        let mut request: CommitRequest = request();
+        request.git_dir = common.clone();
+        request.common_dir = common.clone();
+        request.repository = root.join("repo");
+        request.index = common.join("index");
+        request.scratch = common.join(name);
+        request.commit = Some(String::from(BLOB));
+        request.base = String::from(BLOB);
+        request.cleanup = Some(Cleanup { git_dir: common.clone(), scratch, reftable: false });
+        return encode_client(&ClientMessage::Commit(Box::new(request)));
+    };
+    let accepted = |scratch: PathBuf| -> bool { return decode_client(asked(scratch).as_str()).is_ok(); };
+    assert!(accepted(swept.join(name)), "the place this release makes the tree in");
+    assert!(accepted(common.join(name)), "the place a release before this one made it in");
     for refused in [
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-",
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-a b",
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-../x",
-        "/work/repo/.git/worktrees/w/../monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/worktrees/w/notes",
-        "/work/repo/.git/worktrees/w/index",
-        "/work/repo/.git/worktrees/w/deeper/monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/worktrees/other/monochromatic-git-policy-cli-service-x",
-        "/work/other/monochromatic-git-policy-cli-service-x",
-        "/work/repo/.git/worktrees/w/monochromatic-git-policy-cli-service-x\u{0}",
-        "monochromatic-git-policy-cli-service-x",
-        "/",
+        swept.join("monochromatic-git-policy-cli-service-"),
+        swept.join("monochromatic-git-policy-cli-service-a b"),
+        swept.join("notes"),
+        swept.join("deeper").join(name),
+        common.join("index"),
+        common.join("objects"),
+        common.join(name).join("deeper"),
+        root.join("repo").join(name),
+        root.join("elsewhere").join(name),
+        PathBuf::from("/etc/passwd"),
+        PathBuf::from(name),
     ] {
-        assert!(!accepted(refused), "{refused:?}");
+        assert!(!accepted(refused.clone()), "{}", refused.display());
     }
-    let hostile: String = encode_client(&ClientMessage::Scratch { git_dir: PathBuf::from(git_dir), path: PathBuf::from("/home/a/precious") });
-    assert!(decode_client(hostile.as_str()).is_err());
+    // A cleanup belongs to a commit built elsewhere, so a request that names no commit names no cleanup either.
+    let mut without: CommitRequest = request();
+    without.commit = None;
+    without.cleanup = Some(Cleanup { git_dir: common.clone(), scratch: swept.join(name), reftable: false });
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(without))).as_str()).is_err());
+    // A cleanup whose own Git directory is relative cannot name a place inside it.
+    let mut relative: CommitRequest = request();
+    relative.commit = Some(String::from(BLOB));
+    relative.cleanup = Some(Cleanup { git_dir: PathBuf::from("repo/.git"), scratch: swept.join(name), reftable: false });
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err());
+    remove(root.as_path());
 }
 
 /// A commit request carries the worktree's own Git directory,

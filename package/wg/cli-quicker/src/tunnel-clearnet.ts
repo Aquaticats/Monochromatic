@@ -90,15 +90,31 @@ export function physicalInterfaces({ state, }: { readonly state: BypassState; },
   const found = new Map<string, PhysicalInterface>();
   for (const route of state.routes) {
     /**
-     Value of the `dev` key.
+     Position of the `dev` key,
+     and -1 when the route has none.
      */
-    const name = route.tokens[route.tokens.indexOf('dev',) + 1];
-    if ((!route.tokens.includes('dev',)) || (name === undefined) || (!isValidInterfaceName({ interfaceName: name, },)))
+    const devIndex = route.tokens
+      .indexOf('dev',);
+    if (devIndex === (-1))
       continue;
-    found.set(`${route.proto} ${name}`, {
+    /**
+     Value of the `dev` key,
+     absent when the route ends at the keyword.
+     */
+    const name = route.tokens[devIndex + 1];
+    if ((name === undefined) || (!isValidInterfaceName({ interfaceName: name, },)))
+      continue;
+    /**
+     Interface the route names.
+     */
+    const physical: PhysicalInterface = {
       family: route.proto,
       name,
-    },);
+    };
+    found.set(
+      `${route.proto} ${name}`,
+      physical,
+    );
   }
   return [...found.values(),];
 }

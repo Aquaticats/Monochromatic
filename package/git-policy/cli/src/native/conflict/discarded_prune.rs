@@ -114,7 +114,7 @@ pub fn list_stamped(common_dir: &Path) -> Listing {
 }
 
 /// The problem that says why the folder cannot be used.
-fn unusable(saved_root: &Path, failure: &OpenFailure) -> Problem {
+pub(crate) fn unusable(saved_root: &Path, failure: &OpenFailure) -> Problem {
     let detail: String = match failure {
         OpenFailure::Link => String::from("a symbolic link, or something that is not a directory, stands at it or at its parent `monochromatic-git-policy-cli`, and a removal never follows one"),
         OpenFailure::Refused(error) => format!("it cannot be opened: {error}"),
@@ -199,7 +199,7 @@ impl BeforeRemoval for NothingBeforeRemoval {
 
 /// The listing of an opened folder;
 /// `saved_root` is the path the problems and the removal records show.
-fn list_in(store: &Store, saved_root: &Path) -> Listing {
+pub(crate) fn list_in(store: &Store, saved_root: &Path) -> Listing {
     let mut listing: Listing = Listing::default();
     let names = match store.names() {
         Ok(found) => found,

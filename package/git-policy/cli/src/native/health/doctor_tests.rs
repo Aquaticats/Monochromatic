@@ -451,6 +451,74 @@ fn each_of_the_four_shims_is_recognized() {
     remove(root.as_path());
 }
 
+/// Every name and every byte below `root`,
+/// so a control can prove that a command changed nothing.
+fn written_tree(root: &Path) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut pending: Vec<(PathBuf, String)> = vec![(root.to_path_buf(), String::new())];
+    while let Some((directory, prefix)) = pending.pop() {
+        let listing = match std::fs::read_dir(directory.as_path()) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+        for entry in listing.flatten() {
+            let name: String = format!("{prefix}{}", entry.file_name().to_string_lossy());
+            let kind = entry.file_type().expect("the entry's type");
+            if kind.is_dir() {
+                found.push(format!("{name}/"));
+                pending.push((entry.path(), format!("{name}/")));
+                continue;
+            }
+            let content: Vec<u8> = std::fs::read(entry.path()).unwrap_or_default();
+            let shim: String = format!("{name} {} bytes", content.len());
+            found.push(shim);
+        }
+    }
+    found.sort();
+    return found;
+}
+
+/// What:
+///  `doctor` changes nothing in the repository it reports on,
+///  and it still reports the folder of saved copies an earlier release wrote under its earlier name.
+/// Why:
+///  The one command documented as changing nothing renamed an earlier release's folders and folded its log lines,
+/// so a
+///  person who ran it to diagnose a read-only problem wrote to a Git directory they may not own
+///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+/// finding 6).
+/// The settling moved to the commands that own the directory;
+/// the doctor reads whichever spelling
+///  stands there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const before = tree(common); doctor(); expect(tree(common)).toEqual(before); expect(stderr).toContain('discarded copies:');
+/// ```
+#[test]
+fn the_doctor_changes_nothing_and_still_reports_an_earlier_releases_folder() {
+    let root: PathBuf = fixture("doctor-changes-nothing");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let common: PathBuf = repo.join(".git");
+    // A save and a log line an earlier release wrote under the earlier spelling, and a log line of the current spelling
+    //  beside it, which settling would have folded into the earlier one.
+    let save: PathBuf = common.join(crate::wrapper_names_old_and_new::DATA_FOLDER.earlier).join("discarded").join("2026-11-01T00-00-00");
+    std::fs::create_dir_all(save.as_path()).expect("the earlier save directory");
+    std::fs::write(save.join("f.txt"), b"a saved copy\n").expect("the copy");
+    let earlier_log: PathBuf = common.join(crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG.earlier);
+    std::fs::write(earlier_log.as_path(), b"a line an earlier release wrote\n").expect("the earlier log");
+    let current_log: PathBuf = common.join(crate::wrapper_names_old_and_new::DISCARD_AUDIT_LOG.current);
+    std::fs::write(current_log.as_path(), b"a line this release wrote\n").expect("the current log");
+    let before: Vec<String> = written_tree(common.as_path());
+    let (code, _stdout, stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
+    assert_eq!(code, 0, "nothing is a hook: {stderr}");
+    assert!(stderr.contains("discarded copies:"), "the earlier release's folder is still reported: {stderr}");
+    assert!(stderr.contains(".git/cli-git/discarded"), "under the name it stands at: {stderr}");
+    assert_eq!(written_tree(common.as_path()), before, "doctor wrote nothing");
+    assert!(save.is_dir(), "the earlier folder is not renamed");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A `doctor` run inside a Git the wrapper started reports the hooks of the person's directories,
 ///  and never the wrapper's own hooks-off path.

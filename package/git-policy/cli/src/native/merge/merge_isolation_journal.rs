@@ -57,7 +57,7 @@ const RECORD_SUFFIX: &str = ".json";
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MergeIntent = { owner: TransactionOwner; repositoryRoot: string; targetRef?: string; oldOid: string; newOid: string };
+/// type MergeIntent = { owner: TransactionOwner; repositoryRoot: string; targetRef?: string; oldOid: string; newOid: string; sideRef?: string };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MergeIntent {
@@ -74,6 +74,13 @@ pub struct MergeIntent {
     pub old_oid: String,
     /// The merge commit the target moves to.
     pub new_oid: String,
+    /// The side ref that keeps the merge commit from being collected while the checkout waits for a holder of
+    /// `index.lock` to let go,
+    /// or nothing for a merge that is applied as soon as it is computed.
+    /// A record with a side ref is finished even though nothing of the merge is in the checkout yet
+    /// (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
+    /// finding 3).
+    pub side_ref: Option<String>,
 }
 
 /// What:
@@ -131,6 +138,9 @@ pub fn encode_merge_intent(intent: &MergeIntent) -> String {
         .string("targetRef", intent.target_ref.as_deref().unwrap_or_default())
         .string("oldOid", intent.old_oid.as_str())
         .string("newOid", intent.new_oid.as_str());
+    if let Some(side_ref) = &intent.side_ref {
+        writer.string("sideRef", side_ref.as_str());
+    }
     return format!("{}\n", writer.finish());
 }
 
@@ -181,6 +191,11 @@ pub fn parse_merge_intent(bytes: &[u8]) -> Option<MergeIntent> {
         target_ref: if target_ref.is_empty() { None } else { Some(String::from(target_ref)) },
         old_oid: String::from(old_oid),
         new_oid: String::from(new_oid),
+        // A record of this release's first form holds none, and a merge it names is applied in its own command.
+        side_ref: match string_field(&map, "sideRef") {
+            Some(name) if !name.is_empty() => Some(String::from(name)),
+            _ => None,
+        },
     });
 }
 

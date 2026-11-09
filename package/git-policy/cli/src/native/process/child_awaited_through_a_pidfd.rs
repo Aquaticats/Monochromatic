@@ -22,9 +22,12 @@
 //! const status = await owned.wait();           // never blocks the event loop
 //! ```
 
+use crate::bounded_push::STOP_GRACE;
+use crate::member_signalled_through_its_pidfd::{Delivered, kill_members};
+use crate::process_tree::{TreeMember, descendants_of_read};
 use std::os::fd::OwnedFd;
 use std::process::{Child, ExitStatus};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::Interest;
 use tokio::io::unix::AsyncFd;
 
@@ -32,6 +35,9 @@ use tokio::io::unix::AsyncFd;
 /// the fallback is a timer,
 /// not a blocking wait and not a thread.
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
+
+/// How often a child that was killed is looked at while the stop's grace runs.
+const LOOK_INTERVAL: Duration = POLL_INTERVAL;
 
 /// A failure to inject after the start,
 /// so the invariant "none of them is a failed start" can be tested.
@@ -171,14 +177,71 @@ impl OwnedChild {
         };
     }
 
-    /// Ends the child with `SIGKILL` and reaps it;
-    /// nothing happens when it is already reaped or handed over.
-    pub fn end_and_reap(&mut self) {
+    /// What:
+    ///  Ends the child with `SIGKILL` and reaps it;
+    /// nothing happens when it is already reaped or handed over,
+    /// and answers whether a child
+    ///  the kernel would not let go was handed to a reaper,
+    /// which is what the caller reports as left running.
+    /// Why:
+    ///   The stop's grace is the whole of the wait for a child,
+    /// so a caller must be able to say whether the child it ended is gone;
+    /// a
+    ///  child in an uninterruptible call is handed to a reaper,
+    /// which is the route `SPEC.md` states for a leader that does not end in
+    ///  `STOP_GRACE`.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function endAndReap(child): { leftRunning: boolean };
+    /// ```
+    pub fn end_and_reap(&mut self) -> bool {
         if let Some(mut child) = self.child.take() {
             // A kill of an exited child fails harmlessly; the wait reaps either way.
-            let _ = child.kill();
-            let _ = child.wait();
+            let _asked: std::io::Result<()> = crate::child_waited_for_within_a_ceiling::kill(&mut child);
+            let began: Instant = Instant::now();
+            loop {
+                match child.try_wait() {
+                    Ok(Some(_status)) => return false,
+                    Ok(None) => {}
+                    // A record that cannot be read is not the child's end, so the grace decides, not this answer.
+                    Err(_unreadable) => break,
+                }
+                if began.elapsed() >= STOP_GRACE {
+                    crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
+                    return true;
+                }
+                std::thread::sleep(LOOK_INTERVAL);
+            }
+            crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
+            return true;
         }
+        return false;
+    }
+
+    /// What:
+    ///  Ends the child and every process it started,
+    /// and reaps the child.
+    /// Why:
+    ///  A ceiling that ends only the leader leaves what the leader started running:
+    /// a helper that holds the
+    ///  step's streams open,
+    ///  or one that writes into the repository after the step was reported ended.
+    /// The owner's rule is that a step ends with its whole process tree (`StepBound::EndAt`),
+    ///  so the tree is read here,
+    /// while the child is this process's own unreaped one and no reuse can have taken its number,
+    ///  and every member is killed through a descriptor opened while its number still named it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const tree = descendantsOf(owned.id); for (const member of tree) member.kill('SIGKILL'); owned.endAndReap();
+    /// ```
+    pub fn end_with_the_processes_it_started(&mut self) -> bool {
+        // The tree is read before the leader is signalled: a child's link to its parent is gone once the parent has exited.
+        let walked: Option<Vec<TreeMember>> = i32::try_from(self.id()).ok().and_then(descendants_of_read);
+        // The leader is signalled by `end_and_reap`, which owns the grace after that signal and answers whether it took.
+        let _below_ended: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
+        return self.end_and_reap();
     }
 
     /// What:

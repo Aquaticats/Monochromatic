@@ -49,7 +49,16 @@ use tokio::sync::mpsc::UnboundedReceiver;
 /// ```ts
 /// for await (const mark of marksUntilTimeout()) { if (since === undefined) continue; if (stoppable && clock.stalled()) await stop(pid); else if (ticker.due(elapsed)) await notice(); }
 /// ```
-pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: WatchFlags, waiting_for: String, pid: u32, terms: WatchTerms, locks: LockLedger, mut stop: Option<StopArm>) {
+pub(crate) async fn watch_loop(
+    mut incoming: UnboundedReceiver<Mark>,
+    flags: WatchFlags,
+    waiting_for: String,
+    pid: u32,
+    terms: WatchTerms,
+    locks: LockLedger,
+    mut stop: Option<StopArm>,
+    root_pin: crate::child_watch_clock_marks_and_stopping::RootPin,
+) {
     let expired: &AtomicBool = flags.expired.as_ref();
     let stoppable: &AtomicBool = flags.stoppable.as_ref();
     let longest: Arc<AtomicU64> = Arc::clone(&flags.longest);
@@ -82,7 +91,7 @@ pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: Wat
                     Some(kept) => notices = kept,
                     None => {
                         stop = None;
-                        end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming).await;
+                        end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming, &root_pin).await;
                         continue;
                     }
                 }
@@ -101,12 +110,19 @@ pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: Wat
         // The ceiling ends the child whatever it shows and whether or not a quiet child may be ended.
         let ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire));
         if waited >= ceiling {
+            // The status a wait already collected decides: a root the pin reports gone has ended, and reporting it as ended at
+            //  its ceiling would turn a finished step into a failed one (the fourth review's finding 2).
+            if !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&root_pin) {
+                // The wait is over, so it ends here as its own thread's end mark would: the loop then waits for the next mark.
+                // Turning round instead took this branch again, because the wait stays begun and the ceiling stays passed, so the
+                //  watcher held a worker and never read the end mark queued behind it (the fifth review's finding 3).
+                marks.end();
+                continue;
+            }
             flags.ceiling_hit.store(true, Ordering::Release);
             expired.store(true, Ordering::Release);
-            marks.keep_gap();
-            marks.since = None;
-            marks.clock = None;
-            stop_process(pid, &locks, &mut incoming).await;
+            marks.end();
+            stop_process(pid, &locks, &mut incoming, &root_pin).await;
             continue;
         }
         let verdict: Option<StopCause> = marks.clock.as_mut().and_then(Clock::check);
@@ -115,12 +131,16 @@ pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: Wat
             None => false,
         };
         if quiet && stoppable.load(Ordering::Acquire) {
+            // The same answer decides here: a step that ended before its quiet window has a status, and a stop does not replace it.
+            if !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&root_pin) {
+                // As above: a wait that is over ends, so the loop waits for a mark rather than judging a child that has gone again.
+                marks.end();
+                continue;
+            }
             // Raised before the child is signalled, so the waiting thread that its end releases reads it as true.
             expired.store(true, Ordering::Release);
-            marks.keep_gap();
-            marks.since = None;
-            marks.clock = None;
-            stop_process(pid, &locks, &mut incoming).await;
+            marks.end();
+            stop_process(pid, &locks, &mut incoming, &root_pin).await;
             continue;
         }
         let until_notice: Duration = marks.ticker.next_in(since.elapsed());
@@ -132,7 +152,7 @@ pub(crate) async fn watch_loop(mut incoming: UnboundedReceiver<Mark>, flags: Wat
             Some(Err(_slept)) => {}
             None => {
                 stop = None;
-                end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming).await;
+                end_for_the_stop(&mut marks, flags.stopped.as_ref(), pid, &locks, &mut incoming, &root_pin).await;
             }
         }
     }
@@ -210,12 +230,17 @@ async fn or_the_stop<T>(stop: &mut Option<StopArm>, work: impl std::future::Futu
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// stopped = true; since = undefined; await stopProcess(pid, locks);
+/// stopped = true; since = undefined; await stopProcess(pid, locks, rootPin);
 /// ```
-async fn end_for_the_stop(marks: &mut Marks, stopped: &AtomicBool, pid: u32, locks: &LockLedger, incoming: &mut UnboundedReceiver<Mark>) {
+async fn end_for_the_stop(
+    marks: &mut Marks,
+    stopped: &AtomicBool,
+    pid: u32,
+    locks: &LockLedger,
+    incoming: &mut UnboundedReceiver<Mark>,
+    root_pin: &crate::child_watch_clock_marks_and_stopping::RootPin,
+) {
     stopped.store(true, Ordering::Release);
-    marks.keep_gap();
-    marks.since = None;
-    marks.clock = None;
-    stop_process(pid, locks, incoming).await;
+    marks.end();
+    stop_process(pid, locks, incoming, root_pin).await;
 }

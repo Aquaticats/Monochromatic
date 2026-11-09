@@ -97,7 +97,10 @@ export function trafficBlockTable({ interfaceName, }: { readonly interfaceName: 
 export function trafficBlockScript(
   {
     interfaceName,
-    clearnet = { hosts: [], interfaces: [], },
+    clearnet = {
+      hosts: [],
+      interfaces: [],
+    },
   }: {
     readonly interfaceName: string;
     readonly clearnet?: Clearnet;
@@ -162,7 +165,10 @@ export function trafficBlockScript(
 export async function installTrafficBlock(
   {
     interfaceName,
-    clearnet = { hosts: [], interfaces: [], },
+    clearnet = {
+      hosts: [],
+      interfaces: [],
+    },
     runCommand = run,
     makeDirectory = makeTempDir,
   }: {

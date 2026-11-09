@@ -42,6 +42,7 @@ fn request(blob: &str) -> CommitRequest {
         commit: None,
         cleanup: None,
         index: PathBuf::from("/nowhere/.git/index"),
+        scratch: PathBuf::from("/nowhere/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-x-0"),
         captured: 0,
     };
 }

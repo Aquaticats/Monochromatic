@@ -539,6 +539,349 @@ and
 the check that arms it is not the same for every commit,
 which is why one instance of that tail refused a commit and another did not.
 
+## The otherMs share split, and the removal off the path (2026-11-09T06:41:47-05:00)
+
+The record could not say how much of `otherMs` was the removal of the commit's scratch tree and how much was the wrapper
+writing what the person reads,
+whose write waits for its reader.
+Both are now measured,
+and the removal no longer happens on the person's path.
+
+What was measured,
+and how:
+
+- Two fields state the split,
+  taken from the ledgers the command already keeps,
+  one clock read each:
+  `scratchRemovalMs` with `removalsThatDidNotFinish`,
+  and `stderrMs`
+  (`package/git-policy/cli/SPEC.md`,
+  "Timing logs";
+  `package/git-policy/cli/README.md`,
+  "Splitting a slow commit").
+- Four fixtures shaped like this tree were made by copying a repository that holds this tree's 22,190 tracked files and
+  its 2.9 MB index,
+  with this repository's own policy configuration:
+  two for the binary before the change and two for the binary after it,
+  so every round compares arms that cannot have prepared each other's state.
+  The four arms alternated inside each round.
+  The host was at load average 47 to 139 on six CPUs,
+  and `/proc/pressure/io` reported `full` at 29.6 to 37.3 percent over ten seconds.
+  No load was generated for this measurement,
+  and each probe ran in a `systemd-run --user --scope` scope.
+- The change itself is `fix(git-policy/cli): a commit no longer removes its scratch tree on its own path`
+  (`e6a69463ed`,
+  with `103a0cff05` and `1a56f2b115` before it,
+  on `fix/git-policy-cli-commit-scratch-removal-off-the-path`);
+  the tree now lives in the repository scratch directory the sweep covers,
+  the service removes it beside its landing loop and bounded,
+  a command that no service took it from removes it as it ends,
+  and a tree a kill left is removed by a later command's preparation once it is two hours old
+  (that last rule changed on 2026-11-09,
+  when a tree a kill left began going at the next command;
+  see "The tree a kill leaves goes at the next command,
+  and a live one never goes",
+  below).
+  `package/git-policy/cli/SPEC.md`,
+  "The commit's scratch directory",
+  holds the rules and every size.
+
+The split,
+over the eight commits of each binary,
+in whole milliseconds
+(the four arms were run at 06:41:47-05:00 and again at 07:14:17-05:00,
+the second time on the final build;
+the earlier run gave 17 ms of removal and 0 after it,
+and the figures here are the last one):
+
+- The scratch tree's removal:
+  `scratchRemovalMs` was 3,
+  1,
+  28,
+  0,
+  1,
+  0,
+  0 and 1 before the change,
+  34 ms in all and 28 ms at its worst,
+  and 0 in eight of eight commits after it.
+  A tree of one commit held 9,081,951 bytes in three files on this host,
+  and `strace -f -c` of one commit through the earlier binary counted 34 `unlinkat` calls at 1.5 ms of system time.
+- The writes to standard error:
+  `stderrMs` was 0 in all sixteen records,
+  because the wrapper's lines fit in the pipe buffer,
+  so on an ordinary reader the write costs nothing at all.
+- What no phase covered:
+  `otherMs` was 4,
+  2,
+  29,
+  1,
+  1,
+  1,
+  1 and 1 before the change,
+  median 1 ms and 40 ms in all,
+  and 0 in eight of eight commits after it.
+  The removal was therefore the whole of `otherMs` here (34 of its 40 ms),
+  and the record's 58,733 ms of `otherMs` and its 2.5 s `unlinkat` are the device-stall tail,
+  not the median path.
+- Whole commit,
+  wall clock:
+  the before arms had medians of 7,946 ms and 5,852 ms,
+  the after arms 7,953 ms and 5,483 ms,
+  and one arm's own samples span 993 to 16,898 ms.
+  The two binaries are not told apart by this,
+  and the same-binary control arms differ by 1.36 times,
+  so this record claims no whole-commit improvement:
+  what the change takes away is the removal's own measured wait,
+  0 to 28 ms here and 2.5 s for one `unlinkat` once,
+  and it takes that wait off the person's path for good.
+
+Proof by removal,
+each control run against the branch's own change undone:
+
+- `the_commit_hands_its_scratch_tree_on_and_never_removes_it` failed with
+  `the command that made it must not remove it: .../monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d`
+  once `Scratch`'s old `Drop` was put back.
+- `the_scratch_tree_is_made_where_the_sweep_covers_it` and `a_scratch_tree_of_a_killed_command_is_swept` failed with the
+  tree at `.../repo/.git/monochromatic-git-policy-cli-service-0a1b2c3d` where the test names
+  `.../repo/.git/monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b2c3d`,
+  once the tree was made in the Git directory again.
+- `a_scratch_announcement_names_only_a_scratch_directory_of_the_worktree` failed
+  with `.../monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-0a1b-2c` refused,
+  once the service accepted only the Git directory.
+- `an_abandoned_scratch_tree_goes_before_the_sweeps_day` failed with `left: 0, right: 1`,
+  once the age rule removed nothing.
+  That test and the age rule it proves were replaced on 2026-11-09
+  (see "The tree a kill leaves goes at the next command,
+  and a live one never goes",
+  below);
+  the test that holds the same ground now is `an_unmarked_tree_goes_by_age_and_a_fresh_one_stays`.
+- `a_removal_says_what_became_of_it` failed with `a removal that outlasts its ceiling says so: Finished`,
+  once the removal was given an hour instead of `SCRATCH_REMOVAL_CEILING`.
+
+What this leaves open:
+
+- Whether the two counts above hold on a warm page cache,
+  where the record's live commits run:
+  the fixtures start cold,
+  and one commit there pays a `git update-index --refresh` of 122 to 173 seconds.
+- What bounds the trees in a repository nobody commits in again:
+  eight per command,
+  a day of age for one with no marker,
+  stated in `SPEC.md`,
+  but every one of those rules belongs to a command,
+  so a repository left alone keeps the trees it had.
+
+## The tree a kill leaves goes at the next command, and a live one never goes (2026-11-09T08:12:27-05:00)
+
+The rule above decided a leftover tree by its age alone,
+and age cannot tell a killed command's tree from a live one's:
+the scratch `git commit` runs with the terminal attached and no watch,
+so a person who leaves an editor open in the scratch repository holds the tree for as long as they like,
+and a two-hour-old tree of a running commit is what the next command would then have removed:
+the private indexes and the typed message of a commit still being made.
+The tree is now owned,
+and ownership decides:
+
+- As a tree is made,
+  the command writes `owner` into it,
+  a marker in the index lock's own format
+  (`cli-git-service v2 0 <pid> <birth>`,
+  `service_index_marker.rs`),
+  naming its process and that process's birth identity.
+- A later command's preparation reads that marker and removes the tree at once when `/proc`
+  proves the process is gone,
+  at most `SCRATCH_TREES_REMOVED_PER_COMMAND` (eight) of them,
+  and leaves a live command's tree alone however old it is.
+- A tree with no marker,
+  which a release before this one made,
+  or one a command was killed in between making and marking,
+  goes once it is `UNMARKED_SCRATCH_TREE_AGE` old (two hours,
+  as every tree did before),
+  and the sweep of the place still removes whatever is a day old whatever its number.
+- `ScratchRenewal` sets the tree's modification time to now every `SCRATCH_REFRESH_EVERY`
+  (an hour) while the command lives,
+  so the age those age rules see is the command's liveness,
+  and it stops when the command lets the tree go.
+- The two rules sit beside the landing rather than in the foundation:
+  `src/native/landing/service_scratch_abandonment.rs`,
+  `src/native/landing/service_scratch_renewal.rs`,
+  with `scratch_entry_removal.rs` keeping only the bounded removal of one entry.
+
+What this adds to the preparation,
+measured on the four fixtures of the round above,
+every arm alternating inside each round,
+six rounds and twenty-four commits,
+all of them landed (exit 0):
+
+- The whole stretch the work is in,
+  `prepareParts.scratch` (making the tree,
+  marking it,
+  reading the place for trees to collect,
+  starting the renewal):
+  0 ms in twenty-three of the twenty-four records and 2 ms in one,
+  and 0 in every record of the two arms without the work.
+  The record's resolution is a whole millisecond,
+  so what the change spends is under it.
+- `prepareMs`,
+  every sample:
+  488 to 6,409 ms on the first arm with the work and 561 to 3,954 ms on the second,
+  545 to 5,923 ms on the first arm without it and 3,090 to 16,469 ms on the second,
+  with medians of 4,482,
+  2,655,
+  1,085 and 6,239 ms.
+  The medians of the same binary differ by 1.7 times in the first pair and 5.8 times in the second,
+  and whole-commit wall clock spans 1,446 to 22,335 ms,
+  so these records cannot tell the two builds apart:
+  the change buys a rule,
+  not time.
+- The host was at load average 124.81,
+  105.99 and 89.60 (one,
+  five and fifteen minutes)
+  at 2026-11-09T07:41:33-05:00,
+  before the round,
+  and at 58.83,
+  59.99 and 70.51 at 2026-11-09T08:12:52-05:00,
+  when it ended,
+  on six CPUs,
+  with `/proc/pressure/io` reporting `full` at 46.40 percent over ten seconds at the end;
+  no load was generated for this measurement,
+  and every probe ran in a `systemd-run --user --scope` scope.
+
+Proof by removal,
+each control run against the branch's own change undone:
+
+- `a_made_tree_names_the_command_that_made_it` failed with `the tree names the command that made it`
+  once `mark_the_owner` was no longer called as the tree is made.
+- `a_made_tree_is_renewed_while_its_command_lives` failed with
+  `a made tree is renewed while the command lives: ["git_policy_cli-", "landing::servic", "unit-test-watch"]`
+  once the renewal was no longer started.
+- `a_cleanup_names_only_a_scratch_directory_of_the_worktree` failed with
+  `.../monochromatic-git-policy-cli-scratch/monochromatic-git-policy-cli-service-`
+  accepted at the decoder,
+  once the cleanup was checked with the earlier rule
+  (`is_absolute` and `starts_with(git_dir)`) again.
+  That rule was also the one that refused the place this release makes the tree in,
+  and it accepted any directory at all inside the Git directory,
+  so a request could ask the service to remove one the wrapper never made.
+
+What this leaves open:
+
+- A released scratch tree's removal starts where its job sits in the batch,
+  before that batch's landings run,
+  so a client killed while its request is still queued can have its tree removed before its own landing reads it.
+  The fix is to collect the batch's releases and start them after its landings;
+  no test drives a killed client's queued request today,
+  so the change is left for a round that can prove it.
+
+## What the preparation spends, named (2026-11-09T06:41:47-05:00)
+
+The record ranked the preparation first at 21.7 percent of the uncovered time and could not say which step spends it.
+The record now names every stretch of a preparation that holds no Git child,
+as `prepareParts`
+(`package/git-policy/cli/SPEC.md`,
+"Timing logs"),
+each figure the stretch's own time with the Git children that ran inside it taken out,
+because those are recorded apart in `steps`.
+
+The split,
+over the sixty-eight commits the four fixtures recorded with this build,
+in whole milliseconds:
+
+- `index`,
+  the build of the private commit index,
+  which is where the question whether the real index's stat data still
+  describes the worktree is asked:
+  median 3,811,
+  max 13,405,
+  59 of the 68 commits over 1,000 ms,
+  and 310,068 ms in all.
+  In the four commits that also paid `git update-index --refresh` it was 460,
+  1,040,
+  144 and 215,
+  because that Git child had answered the question already.
+- `policies` (the policy pass over the staged content) median 68,
+  max 6,389,
+  and 5 commits over 1,000;
+  `unmergedFiles` (the listing of unmerged entries and the staging of them) median 75,
+  max 1,684;
+  `changedPaths` (the candidates against the base) median 22,
+  max 1,586;
+  `changes` (the tree check and the change list the service is sent) median 1,
+  max 5,271;
+  `scratch` (making the tree,
+  and removing a previous attempt's) median 0,
+  max 1,103;
+  `layout` max 36,
+  `conclusionState` max 7,
+  and the other six names,
+  `unmergedBefore`,
+  `capture`,
+  `stagedDeletions`,
+  `interactive`,
+  `worktreeRecords` and `treeCheck`,
+  0 or 1 in every commit.
+- The preparation's Git children,
+  taken out of those figures and listed in `steps`:
+  `git update-index --refresh` 122,219,
+  137,331,
+  162,420 and 172,689 in the four commits that ran it,
+  `git read-tree` 15,
+  `git diff` 13,
+  and `git config` and `git rev-parse` one to nine,
+  in all sixty-eight commits.
+  So a preparation is either one long Git child (the cold refresh) or the in-process `index` stretch,
+  and nothing else is
+  large enough to look at.
+
+What `index` spends it on:
+`initialize_commit_index` asks `refresh_stat_data_when_stale`,
+which asks `index_stat_data_needs_refresh`
+(`package/git-policy/cli/src/native/commit/commit_index_stat_staleness.rs`),
+and that question reads the whole index and stats the file of every entry whose stat data it must check.
+`strace -f -c` of one commit in the same fixture counted 25,460 `newfstatat` calls at 2.09 s and 22,915 `statx` calls at
+0.52 s,
+against 22,190 entries in the index,
+so the walk costs one or two filesystem questions per tracked file on every commit,
+and it answers "not needed" whenever the last commit refreshed the index,
+which is the usual case in a loop of agents.
+The Git child it saves is far dearer when the answer is "needed":
+the same fixtures paid `git update-index --refresh` 122 to 173 seconds cold,
+against 460 to 1,040 ms for the walk in the same commits,
+so the walk earns its place and is not the thing to remove.
+
+The next change,
+which this record proposes and does not build:
+
+- Name the walk apart from the index build.
+  `index` holds both,
+  and the two are different work;
+  one more name in the same table tells the next reading which of them the tail is,
+  and one boolean recording the answer the walk gave says how often the expensive Git child is even needed.
+- Then take the walk off the commit's path rather than making it cheaper:
+  the answer it computes is a fact about the index and the worktree,
+  not about this commit,
+  and it is asked again by the next commit with the same index.
+  Starting it beside the shadow's creation,
+  which waited 16.0 seconds in one of these fixtures with no Git child at all,
+  or asking it in the service while the previous landing holds the index,
+  would hide its 1.4 s median inside a wait that already happens.
+- Not proposed here,
+  and not to be touched from this branch:
+  what the landing does with the index,
+  which another branch is changing.
+  The measurement above is of the preparation only.
+
+What this could not determine:
+
+- Which of the two `stat` families per entry is the walk's own and which belongs to the index reader,
+  because `strace -f -c` counts the commit's calls and not each caller's.
+  The next reading wants the walk's own figure,
+  which the first bullet above adds.
+- Whether the live commits pay the same share:
+  the installed release writes no `prepareParts`,
+  so the 866 commits of this record cannot be split retroactively,
+  and the next reading of the live log can.
+
 ## What remains
 
 Each entry is a step this wrapper adds,

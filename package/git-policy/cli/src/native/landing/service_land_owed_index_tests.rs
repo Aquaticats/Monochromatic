@@ -576,6 +576,39 @@ fn a_refused_reset_still_sets_the_entry_to_the_head() {
     remove(world.root.as_path());
 }
 
+/// The repair looks its entries up by repository-relative path,
+/// while `git ls-files` answers relative to the directory Git runs in:
+/// a commit from a nested directory must not read the person's staged entry as absent and reset it to `HEAD`.
+#[test]
+fn a_repair_keeps_the_staged_entry_of_a_nested_path_under_a_caller_prefix() {
+    let world: World = world("service-land-owed-nested-c");
+    let landed: CommitRequest = request(&world, "landed", "sub/f", "landed\n");
+    land_with_failed_index(&world, 1, &[landed]);
+    // The person writes other contents and stages them with real Git, so the worktree matches their staging.
+    std::fs::write(world.repo.join("sub/f"), "staged\n").expect("stage other contents");
+    git(world.repo.as_path(), &["add", "--", "sub/f"]);
+    let commit_index: PathBuf = commit_index_of(&world);
+    assert_eq!(index_text(&world, commit_index.as_path(), &["show", ":sub/f"]), "staged", "the commit's copy holds the staged entry");
+    // The caller wrote `-C <repository>/sub`, so every Git of this commit runs one directory down.
+    let mut context: crate::transaction_git::GitContext = world.context.git.clone();
+    context.global_prefix = vec![std::ffi::OsString::from("-C"), world.repo.join("sub").into_os_string()];
+    let captured: crate::service_land_start::IndexWitness =
+        crate::service_land_start::witness_of(real_index_of(&world).as_path()).unwrap_or(crate::service_land_start::IndexWitness::Absent);
+    let left: Vec<String> = crate::owed_index_update::exclude_what_a_landed_commit_left(
+        &context,
+        world.repo.as_path(),
+        world.repo.join(".git").as_path(),
+        real_index_of(&world).as_path(),
+        Some(commit_index.as_path()),
+        Some(commit_index.as_path()),
+        &captured,
+    )
+    .expect("the repair of the landed path");
+    assert_eq!(left, Vec::<String>::new(), "the person's own staging is left alone");
+    assert_eq!(index_text(&world, commit_index.as_path(), &["show", ":sub/f"]), "staged", "the staged contents stay in the commit's index");
+    remove(world.root.as_path());
+}
+
 /// A `--literal-pathspecs` the caller wrote as a global option makes every read answer empty,
 /// so the repair would exclude nothing and the next ordinary commit would record the contents the landing replaced.
 #[test]
@@ -1021,7 +1054,7 @@ fn a_refused_repair_stops_the_preparation_with_its_reason() {
         commit_index: commit_index.clone(),
         object_directory: world.root.join("objects"),
     };
-    let stopped: crate::commit_transaction::TransactionStop = crate::service_prepare::exclude_or_stop_for_test(
+    let stopped: crate::commit_transaction::TransactionStop = crate::service_prepare_exclude_or_stop_for_test::exclude_or_stop_for_test(
         &context,
         &capture,
         &indexes,
