@@ -203,6 +203,25 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in a plain message, recorded 2026-11-08T23:10:25-05:00
+
+- How to watch running subagents:
+  "Regularly,
+  check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+  The coordinator now runs a scratch watcher,
+  `report-overdue-pi-runs.ts` under `${HOME}/temp/agent/pi-runs`,
+  which ends as soon as a running Pi agent has passed the 90th percentile of finished runs of its kind
+  (85 minutes over all runs,
+  55 for audits,
+  233 for tokio steps,
+  recomputed on each look),
+  and the coordinator then reads what that agent is running.
+  Its first look found agents working normally past that time,
+  and two agents blocked for most of an hour in their own probes,
+  which waited without a deadline.
+  Those two probes were ended by process number and container ID,
+  and each agent was told why.
+
 ## Answered in plain messages during the 860 cut-over, recorded 2026-11-08T12:43:36-05:00
 
 - How subagents are used from now on,
@@ -830,6 +849,23 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-08T22:14:46-05:00,
+  secret scanner:
+  when `forbidden-strings --all` cannot read a repository's index,
+  it prints that tracked files hidden by `.gitignore` were not covered,
+  and it keeps its exit status,
+  so a scan that finds nothing in the visible files still exits 0.
+  The reason is your rule "Commits should never fail."
+  The cost is that the commit gate and CI pass with less coverage while saying so.
+  Say "undo" to make that case a failure.
+- 2026-11-08T22:14:46-05:00,
+  TOML library:
+  a float wrapper holding a numeric string (`{ tomlKind: 'float', value: '1.5' }`) no longer turns into a number;
+  it is refused.
+  Only one unit test relied on the old behaviour.
+  A plain number or bigint with no wrapper is still written unchecked,
+  so a very large one can come out as `1e+21` or outside TOML's range;
+  that is unchanged.
 - 2026-11-05T03:58:47Z,
   program rename:
   this repository's settings file keeps its old name `cli-git.config.jsonc`

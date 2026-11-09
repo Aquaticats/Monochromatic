@@ -39,10 +39,14 @@ The tokens are the whitespace-separated words of the file.
 Measured by reading each rule's edit in `package/linter/monochromatic-lint/src`:
 
 - `markdown/semantic-line-breaks` replaces one space with a line break.
-  Markdown tokens are unchanged.
+  A continuation line inside a blockquote gains the `>` markers of the paragraph it continues,
+  which are container syntax and not a word,
+  and a continuation line outside a container gains nothing.
   In a Rust host the continuation line gains the comment marker (`///`,
   `//!`),
   which is comment syntax and not a word.
+  Why the markers are written again is recorded in
+  `doc/troubleshooting/monochromatic-lint-fix-drops-blockquote-marker.md`.
 - `markdown/no-bare-urls` adds `<` and `>` to a URL token,
   or rewrites it as an inline link in MDX.
 - `markdown/link-image-style` adds `[]` after a shortcut reference.
@@ -200,8 +204,10 @@ The five whitespace defects of the report were fixed in `package/linter/monochro
   so it is left as a flagged choice for the owner:
   `package/git-policy/cli/src/native/markdown/markdown_linter.rs` is unchanged.
 - The root task `format:monochromatic-lint` already ran plain `--fix`,
-  so it now changes no token;
-  its description and comment in `mise.toml` say so,
+  so it now changes no word;
+  added line breaks,
+  comment markers and blockquote markers are syntax.
+  Its description and comment in `mise.toml` say so,
   and content fixes are run by hand with `monochromatic-lint --fix-content <paths>`.
 - The property check covers plain `--fix` with every fixable Markdown rule enabled,
   over fixtures and over a real tree.

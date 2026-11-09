@@ -2900,7 +2900,7 @@ Each line names what the command waits for,
 ```text
 // standard error of a git add that waits for the commit service to finish a commit
 monochromatic-git-policy-cli: git add is waiting for the commit service to finish a commit in this repository, 12 seconds so far;
-this waits for the service's hold for up to `SERVICE_HOLD_CEILING`, then runs and reports what Git says.
+this waits for at most 600 seconds in all, and then git add runs and reports what Git says.
 ```
 
 #### Compiled rules are warmed off the commit path

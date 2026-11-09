@@ -210,6 +210,10 @@ run = "node bin/test-container.ts rust_tests_in_sidecars"
 description = "Run only the Markdown test modules, the same slice the Markdown mutation scope uses, under the container bounds"
 run = "node bin/test-container.ts markdown"
 
+[tasks."test:property"]
+description = "Measure plain --fix over the real tree named by MONOCHROMATIC_LINT_PROPERTY_ROOT (MONOCHROMATIC_LINT_PROPERTY_STEP samples every nth file): tokens, paragraph containers, block boundaries and quoted source must not change"
+run = "cargo nextest run --lib --run-ignored only real_tree"
+
 [tasks."test:inferred-constants"]
 description = "Run only the constant-slot resolver controls under the container bounds"
 run = "node bin/test-container.ts rust_inferred_constants"

@@ -437,6 +437,9 @@ and checks each package once:
 2. It runs `cargo dylint --path <library> --manifest-path <Cargo.toml> -- --locked --message-format json`
    with `CARGO_NET_OFFLINE=true` and `DYLINT_RUSTFLAGS` set to request `avoidable_closure` and
    `unfulfilled_lint_expectations` as warnings.
+   Every other variable is inherited,
+   so the toolchain and build-directory settings of the caller reach the child `cargo`,
+   and a package's setup may add the ones its own build needs.
    Dylint builds the library with the active toolchain.
 3. It reads cargo's JSON records,
    keeps the two lint codes,

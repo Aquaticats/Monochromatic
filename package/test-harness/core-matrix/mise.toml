@@ -35,6 +35,8 @@ run = [
   "node src/distro.unit.test.ts",
   "node src/runtime.unit.test.ts",
   "node src/container.unit.test.ts",
+  "node src/container-limits.unit.test.ts",
+  "node src/pnpm-store-mount.unit.test.ts",
   "node src/cachyos-image.unit.test.ts",
   "node src/discover.unit.test.ts",
   "node src/locked-rust-toolchain.unit.test.ts",
