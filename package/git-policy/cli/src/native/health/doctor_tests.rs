@@ -429,3 +429,46 @@ fn each_of_the_four_shims_is_recognized() {
     assert_eq!((code, stdout.as_str()), (0, ""));
     remove(root.as_path());
 }
+
+/// What:
+///  A `doctor` run inside a Git the wrapper started reports the hooks of the person's directories,
+///  and never the wrapper's own hooks-off path.
+/// Why:
+///   The wrapper's switches travel into a child Git as command-scope configuration,
+/// and a Git query that reads Git's
+///  answer sees them last,
+/// so a run inside wrapper-started Git would scan `/dev/null/cli-git-no-hooks`,
+/// list nothing,
+/// and exit 0.
+#[cfg(unix)]
+#[test]
+fn a_nested_doctor_lists_the_persons_hooks_and_not_the_wrappers() {
+    let root: PathBuf = fixture("doctor-nested-hooks-path");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    executable(repo.join(".git/hooks/pre-commit").as_path(), b"#!/bin/sh\n");
+    std::fs::create_dir(repo.join("custom")).expect("custom");
+    executable(repo.join("custom/commit-msg").as_path(), b"#!/bin/sh\n");
+    let mut context: GitContext = git_context();
+    context.overlay.push((
+        std::ffi::OsString::from("GIT_CONFIG_PARAMETERS"),
+        std::ffi::OsString::from("'core.hookspath'='/dev/null/cli-git-no-hooks'"),
+    ));
+    // Without a configured hooks directory, the default one is still the one scanned.
+    let (code, stdout, stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(stdout, format!("{}\n", repo.join(".git/hooks/pre-commit").display()), "{stderr}");
+    // A configured one is read through the wrapper's own entry rather than replaced by it.
+    git(repo.as_path(), &["config", "core.hooksPath", "custom"]);
+    let (code, stdout, stderr) = exit_parts(doctor_action(&context, repo.as_path()));
+    assert_eq!(code, 1, "{stderr}");
+    assert_eq!(
+        stdout,
+        format!(
+            "{}\n{}\n",
+            repo.join(".git/hooks/pre-commit").display(),
+            repo.join("custom/commit-msg").display()
+        ),
+        "{stderr}"
+    );
+    remove(root.as_path());
+}

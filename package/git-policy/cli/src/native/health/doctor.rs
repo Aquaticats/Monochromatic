@@ -257,6 +257,36 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
 }
 
 /// What:
+///  The `core.hooksPath` directory the person configured,
+/// when Git reports one that is not the wrapper's own.
+/// Why:
+///   Git reports every value of the key and the last one wins,
+/// and a command-scope entry the wrapper injected travels into a child
+///  Git,
+/// so the wrapper's own hooks-off directory is last in a run inside one.
+/// The person's value is the last one that
+///  is not the wrapper's,
+/// an empty one names no directory,
+/// and a value that cannot be decoded is not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const values = (await git(['config', '--type=path', '--get-all', 'core.hooksPath'])).trimEnd().split('\n');
+/// values.filter((value) => !isWrapperHooksPath(value)).at(-1);
+/// ```
+fn configured_hooks_directory(text: &str) -> Option<String> {
+    let mut chosen: Option<String> = None;
+    for line in text.lines() {
+        let value: String = String::from(line);
+        if crate::traditional_hook_warning::is_wrapper_hooks_path(value.as_str()) {
+            continue;
+        }
+        chosen = Some(value);
+    }
+    return chosen;
+}
+
+/// What:
 ///  Locate the hooks of the repository that Git selects from `cwd` and the caller's global options.
 /// Why:
 ///   Git alone knows the common directory (worktrees,
@@ -283,12 +313,9 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     let (Some(common), Some(git_directory)) = (lines.next(), lines.next()) else {
         return Err(String::from("git rev-parse did not report the common and Git directories"));
     };
-    // An answer with nothing after its trailing line feed counts as no answer, as `.filter(...)` made it.
-    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get", "core.hooksPath"]).await? {
-        Some(text) => {
-            let stripped: String = text.strip_suffix('\n').unwrap_or(text.as_str()).to_string();
-            if stripped.is_empty() { None } else { Some(stripped) }
-        }
+    // Every value of the key, because the wrapper's own command-scope entry is placed last by Git.
+    let configured_text: Option<String> = match query(context, cwd, &["config", "--type=path", "--get-all", "core.hooksPath"]).await? {
+        Some(text) => configured_hooks_directory(text.as_str()).filter(|value| { return !value.is_empty(); }),
         None => None,
     };
     let Some(value) = configured_text else {

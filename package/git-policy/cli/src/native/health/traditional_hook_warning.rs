@@ -96,30 +96,36 @@ pub fn is_wrapper_hooks_path(value: &str) -> bool {
 ///   The last entry of the key is the value Git uses;
 /// a valueless or empty entry names no directory,
 /// and the
-///  wrapper's own overrides are not the user's.
+///  wrapper's own overrides are not the user's,
+/// so the last entry that is not one of them is the answer.
+///  A command-scope entry the wrapper injected travels into a child Git,
+/// so a commit run by such a child sees the
+///  wrapper's value last and must still warn about the person's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// snapshot.entries.findLast((entry) => entry.key === 'core.hookspath')?.value;
+/// snapshot.entries.filter(isHooksPath).reverse().map(value).find((v) => !isWrapperHooksPath(v));
 /// ```
 pub fn configured_hooks_path(snapshot: &ConfigSnapshot) -> Option<String> {
-    let mut last_entry = None;
     for candidate in snapshot.entries().iter().rev() {
-        if candidate.key == HOOKS_PATH_KEY {
-            last_entry = Some(candidate);
-            break;
+        if candidate.key != HOOKS_PATH_KEY {
+            continue;
         }
+        // A valueless or empty entry is the person's own reset, and it names no directory.
+        let Some(bytes) = candidate.value.as_deref() else {
+            return None;
+        };
+        if bytes.is_empty() {
+            return None;
+        }
+        let text: String = String::from_utf8_lossy(bytes).into_owned();
+        // The wrapper's own entries sit last and are not the person's; what they override is.
+        if is_wrapper_hooks_path(text.as_str()) {
+            continue;
+        }
+        return Some(text);
     }
-    let entry = last_entry?;
-    let bytes: &[u8] = entry.value.as_deref()?;
-    if bytes.is_empty() {
-        return None;
-    }
-    let text: String = String::from_utf8_lossy(bytes).into_owned();
-    if is_wrapper_hooks_path(text.as_str()) {
-        return None;
-    }
-    return Some(text);
+    return None;
 }
 
 /// What:
