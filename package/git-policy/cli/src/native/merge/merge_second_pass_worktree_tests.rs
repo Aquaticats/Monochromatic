@@ -10,7 +10,7 @@
 use super::*;
 use crate::merge_second_pass::tests::{Change, World, corpus, runner, world};
 use crate::test_support::{git, git_context, git_output, git_text, remove};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// An index entry of a path at a stage.
 fn entry(path: &str, stage: u8, mode: u32, byte: u8) -> IndexEntry {
@@ -58,18 +58,54 @@ fn the_restore_records_remove_the_resolved_entry_and_list_the_stages() {
 
 /// The closing words differ by whether a conflicted file remains,
 /// and name the operation;
-/// the line after a finish that did not end the operation names the command that ends it,
+/// the line after a finish that did not end the operation names the command that ends it and the state the index is in,
 /// and never the failing step's own sentence about itself.
 #[test]
 fn the_closing_words_say_whether_a_conflict_remains() {
     assert!(closing_words("rebase", 0).contains("no conflicted file is left") && closing_words("rebase", 0).contains("finish the rebase"));
     assert!(closing_words("merge", 2).contains("still lists as conflicted") && closing_words("merge", 2).contains("git diff --cached"));
     for (operation, ending) in [("merge", "`git commit`"), ("pull", "`git commit`"), ("rebase", "`git rebase --continue`"), ("cherry-pick", "`git cherry-pick --continue`"), ("revert", "`git revert --continue`")] {
-        let line: String = unfinished_words(operation, "notes.md");
-        assert!(line.contains(format!("the {operation} did not finish").as_str()) && line.contains("notes.md stays staged as resolved"), "{line}");
+        let line: String = unfinished_words(operation, "notes.md", &[], ending);
+        assert!(line.contains(format!("the {operation} did not finish").as_str()) && line.contains("the files the second merge pass staged as resolved are notes.md"), "{line}");
+        assert!(line.contains("no file is conflicted"), "{line}");
         assert!(line.contains(ending), "{line}");
         assert!(!line.contains("Nothing in the repository changed"), "the last word is not the failing step's sentence about itself: {line}");
     }
+    let one: Vec<String> = vec![String::from("notes.md")];
+    let line: String = unfinished_words("rebase", "a.md", one.as_slice(), "`git rebase --continue`");
+    assert!(line.contains("notes.md is conflicted again where the ending step stopped") && line.contains("resolve it"), "{line}");
+    assert!(!line.contains("the conflict is gone") && !line.contains("no file is conflicted"), "the state is read, not assumed: {line}");
+    let two: Vec<String> = vec![String::from("a.md"), String::from("b.md")];
+    let several: String = unfinished_words("rebase", "c.md", two.as_slice(), "`git rebase --continue`");
+    assert!(several.contains("a.md, b.md are conflicted again") && several.contains("resolve them"), "{several}");
+}
+
+/// What:
+///  A `pull` whose rebase stopped is told the rebase's command,
+/// because the state file says which operation is in progress.
+/// Why:
+///   `git pull` runs either a merge or a rebase as a child,
+/// so the operation's own word cannot name the command that ends it
+/// (cross-vendor review of this branch, finding 6).
+#[test]
+fn the_ending_command_is_the_one_the_state_files_name() {
+    let root: PathBuf = crate::test_support::fixture("second-pass-ending-command");
+    let git_dir: PathBuf = root.join("git");
+    std::fs::create_dir_all(git_dir.join("rebase-merge")).expect("the rebase state");
+    assert_eq!(ending_command(git_dir.as_path(), "pull"), "`git rebase --continue`", "a rebasing pull");
+    assert_eq!(ending_command(git_dir.as_path(), "rebase"), "`git rebase --continue`");
+    std::fs::remove_dir(git_dir.join("rebase-merge")).expect("remove the rebase state");
+    std::fs::write(git_dir.join("MERGE_HEAD"), b"0".repeat(40)).expect("the merge state");
+    assert_eq!(ending_command(git_dir.as_path(), "pull"), "`git commit`", "a merging pull");
+    std::fs::remove_file(git_dir.join("MERGE_HEAD")).expect("remove the merge state");
+    std::fs::write(git_dir.join("CHERRY_PICK_HEAD"), b"0".repeat(40)).expect("the pick state");
+    assert_eq!(ending_command(git_dir.as_path(), "cherry-pick"), "`git cherry-pick --continue`");
+    std::fs::remove_file(git_dir.join("CHERRY_PICK_HEAD")).expect("remove the pick state");
+    std::fs::write(git_dir.join("REVERT_HEAD"), b"0".repeat(40)).expect("the revert state");
+    assert_eq!(ending_command(git_dir.as_path(), "revert"), "`git revert --continue`");
+    std::fs::remove_file(git_dir.join("REVERT_HEAD")).expect("remove the revert state");
+    assert_eq!(ending_command(git_dir.as_path(), "merge"), "`git commit`", "the operation's word is the fallback");
+    remove(root.as_path());
 }
 
 /// A runner that records every start and fails the command it is told to.

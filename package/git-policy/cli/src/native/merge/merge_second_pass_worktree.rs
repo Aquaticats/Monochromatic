@@ -361,12 +361,19 @@ fn closing_words(operation: &str, remaining: usize) -> String {
 /// and a
 ///  rebase,
 /// a cherry-pick and a revert with their own `--continue`.
+/// Which operation is in progress is read from the state files Git writes,
+/// so a `pull` that runs a rebase
+///  is told the rebase's command,
+/// and the operation's own word is only the fallback for a state file that is gone.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const endingCommand = (operation: string) => ({rebase: 'git rebase --continue', 'cherry-pick': 'git cherry-pick --continue', revert: 'git revert --continue'}[operation] ?? 'git commit');
+/// const endingCommand = (gitDir, operation) => endingCommandOf(gitDir) ?? ({rebase: 'git rebase --continue', 'cherry-pick': 'git cherry-pick --continue', revert: 'git revert --continue'}[operation] ?? 'git commit');
 /// ```
-fn ending_command(operation: &str) -> &'static str {
+fn ending_command(git_dir: &Path, operation: &str) -> &'static str {
+    if let Some(in_progress) = crate::merge_second_pass_finish::ending_command_of(git_dir) {
+        return in_progress;
+    }
     return match operation {
         "rebase" => "`git rebase --continue`",
         "cherry-pick" => "`git cherry-pick --continue`",
@@ -384,16 +391,26 @@ fn ending_command(operation: &str) -> &'static str {
 /// which is true of the commit and false of the merge,
 /// whose conflicts the pass
 ///  replaced with staged files before the commit started.
-/// The last word a person reads must name the state they will find.
+/// The last word a person reads must name the state they will find,
+/// and a continuation that stopped on
+///  the next change leaves files conflicted again,
+/// so the conflict is not gone and saying it is describes a state nobody has.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${LINE_PREFIX}${REPORT_MARK}: the ${operation} did not finish: ${listed} stays staged as resolved and the conflict is gone; run ${endingCommand(operation)} to end the ${operation}.`
+/// const line = (operation, staged, conflicted, ending) => `${LINE_PREFIX}${REPORT_MARK}: the ${operation} did not finish: the files the second merge pass staged as resolved are ${staged}, and ${conflicted.length === 0 ? 'no file is conflicted' : `${conflicted.join(', ')} ${conflicted.length === 1 ? 'is' : 'are'} conflicted again where the ending step stopped`}; run ${ending} to end the ${operation}.`;
 /// ```
-fn unfinished_words(operation: &str, listed: &str) -> String {
+fn unfinished_words(operation: &str, staged: &str, conflicted: &[String], ending: &str) -> String {
+    let kept: String = format!("the files the second merge pass staged as resolved are {staged}");
+    if conflicted.is_empty() {
+        return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and no file is conflicted; run {ending} to end the {operation}.");
+    }
+    let one: bool = conflicted.len() == 1;
     return format!(
-        "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {listed} stays staged as resolved and the conflict is gone; run {} to end the {operation}.",
-        ending_command(operation)
+        "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and {} {} conflicted again where the ending step stopped; resolve {} and run {ending} to end the {operation}.",
+        conflicted.join(", "),
+        if one { "is" } else { "are" },
+        if one { "it" } else { "them" },
     );
 }
 
@@ -535,8 +552,13 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     let plan = planned?;
     let ended: i32 = finish(&plan, &forward.command, forward.environment.as_slice(), stderr);
     if ended != 0 {
-        // The ending step's words are its own; the merge changed before it ran, and the person must be told.
-        let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str()));
+        // The ending step's words are its own; the merge changed before it ran, and the person must be told what the index holds now.
+        let conflicted_now: Vec<String> = match index_entries(&layout) {
+            Some(entries_after) => conflicted_paths(entries_after.as_slice()).iter().map(|path| { return path_message_text(path.as_slice()); }).collect(),
+            None => Vec::new(),
+        };
+        let ending: &'static str = ending_command(layout.git_dir.as_path(), operation.as_str());
+        let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str(), conflicted_now.as_slice(), ending));
         if let Err(error) = stderr.write_all(after.as_bytes()) {
             debug(TAG, format!("standard error did not take the line about the unfinished operation: {error}").as_str());
         }

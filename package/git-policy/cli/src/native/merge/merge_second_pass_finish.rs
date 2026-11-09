@@ -170,6 +170,37 @@ fn nesting_allows(running: usize, budget: usize) -> bool {
     return running < budget;
 }
 
+/// What:
+///  The command that ends the operation the Git directory shows in progress,
+/// or nothing when no state file names one.
+/// Why:
+///   The words after a finish that did not end the operation must name a command that works for it,
+/// and which operation it is shows
+///  in the state files Git writes:
+/// a `git pull` runs either a merge or a rebase as a child (`builtin/pull.c` lines 525 and 750),
+/// so the
+///  word `pull` alone names no ending command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function endingCommandOf(gitDir: string): string | undefined;
+/// ```
+pub fn ending_command_of(git_dir: &Path) -> Option<&'static str> {
+    if git_dir.join("rebase-merge").is_dir() || git_dir.join("rebase-apply").is_dir() {
+        return Some("`git rebase --continue`");
+    }
+    if git_dir.join("CHERRY_PICK_HEAD").exists() {
+        return Some("`git cherry-pick --continue`");
+    }
+    if git_dir.join("REVERT_HEAD").exists() {
+        return Some("`git revert --continue`");
+    }
+    if git_dir.join("MERGE_HEAD").exists() {
+        return Some("`git commit`");
+    }
+    return None;
+}
+
 /// Whether one byte is the line feed that ends a line of a message.
 /// `&u8` borrows the byte,
 /// as `split_inclusive` hands it over.

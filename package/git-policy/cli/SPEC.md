@@ -7434,15 +7434,22 @@ otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,
 a commit a policy refuses,
 any other failure of the ending step)
-is followed by one line naming the state the person will find:
+is followed by one line naming the state the person will find,
+read from the index and from the Git directory as it is after that step:
 the operation did not finish,
-the resolved files stay staged,
-the conflict they replaced is gone,
-and the command that ends that operation is named for it
-(`git commit` for a merge or a pull,
-`git rebase --continue`,
-`git cherry-pick --continue`,
-`git revert --continue`).
+the files the pass staged as resolved are named,
+and either no file is conflicted or the files that are,
+with the sentence that Git stopped again there,
+because a continuation commits the pick it resolved and then stops on the next change's conflict
+(`git rebase --continue` does exactly that).
+The command that ends the operation is read from the state files Git writes
+(`rebase-merge`,
+`rebase-apply`,
+`CHERRY_PICK_HEAD`,
+`REVERT_HEAD`,
+`MERGE_HEAD`),
+so a `git pull` that runs a rebase is told `git rebase --continue` and never `git commit`;
+the operation's own word is only the fallback for a state file that is gone.
 The failing step's own words describe that step alone,
 and a commit's plain failure ends with "Nothing in the repository changed.",
 which is true of the commit and false of the merge that staged the files before it;

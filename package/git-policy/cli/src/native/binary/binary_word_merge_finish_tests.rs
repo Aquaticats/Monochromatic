@@ -756,3 +756,80 @@ fn user_hooks_see_the_same_on_a_finished_run_as_on_a_clean_run() {
     assert!(!events_in(log.as_path()).is_empty(), "real Git fires the recorders, so an empty log from the wrapper means something");
     remove(&control);
 }
+
+/// Two lines of one file,
+/// each changed on one side of the same base,
+/// so the first replay's line conflict resolves by word and the second's does not.
+const TWO_LINES_BASE: &str = "alpha = 0\nbeta = 0\n";
+
+/// A repository on `topic` whose two commits each change one line of `data.txt`,
+/// with `main` holding the other side's change to the second line.
+fn two_stops_ready(name: &str) -> (Fixture, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let write = |text: &str| { std::fs::write(repo.join("data.txt"), text).expect("the file"); };
+    write(TWO_LINES_BASE);
+    git(&fixture, repo.as_path(), &["add", "--", "data.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    let base: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
+    write("alpha = 0\nbeta = 9\n");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=ours"]);
+    git(&fixture, repo.as_path(), &["switch", "--quiet", "--create", "topic", base.as_str()]);
+    write("alpha = 1\nbeta = 0\n");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=first"]);
+    write("alpha = 1\nbeta = 2\n");
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--all", "--message=second"]);
+    return (fixture, repo);
+}
+
+/// What:
+///  The line after a rebase that stopped again names the file that is conflicted now,
+/// not the state before the continuation ran.
+/// Why:
+///   `git rebase --continue` commits the resolved pick and stops on the next one's conflict,
+/// so the file the wrapper staged is
+///  unmerged again when it prints
+/// (cross-vendor review of this branch, finding 5):
+/// "the conflict is gone" and "stays staged as resolved"
+///  describe a state the person does not have.
+#[test]
+fn a_rebase_that_stops_again_is_told_what_is_conflicted_now() {
+    let (fixture, repo) = two_stops_ready("finish-rebase-stopped-again");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["rebase", "main"]);
+    let said: String = stderr_of(&observed);
+    assert_ne!(observed.code, Some(0), "the rebase is not finished: {said}");
+    assert_eq!(unmerged(&fixture, repo.as_path()), vec![String::from("data.txt")], "the second change is conflicted: {said}");
+    assert!(state_left(repo.as_path()).contains(&"rebase-merge") || state_left(repo.as_path()).contains(&"rebase-apply"), "the rebase is in progress: {said}");
+    assert!(said.contains("conflicted again"), "the line names the state the person has: {said}");
+    assert!(!said.contains("the conflict is gone"), "the conflict is back, and the line must not say it is gone: {said}");
+    assert!(said.contains("git rebase --continue"), "the command that ends it is named: {said}");
+    let marked: String = String::from_utf8(std::fs::read(repo.join("data.txt")).expect("the file")).expect("UTF-8");
+    assert!(marked.contains("<<<<<<<") && marked.contains(">>>>>>>"), "Git left its conflict markers: {marked}");
+    remove(&fixture);
+}
+
+/// What:
+///  A `git pull --rebase` that stopped again is told to run `git rebase --continue`,
+/// not `git commit`.
+/// Why:
+///   A pull runs either a merge or a rebase as its child (`builtin/pull.c`),
+/// so the operation's own word says
+///  nothing about which command ends it
+/// (cross-vendor review of this branch, finding 6);
+/// `git commit` does not resume the rebase or
+///  process its remaining commits.
+#[test]
+fn a_rebasing_pull_that_stops_again_is_told_to_continue_the_rebase() {
+    let (fixture, repo) = two_stops_ready("finish-pull-rebase-stopped-again");
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", "remote.git"]);
+    git(&fixture, repo.as_path(), &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    git(&fixture, repo.as_path(), &["push", "--quiet", "origin", "main"]);
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["pull", "--rebase", "origin", "main"]);
+    let said: String = stderr_of(&observed);
+    assert_ne!(observed.code, Some(0), "the pull is not finished: {said}");
+    assert!(said.contains("git rebase --continue"), "the command that ends a rebase is named: {said}");
+    assert!(!said.contains("`git commit`"), "`git commit` cannot end a rebase: {said}");
+    assert!(said.contains("conflicted again"), "the file that is conflicted now is named: {said}");
+    remove(&fixture);
+}
