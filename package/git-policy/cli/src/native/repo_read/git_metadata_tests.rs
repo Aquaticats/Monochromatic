@@ -249,3 +249,31 @@ fn a_read_the_in_process_readers_decline_is_noted_as_a_step() {
     );
     remove(root.as_path());
 }
+
+/// What:
+///  An answer larger than the capture's `STEP_OUTPUT_LIMIT` comes back whole from a read its ceiling
+/// bounds,
+/// byte for byte.
+/// Why:
+///   A read bounded at its ceiling is drained through pipes,
+/// every byte of it
+/// (`src/native/process/step_output_read_whole_through_pipes.rs`),
+///  and not from the anonymous files the captured
+///  run keeps the last `STEP_OUTPUT_LIMIT` of.
+/// So a large answer cannot be cut here,
+/// and no refusal of a cut one is needed;
+///  this control states that,
+/// and fails the day a bound read is routed through the capture.
+#[test]
+fn an_answer_larger_than_the_capture_keeps_comes_back_whole() {
+    let root: PathBuf = fixture("git-metadata-whole-answer");
+    let big: PathBuf = root.join("big");
+    let too_many: usize = crate::output_capture::STEP_OUTPUT_LIMIT + 1;
+    executable(big.as_path(), format!("#!/bin/sh\nhead -c {too_many} /dev/zero\n").as_bytes());
+    let arguments: [OsString; 1] = [OsString::from("ls-files")];
+    let ceiling: std::time::Duration = std::time::Duration::from_secs(60);
+    let answer: MetadataOutput = run_metadata_git_within(big.as_path(), &arguments, &[], ceiling).expect("a large answer");
+    remove(root.as_path());
+    assert!(answer.success, "the read answered");
+    assert_eq!(answer.stdout.len(), too_many, "the answer comes back whole, byte for byte");
+}
