@@ -79,6 +79,23 @@ fn a_run_whose_counters_stop_being_readable_is_ended() {
     assert!(said.contains("counters"), "the ending names what could not be read: {said}");
 }
 
+/// A first look that cannot be read does not decide the run for ever:
+/// the looks that read it judge it,
+/// so a working run is not ended for one missing reading.
+#[test]
+fn a_first_look_that_cannot_be_read_leaves_the_later_ones_to_judge() {
+    let window: Duration = Duration::from_secs(2);
+    let mut judge: Judge = Judge::new(window);
+    assert_eq!(judge.observe(Duration::ZERO, None), None, "the window has not passed");
+    let mut elapsed: Duration = Duration::ZERO;
+    // Descriptors are back, and the run is readable and moving window after window.
+    for step in 0..20_u64 {
+        assert_eq!(judge.observe(elapsed, Some(moved(step * 4096, step, 3))), None, "step {step} moved");
+        elapsed += SAMPLE_INTERVAL;
+    }
+    assert!(elapsed > window * 4, "{elapsed:?} passes four windows");
+}
+
 /// A task waiting for the disk is at work,
 /// so a run whose only sign is a task in `D` is left alone.
 #[test]
