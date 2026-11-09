@@ -20,7 +20,7 @@
 //! const plan = classify(names); const input = buildReviewInput({ commit });
 //! ```
 
-use crate::standards_review_patch::{NewSpan, new_spans};
+use crate::standards_review_patch::{NewSpan, is_line_feed_byte, new_spans};
 use crate::standards_review_text::{utf16_length, utf16_prefix};
 use std::collections::BTreeMap;
 
@@ -252,7 +252,7 @@ pub fn plan_for(names: &[ChangedPath]) -> Plan {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type LandedCommit = { sha: string; subject: string; patch: string; contents: Map<ChangedPath, string> };
+/// type LandedCommit = { sha: string; subject: string; patch: Uint8Array; contents: Map<ChangedPath, string> };
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct LandedCommit {
@@ -261,8 +261,9 @@ pub struct LandedCommit {
     /// Subject line,
     /// trimmed.
     pub subject: String,
-    /// `git show --format= --patch` text.
-    pub patch: String,
+    /// `git show --format= --patch` bytes,
+    /// as Git wrote them.
+    pub patch: Vec<u8>,
     /// New-side text by the path's own bytes.
     pub contents: BTreeMap<ChangedPath, String>,
 }
@@ -358,8 +359,8 @@ fn excerpt(name: &ChangedPath, content: &str, spans: &[NewSpan]) -> (Vec<String>
 /// const lunaInput = (lines.slice(0, capLines).join('\n') + '\n\n' + excerptParts.join('\n\n')).slice(0, 24000);
 /// ```
 pub fn build_input(commit: &LandedCommit, code_files: &[ChangedPath]) -> ReviewInput {
-    let lines: Vec<&str> = commit.patch.split('\n').collect();
-    let kept: &[&str] = &lines[..lines.len().min(CAP_LINES)];
+    let lines: Vec<&[u8]> = commit.patch.split(is_line_feed_byte).collect();
+    let kept: &[&[u8]] = &lines[..lines.len().min(CAP_LINES)];
     let mut parts: Vec<String> = Vec::new();
     let mut excerpt_lines: i64 = 0;
     for name in code_files.iter().take(MAX_EXCERPT_FILES) {
@@ -374,7 +375,16 @@ pub fn build_input(commit: &LandedCommit, code_files: &[ChangedPath]) -> ReviewI
         parts.extend(pieces);
         excerpt_lines += covered;
     }
-    let full: String = format!("{}\n\n{}", kept.join("\n"), parts.join("\n\n"));
+    // The patch enters the model input as text; the section match above used its bytes.
+    let mut patch_bytes: Vec<u8> = Vec::new();
+    for (index, line) in kept.iter().enumerate() {
+        if index > 0 {
+            patch_bytes.push(b'\n');
+        }
+        patch_bytes.extend_from_slice(line);
+    }
+    let patch_text: String = String::from_utf8_lossy(patch_bytes.as_slice()).into_owned();
+    let full: String = format!("{patch_text}\n\n{}", parts.join("\n\n"));
     let units: usize = utf16_length(full.as_str()).min(INPUT_UNIT_CAP);
     return ReviewInput {
         code_file_count: code_files.len(),
