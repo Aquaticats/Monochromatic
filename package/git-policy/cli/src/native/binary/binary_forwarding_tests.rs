@@ -344,11 +344,11 @@ fn ended_after_one_line(mut command: Command) -> (Option<i32>, Option<i32>) {
 /// where the wrapper
 ///  keeps a process around Git to settle the ignored-state copy.
 /// Why:
-///  Native Git dies of `SIGPIPE`, and so does a wrapper that replaced itself with Git;
+///  Native Git dies of `SIGPIPE`,
+/// and so does a wrapper that replaced itself with Git;
 /// the copy route runs Git as a child
 ///  and reported its death by a signal as exit status 1,
-/// so a script that tells "the reader went away" from "Git
-///  failed" took the wrong branch
+/// so a script that tells "the reader went away" from "Git failed" took the wrong branch
 /// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// finding 3).
 ///

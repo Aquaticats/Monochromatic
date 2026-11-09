@@ -429,7 +429,8 @@ fn a_symlink_a_hard_link_and_a_copy_of_the_wrapper_alone_on_path_are_skipped() {
 }
 
 /// What:
-///  A user script named `git` that starts the wrapper as a child, with no `exec`,
+///  A user script named `git` that starts the wrapper as a child,
+/// with no `exec`,
 /// anywhere on `PATH`.
 /// Why:
 ///  A `replace` start keeps its process number,

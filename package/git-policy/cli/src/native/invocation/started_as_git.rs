@@ -182,7 +182,7 @@ pub struct StartMarker {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const value = [pid, identity, mode === 'replace' ? 'replace' : 'child', starts].join('\x1f');
+/// const value = [pid, identity, { replace: 'replace', child: 'child', query: 'query' }[mode], starts].join('\x1f');
 /// ```
 pub fn marker_value(mode: StartMode, own_pid: u32, own_identity: &str, starts: u32) -> OsString {
     let word: &str = match mode {
@@ -218,7 +218,7 @@ pub fn parse_marker(value: &OsStr) -> Option<StartMarker> {
     let pid_text: &str = fields.next()?;
     let identity: &str = fields.next()?;
     let word: &str = fields.next()?;
-    // `.parse::<u32>().ok()?` reads the digits, turning a failure into `None`.
+    // `.parse::<u32>().ok()?` reads the digits, turning a failure into `None`; a marker of three fields has no count.
     let starts: u32 = match fields.next() {
         Some(counted) => counted.parse::<u32>().ok()?,
         None => 1,
@@ -226,6 +226,7 @@ pub fn parse_marker(value: &OsStr) -> Option<StartMarker> {
     if fields.next().is_some() {
         return None;
     }
+    // `.parse::<u32>().ok()?` reads the starter's number, turning a failure into `None`.
     let starter_pid: u32 = pid_text.parse::<u32>().ok()?;
     let mode: StartMode = match word {
         REPLACE_WORD => StartMode::Replace,
@@ -304,7 +305,10 @@ pub fn mark_real_git_start(command: &mut Command, mode: StartMode) {
 /// ```
 fn own_start_count() -> u32 {
     let Some(value): Option<OsString> = std::env::var_os(STARTED_AS_GIT_VARIABLE) else { return 0 };
-    return parse_marker(value.as_os_str()).map_or(0, |marker| { return marker.starts; });
+    return match parse_marker(value.as_os_str()) {
+        Some(marker) => marker.starts,
+        None => 0,
+    };
 }
 
 /// What:

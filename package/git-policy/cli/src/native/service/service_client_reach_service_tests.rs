@@ -24,7 +24,8 @@
 //! ```
 #![cfg(target_os = "linux")]
 
-/// The client, its settings and the manager watch it asks.
+/// The client,
+/// its settings and the manager watch it asks.
 use super::*;
 /// How the client asks the manager about a unit.
 use crate::service_client_settings_and_watches::ManagerWatch;
@@ -184,8 +185,8 @@ fn address(name: &str) -> String {
 ///  The client asked the manager to start such a unit only after the start wait had passed,
 /// and that wait is ten seconds
 ///  (`START_WAIT`),
-/// so the first commit after a stop took ten seconds longer than native Git, against the owner's "commits vs
-///  native git should not take 5s longer"
+/// so the first commit after a stop took ten seconds longer than native Git,
+/// against the owner's rule "commits vs native git should not take 5s longer"
 /// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// finding 5).
 /// An `inactive` unit with the client's connection refused is one nothing is starting,

@@ -152,9 +152,8 @@ fn a_chain_longer_than_the_bound_is_the_wrapper_leading_back_to_itself() {
 /// so a wrapper here
 ///  came from the file that start chose as Git.
 /// Without this the chain branched at every level,
-/// because each level's
-///  reads started chains of their own
-/// (measured: 511 starts of one script named `git` before a probe's own cap ended them).
+/// because each level's reads started chains of their own:
+/// a probe measured 511 starts of one script named `git` before its own cap ended them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

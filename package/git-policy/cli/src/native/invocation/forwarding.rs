@@ -212,8 +212,9 @@ pub fn run_real_git(
 ///   The plain forward replaces this process with Git,
 /// so the caller's `wait` sees `WIFSIGNALED` with Git's
 ///  signal and a shell reports 128 + the signal.
-/// A route that keeps a process around Git (the copy route's child, a
-///  coordinated run) has to end the same way:
+/// A route that keeps a process around Git,
+/// the copy route's child or a coordinated run,
+/// has to end the same way:
 /// restoring the signal's default action and raising it makes the kernel report
 ///  exactly what Git's own death reported.
 /// Rust's start makes `SIGPIPE` ignored,
