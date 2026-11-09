@@ -719,9 +719,9 @@ fn two_adds_at_one_absent_destination_fill_it_once() {
         "exactly one command filled the worktree: {}",
         String::from_utf8_lossy(stderr.as_slice())
     );
-    // The refused command cannot know the worktree is whole: its record stays until a later command settles it.
+    // The refused command reads the other command's proof on the registration and settles its own record.
     let records: Vec<String> = recorded_names(common.as_path());
-    assert_eq!(records.iter().filter(|name| return name.ends_with(".add")).count(), 1, "the refused command's record stays: {records:?}");
+    assert!(records.is_empty(), "the refused command keeps no record for a worktree another completed: {records:?}");
     remove(root.as_path());
 }
 
@@ -994,7 +994,10 @@ fn a_creation_that_git_refused_leaves_no_record() {
     assert!(!settlement.git.succeeded(), "Git refused the add");
     assert_eq!(recorded_names(common.as_path()), Vec::<String>::new(), "nothing is left to act on");
     assert_eq!(String::from_utf8(stderr).expect("utf8"), String::new(), "an add Git never made is not reported");
-    assert!(!destination.exists());
+    assert!(
+        std::fs::read_dir(&destination).is_ok_and(|mut entries| entries.next().is_none()),
+        "the refused add leaves its empty directory in place rather than removing one it may not own"
+    );
     remove(root.as_path());
 }
 

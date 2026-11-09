@@ -167,3 +167,41 @@ pub(crate) fn registration_changed(destination: &Path, reason: &str) -> Worktree
     );
     return crate::worktree_copy_error::failure_with_cause(message.as_str(), None);
 }
+
+/// How many unreadable paths the notice names before it says how many more there are.
+///  Exempt from a citation under `LQM` (class:
+/// display cap):
+/// it limits how much text a message,
+/// log field or record
+///  names,
+/// and no command result or duration depends on it.
+/// Classed once in `doc/planning/cli-git-shipped-limits-
+///  audit.md`,
+/// "Exempt limits";
+/// the coordinator's pick under the owner's delegation,
+/// open to the owner's veto.
+const NOTICE_PATHS: usize = 3;
+
+/// What:
+///  The one notice line for ignored entries the user could not read and the copy therefore left out.
+/// Why:
+///   The new worktree lacks them,
+/// so the person sees how many and which first ones,
+/// without a flood for a large set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
+/// ```
+pub(crate) fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
+    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
+    let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
+    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
+    let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
+    return format!(
+        "monochromatic-git-policy-cli: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
+        unreadable.len(),
+        quote(source_root.to_string_lossy().as_ref()),
+        named.join(", ")
+    );
+}

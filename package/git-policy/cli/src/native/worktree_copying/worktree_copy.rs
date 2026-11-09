@@ -47,12 +47,13 @@ use crate::worktree_copy_error::{WorktreeCopyError, lifecycle_failure};
 use crate::worktree_copy_recovery::recover_pending_worktree_copies;
 use crate::worktree_copy_selection::CopySelection;
 use crate::worktree_copy_stage_claim::{StageClaim, claim_stage_for_creation};
+use crate::worktree_copy_notices::nothing_but_a_reservation;
 use crate::worktree_copy_registry::{WorktreeCopyObservation, destination_is_registered, observe_copy_source};
 use crate::worktree_copy_synchronize::synchronize_after;
 use crate::worktree_identity::WorktreeIdentity;
 use crate::worktree_add_plan::AddPlan;
 use crate::worktree_ladder::{LadderResult, begin_ladder_holding};
-use crate::worktree_subvolume::{CreatedSubvolume, Reservation, reserve_destination, settle_subvolume_destination};
+use crate::worktree_subvolume::{CreatedSubvolume, Reservation, reserve_destination};
 #[cfg(target_os = "linux")]
 use crate::package_repair::RepairSwitch;
 #[cfg(target_os = "linux")]
@@ -378,13 +379,11 @@ fn settle_creation(
         } else {
             (None, Vec::new())
         };
-    // A destination this command reserved and no copy filled is removed again while it is still empty and still this
-    // command's, so a refused add leaves no empty directory that the next attempt finds already there.
-    if made_here
-        && let Reservation::Mine(made) = &reserved
-    {
-        settle_subvolume_destination(made);
-    }
+    // A destination this command reserved is never removed here. Its identity was captured one call after the creation,
+    // so another command may own the directory that now stands at that name; removing it would delete a reservation this
+    // command did not make. An empty directory left after a refused add is harmless: Git accepts it as a destination, and a
+    // later add fills it and copies into it.
+    let _ = made_here;
     // A record whose copy did not run (a destination Git did not register, a snapshot that carried the state itself) is
     // settled here: the add is whole, so the record says so before it goes. A copy that failed is not that: the worktree
     // was never filled, so the record stays and the next command reports it as an interrupted add.
@@ -393,6 +392,11 @@ fn settle_creation(
     fn exists(path: &Path) -> bool {
         return std::fs::symlink_metadata(path).is_ok();
     }
+    /// A destination that holds anything other than this command's empty reservation:
+    /// a worktree that was not filled.
+    fn holds_a_worktree(path: &Path) -> bool {
+        return exists(path) && !nothing_but_a_reservation(path);
+    }
     let unfilled: bool = left_unfilled
         || (copies
             && !another_commands_worktree
@@ -400,7 +404,7 @@ fn settle_creation(
             && invocation
                 .destination
                 .as_deref()
-                .is_some_and(exists));
+                .is_some_and(holds_a_worktree));
     if copy_failure.is_none()
         && !unfilled
         && let Some(unused) = held.take()

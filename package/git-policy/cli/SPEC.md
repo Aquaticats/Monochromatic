@@ -593,6 +593,28 @@ Each job the settlement lock used to do is done without one:
   so none can go stale.
 - A command that creates a worktree and every other forwarded command in a linked worktree or bare repository recover
   dead owners' items first and never wait for a live owner's.
+- Two windows stay open,
+  and neither is closed without a lock or a wider change.
+  A destination created by Git after a reservation that could not be made (its parent did not exist) has no identity
+  recorded before real Git runs,
+  so a command that registers a worktree there and one that replaces it in the same instant cannot be told apart:
+  the copy can be written into the replacement worktree.
+  A destination that is replaced after the identity check and before the installation opens it can receive the copy
+  the same way:
+  the installer resolves every entry by path,
+  so a check closer to the call narrows that window without
+  closing it,
+  and closing it needs the destination held open and every entry created through that handle.
+  Both need a second program to move or replace a worktree inside a window measured in microseconds while this command
+  runs,
+  and the person sees a copy written into a worktree the notice does not name;
+  `git worktree list` shows which worktree stands where.
+  A destination this command reserved is never removed again:
+  its identity was read one call after the creation,
+  so
+  another command may own the directory at that name by then,
+  and an empty directory left after a refused add is
+  harmless because Git accepts it and a later add fills it.
 - Every other forwarded command,
 including every commit preparation,
 runs without any of this,

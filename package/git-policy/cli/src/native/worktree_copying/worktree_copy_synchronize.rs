@@ -24,7 +24,7 @@ use crate::diagnostic_log::debug;
 use crate::json_record::quote;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_binding::Binding;
-use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registration_changed};
+use crate::worktree_copy_notices::{DestinationOwnership, nothing_but_a_reservation, not_this_commands_destination_notice, ownership_of, registration_changed, unreadable_notice};
 use crate::worktree_subvolume::Reservation;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure_of};
 use crate::worktree_copy_journal::create_journal;
@@ -125,43 +125,6 @@ pub fn synchronize_created_worktree(
     );
 }
 
-/// How many unreadable paths the notice names before it says how many more there are.
-///  Exempt from a citation under `LQM` (class:
-/// display cap):
-/// it limits how much text a message,
-/// log field or record
-///  names,
-/// and no command result or duration depends on it.
-/// Classed once in `doc/planning/cli-git-shipped-limits-
-///  audit.md`,
-/// "Exempt limits";
-/// the coordinator's pick under the owner's delegation,
-/// open to the owner's veto.
-const NOTICE_PATHS: usize = 3;
-
-/// What:
-///  The one notice line for ignored entries the user could not read and the copy therefore left out.
-/// Why:
-///   The new worktree lacks them,
-/// so the person sees how many and which first ones,
-/// without a flood for a large set.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `monochromatic-git-policy-cli: left out ${count} unreadable ignored entries from ${source}: ${first.join(', ')}${more}.\n`
-/// ```
-fn unreadable_notice(source_root: &Path, unreadable: &[String]) -> String {
-    let named: Vec<String> = unreadable.iter().take(NOTICE_PATHS).map(String::as_str).map(quote).collect();
-    let rest: usize = unreadable.len().saturating_sub(NOTICE_PATHS);
-    let more: String = if rest == 0 { String::new() } else { format!(" and {rest} more") };
-    let noun: &str = if unreadable.len() == 1 { "entry" } else { "entries" };
-    return format!(
-        "monochromatic-git-policy-cli: left out {} unreadable ignored {noun} from {}: {}{more}.\n",
-        unreadable.len(),
-        quote(source_root.to_string_lossy().as_ref()),
-        named.join(", ")
-    );
-}
 
 /// What:
 ///  Stages one source's ignored state,
