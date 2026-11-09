@@ -1290,19 +1290,20 @@ in three commits on `perf/git-policy-cli-scanner-rules-cache-off-the-commit-path
   and the artifact is derived data the scanner's own README already said may be deleted.
 - `feat(forbidden-strings-cli)` `1086dca458`:
   a load says whether a miss may write the cache (`CacheAccess::ReadOnly`),
-  and `has_compiled_rules` answers beforehand whether the cache holds the rules text at all,
-  with the validation a read applies.
+  and `compiled_rules_artifact_exists` answers beforehand whether the cache holds a file for the rules text at all,
+  with one `stat` rather than a second read of the artifact.
 - The wrapper's change:
-  a command whose cache holds nothing asks the service of that worktree to compile and publish
+  a command whose cache holds no artifact for its rules text asks the service of that worktree to compile and publish
   (the one-way `warm` message a worktree-moving command already sends),
   and then loads the rules without writing,
   so the rules it compiled are only ever a scan's input.
   It publishes the artifact itself in the two cases where nothing else can:
   a worktree with no service running,
-  and a rules list taken from `FORBIDDEN_STRINGS_RULES`,
+  and a rules list taken from `FORBIDDEN_STRINGS_RULES` in a repository whose configuration names no rules files,
   which the service's environment does not carry and would compile into another text's partition.
-  A cache that already holds the text is read here and writes nothing either way,
-  so the service is asked only on a miss.
+  A configuration that names rules files wins over the variable,
+  so a repository with both leaves the list to the service,
+  and a cache that already holds an artifact is read here and writes nothing either way.
 
 Controls,
 the red one run against the branch's change undone
