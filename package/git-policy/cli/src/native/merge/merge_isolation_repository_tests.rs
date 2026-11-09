@@ -219,6 +219,8 @@ fn attempted_with(
         subcommand_index: 2,
         subcommand: Some(OsString::from(arguments[0])),
         route,
+        // A merge reached here runs no shell alias.
+        shell_command: None,
     };
     let overlay: Vec<(OsString, OsString)> = isolated_overlay();
     return run_isolated_merge(&IsolatedMergeInput {

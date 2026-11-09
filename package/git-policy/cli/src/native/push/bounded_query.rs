@@ -302,7 +302,7 @@ pub async fn run_bounded_git_awaiting(
     // A request that could not be written whole leaves the command answering from a prefix of it, so a status of its own is not
     //  an answer made from the request.
     if ended.is_ok()
-        && let Some(reason) = writer.as_ref().and_then(InputWriter::failure)
+        && let Some(reason) = writer.as_ref().and_then(InputWriter::cut_short)
     {
         return Err(SingleFlightError::Git {
             arguments: arguments.to_owned(),
@@ -362,8 +362,9 @@ fn flood_of(arguments: &str) -> SingleFlightError {
 ///
 /// A thread that cannot be started.
 fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duration) -> Result<InputWriter, String> {
-    let failure: InputFailure = InputFailure::default();
-    let reported: InputFailure = failure.clone();
+    let progress: InputProgress = InputProgress::default();
+    let reported: InputProgress = progress.clone();
+    reported.started(bytes.len());
     let written: Result<std::thread::JoinHandle<()>, std::io::Error> = match pipe {
         // No input was asked of the command, so there is nothing to write and its standard input is not piped.
         None => crate::scoped_start::spawn_named("cli-git-second-pass-input", nothing_to_write),
@@ -372,7 +373,7 @@ fn feed_standard_input(pipe: Option<ChildStdin>, bytes: Vec<u8>, window: Duratio
         }),
     };
     return match written {
-        Ok(handle) => Ok(InputWriter { handle, failure }),
+        Ok(handle) => Ok(InputWriter { handle, progress }),
         Err(error) => Err(format!("no thread could be started to give the command its input: {error}")),
     };
 }
@@ -396,33 +397,86 @@ pub(crate) struct InputWriter {
     /// a control joins it to see that it did.
     #[cfg_attr(not(test), expect(dead_code, reason = "only a control joins the writer; a query waits for its child"))]
     handle: std::thread::JoinHandle<()>,
-    /// What the thread could not write,
-    /// once it knows of it.
-    failure: InputFailure,
+    /// What the thread has written of the request,
+    /// and why it stopped short when it did.
+    progress: InputProgress,
 }
 
-/// What the writer could not write,
+/// What a writer has written of its request,
+/// and why it stopped short when it did,
 /// shared with the thread that writes it.
 /// A cell behind a mutex is enough:
 /// one thread writes it and one reads it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Progress = { written: number; total: number; failure?: string };
+/// ```
 #[derive(Clone, Default)]
-pub(crate) struct InputFailure(std::sync::Arc<std::sync::Mutex<Option<String>>>);
+pub(crate) struct InputProgress(std::sync::Arc<std::sync::Mutex<Progress>>);
 
-impl InputFailure {
-    /// Records why the request could not be written whole.
-    fn record(&self, reason: String) {
+/// How far a writer got.
+#[derive(Clone, Default)]
+struct Progress {
+    /// The bytes handed to the kernel so far.
+    written: usize,
+    /// The bytes the request holds.
+    total: usize,
+    /// Why the writer stopped before the end,
+    /// once it knows of it.
+    failure: Option<String>,
+}
+
+impl InputProgress {
+    /// The request this writer was given,
+    /// so a reader can count from the start.
+    fn started(&self, total: usize) {
         if let Ok(mut slot) = self.0.lock() {
-            *slot = Some(reason);
+            slot.total = total;
         }
     }
 
-    /// Why the request could not be written whole,
-    /// or nothing when it was.
-    pub(crate) fn reason(&self) -> Option<String> {
+    /// Records the bytes handed to the kernel so far.
+    fn advanced(&self, written: usize) {
+        if let Ok(mut slot) = self.0.lock() {
+            slot.written = written;
+        }
+    }
+
+    /// Records why the request could not be written whole.
+    fn record(&self, reason: String) {
+        if let Ok(mut slot) = self.0.lock() {
+            slot.failure = Some(reason);
+        }
+    }
+
+    /// What the request could not be written whole for,
+    /// or nothing when every byte reached the command.
+    /// Why:
+    ///   A command that ended while bytes remain cannot have read them,
+    /// so the answer was made from a prefix of the
+    ///  request even where the writer had not yet noticed the broken pipe.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// progress.failure ?? (progress.written < progress.total ? `after ${progress.written} of ${progress.total} bytes` : undefined)
+    /// ```
+    fn cut_short(&self) -> Option<String> {
         let Ok(slot) = self.0.lock() else {
-            return None;
+            return Some(String::from("how much of its request was written could not be read"));
         };
-        return slot.clone();
+        if let Some(reason) = slot.failure.as_ref() {
+            return Some(reason.clone());
+        }
+        if slot.written >= slot.total {
+            return None;
+        }
+        return Some(format!(
+            "it stopped taking its input after {} of {} bytes, so {} of them were not written",
+            slot.written,
+            slot.total,
+            slot.total.saturating_sub(slot.written)
+        ));
     }
 }
 
@@ -434,9 +488,9 @@ impl InputWriter {
     }
 
     /// Why the request could not be written whole,
-    /// or nothing when it was.
-    pub(crate) fn failure(&self) -> Option<String> {
-        return self.failure.reason();
+    /// or nothing when every byte reached the command.
+    pub(crate) fn cut_short(&self) -> Option<String> {
+        return self.progress.cut_short();
     }
 }
 
@@ -473,7 +527,7 @@ fn nothing_to_write() {}
 /// ```ts
 /// setNonBlocking(fd); while (written < bytes.length) { const n = tryWrite(fd, bytes.subarray(written)); if (n > 0) { written += n; last = Date.now() } else if (Date.now() - last > windowMs) return; else await sleep(POLL) }
 /// ```
-fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration, failure: InputFailure) {
+fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration, progress: InputProgress) {
     // The writing end is the only place that waits: making it non-blocking turns a full pipe into a report of it, and the
     //  command's own end is a different description of the same pipe.
     let descriptor: std::os::fd::RawFd = open.as_fd().as_raw_fd();
@@ -481,7 +535,7 @@ fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration,
     let flags: libc::c_int = unsafe { libc::fcntl(descriptor, libc::F_GETFL) };
     if flags < 0 || unsafe { libc::fcntl(descriptor, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
         crate::diagnostic_log::debug("monochromatic-git-policy-cli", "the input of a second-pass command could not be written without blocking");
-        failure.record(String::from("its input could not be written without blocking"));
+        progress.record(String::from("its input could not be written without blocking"));
         let _closed = open.flush();
         return;
     }
@@ -489,10 +543,11 @@ fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration,
     let mut last_taken: std::time::Instant = std::time::Instant::now();
     while written < bytes.len() {
         match open.write(&bytes[written..]) {
-            // The command closed its end: what it read is what it wanted, so nothing is reported of it.
+            // A write of nothing with bytes left is a request the command will not take; the count says how far it got.
             Ok(0) => break,
             Ok(taken) => {
                 written += taken;
+                progress.advanced(written);
                 last_taken = std::time::Instant::now();
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -504,17 +559,28 @@ fn write_within_the_window(mut open: ChildStdin, bytes: &[u8], window: Duration,
                         bytes.len()
                     );
                     crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
-                    failure.record(reason);
+                    progress.record(reason);
                     break;
                 }
                 std::thread::sleep(FEEDING_PAUSE);
             }
-            // A command that closed its end while we wrote has read what it wanted; anything else is a request it did not get.
-            Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => break,
+            // A command that closed its end before every byte was written answered from a prefix of the request: the loop runs
+            //  only while bytes remain, so nothing here is "what it wanted".
+            Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {
+                let reason: String = format!(
+                    "it closed its input after {} of {} bytes, so {} of them were not written",
+                    written,
+                    bytes.len(),
+                    bytes.len().saturating_sub(written)
+                );
+                crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
+                progress.record(reason);
+                break;
+            }
             Err(error) => {
                 let reason: String = format!("its input could not be written: {error}");
                 crate::diagnostic_log::debug("monochromatic-git-policy-cli", format!("a second-pass command {reason}").as_str());
-                failure.record(reason);
+                progress.record(reason);
                 break;
             }
         }

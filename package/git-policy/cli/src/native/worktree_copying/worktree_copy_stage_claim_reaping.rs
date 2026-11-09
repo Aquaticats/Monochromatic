@@ -25,6 +25,7 @@
 //! ```
 
 use crate::json_record::quote;
+use crate::path_bytes_in_records::path_of_the_two_fields;
 use crate::private_storage::sync_directory;
 use crate::worktree_add_binding::{Recorded, decode_record};
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
@@ -33,7 +34,7 @@ use crate::worktree_copy_journal_encoding_and_validation::TEMPORARY_SUFFIX;
 use crate::worktree_copy_journal_removal::{remove_file_if_present, remove_stage};
 use crate::worktree_copy_owner::token_owner_is_dead;
 use crate::worktree_copy_selection::{STAGE_PREFIX, js_order};
-use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
+use crate::worktree_copy_stage_claim::{COMPLETE_SUFFIX, CONTAINER_HEX_PREFIX, DESTINATION_SUFFIX, OWNER_LINE_PREFIX, claim_names};
 use std::collections::BTreeSet;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -356,21 +357,123 @@ pub fn settle_text(record: &Path, read: std::io::Result<String>) -> Settlement {
 }
 
 /// What:
+///  The container and the owner a claim names.
+/// Why:
+///   `read_claim` acts on these values,
+/// so the shape of a record is decided in one place.
+struct ClaimFields<'a> {
+    /// The container as text,
+    /// when the record spells it on one line.
+    text: Option<&'a str>,
+    /// The container's bytes,
+    /// when the record holds them.
+    bytes: Option<&'a str>,
+    /// The owner token,
+    /// when the record names one.
+    owner: Option<String>,
+}
+
+/// What:
+///  Whether a line of a claim holds the container's bytes.
+/// Why:
+///   A reader must place the bytes line and count it,
+/// so both questions are asked in one way of one name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsBytes = (line: string) => line.startsWith('containerHex=')
+/// ```
+fn holds_bytes(line: &str) -> bool {
+    return line.starts_with(CONTAINER_HEX_PREFIX);
+}
+
+/// What:
+///  The lines of a claim as this release and the one before it write them:
+/// the container as text,
+/// its bytes on the line after it,
+/// then the owner.
+/// Why:
+///   The container is removed recursively,
+/// so a line of bytes is believed only in the two places a writer puts one,
+/// and a claim with any other line is refused:
+/// the earlier release wrote a container path verbatim,
+/// so a path holding a line break put lines of its own in the record,
+/// and one of them could name any private directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const claimFields = (text: string) => { const lines = text.split('\n'); const textLine = lines[0]?.startsWith('containerHex=') ? undefined : lines[0]; ... }
+/// ```
+fn claim_fields(text: &str) -> Result<ClaimFields<'_>, String> {
+    let lines: Vec<&str> = text.lines().collect();
+    // The first line is the container's bytes or the container's text; its bytes then sit where this release puts them.
+    let named_text: Option<&str> = match lines.first() {
+        Some(line) if holds_bytes(line) => None,
+        first => first.copied(),
+    };
+    let named_bytes: Option<&str> = match lines.get(usize::from(named_text.is_some())) {
+        Some(line) => line.strip_prefix(CONTAINER_HEX_PREFIX),
+        None => None,
+    };
+    let read: usize = usize::from(named_text.is_some()) + usize::from(named_bytes.is_some());
+    // A line of container bytes past those is a path that ended early, not a line a writer put there.
+    if lines.iter().skip(read).copied().any(holds_bytes) {
+        return Err(String::from("its line of container bytes is not where this release writes one"));
+    }
+    // The owner, when the record names one, is the last line.
+    let mut following = lines.iter().skip(read);
+    let Some(first) = following.next() else {
+        return Ok(ClaimFields { text: named_text, bytes: named_bytes, owner: None });
+    };
+    let Some(token) = first.strip_prefix(OWNER_LINE_PREFIX) else {
+        return Err(String::from("a line this release does not write follows its container"));
+    };
+    if following.next().is_some() {
+        return Err(String::from("more lines follow its owner"));
+    }
+    return Ok(ClaimFields { text: named_text, bytes: named_bytes, owner: Some(token.to_string()) });
+}
+
+/// What:
+///  The refusal of a claim whose lines are not a record this release writes.
+/// Why:
+///   Recovery never acts on a record it cannot trust:
+/// the claim stays for the person to check,
+/// and nothing the record names is removed or reported as removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// throw new Error(`stage claim ${claim} is not a record this release writes (${reason})`)
+/// ```
+fn claim_refusal(claim: &Path, reason: &str) -> WorktreeCopyError {
+    return failure_with_cause(
+        format!(
+            "monochromatic-git-policy-cli: worktree-copy stage claim {} is not a record this release writes ({reason}); nothing it names was changed, so remove the file after checking it.",
+            quote(claim.to_string_lossy().as_ref())
+        )
+        .as_str(),
+        None,
+    );
+}
+
+/// What:
 ///  One claim file as read:
 /// the stage container it names,
 /// refused unless it is a monochromatic-git-policy-cli stage container name,
-/// and the owner
-///  token on its second line.
+/// and the owner token.
 /// Why:
 ///   The container is deleted recursively,
 /// so a claim that names anything else is never acted on;
 /// the owner decides whether
 ///  the claim may be reaped at all.
 /// A claim that vanished while it was read was removed by its owner or by another command.
+/// A claim whose lines are not a record this release writes is refused and kept,
+/// because the earlier release wrote a container path verbatim,
+/// and a path holding a line break then spells lines of the record.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [container, owner] = (await readFile(claimPath, 'utf8')).split('\n'); assertStageContainerName(container);
+/// const { text, bytes, owner } = claimFields(await readFile(claimPath, 'utf8')); const container = bytes ?? text; assertStageContainerName(container);
 /// ```
 pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, WorktreeCopyError> {
     // `match` on the lookup: a claim already gone is nobody's fault, and nothing is left to reap.
@@ -392,14 +495,30 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
             return Err(failure_with_cause(message.as_str(), Some(&error)));
         }
     };
-    let mut lines = text.lines();
-    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
-    let mut owner: Option<String> = None;
-    for line in lines {
-        if let Some(token) = line.strip_prefix(OWNER_LINE_PREFIX) {
-            owner = Some(token.to_string());
-            break;
+    let fields: ClaimFields<'_> = match claim_fields(text.as_str()) {
+        Ok(fields) => fields,
+        Err(reason) => return Err(claim_refusal(claim, reason.as_str())),
+    };
+    let container: PathBuf = match path_of_the_two_fields(fields.bytes, fields.text) {
+        Ok(Some(path)) => path,
+        Ok(None) => PathBuf::new(),
+        Err(reason) => {
+            return Err(failure_with_cause(
+                format!(
+                    "monochromatic-git-policy-cli: worktree-copy stage claim {} holds a container in bytes that is not a path ({reason}); remove the file after checking it.",
+                    quote(claim.to_string_lossy().as_ref())
+                )
+                .as_str(),
+                None,
+            ));
         }
+    };
+    // Both lines of a claim this release writes name one path; a line of text that says otherwise is a shorter path
+    // that ended where the line break was, and the bytes it stood beside are not the record's own.
+    if let (Some(named), Some(_)) = (fields.text, fields.bytes)
+        && container.as_path() != Path::new(named)
+    {
+        return Err(claim_refusal(claim, "its line of text and its line of container bytes name different paths"));
     }
     let stage_named: bool = match container.file_name() {
         Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
@@ -416,7 +535,7 @@ pub fn read_claim(claim: &Path) -> Result<Option<(PathBuf, Option<String>)>, Wor
             None,
         ));
     }
-    return Ok(Some((container, owner)));
+    return Ok(Some((container, fields.owner)));
 }
 
 /// What:
@@ -574,7 +693,7 @@ pub fn reap_judged_stages(common_dir: &Path, verdicts: &StageVerdicts) -> Result
     if !names.is_empty() {
         let mut journaled: BTreeSet<PathBuf> = BTreeSet::new();
         for pending in read_pending_journals(common_dir)? {
-            journaled.insert(PathBuf::from(pending.journal.stage_container));
+            journaled.insert(pending.journal.stage_container);
         }
         for name in names {
             let claim: PathBuf = root.join(name.as_str());

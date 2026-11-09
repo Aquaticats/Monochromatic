@@ -59,7 +59,8 @@ fn a_claim_names_the_container_and_creates_no_container() {
     assert!(!claim.container().exists(), "the claim precedes the container");
     let recorded: String = std::fs::read_to_string(claim.path.as_path()).expect("claim file");
     let mut lines = recorded.lines();
-    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()));
+    assert_eq!(lines.next(), Some(claim.container().to_string_lossy().as_ref()), "a text path stays where the earlier release reads it");
+    assert_eq!(lines.next(), Some(format!("{CONTAINER_HEX_PREFIX}{}", hex_of_path(claim.container())).as_str()), "the claim carries the container's bytes");
     assert_eq!(lines.next(), Some(format!("owner={}", current_copy_owner().expect("owner").token()).as_str()), "the claim names its owner");
     assert_eq!(claim.path.parent(), Some(journal_root(common.as_path()).as_path()));
     assert!(claim.path.to_string_lossy().ends_with(".stage"));
@@ -215,6 +216,56 @@ fn a_claim_naming_another_directory_is_refused() {
     assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
     assert!(victim.exists());
     assert!(claim.path.exists(), "an unproven claim stays for inspection");
+    remove(root.as_path());
+}
+
+/// An earlier release wrote a container path verbatim,
+/// so a destination parent that holds line breaks puts lines of its own inside the claim.
+/// A line of bytes inside such a path is not where this release writes one,
+/// so the claim is refused and the private directory those bytes name survives.
+#[test]
+fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_survives() {
+    let (root, common, destination) = scene("claim-path-lines");
+    let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
+    create_private_directory(target.as_path()).expect("a private directory with the stage naming");
+    std::fs::write(target.join("keep"), b"user data").expect("user data");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim: PathBuf = journals.join("injected.stage");
+    // The record the earlier release wrote for the destination parent `/w/p\ncontainerHex=<bytes>\nq`.
+    let text: String = format!(
+        "/w/p\n{CONTAINER_HEX_PREFIX}{}\nq\n{OWNER_LINE_PREFIX}{}\n",
+        hex_of_path(target.as_path()),
+        dead_copy_owner().token()
+    );
+    crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
+    reap_abandoned_stages(common.as_path()).expect_err("a claim of a shape this release does not write is refused");
+    assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
+    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    remove(root.as_path());
+}
+
+/// A claim this release writes names one path on its line of text and on its line of bytes.
+/// Two lines that name different paths are refused,
+/// and the directory the bytes name survives.
+#[test]
+fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
+    let (root, common, destination) = scene("claim-text-bytes-disagree");
+    let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
+    create_private_directory(target.as_path()).expect("a private directory with the stage naming");
+    std::fs::write(target.join("keep"), b"user data").expect("user data");
+    let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
+    let claim: PathBuf = journals.join("disagreeing.stage");
+    let named_elsewhere: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}other"));
+    let text: String = format!(
+        "{}\n{CONTAINER_HEX_PREFIX}{}\n{OWNER_LINE_PREFIX}{}\n",
+        named_elsewhere.to_string_lossy(),
+        hex_of_path(target.as_path()),
+        dead_copy_owner().token()
+    );
+    crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
+    reap_abandoned_stages(common.as_path()).expect_err("a claim whose two lines name two paths is refused");
+    assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
+    assert!(claim.exists(), "a record that cannot be trusted is kept");
     remove(root.as_path());
 }
 
@@ -1077,4 +1128,126 @@ fn a_checkout_another_process_restored_partly_is_settled_as_whole() {
     assert!(admin.join(INDEX).exists() && !admin.join(INDEX_LOCK).exists(), "an index with no lock is what the proof reads");
     assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the record goes with the settlement");
     remove(root.as_path());
+}
+/// A scene whose destination sits under a parent named with bytes that are not text,
+/// so the stage container beside it holds those bytes too.
+fn scene_with_bytes(name: &str, parent_bytes: &[u8]) -> (PathBuf, PathBuf, PathBuf) {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let (root, common, _destination) = scene(name);
+    let parent: PathBuf = root.join(OsStr::from_bytes(parent_bytes));
+    std::fs::create_dir_all(parent.as_path()).expect("a parent that is not text");
+    return (root, common, parent.join("topic"));
+}
+
+/// The claim reader of the release installed before the line of hexadecimal bytes,
+/// copied from `read_claim` in `worktree_copy_stage_claim_reaping.rs` at commit 9462675cd8.
+/// Why:
+///  A record this build writes must still be read by that release when the path is text,
+///  and must make it refuse rather than act on the replacement character when it is not.
+fn earlier_release_claim_container(text: &str) -> Option<PathBuf> {
+    let mut lines = text.lines();
+    let container: PathBuf = PathBuf::from(lines.next().unwrap_or_default());
+    let stage_named: bool = match container.file_name() {
+        Some(name) => name.to_string_lossy().starts_with(STAGE_PREFIX),
+        None => false,
+    };
+    if !(container.is_absolute() && stage_named) {
+        return None;
+    }
+    return Some(container);
+}
+
+/// A claim keeps the bytes of a container whose parent is not text,
+/// so the reader names the container the claim was made for.
+#[test]
+fn a_claim_keeps_the_bytes_of_a_container_path_that_is_not_text() {
+    let (root, common, destination) = scene_with_bytes("claim-bytes", b"par\xffnt");
+    let owner: crate::worktree_copy_owner::CopyOwner = dead_copy_owner();
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &owner).expect("claim");
+    assert_eq!(claim.container().parent(), destination.parent(), "the container stands beside the destination");
+    let read: (PathBuf, Option<String>) = read_claim(claim.path.as_path()).expect("read").expect("present");
+    assert_eq!(read.0, claim.container().to_path_buf(), "the claim names the container it was made for");
+    assert_eq!(read.1, Some(owner.token()), "the claim names its owner");
+    claim.release().expect("release");
+    remove(root.as_path());
+}
+
+/// Two destinations that differ only in a byte that is not text keep two claims,
+/// and releasing one leaves the other's record.
+#[test]
+fn two_claims_whose_paths_differ_only_in_bytes_are_two_records() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let (root, common, _destination) = scene("claim-two-byte-names");
+    let mut claims: Vec<StageClaim> = Vec::new();
+    for bytes in [b"one\xff".as_slice(), b"one\xfe".as_slice()] {
+        let parent: PathBuf = root.join(OsStr::from_bytes(bytes));
+        std::fs::create_dir_all(parent.as_path()).expect("parent");
+        claims.push(claim_stage_for(common.as_path(), parent.join("topic").as_path(), &dead_copy_owner()).expect("claim"));
+    }
+    let first: StageClaim = claims.remove(0);
+    let second: StageClaim = claims.remove(0);
+    assert_ne!(first.path, second.path, "two records, two files");
+    assert_eq!(read_claim(first.path.as_path()).expect("read").expect("present").0, first.container().to_path_buf());
+    assert_eq!(read_claim(second.path.as_path()).expect("read").expect("present").0, second.container().to_path_buf());
+    let first_path: PathBuf = first.path.clone();
+    let second_path: PathBuf = second.path.clone();
+    first.release().expect("release");
+    assert!(!first_path.exists(), "its own record goes");
+    assert!(second_path.exists(), "the other record stays");
+    second.release().expect("release");
+    remove(root.as_path());
+}
+
+/// An abandoned stage whose path is not text is removed,
+/// and a directory standing at the replacement spelling is not touched.
+#[test]
+fn an_abandoned_stage_that_is_not_text_is_removed_and_no_other_directory_is() {
+    let (root, common, destination) = scene_with_bytes("claim-reap-bytes", b"par\xffnt");
+    let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    abandoned_stage(claim.container());
+    let container: PathBuf = claim.container().to_path_buf();
+    let replacement: PathBuf = PathBuf::from(container.to_string_lossy().into_owned());
+    std::fs::create_dir_all(replacement.as_path()).expect("a directory at the replacement spelling");
+    std::fs::set_permissions(replacement.as_path(), std::fs::Permissions::from_mode(0o700)).expect("private decoy");
+    std::fs::write(replacement.join("keep"), b"not the stage").expect("marker");
+    let notices: Vec<String> = reap_abandoned_stages(common.as_path()).expect("reaped");
+    assert!(!container.exists(), "the stage the claim named is removed");
+    assert!(replacement.join("keep").exists(), "the replacement spelling names another directory and is not touched");
+    assert!(!claim.path.exists(), "the claim goes with its stage");
+    assert_eq!(
+        notices,
+        vec![format!(
+            "monochromatic-git-policy-cli: removed the stage {} that an interrupted ignored-state copy left behind.",
+            quote(container.to_string_lossy().as_ref())
+        )]
+    );
+    remove(root.as_path());
+}
+
+/// The release now installed reads a claim this build writes for a text path,
+/// and refuses one that names other bytes instead of acting on the replacement spelling.
+#[test]
+fn an_earlier_release_reads_a_text_claim_and_refuses_one_that_names_other_bytes() {
+    let (root, common, destination) = scene("claim-earlier-text");
+    let text_claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
+    let text: String = std::fs::read_to_string(text_claim.path.as_path()).expect("claim file");
+    assert_eq!(
+        earlier_release_claim_container(text.as_str()),
+        Some(text_claim.container().to_path_buf()),
+        "a path that is text stays readable by the installed release"
+    );
+    text_claim.release().expect("release");
+    remove(root.as_path());
+    let (bytes_root, bytes_common, bytes_destination) = scene_with_bytes("claim-earlier-bytes", b"par\xffnt");
+    let bytes_claim: StageClaim = claim_stage_for(bytes_common.as_path(), bytes_destination.as_path(), &dead_copy_owner()).expect("claim");
+    let bytes_text: String = std::fs::read_to_string(bytes_claim.path.as_path()).expect("claim file");
+    assert_eq!(
+        earlier_release_claim_container(bytes_text.as_str()),
+        None,
+        "the installed release refuses rather than naming the replacement character"
+    );
+    bytes_claim.release().expect("release");
+    remove(bytes_root.as_path());
 }

@@ -317,3 +317,45 @@ fn a_request_that_could_not_be_written_whole_is_a_failure() {
     }
     crate::test_support::remove(root.as_path());
 }
+
+/// What:
+///  A command that reads a prefix of its input,
+/// closes its standard input and answers with status zero is not an answer
+///  to the whole request.
+/// Why:
+///   The answer was made from the part of the request that arrived.
+/// The input is larger than the pipe holds,
+/// so the writer still had bytes to write
+///  when the command closed its end,
+/// and those bytes are exactly what the answer never saw.
+#[cfg(unix)]
+#[test]
+fn a_command_that_closes_its_input_early_is_not_an_answer() {
+    let root: std::path::PathBuf = crate::test_support::fixture("query-input-closed-early");
+    let shim: std::path::PathBuf = root.join("command-that-closes-its-input");
+    // It reads a prefix, closes standard input, prints an answer and exits zero.
+    std::fs::write(shim.as_path(), "#!/bin/sh\nhead -c 10 > /dev/null\nexec 0<&-\necho answer\nexit 0\n").expect("stand-in");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o755)).expect("executable");
+    }
+    let failure: SingleFlightError = run_bounded_git(
+        Command::new(shim.as_path()),
+        "hash-object --stdin",
+        Duration::from_secs(30),
+        Duration::from_millis(500),
+        scratch_environment().as_slice(),
+        Some(vec![b'x'; 1 << 20]),
+    )
+    .expect_err("the request was cut, so the answer is not the command's answer to it");
+    match &failure {
+        SingleFlightError::Git { arguments, code, stderr } => {
+            assert_eq!(arguments, "hash-object --stdin");
+            assert_eq!(*code, None);
+            assert!(stderr.contains("could not be written whole"), "{stderr}");
+            assert!(stderr.contains("not written"), "{stderr}");
+        }
+        other => panic!("expected a Git failure, got {other}"),
+    }
+    crate::test_support::remove(root.as_path());
+}

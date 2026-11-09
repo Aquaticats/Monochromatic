@@ -270,6 +270,12 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     {
         return code;
     }
+    // What: The death by a signal is kept beside the status the stacking decision reads.
+    // Why:  A push the person's Git was killed in failed, and the stacking decision takes a status, so a shell's 128 +
+    //       the signal is what it reads; a push stacking does not take over must still end the way native Git's caller
+    //       sees it, so the signal itself is kept for that end
+    //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 4 of the round-4 review).
+    let mut signalled: Option<i32> = None;
     let code: i32 = match run_forwarded_git(
         forward.real_git.as_path(),
         forward.arguments.as_slice(),
@@ -278,17 +284,24 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
     ) {
         ForwardedRun::Ran(0) => return 0,
         ForwardedRun::Ran(code) => code,
-        // A push the person's Git was killed in failed: the stacking decision reads a status, and a shell reports the death as
-        //  128 + the signal.
-        ForwardedRun::Killed(signal) => crate::forwarding::SIGNAL_EXIT_BASE + signal,
+        ForwardedRun::Killed(signal) => {
+            signalled = Some(signal);
+            crate::forwarding::SIGNAL_EXIT_BASE + signal
+        }
         ForwardedRun::Failed { stderr, code } => {
             // Terminal output error: there is nowhere left to report a failure to write a diagnostic.
             let _written = std::io::stderr().write_all(stderr.as_bytes());
             return code;
         }
     };
+    // A push stacking does not integrate keeps the death of its Git: the caller's `wait` sees the signal and a shell
+    //  reports 128 + the signal, as the plain forward's caller does.
+    let ended: i32 = match signalled {
+        Some(signal) => crate::forwarding::end_as_git_ended(signal),
+        None => code,
+    };
     if !forward.stack {
-        return code;
+        return ended;
     }
     let Ok(cwd) = std::env::current_dir() else {
         return code;
@@ -305,7 +318,7 @@ pub fn run_stacked_push(forward: &PushForward) -> i32 {
         merge_push: &gated_merge_push,
         region,
     };
-    return stack_failed_push(&request, i64::from(code), &mut std::io::stderr()).unwrap_or(code);
+    return stack_failed_push(&request, i64::from(code), &mut std::io::stderr()).unwrap_or(ended);
 }
 
 /// Stacking is controlled in the test module.

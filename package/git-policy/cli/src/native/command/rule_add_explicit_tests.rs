@@ -91,6 +91,39 @@ fn explicit_forms_pass() {
     }
 }
 
+/// A caller whose own command reads pathspecs literally stages by its own spelling:
+/// `--literal-pathspecs add -- '**'` stages one file named `**`,
+/// so the spelling is no bulk pathspec.
+/// `.` and `./` still name the working directory and take everything below it in either mode.
+#[test]
+fn a_literal_pathspec_mode_caller_stages_by_its_own_spelling() {
+    for spelling in ["*", "**", ":(top)", ":(glob)**", ":/", ":/*", ":/**"] {
+        assert_eq!(decide(&["--literal-pathspecs", "add", "--", spelling]), None, "{spelling}");
+        assert_eq!(decide(&["add", "--", spelling]), rejection(spelling), "without the mode {spelling} still sweeps the tree");
+    }
+    for spelling in [".", "./"] {
+        assert_eq!(decide(&["--literal-pathspecs", "add", "--", spelling]), rejection(spelling), "a directory spelling still stages everything below it");
+    }
+    assert_eq!(decide(&["--literal-pathspecs", "--no-literal-pathspecs", "add", "**"]), rejection("**"), "the later global option wins");
+    assert_eq!(decide(&["--no-literal-pathspecs", "--literal-pathspecs", "add", "**"]), None);
+    assert_eq!(decide(&["--literal-pathspecs", "add", "-A"]), rejection("-A"), "a flag is no pathspec and stays bulk");
+}
+
+/// A value a global option consumes is no mode of the caller's:
+/// `git -C --literal-pathspecs add -- '**'` changes into the directory of that name,
+/// and Git then expands the pattern over the whole worktree.
+#[test]
+fn a_global_option_value_is_no_pathspec_mode() {
+    assert_eq!(decide(&["-C", "--literal-pathspecs", "add", "--", "**"]), rejection("**"));
+    assert_eq!(decide(&["-c", "--literal-pathspecs", "add", "--", "**"]), rejection("**"));
+    assert_eq!(decide(&["--git-dir", "--literal-pathspecs", "add", "--", "."]), rejection("."));
+    assert_eq!(
+        decide(&["-C", "--literal-pathspecs", "--literal-pathspecs", "add", "--", "**"]),
+        None,
+        "the option after the value is the caller's own mode again"
+    );
+}
+
 /// A token that is not UTF-8 beside a bulk token does not disturb the decision or the text.
 #[test]
 fn undecodable_paths_do_not_disturb_the_decision() {

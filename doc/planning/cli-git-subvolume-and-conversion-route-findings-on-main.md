@@ -1074,3 +1074,155 @@ Respond with:
 
 No production code was changed,
 so nothing else is pending from this audit.
+
+## Fixed after this audit
+
+Branch
+`fix/git-policy-cli-conversion-compares-modes-and-can-finish`,
+cut from `main` at `2e267409a8`
+and not merged to it in this record.
+The page above stands as the record of the audited revision.
+Each finding got a control written first and shown failing,
+then the fix that made it pass,
+in one commit for the control and one for the fix;
+`SPEC.md` states the behaviour the route now has.
+Every path below is relative to `package/git-policy/cli/src/native/`.
+
+- Finding 1,
+  control `c11a436b49`,
+  fix `f129364b01`:
+  `first_difference`
+  (`worktree_convert_compare.rs`)
+  now also compares the permission bits,
+  the owner,
+  the group and the carried extended attributes of every entry of both trees,
+  beside the type,
+  size,
+  modification time and link target it compared already,
+  and keeps the old tree naming the entry and the attribute,
+  which is the page's first suggestion.
+  Nothing is copied from the old tree into the installed one.
+  The attributes are judged by `carried_attributes_equal`,
+  the call the copy itself uses,
+  so the comparison and the copy agree on what "carried" means;
+  a security label the policy sets on the copies is not one of them.
+  Cost,
+  measured on a 24,345-entry tree extracted from this repository's `HEAD` into a disposable
+  directory,
+  five rounds alternating the arms:
+  12.60 µs per entry for the walk as it was,
+  12.70 with the permission bits,
+  owner and group,
+  and 38.02 with the attributes as well,
+  which is 0.62 s more on that tree,
+  paid once per conversion.
+  Controls:
+  `a_change_of_the_mode_an_owner_or_an_attribute_is_a_difference`,
+  `an_owner_change_is_a_difference`,
+  which runs only as root and says so where it cannot,
+  and `a_permission_change_after_the_proof_keeps_the_old_tree`.
+- Finding 2,
+  control `7f4a092050`,
+  fix `f16d6b9bf1`:
+  both commands now say what each pass could not carry,
+  through one line builder (`subvolume_pass_report.rs`),
+  and the conversion says it for both of its passes.
+  What is said:
+  every socket and device node not recreated,
+  the owner,
+  permission bits,
+  times and extended attributes the kernel refused,
+  the destination entries kept,
+  the entries left out because they predate the catch-up,
+  and the files that changed while they were copied.
+  The attribute losses are printed and do not refuse,
+  which is the second of the page's two options for them;
+  a socket or a device node does refuse,
+  which is finding 3.
+  Controls:
+  `a_copy_that_leaves_a_socket_out_says_so`,
+  `each_kind_of_what_a_pass_could_not_carry_is_said_with_its_label`,
+  and `a_pass_that_lost_nothing_says_nothing`.
+- Finding 3,
+  control `ff868602f7`,
+  fix `1f38cd7ca2`:
+  `require_complete`
+  (`worktree_convert_phases.rs`)
+  now also fails a pass that did not recreate a socket or a device node,
+  naming up to twenty entries and the count and saying that nothing was swapped,
+  which is the state `--abandon` ends;
+  a socket that reaches the old tree after the swap is named by the comparison with the file
+  to delete rather than a version to choose,
+  so a conversion already past its swap is finished the same way.
+  Controls:
+  `a_socket_stops_a_conversion_before_the_swap_and_deleting_it_finishes`,
+  `a_socket_left_in_the_old_tree_names_the_entry_to_delete`,
+  and `a_conversion_refused_over_a_socket_can_still_be_abandoned`.
+- Finding 4,
+  control `488a045e96`,
+  fix `36c8f1d9c5`:
+  `read_plain_file` and `read_plain_text` moved from the conversion's journal to
+  `foundation/plain_file.rs`,
+  and the five reads the page names go through them:
+  the migration's journal (`subvolume_journal.rs`),
+  its list of unreadable files (`subvolume_run.rs`),
+  an index and the repository's configuration (`subvolume_index_files.rs`),
+  and every registration's `gitdir` (`subvolume_registered_worktrees.rs`).
+  Each opens with `O_NONBLOCK`,
+  `O_NOFOLLOW` and `O_CLOEXEC`,
+  takes the type from the open handle,
+  so a name swapped for a link or a pipe cannot redirect the read,
+  and reads no more than its limit.
+  An index keeps its own bound of a gigabyte;
+  the record files share one mebibyte,
+  and a longer one is refused with its path named rather than read whole.
+  Controls:
+  `a_named_pipe_where_the_journal_belongs_is_refused_at_once`,
+  `a_named_pipe_where_the_unreadable_list_belongs_ends_the_run_at_once`,
+  `a_named_pipe_where_the_index_belongs_is_skipped_at_once`,
+  `a_named_pipe_where_the_configuration_belongs_reads_as_none_at_once`,
+  `a_named_pipe_where_a_registration_gitdir_belongs_is_left_out_at_once`,
+  `a_plain_file_is_read_whole_and_a_larger_one_is_refused`,
+  `anything_that_is_not_a_plain_file_is_refused_at_once`,
+  and `bytes_that_are_not_text_are_refused_as_text`.
+- Finding 5,
+  control `6dad15c375`,
+  fix `dc005c3c78`:
+  a preview now runs the refusals of the mode it previews,
+  prints them in the words the real run uses and exits with status 1 when any stands;
+  only a mode whose refusals are clear says what it would do.
+  The refusals of a rollback and of a deletion are built by
+  `refusals_of_the_mode` and its helpers
+  (`subvolume_rollback.rs`),
+  which the preview and the real run both call,
+  so their words cannot drift from the preview's.
+  Control:
+  `a_preview_refuses_what_the_real_run_would_refuse`,
+  which also previews a finished migration as the deletion the real run makes,
+  so a preview that refused everything would not pass.
+
+Still open after this work:
+
+- Finding 1's window in practice.
+  No seam was added between the proving pass and the removal phase,
+  so the control kills the run after the exchange,
+  narrows a file in the old tree and resumes,
+  and asserts the old tree is kept;
+  a `chmod` made inside one run's window remains unmeasured.
+- A device node's refusal has no control of its own:
+  making one needs root,
+  which this work did not use;
+  the socket controls exercise the same branch.
+- Whether any worktree holds a socket,
+  and whether a named pipe ever appears at one of the five read paths,
+  remain uncensused,
+  as the page's "What I could not determine" says.
+- The mebibyte bound on the migration's journal and on its list of unreadable files has no
+  measurement:
+  no such file existed on this host to measure.
+  The two record files that do exist are measured on this repository:
+  `.git/config` at 74,878 bytes and a registration's `gitdir` at 122.
+- The installed release,
+  Windows and macOS,
+  unchanged:
+  every run above used the test binary built from these revisions.
