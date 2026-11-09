@@ -6,11 +6,8 @@
 //!  Both are answered before Git touches the real index.
 //!  `git add` is replayed on a
 //!      private copy of the index,
-//!  and the candidates are the entries the replay changed,
-//!      as the installed wrapper's `add-policy-facts.ts` and `add-staged-delta.ts` define
-//!      them.
+//!  and the candidates are the entries the replay changed.
 //!  A direct command stages its scope with `git add --all` on a private copy,
-//!      as `direct-check-facts.ts` does,
 //!  and every selected entry is a candidate.
 //!  Either
 //!      way the bytes are blobs Git hashed from the worktree at that moment,

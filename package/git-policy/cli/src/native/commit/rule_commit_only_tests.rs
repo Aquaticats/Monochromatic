@@ -1,6 +1,9 @@
 //! What:
 //!  Every `commit-only.unit.test.ts` case,
 //!  ported to the pure decision.
+//!  That corpus is `package/git-policy/cli/src/rule/commit-only.unit.test.ts`,
+//!  deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  so `git show 642b6d72cb^` holds it.
 //! Why:
 //!  The TypeScript test injected checker stubs;
 //!  here a decision that needs no repository
