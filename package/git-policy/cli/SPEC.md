@@ -2746,6 +2746,14 @@ and reads the program below it only while that descriptor says the step is still
 a stop recorded only when a signal was really taken for the step,
 a look that could not be made or a process that could not be proven leaving the ceiling armed rather than standing down,
 and the command failing with a message that says nothing was committed and to run the same command again;
+its lines are written by a thread of their own,
+handed over a queue of one line,
+so a reader that stopped reading holds that thread and never the ceiling,
+a line that cannot be handed over is dropped and counted (`linesDropped`),
+`finish` waits for the notice's answer and for the line already handed over no longer than `NOTICE_BOUND`
+(twice `LOOK_INTERVAL`),
+and a command that ended prints nothing more:
+the writer stops at its next line;
 a member the kernel refuses a pidfd for is never signalled by its number,
 and its silence is never read as an end;
 a commit that may open the editor has no ceiling (`src/native/commit/native_commit_waiting_notice.rs`).

@@ -7614,6 +7614,56 @@ then we have a defect and should log more."
   and a named entry is a lower bound.
   A step whose `below` holds no signing program may still have signed for less than the interval.
 
+### The second review of the scratch commit's ceiling (2026-11-09T08:33:00-05:00)
+
+A cross-vendor reviewer read the branch again
+(`scratch-commit-ceiling-round-2-sol.txt`).
+Five of its seven findings held and are fixed here,
+each as a failing control first:
+
+- The step's identity was read at the ceiling,
+  so a step that ended and had its number reused was signalled through the successor.
+  `ChildNumber::not_started_pinned` now keeps the pidfd the kernel makes the moment the step starts,
+  and the ceiling signals through it,
+  reading the step's children only while that descriptor says it is still that process.
+- The no-pidfd fallback proved a member and then signalled its number.
+  It is gone:
+  a member the kernel refuses a pidfd for is `Unproven`,
+  never signalled.
+  The path is reachable (a descriptor limit,
+  a sandbox),
+  and not at the kernel floor:
+  the crate requires glibc 2.39,
+  whose distributions ship pidfds.
+- The pin's identity read answered `None` both for a gone process and for a record that could not be read,
+  and `None` became `Gone`,
+  which means the step ended.
+  `member_read` keeps the three answers apart and an unreadable record keeps the ceiling armed.
+- A blocked writer outlived the command and printed a line after it.
+  `finish` now sets an abandonment flag,
+  so the writer stops at its next line.
+  It does not run in the long-lived service:
+  `build_with_git` has one caller (`landing/service_commit.rs`),
+  which has one caller (`commit/commit_command.rs`),
+  the command's own process;
+  the service only lands the commit the client prepared.
+- An `exec` kept a process's number and start time while its name changed,
+  so the record credited the new program with the interval before the `exec`.
+  The look-to-look match now requires the name as well.
+
+The reviewer's macOS compile finding is left alone (owner:
+"Ignore Win and mac until I say so"),
+and the uninterruptible-child wait stays a question for the owner
+(`doc/handover/questions-for-the-owner.md`).
+
+Built on top of that:
+the silence message reads the branch once before it prints
+(`landing/service_branch_shows.rs`),
+so it says whether the commit was made instead of always saying it is not known.
+A commit the service builds itself from the request keeps the "not known" words,
+because the wrapper has no commit to compare the branch with.
+The visible queue position is left for later.
+
 ### Two commits told "not known whether the commit was made", one of which landed 73 s later (2026-11-09T07:44:20Z)
 
 Reported from `.claude/worktrees/pi-repo-read-and-index-route-findings-on-main`.
