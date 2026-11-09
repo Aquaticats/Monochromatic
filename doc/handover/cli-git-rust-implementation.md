@@ -243,6 +243,35 @@ The old tree kept for the rollback stays until the owner deletes it.
   and the driver's 30 s wait for a prompt's answer ended that run as `prompt-rejected`;
   the owner wrote "\"That's a limit in our driver \" - so fix it.",
   and `driver-prompt-waits-through-compaction` is that fix.
+  The owner wrote
+  "And we still need to find out why the earlier neuralwatt and opencode-go responses were cutoff.
+  I'm suspecting my wifi driver."
+  The radio is `wlp9s0` on `ath12k_wifi7_pci` with power save off.
+  It has stayed associated since the driver's last kernel line at 2026-11-06T09:37:09Z,
+  and the kernel,
+  `wpa_supplicant` and NetworkManager logged nothing about it during any burst.
+  Every burst before 2026-11-09T17:08:33Z cut responses of one provider only,
+  while responses of other providers in flight across it finished normally.
+  This does not exclude a short silent stall:
+  `iw` reads zero retries and failures,
+  which this driver may simply not report,
+  and a cut-off's record says only `terminated`.
+  `connection-cut-off-watch.service` and `network-change-watch.service` record Pi's connections,
+  gateway pings and address changes in `~/temp/agent/connection-cut-off-watch-2026-11-09/`.
+  The owner wrote "Make our wg-quicker avoid proxying opencode-go,
+  qwen,
+  synthetic,
+  neuralwatt,
+  deepseek,
+  pi traffic."
+  and "Apply every exemption mechanic.";
+  `wg-quicker-model-providers-off-the-tunnel` is that work,
+  and applying it to the running tunnel is still to do.
+  Waiting for a free agent slot:
+  health route run 3 with `resume-after-wall-clock-prompt.md`,
+  literal pathspec run 5 with `resume-after-provider-error-prompt.md`,
+  and worktree add round 8.
+  The locks review `locks-and-transactions-round-4` and the conversion review `subvolume-conversion-round-3` need fix rounds before those branches land.
   A fresh session on a brief that stands alone costs about 30 s when it fails again.
 - The provider ended several runs with `terminated`:
   `commit-ceiling-and-private-index-follow-ups` run 1,
