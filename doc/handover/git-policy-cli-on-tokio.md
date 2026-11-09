@@ -795,7 +795,12 @@
   730 passed (three slow),
   3 failed,
   3 skipped,
-  and the three are the `service::the_settle_command_*` group,
+  and the same suite once more at the same tip,
+  after the review's corrections:
+  733 run,
+  733 passed (three slow),
+  3 skipped.
+  The three failures of the first run are the `service::the_settle_command_*` group,
   which passes 4 of 4 when asked alone and whose own reason is a deadline
   ("the sockets and processes of the earlier helper could not be looked at in time"),
   under a load average of 60 to 91 with another agent's whole suite running beside it;

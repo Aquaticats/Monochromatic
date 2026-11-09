@@ -5598,8 +5598,13 @@ each run on its own while it was written:
   `native:test:binary:host` 733 run,
   730 passed (3 slow),
   3 failed,
+  3 skipped;
+  the same suite once more at the same tip,
+  after the review's corrections landed:
+  733 run,
+  733 passed (3 slow),
   3 skipped.
-- The three binary failures are one group,
+- The three binary failures of the first run are one group,
   `service::the_settle_command_*`:
   `the_settle_command_finishes_a_batch_the_earlier_helper_left_open`,
   `the_settle_command_names_a_batch_it_could_not_examine_and_exits_nonzero` and
@@ -5617,8 +5622,12 @@ each run on its own while it was written:
   and the same control is already recorded twice as a suite-only failure that passed alone and in
   the next full runs (`doc/handover/cli-git-rust-implementation.md`,
   and this plan's T4 section).
-  No cause is measured here either;
-  the path it exercises (the settle command's scan of `/proc`) is not one this step changes.
+  No cause is measured here either,
+  and the second run of the same suite at the same tip passed all 733,
+  so the shape is the recorded one:
+  a full run under heavy load fails that group and a full run
+  does not.
+  The path it exercises (the settle command's scan of `/proc`) is not one this step changes.
 
 One defect this step did carry,
 and the binary suite caught it rather than a control of its own:
