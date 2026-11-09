@@ -232,6 +232,18 @@ fn the_words_of_a_stop_say_what_ended_what_is_kept_and_what_to_run() {
     assert!(!stop_words(Duration::from_secs(1261), Duration::from_secs(1260), false).contains("signs the commit"));
 }
 
+
+/// The entry the notice kept for the program `name`,
+/// or a failure that names what it kept instead.
+fn kept_below<'kept>(below: &'kept [crate::scratch_commit_step::SeenProgram], name: &str) -> &'kept crate::scratch_commit_step::SeenProgram {
+    for program in below {
+        if program.name == name {
+            return program;
+        }
+    }
+    panic!("the notice kept no entry for `{name}`: {below:?}");
+}
+
 /// What:
 ///  The notice reports which programs ran below the step and for how long.
 /// Why:
@@ -258,11 +270,7 @@ fn the_notice_reports_the_programs_that_ran_below_the_step() {
     step.wait().expect("reaped");
     assert!(seen.armed && seen.looks_found >= 1, "the notice looked and found the step: {seen:?}");
     assert_eq!(seen.stopped_after, None, "the ceiling never came: {seen:?}");
-    let found: &crate::scratch_commit_step::SeenProgram = seen
-        .below
-        .iter()
-        .find(|program| program.name == "sleep")
-        .unwrap_or_else(|| { panic!("the sleep below the step is not named: {seen:?}") });
+    let found: &crate::scratch_commit_step::SeenProgram = kept_below(seen.below.as_slice(), "sleep");
     assert!(found.seen >= Duration::from_millis(750), "the sleep ran while the notice looked: {seen:?}");
     assert!(found.seen <= Duration::from_millis(1200), "a program cannot be seen longer than it ran: {seen:?}");
 }

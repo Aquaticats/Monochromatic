@@ -400,15 +400,11 @@ impl NativeCommitNotice {
                     facts.blocked_looks = facts.blocked_looks.saturating_add(1);
                 }
                 // How long the step has been running, and whether the ceiling has come, once the step has been seen.
-                let since_seen: Option<Duration> = match seen_at {
-                    Some(seen) => Some(waited.saturating_sub(seen)),
-                    None => None,
+                let since_seen: Duration = match seen_at {
+                    Some(seen) => waited.saturating_sub(seen),
+                    None => Duration::ZERO,
                 };
-                let ceiling_came: bool = match since_seen {
-                    Some(running) => running >= ceiling,
-                    None => false,
-                };
-                if ceiling_came {
+                if seen_at.is_some() && since_seen >= ceiling {
                     // Everything below this process is the step and its signer; nothing of the person's runs there.
                     let members = descendants_of(i32::try_from(std::process::id()).unwrap_or(0));
                     if members.is_empty() {
@@ -430,8 +426,8 @@ impl NativeCommitNotice {
                 }
                 // Wake for the sooner of the next line, the look, and the ceiling.
                 let to_next: Duration = ticker.next_in(waited);
-                let pause: Duration = match since_seen {
-                    Some(seen) => to_next.min(ceiling.saturating_sub(seen)).min(SIGHTING_INTERVAL),
+                let pause: Duration = match seen_at {
+                    Some(_seen) => to_next.min(ceiling.saturating_sub(since_seen)).min(SIGHTING_INTERVAL),
                     None => to_next.min(SIGHTING_INTERVAL),
                 };
                 match ended.recv_timeout(pause.max(LOOK_PAUSE)) {
