@@ -291,6 +291,16 @@ Every finished run whose length is evidence is one sample instead,
 and a false alarm costs one look at the agent.
 A run that hit its wall clock or its turn cap is part of the sample:
 it did the work for as long as it was allowed.
+The calls of every finished run count,
+including the calls of a run whose length does not:
+a run the model provider ended still finished the calls it finished.
+
+How long a call has been open is the age systemd reports for the unit minus the moment the run's feed recorded for that
+call's start.
+The two clocks begin within the driver's own start-up of each other,
+a few hundred milliseconds,
+and a wall clock that steps between two reads shows up in that difference,
+so a limit in minutes is not moved by either.
 
 A sample too small for the percentile it is asked for answers its own largest value,
 so a machine with four finished calls compares against its longest one rather than inventing a shorter limit.
