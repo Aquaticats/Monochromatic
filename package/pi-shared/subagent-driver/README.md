@@ -268,6 +268,19 @@ A failure stays in the summary until a reply succeeds:
 a prompt Pi consumes without starting a run and without replying recovers nothing,
 so the run ends on the failure it began with rather than as a run that came back.
 
+A wait is kept only while the failure it was scheduled for is the one standing:
+a reply that recovers it, or a different failure in its place,
+drops the wait and whatever stands then is read afresh.
+One case is left as it is:
+a failure that is recovered and comes back word for word inside the same wait
+inherits the wait already running,
+so that attempt can go sooner than the provider asked.
+Telling the two apart takes a success and an identical failure inside one wait,
+between two looks,
+and the worst it costs is one attempt sent early.
+The attempts a run may make stay bounded either way,
+because every attempt is counted and the cap ends the run.
+
 A person reading the run afterwards sees each attempt twice:
 a `retry` line on `feed.jsonl` carrying its number,
 the bound it sits under,
