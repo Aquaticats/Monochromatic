@@ -276,7 +276,8 @@ fn a_request_that_names_a_foreign_directory_names_no_tree() {
 ///  and the service removed that
 ///  tree as soon as the landing was over,
 ///  so the write-tree lost a race under load and the commit failed with
-///  "Unable to create .../commit.index.lock: No such file or directory".
+///  "Unable to create .../commit.index.lock:
+///  No such file or directory".
 #[test]
 fn only_a_request_told_to_prepare_again_keeps_its_tree() {
     let trees: Vec<(String, std::path::PathBuf)> = vec![

@@ -257,8 +257,10 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
 /// (`wait_ceilings.rs`,
 /// `WAITING_NOTICE_AFTER`).
-/// Returns the identities whose answer asks the client to prepare again: those clients still read the
-///  tree they named, so it is not the service's to remove yet.
+/// Returns the identities whose answer asks the client to prepare again:
+/// those clients still read the
+///  tree they named,
+/// so it is not the service's to remove yet.
 pub(crate) fn land_group(
     context: &LandContext,
     instance: Option<&str>,

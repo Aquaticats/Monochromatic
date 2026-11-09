@@ -126,8 +126,9 @@ fn config(runtime: &Path, git_dir: &Path) -> ClientConfig {
 /// A request that sets `path` to `content` in the worktree at `root`,
 /// whose own Git directory is `git_dir`,
 /// on `branch`.
-/// The tree it names is the one this release makes: a directory of the repository scratch place under the common Git
-///  directory, which is the place the sweep of a later command also covers.
+/// The tree it names is the one this release makes:
+/// a directory of the repository scratch place under the common Git directory,
+///  which is the place the sweep of a later command also covers.
 fn request(fixture: &Fixture, root: &Path, git_dir: &Path, branch: &str, id: &str, path: &str) -> CommitRequest {
     std::fs::write(root.join(path), format!("{id}\n")).expect("write");
     let query = |arguments: &[&str]| -> String { return super::commit::git_text(fixture, root, arguments).trim_end().to_string(); };

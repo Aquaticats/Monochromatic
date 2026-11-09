@@ -526,7 +526,14 @@ fn released_trees(
     trees: Vec<(String, std::path::PathBuf)>,
     preparing_again: &[String],
 ) -> Vec<(String, std::path::PathBuf)> {
-    return trees.into_iter().filter(|(id, _)| { return !preparing_again.contains(id); }).collect();
+    let mut released: Vec<(String, std::path::PathBuf)> = Vec::new();
+    for (id, tree) in trees {
+        if preparing_again.contains(&id) {
+            continue;
+        }
+        released.push((id, tree));
+    }
+    return released;
 }
 
 /// Socket controls stay out of the release executable.
