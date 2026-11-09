@@ -6,7 +6,7 @@
 //! A pushed commit is already published when a
 //!  remote-tracking ref of the destination,
 //! or an authoritative prior value of an update to that remote,
-//!  reaches it (`src/policy-engine/manual-push-published.ts`).
+//!  reaches it.
 //! The rest of the history is the scan's range.
 //!
 //! In TS you'd write (pseudocode):

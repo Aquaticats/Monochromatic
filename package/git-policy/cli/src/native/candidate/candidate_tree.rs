@@ -83,7 +83,9 @@ fn tree_failure(failure: CandidateFailure, position: usize, detail: &str) -> Can
 /// the record terminator.
 /// Why:
 ///  A named predicate for `split`,
-/// because the repository bans anonymous functions.
+/// because `rust/avoidable-closure` reports a closure argument that a named function could replace;
+/// the syntax-only anonymous-function ban once cited here was removed on 2026-10-18
+/// (`doc/decision/rust-closure-lint-dylint.md`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

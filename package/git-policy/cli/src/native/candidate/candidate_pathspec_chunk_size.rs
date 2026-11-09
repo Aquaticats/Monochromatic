@@ -15,9 +15,7 @@
 ///  The most pathspecs one `git diff-index` receives.
 ///  `usize` is the type of counts.
 /// Why:
-///   The installed wrapper passes candidate paths 2,048 at a time
-///       (`commit-transaction-candidate-batch.ts`),
-///  far below any platform's argument
+///   2,048 candidate paths at a time stays far below any platform's argument
 ///       limit;
 ///  one process per 2,048 changed paths keeps the count bounded.
 ///
