@@ -1,5 +1,24 @@
 # cli-git concurrent commits handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/bin.ts` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional` is deleted (2026-10-13 `642b6d72cb`) and
+> `package/forbidden-strings/core` and `package/linter/monochromatic-lint` carry its two
+> features in Rust today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/rule` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `//package/cli/forbidden-strings:build` is now `//package/forbidden-strings/cli:build`
+> (2026-10-29 `113633b259`).
+> `package/git-policy/cli/src/policy-engine/manual-push-candidates.ts` is deleted
+> (2026-10-13 `642b6d72cb`) and the Rust wrapper under `package/git-policy/cli/src/native/`
+> serves its job today.
+
 Note 2026-11-08:
 these tasks this document names no longer exist:
 `//package/git-policy/cli:test:e2e:concurrent` went with the TypeScript wrapper on 2026-10-13

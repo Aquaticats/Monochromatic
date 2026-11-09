@@ -1,5 +1,25 @@
 # cli-git policies platform implementation grilling handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/bin.ts` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/optional` is deleted (2026-10-13 `642b6d72cb`) and
+> `package/forbidden-strings/core` and `package/linter/monochromatic-lint` carry its two
+> features in Rust today.
+> `package/git-policy/cli/src/parser` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/policy-engine` is deleted (2026-10-13 `642b6d72cb`) and the
+> Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/git-policy/cli/src/rule` is deleted (2026-10-13 `642b6d72cb`) and the Rust
+> wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/dev-script/task-util/src/oxlint-fix-loop.ts` is now
+> `package/monorepo-task/core-exec/src/oxlint-fix-loop.ts` (2026-10-29 `592d78b143`).
+> `package/git-policy/cli/src/optional/forbidden-strings` is deleted
+> (2026-10-13 `642b6d72cb`) and `package/forbidden-strings/core` carries the scanner today.
+> `package/module/fs-id/README.md` is now `package/fs-id/core/README.md`
+> (2026-10-29 `592d78b143`).
+
 Note 2026-11-08:
 these tasks this document names no longer exist:
 `//package/git-policy/cli:test:built:trust` went with the trust workflow on 2026-10-13 (`642b6d72cb`);

@@ -1,5 +1,10 @@
 # cli-git implementation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/doc/closure-lint-suppressions-reader-push-lock-subvolume-index.md`
+> is deleted (2026-11-04 `4b1abb1430`) and no path of that name exists today.
+
 Scratch note 2026-11-08:
 the `target/verification/...` records and the `.claude/worktrees/...` folders this document
 names never entered the tree.
