@@ -1507,7 +1507,10 @@ fn a_cleanup_that_fails_does_not_make_the_index_update_replayable() {
     let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
     // A conclusion whose scratch directory exists and whose state cannot be reproduced removes nothing and says so.
     let scratch: PathBuf = world.root.join("scratch");
-    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
+    // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
     intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
     crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
     let landing_git: GitContext = world.context.git.clone();
@@ -1577,8 +1580,8 @@ fn a_branch_switched_while_the_lock_is_awaited_stops_the_landing() {
 /// a landing that never says the word stopped before its wait,
 /// and a control that waited without one would be held until the test watchdog ends the process
 /// (`testing/test_support.rs`,
-/// `RUN_LIMIT`,
-/// two minutes).
+/// `QUIET_WINDOW`,
+/// two minutes with no sign of work).
 /// It is the ceiling the shipped landing gives a foreign holder
 /// (`wait_ceilings.rs`,
 /// `LANDING_LOCK_CEILING`),
@@ -1875,7 +1878,10 @@ fn a_restart_after_a_switch_keeps_the_batch_open_while_its_cleanup_is_pending() 
     std::fs::rename(&done, &open).expect("reopen");
     let mut intent: Intent = parse_intent(std::fs::read_to_string(&open).expect("read").as_str()).expect("parse");
     let scratch: PathBuf = world.root.join("scratch");
-    std::fs::create_dir_all(scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY)).expect("a copy directory with no record in it");
+    let copies: PathBuf = scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
+    std::fs::create_dir_all(copies.as_path()).expect("a copy directory");
+    // A record that is not JSON is damage in every backend, so this batch's cleanup cannot be done.
+    std::fs::write(copies.join(crate::conclusion_cleanup::STORE_RECORD_FILENAME), b"{").expect("a torn record");
     intent.cleanup = Some(crate::service_protocol::Cleanup { git_dir: world.root.join("no-such-git-dir"), scratch, reftable: false });
     crate::service_journal::write_intent(world.context.journal.as_path(), &intent).expect("intent with a cleanup");
     recover(&world.context);

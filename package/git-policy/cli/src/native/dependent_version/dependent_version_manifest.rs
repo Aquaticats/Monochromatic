@@ -18,6 +18,9 @@
 //!      one optional byte-order mark,
 //! as the incumbent's fatal `TextDecoder` does.
 //!
+//! `manifest-text.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/manifest-text.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // const facts = readManifestDependencyFacts({ path, text: new TextDecoder('utf-8', { fatal: true }).decode(bytes) });
@@ -36,6 +39,8 @@
 use crate::dependent_version_content::{PolicyIncomplete, display_path};
 /// The crate's JSONC parser and its value model.
 use monochromatic_jsonc_edit::{JsoncEntry, JsoncValue, parse_jsonc};
+/// The set that keeps one field's names unique in source order.
+use std::collections::HashSet;
 
 /// What:
 /// The byte-order mark a UTF-8 decoder removes before the text.
@@ -272,15 +277,19 @@ fn member<'value>(entries: &'value [JsoncEntry], key: &str) -> Option<&'value Js
 /// return isJsonObject(manifest[field]) ? Object.keys(manifest[field]) : [];
 /// ```
 fn dependency_names(entries: &[JsoncEntry], field: &str, names: &mut Vec<String>) {
-    let start: usize = names.len();
     let fields: &[JsoncEntry] = member(entries, field)
         .and_then(JsoncValue::entries)
         .unwrap_or(&[]);
+    // What: `HashSet` remembers every name this field already contributed.
+    // Why:  Scanning the names collected so far costs one comparison per earlier name,
+    //       which is quadratic in a generated field's member count.
+    let mut seen: HashSet<String> = HashSet::with_capacity(fields.len());
     for entry in fields {
         // `String::from_utf16` fails on an unpaired surrogate; `if let Ok` keeps the rest.
         if let Ok(name) = String::from_utf16(&entry.key.units)
-            && !names[start..].contains(&name)
+            && !seen.contains(&name)
         {
+            seen.insert(name.clone());
             names.push(name);
         }
     }

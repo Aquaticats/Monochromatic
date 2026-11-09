@@ -33,3 +33,18 @@ fn stat_fields_round_trip() {
     assert_eq!(StatData::from_cache_bytes(out.as_slice()), Some(stat));
     assert_eq!(StatData::from_cache_bytes(&out[..CACHE_STAT_LENGTH - 1]), None);
 }
+
+/// Git's racy rule compares the index file's own time with the entry's modification time to the nanosecond:
+/// an entry in the index file's second is racy from its last instant backwards,
+/// an entry a second older is not,
+/// and a caller with no index file time refuses nothing.
+#[test]
+fn the_racy_rule_compares_to_the_nanosecond() {
+    let entry: StatData = StatData { mtime_sec: 5, mtime_nsec: 400, ..StatData::default() };
+    assert!(IndexStamp { seconds: 4, nanoseconds: 999_999_999 }.is_racy(&entry), "an entry newer than the index is racily clean");
+    assert!(IndexStamp { seconds: 5, nanoseconds: 400 }.is_racy(&entry), "the same instant is racily clean");
+    assert!(IndexStamp { seconds: 5, nanoseconds: 1 }.is_racy(&entry), "an index older in the same second leaves the entry racily clean");
+    assert!(!IndexStamp { seconds: 5, nanoseconds: 401 }.is_racy(&entry), "a nanosecond later the entry is older than the index");
+    assert!(!IndexStamp { seconds: 6, nanoseconds: 0 }.is_racy(&entry), "a second later the entry is older than the index");
+    assert!(!IndexStamp::NONE.is_racy(&StatData::default()), "a caller with no index file time refuses nothing");
+}

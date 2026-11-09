@@ -409,8 +409,8 @@ catalogs:
       specifier: '>=1.6.0'
       version: 1.6.0
     unbash:
-      specifier: '>=6.0.3'
-      version: 6.0.3
+      specifier: '>=6.0.4'
+      version: 6.0.4
     unified:
       specifier: '>=11.0.5'
       version: 11.0.5
@@ -760,7 +760,7 @@ importers:
         version: link:../../ownership-marker/foreign-borrowed
       unbash:
         specifier: 'catalog:'
-        version: 6.0.3
+        version: 6.0.4
     devDependencies:
       '@monochromatic-dev/config-rolldown':
         specifier: workspace:*
@@ -2238,6 +2238,9 @@ importers:
       '@monochromatic-dev/mutation-test-cli-cargo-mutants':
         specifier: workspace:*
         version: link:../../mutation-test/cli-cargo-mutants
+      '@monochromatic-dev/or-throw-core':
+        specifier: workspace:*
+        version: link:../../or-throw/core
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -11040,8 +11043,8 @@ packages:
     resolution: {integrity: sha512-TXfryirbmq34y8QBwgqCVLi+8oA3oWx2eAnSn62ITyEhEYaWRlVZ2DvMM9eZbMs/RfxPu/PK/aBLyGj4IrqMHw==, tarball: https://registry.npmjs.org/parse-ms/-/parse-ms-4.0.0.tgz}
     engines: {node: '>=18'}
 
-  parse5@8.1.0:
-    resolution: {integrity: sha512-sq3qBFpee5jeocbFbO48VHlGr8sT7mbXS0vxlKN6sottBtJzrOG3998sr0llSZcQAGgfpdmEYAIZE0P9z0dE8w==, tarball: https://registry.npmjs.org/parse5/-/parse5-8.1.0.tgz}
+  parse5@8.1.1:
+    resolution: {integrity: sha512-EcR/6WDcU7b2N3vQSxKALCk9lXGtUMQxXio008OEMBE0kavu/7JLfBEeFPzi43nMqVDSbEn3QCK+BMCc9zO//w==, tarball: https://registry.npmjs.org/parse5/-/parse5-8.1.1.tgz}
 
   partial-json@0.1.7:
     resolution: {integrity: sha512-Njv/59hHaokb/hRUjce3Hdv12wd60MtM9Z5Olmn+nehe0QDAsRtRbJPvJ0Z91TusF0SuZRIvnM+S4l6EIP8leA==, tarball: https://registry.npmjs.org/partial-json/-/partial-json-0.1.7.tgz}
@@ -11423,8 +11426,8 @@ packages:
     resolution: {integrity: sha512-8iAasVS4wUx0gPLjH8Xtz2PeDzTSiy8QiLGu2DT3X5GU+egFEQhpnbtkehbAwjvDcxIERmCYcysiODFmE3Ud0Q==, tarball: https://registry.npmjs.org/uint8array-extras/-/uint8array-extras-1.6.0.tgz}
     engines: {node: '>=18'}
 
-  unbash@6.0.3:
-    resolution: {integrity: sha512-hRzSpMeM8uYMQkrnIVaVy3f44oLlokglVeEyP5hIQj88z60bKPO9VVbEpGfxChGBh9lBkzuWKOTOzPdfD6KNEA==, tarball: https://registry.npmjs.org/unbash/-/unbash-6.0.3.tgz}
+  unbash@6.0.4:
+    resolution: {integrity: sha512-t3OptUArewg9OpYGDskTSlxhyLDahfmZ4d36hE44Efb1y3HRLLpzsVqwH+AwBVymP4t7pP71xN+nnduudn2awA==, tarball: https://registry.npmjs.org/unbash/-/unbash-6.0.4.tgz}
     engines: {node: '>=14'}
 
   undici-types@7.24.6:
@@ -13527,7 +13530,7 @@ snapshots:
       '@types/hast': 3.0.5
       devlop: 1.1.0
       hast-util-from-parse5: 8.0.4
-      parse5: 8.1.0
+      parse5: 8.1.1
       vfile: 6.0.3
       vfile-message: 4.0.4
 
@@ -14323,7 +14326,7 @@ snapshots:
 
   parse-ms@4.0.0: {}
 
-  parse5@8.1.0:
+  parse5@8.1.1:
     dependencies:
       entities: 9.0.0
 
@@ -14773,7 +14776,7 @@ snapshots:
 
   uint8array-extras@1.6.0: {}
 
-  unbash@6.0.3: {}
+  unbash@6.0.4: {}
 
   undici-types@7.24.6: {}
 

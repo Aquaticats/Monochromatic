@@ -555,6 +555,24 @@ but the choice is listed under "Open choices".
 
 ## Known hazards
 
+- A crate published before its dependency floor moved keeps the old dependency.
+  `monochromatic-file-enforcer-cli` 0.1.1 went out built against
+  `monochromatic-dependency-catalog` 0.1.0,
+  and `bce22f7456` ("monochromatic-dependency-catalog 0.2.0 adds the trustLockfile setting")
+  moved the cli crate's requirement to `=0.2.0` without a bump of the cli crate itself,
+  so `912e82a0c7` ("rust-catalog.toml sets trustLockfile = true") made the installed 0.1.1 refuse
+  `rust-catalog.toml` ("is not a catalog table or a supported setting")
+  and `mise run sync:files` failed on `main`.
+  `fadde01fff` ("release 0.1.2 built against monochromatic-dependency-catalog 0.2.0")
+  and its lock `7929d95d65` fixed it.
+  This is why every dependency bump in
+  "Pins that move when a dependency gets its new version"
+  needs the depending crate's own version bump in the same wave.
+  Taken on 2026-11-08 from the 2026-11-04 release entry in
+  `doc/handover/cli-git-rust-implementation.md`,
+  which that page dropped;
+  the failure was not re-run here,
+  and the four commits above are the surviving evidence.
 - `package/git-policy/cli.fuzz` does not compile on `main`.
   Evidence:
   `cargo check --lib --offline --locked` there (throwaway worktree,

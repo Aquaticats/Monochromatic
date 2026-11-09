@@ -93,7 +93,14 @@ pub fn hex(value: &JsoncValue) -> Vec<u8> {
         .collect();
 }
 
-/// Text quoted as `JSON.stringify` quotes it.
+/// Text quoted as `JSON.stringify` quotes it,
+/// for fixture text.
+/// Why:
+///  This module owns the byte-for-byte `JSON.stringify` spelling of fixture output:
+///  a fixture string can hold a lone surrogate,
+///  which Rust `&str` cannot,
+///  so the UTF-16 code units are quoted one by one.
+///  The release path's `json_record::quote` stays on `serde_json` and is not used here.
 pub fn quote(value: &str) -> String {
     return json_quote_units(&value.encode_utf16().collect::<Vec<u16>>());
 }

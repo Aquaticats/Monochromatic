@@ -239,3 +239,17 @@ fn an_unknown_lock_field_and_a_bad_hash_are_config_errors_naming_the_path() {
     let truncated = parse_lock("{", "toolchain.lock.json").expect_err("not JSON");
     assert!(truncated.message.contains("is not valid JSON"), "{truncated}");
 }
+
+/// An artifact row keyed by something that is not a platform id is refused at decode time,
+/// with the row and the known ids named,
+/// instead of surviving until `artifact_for_host` finds no row for the running machine.
+#[test]
+fn a_lock_artifact_row_for_an_unknown_platform_is_refused_with_the_platform_named() {
+    let mut value = rendered_value();
+    let artifacts = value["tools"]["node"]["artifacts"].as_object_mut().expect("artifact rows");
+    let row = artifacts.remove("linux-x64").expect("the row under test");
+    artifacts.insert("linux-64x".to_string(), row);
+    let error = parse_lock(&value.to_string(), "toolchain.lock.json").expect_err("linux-64x is not a platform id");
+    assert!(error.message.contains("linux-64x"), "the message names the row: {error}");
+    assert!(error.message.contains("linux-x64"), "the message lists the known ids: {error}");
+}
