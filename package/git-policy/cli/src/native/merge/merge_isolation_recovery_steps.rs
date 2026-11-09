@@ -182,6 +182,27 @@ pub fn index_standings(
     old_oid: &str,
     changes: &[Change],
 ) -> Result<Vec<Standing>, RecoveryError> {
+    let staged: Vec<Change> = index_entries(place, root, old_oid)?;
+    let mut found: Vec<Standing> = Vec::with_capacity(changes.len());
+    for change in changes {
+        found.push(standing_of_index(entry_of(staged.as_slice(), change.path.as_slice()), change, change));
+    }
+    return Ok(found);
+}
+
+/// What:
+///  The index entries that differ from a commit,
+///  one per path.
+/// Why:
+///   Both the straight completion and the settling of a moved branch read the same list and compare each path with
+///  the two sides it knows,
+/// so the reading is one function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// parseRawChanges(await git(['diff-index', '--cached', '-z', '--raw', oldOid, '--']));
+/// ```
+pub fn index_entries(place: &RecoveryPlace, root: &Path, old_oid: &str) -> Result<Vec<Change>, RecoveryError> {
     let request: GitRequest = GitRequest::new(
         root,
         &["diff-index", "--cached", "-z", "--raw", "--no-renames", "--no-abbrev", old_oid, "--"],
@@ -190,28 +211,46 @@ pub fn index_standings(
         Ok(done) => done,
         Err(error) => return Err(RecoveryError(error.to_string())),
     };
-    let staged: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
-    let mut found: Vec<Standing> = Vec::with_capacity(changes.len());
-    for change in changes {
-        let mut entry: Option<&Change> = None;
-        for candidate in &staged {
-            if candidate.path == change.path {
-                entry = Some(candidate);
-                break;
-            }
-        }
-        // A path the index does not report differs from the old commit not at all.
-        let Some(staged_entry) = entry else {
-            found.push(Standing::Old);
-            continue;
-        };
-        if staged_entry.new_mode == change.new_mode && staged_entry.new_oid == change.new_oid {
-            found.push(Standing::New);
-        } else {
-            found.push(Standing::Foreign);
+    return parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError);
+}
+
+/// The index entry of one path,
+/// or nothing when the index reports none for it.
+fn entry_of<'a>(staged: &'a [Change], path: &[u8]) -> Option<&'a Change> {
+    for candidate in staged {
+        if candidate.path == path {
+            return Some(candidate);
         }
     }
-    return Ok(found);
+    return None;
+}
+
+/// What:
+///  How one index entry stands against the old and the new side of a change.
+/// Why:
+///   An entry equal to the old side is the branch's (or the merge's,
+/// for the settling of a moved branch),
+/// one equal to
+///  the new side is the end state,
+/// and anything else is someone's staged work,
+/// which has no other name and must never be written
+///  over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function standingOfIndex(entry, old, next): Standing; // absent or equal to old ? 'old' : equal to next ? 'new' : 'foreign'
+/// ```
+pub fn standing_of_index(entry: Option<&Change>, old: &Change, next: &Change) -> Standing {
+    let Some(found) = entry else {
+        return Standing::Old;
+    };
+    if found.new_mode == next.new_mode && found.new_oid == next.new_oid {
+        return Standing::New;
+    }
+    if found.new_mode == old.old_mode && found.new_oid == old.old_oid {
+        return Standing::Old;
+    }
+    return Standing::Foreign;
 }
 
 /// What the worktree holds at a changed path,
@@ -296,7 +335,11 @@ pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> 
         //  replaced.
         let identity: Option<FileIdentity> = file_identity(location.as_path());
         let state: WorktreeState = worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?;
-        judgements.push(Judged { standing: standing(change, &state), identity });
+        let content: Option<String> = match &state {
+            WorktreeState::Content(oid) => Some(oid.clone()),
+            WorktreeState::Missing | WorktreeState::Other => None,
+        };
+        judgements.push(Judged { standing: standing(change, &state), identity, content });
     }
     for (index, change) in changes.iter().enumerate() {
         if judgements[index].standing != Standing::Foreign || change.existed() || !change.exists_after() {
@@ -307,7 +350,7 @@ pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> 
         if !stands_as_a_directory || !the_branchs_files_stand_below(change, changes) {
             continue;
         }
-        judgements[index] = Judged { standing: Standing::Directory, identity: None };
+        judgements[index] = Judged { standing: Standing::Directory, identity: None, content: None };
     }
     return Ok(judgements);
 }
@@ -410,7 +453,7 @@ pub fn may_install(waited: IndexWait) -> bool {
 /// ```ts
 /// type Judged = { standing: Standing; identity?: FileIdentity };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Judged {
     /// How the path stood against the two sides of the change.
     pub standing: Standing,
@@ -418,6 +461,10 @@ pub struct Judged {
     /// as the file system named it,
     /// or nothing when nothing stood there.
     pub identity: Option<FileIdentity>,
+    /// The object the worktree held there,
+    /// or nothing when it held no file:
+    /// the bytes a take must still find when it finishes the file.
+    pub content: Option<String>,
 }
 
 /// The refusal for a merge whose files changed after it judged them.

@@ -704,7 +704,11 @@ fn judged_changes(world: &World) -> (Vec<Change>, Vec<Judged>) {
         // The identity first, as recovery reads it, then the content: exactly the order of `settle_failed_merge`.
         let identity = file_identity(worktree_path(world.repo.as_path(), change.path.as_slice()).as_path());
         let state: WorktreeState = worktree_state(&place.git, world.repo.as_path(), change.path.as_slice()).expect("the state");
-        judgements.push(Judged { standing: standing(change, &state), identity });
+        let content: Option<String> = match &state {
+            WorktreeState::Content(oid) => Some(oid.clone()),
+            WorktreeState::Missing | WorktreeState::Other => None,
+        };
+        judgements.push(Judged { standing: standing(change, &state), identity, content });
     }
     return (changes, judgements);
 }
@@ -993,7 +997,7 @@ fn a_take_that_fails_puts_the_files_it_already_took_back() {
     let identity: Option<crate::merge_isolation_changes::FileIdentity> = file_identity(world.repo.join("sealed/zeta.txt").as_path());
     let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", "sealed/zeta.txt"]).trim().to_owned();
     changes.push(extra_change("sealed/zeta.txt", "100644", "100644", old_oid.as_str(), old_oid.as_str()));
-    judgements.push(Judged { standing: Standing::Old, identity });
+    judgements.push(Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
     std::fs::set_permissions(world.repo.join("sealed"), std::fs::Permissions::from_mode(0o555)).expect("a directory that refuses writes");
     let mut said: Vec<u8> = Vec::new();
     let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
@@ -1032,7 +1036,7 @@ fn a_write_that_fails_puts_the_files_it_already_took_back() {
     let absent: String = String::from("1234567890123456789012345678901234567890");
     // The failing path is written first, so the checkout stops before it writes any file the merge changes.
     changes.insert(0, extra_change("zeta.txt", "100644", "100644", old_oid.as_str(), absent.as_str()));
-    judgements.insert(0, Judged { standing: Standing::Old, identity });
+    judgements.insert(0, Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
     let mut said: Vec<u8> = Vec::new();
     let failed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said)
         .expect_err("an object the repository does not hold stops the write");
@@ -1210,7 +1214,7 @@ fn a_file_whose_name_is_at_the_file_systems_limit_is_taken_and_finished() {
     let old_oid: String = git_text(world.repo.as_path(), &["hash-object", "--", long.as_str()]).trim().to_owned();
     let next_oid: String = git_text(world.repo.as_path(), &["hash-object", "-w", "--stdin"]).trim().to_owned();
     changes.push(extra_change(long.as_str(), "100644", "100644", old_oid.as_str(), next_oid.as_str()));
-    judgements.push(Judged { standing: Standing::Old, identity });
+    judgements.push(Judged { standing: Standing::Old, identity, content: Some(old_oid.clone()) });
     let mut said: Vec<u8> = Vec::new();
     let installed = install_entries(&place(&world), world.repo.as_path(), changes.as_slice(), judgements.as_slice(), &mut said);
     assert!(installed.is_ok(), "a valid file name is taken and finished: {installed:?} {}", String::from_utf8_lossy(&said));
@@ -1324,5 +1328,75 @@ fn a_file_a_process_holds_open_is_kept_and_a_file_nothing_holds_is_removed() {
     let mut afterwards: Vec<u8> = Vec::new();
     finish_asides(&entries, &mut afterwards).expect("the asides are finished");
     assert!(!aside.exists(), "a file nothing holds open is removed once its content was checked");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A staged edit of a path the merge changes stops the settling of a branch that moved,
+///  and the staged version stays in the index.
+/// Why:
+///  The straight completion path refuses a foreign staged entry,
+/// and the moved-branch settling had no such check,
+/// so
+///  the person's staged version of a path the merge changes was overwritten with the moved head's and the record
+///  removed
+/// (a cross-vendor review of the third round).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged); commitUnrelated(); stage('f.txt', C); await expect(recover(...)).rejects.toMatch(/f.txt/);
+/// ```
+#[test]
+fn a_staged_edit_of_a_merge_path_stops_the_moved_branch_settling() {
+    let world: World = world("merge-recovery-moved-staged");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    // A commit on top of the old head that leaves `f.txt` alone, checked out: the branch moved.
+    std::fs::write(world.repo.join("z.txt"), b"committed meanwhile\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "z.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    // Another program stages its own version of `f.txt` and puts the worktree back to the merge's content.
+    std::fs::write(world.repo.join("f.txt"), b"f.txt staged by someone else\n").expect("the staged version");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the worktree as the merge left it");
+    let staged_entry: String = git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]);
+    let _record: PathBuf = record_of(&world, dead_owner("22222222-0000-4000-8000-000000000022"), Some("refs/heads/main"));
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("a staged edit of a merge path stops the settling");
+    assert!(refused.0.contains("f.txt"), "the path is named: {}", refused.0);
+    assert_eq!(git_text(world.repo.as_path(), &["ls-files", "--stage", "--", "f.txt"]), staged_entry, "the staged version is kept");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A directory that the branch's own files explain does not stop the settling of a branch that moved.
+/// Why:
+///  The moved-branch settling judged paths with its own loop,
+/// so the directory-to-file shape refused it for good,
+/// as the
+///  straight path did before its own rule
+/// (a cross-vendor review of the third round, and the brief's item 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = directoryToFileWorld(); await readTree(repo, old, merged, { updateWorktree: false }); commitUnrelated(); expect((await recover(...))[0].action).toBe('branch-moved');
+/// ```
+#[test]
+fn a_directory_that_explains_itself_does_not_stop_the_moved_branch_settling() {
+    let world: World = directory_to_file_world("merge-recovery-moved-directory");
+    // The merge's index is installed and the worktree still holds the branch's directory.
+    git(world.repo.as_path(), &["read-tree", "-m", world.old_oid.as_str(), world.new_oid.as_str()]);
+    // A commit on top of the old head leaves the directory alone: the branch moved.
+    std::fs::write(world.repo.join("z.txt"), b"committed meanwhile\n").expect("file");
+    git(world.repo.as_path(), &["add", "--", "z.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=meanwhile", "--", "z.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    let _record: PathBuf = record_of(&world, dead_owner("23232323-0000-4000-8000-000000000023"), Some("refs/heads/main"));
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the settling goes on");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::BranchMoved);
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the moved one");
+    assert!(world.repo.join("dir/child.txt").is_file(), "the branch's directory is still the checkout's");
     remove(world.parent.as_path());
 }

@@ -7743,6 +7743,10 @@ proves nothing and the file is kept.
 A take or a write that fails puts every file it already took back,
 and a path the merge deletes is never removed again after its take,
 so a file that appeared in that instant stays.
+The settling of a branch that moved reads the checkout and the index the same way the completion does,
+so a directory the branch's own files explain is read the same way there,
+and a staged entry for a path the merge changes that is neither the merge's nor the moved head's stops it,
+naming the paths and keeping the staged content.
 A directory that stands where the merge puts a file is the branch's own when the merge deletes every file below it:
 nothing is set aside for it,
 the merge's own deletions empty it before the checkout,

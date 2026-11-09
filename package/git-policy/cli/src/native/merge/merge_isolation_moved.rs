@@ -30,13 +30,13 @@
 //! ```
 
 /// The raw differences and the worktree states.
-use crate::merge_isolation_changes::{Change, WorktreeState, file_identity, parse_raw_changes, worktree_path, worktree_state};
+use crate::merge_isolation_changes::{Change, parse_raw_changes};
 /// The intent record.
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_steps::{
-    Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, index_holds_the_merge, install_entries, merge_changes,
-    put_back_stranded_takes, remove_record, standing,
+    Installed, Judged, MergeRecoveryAction, RecoveryPlace, Standing, index_entries, index_holds_the_merge, install_entries,
+    judge_changes, merge_changes, put_back_stranded_takes, remove_record, standing_of_index,
 };
 /// The fail-closed recovery failure.
 use crate::recovery_error::RecoveryError;
@@ -72,20 +72,10 @@ pub(crate) fn settle_moved_branch(
     let root: &Path = Path::new(intent.repository_root.as_str());
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
     put_back_stranded_takes(root, changes.as_slice(), out);
-    let mut states: Vec<WorktreeState> = Vec::with_capacity(changes.len());
-    let mut identities: Vec<Option<crate::merge_isolation_changes::FileIdentity>> = Vec::with_capacity(changes.len());
-    for change in &changes {
-        // The identity is read before the content, so a file written in between does not match the judgement.
-        identities.push(file_identity(worktree_path(root, change.path.as_slice()).as_path()));
-        states.push(worktree_state(&place.git, root, change.path.as_slice()).map_err(RecoveryError)?);
-    }
-    let mut worktree_began: bool = false;
-    for (change, state) in changes.iter().zip(states.iter()) {
-        if standing(change, state) == Standing::New {
-            worktree_began = true;
-            break;
-        }
-    }
+    // The same judgement the straight completion makes,
+    // so a directory the branch's own files explain is read the same way here.
+    let worktree: Vec<Judged> = judge_changes(place, root, changes.as_slice())?;
+    let worktree_began: bool = worktree.iter().any(|judged| { return judged.standing == Standing::New; });
     // The index is read first and the worktree standings only decide when it holds nothing of the merge, as `||` ran.
     let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice())? || worktree_began;
     if !began {
@@ -123,19 +113,47 @@ pub(crate) fn settle_moved_branch(
             new_oid: oid,
         });
     }
+    // A staged version of a path the merge changes has no other name, so it is never written over here either: the settling
+    //  stops and names the paths, and the staged content stays in the index.
+    let staged_index: Vec<Change> = index_entries(place, root, intent.old_oid.as_str())?;
+    let mut staged: Vec<String> = Vec::new();
+    for end in &ends {
+        let entry: Option<&Change> = staged_index.iter().find(|found| { return found.path == end.path; });
+        if standing_of_index(entry, end, end) == Standing::Foreign {
+            staged.push(String::from_utf8_lossy(end.path.as_slice()).into_owned());
+        }
+    }
+    if !staged.is_empty() {
+        return Err(RecoveryError(format!(
+            "A merge in {} lost the branch to a newer commit, and the index holds staged content for these paths that the \
+             settling would replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the \
+             index. Commit or unstage it, then run any git command again.",
+            root.display(),
+            staged.join(", "),
+            record.display()
+        )));
+    }
     let mut foreign: Vec<String> = Vec::new();
     let mut held: Vec<Judged> = Vec::with_capacity(ends.len());
-    for (((change, end), state), identity) in changes.iter().zip(ends.iter()).zip(states.iter()).zip(identities.iter()) {
-        let holds_old_or_merged: bool = standing(change, state) != Standing::Foreign;
-        let holds_end: bool = match state {
-            WorktreeState::Missing => !end.exists_after(),
-            WorktreeState::Content(oid) => end.exists_after() && *oid == end.new_oid,
-            WorktreeState::Other => false,
+    for ((judged, end), change) in worktree.iter().zip(ends.iter()).zip(changes.iter()) {
+        let holds_old_or_merged: bool = judged.standing != Standing::Foreign;
+        let holds_end: bool = match &judged.content {
+            Some(oid) => end.exists_after() && *oid == end.new_oid,
+            None => judged.standing != Standing::Directory && !end.exists_after(),
         };
         if !holds_old_or_merged && !holds_end {
             foreign.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
         }
-        held.push(Judged { standing: if holds_end { Standing::New } else { Standing::Old }, identity: *identity });
+        // A directory the branch's own files explain stays a directory here too: the settling writes the moved head's
+        //  end state, and nothing of anyone's is inside it.
+        let settled: Standing = if holds_end {
+            Standing::New
+        } else if judged.standing == Standing::Directory {
+            Standing::Directory
+        } else {
+            Standing::Old
+        };
+        held.push(Judged { standing: settled, identity: judged.identity, content: judged.content.clone() });
     }
     if !foreign.is_empty() {
         return Err(RecoveryError(format!(
