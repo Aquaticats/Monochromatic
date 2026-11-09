@@ -37,6 +37,21 @@ use std::path::{Path, PathBuf};
 pub const HEX_SUFFIX: &str = "Hex";
 
 /// What:
+///  The words of a line that names a Git directory by its bytes,
+/// in a record of lines.
+/// Why:
+///   The work queue's journal, the note that names an instance's worktree and a removal's snapshot all name one
+/// directory,
+/// and each of them separates its lines by line breaks,
+/// so the bytes take the same `key=value` form in all three.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const GITDIR_HEX_PREFIX = 'gitdirHex=';
+/// ```
+pub const GITDIR_HEX_PREFIX: &str = "gitdirHex=";
+
+/// What:
 ///  The path's bytes as lowercase hexadecimal digits.
 /// Why:
 ///  `write_field` stores this,

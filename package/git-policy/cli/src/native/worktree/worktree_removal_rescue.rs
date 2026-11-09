@@ -46,6 +46,8 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::diagnostic_log::{debug, warn};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::path_bytes_in_records as path_bytes;
+use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
 use crate::service_instance::instance_of;
 use crate::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkItem, WorkKind, find_claim, id_of_entry};
@@ -280,8 +282,13 @@ fn attempt_file_may_be_running(path: &Path) -> bool {
 /// Whether the checkout a registered worktree's Git directory names is still there;
 /// nothing when the Git directory does not say.
 fn checkout_present(git_dir: &Path) -> Option<bool> {
-    let text: String = std::fs::read_to_string(git_dir.join("gitdir")).ok()?;
-    let marker: &Path = Path::new(text.trim_end());
+    // Git writes this file itself, as the bytes of the checkout's `.git`, so it is read as bytes and never as text.
+    let bytes: Vec<u8> = std::fs::read(git_dir.join("gitdir")).ok()?;
+    let trimmed: &[u8] = match bytes.split(|byte| { return *byte == b'\n'; }).next() {
+        Some(first) => first,
+        None => bytes.as_slice(),
+    };
+    let marker: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(trimmed));
     if marker.as_os_str().is_empty() {
         return None;
     }
@@ -305,6 +312,28 @@ fn checkout_present(git_dir: &Path) -> Option<bool> {
 /// ```ts
 /// await removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
 /// ```
+/// What:
+///  The Git directory a snapshot's `gitdir` file names:
+/// its bytes when the file is one this release wrote,
+/// its plain text when it is an earlier release's.
+/// Why:
+///   The removal of a worktree is judged by looking at this directory,
+/// and a spelling that lost the path's bytes names nothing,
+/// which reads as a removal that finished and would promote a live worktree's records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namedGitDir = (text) => text.trim().startsWith('gitdirHex=') ? pathOfHex(text.trim().slice(10)) : text.trim() || undefined;
+/// ```
+fn named_git_dir(text: &str) -> Option<PathBuf> {
+    let trimmed: &str = text.trim_end_matches('\n');
+    return match trimmed.strip_prefix(GITDIR_HEX_PREFIX) {
+        Some(hexadecimal) => path_bytes::path_of_hex(hexadecimal),
+        None if trimmed.is_empty() => None,
+        None => Some(PathBuf::from(trimmed)),
+    };
+}
+
 fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
     match std::fs::symlink_metadata(git_dir) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Removal::Done,
@@ -386,7 +415,9 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
                 }
             }
             // Last, so that a snapshot that names its worktree is a whole one.
-            if let Err(error) = save_once(snapshot.join(GIT_DIR_FILE).as_path(), git_dir.to_string_lossy().as_bytes()) {
+            // The snapshot names its worktree by the bytes of its Git directory, so a path that is not text is still found.
+            let named: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir.as_path()));
+            if let Err(error) = save_once(snapshot.join(GIT_DIR_FILE).as_path(), named.as_bytes()) {
                 failures.push(format!("the snapshot could not be completed ({error})"));
             }
         }
@@ -522,7 +553,8 @@ pub fn settle_removals(common_dir: &Path) -> Vec<String> {
             //  concurrent writer may be at it, so it is left to the next settle.
             continue;
         };
-        match removal_of(Path::new(named.as_str()), snapshot.as_path()) {
+        let Some(git_dir) = named_git_dir(named.as_str()) else { continue };
+        match removal_of(git_dir.as_path(), snapshot.as_path()) {
             Removal::Undecided => {}
             Removal::Refused => {
                 let _discarded = std::fs::remove_dir_all(snapshot.as_path());

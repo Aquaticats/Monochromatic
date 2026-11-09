@@ -31,7 +31,7 @@
 
 use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
-use crate::path_bytes_in_records::path_of_hex;
+use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
 use crate::private_storage::create_private_directory_all;
 use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, service_unit_instance, socket_path, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, runtime_unit_dir};
@@ -46,12 +46,6 @@ const TAG: &str = "serviceUnitsOfRemovedWorktrees";
 
 /// The ending of the note file that names the Git directory of an instance's worktree.
 pub const NOTE_ENDING: &str = ".git-dir";
-
-/// The first words of a note,
-/// and of the journal line that names the same directory:
-/// the path's bytes in hexadecimal,
-/// so a directory whose path is not text is still found by the instance that is a hash of it.
-const GITDIR_HEX_PREFIX: &str = "gitdirHex=";
 
 /// Where the units of the user's instances are told apart from one another.
 #[derive(Clone, Copy, Debug)]
