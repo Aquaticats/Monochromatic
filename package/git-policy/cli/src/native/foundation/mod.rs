@@ -73,6 +73,10 @@ pub mod parallel_runner_on_the_runtime_awaiting;
 /// whether the work of a job runs or its reporter may say it never did.
 pub mod the_claim_a_job_takes_before_running_it;
 
+/// The place one blocking job holds of the process's bound,
+/// shared between the frame that waits for it and the job itself.
+pub mod the_place_of_one_blocking_job;
+
 /// A call turned into a value when it panics,
 /// for the places that guard a function and its state.
 pub mod call_catching_panics;

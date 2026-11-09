@@ -443,10 +443,10 @@ pub(crate) async fn wait_for_a_message_or_a_return<R>(
 ) -> Option<Message<R>> {
     // The wake branch is never switched off: a wake stored while nothing waited is consumed here, and a branch
     //  disabled by the count cannot consume it (`tokio-1.54.1/src/sync/notify.rs`: at most one permit is stored).
-    tokio::select! {
+    return tokio::select! {
         arrived = receiver.recv() => arrived,
         () = still_running.changed.notified() => None,
-    }
+    };
 }
 
 /// What:

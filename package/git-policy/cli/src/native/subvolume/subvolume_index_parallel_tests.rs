@@ -359,7 +359,7 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
             let outcome = tokio::time::timeout(REFRESH_STOP_BY, refresh_all_indexes_awaiting(&request, &mut sink)).await;
             return match outcome {
                 Ok(Ok(_count)) => "the refresh finished",
-                Ok(Err(refused)) => if format!("{refused}").is_empty() { "the refresh failed" } else { "the refresh failed" },
+                Ok(Err(_refused)) => "the refresh failed",
                 Err(_elapsed) => "the refresh gave up",
             };
         });
@@ -367,7 +367,7 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
         // The runtime keeps its blocking pool until it is dropped, and one job may still be opening the pipe.
         std::mem::forget(runtime);
     });
-    let said: Result<&'static str, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(PREPARATION_STOP_BY);
+    let answered: Result<&'static str, std::sync::mpsc::RecvTimeoutError> = heard.recv_timeout(PREPARATION_STOP_BY);
     // A writer that closes at once gives the blocked read an empty file, so `std::fs::read` ends and the thread can be
     //  joined however the control ends.
     let released = std::fs::OpenOptions::new().write(true).open(&config);
@@ -377,6 +377,6 @@ fn a_preparation_read_that_hangs_leaves_the_runtime_free_and_its_timeout_expires
     std::fs::remove_file(&config).expect("the named pipe goes");
     std::fs::rename(&kept, &config).expect("the configuration comes back");
     remove(parent.as_path());
-    let said: &'static str = said.expect("the refresh answered within the control's wait");
+    let said: &'static str = answered.expect("the refresh answered within the control's wait");
     assert_eq!(said, "the refresh gave up", "a preparation read that hangs must be a job of the blocking pool, so the runtime stays free and the refresh's own timeout expires");
 }

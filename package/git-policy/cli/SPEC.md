@@ -1388,6 +1388,18 @@ worktree's;
 each is its own file under its own lock describing its own tree,
 so they are rewritten side by side within the host
 budget and reported in the order of the checkout's index first and then each worktree's by path.
+What the run reads before its first rewrite (the repository's configuration with a synchronous read,
+the linked worktrees and the size of each index) is one job of the blocking pool,
+never a read on the thread that polls the runtime:
+a named pipe where that configuration file is would otherwise block that thread before the future reaches
+an await,
+where no timeout can expire and every other task of the runtime stops with it.
+An index whose rewrite was given up on before it could start is reported as unchanged,
+and that is a fact rather than a hope:
+the job takes a one-shot claim on its work before its first effect and the report takes the same claim
+when it gives up,
+so a job the report gave up on does nothing,
+while one that took the claim first makes the report say the result is not known.
 Before it removes the old tree it reads the process table again for anything holding the old tree and compares the old tree
 with the installed one without changing either:
 every entry of the old tree must be in the installed tree in the same kind,
@@ -2728,6 +2740,20 @@ beside the value;
 no margin is chosen here.
 
 #### Every wait has a bound
+
+A bound is only a bound where the wait can be reached by the timer that is meant to end it,
+so:
+
+- no synchronous storage read runs on the thread that polls the runtime
+  (a named pipe would block it before the future's first await,
+  and no timeout could expire);
+- a wait that races a wake it has already missed never switches off the branch that reads wakes:
+  the count of jobs still running ends it,
+  and a sending end a refused job keeps open must not be waited for;
+- the process's bound on blocking jobs covers every job that runs,
+  so a job the pool queued before its frame stopped waiting either gives up its work or keeps its place
+  until the work ends,
+  and one of the two is decided once by a claim rather than guessed.
 
 The owner,
 said in the session at about 2026-11-03T12:37-05:00 (quoted):

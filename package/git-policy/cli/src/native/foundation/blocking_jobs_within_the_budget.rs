@@ -30,6 +30,8 @@
 //! ```
 
 use crate::blocking_job::{BlockingJobError, run_blocking_job};
+use crate::the_claim_a_job_takes_before_running_it::TheClaimOnAJobsWork;
+use crate::the_place_of_one_blocking_job::{APlaceGivenBackWhenItEnds, ThePlaceOfOneJob};
 use crate::parallel_budget::HostResources;
 use crate::runtime_limits::RuntimeLimits;
 use crate::runtime_plan::budgeted_workers;
@@ -164,7 +166,7 @@ where
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
     let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
-    let _place: tokio::sync::OwnedSemaphorePermit = match Arc::clone(&budget().places).acquire_owned().await {
+    let place: tokio::sync::OwnedSemaphorePermit = match Arc::clone(&budget().places).acquire_owned().await {
         Ok(taken) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
         Err(_closed) => return Err(BlockingJobError::Cancelled),
@@ -172,7 +174,33 @@ where
     // The place is this job's, so it is no longer one of the jobs waiting for one.
     #[cfg(test)]
     drop(_asking);
-    return run_blocking_job(job).await;
+    // The place and the claim travel together: a job the pool queued can run after this frame stops waiting, and then
+    //  it must still hold a place, while a job this frame gives up on must do nothing at all.
+    let claimed: Arc<TheClaimOnAJobsWork> = TheClaimOnAJobsWork::new();
+    let held: Arc<ThePlaceOfOneJob> = ThePlaceOfOneJob::holding(place);
+    let (jobs_claim, jobs_place) = (Arc::clone(&claimed), Arc::clone(&held));
+    let outcome = run_blocking_job(move || {
+        // The claim comes first, before anything of the job's own work.
+        if !jobs_claim.the_job_takes_it() {
+            return None;
+        }
+        let _place: APlaceGivenBackWhenItEnds = APlaceGivenBackWhenItEnds::covering(jobs_place);
+        return Some(job());
+    })
+    .await;
+    return match outcome {
+        Ok(Some(value)) => Ok(value),
+        // The job found the claim taken, which only this frame's reporter does, and only after this call returned.
+        Ok(None) => panic!("a blocking job found its own work given up on while the caller still waited for it"),
+        Err(failed) => {
+            // The place goes back here only when the job will never run: a job that took the claim holds it until its
+            //  work ends, so the process's bound keeps covering every running job.
+            if claimed.the_reporter_takes_it() {
+                held.give_it_back();
+            }
+            Err(failed)
+        }
+    };
 }
 
 #[cfg(test)]
