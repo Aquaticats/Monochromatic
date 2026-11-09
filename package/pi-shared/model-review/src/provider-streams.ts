@@ -23,6 +23,7 @@ import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-forei
 
 import {
   assertModelUsesApi,
+  cloneReviewMessages,
   isolateReviewContext,
   isolateReviewModel,
   isolateReviewOptions,
@@ -30,7 +31,6 @@ import {
 } from './provider-data.ts';
 import type {
   ScriptedStructuredReviewTransport,
-  StructuredReviewMessageSnapshot,
   StructuredReviewRequestSnapshot,
 } from './types.ts';
 
@@ -84,19 +84,10 @@ function snapshotContext(
   /**
    Isolated user-message snapshots.
    */
-  const messages: StructuredReviewMessageSnapshot[] = [];
-  for (const message of context.messages) {
-    if ((message.role !== 'user') || ((typeof message.content) !== 'string')) {
-      throw new Error(
-        `Structured review request snapshot received unsupported ${message.role} message content`,
-      );
-    }
-    messages.push({
-      role: 'user',
-      content: message.content,
-      timestamp: message.timestamp,
-    },);
-  }
+  const messages = cloneReviewMessages({
+    messages: context.messages,
+    errorPrefix: 'Structured review request snapshot received unsupported',
+  },);
   /**
    Isolated tool-name snapshots.
    */

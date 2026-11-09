@@ -81,15 +81,19 @@ await describe({
         );
         expect(countOccurrences({
           source: providerDataSource,
-          needle: 'unsupported ${message.role} message content',
+          needle: 'message.role} message content',
+        },),).toBe(1,);
+        expect(countOccurrences({
+          source: providerDataSource,
+          needle: 'content: message.content,',
         },),).toBe(1,);
         expect(countOccurrences({
           source: providerStreamsSource,
-          needle: 'unsupported ${message.role} message content',
+          needle: 'message.role} message content',
         },),).toBe(0,);
         expect(countOccurrences({
           source: providerStreamsSource,
-          needle: "role: 'user',",
+          needle: 'content: message.content,',
         },),).toBe(0,);
         expect(providerStreamsSource.includes('cloneReviewMessages(',),).toBe(true,);
       },

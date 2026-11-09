@@ -15,6 +15,8 @@ import {
 } from '@earendil-works/pi-ai';
 import type { ForeignBorrowed, } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 
+import type { StructuredReviewMessageSnapshot, } from './types.ts';
+
 /**
  Simple options carrying provider-specific forced selector.
 
@@ -124,6 +126,57 @@ function isolateReviewTool(
 }
 
 /**
+ Clone caller review messages into provider-owned containers.
+ 
+ The provider request and its recorded snapshot read messages through this one
+ function, so a validation change lands once and the snapshot cannot disagree
+ with what is sent.
+
+ @param messages - caller review messages
+ 
+ @param errorPrefix - diagnostic prefix naming the rejecting boundary
+ 
+ @returns isolated user-message records
+ 
+ @throws when a message is not a user message with string content
+ 
+ @example
+ ```ts
+ cloneReviewMessages({
+   messages: context.messages,
+   errorPrefix: 'Structured review provider received unsupported',
+ });
+ ```
+ */
+function cloneReviewMessages(
+  {
+    messages,
+    errorPrefix,
+  }: ForeignBorrowed<Readonly<{
+    readonly messages: Context['messages'];
+    readonly errorPrefix: string;
+  }>>,
+): StructuredReviewMessageSnapshot[] {
+  /**
+   Isolated user-message records.
+   */
+  const clones: StructuredReviewMessageSnapshot[] = [];
+  for (const message of messages) {
+    if ((message.role !== 'user') || ((typeof message.content) !== 'string')) {
+      throw new Error(
+        `${errorPrefix} ${message.role} message content`,
+      );
+    }
+    clones.push({
+      role: 'user',
+      content: message.content,
+      timestamp: message.timestamp,
+    },);
+  }
+  return clones;
+}
+
+/**
  Clone known one-message review context into provider-owned containers.
  
  @param context - final structured-review context
@@ -143,19 +196,10 @@ function isolateReviewContext(
   /**
    Isolated review messages.
    */
-  const messages: Context['messages'] = [];
-  for (const message of context.messages) {
-    if ((message.role !== 'user') || ((typeof message.content) !== 'string')) {
-      throw new Error(
-        `Structured review provider received unsupported ${message.role} message content`,
-      );
-    }
-    messages.push({
-      role: 'user',
-      content: message.content,
-      timestamp: message.timestamp,
-    },);
-  }
+  const messages: Context['messages'] = cloneReviewMessages({
+    messages: context.messages,
+    errorPrefix: 'Structured review provider received unsupported',
+  },);
   /**
    Isolated structured tools.
    */
@@ -242,6 +286,7 @@ function assertModelUsesApi<const TApi extends Api,>(
 }
 
 export {
+  cloneReviewMessages,
   isolateReviewContext,
   isolateReviewModel,
   isolateReviewOptions,
