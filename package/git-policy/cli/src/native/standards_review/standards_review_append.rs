@@ -26,14 +26,21 @@
 //! a full disk) is
 //!  continued with the rest of the same entry,
 //! so an entry is whole unless the disk refuses it.
+//! A review counts as delivered only by the receipt line that ends its own entry,
+//! compared as one whole
+//!  line of the log:
+//! text a remote answer or a subject happens to spell cannot pass for a receipt,
+//! and an entry cut
+//!  short before that line is not a finished review,
+//! so a retry appends the whole entry and leaves the fragment where it is.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (!(await readLog(log)).includes(sha12)) await appendFile(log, text); // one write on an 'a' handle
+//! if (!(await readLog(log)).split('\n').includes(receiptLine(sha))) await appendFile(log, text); // one write on an 'a' handle
 //! ```
 
 use crate::private_storage::create_private_directory_all;
-use crate::standards_review_entry::SHORT_SHA_LENGTH;
+use crate::standards_review_entry::receipt_line;
 use std::io::Write;
 use std::path::Path;
 
@@ -47,18 +54,34 @@ pub enum Delivery {
     AlreadyThere,
 }
 
-/// The text the log is searched for:
-/// the first characters of the commit name,
-/// which survive a reflow of the entry.
-fn token(sha: &str) -> String {
-    return sha.chars().take(SHORT_SHA_LENGTH).collect();
+/// What:
+///  Whether the log's text carries the whole receipt line of `sha`.
+/// Why:
+///   A receipt is a line of its own,
+/// compared whole,
+/// so no text that merely names the commit can pass for one,
+/// and an entry
+///  the system cut short before its last line is not a finished review.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// text.split('\n').includes(receiptLine(sha))
+/// ```
+fn text_names_commit(text: &str, sha: &str) -> bool {
+    let wanted: String = receipt_line(sha);
+    for line in text.lines() {
+        if line == wanted {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// Whether the log names the commit already;
 /// a log that cannot be read names nothing.
 pub fn names_commit(log: &Path, sha: &str) -> bool {
     return match std::fs::read_to_string(log) {
-        Ok(text) => text.contains(token(sha).as_str()),
+        Ok(text) => text_names_commit(text.as_str(), sha),
         Err(_) => false,
     };
 }
@@ -98,16 +121,19 @@ fn append_whole(log: &Path, text: &str) -> std::io::Result<()> {
 
 /// What:
 ///  Deliver one entry for `sha` to `log`:
-/// nothing if the log already names the commit,
+/// nothing if the log already carries the commit's receipt line,
 /// otherwise append it whole.
 /// Why:
-///   Keeping the commit-name test first makes a repeated item (a crash after the append,
+///   Keeping the receipt test first makes a repeated item (a crash after the append,
 /// before the item was settled)
 ///   add nothing.
 /// A log that does not exist yet names nothing;
 /// any other read failure is reported,
 /// because appending
 ///   after it could repeat an entry.
+/// A log whose entry for the commit was cut short before its receipt is appended to,
+/// never taken as
+///  finished and never rewritten.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -119,7 +145,7 @@ pub fn deliver(log: &Path, sha: &str, text: &str) -> Result<Delivery, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(format!("reading {} failed: {error}", log.display())),
     };
-    if current.contains(token(sha).as_str()) {
+    if text_names_commit(current.as_str(), sha) {
         return Ok(Delivery::AlreadyThere);
     }
     if let Err(error) = append_whole(log, text) {

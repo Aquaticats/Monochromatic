@@ -255,17 +255,22 @@ fn write_subsumed_base(
 }
 
 /// What:
-///  Whether a shared path is decided by identity or the text check,
-/// before capture order applies:
-///       identical entries,
-/// or a text candidate the text check subsumes.
+///  Whether the prepared and landed entries of a shared path are the same entry:
+///  the same mode and object,
+/// or both absent.
 /// Why:
-///   Capture order decides first;
-/// only the remaining paths go through these rules.
+///   The identity half of the subsumption rules,
+/// and only that half:
+/// a path whose two sides hold the same entry reaches the merge settled,
+///  without the text check.
+///  Capture order is not asked here either;
+/// `subsume_landed_changes` skips the paths it ordered
+///  before calling this,
+/// and asks the text check about the entries this returns `false` for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// subsumeLandedChanges(...) // identical ∪ text
+/// sameEntry({ left: shared.prepared, right: shared.landed })
 /// ```
 pub fn is_identical(shared: &SharedPath) -> bool {
     return same_entry(&shared.prepared, &shared.landed);

@@ -232,15 +232,22 @@ Still lossy,
  with the reason each is not fixed here:
 
 - `src/native/worktree_copying/`:
-  the copy journal keeps its four roots as text,
-  and its recovery,
-  its settle and its stage-claim files read them back as paths
-  (`worktree_copy_journal.rs`,
-  `worktree_copy_recovery.rs`,
-  `worktree_copy_stage_claim.rs`).
-  Fixing it changes an on-disk format that several of its files and controls share,
-  so it is one job of its own,
-  with the same two-field idiom.
+  the four roots a journal names are `PathBuf` and each is written with a `Hex` field,
+  read before the text,
+  so recovery fills and reaps exactly the directory the record names;
+  the stage claim carries `containerHex`,
+  and the temporary of a write appends its suffix to the path's own bytes
+  (`fix/git-policy-cli-worktree-copy-records-keep-path-bytes`).
+  A repository path inside the copy
+  (`selectedRoots`,
+  `intendedEntries`,
+  the created entries' `relativePath`,
+  the install log's intents and the manifest)
+  is still text decoded from Git's listing with replacement characters,
+  so an ignored entry whose own name is not text is looked for under a name it does not have.
+  That reaches the selection,
+  manifest and install pipeline,
+  so it is a job of its own.
 - `src/native/repository_link_check/`:
   the gate holds `link_path`,
   `canonical_root` and `mount_point` as text and compares them with real paths;

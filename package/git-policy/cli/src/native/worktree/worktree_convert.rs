@@ -257,6 +257,7 @@ fn convert_in_phases(platform: &dyn Platform, path: &Path, options: ConvertOptio
         old_identity: old,
         git_file: candidate.git_file.clone(),
         new_identity: None,
+        synced_ms: None,
     });
     let converting: PathBuf = converting_path(candidate.path.as_path());
     let mut job: Job<'_> = Job { candidate: &candidate, converting, journal: started };

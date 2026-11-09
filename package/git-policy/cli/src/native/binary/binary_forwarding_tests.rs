@@ -18,6 +18,11 @@ use super::support::{
     Fixture, Observed, REAL_GIT, bounded, direct, executable, fixture, git, observe, remove,
     repository, wrapped,
 };
+/// The handle that makes a signal reach one process and never its successor.
+use super::supervisor_pin::{Delivered, Pin};
+/// One process's start time,
+/// read from the kernel's table.
+use super::supervisor_proc::stat_of;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::io::{BufRead, Read};
@@ -482,13 +487,49 @@ fn wrapper_waiting_on_a_git_that_waits(fixture: &Fixture, repo: &Path, scripts: 
         .expect("the wrapper starts");
 }
 
-/// Send `signal` to the process with this number,
-/// as a person's `kill` or a supervisor does.
-fn send_signal(pid: i32, signal: i32) {
-    // SAFETY: `kill` takes a process number and a signal number, touches no memory of this process, and its answer is
-    //  checked below.
-    let sent: i32 = unsafe { libc::kill(pid, signal) };
-    assert_eq!(sent, 0, "the signal was refused for process {pid}: {}", std::io::Error::last_os_error());
+/// What:
+///  Sends `signal` to the Git child of the pinned `wrapper`,
+///  through a handle taken while that child was proven to be the wrapper's child.
+/// Why:
+///  A process number written by a stand-in names that process only while it lives:
+/// once it is reaped the number
+///  names the next process the account starts,
+/// and a signal sent to it ends an unrelated program
+///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3 of the round-4
+///  review).
+/// The number the stand-in wrote is a candidate;
+/// the pin proves it is the wrapper's child,
+/// and the pidfd it
+///  holds makes the signal reach that child or nothing,
+/// never a successor.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = Pin.openChild(pinOfOurWrapper, numberFromTheFile); child?.signal('SIGTERM');
+/// ```
+fn signal_the_wrappers_git(wrapper: &Child, number: i32, signal: i32) -> bool {
+    let wrapper_pin: Pin = pin_our_own_child(wrapper);
+    let Some(child) = Pin::open_child(&wrapper_pin, number) else { return false };
+    return child.signal(signal) == Delivered::Sent;
+}
+
+/// What:
+///  The pin of a child of this test that it has not reaped yet.
+/// Why:
+///   A number is safe while the process is our own unreaped child,
+/// so the start time is read from the table without a
+///  race,
+/// and the pin is taken from that reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Pin.open(Number(child.pid), statOf(child.pid).started)
+/// ```
+fn pin_our_own_child(child: &Child) -> Pin {
+    let number: i32 = i32::try_from(child.id()).expect("a process number");
+    let started: u64 = stat_of(number).expect("our unreaped child is in the process table").started;
+    return Pin::open(number, started).expect("our unreaped child can be pinned");
 }
 
 /// What:
@@ -584,8 +625,8 @@ fn a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal() {
     stand_in_that_waits_before_writing_the_index(covered_scripts.join("git").as_path(), covered_pid_file.as_path());
     // The control: the same invocation, and the signal sent to the wrapper rather than to its Git.
     let mut control: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), control_scripts.as_path());
-    let control_number: i32 = i32::try_from(control.id()).expect("a process number");
-    send_signal(control_number, libc::SIGTERM);
+    let control_pin: Pin = pin_our_own_child(&control);
+    assert_eq!(control_pin.signal(libc::SIGTERM), Delivered::Sent, "the signal reaches the wrapper itself");
     let control_status: std::process::ExitStatus = wait_within(&mut control, SIGNAL_WAIT);
     // Closing the control's input ends a stand-in it left behind, whose number no other run can then take.
     drop(control.stdin.take());
@@ -594,7 +635,7 @@ fn a_signal_to_the_git_of_an_index_writer_ends_the_wrapper_by_that_signal() {
     // The covered case: the signal reaches only the Git the wrapper started.
     let mut through: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), covered_scripts.as_path());
     let stand_in: i32 = stand_in_number(covered_pid_file.as_path());
-    send_signal(stand_in, libc::SIGTERM);
+    assert!(signal_the_wrappers_git(&through, stand_in, libc::SIGTERM), "the signal reaches the wrapper's Git");
     // Standard input stays open until the wrapper is gone, so nothing but the signal ends the stand-in.
     let status: std::process::ExitStatus = wait_within(&mut through, SIGNAL_WAIT);
     drop(through.stdin.take());
@@ -636,6 +677,63 @@ fn a_wait_without_an_end_is_ended_at_its_bound() {
     assert!(caught.is_err(), "the bound ends the wait");
     assert!(began.elapsed() < std::time::Duration::from_secs(10), "at its bound, not later");
     assert!(stubborn.try_wait().expect("the child's state").is_some(), "the child was ended, not left behind");
+}
+
+
+/// What:
+///  A number a stale file names,
+///  whose process the wrapper did not start,
+///  is never signalled by the control.
+/// Why:
+///  The stand-in writes its number into a file,
+/// and once it is reaped that number names the next process the
+///  account starts;
+/// a control that signals the number ends an unrelated program and its own assertion cannot
+///  tell,
+/// because `kill` succeeds
+/// (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+/// finding 3 of the round-4
+///  review).
+/// The rule of this repository is that a number is safe only while the process is our own unreaped
+/// child,
+/// and  anything else goes through a pidfd taken while the number was proven to name the wrapper's child.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stale = spawn('sh', ['-c', 'read line']); writeFileSync(pidFile, stale.pid);
+/// expect(signalTheWrappersGit(wrapper, Number(readFileSync(pidFile)))).toBe(false); expect(staleAlive()).toBe(true);
+/// ```
+#[test]
+fn the_control_never_signals_a_number_that_is_not_the_wrappers_child() {
+    let fixture: Fixture = fixture("signal-not-the-wrappers-child");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("a.txt"), b"content\n").expect("the file the command stages");
+    let scripts: PathBuf = fixture.root.join("scripts");
+    std::fs::create_dir_all(&scripts).expect("script directory");
+    stand_in_that_waits_before_writing_the_index(scripts.join("git").as_path(), fixture.root.join("covered.pid").as_path());
+    let mut through: Child = wrapper_waiting_on_a_git_that_waits(&fixture, repo.as_path(), scripts.as_path());
+    // A live process of this test's own, which the wrapper did not start.
+    let mut unrelated: Child = Command::new("/bin/sh")
+        .arg("-c")
+        .arg("read line")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("the unrelated child starts");
+    let unrelated_number: i32 = i32::try_from(unrelated.id()).expect("a process number");
+    assert!(
+        !signal_the_wrappers_git(&through, unrelated_number, libc::SIGTERM),
+        "a number the wrapper did not start is not its child, so nothing is sent"
+    );
+    assert!(unrelated.try_wait().expect("the unrelated child's state").is_none(), "the unrelated process is untouched");
+    // The write end must be closed, not merely taken: a handle that lives to the end of the control keeps the child
+    //  waiting on its input.
+    drop(unrelated.stdin.take());
+    let _ended = through.kill();
+    let _reaped = through.wait();
+    let _reaped_unrelated = unrelated.wait();
+    remove(&fixture);
 }
 
 /// Wait until the process with this ID is real Git,

@@ -54,8 +54,8 @@
 //! const left = await excludeWhatALandedCommitLeft(git, gitDir, liveIndex, commitIndex);
 //! ```
 
-use crate::owed_index_entries::{Entry, head_entries, index_entries, is_unmerged, moved_since_listing, names_in, specs_of, tree_entries};
-use crate::owed_index_update::{Owed, records_of};
+use crate::owed_index_entries::{is_zero_byte, Entry, head_entries, index_entries, is_unmerged, moved_since_listing, names_in, specs_of, tree_entries};
+use crate::owed_index_update::Owed;
 use crate::service_protocol::FailureCode;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
 use std::collections::BTreeMap;
@@ -137,7 +137,7 @@ fn set_to_head_unchecked(git: &GitContext, repository: &Path, index: &Path, path
         OsStr::new("--"),
     ];
     prune_words.extend(specs.iter().map(OsString::as_os_str));
-    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice());
+    let mut prune: GitRequest = GitRequest::new(repository, prune_words.as_slice()).without_pathspec_modes();
     prune.index = Some(index.to_path_buf());
     match run_git(git, &prune) {
         Ok(output) if output.succeeded() => {}
@@ -212,8 +212,56 @@ pub fn exclude_what_a_landed_commit_left(
     captured_index: Option<&Path>,
     captured: &crate::service_land_start::IndexWitness,
 ) -> Result<Vec<String>, String> {
+    let mut note: Option<String> = None;
+    let left: Vec<String> = exclude_with_note(git, repository, git_dir, live_index, commit_index, captured_index, captured, &mut note)?;
+    return Ok(left);
+}
+
+/// What:
+///  `exclude_what_a_landed_commit_left`,
+/// leaving the sentence a commit must print when an obligation could not be read,
+/// and nothing otherwise.
+/// Why:
+///   The notice of a repair names the paths it left out;
+/// when the reason is a record that cannot be read,
+/// the person
+///  must be told that too,
+/// and the reason is only known here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// excludeWithNote(...) // [paths, note]
+/// ```
+pub fn exclude_with_note(
+    git: &GitContext,
+    repository: &Path,
+    git_dir: &Path,
+    live_index: &Path,
+    commit_index: Option<&Path>,
+    captured_index: Option<&Path>,
+    captured: &crate::service_land_start::IndexWitness,
+    note: &mut Option<String>,
+) -> Result<Vec<String>, String> {
     let mut left: Vec<String> = Vec::new();
-    let owed_records: Vec<Owed> = records_of(git_dir);
+    let (owed_records, unreadable): (Vec<Owed>, usize) = crate::owed_index_update::records_and_unreadable(git_dir);
+    // An obligation that cannot be read names no path, so nothing can be repaired for it: what is known is that a landed file could
+    //  be recorded as deleted. The commit goes through with such a deletion left out, and says why.
+    if unreadable > 0 {
+        let at_risk: Vec<Vec<u8>> = match commit_index {
+            None => Vec::new(),
+            Some(index) => deletions_a_landing_could_own(git, repository, index)?,
+        };
+        if !at_risk.is_empty() {
+            let index = commit_index.expect("the paths were asked of the commit's own index");
+            if let Err(code) = set_to_head_paths(git, repository, index, at_risk.as_slice()) {
+                return Err(format!("the entries an obligation that cannot be read may owe cannot be set to the head ({code:?})"));
+            }
+        }
+        for path in &at_risk {
+            left.push(crate::path_bytes::path_message_text(path.as_slice()));
+        }
+        *note = Some(unreadable_notice(unreadable, left.as_slice()));
+    }
     // Nothing at all is done unless this worktree has an owed record: a commit that owes nothing is never compared, so no staging of
     //  its own can be mistaken for a move.
     if owed_records.is_empty() {
@@ -225,6 +273,18 @@ pub fn exclude_what_a_landed_commit_left(
     if let (Some(index), Some(copy), Ok(now)) = (commit_index, captured_index, crate::service_land_start::witness_of(live_index))
         && now != *captured
     {
+        // Only a path a record names may be changed: a move another command made to a path no record names is that command's own
+        //  staging, and the commit keeps what it selected for it.
+        let mut named: Vec<Vec<u8>> = Vec::new();
+        for owed in &owed_records {
+            // A record of another index file (`GIT_INDEX_FILE`) names no path of this commit's index.
+            if owed.index != live_index {
+                continue;
+            }
+            if let Ok(names) = names_of(git, repository, owed) {
+                named.extend(names);
+            }
+        }
         let moved: Vec<Vec<u8>> = match moved_since(git, repository, live_index, copy) {
             Ok(moved) => moved,
             Err(_unwritable) => match moved_since_listing(git, repository, live_index, copy) {
@@ -232,11 +292,17 @@ pub fn exclude_what_a_landed_commit_left(
                 Err(code) => return Err(format!("the entries the index moved since this commit copied it cannot be read ({code:?})")),
             },
         };
-        if !moved.is_empty() {
-            if let Err(code) = set_to_head_paths(git, repository, index, moved.as_slice()) {
+        let mut owned: Vec<Vec<u8>> = Vec::with_capacity(moved.len());
+        for path in moved {
+            if named.contains(&path) {
+                owned.push(path);
+            }
+        }
+        if !owned.is_empty() {
+            if let Err(code) = set_to_head_paths(git, repository, index, owned.as_slice()) {
                 return Err(format!("the entries the index moved since this commit copied it cannot be set to the head ({code:?})"));
             }
-            for path in &moved {
+            for path in &owned {
                 left.push(crate::path_bytes::path_message_text(path.as_slice()));
             }
         }
@@ -393,4 +459,56 @@ pub fn excluded_notice(paths: &[String]) -> Option<String> {
         "monochromatic-git-policy-cli: a commit that landed did not finish updating this worktree's index, and these entries differ from the branch. They were left out of this commit: {}. To take the branch's content: git reset -- <paths>. To commit the worktree's content for them: git add -- <paths>, then git commit.\n",
         paths.join(", ")
     ));
+}
+
+/// What:
+///  The sentence a commit prints when an obligation of this worktree cannot be read.
+/// Why:
+///   The paths it left out are those a landing could have made it delete;
+/// the person is told why they were left out,
+///  and
+/// that the record is still there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// unreadableNotice(count, paths)
+/// ```
+pub fn unreadable_notice(count: usize, paths: &[String]) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: {count} record(s) of what this worktree's index owes cannot be read, so the deletion this commit would have recorded of {} was left out, and the record is kept.",
+        paths.join(", ")
+    );
+}
+
+/// What:
+///  The paths this commit would record as deleted while the head holds an entry and the worktree holds the file:
+/// what a landing whose index update never ran leaves.
+/// Why:
+///   An obligation that cannot be read names no path,
+/// and the only state it can have left is a copy of the index older than the landing.
+/// A deletion the person staged is a file the worktree does not hold,
+/// so it is not this set.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// deletionsALandingCouldOwn(index) // `diff-index --cached --diff-filter=D HEAD`, kept where the worktree has the file
+/// ```
+fn deletions_a_landing_could_own(git: &GitContext, repository: &Path, index: &Path) -> Result<Vec<Vec<u8>>, String> {
+    let mut request: GitRequest = GitRequest::new(repository, &["diff-index", "--cached", "--name-only", "--diff-filter=D", "-z", "HEAD"]);
+    request.index = Some(index.to_path_buf());
+    let output = match run_git(git, &request) {
+        Ok(answer) if answer.succeeded() => answer,
+        _ => return Err(String::from("the deletions this commit would record cannot be read")),
+    };
+    let mut at_risk: Vec<Vec<u8>> = Vec::new();
+    for name in output.stdout.split(is_zero_byte) {
+        if name.is_empty() {
+            continue;
+        }
+        let held: PathBuf = repository.join(<OsString as std::os::unix::ffi::OsStringExt>::from_vec(name.to_vec()).as_os_str());
+        if std::fs::symlink_metadata(held.as_path()).is_ok() {
+            at_risk.push(name.to_vec());
+        }
+    }
+    return Ok(at_risk);
 }

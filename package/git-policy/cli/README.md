@@ -492,6 +492,10 @@ Read-only commands,
   the copy is a transaction of its own whose journal and
   stage claim name the process that owns them,
   and a copy a dead process left is recovered by the next command.
+  A destination,
+  source or stage whose path holds bytes that are not text is named in every record by those bytes,
+  so recovery fills and reaps exactly that directory and no other,
+  and a record written by an earlier release is still read.
   Concurrent adds in one repository never wait for one another,
   and each worktree receives exactly its own copy.
   A worktree whose own ignored-state copy is still running is no source:
