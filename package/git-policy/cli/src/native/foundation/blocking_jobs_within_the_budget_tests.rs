@@ -143,3 +143,53 @@ fn where_no_thread_can_start_the_jobs_fail_plainly_and_give_their_places_back() 
     );
     assert!(!ran.load(Ordering::SeqCst), "a job ran inline");
 }
+
+/// How many blocking threads the control of a refused job's place keeps in its own runtime,
+/// more than the bound it holds the process to.
+const POOL_THREADS_FOR_THE_CONTROL: usize = 8;
+
+/// What:
+///  A job the pool queued after a refused thread does not run once its frame has given up on it,
+///  so no blocking job of this process ever runs without a place of the bound.
+/// Why:
+///  The pool queues a job before it asks for a thread (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
+/// `spawn_task`),
+/// and the frame gives the place back when it stops waiting for the job.
+/// A queued job that then ran would do its work with no place at all, so the bound of the process would no
+/// longer cover every running blocking job:
+///  `a_report_that_says_an_index_could_not_be_started_...` measured four rewrites running that way.
+/// A place that was never given back would instead leave later jobs waiting for ever,
+///  so what decides is the claim: the job takes it before its first effect, and the frame takes it when it gives up.
+/// The control runs in a child whose process limit is one,
+/// because only a refused thread start queues a job this way.
+#[test]
+fn a_job_the_pool_queued_after_a_refusal_does_not_run() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_job_the_pool_queued_after_a_refusal_does_not_run") {
+        return;
+    }
+    hold_blocking_jobs_to(BOUND_HELD_TO);
+    // A runtime with a pool deep enough for the jobs below, built while a thread may start.
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises");
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .max_blocking_threads(POOL_THREADS_FOR_THE_CONTROL)
+        .enable_all()
+        .build()
+        .expect("a runtime with a deep pool");
+    // Every thread is refused: the first job is queued, and its frame is told it did not start.
+    crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
+    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let queued = Arc::clone(&ran);
+    let refused = runtime.block_on(async move { return run_blocking_job_within_the_budget(move || { queued.store(true, Ordering::SeqCst); }).await; });
+    assert_eq!(refused, Err(BlockingJobError::NoThreadToStart), "no thread could start the first job");
+    assert!(!ran.load(Ordering::SeqCst), "the first job had not run when the refusal was reported");
+    // A thread may start again, and the pool's first new thread runs what it queued before anything else.
+    crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
+    let kicked = runtime.block_on(async { return run_blocking_job_within_the_budget(|| ()).await; });
+    assert!(kicked.is_ok(), "the job that starts the pool's first thread ran: {kicked:?}");
+    assert!(
+        !ran.load(Ordering::SeqCst),
+        "the job the report gave up on ran afterwards with no place of the bound held for it, so the bound no longer covers every running blocking job"
+    );
+    let _kept: tokio::runtime::Runtime = runtime;
+}
