@@ -45,9 +45,9 @@
 pub use crate::subvolume_index_install_into_new_worktree::{InstallSeams, install_index_in, install_index_in_with};
 use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
 use crate::subvolume_index::{IndexOutcome, RewriteContext, StatFields, StatLookup, StatTrust, StoredStat, rewrite_index_stat_with};
+use crate::subvolume_file_write_steps::write_all_then_sync;
 use crate::subvolume_lock::is_ours;
 use std::ffi::OsStr;
-use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -121,7 +121,8 @@ pub(crate) fn fields_of(metadata: &std::fs::Metadata) -> StatFields {
 
 /// What:
 ///  How the rewrite of one index file is protected from a Git command that writes the same index.
-///  `&'a str` borrows the token of the migration whose lock is already held.
+///  `Arc<str>` shares the token of the migration whose lock is already held,
+///  because a rewrite that runs as a job of the blocking pool must own what it reads.
 /// Why:
 ///   Git replaces an index through `index.lock`.
 /// A rewrite that runs by itself takes that lock,
@@ -136,13 +137,13 @@ pub(crate) fn fields_of(metadata: &std::fs::Metadata) -> StatFields {
 /// ```ts
 /// type IndexLock = { kind: 'acquire' } | { kind: 'held'; token: string };
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum IndexLock<'a> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IndexLock {
     /// Create `index.lock` for the duration of the rewrite and remove it after.
     Acquire,
     /// `index.lock` holds this token already;
     /// leave it in place for its owner to release.
-    Held(&'a str),
+    Held(std::sync::Arc<str>),
 }
 
 /// What:
@@ -159,10 +160,10 @@ pub enum IndexLock<'a> {
 /// ```ts
 /// type RefreshOptions = { lock: IndexLock; references: string[]; hashLength?: number };
 /// ```
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct RefreshOptions<'a> {
     /// How the index is locked while it is rewritten.
-    pub lock: IndexLock<'a>,
+    pub lock: IndexLock,
     /// Trees whose files the index may describe (the tree the copy was made from).
     /// An entry is refreshed only if the
     ///  file in one of them still has the stat fields the entry records;
@@ -250,7 +251,7 @@ pub fn refresh_index_file_report_seamed(index_path: &Path, tree: &Path, options:
     lock_name.push(".lock");
     let lock_path: PathBuf = PathBuf::from(lock_name);
     let mut created: Option<std::fs::File> = None;
-    match options.lock {
+    match &options.lock {
         IndexLock::Acquire => match std::fs::OpenOptions::new().write(true).create_new(true).open(&lock_path) {
             Ok(opened) => created = Some(opened),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
@@ -259,7 +260,7 @@ pub fn refresh_index_file_report_seamed(index_path: &Path, tree: &Path, options:
             Err(error) => return RefreshReport { line: format!("skipped (cannot create the lock: {error})"), status: RefreshStatus::Skipped },
         },
         IndexLock::Held(token) => {
-            if !is_ours(lock_path.as_path(), token) {
+            if !is_ours(lock_path.as_path(), token.as_ref()) {
                 return RefreshReport { line: String::from("skipped (index.lock is held by another Git command; its first status will be slow)"), status: RefreshStatus::Skipped };
             }
         }
@@ -393,8 +394,7 @@ fn agrees_with_a_reference(references: &[PathBuf], path: &[u8], stored: &StoredS
 /// then rename `from` over `to`;
 /// each step runs only if the one before it worked.
 fn write_sync_rename(file: &mut std::fs::File, bytes: &[u8], from: &Path, to: &Path) -> std::io::Result<()> {
-    file.write_all(bytes)?;
-    file.sync_all()?;
+    write_all_then_sync(file, bytes)?;
     return std::fs::rename(from, to);
 }
 
@@ -434,8 +434,7 @@ fn stage_and_replace(index_path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// flush it,
 /// and rename `sibling` over `index_path` only while `sibling` still names `staged`.
 fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibling: &Path, index_path: &Path) -> std::io::Result<()> {
-    staged.write_all(bytes)?;
-    staged.sync_all()?;
+    write_all_then_sync(staged, bytes)?;
     let named = std::fs::symlink_metadata(sibling)?;
     let own = staged.metadata()?;
     if named.dev() != own.dev() || named.ino() != own.ino() {
@@ -455,7 +454,7 @@ fn write_sync_and_rename_if_same(staged: &mut std::fs::File, bytes: &[u8], sibli
 /// ```ts
 /// function refreshIndexFileLocked(indexPath: string, tree: string, lock: IndexLock): string;
 /// ```
-pub fn refresh_index_file_locked(index_path: &Path, tree: &Path, lock: IndexLock<'_>) -> String {
+pub fn refresh_index_file_locked(index_path: &Path, tree: &Path, lock: IndexLock) -> String {
     return refresh_index_file_with(index_path, tree, &RefreshOptions { lock, references: &[], hash_length: None });
 }
 

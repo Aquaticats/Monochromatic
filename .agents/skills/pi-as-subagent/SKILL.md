@@ -76,8 +76,20 @@ I said "be okay with pi committing directly to main",
 not that they have to."
 
 The owner on how many can run at once:
-"Pi doesn't have a limit to number of concurrent subagents.
-In practice it's 16."
+"Pi doesn't have a limit to number of concurrent subagents."
+The practical limit is 20:
+the owner said
+"Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20,"
+and a trial at 20 agents on 2026-11-09 met no rate-limit error.
+On going higher the owner said:
+"no,
+that's definitely going to blow up."
+Audits and reviews sit outside that limit and use another model.
+The owner on 2026-11-09:
+"Please use gpt-6.1-sol with the openai provider for audits and reviews.
+Those don't count within the 20 limit."
 Each run is its own driver process with its own run folder and unit name.
 Runs in one checkout share its files,
 so two in one crate build each other's half-finished edits.
@@ -201,7 +213,21 @@ launches without `--setenv=PATH` failed in seconds with `spawn pi ENOENT`.
     `lastAssistantText` holds the whole final report,
     `sessionStats` holds the cost and names the session file,
     `modelError` holds what the model said when it settled on an error nothing recovered from,
+    `modelErrorAttempts` says how many attempts that took,
+    `retries` counts the attempts after a model error,
+    `rateLimitErrors` counts the model errors that named a rate limit or a quota,
     and `feedProblem` names why the feed is incomplete when it is.
+    The driver answers a transient model error with another attempt on its own:
+    a provider server error,
+    a request timeout,
+    a dropped connection,
+    or a rate limit is retried up to `--retry-cap` times with a growing wait,
+    and anything else ends the run on its first error as before.
+    Each attempt is a `retry` line on `feed.jsonl`,
+    and `summary.json` says what they were,
+    so a run that needed them reads apart from one that did not.
+    A run that used up its attempts still ends `model-error`,
+    which is when to start it again from the same session file as step 7 says.
 7.  For a follow-up after the driver has exited,
     start the same unit under a new name,
     with a new run folder,

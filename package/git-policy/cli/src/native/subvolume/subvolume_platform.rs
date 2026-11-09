@@ -69,6 +69,18 @@ pub trait Platform {
     fn hard_link(&self, existing: &Path, new: &Path) -> std::io::Result<()> {
         return std::fs::hard_link(existing, new);
     }
+    /// Whether the journal and index steps of this platform flush their writes to disk (`subvolume_file_write_steps`).
+    /// The real platform does.
+    /// A stand-in says no because the control that uses it simulates a kill in the
+    ///  process,
+    /// which loses no page cache,
+    /// so a flush proves nothing there and costs the disk the control shares
+    ///  (measured 2026-11-08:
+    /// the same control took 35.4 s and 32.2 s with the flushes and 2.1 s and 2.4 s
+    ///  without them).
+    fn flushes_to_disk(&self) -> bool {
+        return true;
+    }
     /// Which configuration files and system attributes file Git reads here.
     /// The default names no Git and no variables,
     /// so the
@@ -101,6 +113,10 @@ pub struct LinuxPlatform {
     ///  does not carry the variable;
     /// empty where no Git is known.
     pub git_environment: Vec<(OsString, OsString)>,
+    /// The facts of the conversion environment,
+    /// once they have been settled on a thread that may start Git
+    /// (`with_its_conversion_environment_settled`).
+    settled_conversion_environment: Option<ConversionEnvironment>,
 }
 
 impl LinuxPlatform {
@@ -122,7 +138,32 @@ impl LinuxPlatform {
             Some(found) => with_real_git(environment, found),
             None => environment.to_vec(),
         };
-        return LinuxPlatform { git_environment: named };
+        return LinuxPlatform { git_environment: named, settled_conversion_environment: None };
+    }
+
+    /// What:
+    ///  This platform with the facts of its conversion environment settled now,
+    /// on the thread that calls this.
+    /// Why:
+    ///  Learning where the system configuration file and the system attributes file are starts Git,
+    /// and the bridge that starts one (`captured_child_run_to_its_end::output_of_blocking`)
+    /// refuses a call from inside the process's runtime,
+    /// where waiting for it would never end.
+    ///  A conversion is a job of the process's blocking pool,
+    /// so it runs inside the runtime;
+    /// the command therefore settles these facts on its own thread before it hands the platform over,
+    /// and the content decision inside the job reads them without starting Git.
+    ///  With no Git named,
+    /// the facts are the unknowns the content decision refuses on,
+    /// as they were before this was settled.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const platform = linuxPlatform({...environment, [FORWARD_TARGET]: realGit}).withItsConversionEnvironmentSettled();
+    /// ```
+    pub fn with_its_conversion_environment_settled(mut self) -> LinuxPlatform {
+        self.settled_conversion_environment = Some(ConversionEnvironment::from_variables(self.git_environment.as_slice()));
+        return self;
     }
 }
 
@@ -130,7 +171,10 @@ impl LinuxPlatform {
 /// called as they are.
 impl Platform for LinuxPlatform {
     fn conversion_environment(&self) -> ConversionEnvironment {
-        return ConversionEnvironment::from_variables(self.git_environment.as_slice());
+        return match &self.settled_conversion_environment {
+            Some(settled) => settled.clone(),
+            None => ConversionEnvironment::from_variables(self.git_environment.as_slice()),
+        };
     }
 
     fn filesystem_facts(&self, path: &Path) -> Result<(FilesystemKind, u64), PrimitiveError> {

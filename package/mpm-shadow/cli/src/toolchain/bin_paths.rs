@@ -1,5 +1,6 @@
 //! What:
-//! `mpm-shadow bin-paths`:
+//! `mpm-shadow bin`
+//! (the command that replaced `bin-paths`):
 //! prints,
 //! as JSON,
 //! the directories that hold the toolchain's programs and the
@@ -34,6 +35,8 @@ use std::path::PathBuf;
 use super::error::ToolchainError;
 /// Imports `manager_native_bin_dirs` from `super::layout`.
 use super::layout::manager_native_bin_dirs;
+/// Imports the one pretty-JSON renderer the lock and `bin` share.
+use super::model_encode::render_pretty_json;
 /// Imports `Plan` from `super::plan`.
 use super::plan::Plan;
 /// Imports what this module uses from `super::scope`.
@@ -115,10 +118,7 @@ pub fn bin_paths_output(plan: &Plan, scope: &Scope, env: &EnvMap) -> Result<Valu
 /// The document as pretty JSON with two-space indentation and a trailing newline,
 /// as the TypeScript command printed it.
 pub fn render_bin_paths(document: &Value) -> String {
-    let mut text: String = match serde_json::to_string_pretty(document) {
-        Ok(pretty) => pretty,
-        Err(error) => format!("{{\"error\": \"{error}\"}}"),
-    };
+    let mut text: String = render_pretty_json(document);
     text.push('\n');
     return text;
 }

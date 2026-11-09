@@ -39,6 +39,7 @@ use crate::service_commit_input_notes_and_embedded_commit::managed_client_config
 use crate::service_server::Bind;
 use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
+use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
 use crate::service_commit_requests_and_landing_report::{report_landing, request_for_embedded, request_for_git_built};
 use crate::commit_timing::CommitTiming;
@@ -259,6 +260,9 @@ pub fn service_commit<F: RepositoryFacts>(
                 tree = Some(written_tree);
             }
         }
+        // A request over the line the service reads is refused as too long, and a commit must not fail for the names it
+        //  changes: Git builds one that does not fit, as it did before a changed path carried its bytes.
+        embedded = embedded_that_fits(embedded, &ready, native_inputs, id.as_str(), &tree);
         let native: bool = ready.needs_native || embedded.is_none();
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native { None } else { embedded.as_ref() };

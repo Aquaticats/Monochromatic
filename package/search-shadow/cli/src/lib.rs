@@ -35,6 +35,10 @@ pub mod announce;
 /// the exit codes and the shadowed names.
 pub mod constants;
 
+/// The name the program was started under,
+/// which picks between shadow mode and the command-line tool.
+pub mod invoked_name;
+
 /// The one place that replaces the running process with the real tool.
 pub mod launch;
 
@@ -103,6 +107,10 @@ mod real_binary_tests;
 /// The unit tests of the version and help announcements.
 #[cfg(test)]
 mod announce_tests;
+
+/// The unit tests of the invocation-name reader.
+#[cfg(test)]
+mod invoked_name_tests;
 
 /// The unit tests of the policy module.
 #[cfg(test)]

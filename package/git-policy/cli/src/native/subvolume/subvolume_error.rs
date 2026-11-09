@@ -61,6 +61,9 @@ pub enum MigrateError {
     },
     /// The journal file is unreadable or has an unknown shape.
     Journal(String),
+    /// The runtime that runs this command's waits could not be entered,
+    /// or a task of it ended before its work was done.
+    Runtime(String),
     /// The run stopped at the named test point.
     Interrupted(String),
 }
@@ -109,6 +112,7 @@ impl fmt::Display for MigrateError {
                 );
             }
             MigrateError::Journal(message) => return write!(formatter, "{message}"),
+            MigrateError::Runtime(message) => return write!(formatter, "{message}"),
             MigrateError::Interrupted(point) => return write!(formatter, "stopped at the test point {point}"),
         }
     }

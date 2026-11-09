@@ -334,11 +334,13 @@ pub fn rollback(run: &mut Run<'_>, discard_unreadable: bool) -> Result<Option<Ve
     // The carried-back index describes the new tree's inodes; this runs after a stop at any step above, once.
     if run.journal.state("exchange") == Some("rolled-back") && !run.journal.is_done("rollback-indexes") {
         let mut lines: Vec<String> = Vec::new();
-        // The refresh reports each index into the list the lines are collected in.
-        refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines);
+        // The refresh reports each index into the list the lines are collected in; they are said even when the refresh
+        //  stops, because each of them is a fact about an index that was looked at.
+        let refreshed: Result<usize, MigrateError> = refresh_all_indexes(root.as_path(), IndexLock::Acquire, std::slice::from_ref(&new_path), &mut lines);
         for text in &lines {
             run.line(text.as_str());
         }
+        let _count: usize = refreshed?;
         run.journal.mark("rollback-indexes", "done")?;
     }
     if new_path.exists() {

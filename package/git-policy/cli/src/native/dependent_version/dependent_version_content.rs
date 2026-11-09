@@ -16,6 +16,9 @@
 //! content that could not be read is `content-unavailable`;
 //!      content that was read but that the planner cannot use is `policy-incomplete`.
 //!
+//! `dependent-version-bump-policy.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/dependent-version-bump-policy.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // interface WorkspaceContent { trackedPaths(): TrackedPath[]; candidateBytes(path): Uint8Array; baseBytes(path): Uint8Array | undefined }
@@ -147,7 +150,7 @@ pub trait WorkspaceContent {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type PolicyIncomplete = { kind: 'not-utf8'; path } | { kind: 'manifest-syntax'; path; detail } | { kind: 'manifest-shape'; path; problem } | { kind: 'duplicate-name'; name; first; second };
+/// type PolicyIncomplete = { kind: 'not-utf8'; path } | { kind: 'manifest-syntax'; path; detail } | { kind: 'manifest-shape'; path; problem } | { kind: 'duplicate-name'; name; first; second } | { kind: 'publish-set-unknown'; path; problem };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PolicyIncomplete {
@@ -183,6 +186,16 @@ pub enum PolicyIncomplete {
         first: Vec<u8>,
         /// The later manifest.
         second: Vec<u8>,
+    },
+    /// The registry configuration is missing or names no publishable package,
+    /// so
+    /// which dependents a raise reaches cannot be judged.
+    PublishSetUnknown {
+        /// The registry configuration.
+        path: Vec<u8>,
+        /// What is wrong with it,
+        /// in one clause that names the cause without a final period.
+        problem: String,
     },
 }
 
@@ -329,6 +342,13 @@ fn incomplete_reason(incomplete: &PolicyIncomplete) -> String {
                  names is ambiguous",
                 display_path(first),
                 display_path(second)
+            );
+        }
+        PolicyIncomplete::PublishSetUnknown { path, problem } => {
+            return format!(
+                "the publish set of {} cannot be read ({problem}), \
+                 so whether a dependent is published cannot be judged",
+                display_path(path)
             );
         }
     }

@@ -416,7 +416,7 @@ pub fn index_phase(job: &mut Job<'_>, interrupt: &Interrupt, say: &mut dyn LineS
     let report = refresh_index_file_report(
         job.candidate.admin.join("index").as_path(),
         job.candidate.path.as_path(),
-        &RefreshOptions { lock: IndexLock::Held(job.journal.token.as_str()), references: references.as_slice(), hash_length: repository_hash_length(job.candidate.common.as_path()) },
+        &RefreshOptions { lock: IndexLock::Held(job.journal.token.as_str().into()), references: references.as_slice(), hash_length: repository_hash_length(job.candidate.common.as_path()) },
     );
     say.say(format!("  index: {}", report.line).as_str());
     if report.status == RefreshStatus::Skipped {

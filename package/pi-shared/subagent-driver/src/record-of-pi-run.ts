@@ -8,7 +8,11 @@ import type {
   EventObservation,
   PiRecord,
   RecordOfPiRun,
+  RetryTaken,
 } from './driver-types.ts';
+import {
+  FEED_PREVIEW_CHARACTERS,
+} from './driver-constants.ts';
 import {
   type Feed,
   startFeed,
@@ -17,20 +21,39 @@ import {
   type ObservedPiRun,
   startObservingPiRun,
 } from './observe-pi-events.ts';
+import { preview, } from './previews-of-pi-messages.ts';
+import {
+  isRateLimit,
+  kindOfModelError,
+} from './retries-of-a-model-error.ts';
 
 /**
  The model error the summary carries, when Pi settled on one nothing recovered from.
 
  @param run - what the run's events said
 
- @returns the summary's field, or nothing
+ @param retries - how many attempts after a model error the run made before settling on this one
+
+ @returns the summary's fields, or nothing
  */
-function modelErrorOf(run: ObservedPiRun,): { readonly modelError?: string } {
+function modelErrorOf({
+  run,
+  retries,
+}: {
+  readonly run: ObservedPiRun;
+  readonly retries: number
+},): {
+  readonly modelError?: string;
+  readonly modelErrorAttempts?: number
+} {
   /**
    What the run ended with.
    */
   const failure = run.unrecoveredModelError();
-  return failure.failed ? { modelError: failure.problem, } : {};
+  return failure.failed ? {
+    modelError: failure.problem,
+    modelErrorAttempts: retries + 1,
+  } : {};
 }
 
 /**
@@ -96,7 +119,34 @@ export function startRecordOfPiRun({
   /**
    What changes about the driver's own part of the run.
    */
-  const state: { driverError?: string } = {};
+  const state: {
+    driverError?: string;
+
+    /**
+     How many attempts after a model error the run made.
+     */
+    retries: number;
+
+    /**
+     How many attempts the run made at the error it now stands on, which a reply that succeeded ends.
+     */
+    retriesSinceAnswer: number;
+
+    /**
+     How many assistant messages have replied without an error.
+     */
+    answers: number;
+
+    /**
+     How many model errors named a rate limit or a quota.
+     */
+    rateLimitErrors: number;
+  } = {
+    retries: 0,
+    retriesSinceAnswer: 0,
+    answers: 0,
+    rateLimitErrors: 0,
+  };
 
   /**
    When something was last heard or noted.
@@ -128,6 +178,15 @@ export function startRecordOfPiRun({
   const observed = startObservingPiRun({
     note,
     millisecondsSoFar,
+    countModelError: function countModelError(problem,) {
+      if (isRateLimit(kindOfModelError(problem,),)) {
+        state.rateLimitErrors += 1;
+      }
+    },
+    noteAnswer: function noteAnswer() {
+      state.answers += 1;
+      state.retriesSinceAnswer = 0;
+    },
   },);
 
   return {
@@ -141,6 +200,31 @@ export function startRecordOfPiRun({
     countHandledPrompt: observed.countPromptHandled,
     feedProblem: feed.problem,
     unrecoveredModelError: observed.unrecoveredModelError,
+    retriesTaken: function retriesTaken() {
+      return state.retries;
+    },
+    answersTaken: function answersTaken() {
+      return state.answers;
+    },
+    countRetry: function countRetry(retry: RetryTaken,) {
+      state.retries += 1;
+      // A reply that arrived while this attempt's command was being answered belongs to this attempt, so the attempt is
+      // credited to the failures before it rather than to the ones after it.
+      if (state.answers === retry.answersBefore) {
+        state.retriesSinceAnswer += 1;
+      }
+      note({
+        kind: 'retry',
+        attempt: retry.attempt,
+        of: retry.of,
+        delayMilliseconds: retry.delayMilliseconds,
+        errorKind: retry.kind,
+        error: preview({
+          value: retry.problem,
+          length: FEED_PREVIEW_CHARACTERS.modelError,
+        },),
+      },);
+    },
     noteDriverFailure: function noteDriverFailure(failure,) {
       state.driverError = failure;
       note({
@@ -169,7 +253,12 @@ export function startRecordOfPiRun({
         dialogs: observed.dialogs(),
         sessionStats,
         lastAssistantText: observed.lastAssistantText(),
-        ...modelErrorOf(observed,),
+        retries: state.retries,
+        rateLimitErrors: state.rateLimitErrors,
+        ...modelErrorOf({
+          run: observed,
+          retries: state.retriesSinceAnswer,
+        },),
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
       };

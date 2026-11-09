@@ -24,9 +24,11 @@
 
 use crate::git_metadata::path_from_git_bytes;
 use crate::transaction_git::{GitContext, GitRequest, run_git};
-use crate::worktree_add_binding::bind_registration;
+use crate::worktree_add_binding::{Binding, Bound, RegistrationOwner, bind_registration, claim_registration};
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
+use crate::json_record::quote;
 use crate::worktree_copy_selection::CopySelection;
+use crate::worktree_copy_stage_claim::StageClaim;
 use crate::worktree_identity::WorktreeIdentity;
 use std::path::{Path, PathBuf};
 
@@ -60,16 +62,22 @@ pub struct WorktreeCopyObservation {
 /// What:
 ///  One linked worktree this command registered.
 /// Why:
-///   Its root is where the copy lands.
+///   Its root is where the copy lands,
+/// and the binding is the registration the copy verifies before every
+///  write,
+/// so a worktree that another command removed or replaced is never filled.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type CreatedWorktree = { root: string };
+/// type CreatedWorktree = { root: string; binding: Binding };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatedWorktree {
     /// Canonical created worktree root.
     pub root: PathBuf,
+    /// The registration Git made for it,
+    /// as it was when real Git returned.
+    pub binding: Binding,
 }
 
 /// What:
@@ -90,6 +98,9 @@ pub struct CreatedWorktrees {
     pub created: Vec<CreatedWorktree>,
     /// Every registered root that exists on the filesystem.
     pub registered_roots: Vec<PathBuf>,
+    /// The token of the command that proved the destination's registration is its own,
+    /// when that command is not this one.
+    pub other_commands: Option<String>,
 }
 
 /// What:
@@ -313,20 +324,116 @@ pub fn find_created_worktree(
     observation: &WorktreeCopyObservation,
     destination: &Path,
     registered_before: bool,
+    mine: &str,
+    expected: Option<crate::fs_beneath::ObjectId>,
 ) -> Result<CreatedWorktrees, WorktreeCopyError> {
-    if registered_before || !destination_is_registered(observation.common_dir.as_path(), destination) {
-        return Ok(CreatedWorktrees {
-            created: Vec::new(),
-            registered_roots: Vec::new(),
-        });
+    if registered_before {
+        return Ok(nothing_created(None));
+    }
+    // The binding is proved here, when Git has returned, so the copy and a later recovery check the registration this
+    // command saw and not merely whatever stands at the path now.
+    let Ok(bound) = bind_registration(observation.common_dir.as_path(), destination) else {
+        return Ok(nothing_created(None));
+    };
+    // The claim is taken only for the registration this command made: a destination that is another object now is a
+    // replacement, and claiming its registration would keep the command that made it from copying its own ignored state.
+    if let Some(identity) = expected
+        && bound.binding.destination_id != identity
+    {
+        return Ok(nothing_created(None));
+    }
+    let owner: RegistrationOwner = claim_registration(&bound.admin, mine).map_err(raw_failure_of)?;
+    let Bound { binding, .. } = bound;
+    if let RegistrationOwner::Another(other) = owner {
+        return Ok(nothing_created(Some(other)));
     }
     return Ok(CreatedWorktrees {
-        created: vec![CreatedWorktree { root: destination.to_path_buf() }],
+        created: vec![CreatedWorktree { root: destination.to_path_buf(), binding }],
         registered_roots: read_registered_roots(context, observation)?,
+        other_commands: None,
     });
+}
+
+/// What:
+///  The answer that this command created no linked worktree,
+/// with the token of the command that owns the one at the destination when there is one.
+/// Why:
+///   Both refusals return the same shape,
+/// and the caller tells them apart only by the token.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nothingCreated(otherCommands: string | undefined): CreatedWorktrees;
+/// ```
+fn nothing_created(other_commands: Option<String>) -> CreatedWorktrees {
+    return CreatedWorktrees {
+        created: Vec::new(),
+        registered_roots: Vec::new(),
+        other_commands,
+    };
+}
+
+/// What:
+///  Whether the registration at `destination` carries another command's proof.
+/// Why:
+///   A command whose Git failed may find a registration another command made in the directory it reserved,
+/// and that
+///  command's worktree is whole once its proof is there;
+/// the failed command must not keep a record describing that
+///  worktree as unfinished,
+/// because every other command would then refuse to take it as a source.
+/// This only reads the proof and claims nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function registeredByAnother({ commonDir, destination, mine }): Promise<boolean>;
+/// ```
+pub fn registered_by_another(common_dir: &Path, destination: &Path, mine: &str) -> Result<bool, WorktreeCopyError> {
+    let Ok(bound) = bind_registration(common_dir, destination) else {
+        return Ok(false);
+    };
+    let Ok(mut proof) = crate::fs_beneath::open_file_at(&bound.admin, std::ffi::OsStr::new(crate::worktree_add_binding::REGISTRATION_OWNER_NAME)) else {
+        return Ok(false);
+    };
+    let mut recorded: Vec<u8> = Vec::new();
+    std::io::Read::read_to_end(&mut proof, &mut recorded).map_err(raw_failure_of)?;
+    let owner: String = String::from_utf8_lossy(recorded.as_slice()).trim().to_string();
+    return Ok(!owner.is_empty() && owner != mine);
 }
 
 /// Registry controls stay out of the release executable.
 #[cfg(test)]
 #[path = "worktree_copy_registry_tests.rs"]
 mod tests;
+
+/// What:
+///  The text this command proves its own registration with:
+/// the stage claim's random name on the first line and the owning process on the second.
+/// Why:
+///   The name tells two commands of one process apart,
+/// and the process lets the person's line name who made the worktree.
+/// A command whose claim could not be made still proves a registration of its own,
+/// with a
+///  name made here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// `${claim?.identifier() ?? randomUuid()}\n${currentCopyOwner().token()}`
+/// ```
+pub(crate) fn command_token(recorded: Option<&StageClaim>, destination: &Path) -> Result<String, WorktreeCopyError> {
+    let name: String = match recorded {
+        Some(claim) => claim.identifier(),
+        None => match crate::random_id::random_uuid() {
+            Ok(made) => made,
+            Err(error) => {
+                let message: String = format!(
+                    "monochromatic-git-policy-cli: could not name the worktree add of {}.",
+                    quote(destination.to_string_lossy().as_ref())
+                );
+                return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), Some(&error.0)));
+            }
+        },
+    };
+    let owner: String = crate::worktree_copy_owner::current_copy_owner()?.token();
+    return Ok(format!("{name}\n{owner}"));
+}

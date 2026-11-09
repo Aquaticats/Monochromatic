@@ -1390,6 +1390,18 @@ It runs only when asked;
   then the worktrees',
   then each `--lock` file).
 - A `--lock` is the only way to protect a tree that git does not list.
+- What it reads is a snapshot:
+  a lock another command replaces between this run's read and its deletions is not read again,
+  so the plan can delete a version the newer lock names.
+  That takes a second command writing the lock inside that window,
+  and the next `install` puts the version back.
+  A version that arrives after the installed versions are listed,
+  which is any concurrent install,
+  is never in the plan at all.
+- A concurrent install's `current` link is read just before the prune would remove it,
+  and a link naming a version that still exists and is not one of this run's deletions is left alone.
+  The instant between that read and the unlink is the remaining window:
+  a `current` another command moves inside it can still be removed.
 
 ### Migration from the shared `$CARGO_HOME/bin`
 
@@ -1794,7 +1806,10 @@ and `registry/src/<index>/<crate>-<version>/` with every version it ever fetched
   `-t`,
   `-j`
   and the others read from `mpm --help` of mpm 8.2.0;
-  a bare `--color` takes none).
+  a bare `--color` skips the next word only when that word is `auto`,
+  `always` or `never`,
+  the words mpm accepts as a color value,
+  so `mpm --color auto --version` is read as a version request).
   The first eager option wins,
   as in mpm.
   `mpm install --help`,
@@ -1842,6 +1857,8 @@ The toolchain plan links it as `mpm` into a gitignored directory that comes firs
 
 ```bash
 mise run //package/mpm-shadow/cli:lint
+mise run //package/mpm-shadow/cli:lint:types
 mise run //package/mpm-shadow/cli:lint:clippy
 mise run //package/mpm-shadow/cli:test
+mise run //package/mpm-shadow/cli:test:debug
 ```

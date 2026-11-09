@@ -1,62 +1,281 @@
 //! What:
 //! Publishable-name reading,
-//! with every `readPublishableNames` case of
-//!       `dependent-version-bump-policy.unit.test.ts` and JavaScript's trim set.
+//! over the document the generator writes,
+//! a narrower list
+//!       above the publish set,
+//! and every text the reader refuses.
 //! Why:
-//! A name missing from the list is never bumped.
+//! A name missing from the list is never bumped,
+//! and a publish set the reader cannot find must
+//!      never read as "nothing to bump".
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // expect(readPublishableNames("packages:\n  - '@s/a'")).toEqual(['@s/a']);
+//! // expect(readPublishableNames(configText)).toEqual(['@s/a']);
 //! ```
 
 /// The reader under test.
 use super::read_publishable_names;
 
-/// Read names as borrowed text for comparison.
-fn read(text: &str) -> Vec<String> {
-    return read_publishable_names(text);
+/// The names a text lists,
+/// in order.
+fn names(text: &str) -> Vec<String> {
+    return read_publishable_names(text)
+        .unwrap_or_else(|reason: String| panic!("expected names, got {reason}"));
 }
 
-/// Ported:
-/// the list is read up to the first line that is not an item.
+/// The reason a text is refused.
+fn reason(text: &str) -> String {
+    return read_publishable_names(text)
+        .err()
+        .unwrap_or_else(|| panic!("expected a problem for {text:?}"));
+}
+
+/// The provider the generator writes,
+/// with one workload whose package list is `items`.
+fn provider(items: &str) -> String {
+    return [
+        "auth:\n",
+        "  oidc:\n",
+        "    - name: github\n",
+        "      issuer: https://example\n",
+        "      workloads:\n",
+        "        - identity:\n",
+        "            subject: 'repo:example/main'\n",
+        "          registry: monochromatic-dev\n",
+        "          packages:\n",
+        items,
+        "\n",
+    ]
+    .concat();
+}
+
+/// The list items of one workload.
+fn items(names: &[&str]) -> String {
+    let listed: Vec<String> = names
+        .iter()
+        .map(|name: &&str| return format!("            - '{name}'"))
+        .collect();
+    return listed.join("\n");
+}
+
+/// The publish set is the workload list,
+/// not the permission pattern below it,
+/// and
+///       the rest of the generated file is read on the way.
 #[test]
-fn reads_the_list_and_stops_at_the_first_non_item_line() {
+fn reads_the_workload_list_of_the_generated_document() {
+    let mut text: String = provider(&items(&["@s/a", "@s/b"]));
+    text.push_str(concat!(
+        "registries:\n",
+        "  monochromatic-dev:\n",
+        "    type: hosted\n",
+        "    access: $all\n",
+        "    packages:\n",
+        "      '@monochromatic-dev/*':\n",
+        "        access: $all\n",
+        "        publish: pnpr-publish-ci\n",
+    ));
+    assert_eq!(names(&text), ["@s/a", "@s/b"]);
+}
+
+/// A narrower workload list above the publish set does not hide it:
+/// the set is
+///       every list a trusted workload may publish.
+#[test]
+fn reads_every_workload_list_below_the_first() {
+    let text: &str = "\
+auth:
+  oidc:
+    - name: github
+      workloads:
+        - identity:
+            subject: 'repo:example/release'
+          registry: monochromatic-dev
+          packages:
+            - '@s/narrow'
+        - identity:
+            subject: 'repo:example/main'
+          registry: monochromatic-dev
+          packages:
+            - '@s/a'
+            - '@s/b'
+";
+    assert_eq!(names(text), ["@s/narrow", "@s/a", "@s/b"]);
+}
+
+/// A second provider above the first counts too,
+/// and a name listed twice is read
+///       once.
+#[test]
+fn reads_every_provider_and_drops_a_repeat() {
+    let text: &str = "\
+auth:
+  oidc:
+    - name: release-branch
+      workloads:
+        - registry: monochromatic-dev
+          packages:
+            - '@s/a'
+    - name: github
+      workloads:
+        - registry: monochromatic-dev
+          packages:
+            - '@s/a'
+            - '@s/b'
+";
+    assert_eq!(names(text), ["@s/a", "@s/b"]);
+}
+
+/// An empty publish set,
+/// a document without `auth.oidc`,
+/// and a workload whose
+///       `packages` is a mapping are each refused by name.
+#[test]
+fn refuses_a_publish_set_it_cannot_read() {
     assert_eq!(
-        read("a: 1\n  packages:\n    - '@s/a'\n    - '@s/b'\n  other: x\n    - '@s/c'\n"),
-        ["@s/a", "@s/b"]
+        reason(&provider("")),
+        "no `auth.oidc` workload lists a package name"
     );
-    assert_eq!(read("packages:\n  - '@s/a'"), ["@s/a"]);
-    assert!(read("no list here\n").is_empty());
-    assert!(read("packages:\n  - ''\n").is_empty());
-}
-
-/// Only the first key line opens the list;
-/// an item needs both quotes and a name.
-#[test]
-fn reads_items_after_the_first_key_only() {
-    assert!(read("packages:\n  x\npackages:\n  - 'a'\n").is_empty());
-    assert!(read("packages:\n  - '\n").is_empty());
-    assert!(read("packages:\n  - 'a\n").is_empty());
-    assert!(read("packages:\n  - a'\n").is_empty());
-    assert_eq!(read("packages:\n  - '''\n  - 'a b'\n"), ["'", "a b"]);
-    assert!(read("packages: x\n  - 'a'\n").is_empty());
-}
-
-/// Lines are trimmed with JavaScript's set:
-/// CR,
-/// BOM and wide spaces go,
-/// NEL stays.
-#[test]
-fn trims_as_javascript_does() {
-    assert_eq!(read("packages:\r\n  - 'a'\r\n"), ["a"]);
-    assert_eq!(read("\u{feff}packages:\n\u{3000}- 'a'\u{a0}\n"), ["a"]);
     assert_eq!(
-        read(
-            "packages:\n\u{b}\u{c}\u{1680}\u{2000}\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}- 'a'\n"
-        ),
-        ["a"]
+        reason("registries:\n  monochromatic-dev:\n    packages:\n      '@s/*':\n"),
+        "it has no `auth.oidc` list of providers"
     );
-    assert!(read("\u{85}packages:\n  - 'a'\n").is_empty());
-    assert_eq!(read("packages:\n  - 'a'\u{85}\n"), Vec::<String>::new());
+    assert_eq!(
+        reason("auth:\n  oidc: monochromatic-dev\n"),
+        "it has no `auth.oidc` list of providers"
+    );
+    assert_eq!(
+        reason("auth:\n  oidc:\n    - workloads:\n        - registry: r\n"),
+        "no `auth.oidc` workload lists a package name"
+    );
+    assert_eq!(
+        reason("auth:\n  oidc:\n    - workloads: many\n"),
+        "`auth.oidc[0].workloads` is not a list of workloads"
+    );
+    assert_eq!(
+        reason("auth:\n  oidc:\n    - workloads:\n        - packages:\n            a: b\n"),
+        "`auth.oidc[0].workloads[0].packages` is not a list of package names"
+    );
+    assert_eq!(
+        reason("auth:\n  oidc:\n    - workloads:\n        - packages:\n            - ''\n"),
+        "`auth.oidc[0].workloads[0].packages` holds an empty package name"
+    );
+    assert_eq!(
+        reason("auth:\n  oidc:\n    - workloads:\n        - packages:\n            - k: v\n"),
+        "`auth.oidc[0].workloads[0].packages` holds a value that is not a package name"
+    );
+}
+
+/// A text this reader cannot read is refused with the line it stopped at,
+/// so
+///       the diagnostic names a place to look.
+#[test]
+fn refuses_text_it_cannot_read_by_line() {
+    assert_eq!(
+        reason("auth:\n\toidc:\n"),
+        "is indented with a tab, which starts no block on line 2"
+    );
+    assert_eq!(
+        reason("auth: [\n"),
+        "begins with '[', which opens a value this reader does not read on line 1"
+    );
+}
+
+/// A tag on a workload key is refused by line,
+/// never stored as part of the key name:
+/// `!!str packages:` is the key `packages` to a YAML parser,
+/// so keeping the tag would hide a publish set this reader accepted.
+#[test]
+fn refuses_a_tagged_key_instead_of_storing_it() {
+    let text: &str = "\
+auth:
+  oidc:
+    - name: github
+      workloads:
+        - identity:
+            subject: 'repo:example/main'
+          registry: monochromatic-dev
+          packages:
+            - '@s/narrow'
+        - identity:
+            subject: 'repo:example/release'
+          registry: monochromatic-dev
+          !!str packages:
+            - '@s/a'
+";
+    assert_eq!(
+        reason(text),
+        "begins with '!', which opens a key this reader does not read on line 13"
+    );
+}
+
+/// A '#' on a list item is refused with its line,
+/// so a colon inside a trailing comment can never change the list's shape:
+/// the generator writes no '#' on an item.
+#[test]
+fn refuses_a_hash_on_a_list_item() {
+    let text: &str = "\
+auth:
+  oidc:
+    - name: github
+      workloads:
+        - registry: monochromatic-dev
+          packages:
+            - app # publication: enabled
+";
+    assert_eq!(
+        reason(text),
+        "holds a '#' on a list item, where the generated configuration writes none on line 7"
+    );
+}
+
+/// A sequence item with more spaces after its dash than the generator writes is
+/// refused by line:
+/// the reader aligns a compact mapping's keys two columns after the dash,
+/// and a wider
+///       gap would put the workload's keys inside the entry above them.
+#[test]
+fn refuses_a_sequence_item_with_a_wider_gap_than_the_generator_writes() {
+    let text: &str = "\
+auth:
+  oidc:
+    - workloads:
+        - registry: r
+          packages:
+            - '@s/base'
+        -   unused:
+            registry: r
+            packages:
+              - app
+";
+    assert_eq!(
+        reason(text),
+        "puts 3 spaces after its dash, where the generated configuration writes one on line 7"
+    );
+}
+
+/// A document marker inside a line is refused by line,
+/// never stored as part of a key:
+/// `--- auth:` opens a second document to a YAML parser,
+/// and reading its keys as the
+///       first document's would report a publish set it never read.
+#[test]
+fn refuses_a_document_marker_inside_a_line() {
+    let text: &str = "\
+auth:
+  oidc:
+    - workloads:
+        - packages:
+            - '@s/base'
+--- auth:
+  oidc:
+    - workloads:
+        - packages:
+            - app
+";
+    assert_eq!(
+        reason(text),
+        "begins with '---', which marks a document boundary, and this reader reads one document on line 6"
+    );
 }

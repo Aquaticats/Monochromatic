@@ -189,12 +189,13 @@ pub fn resolve_node(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, R
     };
     let hosts: [&str; 2] = ["https://nodejs.org/dist", "https://unofficial-builds.nodejs.org/download/release"];
     let mut sums: BTreeMap<String, String> = BTreeMap::new();
+    let mut unreadable: Vec<String> = Vec::new();
     for host in hosts {
         let url: String = format!("{host}/v{version}/SHASUMS256.txt");
-        if let Ok(response) = ctx.http.get(&url, &[], super::http::DEFAULT_MAX_GET_BYTES)
-            && (200..300).contains(&response.status)
-        {
-            sums.extend(parse_shasums(&response.text()));
+        match ctx.http.get(&url, &[], super::http::DEFAULT_MAX_GET_BYTES) {
+            Ok(response) if (200..300).contains(&response.status) => sums.extend(parse_shasums(&response.text())),
+            Ok(response) => unreadable.push(format!("{url}: HTTP {}", response.status)),
+            Err(error) => unreadable.push(format!("{url}: {}", error.message)),
         }
     }
     let mut artifacts: Vec<(String, Artifact)> = Vec::new();
@@ -203,7 +204,13 @@ pub fn resolve_node(ctx: &Context, wanted: Option<&str>) -> Result<Resolution, R
         let (host, suffix): (&str, &str) = if is_musl(platform) { (hosts[1], "-musl") } else { (hosts[0], "") };
         let name: String = format!("node-v{version}-linux-{arch}{suffix}.tar.gz");
         let Some(digest) = sums.get(&name) else {
-            return Err(ResolveError::Failed(format!("SHASUMS256.txt of Node.js {version} has no row for {name}")));
+            // A fetch that failed is the likely cause, so it is named beside the missing row instead of being
+            // reported as a checksum file that lacks the archive.
+            let cause: String = match unreadable.is_empty() {
+                true => String::new(),
+                false => format!("; the checksum files could not be read ({})", unreadable.join(", ")),
+            };
+            return Err(ResolveError::Failed(format!("SHASUMS256.txt of Node.js {version} has no row for {name}{cause}")));
         };
         artifacts.push((platform.to_string(), Artifact { url: format!("{host}/v{version}/{name}"), sha256: digest.clone() }));
     }

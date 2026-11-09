@@ -10,8 +10,8 @@
 //!  stage.
 //!  The reader returns `None` for a split index (`link`),
 //! a sparse index (`sdir` or a directory entry),
-//! an unknown
-//!  required extension,
+//! an extension whose
+//!  text Git words on standard error or dies on,
 //! unsorted entries or a size that does not add up,
 //! so Git answers those.
 //!  It does not verify the trailing checksum;
@@ -77,7 +77,8 @@ fn be32(bytes: &[u8], at: usize) -> Option<u32> {
 ///  Parse the whole file;
 /// `None` when anything is outside the plain layouts listed above.
 /// Why:
-///   Every answer built on it is checked against Git by the differential controls.
+///   Every answer built on it is checked against Git by the differential controls,
+/// including the standard error of the extension line Git prints for a signature it does not know.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -187,12 +188,26 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
         }
         let size: usize = usize::try_from(be32(bytes, at + 4)?).ok()?;
         let body_at: usize = at.checked_add(8)?;
-        if signature == b"TREE" {
+        let body: Option<&[u8]> = bytes.get(body_at..body_at.checked_add(size)?);
+        match signature {
             // An extension that does not read as Git writes it is dropped by Git too, so the comparison goes without it.
-            tree = match bytes.get(body_at..body_at.checked_add(size)?) {
-                Some(body) => CacheTree::read(body, hash_length),
-                None => None,
-            };
+            b"TREE" => {
+                tree = match body {
+                    Some(found) => CacheTree::read(found, hash_length),
+                    None => None,
+                };
+            }
+            // Git words a `REUC` or an `FSMN` body it cannot read on standard error and answers anyway, so both must read here.
+            b"REUC" => {
+                crate::index_resolve_undo::ResolveUndo::read(body?, hash_length)?;
+            }
+            b"FSMN" => {
+                crate::index_fsmonitor::read_fsmonitor(body?, entries.len())?;
+            }
+            // Git reads these without a word on any body it is handed, measured on Git 2.56.0 with each body `abcd`.
+            b"UNTR" | b"EOIE" | b"IEOT" => {}
+            // An extension this reader does not know is one Git words (`ignoring <signature> extension`) or dies on.
+            _ => return None,
         }
         at = body_at.checked_add(size)?;
     }

@@ -142,6 +142,16 @@ fn say_refusals(say: &mut dyn FnMut(&str), refusals: &[Refusal]) {
 /// const code = await execute(platform, args, root, interrupt, say);
 /// ```
 pub fn execute(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
+    // The platform's answer holds for the whole run, and a run on a platform that flushes turns the flushes back on even
+    // inside a stand-in's extent, so a real-platform run nested in a control's simulated one keeps its durability.
+    let _flushes: crate::subvolume_file_write_steps::WritesKeptInMemory =
+        crate::subvolume_file_write_steps::WritesKeptInMemory::for_flush_policy(platform.flushes_to_disk());
+    return run_to_a_status(platform, arguments, root, interrupt, say);
+}
+
+/// The status mapping of one run,
+/// which `execute` wraps in the platform's answer about flushing.
+fn run_to_a_status(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, interrupt: &Interrupt, say: &mut dyn FnMut(&str)) -> i32 {
     let outcome: Result<i32, MigrateError> = run_mode(platform, arguments, root, interrupt, &mut *say);
     match outcome {
         Ok(code) => return code,

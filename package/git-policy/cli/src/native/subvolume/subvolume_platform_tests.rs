@@ -99,6 +99,30 @@ fn the_platform_learns_the_system_files_from_the_git_it_forwards_to() {
     remove(root.as_path());
 }
 
+/// What:
+///  A platform whose conversion environment was settled before a run reads the same facts as one asked during it.
+/// Why:
+///  Settling starts the Git child on the calling thread,
+/// because a conversion is a job of the blocking pool,
+/// where the bridge that starts a child refuses;
+///  the facts must be the ones the late answer gives,
+/// or the content decision would judge a worktree by different rules than the command was told.
+#[test]
+fn a_platform_settled_early_reads_the_facts_the_late_answer_gives() {
+    let root = crate::test_support::fixture("platform-settles-its-environment");
+    let variables = disposable_variables(root.as_path());
+    let settling: LinuxPlatform = LinuxPlatform::forwarding_to(variables.as_slice(), Some(Path::new(crate::test_support::REAL_GIT))).with_its_conversion_environment_settled();
+    let late: ConversionEnvironment = LinuxPlatform::forwarding_to(variables.as_slice(), Some(Path::new(crate::test_support::REAL_GIT))).conversion_environment();
+    let early: ConversionEnvironment = settling.conversion_environment();
+    assert_eq!(early.system_attributes, late.system_attributes);
+    assert_eq!(early.scope.unresolvable, late.scope.unresolvable);
+    assert_eq!(early.scope.system_default, late.scope.system_default);
+    assert_eq!(early.variables, late.variables);
+    let unaware: LinuxPlatform = LinuxPlatform::forwarding_to(variables.as_slice(), None).with_its_conversion_environment_settled();
+    assert_eq!(unaware.conversion_environment().system_attributes, crate::worktree_clean_content::SystemAttributes::Unknown);
+    remove(root.as_path());
+}
+
 /// A variable the caller already set to name a Git wins over the one resolved,
 /// as it does for every other reader,
 /// and the
@@ -115,4 +139,18 @@ fn the_environment_the_facts_come_from_is_the_one_kept() {
     let kept: ConversionEnvironment = LinuxPlatform::forwarding_to(named_already.as_slice(), Some(Path::new(crate::test_support::REAL_GIT))).conversion_environment();
     assert!(kept.variables.iter().any(|(name, value)| { return name == crate::child_environment::FORWARD_TARGET_VARIABLE && value == "/named/by/the/caller"; }));
     remove(root.as_path());
+}
+
+/// The real platform flushes its writes to disk and a stand-in does not,
+/// which is what decides whether the journal's flushes run at all
+/// (`subvolume_file_write_steps`).
+/// The real answer is the one that keeps a crash-safe write;
+/// a stand-in says no because the control that uses it simulates a kill in the process.
+#[test]
+fn the_real_platform_flushes_its_writes_and_a_stand_in_does_not() {
+    assert!(LinuxPlatform::default().flushes_to_disk(), "the real platform flushes");
+    let stand_in: crate::subvolume_test_support::PlainPlatform = crate::subvolume_test_support::PlainPlatform::new();
+    assert!(!stand_in.flushes_to_disk(), "the stand-in does not");
+    let hooked: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls: u32| {}));
+    assert!(!hooked.flushes_to_disk(), "a hooked stand-in answers as the stand-in it wraps");
 }

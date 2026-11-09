@@ -7,6 +7,7 @@
 use super::fakes::Rig;
 use super::install_rust_android::reconcile_rust_parts;
 use super::model::LockedTool;
+use super::runner::RunRequest;
 
 /// The sample lock's `rust` tool,
 /// whose options declare the components `clippy` and `rust-src`
@@ -197,6 +198,26 @@ fn a_bare_declaration_added_first_covers_the_qualified_declaration_after_it() {
     assert_eq!(adds, vec!["rustup component add clippy --toolchain nightly-2026-10-30".to_string()]);
 }
 
+/// The listing that decides which parts are missing must never install a toolchain:
+/// `rustup 1.29.2` answers `component list --installed --toolchain 1.79.0` for an absent channel by
+/// downloading and installing it (`warn: the missing active toolchain ... has been auto-installed`),
+/// so without `RUSTUP_AUTO_INSTALL=0` a query would be a network install.
+#[test]
+fn the_installed_parts_listings_ask_rustup_not_to_install_a_missing_toolchain() {
+    let rig = Rig::new();
+    reconcile_with(&rig, &rust_tool(&rig), "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
+    let listings: Vec<RunRequest> = rig.runner.calls().into_iter().filter(|call| return call.args.contains(&"list".to_string())).collect();
+    assert!(!listings.is_empty(), "the reconcile asks rustup what it holds: {listings:?}");
+    for listing in listings {
+        let env = listing.env.as_ref().expect("an explicit environment");
+        assert_eq!(
+            env.get("RUSTUP_AUTO_INSTALL").map(String::as_str),
+            Some("0"),
+            "a listing runs with auto-install off: {listing:?}"
+        );
+    }
+}
+
 #[test]
 fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
     let rig = Rig::new();
@@ -208,5 +229,20 @@ fn the_added_sentence_names_the_part_and_the_listing_that_missed_it() {
              `rustup component list --installed` did not show"
                 .to_string()
         ]
+    );
+}
+
+/// The installed-parts listings ask about the same channel `packageId` names, not the locked version,
+/// so a real install is not read as missing and re-added forever.
+#[test]
+fn the_installed_parts_are_listed_for_the_package_id_channel() {
+    let rig = Rig::new();
+    let mut tool: LockedTool = rust_tool(&rig);
+    tool.declaration.package_id = Some("nightly".to_string());
+    reconcile_with(&rig, &tool, "x86_64-unknown-linux-gnu\n", "rust-src\n").expect("listed");
+    let lines: Vec<String> = rig.runner.lines();
+    assert!(
+        lines.iter().all(|line| return line.ends_with("--toolchain nightly")),
+        "every listing and add names the installed channel: {lines:?}"
     );
 }

@@ -11,7 +11,8 @@ use std::path::PathBuf;
 use super::cargo_installs::{current_link, running_version, version_directory};
 use super::fakes::Rig;
 use super::fakes_cargo::finish_install;
-use super::prune_cargo::{PresentVersion, named_versions, plan_prune, prune_toolchain};
+use super::error::ToolchainError;
+use super::prune_cargo::{PresentVersion, after_removing, named_by_all, named_versions, plan_prune, present_versions, prune_toolchain};
 use super::worktrees::worktree_lock_files;
 
 fn present(entries: &[(&str, &[&str])]) -> BTreeMap<String, Vec<PresentVersion>> {
@@ -160,4 +161,316 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
     let found = present(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]);
     let removals = plan_prune(&found, &named(&[("monochromatic-lint", &["0.4.5-alpha.9", "0.4.5-alpha.10"])]));
     assert_eq!(removals, vec![("monochromatic-lint".to_string(), "0.4.5-alpha.9".to_string())]);
+}
+
+/// A crate directory goes only when it is empty:
+/// whatever another run left in it, which the scan does not count as a version, is not carried away
+/// with the directory.
+#[test]
+fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    // The lock names a version that is not installed, so `1.1.0` is the only deletion and nothing remains.
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    // A link an `atomic_symlink` write of another run leaves behind: a name the scan skips, in the crate directory.
+    let leftover = root.join("cargo").join("fd-find").join(".current.4242.tmp");
+    fs::write(&leftover, "").expect("drop the leftover");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert_eq!(removed.len(), 1, "{removed:?}");
+    assert!(!version_directory(&root, "fd-find", "1.1.0").exists(), "the unnamed version goes");
+    assert!(leftover.exists(), "the crate directory was removed with something inside it: {removed:?}");
+}
+
+/// A recursive removal that fails can have unlinked part of the tree before it gave up,
+/// so the report names the directory it was removing and says so,
+/// never that nothing was deleted.
+#[test]
+fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let victim = version_directory(&root, "fd-find", "1.1.0");
+    finish_install(&victim, "fd-find", "1.1.0", &["fd"]);
+    // A directory the removal cannot empty: without its write bit, `remove_dir_all` stops partway through.
+    let locked = victim.join("locked");
+    fs::create_dir(&locked).expect("make");
+    fs::write(locked.join("held"), "").expect("write");
+    set_mode(&locked, 0o500);
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&locked, 0o755);
+    let error = pruned.expect_err("the removal stops partway");
+    assert!(error.message.contains(&victim.display().to_string()), "the report names the directory: {error}");
+    assert!(error.message.contains("part of it may be gone"), "the report hedges what a partial removal left: {error}");
+    assert!(!error.message.contains("nothing was deleted"), "a partial removal is not nothing: {error}");
+}
+
+/// A crate no lock names loses every version, so its `current` link goes before them:
+/// a run killed in between leaves no link rather than one naming a version that is deleted.
+#[test]
+fn a_crate_no_lock_names_loses_its_current_link_before_its_versions() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(
+        &version_directory(&root, "monochromatic-lint", "1.1.0"),
+        "monochromatic-lint",
+        "1.1.0",
+        &["monochromatic-lint"],
+    );
+    std::os::unix::fs::symlink("1.1.0", current_link(&root, "monochromatic-lint")).expect("current");
+    // A leftover the scan does not count keeps the directory, so what happens to the link is the link's own
+    // and not the directory removal's.
+    let leftover = root.join("cargo").join("monochromatic-lint").join(".current.4242.tmp");
+    fs::write(&leftover, "").expect("drop the leftover");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert!(!version_directory(&root, "monochromatic-lint", "1.1.0").exists(), "the version goes: {removed:?}");
+    assert!(
+        std::fs::symlink_metadata(current_link(&root, "monochromatic-lint")).is_err(),
+        "the link that named the deleted version is still there"
+    );
+    assert!(leftover.exists(), "the leftover keeps the directory: {removed:?}");
+}
+
+/// A prune that cannot repoint `current` deletes nothing:
+/// the link is moved to the newest finished version before the older one goes,
+/// so a run that stops at the link has never deleted the version the link named.
+#[test]
+fn a_prune_that_cannot_repoint_current_deletes_no_version() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    for version in ["1.1.0", "1.2.0"] {
+        finish_install(
+            &version_directory(&root, "monochromatic-lint", version),
+            "monochromatic-lint",
+            version,
+            &["monochromatic-lint"],
+        );
+    }
+    // `current` is a directory here, so the atomic link write cannot land: the prune stops at the repoint.
+    fs::create_dir(current_link(&root, "monochromatic-lint")).expect("squat the link");
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:monochromatic-lint\":{\"request\":\"cargo:monochromatic-lint@latest\",\"version\":\"1.1.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    let error = pruned.expect_err("the link cannot be written over a directory");
+    assert!(error.message.contains("current"), "the message names the link: {error}");
+    assert!(version_directory(&root, "monochromatic-lint", "1.1.0").is_dir(), "the version `current` named was deleted");
+    assert!(version_directory(&root, "monochromatic-lint", "1.2.0").is_dir(), "the newest finished version was deleted");
+}
+
+/// A version installed while the prune runs is never deleted:
+/// the prune lists what is present before it reads any lock,
+/// so an install that lands afterwards is not in the list it deletes from.
+#[test]
+fn an_installation_that_lands_while_the_prune_runs_is_never_deleted() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.0.0"), "fd-find", "1.0.0", &["fd"]);
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(
+        rig.scope.root.join("toolchain.lock.json"),
+        "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.1.0\",\"route\":\"cargo-binstall\"}}}",
+    )
+    .expect("write");
+    // Another run finishes installing 1.2.0 while this prune lists worktrees, before it reads any lock.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(&version_directory(&installed_into, "fd-find", "1.2.0"), "fd-find", "1.2.0", &["fd"]);
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let removed = prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+    assert!(
+        version_directory(&root, "fd-find", "1.2.0").is_dir(),
+        "the version installed after the prune listed what was present was deleted: {removed:?}"
+    );
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "the named version stays");
+    assert!(!version_directory(&root, "fd-find", "1.0.0").exists(), "a version that was there and unnamed is still pruned");
+}
+
+/// The link removal takes only a version this run deletes or one that is already gone:
+/// a `current` another command moved to a version it just installed is that command's to keep.
+#[test]
+fn the_link_removal_leaves_a_current_that_names_a_version_installed_meanwhile() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(
+        &version_directory(&root, "monochromatic-lint", "1.1.0"),
+        "monochromatic-lint",
+        "1.1.0",
+        &["monochromatic-lint"],
+    );
+    std::os::unix::fs::symlink("1.1.0", current_link(&root, "monochromatic-lint")).expect("current");
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("a lock that names nothing");
+    // Another command finishes installing 1.2.0 and points `current` at it while this run lists worktrees.
+    let installed_into = root.clone();
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            finish_install(
+                &version_directory(&installed_into, "monochromatic-lint", "1.2.0"),
+                "monochromatic-lint",
+                "1.2.0",
+                &["monochromatic-lint"],
+            );
+            let link = current_link(&installed_into, "monochromatic-lint");
+            let _ = fs::remove_file(&link);
+            std::os::unix::fs::symlink("1.2.0", link).expect("point at the new install");
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("pruned");
+
+    let link = current_link(&root, "monochromatic-lint");
+    assert!(version_directory(&root, "monochromatic-lint", "1.2.0").is_dir(), "the concurrent install survives");
+    assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.2.0"), "the concurrent install's link is gone");
+    assert!(fs::metadata(&link).is_ok(), "and it resolves");
+}
+
+/// Sets a directory's mode, so a read of it can be made to fail.
+fn set_mode(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("chmod");
+}
+
+/// The scan reports a crate directory it could not read instead of leaving it out:
+/// a caller that reads silence as "no versions are left" would delete the whole directory,
+/// including a version a lock names.
+#[test]
+fn a_crate_directory_the_scan_cannot_read_is_an_error_and_not_an_empty_crate() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.2.0"), "fd-find", "1.2.0", &["fd"]);
+    let crate_dir = root.join("cargo").join("fd-find");
+    set_mode(&crate_dir, 0o000);
+    let scanned = present_versions(&root);
+    set_mode(&crate_dir, 0o755);
+    let error = scanned.expect_err("a directory it cannot read proves nothing");
+    assert!(error.message.contains(&crate_dir.display().to_string()), "the message names the directory: {error}");
+}
+
+/// A refusal carries what the run has already removed; with nothing removed it says so instead,
+/// so a failure after a deletion never claims that nothing was deleted.
+#[test]
+fn a_refusal_after_a_removal_names_what_went_and_never_claims_nothing_was_deleted() {
+    let gone: PathBuf =
+        PathBuf::from("/tree/cargo/fd-find/1.1.0");
+    let scan = "cannot read /tree/cargo: Permission denied (os error 13)";
+    let after = after_removing(ToolchainError::failure(scan), std::slice::from_ref(&gone));
+    assert!(after.message.contains(&gone.display().to_string()), "the message names what was removed: {after}");
+    assert!(after.message.contains("already removed"), "{after}");
+    assert!(!after.message.contains("nothing was deleted"), "{after}");
+    let before = after_removing(ToolchainError::failure(scan), &[]);
+    assert!(before.message.contains("nothing was deleted"), "a failure before any removal says so: {before}");
+    assert_eq!(before.kind, ToolchainError::failure("").kind, "the refusal keeps the kind it was raised with");
+}
+
+/// A prune that cannot read a crate directory deletes nothing and says so,
+/// rather than reporting that there was nothing to prune.
+#[test]
+fn the_command_refuses_when_it_cannot_read_a_crate_directory() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    finish_install(&version_directory(&root, "fd-find", "1.2.0"), "fd-find", "1.2.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"version\":\"1.2.0\",\"route\":\"cargo-binstall\"}}}").expect("write");
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let crate_dir = root.join("cargo").join("fd-find");
+    set_mode(&crate_dir, 0o000);
+    let pruned = prune_toolchain(&rig.scope, &rig.runner, &[], false);
+    set_mode(&crate_dir, 0o755);
+    let error = pruned.expect_err("a crate directory it cannot read proves nothing");
+    assert!(error.message.contains(&crate_dir.display().to_string()), "the message names the directory: {error}");
+    assert!(version_directory(&root, "fd-find", "1.2.0").is_dir(), "the version the lock names was deleted");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "a version no lock names was deleted");
+}
+
+/// A `cargo-binstall` row with no version is not a lock row this command can judge:
+/// reading it as naming nothing would delete the crate it installs,
+/// so the read refuses and the version stays.
+#[test]
+fn a_cargo_binstall_row_without_a_version_refuses_the_prune_and_deletes_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    let broken = rig._directory.path().join("clone").join("toolchain.lock.json");
+    fs::create_dir_all(rig._directory.path().join("clone")).expect("make");
+    fs::write(&broken, "{\"tools\":{\"cargo:fd-find\":{\"request\":\"cargo:fd-find@latest\",\"route\":\"cargo-binstall\"}}}").expect("write");
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&broken), false).expect_err("the row names no version");
+    assert!(error.message.contains("cargo:fd-find"), "the message names the row: {error}");
+    assert!(error.message.contains("nothing was deleted"), "the message says nothing happened: {error}");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
+}
+
+/// An explicit `--lock` whose file is gone by the time the command reads it refuses the prune:
+/// a check that runs before the read can be outrun by a concurrent rename,
+/// and then the lock would protect nothing while the prune deletes the version it names.
+#[test]
+fn an_explicit_lock_that_vanishes_before_it_is_read_refuses_the_prune_and_deletes_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    let clone_lock = write_lock(&rig._directory.path().join("clone"), "fd-find", "1.1.0");
+    let moved_aside = clone_lock.with_file_name("toolchain.lock.json.moved");
+    let vanished = clone_lock.clone();
+    // A concurrent command renames the lock away while this run lists worktrees, before it reads any lock.
+    rig.runner.on(
+        "git -C",
+        Box::new(move |_request| {
+            if vanished.exists() {
+                fs::rename(&vanished, &moved_aside).expect("move the lock aside");
+            }
+        }),
+    );
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&clone_lock), false).expect_err("the named lock is gone when it is read");
+    assert!(error.message.contains(&clone_lock.display().to_string()), "the message names the path: {error}");
+    assert!(error.message.contains("cannot be read"), "the refusal comes from the read and not from a check before it: {error}");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
+}
+
+/// The read stage itself tells the two kinds of lock apart:
+/// one discovery reported may be absent,
+/// one the caller named may not.
+#[test]
+fn the_read_stage_refuses_a_missing_explicit_lock_and_skips_a_missing_discovered_one() {
+    let rig = Rig::new();
+    let absent: PathBuf = rig._directory.path().join("absent").join("toolchain.lock.json");
+    assert!(named_by_all(std::slice::from_ref(&absent), &[]).is_ok(), "a lock discovery reports may be absent");
+    let error = named_by_all(&[], std::slice::from_ref(&absent)).expect_err("a lock the caller named must be readable");
+    assert!(error.message.contains(&absent.display().to_string()), "the message names the path: {error}");
+    assert!(error.message.contains("nothing was deleted"), "the message says nothing happened: {error}");
+}
+
+/// An explicit `--lock` path that never existed refuses the prune too:
+/// a deletion command must not read a mistyped path as protecting nothing.
+#[test]
+fn an_explicit_lock_file_that_does_not_exist_refuses_the_prune_and_deletes_nothing() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    let missing: PathBuf = rig._directory.path().join("clone").join("toolchain.lock.json");
+    let error = prune_toolchain(&rig.scope, &rig.runner, std::slice::from_ref(&missing), false).expect_err("the named lock does not exist");
+    assert!(error.message.contains(&missing.display().to_string()), "the message names the path: {error}");
+    assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
 }
