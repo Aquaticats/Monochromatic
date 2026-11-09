@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T05:25:13-05:00)
+#### Reviews and landings in progress (2026-11-09T05:31:07-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner` landed as `0ac02768cd`,
   with 334 of 334 selected tests passing on top of main before the landing.
@@ -291,7 +291,12 @@ The old tree kept for the rollback stays until the owner deletes it.
   the repeated line about an interrupted add reaches a person only with `MONOCHROMATIC_VERBOSE` set.
   Run 2 of its agent reports six findings handled,
   674 of 674 selected tests pass on top of main,
-  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) is running.
+  and the second review (`${HOME}/temp/agent/reviews/worktree-add-round-2-sol.txt`) names another command's stage carried into the new worktree as unignored trash,
+  a lock-removal instruction quoted for JSON and not for a shell,
+  a helper reported as ended when only Git was reaped,
+  and a checkout filter that reads the terminal stopped by the new process group.
+  Not ready to merge.
+  Run 3 of its agent is on them.
   The container gate has not run.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
   its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
@@ -447,7 +452,19 @@ The old tree kept for the rollback stays until the owner deletes it.
   among them a recursive removal that can take a version just installed.
   Run 4 of its agent reports all four reproduced and fixed,
   715 of 715 tests pass on top of main,
-  and the review of that round (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-4-sol.txt`) is running.
+  and that round landed as `f1ca6bb870`.
+  Issues 2623,
+  3743,
+  3511 and 3512 are closed with evidence comments.
+  The review of that round (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-4-sol.txt`) names a `current` link moved to a version the same run deletes,
+  a partly removed directory reported as nothing deleted,
+  and a concurrent install's link removed.
+  None is worse than what main had,
+  so they did not hold the landing.
+  A small round 5 waits for a free agent slot:
+  resume the run `mpm-shadow-open-issues` as run 5,
+  with `mpm-shadow-round-5-prompt.md` and the session file named in run 4's `summary.json`.
+  The next mpm-shadow release follows that round.
   Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
   By its own report the agent ran its cargo commands outside the required resource limits,
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
