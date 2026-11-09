@@ -32,6 +32,7 @@ use crate::journald_native::{CLIENT_IDENTIFIER, IDENTIFIER};
 use crate::inner_git_words::record_text;
 use std::ffi::OsString;
 use crate::auto_push_destination::Destination;
+use crate::diagnostic_log::debug;
 /// Tag used for diagnostics from this module.
 pub(crate) const TAG: &str = "monochromatic-git-policy-cli";
 
@@ -131,6 +132,65 @@ pub(crate) fn is_ancestor(
 }
 
 /// What:
+///  The namespace of the reconcile's private fetch refs.
+/// Why:
+///   Every ref under it is the reconcile's own scaffolding,
+/// named for the process that fetched,
+/// so the sweep can tell its own leftovers from the rest of the reference space.
+pub(crate) const PRIVATE_FETCH_PREFIX: &str = "refs/cli-git/auto-push/fetch-";
+
+/// The namespace those refs live in,
+/// which is the pattern that lists them:
+/// `for-each-ref` reads a pattern without a glob as an exact name,
+/// so the namespace is given with its trailing slash.
+const PRIVATE_FETCH_NAMESPACE: &str = "refs/cli-git/auto-push/";
+
+/// What:
+///  Delete the private fetch refs of reconciles that are not running any more.
+/// Why:
+///   A ref named for a dead process is overwritten by nothing:
+/// the instance that wrote it is gone,
+/// so it stays for good,
+/// pins the objects it names against `gc`,
+/// and a push of every ref would carry it.
+/// A ref whose process still runs belongs to another worktree of this repository reconciling at the same time,
+/// so it is left where it is.
+/// This process's own leftovers are taken too:
+/// its fetch writes the same name again,
+/// and a kill between the fetch and the deletion leaves one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const ref of await git.for_each_ref(PRIVATE_FETCH_PREFIX)) if (!isAlive(pidOf(ref)) || pidOf(ref) === process.pid) await git.update_ref(['-d', ref]);
+/// ```
+pub(crate) fn sweep_private_fetch_refs(git: &PushGit) -> Result<(), SingleFlightError> {
+    let listed = run_query(git, &argv(&["for-each-ref", "--format=%(refname)", PRIVATE_FETCH_NAMESPACE]))?;
+    if listed.code != Some(0) {
+        debug(TAG, "the private fetch refs could not be listed; the fetch goes on without the sweep");
+        return Ok(());
+    }
+    let ours: u32 = std::process::id();
+    for line in String::from_utf8_lossy(&listed.stdout).lines() {
+        let name: &str = line.trim();
+        let Some(number) = name.strip_prefix(PRIVATE_FETCH_PREFIX) else { continue };
+        // A name this release did not write is not scaffolding it can judge.
+        let Ok(pid) = number.parse::<u32>() else { continue };
+        if pid != ours && process_is_alive(u64::from(pid)) {
+            continue;
+        }
+        let _deleted = run_query(git, &argv(&["update-ref", "-d", name]));
+    }
+    return Ok(());
+}
+
+/// Whether the process number `pid` still names a process,
+/// as the owner records of a transaction ask.
+pub(crate) fn process_is_alive(pid: u64) -> bool {
+    let Ok(number) = i64::try_from(pid) else { return false };
+    return crate::process_identity::signal_probe(number).unwrap_or(true);
+}
+
+/// What:
 ///  Fetch the remote branch into a private ref and return the commit it names.
 /// Why:
 ///   `FETCH_HEAD` is shared by every fetch in the repository,
@@ -138,6 +198,8 @@ pub(crate) fn is_ancestor(
 ///  and the read;
 /// a ref named for this process cannot be replaced,
 /// and it is deleted before this returns.
+///   The refs a killed instance left are swept first,
+/// so a leak lasts until the next reconcile instead of for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -147,7 +209,8 @@ pub(crate) fn fetch_remote_tip(
     git: &PushGit,
     destination: &Destination,
 ) -> Result<Result<String, PushAttempt>, SingleFlightError> {
-    let private_ref = format!("refs/cli-git/auto-push/fetch-{}", std::process::id());
+    sweep_private_fetch_refs(git)?;
+    let private_ref = format!("{PRIVATE_FETCH_PREFIX}{}", std::process::id());
     let refspec = format!("+{}:{private_ref}", destination.merge_ref);
     let arguments = argv(&[
         "fetch",

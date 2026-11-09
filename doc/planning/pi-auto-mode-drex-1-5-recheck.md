@@ -498,6 +498,10 @@ and host integration remain outside this result.
 Evidence is at `contract/research/composed-binding-replay/`.
 The incumbent inventory found `yuku-parser` already in use at
 `package/git-policy/cli/src/trust/mjs-validator.ts`.
+That path was deleted on 2026-10-13 in `642b6d72cb` (refactor(*):
+delete the TypeScript Git policy wrapper);
+the trust workflow it served is retired with no native successor,
+so this records the tree as it stood then.
 The completed inventory did not identify an existing operation-time file-version tracker.
 The user subsequently removed the subagent extension;
 continuation uses direct tools.

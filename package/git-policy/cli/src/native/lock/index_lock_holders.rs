@@ -11,9 +11,8 @@
 //!  never by path text,
 //!      means bind mounts and renamed paths cannot fake or hide a holder.
 //!  Processes the scan
-//!      cannot read are partial evidence (`src/index-lock/index-lock-holders-linux.ts`,
-//!      `-darwin.ts`,
-//!  `-win32.ts`).
+//!      cannot read are partial evidence,
+//!  and they are reported as such rather than counted as absent.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

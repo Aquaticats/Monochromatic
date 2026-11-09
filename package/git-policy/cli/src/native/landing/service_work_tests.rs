@@ -7,7 +7,7 @@ use crate::work_item_state_directories_and_claim_names::take_listings;
 use crate::push_retry::PushRetries;
 use crate::service_work_run_round::run_round;
 use super::*;
-use crate::push_failure_notice::{push_failure_text, take_push_failures};
+use crate::push_failure_notice::{push_failure_text, push_failures};
 use crate::push_retry::FIRST_PAUSE;
 use crate::service_claim_renewal::{RENEWALS_PER_LEASE, renewal_interval};
 use crate::service_claim_renewal_running::{DrivenRenewal, Renewal};
@@ -15,9 +15,25 @@ use crate::test_support::{fixture, remove};
 use crate::work_item::{CLAIMED, PENDING, enqueue, find_claim, id_of_entry, state_directory};
 use std::cell::RefCell;
 use std::ffi::OsString;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const OID: &str = "0123456789abcdef0123456789abcdef01234567";
+
+/// What:
+///  The words of every record,
+/// shown to a buffer and removed as a command shows and removes them.
+/// Why:
+///   A record goes only once its words are out,
+/// so these controls read one through the step the person's terminal receives
+///  it by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// shownNotices(pushFailures(gitDir))
+/// ```
+fn take_push_failures(git_dir: &Path) -> Vec<String> {
+    return crate::test_support::shown_notices(push_failures(git_dir));
+}
 const OTHER_OID: &str = "89abcdef0123456789abcdef0123456789abcdef";
 const BRANCH: &str = "refs/heads/main";
 const THIRD_OID: &str = "456789abcdef0123456789abcdef0123456789ab";
@@ -26,7 +42,7 @@ const THIRD_OID: &str = "456789abcdef0123456789abcdef0123456789ab";
 struct Recorder {
     verdict: Verdict,
     pushes: RefCell<Vec<Vec<String>>>,
-    upkeeps: RefCell<Vec<String>>,
+    upkeeps: RefCell<Vec<PathBuf>>,
     reviews: RefCell<Vec<String>>,
 }
 
@@ -73,8 +89,8 @@ fn repo(name: &str) -> Repo {
 fn item(repo: &Repo, kind: WorkKind, oid: &str, branch: &str) -> WorkItem {
     return WorkItem {
         kind,
-        repository: repo.worktree.display().to_string(),
-        git_dir: repo.common.display().to_string(),
+        repository: repo.worktree.to_path_buf(),
+        git_dir: repo.common.to_path_buf(),
         branch_ref: branch.to_string(),
         oid: oid.to_string(),
         parent: String::new(),
@@ -247,7 +263,7 @@ fn a_failed_review_is_a_plain_record_not_a_stuck_item() {
 #[test]
 fn an_item_for_another_repository_or_with_a_bad_reference_is_refused() {
     let repo: Repo = repo("work-refused");
-    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere").display().to_string(), ..item(&repo, WorkKind::Push, OID, BRANCH) };
+    let elsewhere: WorkItem = WorkItem { git_dir: repo.root.join("elsewhere"), ..item(&repo, WorkKind::Push, OID, BRANCH) };
     let bad_reference: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, "refs/heads/a b");
     for refused in [&elsewhere, &bad_reference] {
         assert!(!is_acceptable(refused, repo.common.as_path()), "{refused:?}");
@@ -863,8 +879,8 @@ fn a_review_runs_through_the_real_handlers_in_a_service_context() {
     let common: PathBuf = root.join(".git");
     let review: WorkItem = WorkItem {
         kind: WorkKind::Review,
-        repository: root.display().to_string(),
-        git_dir: common.display().to_string(),
+        repository: root.to_path_buf(),
+        git_dir: common.to_path_buf(),
         branch_ref: BRANCH.to_string(),
         oid: git_text(root.as_path(), &["rev-parse", "HEAD"]),
         parent: String::new(),
@@ -1008,4 +1024,204 @@ fn a_drain_of_many_claims_lists_the_state_directories_once() {
     for (_count, listings) in &measured {
         assert_eq!(*listings, first, "the listings of a drain do not grow with its claims: {measured:?}");
     }
+}
+
+/// A push the service will try again says so only once the plan that keeps the promise is on disk:
+/// a notice written before the plan is a promise a service that restarts cannot keep,
+/// and a service killed before the loop applies the worker's changes leaves exactly that.
+#[test]
+fn the_retry_a_notice_promises_is_on_disk_before_the_notice_exists() {
+    let repo: Repo = repo("work-retry-plan-first");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let recorder: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    // The worker's changes are never applied, as a kill before the loop applies them leaves them.
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) };
+    let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+    assert_eq!(drained.changes.len(), 1, "the worker asked for one plan");
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown.len(), 1, "the person is told about the push");
+    assert!(shown[0].contains("tries this push again by itself"), "{shown:?}");
+    // A service started in its place knows the branch by itself: the promise the notice made is the plan's.
+    let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the retry the notice promised is on disk before the notice was written");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A plan a round kept is still the file that is on disk after the round's changes are applied,
+/// even though an
+///  earlier change of the same round forgets that branch.
+/// Why:
+///   A worker keeps its branch's plan on disk at once,
+/// and the loop applies the round's changes afterwards,
+/// so
+///  the forget of an earlier push of that branch would remove the very file the new plan was published as;
+/// a service
+///  killed between the two changes would then find no retry where the notice promised one.
+/// The file is named here by
+///  the inode it was published as:
+/// a forget that removed it would leave the plan change to publish another one.
+#[test]
+fn a_plan_kept_after_an_older_forget_survives_its_replay() {
+    use std::os::unix::fs::MetadataExt as _;
+    let repo: Repo = repo("work-retry-plan-replayed-forget");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let newest: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    // The round asks, in this order, for the branch to be forgotten (the earlier push landed) and for the next try to be planned;
+    //  the plan reaches the disk at once, as the worker's keeps do.
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    replanning.forget(repo.common.as_path(), BRANCH);
+    let _said: String = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newest, 1, "the network is down");
+    let published: PathBuf = plans.join(crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan { git_dir: repo.common.clone(), item: newest.clone(), attempt: 1 }));
+    let kept_inode: u64 = std::fs::metadata(published.as_path()).expect("the plan the notice promises is on disk before the loop applies anything").ino();
+    let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    retries.apply(replanning.changes);
+    let still: u64 = std::fs::metadata(published.as_path()).expect("the plan is still there after the replay").ino();
+    assert_eq!(still, kept_inode, "the file the worker published was never taken away");
+    // A service started in the place of one that stopped right after the forget finds it.
+    let restored: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+    assert!(restored.next_wait(repo.common.as_path(), Instant::now()).is_some(), "the plan the worker kept is still there after the replay");
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A round that plans a retry,
+/// forgets the branch and plans it again leaves the last plan after a kill at any
+///  of its changes.
+/// Why:
+///   The workers publish their plans at once,
+/// so replaying the first plan removes the file the second one wrote,
+/// and the forget replayed after that finds nothing to keep;
+/// a restarted service would then find no retry where the newer
+///  push's notice promised one.
+#[test]
+fn a_plan_forgotten_and_planned_again_survives_a_kill_after_any_of_its_changes() {
+    let repo: Repo = repo("work-retry-plan-forget-plan");
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    let older: WorkItem = item(&repo, WorkKind::Push, OID, BRANCH);
+    let newer: WorkItem = item(&repo, WorkKind::Push, OTHER_OID, BRANCH);
+    let mut replanning: Replanning = Replanning { first: Some(FIRST_PAUSE), changes: Vec::new(), plans: Some(plans.clone()) };
+    let _first: String = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &older, 1, "the network is down");
+    replanning.forget(repo.common.as_path(), BRANCH);
+    let _second: String = planned_retry(repo.common.as_path(), &mut replanning, FIRST_PAUSE, &newer, 1, "the network is down");
+    assert_eq!(replanning.changes.len(), 3, "a plan, a forget and a plan");
+    let newest_name: String = crate::push_retry_store::name_of(&crate::push_retry_store::StoredPlan {
+        git_dir: repo.common.clone(),
+        item: newer.clone(),
+        attempt: 1,
+    });
+    for stopped_after in 0..replanning.changes.len() {
+        // The state the workers left: the plan they published,
+        // and the earlier one their own saves took away.
+        for entry in std::fs::read_dir(plans.as_path()).into_iter().flatten().flatten() {
+            std::fs::remove_file(entry.path()).expect("the plans of the round before");
+        }
+        crate::push_retry_store::save(plans.as_path(), &crate::push_retry_store::StoredPlan {
+            git_dir: repo.common.clone(),
+            item: newer.clone(),
+            attempt: 1,
+        })
+        .expect("the plan the newer push's worker published");
+        let mut retries: PushRetries = PushRetries::restored(FIRST_PAUSE, plans.as_path());
+        {
+            // The service is killed after that many of the round's changes, as a kill at any instruction leaves it.
+            let _stopped = crate::push_retry::stop_after_in_a_control(stopped_after);
+            retries.apply(replanning.changes.clone());
+        }
+        let on_disk: Vec<crate::push_retry_store::StoredPlan> = crate::push_retry_store::load(plans.as_path());
+        assert_eq!(
+            on_disk.len(),
+            1,
+            "a kill after {stopped_after} of the round's changes leaves one plan: {on_disk:?}"
+        );
+        assert_eq!(
+            crate::push_retry_store::name_of(&on_disk[0]),
+            newest_name,
+            "and it is the newer push's, as its notice said"
+        );
+    }
+    remove(repo.root.as_path());
+}
+
+/// What:
+///  A push whose retry plan cannot be kept is not told that the service keeps trying.
+/// Why:
+///   The plan is what keeps that promise across a restart;
+/// with none on disk the words would outlive the service that
+///  could have kept them,
+/// and the person would wait for a retry nothing knows about.
+/// The words are then Git's own alone,
+/// and the
+///  service that is running still tries,
+/// whose journal says so.
+#[test]
+fn a_retry_the_plan_cannot_keep_is_not_promised() {
+    let repo: Repo = repo("work-retry-plan-unwritable");
+    enqueue_all(&repo, &[item(&repo, WorkKind::Push, OID, BRANCH)]);
+    let plans: PathBuf = repo.root.join(crate::push_retry::PLAN_DIRECTORY);
+    // A file where the plan directory must be makes saving any plan fail.
+    std::fs::write(plans.as_path(), "in the way").expect("blocker");
+    let recorder: Recorder = Recorder::answering(Verdict::Retry(String::from("the network is down")));
+    let retrying: Retrying = Retrying { first: Some(FIRST_PAUSE), due: Vec::new(), plans: Some(plans.clone()) };
+    let drained: Drained = drain_planned(repo.common.as_path(), &recorder, &ClaimTime::read(), &retrying);
+    let shown: Vec<String> = take_push_failures(repo.common.as_path());
+    assert_eq!(shown.len(), 1, "the person is told about the push");
+    assert!(!shown[0].contains("tries this push again by itself"), "no promise the plan cannot keep: {shown:?}");
+    assert!(shown[0].contains("the network is down"), "Git's own words are kept: {shown:?}");
+    assert_eq!(drained.changes.len(), 1, "the service that is running goes on trying the push");
+    remove(repo.root.as_path());
+}
+
+/// The names in one state directory of the work queue below `common`.
+fn state_names(common: &Path, state: &str) -> Vec<String> {
+    let mut found: Vec<String> = std::fs::read_dir(state_directory(work_directory(common).as_path(), state)).expect("listing").flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect();
+    found.sort();
+    return found;
+}
+
+/// What:
+///  The after-commit work of a repository whose path is not UTF-8 runs.
+/// Why:
+///   The wrapper writes a work item's directories into the record as text and the drain reads them back
+/// to compare the Git directory with the one it drains,
+/// so text that cannot hold the path's bytes makes every item of such a repository unacceptable,
+/// and the push and the upkeep never run.
+#[test]
+fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
+    use crate::service_handoff::{HANDED_OVER, ServiceHandoff, hand_over};
+    use std::os::unix::ffi::OsStrExt;
+    let root: PathBuf = fixture("work-non-utf8-path");
+    // No encoding of "wörktree" and "cömmon" spells these two names: their bytes after 0x77 and 0x63 are not text.
+    let repository: PathBuf = root.join(<std::ffi::OsStr as OsStrExt>::from_bytes(b"w\xffrktree"));
+    let common: PathBuf = root.join(<std::ffi::OsStr as OsStrExt>::from_bytes(b"c\xffmmon"));
+    std::fs::create_dir_all(repository.as_path()).expect("worktree");
+    std::fs::create_dir_all(common.as_path()).expect("Git directory");
+    let handoff: ServiceHandoff = ServiceHandoff {
+        config: crate::service_client::ClientConfig {
+            address: crate::service_server::Bind::Path(root.join("no-service.sock")),
+            activation: crate::service_client::Activation::Unsupported(crate::service_messages::Platform::LinuxWithoutUserServices),
+            start_wait: Duration::from_millis(100),
+            heartbeat_silence: Duration::from_secs(1),
+            start_watch: None,
+            keep_fresh: None,
+            answer_ceiling: crate::wait_ceilings::ANSWER_CEILING,
+            withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
+            extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
+            start_ceiling: crate::wait_ceilings::START_CEILING,
+            units_record_dir: None,
+        },
+        repository: repository.clone(),
+        git_dir: common.clone(),
+        reference: BRANCH.to_string(),
+        parent: String::new(),
+    };
+    let mut notices: Vec<u8> = Vec::new();
+    // No service can be started here, so the wake fails; the records are written before it and are the subject.
+    let _not_woken = hand_over(&handoff, OID, &mut notices);
+    assert_eq!(state_names(common.as_path(), PENDING).len(), HANDED_OVER.len(), "the handoff left one record per kind");
+    drain(common.as_path(), &Recorder::answering(Verdict::Done), &ClaimTime::read());
+    assert!(state_names(common.as_path(), FAILED).is_empty(), "no work of this repository is refused: {:?}", state_names(common.as_path(), FAILED));
+    assert_eq!(state_names(common.as_path(), DONE).len(), HANDED_OVER.len(), "the push and the upkeep ran");
+    remove(root.as_path());
 }

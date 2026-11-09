@@ -29,6 +29,71 @@
 use std::ffi::OsString;
 
 /// What:
+/// What:
+///  One `git worktree remove` as the audit reads it:
+///  the directory it names and whether the person forced it.
+///  A `struct` is a record with named fields.
+/// Why:
+///   The removal is the one form that takes a whole worktree at once,
+///  and the owner chose to let Git run and record what it took,
+///  so the two things the record must know are which directory and whether `--force` was given.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WorktreeRemoval = { target: string; force: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct WorktreeRemoval {
+    /// The directory the person named,
+    ///  exactly as typed.
+    pub target: OsString,
+    /// `-f` or `--force` was given,
+    ///  in any cluster or abbreviation Git accepts.
+    pub force: bool,
+}
+
+/// What:
+///  Read a `git worktree` region as a removal.
+///  `Option<WorktreeRemoval>` is "a removal,
+/// or nothing".
+/// Why:
+///   `cmd_worktree` declares subcommands and no option of its own,
+///  so the word directly after `worktree` selects the action and is never abbreviated;
+///  `worktree remove` takes exactly one directory and `-f`/`--force`,
+///  and every other form is forwarded without a record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreeRemoval(region: string[]): WorktreeRemoval | undefined;
+/// ```
+pub fn worktree_removal(region: &[OsString]) -> Option<WorktreeRemoval> {
+    if region.first()?.as_encoded_bytes() != b"remove" {
+        return None;
+    }
+    let rest: &[OsString] = &region[1..];
+    // `force_discard` reads `-f` in any short cluster and `--force` in any abbreviation of four letters, which are
+    //  exactly the spellings Git's own option table accepts for this command.
+    let force: bool = crate::command_discard::force_discard(rest) == crate::command_discard::Discard::Overwrites;
+    // The first token that is not an option is the directory; `--` separates the two, and Git stops reading options
+    //  after it.
+    let mut options_end: bool = false;
+    for token in rest {
+        let bytes: &[u8] = token.as_encoded_bytes();
+        if !options_end && bytes == b"--" {
+            options_end = true;
+            continue;
+        }
+        if !options_end && bytes.starts_with(b"-") {
+            continue;
+        }
+        return Some(WorktreeRemoval {
+            target: token.clone(),
+            force,
+        });
+    }
+    return None;
+}
+
 ///  The `git worktree` subcommand words that register or re-register a worktree path.
 ///       `&[&[u8]]` is a borrowed list of byte spellings baked into the program.
 /// Why:
@@ -67,7 +132,8 @@ pub fn changes_worktree_registrations(region: &[OsString]) -> bool {
     return REGISTRATION_SUBCOMMANDS.contains(&first.as_encoded_bytes());
 }
 
-/// Word-position cases and a real Git 2.56.0 control stay out of the release executable.
+/// Word-position cases,
+/// the removal reading and a real Git 2.56.0 control stay out of the release executable.
 #[cfg(test)]
 #[path = "command_worktree_tests.rs"]
 mod tests;

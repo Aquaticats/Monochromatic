@@ -11,8 +11,8 @@ use crate::work_item::WorkKind;
 fn item(branch: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
-        repository: String::from("/srv/repo"),
-        git_dir: String::from("/srv/repo/.git"),
+        repository: PathBuf::from("/srv/repo"),
+        git_dir: PathBuf::from("/srv/repo/.git"),
         branch_ref: branch.to_owned(),
         oid: String::from("0123456789abcdef0123456789abcdef01234567"),
         parent: String::new(),
@@ -68,6 +68,25 @@ fn a_plan_is_per_branch_and_due_after_its_pause() {
     assert_eq!(due[0].item.branch_ref, "refs/heads/topic");
     retries.forget(here, "refs/heads/main");
     assert_eq!(retries.next_wait(here, now), None);
+}
+
+/// What:
+///  A forget ends the plan a branch had,
+/// while the plans of other branches stay.
+/// Why:
+///   A landed push makes an earlier failure of its branch untrue,
+/// and the other branches' retries are still wanted.
+#[test]
+fn a_plan_written_before_the_forget_is_removed_by_it() {
+    let root: PathBuf = crate::test_support::fixture("retry-forget-older");
+    let here: &Path = Path::new("/srv/repo/.git");
+    save(root.as_path(), &StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/main"), attempt: 1 }).expect("saved");
+    let other: StoredPlan = StoredPlan { git_dir: here.to_path_buf(), item: item("refs/heads/topic"), attempt: 1 };
+    save(root.as_path(), &other).expect("saved");
+    let mut retries: PushRetries = PushRetries::restored(Duration::from_secs(10), root.as_path());
+    retries.forget(here, "refs/heads/main");
+    assert_eq!(load(root.as_path()), vec![other], "only the forgotten branch's plan is gone");
+    crate::test_support::remove(root.as_path());
 }
 
 /// Only a reported conflict needs the person;

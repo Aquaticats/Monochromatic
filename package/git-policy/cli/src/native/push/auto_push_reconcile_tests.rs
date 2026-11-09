@@ -14,6 +14,7 @@ use crate::test_support::{fixture, git, remove};
 use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// A function-like value with the right shape is a merge push in these controls:
 /// the shipped callers write a small struct that holds the state.
@@ -958,6 +959,55 @@ fn the_fast_forward_moves_a_clean_checkout_to_the_target() {
     remove(&s.root);
 }
 
+/// What:
+///  The record that guards a fast-forward is written in the worktree's own Git directory when that path is not text.
+/// Why:
+///   The directory comes from `rev-parse --absolute-git-dir`,
+/// which prints its bytes;
+/// read as text it names another directory,
+/// or none,
+/// so the record is written where recovery never looks
+///  and a kill between Git's checkout and its ref update leaves a merge with no intent.
+#[test]
+fn the_fast_forward_record_is_written_in_the_git_directory_of_a_path_that_is_not_text() {
+    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, list_merge_intents};
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt as _;
+    let root: PathBuf = fixture("ar-ff-bytes");
+    let repo: PathBuf = root.join(OsStr::from_bytes(b"r\xffpo"));
+    std::fs::create_dir_all(repo.as_path()).expect("repository directory");
+    git(&repo, &["init", "--quiet", "--initial-branch=main"]);
+    std::fs::write(repo.join("a.txt"), "one\n").expect("a.txt");
+    git(&repo, &["add", "a.txt"]);
+    git(&repo, &["commit", "--quiet", "-m", "one"]);
+    let old: String = text_of(&repo, &["rev-parse", "HEAD"]);
+    std::fs::write(repo.join("a.txt"), "two\n").expect("a.txt");
+    git(&repo, &["commit", "--quiet", "-m", "two", "--", "a.txt"]);
+    let target: String = text_of(&repo, &["rev-parse", "HEAD"]);
+    git(&repo, &["reset", "--quiet", "--hard", old.as_str()]);
+    // A stand-in for Git looks for the record when the move writes the checkout's files, which is the instant a kill would
+    //  leave it for; the move names its branch rather than running `git merge --ff-only`, so the step it watches is
+    //  `read-tree`.
+    let seen: PathBuf = root.join("record-seen");
+    let shim: PathBuf = root.join("watching-git");
+    let script = format!(
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = read-tree ]; then\n    if ls .git/{MERGE_INTENT_DIRECTORY}/*.json > /dev/null 2>&1; then echo present > '{seen}'; else echo absent > '{seen}'; fi\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        seen = seen.display()
+    );
+    std::fs::write(&shim, script).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut watching: PushGit = push_git(repo.as_path());
+    watching.real_git = shim;
+    let _moved: () = crate::auto_push_reconcile_branch_advance::fast_forward_recorded(&watching, "refs/heads/main", old.as_str(), target.as_str(), crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)
+        .expect("git")
+        .expect("the branch and the checkout moved");
+    assert_eq!(std::fs::read_to_string(seen.as_path()).expect("the stand-in looked"), "present\n", "the record is in the worktree's own Git directory");
+    assert_eq!(text_of(&repo, &["rev-parse", "HEAD"]), target);
+    assert!(list_merge_intents(repo.join(".git").as_path()).expect("listing").is_empty(), "the record goes with the settled merge");
+    remove(root.as_path());
+}
+
 /// A detached `HEAD` is not a branch to move.
 #[test]
 fn a_detached_head_is_not_fast_forwarded() {
@@ -1726,14 +1776,18 @@ fn the_fetch_and_the_fast_forward_of_a_reconcile_start_without_quiet() {
     let starts: Vec<String> = crate::recording_git::recorded_starts(log.as_path());
     let named = |word: &str| -> usize { return starts.iter().filter(|start| { return start.split(' ').any(|argument| { return argument == word; }); }).count(); };
     assert_eq!(named("fetch"), 1, "one fetch: {starts:?}");
-    assert_eq!(named("--ff-only"), 1, "one fast-forward: {starts:?}");
+    // The move of the branch names it: an ancestry check, the two-way update of the checkout and a compare-and-swap ref write.
+    assert_eq!(named("read-tree"), 1, "one update of the checkout: {starts:?}");
+    let moves: Vec<&String> = starts.iter().filter(|start| { return start.contains("fast-forward refs/heads/main to the published reconcile merge"); }).collect();
+    assert_eq!(moves.len(), 1, "one update of the branch, named: {starts:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
     remove(&s.root);
 }
 
-/// What the fetch and the fast-forward of a reconcile say is kept in the service's log:
-/// one entry for each,
-/// naming the command.
+/// The fetch of a reconcile keeps Git's own words in the service's log,
+/// and the move of the branch is in its reflog,
+/// which `update-ref --message` writes:
+/// `read-tree -u -m` and `update-ref` say nothing of their own.
 #[test]
 fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
     let s = scenario("ar-words");
@@ -1747,7 +1801,8 @@ fn what_the_fetch_and_the_fast_forward_say_is_kept_in_the_journal() {
         return entries.iter().filter(|entry| { return entry.message.contains(format!("git {command}").as_str()) && entry.message.contains(" said: "); }).collect();
     };
     assert_eq!(said("fetch --no-tags").len(), 1, "Git's report of the fetched branch: {entries:?}");
-    assert_eq!(said("merge --ff-only").len(), 1, "Git's report of the fast-forward: {entries:?}");
+    let reflog: String = text_of(&s.local, &["reflog", "show", "--format=%gs", "refs/heads/main"]);
+    assert!(reflog.contains("fast-forward refs/heads/main to the published reconcile merge"), "the move is in the branch's reflog: {reflog}");
     remove(&s.root);
 }
 
@@ -1772,8 +1827,10 @@ fn a_fast_forward_that_loses_the_race_inside_git_leaves_the_checkout_matching_th
     let old = text_of(&s.local, &["rev-parse", "HEAD"]);
     let marker = s.root.join("raced");
     let shim = s.root.join("racing-git");
+    // The stand-in plays the person's commit when the ref update of the move runs, so the checkout holds the merge's
+    //  paths while the branch is at the winner's commit.
     let script = format!(
-        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = --ff-only ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    /usr/bin/git read-tree -m -u '{old}' '{target}'\n    echo \"fatal: update_ref failed for ref 'HEAD': cannot lock ref 'HEAD': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
+        "#!/bin/sh\nfor argument in \"$@\"; do\n  if [ \"$argument\" = update-ref ] && [ ! -e '{marker}' ]; then\n    : > '{marker}'\n    cd '{local}' || exit 1\n    echo 'committed meanwhile' > z.txt\n    /usr/bin/git add -- z.txt\n    /usr/bin/git commit --quiet --message=meanwhile -- z.txt\n    winner=$(/usr/bin/git rev-parse HEAD)\n    echo \"fatal: update_ref failed for ref 'refs/heads/main': cannot lock ref 'refs/heads/main': is at $winner but expected {old}\" >&2\n    exit 128\n  fi\ndone\nexec /usr/bin/git \"$@\"\n",
         marker = marker.display(),
         local = s.local.display(),
     );
@@ -1811,4 +1868,188 @@ fn a_second_pass_command_whose_input_thread_cannot_start_is_stopped_and_reported
     let reported: String = runner.run(&["hash-object", "--stdin"], Some(b"x".as_slice()), None).expect_err("no thread to give it its input");
     assert!(reported.contains("no thread could be started") && reported.contains("hash-object"), "{reported}");
     crate::test_support::remove(root.as_path());
+}
+
+/// How long the stand-in of the stalled second pass sleeps:
+/// several times the window it is given.
+const STALLED_STAND_IN_SLEEP: Duration = Duration::from_secs(8);
+
+/// The stall window of the controls,
+/// one whole second,
+/// which is the smallest the variable reads.
+const STALLED_WINDOW: &str = "1";
+
+/// A second-pass command that shows no sign of work is stopped at the push's stall window and named,
+/// and it is not waited out:
+/// it is not a person's command,
+/// and a `merge-tree` that never returns would hold the push worker,
+/// its claim and the drain of that repository for good.
+#[test]
+fn a_second_pass_command_that_stalls_is_stopped_and_named() {
+    let root: PathBuf = crate::test_support::fixture("reconcile-stalled-second-pass");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let shim: PathBuf = root.join("stalled-git");
+    std::fs::write(&shim, format!("#!/bin/sh\nexec sleep {}\n", STALLED_STAND_IN_SLEEP.as_secs()).as_str()).expect("stand-in");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let mut git: PushGit = push_git(repo.as_path());
+    git.real_git = shim;
+    git.environment.push((OsString::from(crate::bounded_push::PUSH_DEADLINE_VARIABLE), OsString::from(STALLED_WINDOW)));
+    let runner: PushRunner<'_> = PushRunner { git: &git };
+    let began: std::time::Instant = std::time::Instant::now();
+    let reported: String = runner.run(&["merge-tree", "--write-tree"], None, None).expect_err("a stalled command is stopped, not waited out");
+    let waited: Duration = began.elapsed();
+    assert!(reported.contains("merge-tree"), "{reported}");
+    assert!(waited < STALLED_STAND_IN_SLEEP, "the command was stopped at its window: {reported}");
+    crate::test_support::remove(root.as_path());
+}
+
+/// A `git switch` that lands in the window between the checks and the move moves only the branch this command checked:
+/// the move names its branch,
+/// so the branch the person switched to is where the person left it,
+/// and the checkout that
+///  switch made is left showing that branch's commit,
+/// never the merge's files staged on a branch that does not hold them.
+#[test]
+fn a_switch_in_the_window_moves_only_the_branch_this_command_checked() {
+    let s = scenario("ar-ff-window-switch");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    git(&s.local, &["branch", "topic"]);
+    // The person's `git switch topic` finishes in the window: after the checks, before the move.
+    let interposed = |git_ref: &PushGit, branch_ref: &str, local: &str, merge_oid: &str| -> Result<Result<(), String>, SingleFlightError> {
+        git(&s.local, &["switch", "--quiet", "topic"]);
+        return (crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE)(git_ref, branch_ref, local, merge_oid);
+    };
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, &interposed).expect("git");
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
+    assert_eq!(
+        text_of(&s.local, &["status", "--porcelain=v1"]),
+        "",
+        "the checkout the person switched to holds no staged change of the merge"
+    );
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "it shows the commit its branch names");
+    remove(&s.root);
+}
+
+/// What:
+///  A `git switch` that lands in the window on a branch already at the merge leaves that checkout alone.
+/// Why:
+///   The branch it switched to already holds the merge's files,
+/// so there is nothing of this fast-forward to put back;
+/// putting
+///  back the branch this command checked would write that branch's tree over the person's branch,
+/// staging a reversal of the
+///  merge on a branch that still holds it.
+#[test]
+fn a_switch_in_the_window_to_a_branch_at_the_merge_is_not_put_back() {
+    let s = scenario("ar-ff-window-switch-at-merge");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The branch the person switches to already points at the merge.
+    git(&s.local, &["branch", "topic", target.as_str()]);
+    // The switch lands in the instant between the look at the checkout and the write of its files.
+    let switching = std::path::PathBuf::from(&s.local);
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+    });
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    drop(_played);
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), target, "the branch the person switched to is not moved");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "its checkout holds no staged reversal of the merge");
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "and its files are the merge's");
+    remove(&s.root);
+}
+
+/// What:
+///  The put-back after a switch that landed between the look and the write leaves a staged edit of the person's alone,
+///  when it lies on a path the merge does not change.
+/// Why:
+///   The checkout belongs to another branch,
+/// and restoring its whole tree would replace an edit the forward step never
+///  touched;
+/// only the paths where the merge and the tree it started from differ are this command's to put back.
+#[test]
+fn a_switch_in_the_window_keeps_a_staged_edit_the_merge_does_not_touch() {
+    let s = scenario("ar-ff-window-switch-staged-elsewhere");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The branch the person switches to changes only b.txt, which the merge does not touch.
+    git(&s.local, &["switch", "--quiet", "--create", "topic"]);
+    std::fs::write(s.local.join("b.txt"), "topic\n").expect("the branch's own b.txt");
+    git(&s.local, &["commit", "--quiet", "-m", "topic changes b.txt", "--", "b.txt"]);
+    git(&s.local, &["switch", "--quiet", "main"]);
+    let switching = std::path::PathBuf::from(&s.local);
+    // In the window: the switch, then an intentional reversal of b.txt that the person stages.
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+        std::fs::write(switching.join("b.txt"), "base\n").expect("the reversal of b.txt");
+        git(&switching, &["add", "--", "b.txt"]);
+    });
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    drop(_played);
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(std::fs::read_to_string(s.local.join("b.txt")).expect("b.txt"), "base\n", "the person's staged reversal of b.txt is still there");
+    assert_eq!(
+        text_of(&s.local, &["diff", "--cached", "--name-only", "--", "b.txt"]),
+        "b.txt",
+        "and it is still staged"
+    );
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "while the merge's own path is put back");
+    remove(&s.root);
+}
+
+/// The companion control of the test above:
+/// a switch that lands between the look and the write on a branch that does not hold the merge is put back to that
+///  branch's own commit,
+/// so the rollback still happens where it is needed.
+#[test]
+fn a_switch_in_the_window_to_another_commit_is_put_back_to_that_commit() {
+    let s = scenario("ar-ff-window-switch-elsewhere");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    // The branch the person switches to is this repository's own tip, whose files are not the merge's.
+    git(&s.local, &["branch", "topic", tip.as_str()]);
+    let switching = std::path::PathBuf::from(&s.local);
+    let _played = crate::auto_push_reconcile_branch_advance::between_look_and_write_in_a_control(move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+    });
+    let moved: Result<bool, String> = crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(&push_git(&s.local), "refs/heads/main", &tip, &target, crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE).expect("git");
+    drop(_played);
+    assert_eq!(moved, Ok(false), "the branch this command checked follows the merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target);
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the person switched to is not moved");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the merge's files were put back to that branch's own commit");
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "base\n", "which is the tree that branch names");
+    remove(&s.root);
+}
+
+/// The private fetch ref a killed instance left is taken by the next reconcile,
+/// and one whose process still runs is left where it is:
+/// another worktree of this repository may be reconciling at the same time.
+#[test]
+fn a_leaked_private_fetch_ref_is_swept_and_a_live_ones_kept() {
+    let s = scenario("ar-private-ref-sweep");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    // No process can have this number, so the ref is one a killed instance left.
+    let leaked: String = format!("{}4294967294", crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX);
+    git(&s.local, &["update-ref", leaked.as_str(), target.as_str()]);
+    let mut living: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a live process to name");
+    let live_ref: String = format!("{}{}", crate::auto_push_reconcile_basics_and_limits::PRIVATE_FETCH_PREFIX, living.id());
+    git(&s.local, &["update-ref", live_ref.as_str(), target.as_str()]);
+    crate::auto_push_reconcile_basics_and_limits::sweep_private_fetch_refs(&push_git(&s.local)).expect("the sweep");
+    let left: String = text_of(&s.local, &["for-each-ref", "refs/cli-git"]);
+    assert!(!left.contains(leaked.as_str()), "the ref of a dead instance is gone: {left}");
+    assert!(left.contains(live_ref.as_str()), "the ref of a live process is kept: {left}");
+    let _killed = living.kill();
+    let _reaped = living.wait();
+    remove(&s.root);
 }

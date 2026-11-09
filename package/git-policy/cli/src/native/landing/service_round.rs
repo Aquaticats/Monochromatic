@@ -179,7 +179,7 @@ struct DrainEachDirectory<'a, H> {
 impl<H: WorkHandlers + Sync> OrderedWork<Assignment, (Option<Duration>, Vec<RetryChange>)> for DrainEachDirectory<'_, H> {
     fn run(&self, _index: usize, assignment: &Assignment, _say: &mut dyn LineSink) -> (Option<Duration>, Vec<RetryChange>) {
         let own: Drained = drain_planned(assignment.directory.as_path(), self.handlers, self.now, &assignment.retrying);
-        let common: Drained = drain_common_records_planned(assignment.directory.as_path(), self.handlers, self.now, CLAIM_LEASE, assignment.retrying.first);
+        let common: Drained = drain_common_records_planned(assignment.directory.as_path(), self.handlers, self.now, CLAIM_LEASE, &assignment.retrying);
         let wait: Option<Duration> = [own.wait, common.wait].into_iter().flatten().min();
         return (wait, own.changes.into_iter().chain(common.changes).collect::<Vec<RetryChange>>());
     }

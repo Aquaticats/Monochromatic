@@ -14,13 +14,15 @@
 /// The decision,
 ///  its texts and the argument builder.
 use super::{
-    GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
-    dirty_scope, dirty_worktree_message, main_worktree_message, outside_worktree_message,
-    resolve_linked_worktree,
+    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
+    TargetTree, decide_linked_worktree, dirty_question, dirty_worktree_message, exemption_notice,
+    ignored_file_message, main_worktree_message, outside_worktree_message, repository_stash_message,
+    resolve_linked_worktree, target_tree,
 };
 use crate::command_test_support::os_arguments;
 use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
+use std::ffi::OsString;
 
 /// The index of a form,
 /// so the coverage control can tell a full list from one with a hole.
@@ -29,23 +31,26 @@ use crate::rule_worktree_dirty::DirtyScope;
 fn index_of(command: GuardedCommand) -> usize {
     return match command {
         GuardedCommand::Stash => 0,
-        GuardedCommand::Clean => 1,
-        GuardedCommand::ResetHard => 2,
-        GuardedCommand::ResetMixed => 3,
-        GuardedCommand::RestoreStaged => 4,
-        GuardedCommand::RestoreWorktree => 5,
-        GuardedCommand::CheckoutPaths => 6,
-        GuardedCommand::CheckoutMove => 7,
-        GuardedCommand::SwitchForce => 8,
-        GuardedCommand::SwitchMove => 9,
-        GuardedCommand::Remove => 10,
-        GuardedCommand::Move => 11,
-        GuardedCommand::CheckoutIndex => 12,
-        GuardedCommand::ReadTree => 13,
-        GuardedCommand::AbortMerge => 14,
-        GuardedCommand::AbortRebase => 15,
-        GuardedCommand::AbortPick => 16,
-        GuardedCommand::AbortAm => 17,
+        GuardedCommand::StashDrop => 1,
+        GuardedCommand::Clean => 2,
+        GuardedCommand::CleanIgnored => 3,
+        GuardedCommand::CleanIgnoredOnly => 4,
+        GuardedCommand::ResetHard => 5,
+        GuardedCommand::ResetMixed => 6,
+        GuardedCommand::RestoreStaged => 7,
+        GuardedCommand::RestoreWorktree => 8,
+        GuardedCommand::CheckoutPaths => 9,
+        GuardedCommand::CheckoutMove => 10,
+        GuardedCommand::SwitchForce => 11,
+        GuardedCommand::SwitchMove => 12,
+        GuardedCommand::Remove => 13,
+        GuardedCommand::Move => 14,
+        GuardedCommand::CheckoutIndex => 15,
+        GuardedCommand::ReadTree => 16,
+        GuardedCommand::AbortMerge => 17,
+        GuardedCommand::AbortRebase => 18,
+        GuardedCommand::AbortPick => 19,
+        GuardedCommand::AbortAm => 20,
     };
 }
 
@@ -73,15 +78,20 @@ fn destructive_forms_need_the_worktree_kind() {
     assert_eq!(LINKED_WORKTREE_REQUIRED_CODE, "linked-worktree-required");
     for (values, command) in [
         (vec!["stash"], GuardedCommand::Stash),
-        (vec!["stash", "drop"], GuardedCommand::Stash),
+        (vec!["stash", "drop"], GuardedCommand::StashDrop),
         (vec!["stash", "pop"], GuardedCommand::Stash),
-        (vec!["stash", "clear"], GuardedCommand::Stash),
+        (vec!["stash", "clear"], GuardedCommand::StashDrop),
         (vec!["stash", "push", "-m", "note"], GuardedCommand::Stash),
         (vec!["stash", "--no-such-option"], GuardedCommand::Stash),
         (vec!["clean"], GuardedCommand::Clean),
         (vec!["clean", "-fd"], GuardedCommand::Clean),
         (vec!["clean", "-n", "--no-dry-run"], GuardedCommand::Clean),
         (vec!["clean", "-i"], GuardedCommand::Clean),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored),
+        (vec!["clean", "-f", "-x"], GuardedCommand::CleanIgnored),
+        (vec!["clean", "--force", "-d", "--quiet", "-x"], GuardedCommand::CleanIgnored),
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly),
+        (vec!["clean", "-X"], GuardedCommand::CleanIgnoredOnly),
         (vec!["reset"], GuardedCommand::ResetMixed),
         (vec!["reset", "--mixed"], GuardedCommand::ResetMixed),
         (vec!["reset", "file"], GuardedCommand::ResetMixed),
@@ -137,16 +147,39 @@ fn head_moves_need_the_dirtiness() {
     }
 }
 
-/// Only a deleting clean counts untracked files as uncommitted state.
+/// Each form asks the question about the object it can destroy:
+///  each clean reads exactly the files it deletes,
+/// a stash drop asks the repository,
+/// and every other form loses tracked changes only.
 #[test]
-fn only_clean_counts_untracked_files() {
+fn each_form_asks_about_the_state_it_can_destroy() {
     for command in GuardedCommand::ALL {
-        let expected: DirtyScope = if command == GuardedCommand::Clean {
-            DirtyScope::TrackedAndUntracked
-        } else {
-            DirtyScope::Tracked
+        let expected: DirtyQuestion = match command {
+            GuardedCommand::Clean => DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked),
+            GuardedCommand::CleanIgnored => DirtyQuestion::Worktree(DirtyScope::Everything),
+            GuardedCommand::CleanIgnoredOnly => DirtyQuestion::Worktree(DirtyScope::IgnoredOnly),
+            GuardedCommand::StashDrop => DirtyQuestion::RepositoryStash,
+            _ => DirtyQuestion::Worktree(DirtyScope::Tracked),
         };
-        assert_eq!(dirty_scope(command), expected, "{command:?}");
+        // A clean that names its own exclusion patterns is asked of Git itself, because the status cannot see them.
+        let region: Vec<OsString> = match command {
+            GuardedCommand::CleanIgnoredOnly => os_arguments(&["-fdx", "--exclude=notes.txt"]),
+            _ => Vec::<OsString>::new(),
+        };
+        let plain: DirtyQuestion = match command {
+            GuardedCommand::CleanIgnoredOnly => DirtyQuestion::Worktree(DirtyScope::IgnoredOnly),
+            _ => expected,
+        };
+        if command == GuardedCommand::CleanIgnoredOnly {
+            assert_eq!(dirty_question(command, region.as_slice()), DirtyQuestion::CleanDryRun, "{command:?}");
+            assert_eq!(
+                dirty_question(command, os_arguments(&["-fdx"]).as_slice()),
+                plain,
+                "{command:?}"
+            );
+            continue;
+        }
+        assert_eq!(dirty_question(command, region.as_slice()), expected, "{command:?}");
     }
 }
 
@@ -168,6 +201,8 @@ fn harmless_forms_pass() {
         vec!["--no-pager", "stash", "list"],
         vec!["clean", "-n"],
         vec!["clean", "--dry-run", "-fd"],
+        vec!["clean", "-nx"],
+        vec!["clean", "-nX"],
         vec!["clean", "-i", "-n"],
         vec!["reset", "--soft", "HEAD~1"],
         vec!["reset", "--hard", "--soft"],
@@ -263,7 +298,14 @@ fn each_intent_gets_its_own_alternative() {
     assert!(revert.contains("git diff -- <path> > backup.patch"));
     assert!(main_worktree_message(GuardedCommand::ResetHard).contains("git reset --soft <commit>"));
     assert!(main_worktree_message(GuardedCommand::Stash).contains("git worktree add -b <branch> <path>"));
+    assert!(main_worktree_message(GuardedCommand::StashDrop).contains("git stash branch <branch>"));
+    let stash: String = repository_stash_message(GuardedCommand::StashDrop);
+    assert!(stash.contains("this repository holds a stash entry"), "{stash}");
+    assert!(stash.contains("not this worktree's"), "{stash}");
+    assert!(stash.contains("--no-enforce-worktree"), "{stash}");
     assert!(main_worktree_message(GuardedCommand::Clean).contains("git clean -n"));
+    assert!(dirty_worktree_message(GuardedCommand::CleanIgnored).contains("ignored files"));
+    assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("ignored files"));
     assert!(dirty_worktree_message(GuardedCommand::Clean).contains("untracked files"));
     assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("untracked"));
     assert!(main_worktree_message(GuardedCommand::AbortMerge).contains("git merge --quit"));
@@ -283,7 +325,10 @@ fn the_readme_documents_what_the_texts_recommend() {
     assert!(readme.contains("### Discarding commands"));
     for (command, phrase) in [
         (GuardedCommand::Stash, "git worktree add -b <branch> <path>"),
+        (GuardedCommand::StashDrop, "git stash branch <branch>"),
         (GuardedCommand::Clean, "git clean -n"),
+        (GuardedCommand::CleanIgnored, "git clean -nx"),
+        (GuardedCommand::CleanIgnoredOnly, "git clean -nX"),
         (GuardedCommand::ResetHard, "git reset --soft <commit>"),
         (GuardedCommand::ResetMixed, "git diff --cached --name-only"),
         (GuardedCommand::RestoreStaged, "git commit --message <message> -- <paths>"),
@@ -309,4 +354,72 @@ fn the_readme_documents_what_the_texts_recommend() {
     }
     assert!(readme.contains("git diff > backup.patch"));
     assert!(readme.contains("--no-enforce-worktree"));
+}
+
+/// The exemption sentence names the variable and the directory it points at,
+/// and how to run the command without it.
+#[test]
+fn the_exemption_sentence_names_the_variable_that_exempted_the_repository() {
+    let notice: String = exemption_notice("MISE_DATA_DIR", std::path::Path::new("/work/repo"));
+    assert!(notice.contains("exempt from the worktree guard"), "{notice}");
+    assert!(notice.contains("MISE_DATA_DIR"), "{notice}");
+    assert!(notice.contains("/work/repo"), "{notice}");
+    assert!(notice.contains("Nothing was measured and nothing was saved"), "{notice}");
+    assert!(notice.contains("Hint: if MISE_DATA_DIR does not describe a tool cache"), "{notice}");
+    assert!(notice.ends_with('\n'), "{notice}");
+    assert_ne!(notice, exemption_notice("UV_CACHE_DIR", std::path::Path::new("/work/repo")));
+}
+
+/// A forced checkout,
+/// a forced switch and a hard reset ask which tree they write;
+/// every other form writes no tree and asks nothing.
+#[test]
+fn only_the_forms_that_write_a_tree_ask_which_tree() {
+    let cases: [(GuardedCommand, &[&str], Option<Option<&str>>); 10] = [
+        (GuardedCommand::ResetHard, &["--hard", "tracks"], Some(Some("tracks"))),
+        (GuardedCommand::ResetHard, &["--hard"], Some(None)),
+        (GuardedCommand::ResetHard, &["--hard", "--", "tracks"], Some(None)),
+        (GuardedCommand::CheckoutPaths, &["--force", "tracks"], Some(Some("tracks"))),
+        (GuardedCommand::CheckoutPaths, &["--force", "--", "tracked.txt"], Some(None)),
+        (GuardedCommand::CheckoutPaths, &["--force", "tracks", "--", "tracked.txt"], Some(Some("tracks"))),
+        (GuardedCommand::SwitchForce, &["--force", "tracks"], Some(Some("tracks"))),
+        (GuardedCommand::SwitchForce, &["--force"], Some(None)),
+        (GuardedCommand::Clean, &["-fdx"], None),
+        (GuardedCommand::RestoreWorktree, &["--source", "tracks", "tracked.txt"], None),
+    ];
+    for (command, region, expected) in cases {
+        let answer: Option<TargetTree> = target_tree(command, os_arguments(region).as_slice());
+        assert_eq!(
+            answer,
+            expected.map(|revision| return TargetTree { revision: revision.map(OsString::from) }),
+            "{command:?} {region:?}"
+        );
+    }
+}
+
+/// The text of an ignored file the target tree tracks names the form,
+/// the paths,
+/// the tree and the way
+///  forward,
+/// and it does not claim the worktree is dirty.
+#[test]
+fn the_ignored_file_text_names_the_paths_and_the_tree() {
+    let one: String = ignored_file_message(GuardedCommand::ResetHard, Some(std::ffi::OsStr::new("tracks")), &[String::from(".env")]);
+    assert!(one.contains("git reset --hard"), "{one}");
+    assert!(one.contains("ignores .env"), "{one}");
+    assert!(one.contains("the tree of tracks tracks"), "{one}");
+    assert!(one.contains("would replace it"), "{one}");
+    assert!(!one.contains("uncommitted changes to tracked files"), "{one}");
+    assert!(one.contains("git reset --soft"), "{one}");
+    assert!(one.contains("--no-enforce-worktree"), "{one}");
+    // A form that names no revision writes HEAD.
+    let head: String = ignored_file_message(GuardedCommand::CheckoutPaths, None, &[String::from(".env")]);
+    assert!(head.contains("the tree of HEAD"), "{head}");
+    // A worktree that ignores more shared paths than the text names counts the rest instead of listing them.
+    let many: Vec<String> = (0..7).map(|index| return format!("ignored/{index}.bin")).collect();
+    let listed: String = ignored_file_message(GuardedCommand::SwitchForce, None, many.as_slice());
+    assert!(listed.contains("ignored/0.bin, ignored/1.bin"), "{listed}");
+    assert!(!listed.contains("ignored/5.bin"), "{listed}");
+    assert!(listed.contains("and 2 more"), "{listed}");
+    assert!(listed.contains("would replace them"), "{listed}");
 }

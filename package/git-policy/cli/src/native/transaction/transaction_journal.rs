@@ -11,8 +11,7 @@
 //! ref-updated,
 //! landing and index-lock
 //!  records) are gone with the transaction;
-//! only the types the service route still passes between its steps remain
-//!  (`src/policy-engine/commit-transaction-journal-states.ts` is their incumbent).
+//! only the types the service route still passes between its steps remain.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

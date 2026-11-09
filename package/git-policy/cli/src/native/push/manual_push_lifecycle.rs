@@ -4,7 +4,7 @@
 //! Why:
 //!  The manual-push policies (`final-newline`,
 //! `forbidden-strings`) scan the content a push publishes.
-//!  The incumbent (`src/policy-engine/manual-push-lifecycle.ts`) discovers the updates,
+//!  The probe discovers the updates,
 //! bounds each by what its
 //!  destination already has,
 //! and hands the scan to the policy engine;

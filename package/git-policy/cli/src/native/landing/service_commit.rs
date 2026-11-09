@@ -39,8 +39,9 @@ use crate::service_commit_input_notes_and_embedded_commit::managed_client_config
 use crate::service_server::Bind;
 use crate::service_provision::ProvisionHost;
 use crate::service_commit_input_notes_and_embedded_commit::route_for_this_worktree;
+use crate::service_commit_fitting_request::embedded_that_fits;
 use crate::service_commit_input_notes_and_embedded_commit::{Embedded, arguments_after_subcommand, embedded_commit, standard_input_for, switched_branch_name};
-use crate::service_commit_requests_and_landing_report::{report_landing, request_for_embedded, request_for_git_built};
+use crate::service_commit_requests_and_landing_report::{request_for_embedded, request_for_git_built};
 use crate::commit_timing::CommitTiming;
 use crate::private_index_request::indexed_request;
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop, failed};
@@ -53,18 +54,23 @@ use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 use crate::service_client::{ClientConfig, FreshScratch, ScratchWatch, Submitted, submit_traced, watch_scratch};
 use crate::service_commit_args::{opens_editor, parse_service_commit, with_fixed_message};
 use crate::service_handoff::ServiceHandoff;
-use crate::service_commit_rebuild_ceiling::may_rebuild;
+use crate::service_commit_rebuild_ceiling::{AfterAPrepareAgain, after_a_prepare_again, may_rebuild};
+/// Provisioning the service before the first submission.
+use crate::service_provision::provision_when_needed;
+use crate::service_branch_shows::{branch_moved, display_text};
+/// The result of a commit that landed,
+/// and the work after it.
+use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service, the_landed_commit};
 use crate::service_messages::{ClientFailure, render};
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
 use crate::service_protocol::CommitRequest;
-use crate::service_provision::provision;
 use crate::service_pruned::{content_was_removed, prepared_content_missing, reach_service_phase};
 use crate::transaction_phase::Phase;
 use crate::transaction_git::run_git_checked;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 
 /// What the service path returns:
@@ -76,25 +82,6 @@ pub struct ServiceCommit {
     /// How to leave the after-commit work for the service;
     /// absent when nothing landed.
     pub handoff: Option<ServiceHandoff>,
-}
-
-/// The plain failure of a branch that moved under a commit that cannot be made again on another tip.
-fn branch_moved(ready: &Ready) -> TransactionStop {
-    let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-    return TransactionStop::Message(render(&ClientFailure::BranchMoved { branch }));
-}
-
-/// What:
-///  A path as text for a message.
-/// Why:
-///  A failure names the file a typed message was saved in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const displayText = (file: string) => file;
-/// ```
-fn display_text(file: &Path) -> String {
-    return file.display().to_string();
 }
 
 /// What:
@@ -259,6 +246,9 @@ pub fn service_commit<F: RepositoryFacts>(
                 tree = Some(written_tree);
             }
         }
+        // A request over the line the service reads is refused as too long, and a commit must not fail for the names it
+        //  changes: Git builds one that does not fit, as it did before a changed path carried its bytes.
+        embedded = embedded_that_fits(embedded, &ready, native_inputs, id.as_str(), &tree);
         let native: bool = ready.needs_native || embedded.is_none();
         // The embedded commit is used only when the native path is not taken.
         let embedded_in_use: Option<&Embedded> = if native { None } else { embedded.as_ref() };
@@ -309,17 +299,7 @@ pub fn service_commit<F: RepositoryFacts>(
         reach_service_phase(Phase::ServicePrepared)?;
         // The first commit that reaches the service sets up its socket activation, and only then: a commit that was
         //  declined, blocked by a policy, or abandoned in the editor never needs it, and the manager starts the service.
-        if !provisioned
-            && let Some(host) = provisioning.as_ref()
-        {
-            let provisioning_began: Instant = Instant::now();
-            let provided = provision(host);
-            timing.provision += provisioning_began.elapsed();
-            if let Err(failure) = provided {
-                return Err(TransactionStop::Message(render(&failure)));
-            }
-            provisioned = true;
-        }
+        provisioned = provision_when_needed(provisioning.as_ref(), provisioned, &mut timing.provision)?;
         // The commit's scratch directory is renewed while the commit waits, however long: the sweep of a later command would
         //  otherwise remove it from under a wait that outlasts its age.
         let waiting_config: ClientConfig = ClientConfig {
@@ -329,30 +309,26 @@ pub fn service_commit<F: RepositoryFacts>(
         match submit_traced(&waiting_config, &sent, &mut std::io::stderr(), &mut timing.submit) {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();
-                report_landing(invocation, &ready, native_inputs, commit.as_str(), first_parent.as_str(), fixed_message.as_ref(), embedded_in_use, native, unlanded.as_slice())?;
-                let handoff: ServiceHandoff = ServiceHandoff {
+                let outcome: ServiceCommit = the_landed_commit(LandedAftermath {
+                    invocation,
+                    ready: &ready,
+                    events: ready.events.clone(),
+                    native_inputs,
+                    commit: Some(commit.as_str()),
+                    first_parent,
+                    fixed_message: fixed_message.as_ref(),
+                    embedded_in_use,
+                    native,
+                    unlanded: unlanded.as_slice(),
                     config: config.clone(),
-                    repository: ready.repository.clone(),
-                    git_dir: native_inputs.capture.layout.git_dir.clone(),
-                    reference: ready.reference.clone(),
-                    parent: first_parent,
-                };
-                let result: TransactionResult = TransactionResult { events: ready.events, exit_code: 0, landed_oid: Some(commit), uses_lfs: ready.uses_lfs };
+                });
                 timing.after_landing += after_landing.elapsed();
-                return Ok(ServiceCommit { result, handoff: Some(handoff) });
+                return Ok(outcome);
             }
-            Ok(Submitted::PrepareAgain { landed, .. }) => {
-                if native || sent.amend {
-                    // An amend, and a commit Git built, are never sent for another tip; the service answers a moved branch as a failure.
-                    return Err(branch_moved(&ready));
-                }
-                let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
-                if !may_rebuild(branch.as_str(), attempt + 1, first_build_began) {
-                    return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch, times: attempt + 1 })));
-                }
-                // What this preparation captured is merged onto the branch by the next one.
-                retry = Some(retry_of(invocation.context, invocation.cwd, &ready, landed)?);
-            }
+            Ok(Submitted::PrepareAgain { landed, .. }) => match after_a_prepare_again(native, sent.amend, &ready, invocation, landed, attempt, first_build_began) {
+                AfterAPrepareAgain::Stopped(stop) => return Err(stop),
+                AfterAPrepareAgain::Retry(next) => retry = Some(next),
+            },
             Ok(Submitted::Moved) => {
                 let branch: String = ready.reference.trim_start_matches("refs/heads/").to_string();
                 // Nobody typed or chose anything, and the commit does not depend on the tip it was made on: Git builds it
@@ -404,7 +380,24 @@ pub fn service_commit<F: RepositoryFacts>(
                 //  worktree is not read again to make it.
                 return Err(TransactionStop::Message(render(&ClientFailure::ContentPruned)));
             }
-            Err(failure) => return Err(TransactionStop::Message(render(&failure))),
+            Err(failure) => {
+                return after_a_silent_or_failed_service(
+                    failure,
+                    LandedAftermath {
+                        invocation,
+                        ready: &ready,
+                        events: ready.events.clone(),
+                        native_inputs,
+                        commit: sent.commit.as_deref(),
+                        first_parent,
+                        fixed_message: fixed_message.as_ref(),
+                        embedded_in_use,
+                        native,
+                        unlanded: unlanded.as_slice(),
+                        config: config.clone(),
+                    },
+                );
+            }
         }
     }
     return Err(TransactionStop::Message(render(&ClientFailure::BranchKeepsChanging { branch: String::from("the branch"), times: timing.attempts })));

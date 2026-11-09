@@ -72,7 +72,7 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
         git_dir: git_dir.clone(),
         reference: String::from("refs/heads/main"),
         base: git_text(fixture, repo, &["rev-parse", "HEAD"]).trim().to_string(),
-        changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
         author: None,
         committer: String::from("T <t@example.invalid> 1793535889 +0000"),
@@ -101,6 +101,7 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
         withdraw_ceiling: PATIENCE,
         extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: PATIENCE,
+        units_record_dir: None,
     };
 }
 

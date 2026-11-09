@@ -36,19 +36,23 @@
 /// ```ts
 /// import { cleanChangesWorktree, parseCleanRegion } from './command_clean.ts';
 /// ```
+use crate::command_branch_delete::branch_deletions;
+use crate::command_checkout_table::{CHECKOUT_TABLE, SWITCH_TABLE};
 use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_region};
+use crate::command_worktree::worktree_removal;
 use crate::command_discard::{
     Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, switch_discard,
+    restores_index_only, revision_before_paths, switch_discard,
 };
-use crate::command_options::OptionError;
-use crate::command_reset::{ResetMode, ResetRegion, parse_reset_region};
-use crate::command_stash::{parse_stash_region, stash_changes_state};
+use crate::command_options::{OptionError, OptionSpec};
+use crate::command_reset::{ResetMode, ResetRegion, RESET_TABLE, parse_reset_region};
+use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
 use crate::rule_worktree_dirty::DirtyScope;
 pub use crate::rule_linked_worktree_messages::{
-    dirty_worktree_message, main_worktree_message, outside_worktree_message,
+    dirty_worktree_message, exemption_notice, ignored_file_message, main_worktree_message,
+    outside_worktree_message, repository_stash_message,
 };
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -96,10 +100,17 @@ pub const LINKED_WORKTREE_REQUIRED_CODE: &str = "linked-worktree-required";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GuardedCommand {
-    /// Every `git stash` form that changes state.
+    /// Every `git stash` form that changes state except `drop` and `clear`.
     Stash,
-    /// A `git clean` that is not a dry run.
+    /// A `git stash drop` or `git stash clear`,
+    /// which deletes an entry of the one stash the whole repository shares.
+    StashDrop,
+    /// A `git clean` that is not a dry run and deletes no ignored file.
     Clean,
+    /// A `git clean` that is not a dry run and deletes ignored files (`-x` or `-X`).
+    CleanIgnored,
+    /// A `git clean` that is not a dry run and deletes ignored files and nothing else (`-X` alone).
+    CleanIgnoredOnly,
     /// A `git reset` with `--hard`,
     ///  `--merge` or `--keep`.
     ResetHard,
@@ -155,9 +166,12 @@ impl GuardedCommand {
     /// ```ts
     /// const ALL_GUARDED_COMMANDS: readonly GuardedCommand[] = ['stash', 'clean', /* ... */ 'abort-am'];
     /// ```
-    pub const ALL: [GuardedCommand; 18] = [
+    pub const ALL: [GuardedCommand; 21] = [
         GuardedCommand::Stash,
+        GuardedCommand::StashDrop,
         GuardedCommand::Clean,
+        GuardedCommand::CleanIgnored,
+        GuardedCommand::CleanIgnoredOnly,
         GuardedCommand::ResetHard,
         GuardedCommand::ResetMixed,
         GuardedCommand::RestoreStaged,
@@ -175,6 +189,33 @@ impl GuardedCommand {
         GuardedCommand::AbortPick,
         GuardedCommand::AbortAm,
     ];
+}
+
+/// What:
+///  The forms the wrapper records and never refuses.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///   The owner decided these two run exactly as Git runs them and leave one audit line:
+///  `git worktree remove`
+///       ("This one is pretty intentional because agents are just as likely to run a rm rf,
+///  so preventing
+///       git worktree remove buys us nothing") and
+///       `git branch -D` from the main worktree ("Allow,
+///  add audit line").
+///  A refusal here would only move the same loss to `rm -rf` or `update-ref -d`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AuditedCommand = 'worktree-remove' | 'branch-delete';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AuditedCommand {
+    /// `git worktree remove`,
+    ///  which deletes a whole worktree at once.
+    WorktreeRemove,
+    /// `git branch -d`,
+    /// `git branch -D` or `git branch --delete`.
+    BranchDelete,
 }
 
 /// What:
@@ -203,24 +244,127 @@ pub enum LinkedWorktreeDecision {
     /// the main one included,
     /// only while the worktree is dirty.
     WhenDirty(GuardedCommand),
+    /// The form runs whatever its worktree holds,
+    /// and the caller records what it takes.
+    Audited(AuditedCommand),
 }
 
 /// What:
-///  The files that count as uncommitted state for a guarded command.
+///  The question that decides a guarded form in a linked worktree.
+///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   A `clean` deletes untracked files,
-/// so they count for it;
-/// every other form loses tracked changes only.
+///   Almost every form destroys state of the worktree it runs in,
+/// and a status answers that;
+///  `git stash drop` and `git stash clear` delete an entry of `refs/stash`,
+///  which every worktree of
+///  the repository shares,
+/// so the running worktree's cleanliness says nothing about them and the
+///  repository's stash is asked instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dirtyScope(command: GuardedCommand): DirtyScope;
+/// type DirtyQuestion = { kind: 'worktree'; scope: DirtyScope } | { kind: 'repository-stash' };
 /// ```
-pub fn dirty_scope(command: GuardedCommand) -> DirtyScope {
-    if command == GuardedCommand::Clean {
-        return DirtyScope::TrackedAndUntracked;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DirtyQuestion {
+    /// Ask `git status` for the given scope.
+    Worktree(DirtyScope),
+    /// Ask Git what this exact clean would delete (`git clean --dry-run`),
+    ///  because the clean carries
+    ///       `-e`/`--exclude` patterns that the status cannot see.
+    CleanDryRun,
+    /// Ask whether the repository holds a stash entry.
+    RepositoryStash,
+}
+
+/// What:
+///  Which question a guarded form's answer needs.
+/// Why:
+///   Each form reads the object it can destroy;
+///  asking the wrong one rejects a harmless command or misses the loss.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function dirtyQuestion(command: GuardedCommand): DirtyQuestion;
+/// ```
+pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> DirtyQuestion {
+    match command {
+        GuardedCommand::StashDrop => {
+            return DirtyQuestion::RepositoryStash;
+        }
+        GuardedCommand::CleanIgnored => {
+            return DirtyQuestion::Worktree(DirtyScope::Everything);
+        }
+        GuardedCommand::CleanIgnoredOnly => {
+            // `-e`/`--exclude` adds patterns to the ignore rules this clean applies, so a file the status calls
+            //  untracked is one this clean deletes; nothing in the status answer shows that, and Git's own dry run
+            //  does.
+            match parse_clean_region(region, &[]) {
+                Ok(facts) if !facts.exclusions.is_empty() => {
+                    return DirtyQuestion::CleanDryRun;
+                }
+                Ok(_) | Err(_) => {}
+            }
+            return DirtyQuestion::Worktree(DirtyScope::IgnoredOnly);
+        }
+        GuardedCommand::Clean => {
+            return DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked);
+        }
+        _ => return DirtyQuestion::Worktree(DirtyScope::Tracked),
     }
-    return DirtyScope::Tracked;
+}
+
+/// What:
+///  The tree a guarded form writes into the worktree.
+///  A `struct` is a record with named
+///       fields.
+/// Why:
+///   Whether an ignored file the worktree holds is replaced depends on the tree the form writes,
+///  so
+///       the question has to carry the revision the command names
+///  or nothing when it names none (every form
+///       that names no tree writes `HEAD`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TargetTree = { revision?: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TargetTree {
+    /// The revision the command names,
+    ///  or nothing for `HEAD`.
+    pub revision: Option<OsString>,
+}
+
+/// What:
+///  The tree a guarded form writes into the worktree,
+///  when the form replaces an ignored file that
+///       tree tracks whatever `--no-overwrite-ignore` says;
+///  nothing for every other form.
+///  `&[OsString]` borrows the tokens after the subcommand.
+/// Why:
+///   A forced `checkout`,
+///  a forced `switch` and a hard `reset` overwrite an ignored file whose path their target
+///       tree tracks,
+///  and an ignored file is where a person keeps their environment and their local
+///       secrets;
+///  the token that may name another tree comes from that command's own option table.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function targetTree(command: GuardedCommand, region: string[]): TargetTree | undefined;
+/// ```
+pub fn target_tree(command: GuardedCommand, region: &[OsString]) -> Option<TargetTree> {
+    // `match` picks the one table the decided form belongs to; `other` is every form that writes no tree.
+    let table: &[OptionSpec] = match command {
+        GuardedCommand::ResetHard => RESET_TABLE,
+        GuardedCommand::CheckoutPaths => CHECKOUT_TABLE,
+        GuardedCommand::SwitchForce => SWITCH_TABLE,
+        _ => return None,
+    };
+    return Some(TargetTree {
+        revision: revision_before_paths(region, table),
+    });
 }
 
 /// What:
@@ -264,22 +408,36 @@ fn guarded_decision(
 ) -> Result<LinkedWorktreeDecision, OptionError> {
     if word == b"stash" {
         // A region the stash parser refuses stays guarded, as every stash form was before the read-only forms.
-        let reads_only: bool = match parse_stash_region(region, &[]) {
-            Ok(facts) => !stash_changes_state(facts.subcommand),
-            Err(_) => false,
+        let subcommand: Option<StashSubcommand> = match parse_stash_region(region, &[]) {
+            Ok(facts) => Some(facts.subcommand),
+            Err(_) => None,
         };
-        if reads_only {
+        if let Some(reading) = subcommand
+            && !stash_changes_state(reading)
+        {
             return Ok(LinkedWorktreeDecision::Pass);
+        }
+        // `drop` and `clear` delete entries of `refs/stash`, the one stash every worktree of the repository shares.
+        if matches!(subcommand, Some(StashSubcommand::Drop | StashSubcommand::Clear)) {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::StashDrop));
         }
         return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Stash));
     }
     if word == b"clean" {
         // `&[]` is an empty flag list: wrapper controls were removed before this point.
         let facts: CleanRegion = parse_clean_region(region, &[])?;
-        if clean_changes_worktree(&facts) {
-            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Clean));
+        if !clean_changes_worktree(&facts) {
+            return Ok(LinkedWorktreeDecision::Pass);
         }
-        return Ok(LinkedWorktreeDecision::Pass);
+        // An ignored file is not an untracked file to Git, and the person's environment file sits in exactly that
+        // difference, so a clean that deletes ignored files is its own guarded form with its own measurement.
+        if facts.ignored_only {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnoredOnly));
+        }
+        if facts.deletes_ignored {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnored));
+        }
+        return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Clean));
     }
     if word == b"reset" {
         let facts: ResetRegion = parse_reset_region(region, &[])?;
@@ -313,6 +471,18 @@ fn guarded_decision(
             GuardedCommand::RestoreWorktree
         };
         return Ok(decided(command, restore_discard(region)));
+    }
+    if word == b"worktree" {
+        if worktree_removal(region).is_some() {
+            return Ok(LinkedWorktreeDecision::Audited(AuditedCommand::WorktreeRemove));
+        }
+        return Ok(LinkedWorktreeDecision::Pass);
+    }
+    if word == b"branch" {
+        if branch_deletions(region).is_some() {
+            return Ok(LinkedWorktreeDecision::Audited(AuditedCommand::BranchDelete));
+        }
+        return Ok(LinkedWorktreeDecision::Pass);
     }
     if word == b"rm" {
         return Ok(decided(GuardedCommand::Remove, force_discard(region)));
@@ -361,7 +531,28 @@ pub fn decide_linked_worktree(arguments: &[OsString]) -> LinkedWorktreeDecision 
         return LinkedWorktreeDecision::Pass;
     };
     // `.as_encoded_bytes()` lends the raw bytes of the subcommand word.
-    return guarded_decision(word.as_encoded_bytes(), region).unwrap_or(LinkedWorktreeDecision::Pass);
+    return decide_guarded_word(word.as_encoded_bytes(), region);
+}
+
+/// What:
+///  Decide from one subcommand word and the tokens after it.
+///  `&[u8]` borrows the word and
+///  `&[OsString]` its region.
+/// Why:
+///   The word on a command line is not always the word Git runs:
+/// an alias expands to another command,
+/// and
+///  the caller that resolved it decides on the same tables this way.
+///  A region Git refuses is the refusal,
+///  and Git then
+///       discards nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function decideGuardedWord(word: Buffer, region: string[]): LinkedWorktreeDecision;
+/// ```
+pub fn decide_guarded_word(word: &[u8], region: &[OsString]) -> LinkedWorktreeDecision {
+    return guarded_decision(word, region).unwrap_or(LinkedWorktreeDecision::Pass);
 }
 
 /// What:

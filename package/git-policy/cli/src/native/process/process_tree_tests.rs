@@ -1,6 +1,7 @@
 //! Controls for reading the processes below one process and signalling them safely.
 
 use super::*;
+use crate::member_signalled_through_its_pidfd::{Delivered, kill_members, signal_members, terminate_members};
 use std::io::{BufRead, BufReader};
 use std::os::unix::process::CommandExt;
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -90,11 +91,12 @@ fn a_descendant_is_found_and_signalled() {
     let found: Vec<TreeMember> = descendants_of(root);
     let member: &TreeMember = found.iter().find(|candidate| { return candidate.pid == sleeper; }).expect("the sleeper is below the shell");
     assert!(still_running(member));
-    signal_members(&found, libc::SIGKILL);
+    let delivered: Vec<Delivered> = signal_members(&found, libc::SIGKILL);
     // The shell's `wait` returns when the sleeper has ended, so this is the event the checks below need.
     let status: Option<ExitStatus> = status_within_bound(&mut shell);
     let sleeper_ended: bool = !still_running(member);
     reap(&mut shell);
+    assert_eq!(delivered, vec![Delivered::Sent; found.len()], "a member that is still the process that was found is signalled through its descriptor: {found:?}");
     assert!(status.is_some_and(|ended| { return ended.success(); }), "the shell ended once the sleeper did: {status:?}");
     assert!(sleeper_ended, "the sleeper ended");
 }
@@ -106,7 +108,7 @@ fn a_descendant_is_found_and_signalled() {
 #[cfg(target_os = "linux")]
 #[test]
 fn the_named_wrappers_end_the_found_members() {
-    for (name, end) in [("terminate_members", terminate_members as fn(&[TreeMember])), ("kill_members", kill_members)] {
+    for (name, end) in [("terminate_members", terminate_members as fn(&[TreeMember]) -> Vec<Delivered>), ("kill_members", kill_members)] {
         let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
         let root: i32 = i32::try_from(shell.id()).expect("a process number");
         let found: Vec<TreeMember> = descendants_of(root);
@@ -149,4 +151,80 @@ fn a_leaf_has_no_descendants() {
     assert_eq!(descendants_of(i32::try_from(sleeper.id()).expect("a process number")), Vec::<TreeMember>::new());
     sleeper.kill().expect("sleep is killed");
     sleeper.wait().expect("sleep is collected");
+}
+
+/// What:
+///  The cheap walk finds the same grandchild the pass over `/proc` finds,
+/// and `use_of` names it and holds its state and processor time.
+/// Why:
+///   The notice of the scratch `git commit` looks many times while one step runs,
+/// and a look at this walk costs 19.6 microseconds against 17.6 ms for the pass (`descendant_numbers_from_thread_lists`).
+///  A walk that found nothing would leave the step with no ceiling at all,
+/// so the control reads the same child both ways.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_cheap_walk_finds_the_descendants_the_pass_finds() {
+    let (mut shell, sleeper): (Child, i32) = shell_with_a_sleeper();
+    let root: i32 = i32::try_from(shell.id()).expect("a process number");
+    let by_pass: Vec<i32> = descendants_of(root).iter().map(|member| { return member.pid; }).collect();
+    let by_walk: Vec<i32> = descendant_numbers_from_thread_lists(root).expect("this kernel has the per-thread child lists");
+    reap(&mut shell);
+    assert!(by_pass.contains(&sleeper), "the pass found the sleeper: {by_pass:?}");
+    assert!(by_walk.contains(&sleeper), "the walk found the sleeper: {by_walk:?}");
+    assert_eq!(by_walk.len(), by_pass.len(), "both find the same number of processes: {by_walk:?} against {by_pass:?}");
+}
+
+/// How long a control waits for a process it did not signal to still be there,
+/// so a signal that is on its way is seen before the answer is "survived".
+///  Longer than the kernel takes to end a `SIGKILL`ed process,
+/// and only the control pays it.
+const STILL_THERE_BOUND: Duration = Duration::from_millis(500);
+
+/// What:
+///  A number that was reused before its signal went out never reaches the process that took it.
+/// Why:
+///   Reading a process's start time and sending its signal are two operations,
+/// and the process the number named can end and its number pass to another command between them:
+/// the review of 2026-11-09 put Git's exit and reaping inside that interval,
+/// after which the signal ends an unrelated process of the person's.
+///  A control cannot reuse a number on demand,
+/// so the reuse is put behind one identity read (`reused_after_the_next_read`):
+/// the number named the member up to that read,
+/// and the sleeping child after it.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_number_reused_before_the_signal_is_not_signalled() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    let (started, _zombie): (u64, bool) = identity_of(pid).expect("the sleeper is read");
+    // The member a look read a moment earlier: the same number, and the start time of the process that has since ended.
+    let found: TreeMember = TreeMember { pid, started: started.wrapping_add(1) };
+    reused_after_the_next_read(pid, found.started);
+    let delivered: Vec<Delivered> = signal_members(&[found], libc::SIGKILL);
+    let deadline: Instant = Instant::now() + STILL_THERE_BOUND;
+    let mut killed: Option<ExitStatus> = sleeper.try_wait().expect("the sleeper is polled");
+    while killed.is_none() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+        killed = sleeper.try_wait().expect("the sleeper is polled");
+    }
+    if killed.is_none() {
+        sleeper.kill().expect("cleanup");
+        sleeper.wait().expect("reaped");
+    }
+    assert!(killed.is_none(), "the process that took the reused number was killed ({killed:?}) by a signal meant for the process that ended");
+    assert_eq!(delivered, vec![Delivered::Gone], "the signal reported itself as sent to a number that names another process");
+}
+
+/// `use_of` names a running process
+/// and holds the state the kernel gives it.
+#[cfg(target_os = "linux")]
+#[test]
+fn use_of_names_a_process_and_holds_what_it_uses() {
+    let mut sleeper: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("sleep starts");
+    let pid: i32 = i32::try_from(sleeper.id()).expect("a process number");
+    let used: ProcessUse = use_of(pid).expect("a running process is read");
+    sleeper.kill().expect("sleep is killed");
+    sleeper.wait().expect("sleep is collected");
+    assert_eq!(used.name, "sleep");
+    assert_ne!(used.state, 'Z', "a running process is not a zombie");
 }

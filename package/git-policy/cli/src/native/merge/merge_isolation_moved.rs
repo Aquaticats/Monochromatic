@@ -66,7 +66,7 @@ pub(crate) fn settle_moved_branch(
     intent: &MergeIntent,
     moved_to: &str,
 ) -> Result<MergeRecoveryAction, RecoveryError> {
-    let root: &Path = Path::new(intent.repository_root.as_str());
+    let root: &Path = intent.repository_root.as_path();
     let changes: Vec<Change> = merge_changes(place, root, intent)?;
     let mut states: Vec<WorktreeState> = Vec::with_capacity(changes.len());
     for change in &changes {

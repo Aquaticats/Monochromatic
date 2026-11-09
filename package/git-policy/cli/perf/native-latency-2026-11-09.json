@@ -1,0 +1,5650 @@
+{
+  "schemaVersion": 2,
+  "date": "2026-11-09T08:37:39.448Z",
+  "binary": "/var/mnt/encrypted/repository/Monochromatic/.claude/worktrees/pi-discarding-commands-findings-fixed/package/git-policy/cli/target/release/monochromatic-git-policy-cli",
+  "samplesPerScenario": 30,
+  "forwardedBoundMilliseconds": 2000,
+  "commitDeltaBoundMilliseconds": 5000,
+  "platform": "linux",
+  "failures": [],
+  "report": [
+    {
+      "scenario": "rev-parse",
+      "kind": "forwarded",
+      "direct": {
+        "median": 1.6312745,
+        "p95": 2.445002,
+        "medianAbsoluteDeviation": 0.14019950000000003
+      },
+      "wrapped": {
+        "median": 3.0584695,
+        "p95": 4.319095,
+        "medianAbsoluteDeviation": 0.15713399999999988
+      },
+      "addedMedianMilliseconds": 1.4271950000000002,
+      "addedP95Milliseconds": 1.8740929999999998,
+      "pairedDelta": {
+        "median": 1.4459455,
+        "p95": 2.489381,
+        "maximum": 15.247648
+      },
+      "rawDirect": [
+        2.063832,
+        1.608374,
+        1.489765,
+        1.531015,
+        1.526634,
+        1.640174,
+        1.541625,
+        2.674381,
+        1.890433,
+        1.829714,
+        1.677254,
+        1.607634,
+        1.508615,
+        2.211682,
+        1.977473,
+        1.610045,
+        1.494465,
+        2.360931,
+        1.843824,
+        1.531475,
+        1.622375,
+        1.921454,
+        1.448674,
+        1.770164,
+        1.641734,
+        1.850203,
+        2.445002,
+        1.465135,
+        1.468445,
+        1.510575
+      ],
+      "rawWrapped": [
+        17.31148,
+        3.810817,
+        3.051189,
+        3.287639,
+        2.768951,
+        2.81337,
+        3.210499,
+        3.624367,
+        4.167935,
+        4.319095,
+        3.018449,
+        3.06575,
+        2.85001,
+        3.795927,
+        3.129959,
+        2.99761,
+        2.92824,
+        2.97749,
+        3.937326,
+        3.368888,
+        2.81205,
+        3.001299,
+        2.94082,
+        3.187519,
+        2.766891,
+        3.167739,
+        3.220708,
+        2.95109,
+        2.99996,
+        2.976209
+      ],
+      "rawPairedDeltas": [
+        15.247648,
+        2.202443,
+        1.561424,
+        1.756624,
+        1.242317,
+        1.173196,
+        1.668874,
+        0.949986,
+        2.277502,
+        2.489381,
+        1.341195,
+        1.458116,
+        1.3413950000000001,
+        1.5842449999999997,
+        1.152486,
+        1.387565,
+        1.4337750000000002,
+        0.6165590000000001,
+        2.093502,
+        1.8374130000000002,
+        1.1896750000000003,
+        1.079845,
+        1.492146,
+        1.417355,
+        1.1251570000000002,
+        1.317536,
+        0.775706,
+        1.4859550000000001,
+        1.5315150000000002,
+        1.4656339999999999
+      ]
+    },
+    {
+      "scenario": "status",
+      "kind": "forwarded",
+      "direct": {
+        "median": 2.0696725000000002,
+        "p95": 2.879591,
+        "medianAbsoluteDeviation": 0.17285350000000022
+      },
+      "wrapped": {
+        "median": 3.5703225,
+        "p95": 4.697643,
+        "medianAbsoluteDeviation": 0.2757385000000001
+      },
+      "addedMedianMilliseconds": 1.5006499999999998,
+      "addedP95Milliseconds": 1.8180520000000002,
+      "pairedDelta": {
+        "median": 1.450385,
+        "p95": 1.9764519999999997,
+        "maximum": 2.2387439999999996
+      },
+      "rawDirect": [
+        2.78083,
+        2.102682,
+        1.905964,
+        2.122663,
+        1.836653,
+        2.287462,
+        2.295942,
+        1.992943,
+        2.147202,
+        1.932543,
+        1.894654,
+        1.933263,
+        1.924043,
+        1.842583,
+        2.028943,
+        2.036663,
+        1.999783,
+        2.697911,
+        2.552241,
+        1.995993,
+        1.870703,
+        2.156213,
+        2.318111,
+        2.005183,
+        1.898984,
+        2.879591,
+        2.883209,
+        2.810441,
+        2.66578,
+        2.721561
+      ],
+      "rawWrapped": [
+        3.564687,
+        3.405919,
+        3.285138,
+        3.575958,
+        3.448358,
+        3.265839,
+        3.402538,
+        3.905687,
+        3.815167,
+        3.380018,
+        3.325398,
+        3.300899,
+        3.204729,
+        3.269139,
+        3.618018,
+        3.248929,
+        3.822007,
+        3.582957,
+        3.516058,
+        3.546728,
+        3.417698,
+        4.109406,
+        4.556855,
+        3.864586,
+        3.852376,
+        4.856043,
+        4.003617,
+        4.571903,
+        3.962567,
+        4.697643
+      ],
+      "rawPairedDeltas": [
+        0.7838570000000002,
+        1.3032369999999998,
+        1.379174,
+        1.4532949999999998,
+        1.6117049999999997,
+        0.978377,
+        1.1065959999999997,
+        1.912744,
+        1.6679650000000001,
+        1.4474750000000003,
+        1.4307439999999998,
+        1.3676359999999999,
+        1.280686,
+        1.426556,
+        1.5890750000000002,
+        1.212266,
+        1.822224,
+        0.885046,
+        0.9638170000000001,
+        1.550735,
+        1.5469950000000001,
+        1.9531929999999997,
+        2.2387439999999996,
+        1.859403,
+        1.953392,
+        1.9764519999999997,
+        1.1204080000000003,
+        1.7614619999999999,
+        1.2967870000000001,
+        1.9760820000000003
+      ]
+    },
+    {
+      "scenario": "log",
+      "kind": "forwarded",
+      "direct": {
+        "median": 1.8305585,
+        "p95": 2.550051,
+        "medianAbsoluteDeviation": 0.18276950000000003
+      },
+      "wrapped": {
+        "median": 3.203869,
+        "p95": 4.250635,
+        "medianAbsoluteDeviation": 0.22925450000000014
+      },
+      "addedMedianMilliseconds": 1.3733105,
+      "addedP95Milliseconds": 1.700584,
+      "pairedDelta": {
+        "median": 1.3272210000000002,
+        "p95": 2.5014010000000004,
+        "maximum": 2.7069900000000002
+      },
+      "rawDirect": [
+        1.806663,
+        1.964613,
+        1.584185,
+        2.329942,
+        1.668404,
+        1.947943,
+        1.685845,
+        2.189463,
+        1.701484,
+        1.907243,
+        1.620945,
+        1.629594,
+        1.588775,
+        1.977333,
+        1.693274,
+        1.881574,
+        1.563704,
+        2.70233,
+        1.663344,
+        1.854454,
+        2.321542,
+        2.442371,
+        1.782404,
+        2.028883,
+        1.623994,
+        1.934263,
+        1.618694,
+        2.061084,
+        1.718114,
+        2.550051
+      ],
+      "rawWrapped": [
+        3.227729,
+        3.083859,
+        4.085586,
+        4.250635,
+        2.98429,
+        2.905169,
+        2.978499,
+        3.213469,
+        2.8158,
+        3.134399,
+        3.324358,
+        3.194269,
+        3.484538,
+        4.684323,
+        3.14296,
+        3.336748,
+        3.455448,
+        3.499998,
+        2.97073,
+        4.101176,
+        3.918697,
+        3.769877,
+        3.077029,
+        3.490818,
+        2.95093,
+        3.00229,
+        2.94983,
+        3.329968,
+        2.99821,
+        3.112689
+      ],
+      "rawPairedDeltas": [
+        1.4210660000000002,
+        1.119246,
+        2.5014010000000004,
+        1.920693,
+        1.3158860000000001,
+        0.9572259999999999,
+        1.2926539999999997,
+        1.024006,
+        1.1143159999999999,
+        1.2271560000000001,
+        1.703413,
+        1.5646749999999998,
+        1.895763,
+        2.7069900000000002,
+        1.449686,
+        1.455174,
+        1.891744,
+        0.7976680000000003,
+        1.3073860000000002,
+        2.2467219999999997,
+        1.5971549999999999,
+        1.327506,
+        1.294625,
+        1.461935,
+        1.3269360000000001,
+        1.0680269999999998,
+        1.3311359999999999,
+        1.268884,
+        1.280096,
+        0.5626380000000002
+      ]
+    },
+    {
+      "scenario": "diff-stat",
+      "kind": "forwarded",
+      "direct": {
+        "median": 2.2818375,
+        "p95": 2.747491,
+        "medianAbsoluteDeviation": 0.21949400000000008
+      },
+      "wrapped": {
+        "median": 3.609027,
+        "p95": 4.157276,
+        "medianAbsoluteDeviation": 0.236904
+      },
+      "addedMedianMilliseconds": 1.3271895000000002,
+      "addedP95Milliseconds": 1.4097850000000003,
+      "pairedDelta": {
+        "median": 1.3296204999999999,
+        "p95": 2.0321310000000006,
+        "maximum": 2.4338119999999996
+      },
+      "rawDirect": [
+        2.569882,
+        2.79882,
+        2.353412,
+        2.332012,
+        2.315562,
+        2.378972,
+        2.257312,
+        2.633701,
+        2.255412,
+        2.305702,
+        2.288142,
+        2.296592,
+        2.280882,
+        2.602251,
+        1.653915,
+        2.163733,
+        1.608854,
+        1.682214,
+        1.539054,
+        1.608324,
+        1.689644,
+        1.956823,
+        2.295422,
+        2.282793,
+        1.568924,
+        2.432781,
+        2.747491,
+        2.143422,
+        1.566275,
+        1.795834
+      ],
+      "rawWrapped": [
+        3.960316,
+        3.932996,
+        3.740417,
+        3.707437,
+        3.787907,
+        3.560837,
+        3.596948,
+        3.601857,
+        3.698177,
+        3.544388,
+        3.561988,
+        3.616197,
+        3.710717,
+        3.704657,
+        2.85585,
+        3.332268,
+        3.208119,
+        2.87904,
+        3.376649,
+        2.85248,
+        2.97052,
+        2.97957,
+        4.157276,
+        4.314924,
+        4.002736,
+        3.850457,
+        3.804486,
+        3.878447,
+        3.402588,
+        3.077299
+      ],
+      "rawPairedDeltas": [
+        1.390434,
+        1.134176,
+        1.3870049999999998,
+        1.375425,
+        1.4723450000000002,
+        1.1818649999999997,
+        1.3396359999999996,
+        0.968156,
+        1.4427649999999996,
+        1.238686,
+        1.2738459999999998,
+        1.3196050000000001,
+        1.4298349999999997,
+        1.1024060000000002,
+        1.2019350000000002,
+        1.1685349999999999,
+        1.599265,
+        1.1968259999999997,
+        1.837595,
+        1.2441559999999998,
+        1.2808760000000001,
+        1.0227469999999999,
+        1.8618540000000006,
+        2.0321310000000006,
+        2.4338119999999996,
+        1.4176760000000002,
+        1.0569949999999997,
+        1.7350249999999998,
+        1.836313,
+        1.281465
+      ]
+    },
+    {
+      "scenario": "commit-service",
+      "kind": "commit",
+      "direct": {
+        "median": 8.474870500000002,
+        "p95": 93.812905,
+        "medianAbsoluteDeviation": 1.0760115
+      },
+      "wrapped": {
+        "median": 67.0799375,
+        "p95": 4168.716253,
+        "medianAbsoluteDeviation": 23.984142499999997
+      },
+      "addedMedianMilliseconds": 58.605067,
+      "addedP95Milliseconds": 4074.903348,
+      "pairedDelta": {
+        "median": 56.387845,
+        "p95": 4133.170005999999,
+        "maximum": 6318.248875
+      },
+      "rawDirect": [
+        4.607983,
+        35.546247,
+        281.575313,
+        34.124752,
+        9.506767,
+        26.818957,
+        9.468658,
+        12.464877,
+        9.103359,
+        7.551564,
+        8.182142,
+        12.554476,
+        7.729954,
+        5.988759,
+        8.45287,
+        6.708967,
+        7.788913,
+        7.591903,
+        8.69516,
+        8.294101,
+        7.354744,
+        8.496871,
+        7.000026,
+        8.67912,
+        6.746206,
+        7.331134,
+        8.784929,
+        7.920822,
+        93.812905,
+        31.78042
+      ],
+      "rawWrapped": [
+        6322.856858,
+        4168.716253,
+        171.390835,
+        631.526629,
+        214.630455,
+        147.780227,
+        172.051133,
+        341.245616,
+        46.26551,
+        102.225525,
+        78.061629,
+        74.92923,
+        51.117352,
+        60.66788,
+        43.741438,
+        55.136489,
+        41.546206,
+        51.82705,
+        52.184919,
+        73.475556,
+        39.311784,
+        68.142484,
+        37.924449,
+        57.55103,
+        43.575698,
+        53.145995,
+        42.615892,
+        66.017391,
+        3305.767688,
+        2022.299132
+      ],
+      "rawPairedDeltas": [
+        6318.248875,
+        4133.170005999999,
+        -110.18447799999998,
+        597.401877,
+        205.12368800000002,
+        120.96127,
+        162.582475,
+        328.780739,
+        37.162151,
+        94.673961,
+        69.879487,
+        62.374754,
+        43.387398,
+        54.679120999999995,
+        35.288568,
+        48.427521999999996,
+        33.757293,
+        44.235147,
+        43.489759,
+        65.181455,
+        31.957040000000003,
+        59.645613,
+        30.924423000000004,
+        48.87191,
+        36.829492,
+        45.814861,
+        33.830963000000004,
+        58.096569,
+        3211.954783,
+        1990.518712
+      ]
+    },
+    {
+      "scenario": "commit-signed-service",
+      "kind": "commit",
+      "direct": {
+        "median": 11.6262295,
+        "p95": 14.002252,
+        "medianAbsoluteDeviation": 0.9400664999999995
+      },
+      "wrapped": {
+        "median": 60.036691000000005,
+        "p95": 4181.14206,
+        "medianAbsoluteDeviation": 13.301553000000006
+      },
+      "addedMedianMilliseconds": 48.410461500000004,
+      "addedP95Milliseconds": 4167.139808,
+      "pairedDelta": {
+        "median": 47.5821995,
+        "p95": 4167.160818,
+        "maximum": 6393.382233
+      },
+      "rawDirect": [
+        18.967204,
+        12.370847,
+        13.981242,
+        12.948285,
+        10.778022,
+        14.002252,
+        12.575496,
+        11.766719,
+        10.990991,
+        10.133465,
+        11.53157,
+        9.189078,
+        10.948332,
+        11.81926,
+        11.935029,
+        10.190195,
+        10.457244,
+        13.142264,
+        11.720889,
+        10.062025,
+        8.49122,
+        12.472467,
+        13.421314,
+        10.545333,
+        12.063488,
+        12.276197,
+        11.322781,
+        10.695363,
+        9.530076,
+        11.144201
+      ],
+      "rawWrapped": [
+        53.616135,
+        6405.75308,
+        4181.14206,
+        652.600846,
+        314.251039,
+        154.270875,
+        45.582422,
+        57.679429,
+        47.112546,
+        50.788844,
+        50.297716,
+        53.704704,
+        49.613378,
+        43.933017,
+        54.64421,
+        46.828688,
+        52.115099,
+        62.393953,
+        72.538618,
+        49.486798,
+        46.641588,
+        75.543727,
+        142.524655,
+        1048.81892,
+        1141.814897,
+        142.322686,
+        89.351139,
+        165.520276,
+        68.960541,
+        49.433588
+      ],
+      "rawPairedDeltas": [
+        34.648931000000005,
+        6393.382233,
+        4167.160818,
+        639.652561,
+        303.47301699999997,
+        140.268623,
+        33.006926,
+        45.91271,
+        36.121555,
+        40.655378999999996,
+        38.766146,
+        44.515626,
+        38.665046,
+        32.113757,
+        42.709181,
+        36.638493,
+        41.657855,
+        49.251689,
+        60.817729,
+        39.424773,
+        38.150368,
+        63.07126,
+        129.103341,
+        1038.273587,
+        1129.751409,
+        130.046489,
+        78.028358,
+        154.82491299999998,
+        59.430465000000005,
+        38.289387
+      ]
+    }
+  ],
+  "evidence": {
+    "commitTiming": {
+      "commit-service": [
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:10.375Z",
+          "level": "info",
+          "startMillis": 1794213424113,
+          "pid": 1424151,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "0b76fdb6-3ef4-4202-a936-57a2dd619949",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 6261,
+          "prepareMs": 17,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 19,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 19,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 6219,
+          "longestQuietMs": 1.493,
+          "quietMs": {
+            "git add": 1.493,
+            "git cat-file --batch": 0.983,
+            "git diff-index": 1.32,
+            "git var": 0.823,
+            "git version": 0.616
+          },
+          "steps": [
+            {
+              "name": "git version",
+              "offsetMs": 0,
+              "durationMs": 199
+            },
+            {
+              "name": "git add",
+              "offsetMs": 211,
+              "durationMs": 1
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 215,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 217,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 218,
+              "durationMs": 0
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:14.544Z",
+          "level": "info",
+          "startMillis": 1794213430380,
+          "pid": 1424433,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "ca335a1a-c13f-403f-b5ec-3b2ee22f1d16",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 4163,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 4137,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 4137,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 5,
+          "otherMs": 3,
+          "longestQuietMs": 2.38,
+          "quietMs": {
+            "git add": 2.38,
+            "git cat-file --batch": 0.986,
+            "git diff-index": 1.618,
+            "git var": 0.974
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:15.034Z",
+          "level": "info",
+          "startMillis": 1794213434866,
+          "pid": 1425782,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "fd399477-cdba-418a-92f5-a804c290c7df",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 167,
+          "prepareMs": 26,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 125,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 124,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 5,
+          "handoffMs": 3,
+          "otherMs": 2,
+          "longestQuietMs": 5.126,
+          "quietMs": {
+            "git add": 5.126,
+            "git cat-file --batch": 1.674,
+            "git diff-index": 2.207,
+            "git var": 1.73
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 6,
+              "durationMs": 6
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 20,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 26,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 28,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:15.665Z",
+          "level": "info",
+          "startMillis": 1794213435038,
+          "pid": 1426253,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "d327cdf9-5458-4e9d-b6fe-be231824be78",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 627,
+          "prepareMs": 32,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 579,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 579,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 5,
+          "handoffMs": 5,
+          "otherMs": 1,
+          "longestQuietMs": 14.014,
+          "quietMs": {
+            "git add": 14.014,
+            "git cat-file --batch": 2.199,
+            "git diff-index": 1.886,
+            "git var": 1.377
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 15
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 26,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 33,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 34,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:15.924Z",
+          "level": "info",
+          "startMillis": 1794213435715,
+          "pid": 1427181,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "9289d41a-4321-46e5-ad69-7f8cfe72fa2f",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 209,
+          "prepareMs": 17,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 170,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 169,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 4,
+          "handoffMs": 13,
+          "otherMs": 0,
+          "longestQuietMs": 3.194,
+          "quietMs": {
+            "git add": 3.194,
+            "git cat-file --batch": 2.077,
+            "git diff-index": 1.157,
+            "git var": 1.318
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 4,
+              "durationMs": 4
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 15,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 17,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 19,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.072Z",
+          "level": "info",
+          "startMillis": 1794213435931,
+          "pid": 1427810,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "6321e850-ec06-4ea6-ae02-94a437e82076",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 141,
+          "prepareMs": 22,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 95,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 95,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 8,
+          "handoffMs": 7,
+          "otherMs": 4,
+          "longestQuietMs": 3.838,
+          "quietMs": {
+            "git add": 3.838,
+            "git cat-file --batch": 1.514,
+            "git diff-index": 1.935,
+            "git var": 1.147
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 11,
+              "durationMs": 4
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 20,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 22,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 23,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.281Z",
+          "level": "info",
+          "startMillis": 1794213436113,
+          "pid": 1428169,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "f61a5f77-6258-4db6-a6da-e89b02869116",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 167,
+          "prepareMs": 16,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 133,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 133,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 7,
+          "otherMs": 1,
+          "longestQuietMs": 3.539,
+          "quietMs": {
+            "git add": 3.539,
+            "git cat-file --batch": 1.342,
+            "git diff-index": 1.769,
+            "git var": 1.3
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 5
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 12,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 16,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 18,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.622Z",
+          "level": "info",
+          "startMillis": 1794213436287,
+          "pid": 1428485,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "67a673c2-7e7d-4d31-8f00-4f6f493bc0bb",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 335,
+          "prepareMs": 14,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 315,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 315,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 1,
+          "handoffMs": 0,
+          "otherMs": 0,
+          "longestQuietMs": 2.439,
+          "quietMs": {
+            "git add": 2.439,
+            "git cat-file --batch": 1.378,
+            "git diff-index": 1.598,
+            "git var": 0.82
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 4,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 14,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 16,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.691Z",
+          "level": "info",
+          "startMillis": 1794213436649,
+          "pid": 1429208,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "c5ffc81f-acff-4c08-bf31-d6abbea52445",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 42,
+          "prepareMs": 12,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 18,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 18,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 6,
+          "longestQuietMs": 1.631,
+          "quietMs": {
+            "git add": 1.631,
+            "git cat-file --batch": 0.975,
+            "git diff-index": 1.185,
+            "git var": 0.99
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 4,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.793Z",
+          "level": "info",
+          "startMillis": 1794213436695,
+          "pid": 1429333,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "a6a9fdc3-a3ee-4d21-8946-a60815f4322f",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 97,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 80,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 80,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.882,
+          "quietMs": {
+            "git add": 1.882,
+            "git cat-file --batch": 0.986,
+            "git diff-index": 1.105,
+            "git var": 0.815
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 7,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.887Z",
+          "level": "info",
+          "startMillis": 1794213436814,
+          "pid": 1429739,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "13c5874b-05f9-46bc-bca2-1bc7b1d7d050",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 72,
+          "prepareMs": 12,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 42,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 42,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 4,
+          "handoffMs": 0,
+          "otherMs": 8,
+          "longestQuietMs": 2.375,
+          "quietMs": {
+            "git add": 2.375,
+            "git cat-file --batch": 1.416,
+            "git diff-index": 1.764,
+            "git var": 1.062
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 14,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:16.962Z",
+          "level": "info",
+          "startMillis": 1794213436892,
+          "pid": 1429910,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "bacd6db7-aa74-4900-8c78-8ca4066b7a45",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 69,
+          "prepareMs": 14,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 41,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 40,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 1,
+          "otherMs": 7,
+          "longestQuietMs": 3.042,
+          "quietMs": {
+            "git add": 3.042,
+            "git cat-file --batch": 1.147,
+            "git diff-index": 0.977,
+            "git var": 1.441
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 4
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 11,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 14,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 16,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.035Z",
+          "level": "info",
+          "startMillis": 1794213436988,
+          "pid": 1430093,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "c91bb029-25d9-48dc-8de6-d25f8a29bce0",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 46,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 4,
+          "provisionMs": 0,
+          "submitMs": 25,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 25,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 2.275,
+          "quietMs": {
+            "git add": 1.908,
+            "git cat-file --batch": 0.96,
+            "git diff-index": 2.028,
+            "git var": 2.275
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.095Z",
+          "level": "info",
+          "startMillis": 1794213437039,
+          "pid": 1430199,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "85c6f2d5-2087-4e46-9db4-2a49ab642f30",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 56,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 37,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 37,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.491,
+          "quietMs": {
+            "git add": 1.491,
+            "git cat-file --batch": 1.28,
+            "git diff-index": 1.303,
+            "git var": 0.928
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 0
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.154Z",
+          "level": "info",
+          "startMillis": 1794213437115,
+          "pid": 1430322,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "9810c05b-62db-44f3-8cb6-1b3dd43a1b36",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 39,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 15,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 15,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 1,
+          "otherMs": 6,
+          "longestQuietMs": 1.922,
+          "quietMs": {
+            "git add": 1.922,
+            "git cat-file --batch": 1.104,
+            "git diff-index": 1.175,
+            "git var": 1.091
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.209Z",
+          "level": "info",
+          "startMillis": 1794213437160,
+          "pid": 1430367,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "ca5019f2-3db9-4718-bdbf-8820213130ad",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 49,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 23,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 23,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 1.837,
+          "quietMs": {
+            "git add": 1.791,
+            "git cat-file --batch": 1.014,
+            "git diff-index": 1.149,
+            "git var": 1.837
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 3,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 0
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.266Z",
+          "level": "info",
+          "startMillis": 1794213437229,
+          "pid": 1430474,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "66bc2ad4-a395-48f0-a606-9ad70e84effa",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 36,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 18,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 18,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.705,
+          "quietMs": {
+            "git add": 1.705,
+            "git cat-file --batch": 0.976,
+            "git diff-index": 1.384,
+            "git var": 1.098
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 7,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 0
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.318Z",
+          "level": "info",
+          "startMillis": 1794213437270,
+          "pid": 1430520,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "97a5cffc-65bb-4e02-aa38-12d6e16feea0",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 47,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 28,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 28,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 4,
+          "longestQuietMs": 1.545,
+          "quietMs": {
+            "git add": 1.545,
+            "git cat-file --batch": 1.408,
+            "git diff-index": 1.316,
+            "git var": 0.879
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 0
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.387Z",
+          "level": "info",
+          "startMillis": 1794213437339,
+          "pid": 1430584,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "99fb691e-1f10-45f8-bd32-e0858f85c84a",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 47,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 26,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 26,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 2.459,
+          "quietMs": {
+            "git add": 2.459,
+            "git cat-file --batch": 1.52,
+            "git diff-index": 1.467,
+            "git var": 0.914
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.461Z",
+          "level": "info",
+          "startMillis": 1794213437392,
+          "pid": 1430652,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "f9804576-9a0e-4911-a376-a29fe81f525d",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 68,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 47,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 47,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 5,
+          "longestQuietMs": 1.609,
+          "quietMs": {
+            "git add": 1.474,
+            "git cat-file --batch": 1.319,
+            "git diff-index": 1.609,
+            "git var": 0.891
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.516Z",
+          "level": "info",
+          "startMillis": 1794213437481,
+          "pid": 1430717,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "d6a5635a-d271-4dd2-9f4b-e7dd6a4c804e",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 35,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 3,
+          "provisionMs": 0,
+          "submitMs": 16,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 16,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.945,
+          "quietMs": {
+            "git add": 1.561,
+            "git cat-file --batch": 1.139,
+            "git diff-index": 1.945,
+            "git var": 1.756
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 7,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.584Z",
+          "level": "info",
+          "startMillis": 1794213437520,
+          "pid": 1430759,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "3ebd8d4f-7d43-44f6-b1d9-deb489ce64cc",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 64,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 46,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 45,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.512,
+          "quietMs": {
+            "git add": 1.512,
+            "git cat-file --batch": 0.97,
+            "git diff-index": 1.117,
+            "git var": 0.865
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 7,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 9,
+              "durationMs": 0
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.638Z",
+          "level": "info",
+          "startMillis": 1794213437605,
+          "pid": 1430844,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "c59bb40c-c7f9-4373-97ba-c1bc420a5557",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 33,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 12,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 11,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.616,
+          "quietMs": {
+            "git add": 1.616,
+            "git cat-file --batch": 1.239,
+            "git diff-index": 1.169,
+            "git var": 1.188
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.695Z",
+          "level": "info",
+          "startMillis": 1794213437644,
+          "pid": 1430892,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "275d38e9-dc3f-42c1-8edc-78392d741e46",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 51,
+          "prepareMs": 12,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 26,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 26,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 1,
+          "otherMs": 6,
+          "longestQuietMs": 2.02,
+          "quietMs": {
+            "git add": 2.02,
+            "git cat-file --batch": 1.167,
+            "git diff-index": 1.114,
+            "git var": 0.822
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 14,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.755Z",
+          "level": "info",
+          "startMillis": 1794213437716,
+          "pid": 1430974,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "bb1bb5ef-5ed8-4ecf-a3cb-e3e71469ae44",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 38,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 19,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 19,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.868,
+          "quietMs": {
+            "git add": 1.868,
+            "git cat-file --batch": 1.235,
+            "git diff-index": 1.613,
+            "git var": 1.083
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.809Z",
+          "level": "info",
+          "startMillis": 1794213437761,
+          "pid": 1431018,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "df262e91-b0a9-4e76-8646-1b3c5167ff14",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 47,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 28,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 27,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 2,
+          "longestQuietMs": 1.558,
+          "quietMs": {
+            "git add": 1.558,
+            "git cat-file --batch": 1.388,
+            "git diff-index": 1.431,
+            "git var": 0.992
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.868Z",
+          "level": "info",
+          "startMillis": 1794213437830,
+          "pid": 1431095,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "2a5fc9a5-01cf-4580-9f02-2debf7ecddc6",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 38,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 13,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 13,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 2.263,
+          "quietMs": {
+            "git add": 2.263,
+            "git cat-file --batch": 1.36,
+            "git diff-index": 1.791,
+            "git var": 0.878
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 13,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:17.934Z",
+          "level": "info",
+          "startMillis": 1794213437873,
+          "pid": 1431148,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "9bb7771f-f30e-4ac7-ae8a-d3334d38d515",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 61,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 40,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 40,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 1.924,
+          "quietMs": {
+            "git add": 1.924,
+            "git cat-file --batch": 1.051,
+            "git diff-index": 1.378,
+            "git var": 1.303
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:21.343Z",
+          "level": "info",
+          "startMillis": 1794213438043,
+          "pid": 1431275,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "634cc16e-633a-49da-9d81-7f8f2d81d967",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 3300,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 544,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 544,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 6,
+          "handoffMs": 1,
+          "otherMs": 2735,
+          "longestQuietMs": 2.332,
+          "quietMs": {
+            "git add": 2.332,
+            "git cat-file --batch": 1.457,
+            "git diff-index": 1.273,
+            "git var": 0.956
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 9,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 12,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:23.365Z",
+          "level": "info",
+          "startMillis": 1794213441349,
+          "pid": 1431771,
+          "release": "0.6.1-alpha.5",
+          "instance": "937d24780c83be2fae662a9a5a19be6d",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-repo/.git",
+          "requestId": "aee58a0f-8790-40aa-b07e-e59e4baeaf84",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 2016,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 2,
+          "provisionMs": 0,
+          "submitMs": 1883,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 1883,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 4,
+          "handoffMs": 1,
+          "otherMs": 115,
+          "longestQuietMs": 1.513,
+          "quietMs": {
+            "git add": 1.513,
+            "git cat-file --batch": 1.261,
+            "git diff-index": 1.191,
+            "git var": 1
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git diff-index",
+              "offsetMs": 7,
+              "durationMs": 1
+            },
+            {
+              "name": "git var",
+              "offsetMs": 9,
+              "durationMs": 0
+            },
+            {
+              "name": "git var",
+              "offsetMs": 10,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        }
+      ],
+      "commit-signed-service": [
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:23.473Z",
+          "level": "info",
+          "startMillis": 1794213443426,
+          "pid": 1433359,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "a7d16aa5-ac6a-4ee4-a4a5-44773fd0f3f4",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 47,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 22,
+          "provisionMs": 0,
+          "submitMs": 9,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 8,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 2,
+          "longestQuietMs": 2.873,
+          "quietMs": {
+            "git add": 2.873,
+            "git cat-file": 1.454,
+            "git cat-file --batch": 1.198,
+            "git rev-parse": 1.574,
+            "git symbolic-ref": 1.621,
+            "git update-ref": 2.417
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 4
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 11,
+              "durationMs": 3
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 15,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 17,
+              "durationMs": 11
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 28,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 30,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:29.887Z",
+          "level": "info",
+          "startMillis": 1794213443490,
+          "pid": 1433423,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "3afff810-cc51-418c-b45c-c7893b41a7c3",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 6396,
+          "prepareMs": 34,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 35,
+          "provisionMs": 0,
+          "submitMs": 6144,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 6144,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 178,
+          "longestQuietMs": 19.512,
+          "quietMs": {
+            "git add": 19.512,
+            "git cat-file": 3.501,
+            "git cat-file --batch": 1.045,
+            "git rev-parse": 6.042,
+            "git symbolic-ref": 2.924,
+            "git update-ref": 3.149
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 24
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 36,
+              "durationMs": 3
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 40,
+              "durationMs": 3
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 43,
+              "durationMs": 14
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 58,
+              "durationMs": 7
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 65,
+              "durationMs": 4
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:34.095Z",
+          "level": "info",
+          "startMillis": 1794213449919,
+          "pid": 1436733,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "eb4fc863-ae86-4934-9ad3-e572f747ee52",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 4176,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 16,
+          "provisionMs": 0,
+          "submitMs": 3815,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 3814,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 1,
+          "handoffMs": 0,
+          "otherMs": 332,
+          "longestQuietMs": 2.159,
+          "quietMs": {
+            "git add": 1.928,
+            "git cat-file": 1.451,
+            "git cat-file --batch": 1.061,
+            "git rev-parse": 1.393,
+            "git symbolic-ref": 1.58,
+            "git update-ref": 2.159
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 22,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 24,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:34.748Z",
+          "level": "info",
+          "startMillis": 1794213454099,
+          "pid": 1440497,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "0b26e9bb-200d-4fb1-9b89-1f16fd49ac7e",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 648,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 15,
+          "provisionMs": 0,
+          "submitMs": 586,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 585,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 1,
+          "otherMs": 35,
+          "longestQuietMs": 1.896,
+          "quietMs": {
+            "git add": 1.803,
+            "git cat-file": 1.257,
+            "git cat-file --batch": 0.816,
+            "git rev-parse": 1.379,
+            "git symbolic-ref": 1.421,
+            "git update-ref": 1.896
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 13,
+              "durationMs": 6
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 19,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 21,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.086Z",
+          "level": "info",
+          "startMillis": 1794213454777,
+          "pid": 1441802,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "04386b28-cf8e-4c6f-b96e-26516b6ed2ea",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 309,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 16,
+          "provisionMs": 0,
+          "submitMs": 280,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 280,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 1,
+          "longestQuietMs": 2.757,
+          "quietMs": {
+            "git add": 1.635,
+            "git cat-file": 1.393,
+            "git cat-file --batch": 1.093,
+            "git rev-parse": 1.616,
+            "git symbolic-ref": 2.757,
+            "git update-ref": 1.968
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 3,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 3
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 6
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 22,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 24,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.241Z",
+          "level": "info",
+          "startMillis": 1794213455090,
+          "pid": 1442077,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "d041283c-907c-4534-a808-621d73617e21",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 150,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 15,
+          "provisionMs": 0,
+          "submitMs": 114,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 114,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 2.284,
+          "quietMs": {
+            "git add": 2.284,
+            "git cat-file": 1.1,
+            "git cat-file --batch": 1.047,
+            "git rev-parse": 1.337,
+            "git symbolic-ref": 1.486,
+            "git update-ref": 2.067
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 14,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 22,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 23,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.314Z",
+          "level": "info",
+          "startMillis": 1794213455273,
+          "pid": 1442352,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "f4b83c16-7fe4-4450-94ed-a1ef62625145",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 40,
+          "prepareMs": 7,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 16,
+          "provisionMs": 0,
+          "submitMs": 5,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 5,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 8,
+          "longestQuietMs": 2.263,
+          "quietMs": {
+            "git add": 1.585,
+            "git cat-file": 1.274,
+            "git cat-file --batch": 1.449,
+            "git rev-parse": 1.337,
+            "git symbolic-ref": 1.58,
+            "git update-ref": 2.263
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 13,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 20,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 22,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.372Z",
+          "level": "info",
+          "startMillis": 1794213455319,
+          "pid": 1442456,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "8d64597d-01ea-4aa7-be30-c2d3a641ed08",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 52,
+          "prepareMs": 7,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 15,
+          "provisionMs": 0,
+          "submitMs": 21,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 21,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 1,
+          "handoffMs": 0,
+          "otherMs": 4,
+          "longestQuietMs": 1.909,
+          "quietMs": {
+            "git add": 1.617,
+            "git cat-file": 1.169,
+            "git cat-file --batch": 0.87,
+            "git rev-parse": 1.253,
+            "git symbolic-ref": 1.361,
+            "git update-ref": 1.909
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 13,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 20,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 22,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.442Z",
+          "level": "info",
+          "startMillis": 1794213455399,
+          "pid": 1442562,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "f9ac3daa-9a6c-4ed1-a806-8fea8afe3dd3",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 42,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 18,
+          "provisionMs": 0,
+          "submitMs": 5,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 5,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 4,
+          "handoffMs": 0,
+          "otherMs": 5,
+          "longestQuietMs": 2.817,
+          "quietMs": {
+            "git add": 1.738,
+            "git cat-file": 1.306,
+            "git cat-file --batch": 1.348,
+            "git rev-parse": 1.423,
+            "git symbolic-ref": 2.817,
+            "git update-ref": 2.541
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 3
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 23,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 25,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.493Z",
+          "level": "info",
+          "startMillis": 1794213455447,
+          "pid": 1442629,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "b74280eb-7c3a-4bd5-8413-91728f45cd21",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 46,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 20,
+          "provisionMs": 0,
+          "submitMs": 6,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 6,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 2.483,
+          "quietMs": {
+            "git add": 1.719,
+            "git cat-file": 1.573,
+            "git cat-file --batch": 1.195,
+            "git rev-parse": 1.496,
+            "git symbolic-ref": 2.139,
+            "git update-ref": 2.483
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 10
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 25,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 27,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.565Z",
+          "level": "info",
+          "startMillis": 1794213455522,
+          "pid": 1442731,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "e2e1ef9c-3a60-48e6-b776-aa75195bf0ab",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 42,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 17,
+          "provisionMs": 0,
+          "submitMs": 7,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 6,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 1,
+          "otherMs": 4,
+          "longestQuietMs": 2.632,
+          "quietMs": {
+            "git add": 2.057,
+            "git cat-file": 1.58,
+            "git cat-file --batch": 0.832,
+            "git rev-parse": 1.595,
+            "git symbolic-ref": 1.814,
+            "git update-ref": 2.632
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 14,
+              "durationMs": 8
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 23,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 25,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.621Z",
+          "level": "info",
+          "startMillis": 1794213455572,
+          "pid": 1442770,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "1517a4a7-956c-4ee8-a497-931347feaf8e",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 49,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 21,
+          "provisionMs": 0,
+          "submitMs": 8,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 8,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 1,
+          "handoffMs": 0,
+          "otherMs": 6,
+          "longestQuietMs": 4.487,
+          "quietMs": {
+            "git add": 2.382,
+            "git cat-file": 1.791,
+            "git cat-file --batch": 1.208,
+            "git rev-parse": 2.531,
+            "git symbolic-ref": 2.109,
+            "git update-ref": 4.487
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 12,
+              "durationMs": 4
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 17,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 19,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 27,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 30,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.691Z",
+          "level": "info",
+          "startMillis": 1794213455647,
+          "pid": 1442863,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "c4ee2cf9-fd64-404b-923c-a19c3cfb13d4",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 44,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 20,
+          "provisionMs": 0,
+          "submitMs": 6,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 5,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 4,
+          "longestQuietMs": 2.363,
+          "quietMs": {
+            "git add": 2.363,
+            "git cat-file": 1.926,
+            "git cat-file --batch": 1.162,
+            "git rev-parse": 1.557,
+            "git symbolic-ref": 1.923,
+            "git update-ref": 2.327
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 12,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 15,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 17,
+              "durationMs": 9
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 27,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 29,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.733Z",
+          "level": "info",
+          "startMillis": 1794213455696,
+          "pid": 1442926,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "795c517e-bd3c-4747-b0cc-349068186d44",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 37,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 15,
+          "provisionMs": 0,
+          "submitMs": 7,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 6,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 3,
+          "longestQuietMs": 2.426,
+          "quietMs": {
+            "git add": 1.613,
+            "git cat-file": 1.634,
+            "git cat-file --batch": 1.183,
+            "git rev-parse": 1.252,
+            "git symbolic-ref": 1.356,
+            "git update-ref": 2.426
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 14,
+              "durationMs": 6
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 21,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 22,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.813Z",
+          "level": "info",
+          "startMillis": 1794213455765,
+          "pid": 1442988,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "a9b4db5c-4f0f-4ecf-88e5-37025749a7b5",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 48,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 18,
+          "provisionMs": 0,
+          "submitMs": 12,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 12,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 4,
+          "longestQuietMs": 2.096,
+          "quietMs": {
+            "git add": 2.096,
+            "git cat-file": 1.196,
+            "git cat-file --batch": 0.889,
+            "git rev-parse": 1.426,
+            "git symbolic-ref": 1.413,
+            "git update-ref": 2.075
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 11,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 8
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 23,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 25,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.861Z",
+          "level": "info",
+          "startMillis": 1794213455819,
+          "pid": 1443028,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "5aacd355-4b49-42a4-8417-b638c39ef407",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 42,
+          "prepareMs": 10,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 15,
+          "provisionMs": 0,
+          "submitMs": 5,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 5,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 8,
+          "longestQuietMs": 2.953,
+          "quietMs": {
+            "git add": 2.953,
+            "git cat-file": 1.222,
+            "git cat-file --batch": 1.154,
+            "git rev-parse": 1.415,
+            "git symbolic-ref": 1.439,
+            "git update-ref": 2.174
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 4
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 11,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 6
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 22,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 24,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.934Z",
+          "level": "info",
+          "startMillis": 1794213455887,
+          "pid": 1443100,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "023a8c44-5f3e-47ec-bef9-8279e63ff40a",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 47,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 17,
+          "provisionMs": 0,
+          "submitMs": 9,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 8,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 2.369,
+          "quietMs": {
+            "git add": 2.369,
+            "git cat-file": 1.62,
+            "git cat-file --batch": 1.168,
+            "git rev-parse": 2.161,
+            "git symbolic-ref": 1.406,
+            "git update-ref": 1.995
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 14,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 22,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 24,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:35.996Z",
+          "level": "info",
+          "startMillis": 1794213455941,
+          "pid": 1443165,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "ac73d0ed-a266-45c7-be11-87ae5a6971c4",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 54,
+          "prepareMs": 13,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 19,
+          "provisionMs": 0,
+          "submitMs": 8,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 8,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 0,
+          "otherMs": 8,
+          "longestQuietMs": 2.62,
+          "quietMs": {
+            "git add": 1.384,
+            "git cat-file": 1.274,
+            "git cat-file --batch": 1.909,
+            "git rev-parse": 1.406,
+            "git symbolic-ref": 2.045,
+            "git update-ref": 2.62
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 5
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 15,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 18,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 20,
+              "durationMs": 9
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 30,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 32,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:36.096Z",
+          "level": "info",
+          "startMillis": 1794213456027,
+          "pid": 1443233,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "e7bdc693-f47e-4ac2-ab86-d9e8ec7ae480",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 68,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 19,
+          "provisionMs": 0,
+          "submitMs": 27,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 26,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 8,
+          "longestQuietMs": 2.386,
+          "quietMs": {
+            "git add": 1.934,
+            "git cat-file": 1.258,
+            "git cat-file --batch": 1.598,
+            "git rev-parse": 1.75,
+            "git symbolic-ref": 2.006,
+            "git update-ref": 2.386
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 11,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 14,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 16,
+              "durationMs": 9
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 25,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 28,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:36.145Z",
+          "level": "info",
+          "startMillis": 1794213456101,
+          "pid": 1443290,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "8a2717bf-7288-4e26-8422-f9c0cad9ca0b",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 44,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 19,
+          "provisionMs": 0,
+          "submitMs": 6,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 6,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 2.82,
+          "quietMs": {
+            "git add": 1.653,
+            "git cat-file": 1.236,
+            "git cat-file --batch": 2.05,
+            "git rev-parse": 1.418,
+            "git symbolic-ref": 1.474,
+            "git update-ref": 2.82
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 3
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 10
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 25,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 27,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:36.211Z",
+          "level": "info",
+          "startMillis": 1794213456168,
+          "pid": 1443345,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "2dcc8d9b-865c-4469-a7bb-bad109f7c79b",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 42,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 15,
+          "provisionMs": 0,
+          "submitMs": 7,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 7,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 8,
+          "longestQuietMs": 1.965,
+          "quietMs": {
+            "git add": 1.775,
+            "git cat-file": 1.245,
+            "git cat-file --batch": 1.246,
+            "git rev-parse": 1.349,
+            "git symbolic-ref": 1.469,
+            "git update-ref": 1.965
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 13,
+              "durationMs": 6
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 20,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 22,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:36.287Z",
+          "level": "info",
+          "startMillis": 1794213456217,
+          "pid": 1443380,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "fa440987-2f59-4fc3-8cbe-b0f706e99abb",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 69,
+          "prepareMs": 15,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 32,
+          "provisionMs": 0,
+          "submitMs": 10,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 10,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 7,
+          "longestQuietMs": 3.496,
+          "quietMs": {
+            "git add": 2.582,
+            "git cat-file": 2.935,
+            "git cat-file --batch": 1.659,
+            "git rev-parse": 1.024,
+            "git symbolic-ref": 2.037,
+            "git update-ref": 3.496
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 17,
+              "durationMs": 3
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 21,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 23,
+              "durationMs": 14
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 38,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 40,
+              "durationMs": 8
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:36.457Z",
+          "level": "info",
+          "startMillis": 1794213456319,
+          "pid": 1443430,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "66858ecb-98cd-431f-b47d-6a0c4aa5bdc7",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 137,
+          "prepareMs": 11,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 19,
+          "provisionMs": 0,
+          "submitMs": 5,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 4,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 98,
+          "longestQuietMs": 2.836,
+          "quietMs": {
+            "git add": 2.253,
+            "git cat-file": 1.253,
+            "git cat-file --batch": 1.169,
+            "git rev-parse": 1.613,
+            "git symbolic-ref": 2.078,
+            "git update-ref": 2.836
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 13,
+              "durationMs": 3
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 16,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 18,
+              "durationMs": 9
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 27,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 29,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:37.505Z",
+          "level": "info",
+          "startMillis": 1794213456462,
+          "pid": 1443496,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "2b26bf2a-5743-4a05-afb3-4081b9a9bae1",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 1043,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 18,
+          "provisionMs": 0,
+          "submitMs": 750,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 750,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 262,
+          "longestQuietMs": 2.209,
+          "quietMs": {
+            "git add": 2.023,
+            "git cat-file": 2.209,
+            "git cat-file --batch": 0.812,
+            "git rev-parse": 1.618,
+            "git symbolic-ref": 1.581,
+            "git update-ref": 1.902
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 12,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 14,
+              "durationMs": 8
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 23,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 25,
+              "durationMs": 2
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:38.671Z",
+          "level": "info",
+          "startMillis": 1794213457534,
+          "pid": 1444033,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "b2b339a1-7d8f-4806-9304-87f928edd94a",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 1137,
+          "prepareMs": 7,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 14,
+          "provisionMs": 0,
+          "submitMs": 1110,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 1110,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 1,
+          "longestQuietMs": 1.768,
+          "quietMs": {
+            "git add": 1.629,
+            "git cat-file": 1.385,
+            "git cat-file --batch": 1.428,
+            "git rev-parse": 1.702,
+            "git symbolic-ref": 1.391,
+            "git update-ref": 1.768
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 8,
+              "durationMs": 1
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 10,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 12,
+              "durationMs": 5
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 18,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 20,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:38.813Z",
+          "level": "info",
+          "startMillis": 1794213458676,
+          "pid": 1444222,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "fb3f253b-c23a-429a-8436-398cce2c0c99",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 137,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 18,
+          "provisionMs": 0,
+          "submitMs": 100,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 99,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 5,
+          "longestQuietMs": 2.497,
+          "quietMs": {
+            "git add": 2.07,
+            "git cat-file": 1.514,
+            "git cat-file --batch": 1.447,
+            "git rev-parse": 1.679,
+            "git symbolic-ref": 2.039,
+            "git update-ref": 2.497
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 11,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 16,
+              "durationMs": 8
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 24,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 26,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:38.927Z",
+          "level": "info",
+          "startMillis": 1794213458843,
+          "pid": 1444360,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "0a7f9ebc-c016-40f7-b27b-14d2fae2d441",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 84,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 17,
+          "provisionMs": 0,
+          "submitMs": 53,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 53,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 1,
+          "longestQuietMs": 2.1,
+          "quietMs": {
+            "git add": 2.062,
+            "git cat-file": 1.207,
+            "git cat-file --batch": 1.196,
+            "git rev-parse": 1.248,
+            "git symbolic-ref": 1.751,
+            "git update-ref": 2.1
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 3
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 11,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 14,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 16,
+              "durationMs": 7
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 23,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 25,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:39.091Z",
+          "level": "info",
+          "startMillis": 1794213458932,
+          "pid": 1444476,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "39ca75db-dc7d-4a2f-ac75-ddf974051116",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 159,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 18,
+          "provisionMs": 0,
+          "submitMs": 126,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 126,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 3,
+          "handoffMs": 0,
+          "otherMs": 1,
+          "longestQuietMs": 2.538,
+          "quietMs": {
+            "git add": 1.649,
+            "git cat-file": 1.516,
+            "git cat-file --batch": 0.821,
+            "git rev-parse": 1.576,
+            "git symbolic-ref": 1.803,
+            "git update-ref": 2.538
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 3
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 8
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 23,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 25,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:39.183Z",
+          "level": "info",
+          "startMillis": 1794213459118,
+          "pid": 1444567,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "3bec0c6e-34c4-4ba3-817c-9c41989f0354",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 64,
+          "prepareMs": 8,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 14,
+          "provisionMs": 0,
+          "submitMs": 37,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 37,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 1,
+          "longestQuietMs": 1.817,
+          "quietMs": {
+            "git add": 1.618,
+            "git cat-file": 1.338,
+            "git cat-file --batch": 1.139,
+            "git rev-parse": 1.444,
+            "git symbolic-ref": 1.56,
+            "git update-ref": 1.817
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 1,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 9,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 11,
+              "durationMs": 1
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 13,
+              "durationMs": 6
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 19,
+              "durationMs": 1
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 21,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        },
+        {
+          "schemaVersion": 1,
+          "time": "2026-11-09T08:37:39.233Z",
+          "level": "info",
+          "startMillis": 1794213459188,
+          "pid": 1444595,
+          "release": "0.6.1-alpha.5",
+          "instance": "059f7105372419f9818b51a1d2c51664",
+          "gitDir": "/var/mnt/encrypted/temp/agent/native-perf-3lNgra/wrapped-signed-repo/.git",
+          "requestId": "9909b866-24e3-465c-a075-af80b181d424",
+          "branch": "refs/heads/main",
+          "outcome": "landed",
+          "exitCode": 0,
+          "totalMs": 44,
+          "prepareMs": 9,
+          "attempts": 1,
+          "indexBuilds": [
+            {
+              "kind": "first",
+              "statDataKept": true
+            }
+          ],
+          "buildMs": 23,
+          "provisionMs": 0,
+          "submitMs": 7,
+          "sends": 1,
+          "reachMs": 0,
+          "connectTries": 1,
+          "refusedConnects": 0,
+          "startWaitMs": 0,
+          "updateRounds": 0,
+          "releasesSeen": [
+            "0.6.1-alpha.5"
+          ],
+          "answeredByRelease": "0.6.1-alpha.5",
+          "answerWaitMs": 7,
+          "positions": [],
+          "waitingNotices": 0,
+          "lockHolderKind": null,
+          "reconnects": 0,
+          "afterLandingMs": 0,
+          "gateMs": 2,
+          "handoffMs": 0,
+          "otherMs": 1,
+          "longestQuietMs": 2.184,
+          "quietMs": {
+            "git add": 1.806,
+            "git cat-file": 1.508,
+            "git cat-file --batch": 1.326,
+            "git rev-parse": 1.96,
+            "git symbolic-ref": 2.029,
+            "git update-ref": 2.184
+          },
+          "steps": [
+            {
+              "name": "git add",
+              "offsetMs": 2,
+              "durationMs": 2
+            },
+            {
+              "name": "git update-ref",
+              "offsetMs": 10,
+              "durationMs": 2
+            },
+            {
+              "name": "git symbolic-ref",
+              "offsetMs": 13,
+              "durationMs": 2
+            },
+            {
+              "name": "git commit",
+              "offsetMs": 15,
+              "durationMs": 12
+            },
+            {
+              "name": "git rev-parse",
+              "offsetMs": 28,
+              "durationMs": 2
+            },
+            {
+              "name": "git cat-file",
+              "offsetMs": 31,
+              "durationMs": 1
+            }
+          ],
+          "stepsDropped": 0
+        }
+      ]
+    },
+    "serviceLandings": [
+      "monochromatic-git-policy-cli-service: answered request=\"0b76fdb6-3ef4-4202-a936-57a2dd619949\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000130 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=cold lock_place_ms=0 lock_hold_ms=12 reads_ms=2 objects_ms=4 journal_ms=0 ref_ms=11 index_update_ms=0 attempts=1 landing_ms=19 answer_ms=0 total_ms=19 quiet_ms=3.527 quiet_steps=\"git fast-import=3.527;git update-ref=2.043\" steps=\"git fast-import@2+3;git update-ref@16+2\" steps_dropped=0 at_ms=1794213424352",
+      "monochromatic-git-policy-cli-service: answered request=\"ca335a1a-c13f-403f-b5ec-3b2ee22f1d16\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000131 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=4072 lock_stage_ms=4070 lock_stage_kind=pre lock_place_ms=1 lock_hold_ms=55 reads_ms=7 objects_ms=5 journal_ms=0 ref_ms=44 index_update_ms=6 attempts=1 landing_ms=4136 answer_ms=0 total_ms=4137 quiet_ms=26.437 quiet_steps=\"git config=1.035;git fast-import=4.582;git maintenance=1.202;git rev-parse=1.500;git update-ref=26.437\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@4094+27\" steps_dropped=0 at_ms=1794213434531",
+      "monochromatic-git-policy-cli-service: answered request=\"fd399477-cdba-418a-92f5-a804c290c7df\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000132 size=1 position=1 read_ms=0 queued_ms=5 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=69 reads_ms=10 objects_ms=35 journal_ms=4 ref_ms=40 index_update_ms=26 attempts=1 landing_ms=117 answer_ms=0 total_ms=124 quiet_ms=32.159 quiet_steps=\"git config=1.024;git fast-import=26.665;git maintenance=4.530;git rev-parse=1.116;git update-ref=32.159\" steps=\"git config@0+1;git maintenance@0+4;git fast-import@8+27;git update-ref@54+32\" steps_dropped=0 at_ms=1794213435021",
+      "monochromatic-git-policy-cli-service: answered request=\"d327cdf9-5458-4e9d-b6fe-be231824be78\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000133 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=520 lock_stage_ms=465 lock_stage_kind=pre lock_place_ms=53 lock_hold_ms=31 reads_ms=3 objects_ms=21 journal_ms=1 ref_ms=21 index_update_ms=9 attempts=1 landing_ms=576 answer_ms=0 total_ms=579 quiet_ms=17.404 quiet_steps=\"git config=1.141;git fast-import=13.710;git maintenance=4.283;git rev-parse=1.796;git update-ref=17.404\" steps=\"git config@0+1;git maintenance@0+4;git fast-import@5+14;git update-ref@549+17\" steps_dropped=0 at_ms=1794213435653",
+      "monochromatic-git-policy-cli-service: answered request=\"9289d41a-4321-46e5-ad69-7f8cfe72fa2f\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000134 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=130 lock_stage_ms=125 lock_stage_kind=pre lock_place_ms=2 lock_hold_ms=32 reads_ms=1 objects_ms=5 journal_ms=0 ref_ms=23 index_update_ms=8 attempts=1 landing_ms=169 answer_ms=0 total_ms=169 quiet_ms=18.262 quiet_steps=\"git config=1.072;git fast-import=4.352;git maintenance=0.117;git rev-parse=1.401;git update-ref=18.262\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@137+22\" steps_dropped=0 at_ms=1794213435906",
+      "monochromatic-git-policy-cli-service: answered request=\"6321e850-ec06-4ea6-ae02-94a437e82076\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000135 size=1 position=1 read_ms=0 queued_ms=7 settle_ms=0 lock_wait_ms=1 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=55 reads_ms=5 objects_ms=24 journal_ms=0 ref_ms=47 index_update_ms=7 attempts=1 landing_ms=87 answer_ms=0 total_ms=95 quiet_ms=20.090 quiet_steps=\"git config=0.035;git fast-import=20.090;git maintenance=4.931;git rev-parse=0.983;git update-ref=12.028\" steps=\"git config@0+1;git maintenance@0+5;git fast-import@9+20;git update-ref@68+12\" steps_dropped=0 at_ms=1794213436052",
+      "monochromatic-git-policy-cli-service: answered request=\"f61a5f77-6258-4db6-a6da-e89b02869116\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000136 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=2 lock_wait_ms=58 lock_stage_ms=55 lock_stage_kind=pre lock_place_ms=1 lock_hold_ms=56 reads_ms=27 objects_ms=11 journal_ms=0 ref_ms=27 index_update_ms=2 attempts=1 landing_ms=128 answer_ms=0 total_ms=133 quiet_ms=21.856 quiet_steps=\"git config=0.910;git fast-import=9.331;git maintenance=5.645;git rev-parse=1.035;git update-ref=21.856\" steps=\"git config@0+1;git maintenance@0+5;git fast-import@6+9;git update-ref@104+25\" steps_dropped=0 at_ms=1794213436267",
+      "monochromatic-git-policy-cli-service: answered request=\"67a673c2-7e7d-4d31-8f00-4f6f493bc0bb\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000137 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=301 lock_stage_ms=300 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=6 reads_ms=1 objects_ms=5 journal_ms=0 ref_ms=5 index_update_ms=0 attempts=1 landing_ms=315 answer_ms=0 total_ms=315 quiet_ms=4.492 quiet_steps=\"git config=1.032;git fast-import=4.492;git maintenance=1.395;git rev-parse=0.250;git update-ref=4.229\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@309+5\" steps_dropped=0 at_ms=1794213436619",
+      "monochromatic-git-policy-cli-service: answered request=\"c5ffc81f-acff-4c08-bf31-d6abbea52445\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000138 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=9 reads_ms=0 objects_ms=7 journal_ms=0 ref_ms=6 index_update_ms=2 attempts=1 landing_ms=17 answer_ms=0 total_ms=17 quiet_ms=6.308 quiet_steps=\"git config=0.887;git fast-import=6.263;git maintenance=1.157;git rev-parse=1.583;git update-ref=6.308\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+6;git update-ref@8+6\" steps_dropped=0 at_ms=1794213436682",
+      "monochromatic-git-policy-cli-service: answered request=\"a6a9fdc3-a3ee-4d21-8946-a60815f4322f\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000139 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=69 lock_stage_ms=68 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=0 attempts=1 landing_ms=79 answer_ms=0 total_ms=80 quiet_ms=3.483 quiet_steps=\"git config=0.873;git fast-import=3.483;git maintenance=1.374;git rev-parse=0.962;git update-ref=2.864\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+3;git update-ref@75+3\" steps_dropped=0 at_ms=1794213436787",
+      "monochromatic-git-policy-cli-service: answered request=\"13c5874b-05f9-46bc-bca2-1bc7b1d7d050\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000140 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=26 lock_stage_ms=26 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=8 reads_ms=1 objects_ms=5 journal_ms=0 ref_ms=6 index_update_ms=1 attempts=1 landing_ms=42 answer_ms=0 total_ms=42 quiet_ms=6.001 quiet_steps=\"git config=0.559;git fast-import=4.427;git maintenance=1.448;git rev-parse=1.135;git update-ref=6.001\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+5;git update-ref@34+6\" steps_dropped=0 at_ms=1794213436873",
+      "monochromatic-git-policy-cli-service: answered request=\"bacd6db7-aa74-4900-8c78-8ca4066b7a45\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000141 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=24 lock_stage_ms=24 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=6 reads_ms=1 objects_ms=7 journal_ms=0 ref_ms=5 index_update_ms=1 attempts=1 landing_ms=40 answer_ms=0 total_ms=40 quiet_ms=6.896 quiet_steps=\"git config=1.661;git fast-import=6.896;git maintenance=1.103;git rev-parse=1.082;git update-ref=4.313\" steps=\"git config@0+2;git maintenance@0+3;git fast-import@1+7;git update-ref@34+4\" steps_dropped=0 at_ms=1794213436952",
+      "monochromatic-git-policy-cli-service: answered request=\"c91bb029-25d9-48dc-8de6-d25f8a29bce0\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000142 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=11 lock_stage_ms=11 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=8 journal_ms=0 ref_ms=3 index_update_ms=0 attempts=1 landing_ms=25 answer_ms=0 total_ms=25 quiet_ms=7.296 quiet_steps=\"git config=0.895;git fast-import=7.296;git maintenance=2.039;git rev-parse=1.337;git update-ref=2.687\" steps=\"git config@0+1;git maintenance@0+2;git fast-import@1+7;git update-ref@21+2\" steps_dropped=0 at_ms=1794213437029",
+      "monochromatic-git-policy-cli-service: answered request=\"85c6f2d5-2087-4e46-9db4-2a49ab642f30\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000143 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=25 lock_stage_ms=25 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=36 answer_ms=0 total_ms=37 quiet_ms=4.225 quiet_steps=\"git config=0.911;git fast-import=4.225;git maintenance=1.248;git rev-parse=0.874;git update-ref=2.855\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@32+3\" steps_dropped=0 at_ms=1794213437089",
+      "monochromatic-git-policy-cli-service: answered request=\"9810c05b-62db-44f3-8cb6-1b3dd43a1b36\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000144 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=6 reads_ms=0 objects_ms=7 journal_ms=0 ref_ms=4 index_update_ms=2 attempts=1 landing_ms=14 answer_ms=0 total_ms=15 quiet_ms=6.267 quiet_steps=\"git config=0.816;git fast-import=6.267;git maintenance=1.301;git rev-parse=1.440;git update-ref=3.542\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+6;git update-ref@8+3\" steps_dropped=0 at_ms=1794213437143",
+      "monochromatic-git-policy-cli-service: answered request=\"ca5019f2-3db9-4718-bdbf-8820213130ad\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000145 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=10 lock_stage_ms=10 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=1 objects_ms=5 journal_ms=0 ref_ms=4 index_update_ms=1 attempts=1 landing_ms=23 answer_ms=0 total_ms=23 quiet_ms=4.470 quiet_steps=\"git config=1.207;git fast-import=4.470;git maintenance=2.970;git rev-parse=1.191;git update-ref=4.056\" steps=\"git config@0+1;git maintenance@0+3;git fast-import@1+4;git update-ref@17+4\" steps_dropped=0 at_ms=1794213437198",
+      "monochromatic-git-policy-cli-service: answered request=\"66bc2ad4-a395-48f0-a606-9ad70e84effa\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000146 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=8 lock_stage_ms=7 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=17 answer_ms=0 total_ms=18 quiet_ms=3.835 quiet_steps=\"git config=0.801;git fast-import=3.835;git maintenance=1.710;git rev-parse=1.047;git update-ref=2.512\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@14+2\" steps_dropped=0 at_ms=1794213437260",
+      "monochromatic-git-policy-cli-service: answered request=\"97a5cffc-65bb-4e02-aa38-12d6e16feea0\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000147 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=16 lock_stage_ms=15 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=6 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=27 answer_ms=0 total_ms=28 quiet_ms=5.773 quiet_steps=\"git config=1.097;git fast-import=5.773;git maintenance=1.412;git rev-parse=1.404;git update-ref=2.445\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+6;git update-ref@24+2\" steps_dropped=0 at_ms=1794213437310",
+      "monochromatic-git-policy-cli-service: answered request=\"99fb691e-1f10-45f8-bd32-e0858f85c84a\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000148 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=14 lock_stage_ms=14 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=6 reads_ms=1 objects_ms=4 journal_ms=0 ref_ms=4 index_update_ms=1 attempts=1 landing_ms=25 answer_ms=0 total_ms=25 quiet_ms=3.655 quiet_steps=\"git config=1.491;git fast-import=3.540;git maintenance=1.929;git rev-parse=1.170;git update-ref=3.655\" steps=\"git config@0+1;git maintenance@0+2;git fast-import@1+3;git update-ref@19+3\" steps_dropped=0 at_ms=1794213437380",
+      "monochromatic-git-policy-cli-service: answered request=\"f9804576-9a0e-4911-a376-a29fe81f525d\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000149 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=36 lock_stage_ms=30 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=1 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=47 answer_ms=0 total_ms=47 quiet_ms=3.836 quiet_steps=\"git config=0.702;git fast-import=3.836;git maintenance=1.231;git rev-parse=0.905;git update-ref=3.044\" steps=\"git config@0+0;git maintenance@0+1;git fast-import@1+4;git update-ref@42+3\" steps_dropped=0 at_ms=1794213437452",
+      "monochromatic-git-policy-cli-service: answered request=\"d6a5635a-d271-4dd2-9f4b-e7dd6a4c804e\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000150 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=5 lock_stage_ms=4 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=15 answer_ms=0 total_ms=16 quiet_ms=3.564 quiet_steps=\"git config=0.740;git fast-import=3.564;git maintenance=1.775;git rev-parse=1.087;git update-ref=2.556\" steps=\"git config@0+0;git maintenance@0+1;git fast-import@1+3;git update-ref@11+2\" steps_dropped=0 at_ms=1794213437510",
+      "monochromatic-git-policy-cli-service: answered request=\"3ebd8d4f-7d43-44f6-b1d9-deb489ce64cc\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000151 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=36 lock_stage_ms=36 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=0 objects_ms=4 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=45 answer_ms=0 total_ms=45 quiet_ms=3.720 quiet_steps=\"git config=0.853;git fast-import=3.720;git maintenance=1.184;git rev-parse=1.096;git update-ref=2.318\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+3;git update-ref@42+2\" steps_dropped=0 at_ms=1794213437577",
+      "monochromatic-git-policy-cli-service: answered request=\"c59bb40c-c7f9-4373-97ba-c1bc420a5557\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000152 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=6 journal_ms=0 ref_ms=3 index_update_ms=0 attempts=1 landing_ms=11 answer_ms=0 total_ms=11 quiet_ms=4.265 quiet_steps=\"git config=0.990;git fast-import=4.265;git maintenance=1.409;git rev-parse=1.151;git update-ref=2.599\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@7+2\" steps_dropped=0 at_ms=1794213437631",
+      "monochromatic-git-policy-cli-service: answered request=\"275d38e9-dc3f-42c1-8edc-78392d741e46\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000153 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=15 lock_stage_ms=12 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=5 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=26 answer_ms=0 total_ms=26 quiet_ms=4.240 quiet_steps=\"git config=1.058;git fast-import=4.240;git maintenance=1.620;git rev-parse=1.246;git update-ref=2.565\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@22+2\" steps_dropped=0 at_ms=1794213437685",
+      "monochromatic-git-policy-cli-service: answered request=\"bb1bb5ef-5ed8-4ecf-a3cb-e3e71469ae44\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000154 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=8 lock_stage_ms=8 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=18 answer_ms=0 total_ms=19 quiet_ms=3.797 quiet_steps=\"git config=1.229;git fast-import=3.797;git maintenance=1.742;git rev-parse=1.210;git update-ref=2.712\" steps=\"git config@0+1;git maintenance@0+2;git fast-import@1+4;git update-ref@14+2\" steps_dropped=0 at_ms=1794213437749",
+      "monochromatic-git-policy-cli-service: answered request=\"df262e91-b0a9-4e76-8646-1b3c5167ff14\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000155 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=16 lock_stage_ms=16 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=5 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=27 answer_ms=0 total_ms=27 quiet_ms=3.871 quiet_steps=\"git config=1.046;git fast-import=3.871;git maintenance=2.634;git rev-parse=1.264;git update-ref=2.693\" steps=\"git config@0+1;git maintenance@0+2;git fast-import@1+4;git update-ref@23+2\" steps_dropped=0 at_ms=1794213437803",
+      "monochromatic-git-policy-cli-service: answered request=\"2a5fc9a5-01cf-4580-9f02-2debf7ecddc6\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000156 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=6 reads_ms=2 objects_ms=5 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=12 answer_ms=0 total_ms=13 quiet_ms=4.172 quiet_steps=\"git config=1.016;git fast-import=4.172;git maintenance=1.538;git rev-parse=0.985;git update-ref=3.294\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@7+3\" steps_dropped=0 at_ms=1794213437858",
+      "monochromatic-git-policy-cli-service: answered request=\"9bb7771f-f30e-4ac7-ae8a-d3334d38d515\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000157 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=29 lock_stage_ms=28 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=1 objects_ms=4 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=39 answer_ms=0 total_ms=40 quiet_ms=3.972 quiet_steps=\"git config=1.189;git fast-import=3.972;git maintenance=1.416;git rev-parse=1.070;git update-ref=2.926\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@1+4;git update-ref@35+3\" steps_dropped=0 at_ms=1794213437928",
+      "monochromatic-git-policy-cli-service: answered request=\"634cc16e-633a-49da-9d81-7f8f2d81d967\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000158 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=527 lock_stage_ms=524 lock_stage_kind=pre lock_place_ms=2 lock_hold_ms=6 reads_ms=1 objects_ms=8 journal_ms=0 ref_ms=4 index_update_ms=1 attempts=1 landing_ms=543 answer_ms=0 total_ms=544 quiet_ms=7.818 quiet_steps=\"git config=1.116;git fast-import=7.818;git maintenance=2.099;git rev-parse=1.019;git update-ref=2.896\" steps=\"git config@0+1;git maintenance@0+2;git fast-import@1+8;git update-ref@538+3\" steps_dropped=0 at_ms=1794213438601",
+      "monochromatic-git-policy-cli-service: answered request=\"aee58a0f-8790-40aa-b07e-e59e4baeaf84\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000159 size=1 position=1 read_ms=0 queued_ms=1 settle_ms=0 lock_wait_ms=1870 lock_stage_ms=1868 lock_stage_kind=pre lock_place_ms=1 lock_hold_ms=4 reads_ms=0 objects_ms=5 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=1881 answer_ms=0 total_ms=1882 quiet_ms=4.839 quiet_steps=\"git config=1.454;git fast-import=4.839;git maintenance=1.332;git rev-parse=1.020;git update-ref=2.225\" steps=\"git config@0+1;git maintenance@0+1;git fast-import@2+5;git update-ref@1879+2\" steps_dropped=0 at_ms=1794213443244",
+      "monochromatic-git-policy-cli-service: answered request=\"a7d16aa5-ac6a-4ee4-a4a5-44773fd0f3f4\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000648 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=cold lock_place_ms=0 lock_hold_ms=6 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=4 index_update_ms=1 attempts=1 landing_ms=8 answer_ms=0 total_ms=8 quiet_ms=3.455 quiet_steps=\"git update-ref=3.455\" steps=\"git update-ref@2+4\" steps_dropped=0 at_ms=1794213443468",
+      "monochromatic-git-policy-cli-service: answered request=\"3afff810-cc51-418c-b45c-c7893b41a7c3\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000649 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=6127 lock_stage_ms=6127 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=15 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=5 index_update_ms=9 attempts=1 landing_ms=6144 answer_ms=0 total_ms=6144 quiet_ms=24.061 quiet_steps=\"git config=1.637;git maintenance=24.061;git rev-parse=1.062;git update-ref=3.746\" steps=\"git config@0+3;git maintenance@0+24;git update-ref@6129+4\" steps_dropped=0 at_ms=1794213449705",
+      "monochromatic-git-policy-cli-service: answered request=\"eb4fc863-ae86-4934-9ad3-e572f747ee52\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000650 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=3808 lock_stage_ms=3808 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=3813 answer_ms=0 total_ms=3814 quiet_ms=2.026 quiet_steps=\"git config=1.069;git maintenance=1.625;git rev-parse=1.542;git update-ref=2.026\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@3811+2\" steps_dropped=0 at_ms=1794213453760",
+      "monochromatic-git-policy-cli-service: answered request=\"0b26e9bb-200d-4fb1-9b89-1f16fd49ac7e\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000651 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=577 lock_stage_ms=576 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=1 objects_ms=1 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=585 answer_ms=0 total_ms=585 quiet_ms=2.932 quiet_steps=\"git config=0.723;git maintenance=1.134;git rev-parse=0.797;git update-ref=2.932\" steps=\"git config@0+0;git maintenance@0+1;git update-ref@580+3\" steps_dropped=0 at_ms=1794213454709",
+      "monochromatic-git-policy-cli-service: answered request=\"04386b28-cf8e-4c6f-b96e-26516b6ed2ea\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000652 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=273 lock_stage_ms=269 lock_stage_kind=pre lock_place_ms=4 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=279 answer_ms=0 total_ms=280 quiet_ms=3.165 quiet_steps=\"git config=0.960;git maintenance=1.292;git rev-parse=3.165;git update-ref=1.698\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@275+3\" steps_dropped=0 at_ms=1794213455083",
+      "monochromatic-git-policy-cli-service: answered request=\"d041283c-907c-4534-a808-621d73617e21\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000653 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=108 lock_stage_ms=108 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=113 answer_ms=0 total_ms=114 quiet_ms=2.145 quiet_steps=\"git config=1.085;git maintenance=1.325;git rev-parse=0.947;git update-ref=2.145\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@110+2\" steps_dropped=0 at_ms=1794213455230",
+      "monochromatic-git-policy-cli-service: answered request=\"f4b83c16-7fe4-4450-94ed-a1ef62625145\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000654 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=4 answer_ms=0 total_ms=5 quiet_ms=2.033 quiet_steps=\"git config=1.127;git maintenance=1.583;git rev-parse=1.076;git update-ref=2.033\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@1+2\" steps_dropped=0 at_ms=1794213455302",
+      "monochromatic-git-policy-cli-service: answered request=\"8d64597d-01ea-4aa7-be30-c2d3a641ed08\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000655 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=16 lock_stage_ms=16 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=21 answer_ms=0 total_ms=21 quiet_ms=2.107 quiet_steps=\"git config=0.965;git maintenance=1.171;git rev-parse=1.169;git update-ref=2.107\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@18+2\" steps_dropped=0 at_ms=1794213455365",
+      "monochromatic-git-policy-cli-service: answered request=\"f9ac3daa-9a6c-4ed1-a806-8fea8afe3dd3\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000656 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=4 answer_ms=0 total_ms=5 quiet_ms=2.273 quiet_steps=\"git config=0.784;git maintenance=1.809;git rev-parse=0.874;git update-ref=2.273\" steps=\"git config@0+0;git maintenance@0+2;git update-ref@1+2\" steps_dropped=0 at_ms=1794213455432",
+      "monochromatic-git-policy-cli-service: answered request=\"b74280eb-7c3a-4bd5-8413-91728f45cd21\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000657 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=6 answer_ms=0 total_ms=6 quiet_ms=2.405 quiet_steps=\"git config=1.118;git maintenance=1.277;git rev-parse=1.108;git update-ref=2.405\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@2+2\" steps_dropped=0 at_ms=1794213455483",
+      "monochromatic-git-policy-cli-service: answered request=\"e2e1ef9c-3a60-48e6-b776-aa75195bf0ab\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000658 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=6 answer_ms=0 total_ms=6 quiet_ms=2.790 quiet_steps=\"git config=2.111;git maintenance=1.446;git rev-parse=1.070;git update-ref=2.790\" steps=\"git config@0+2;git maintenance@0+2;git update-ref@2+3\" steps_dropped=0 at_ms=1794213455556",
+      "monochromatic-git-policy-cli-service: answered request=\"1517a4a7-956c-4ee8-a497-931347feaf8e\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000659 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=2 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=7 answer_ms=0 total_ms=8 quiet_ms=2.405 quiet_steps=\"git config=1.002;git maintenance=1.397;git rev-parse=1.640;git update-ref=2.405\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@4+2\" steps_dropped=0 at_ms=1794213455613",
+      "monochromatic-git-policy-cli-service: answered request=\"c4ee2cf9-fd64-404b-923c-a19c3cfb13d4\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000660 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=5 answer_ms=0 total_ms=5 quiet_ms=2.215 quiet_steps=\"git config=1.058;git maintenance=1.296;git rev-parse=0.801;git update-ref=2.215\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@2+2\" steps_dropped=0 at_ms=1794213455685",
+      "monochromatic-git-policy-cli-service: answered request=\"795c517e-bd3c-4747-b0cc-349068186d44\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000661 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=6 answer_ms=0 total_ms=6 quiet_ms=3.066 quiet_steps=\"git config=0.968;git maintenance=1.664;git rev-parse=1.090;git update-ref=3.066\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@2+3\" steps_dropped=0 at_ms=1794213455727",
+      "monochromatic-git-policy-cli-service: answered request=\"a9b4db5c-4f0f-4ecf-88e5-37025749a7b5\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000662 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=4 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=11 answer_ms=0 total_ms=11 quiet_ms=3.046 quiet_steps=\"git config=1.345;git maintenance=1.775;git rev-parse=1.058;git update-ref=3.046\" steps=\"git config@0+1;git maintenance@0+2;git update-ref@7+3\" steps_dropped=0 at_ms=1794213455805",
+      "monochromatic-git-policy-cli-service: answered request=\"5aacd355-4b49-42a4-8417-b638c39ef407\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000663 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=5 answer_ms=0 total_ms=5 quiet_ms=2.287 quiet_steps=\"git config=1.284;git maintenance=1.982;git rev-parse=1.077;git update-ref=2.287\" steps=\"git config@0+1;git maintenance@0+2;git update-ref@1+2\" steps_dropped=0 at_ms=1794213455850",
+      "monochromatic-git-policy-cli-service: answered request=\"023a8c44-5f3e-47ec-bef9-8279e63ff40a\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000664 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=6 answer_ms=0 total_ms=7 quiet_ms=2.004 quiet_steps=\"git config=1.268;git maintenance=1.696;git rev-parse=0.976;git update-ref=2.004\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@3+2\" steps_dropped=0 at_ms=1794213455923",
+      "monochromatic-git-policy-cli-service: answered request=\"ac73d0ed-a266-45c7-be11-87ae5a6971c4\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000665 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=2 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=7 answer_ms=0 total_ms=8 quiet_ms=2.349 quiet_steps=\"git config=1.288;git maintenance=2.349;git rev-parse=1.062;git update-ref=0.983\" steps=\"git config@0+1;git maintenance@0+2;git update-ref@4+2\" steps_dropped=0 at_ms=1794213455983",
+      "monochromatic-git-policy-cli-service: answered request=\"e7bdc693-f47e-4ac2-ab86-d9e8ec7ae480\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000666 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=19 lock_stage_ms=12 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=26 answer_ms=0 total_ms=26 quiet_ms=3.049 quiet_steps=\"git config=0.048;git maintenance=2.068;git rev-parse=2.491;git update-ref=3.049\" steps=\"git config@0+2;git maintenance@0+2;git update-ref@21+3\" steps_dropped=0 at_ms=1794213456084",
+      "monochromatic-git-policy-cli-service: answered request=\"8a2717bf-7288-4e26-8422-f9c0cad9ca0b\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000667 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=5 answer_ms=0 total_ms=6 quiet_ms=2.236 quiet_steps=\"git config=0.837;git maintenance=1.238;git rev-parse=0.983;git update-ref=2.236\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@2+2\" steps_dropped=0 at_ms=1794213456136",
+      "monochromatic-git-policy-cli-service: answered request=\"2dcc8d9b-865c-4469-a7bb-bad109f7c79b\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000668 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=2 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=0 attempts=1 landing_ms=7 answer_ms=0 total_ms=7 quiet_ms=2.324 quiet_steps=\"git config=0.989;git maintenance=1.375;git rev-parse=0.949;git update-ref=2.324\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@2+2\" steps_dropped=0 at_ms=1794213456200",
+      "monochromatic-git-policy-cli-service: answered request=\"fa440987-2f59-4fc3-8cbe-b0f706e99abb\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000669 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=3 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=10 answer_ms=0 total_ms=10 quiet_ms=2.384 quiet_steps=\"git config=1.739;git maintenance=1.627;git rev-parse=1.346;git update-ref=2.384\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@6+2\" steps_dropped=0 at_ms=1794213456277",
+      "monochromatic-git-policy-cli-service: answered request=\"66858ecb-98cd-431f-b47d-6a0c4aa5bdc7\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000670 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=4 answer_ms=0 total_ms=4 quiet_ms=3.394 quiet_steps=\"git config=3.394;git maintenance=1.923;git rev-parse=1.139;git update-ref=2.021\" steps=\"git config@0+3;git maintenance@0+2;git update-ref@1+2\" steps_dropped=0 at_ms=1794213456356",
+      "monochromatic-git-policy-cli-service: answered request=\"2b26bf2a-5743-4a05-afb3-4081b9a9bae1\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000671 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=744 lock_stage_ms=743 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=3 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=0 attempts=1 landing_ms=749 answer_ms=0 total_ms=750 quiet_ms=1.857 quiet_steps=\"git config=0.944;git maintenance=1.609;git rev-parse=1.032;git update-ref=1.857\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@746+2\" steps_dropped=0 at_ms=1794213457241",
+      "monochromatic-git-policy-cli-service: answered request=\"b2b339a1-7d8f-4806-9304-87f928edd94a\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000672 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=1083 lock_stage_ms=1083 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=24 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=21 attempts=1 landing_ms=1109 answer_ms=0 total_ms=1110 quiet_ms=2.001 quiet_steps=\"git config=1.076;git maintenance=1.318;git rev-parse=0.821;git update-ref=2.001\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@1085+2\" steps_dropped=0 at_ms=1794213458666",
+      "monochromatic-git-policy-cli-service: answered request=\"fb3f253b-c23a-429a-8436-398cce2c0c99\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000673 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=93 lock_stage_ms=91 lock_stage_kind=pre lock_place_ms=1 lock_hold_ms=4 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=2 index_update_ms=1 attempts=1 landing_ms=99 answer_ms=0 total_ms=99 quiet_ms=2.273 quiet_steps=\"git config=1.055;git maintenance=1.403;git rev-parse=1.262;git update-ref=2.273\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@95+2\" steps_dropped=0 at_ms=1794213458805",
+      "monochromatic-git-policy-cli-service: answered request=\"0a7f9ebc-c016-40f7-b27b-14d2fae2d441\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000674 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=47 lock_stage_ms=46 lock_stage_kind=pre lock_place_ms=1 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=53 answer_ms=0 total_ms=53 quiet_ms=2.473 quiet_steps=\"git config=2.157;git maintenance=1.566;git rev-parse=1.050;git update-ref=2.473\" steps=\"git config@0+2;git maintenance@0+1;git update-ref@49+2\" steps_dropped=0 at_ms=1794213458924",
+      "monochromatic-git-policy-cli-service: answered request=\"39ca75db-dc7d-4a2f-ac75-ddf974051116\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000675 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=113 lock_stage_ms=113 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=10 reads_ms=1 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=6 attempts=1 landing_ms=125 answer_ms=0 total_ms=125 quiet_ms=2.744 quiet_steps=\"git config=1.170;git maintenance=1.342;git rev-parse=0.997;git update-ref=2.744\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@115+3\" steps_dropped=0 at_ms=1794213459085",
+      "monochromatic-git-policy-cli-service: answered request=\"3bec0c6e-34c4-4ba3-817c-9c41989f0354\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000676 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=31 lock_stage_ms=31 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=4 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=37 answer_ms=0 total_ms=37 quiet_ms=2.779 quiet_steps=\"git config=1.403;git maintenance=1.603;git rev-parse=2.536;git update-ref=2.779\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@33+3\" steps_dropped=0 at_ms=1794213459179",
+      "monochromatic-git-policy-cli-service: answered request=\"9909b866-24e3-465c-a075-af80b181d424\" branch=\"refs/heads/main\" outcome=landed batch=1794213423000677 size=1 position=1 read_ms=0 queued_ms=0 settle_ms=0 lock_wait_ms=0 lock_stage_ms=0 lock_stage_kind=pre lock_place_ms=0 lock_hold_ms=5 reads_ms=0 objects_ms=0 journal_ms=0 ref_ms=3 index_update_ms=1 attempts=1 landing_ms=6 answer_ms=0 total_ms=7 quiet_ms=2.862 quiet_steps=\"git config=1.269;git maintenance=1.298;git rev-parse=1.524;git update-ref=2.862\" steps=\"git config@0+1;git maintenance@0+1;git update-ref@2+3\" steps_dropped=0 at_ms=1794213459228"
+    ]
+  }
+}

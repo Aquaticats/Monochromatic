@@ -26,6 +26,9 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12")) },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
         ClientFailure::ServiceSilent,
+        ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Made },
+        ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::NotMade },
+        ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Unread },
         ClientFailure::StepTooSlow,
         ClientFailure::StillWithService { minutes: 20, blocker: Some(String::from("a landing behind another program's index lock")) },
         ClientFailure::StillWithService { minutes: 20, blocker: None },
@@ -59,6 +62,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::RepositoryReadOnly(_) => 6,
         ClientFailure::BranchKeepsChanging { .. } => 7,
         ClientFailure::ServiceSilent => 8,
+        ClientFailure::ServiceSilentAfterPreparing { .. } => 24,
         ClientFailure::Refused => 9,
         ClientFailure::IndexInUse(_) => 10,
         ClientFailure::Unavailable => 11,
@@ -209,7 +213,14 @@ fn messages_quote_their_constants_and_facts() {
 fn only_the_unsure_failure_does_not_claim_nothing_changed() {
     for failure in samples() {
         let claims: bool = render(&failure).contains(NOTHING_CHANGED);
-        let may_have_landed: bool = matches!(failure, ClientFailure::MayNotHaveLanded | ClientFailure::ServiceSilent | ClientFailure::WithdrawalUnconfirmed { .. } | ClientFailure::WorkNotHandedOver(_));
+        let may_have_landed: bool = matches!(
+            failure,
+            ClientFailure::MayNotHaveLanded
+                | ClientFailure::ServiceSilent
+                | ClientFailure::ServiceSilentAfterPreparing { .. }
+                | ClientFailure::WithdrawalUnconfirmed { .. }
+                | ClientFailure::WorkNotHandedOver(_)
+        );
         assert_eq!(!claims, may_have_landed, "{failure:?}");
     }
 }

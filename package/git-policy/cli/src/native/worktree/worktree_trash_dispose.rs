@@ -193,15 +193,16 @@ pub fn dispose_pending_trash_with(real_git: &Path, destination: &Path, git_dir: 
 /// instead of waiting out the start for a socket
 /// that nothing will ever create.
 fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &TrashManifest, notices: &mut dyn Write, reach: &Reach<'_>) -> Handed {
-    // A record spells a path as text. A path that is not text cannot be spelled, and a lossy spelling would name another place.
+    // A path that is not text is left to the emptying here: the wake message to the service still spells a Git directory
+    //  as text, so a record alone cannot reach it.
     let (Some(repository), Some(git_dir_text)) = (destination.to_str(), git_dir.to_str()) else {
         debug(TAG, format!("{} or its administrative directory is not valid UTF-8, so no work item can name it", destination.display()).as_str());
         return Handed::Here { record: None, why: String::from("the path of the worktree is not valid UTF-8, so a work item cannot name it") };
     };
     let item: WorkItem = WorkItem {
         kind: WorkKind::Trash,
-        repository: repository.to_string(),
-        git_dir: git_dir_text.to_string(),
+        repository: PathBuf::from(repository),
+        git_dir: PathBuf::from(git_dir_text),
         branch_ref: String::from(TRASH_REFERENCE),
         oid: manifest.name.clone(),
         parent: manifest.encode(),
@@ -228,6 +229,7 @@ fn hand_over(real_git: &Path, destination: &Path, git_dir: &Path, manifest: &Tra
         heartbeat_silence: HEARTBEAT_SILENCE,
         start_watch: host.as_ref().map(manager_watch_for),
         keep_fresh: None, answer_ceiling: crate::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING, extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: crate::wait_ceilings::START_CEILING,
+        units_record_dir: host.as_ref().map(crate::service_provision_host_and_manager::units_record_dir_of),
     };
     return match wake(&config, git_dir, None, notices) {
         Ok(()) => Handed::Service,
@@ -387,7 +389,7 @@ pub fn empty_trash(item: &WorkItem) -> Verdict {
         Ok(found) => found,
         Err(reason) => return Verdict::Failed(reason),
     };
-    return match delete_trash(Path::new(item.repository.as_str()), Path::new(item.git_dir.as_str()), &manifest) {
+    return match delete_trash(item.repository.as_path(), item.git_dir.as_path(), &manifest) {
         Ok(()) => Verdict::Done,
         Err(reason) => Verdict::Failed(reason),
     };
