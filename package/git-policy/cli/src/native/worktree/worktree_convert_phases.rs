@@ -499,6 +499,8 @@ pub fn removal_phase(platform: &dyn Platform, job: &mut Job<'_>, interrupt: &Int
 /// the last step of a finished conversion.
 pub fn finish(job: &Job<'_>) -> Result<(), MigrateError> {
     release_index_lock(job)?;
+    // Nothing is left at the converting name, so the record beside the worktree must not name anything either.
+    crate::worktree_convert_leftover_stage_record::forget_leftover_stage(job.candidate.path.as_path());
     let journal: PathBuf = job.candidate.admin.join(JOURNAL_NAME);
     return io_step(std::fs::remove_file(&journal), "remove the conversion journal", journal.as_path());
 }

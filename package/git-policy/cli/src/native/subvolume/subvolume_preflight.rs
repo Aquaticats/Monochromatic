@@ -135,6 +135,10 @@ pub struct Layout {
     pub journal_path: PathBuf,
     /// `<parent>/.cli-git-migrate-<name>.unreadable.txt`.
     pub unreadable_path: PathBuf,
+    /// `<parent>/.cli-git-migrate-<name>.left-out.txt`:
+    /// the entries of the old tree the late-write carry left out,
+    /// which the deletion of the old tree does not delete without a word.
+    pub left_out_path: PathBuf,
     /// `.cli-git-migrate-<name>.owner`:
     /// the name,
     /// in the parent directory,
@@ -182,6 +186,7 @@ pub fn layout_of(root: &Path) -> Option<Layout> {
         old_path: with_suffix(parent, name, ".before-subvolume"),
         journal_path: dotted(parent, name, ".journal.json"),
         unreadable_path: dotted(parent, name, ".unreadable.txt"),
+        left_out_path: dotted(parent, name, ".left-out.txt"),
         claim_prefix: dotted(parent, name, ".owner").file_name().unwrap_or_default().to_os_string(),
     });
 }
@@ -435,6 +440,63 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
     return found;
 }
 
+/// The journal value that records the identity of the subvolume the migration installed at the checkout,
+/// as `device:inode`.
+pub const INSTALLED_ROOT: &str = "installed-root";
+
+/// What:
+///  The identity of the directory at `path` as `device:inode`,
+/// or nothing when it cannot be examined.
+/// Why:
+///   A name says nothing about which directory it holds now;
+/// a device and an inode do,
+/// and they survive a rename and an exchange.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = installedIdentity(root); // '0:256' | undefined
+/// ```
+pub fn installed_identity(path: &Path) -> Option<String> {
+    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
+    return Some(format!("{}:{}", metadata.dev(), metadata.ino()));
+}
+
+/// What:
+///  The refusal for a checkout that is not the directory the journal records installing,
+/// or nothing when the journal records none or the directory is that one.
+/// Why:
+///   The deletion of the old tree carries what is newer in the old tree into the checkout before it deletes it,
+/// and the
+///  rollback exchanges the two directories:
+/// either acts on the wrong place when the checkout was moved or replaced by hand
+///  after the migration,
+/// which writes into a directory the migration never recorded and then deletes the old tree.
+/// A
+///  journal written by an earlier release records no identity,
+/// and without a record the command cannot tell,
+/// so it
+///  does not refuse on a guess.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusal = wrongRootRefusal(layout, journal); // undefined when the checkout is the installed one
+/// ```
+pub fn wrong_root_refusal(layout: &Layout, journal: &Journal) -> Option<Refusal> {
+    let recorded: &str = journal.value(INSTALLED_ROOT)?;
+    let now: String = installed_identity(layout.root.as_path())?;
+    if now == recorded {
+        return None;
+    }
+    return Some(refuse(
+        format!(
+            "{} is not the directory installed by the migration there: it now has the identity {now}, and {} records {recorded}",
+            layout.root.display(),
+            journal.path().display()
+        ),
+        "If the checkout was moved or replaced, move the directory the migration installed back to that path and run the command again. Nothing was changed.",
+    ));
+}
+
 /// What:
 ///  The refusals of a rollback:
 /// it needs a journal.
@@ -446,13 +508,20 @@ fn git_state_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
 /// const refusals = rollbackRefusals(layout, journal);
 /// ```
 pub fn rollback_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
-    if journal.is_persisted() {
+    if !journal.is_persisted() {
+        return vec![refuse(
+            format!("there is no migration journal at {}, so there is nothing recorded to undo", layout.journal_path.display()),
+            "If a migration was started by hand, undo it by hand: exchange the directories again with `mv --exchange` and delete the new subvolume.",
+        )];
+    }
+    // Once the rollback's own exchange ran, the checkout is the original directory again, and a rerun finishes from there.
+    if journal.has_begun("rollback-swap") || journal.state("exchange") == Some("rolled-back") {
         return Vec::new();
     }
-    return vec![refuse(
-        format!("there is no migration journal at {}, so there is nothing recorded to undo", layout.journal_path.display()),
-        "If a migration was started by hand, undo it by hand: exchange the directories again with `mv --exchange` and delete the new subvolume.",
-    )];
+    return match wrong_root_refusal(layout, journal) {
+        Some(found) => vec![found],
+        None => Vec::new(),
+    };
 }
 
 /// What:
@@ -482,6 +551,9 @@ pub fn remove_old_refusals(layout: &Layout, journal: &Journal) -> Vec<Refusal> {
             format!("{} does not exist", layout.old_path.display()),
             "Nothing to delete: it was removed already.",
         ));
+    }
+    if let Some(wrong) = wrong_root_refusal(layout, journal) {
+        found.push(wrong);
     }
     return found;
 }

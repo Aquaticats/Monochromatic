@@ -40,6 +40,14 @@ use std::path::{Path, PathBuf};
 /// The journal format version this code writes and reads.
 const SCHEMA: u64 = 1;
 
+/// The journal value that records the identity of the subvolume the migration made at the stage's name,
+/// as `device:inode:seconds:nanoseconds` (the birth time is `-` where the filesystem gives none).
+/// Why:
+///   It rides in the same map as the identity of the installed checkout,
+/// so one format carries every name a later
+///  command must judge before it deletes or exchanges a directory.
+pub const STAGE_ROOT: &str = "stage-root";
+
 /// The permissions of the journal:
 /// its owner reads and writes it.
 const PRIVATE_FILE_MODE: u32 = 0o600;
@@ -161,14 +169,12 @@ pub struct Journal {
     states: BTreeMap<String, String>,
     /// Step name to the time in milliseconds after the epoch at which it got its current state.
     times: BTreeMap<String, i64>,
-    /// The identity (device,
-    /// inode and,
-    /// where the filesystem gives one,
-    /// birth time) of the subvolume this migration
-    ///  made at the stage's name;
-    /// absent in a journal written by an earlier release,
-    /// which recorded none.
-    stage_identity: Option<crate::fs_beneath::ObjectId>,
+    /// Named values a step records beside its state
+    /// (the identity of the subvolume the migration installed,
+    /// and of the one it made at the stage's name,
+    /// for two),
+    /// kept in key order.
+    values: BTreeMap<String, String>,
     /// Whether the file exists on disk.
     persisted: bool,
 }
@@ -190,7 +196,7 @@ impl Journal {
         let text: String = match read_plain_text(path) {
             Ok(found) => found,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), stage_identity: None, persisted: false });
+                return Ok(Journal { path: path.to_path_buf(), started: now_iso(), states: BTreeMap::new(), times: BTreeMap::new(), values: BTreeMap::new(), persisted: false });
             }
             Err(error) => return Err(MigrateError::io("read the journal", path, &error)),
         };
@@ -208,15 +214,8 @@ impl Journal {
         let Some(steps) = value.get("steps").and_then(Value::as_object) else {
             return Err(broken_journal(path, "has no steps"));
         };
-        // A journal this release wrote names the stage it made; one an earlier release wrote names none, and the rollback
-        // then has only the stage's type to judge it by.
-        let stage_identity: Option<crate::fs_beneath::ObjectId> = match value.get("stage_identity").and_then(Value::as_str) {
-            None => None,
-            Some(encoded) => match crate::fs_beneath::ObjectId::decode(encoded) {
-                Some(identity) => Some(identity),
-                None => return Err(broken_journal(path, "has a stage identity that is not one")),
-            },
-        };
+        // A journal this release wrote names the stage it made in `values`; one an earlier release wrote names none, and the
+        // rollback then has only the stage's type to judge it by.
         let mut states: BTreeMap<String, String> = BTreeMap::new();
         let mut times: BTreeMap<String, i64> = BTreeMap::new();
         for (name, record) in steps {
@@ -228,7 +227,18 @@ impl Journal {
                 times.insert(name.clone(), milliseconds);
             }
         }
-        return Ok(Journal { path: path.to_path_buf(), started, states, times, stage_identity, persisted: true });
+        // A journal of an earlier release has no values, which is not an error: a step that needed one records it when it
+        // runs, and a check that needs one refuses to guess without it.
+        let mut values: BTreeMap<String, String> = BTreeMap::new();
+        if let Some(recorded) = value.get("values").and_then(Value::as_object) {
+            for (name, held) in recorded {
+                let Some(recorded_text) = held.as_str() else {
+                    return Err(broken_journal(path, "has a value that is not text"));
+                };
+                values.insert(name.clone(), recorded_text.to_string());
+            }
+        }
+        return Ok(Journal { path: path.to_path_buf(), started, states, times, values, persisted: true });
     }
 
     /// When the migration began,
@@ -256,6 +266,37 @@ impl Journal {
     pub fn seconds_of(&self, step: &str) -> Option<i64> {
         let milliseconds: &i64 = self.times.get(step)?;
         return Some(milliseconds.div_euclid(1000));
+    }
+
+    /// What:
+    ///  The value recorded under `name`,
+    /// if any.
+    /// Why:
+    ///   A step records what a later command must compare against,
+    /// such as the identity of the subvolume the
+    ///  migration installed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// journal.values.get('installed-root')
+    /// ```
+    pub fn value(&self, name: &str) -> Option<&str> {
+        return self.values.get(name).map(String::as_str);
+    }
+
+    /// What:
+    ///  Record a named value;
+    /// it reaches the file with the next step that is marked.
+    /// Why:
+    ///   The value belongs to the step recorded beside it,
+    /// so one write carries both and a kill never leaves one without the other.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// journal.setValue('installed-root', '0:256');
+    /// ```
+    pub fn set_value(&mut self, name: &str, text: &str) {
+        self.values.insert(name.to_string(), text.to_string());
     }
 
     /// The recorded state of a step,
@@ -306,15 +347,21 @@ impl Journal {
     /// and a subvolume another process puts at that name is not the one this
     ///  migration made;
     /// the identity recorded before anything is copied into the stage is what tells them apart.
+    ///  It is written here rather than left to the next step that is marked,
+    /// because the copy that follows reads the stage
+    ///  and a kill must not leave the stage unnamed.
     pub fn record_stage_identity(&mut self, identity: crate::fs_beneath::ObjectId) -> Result<(), MigrateError> {
-        self.stage_identity = Some(identity);
+        self.set_value(STAGE_ROOT, identity.encode().as_str());
         return self.persist();
     }
 
     /// The identity this migration recorded for the stage,
-    /// if any.
+    /// if any;
+    /// nothing when the journal records none or holds a value that is not an identity,
+    /// which the
+    ///  callers treat the same way and refuse to destroy what they cannot name.
     pub fn stage_identity(&self) -> Option<crate::fs_beneath::ObjectId> {
-        return self.stage_identity;
+        return self.value(STAGE_ROOT).and_then(crate::fs_beneath::ObjectId::decode);
     }
 
     /// Write the journal as it stands,
@@ -337,8 +384,12 @@ impl Journal {
         document.insert(String::from("schema"), Value::from(SCHEMA));
         document.insert(String::from("started"), Value::String(self.started.clone()));
         document.insert(String::from("steps"), Value::Object(steps));
-        if let Some(identity) = &self.stage_identity {
-            document.insert(String::from("stage_identity"), Value::String(identity.encode()));
+        if !self.values.is_empty() {
+            let mut values: Map<String, Value> = Map::new();
+            for (name, text) in &self.values {
+                values.insert(name.clone(), Value::String(text.clone()));
+            }
+            document.insert(String::from("values"), Value::Object(values));
         }
         let text: String = serde_json::to_string_pretty(&Value::Object(document)).unwrap_or_default();
         let sibling_path: PathBuf = self.temporary_path();
@@ -411,6 +462,7 @@ impl Journal {
         }
         self.states.clear();
         self.times.clear();
+        self.values.clear();
         self.persisted = false;
         return Ok(());
     }

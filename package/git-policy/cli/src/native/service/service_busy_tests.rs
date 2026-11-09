@@ -281,13 +281,20 @@ fn a_decision_another_withdrawer_has_not_confirmed_is_not_acknowledged() {
                 AFTER_THE_DECISION_IS_WON.with(|hook| {
                     *hook.borrow_mut() = Some(Box::new(move || {
                         let _told = won.send(());
-                        let _released = wait_for_release.recv_timeout(Duration::from_secs(30));
+                        // The control releases this hook once the request has landed, which writes the journal: the wait
+                        //  ends on the run's work, never on a stated span, because six such spans expired together once.
+                        let _released: bool = crate::test_support::wait_until(&|| { return wait_for_release.try_recv().is_ok(); });
                     }));
                 });
                 return shared.withdraw_early("r");
             })
         };
-        wait_for_won.recv_timeout(Duration::from_secs(30)).expect("W1 won the decision");
+        // W1 wins the decision by writing the journal, so the wait ends on the run's work and never on 30 s: a 1,034-test
+        //  selection once failed this control at 42.9 s while the journal was still being written.
+        assert!(
+            crate::test_support::wait_until(&|| { return wait_for_won.try_recv().is_ok(); }),
+            "W1 won the decision"
+        );
         // W2 meets W1's decision, which W1 has not confirmed.
         assert_eq!(record.withdraw_early("r"), EarlyAnswer::Queued, "an unconfirmed decision is not acknowledged");
         // The request lands meanwhile, and the journal says so.
@@ -325,13 +332,20 @@ fn a_journal_that_fails_after_the_win_leaves_no_acknowledged_cancellation() {
                 AFTER_THE_DECISION_IS_WON.with(|hook| {
                     *hook.borrow_mut() = Some(Box::new(move || {
                         let _told = won.send(());
-                        let _released = wait_for_release.recv_timeout(Duration::from_secs(30));
+                        // The control releases this hook once the request has landed, which writes the journal: the wait
+                        //  ends on the run's work, never on a stated span, because six such spans expired together once.
+                        let _released: bool = crate::test_support::wait_until(&|| { return wait_for_release.try_recv().is_ok(); });
                     }));
                 });
                 return shared.withdraw_early("r");
             })
         };
-        wait_for_won.recv_timeout(Duration::from_secs(30)).expect("W1 won the decision");
+        // W1 wins the decision by writing the journal, so the wait ends on the run's work and never on 30 s: a 1,034-test
+        //  selection once failed this control at 42.9 s while the journal was still being written.
+        assert!(
+            crate::test_support::wait_until(&|| { return wait_for_won.try_recv().is_ok(); }),
+            "W1 won the decision"
+        );
         let second: EarlyAnswer = record.withdraw_early("r");
         // The journal can no longer be read whole (the directory takes no listing), while the record's directory under it still works.
         std::fs::set_permissions(journal.as_path(), std::fs::Permissions::from_mode(0o300)).expect("make the journal unreadable");

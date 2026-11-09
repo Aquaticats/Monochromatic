@@ -29,7 +29,13 @@ delete the TypeScript Git policy wrapper,
 its tasks,
 bins and trust
 workflow);
-no file in the working tree carries it now.
+no file in the working tree carries it now,
+and neither `commitTransactionPatch` nor `FORBIDDEN_PATCH_PREFIXES` has a successor there:
+the native wrapper keeps only the `patch-invalid` wire name,
+at
+`package/git-policy/cli/src/native/policy/diagnostics.rs:111`,
+and no module under `package/git-policy/cli/src/native/` constructs it.
+The check above therefore describes the pre-Rust policy engine and cannot be re-run against the working tree.
 
 ## Cause
 

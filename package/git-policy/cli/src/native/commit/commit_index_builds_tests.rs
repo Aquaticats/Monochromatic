@@ -205,6 +205,43 @@ fn a_retry_keeps_a_tracked_file_whose_mark_equals_the_tree_when_a_hook_restages_
     remove(root.as_path());
 }
 
+/// A first build writes the base's own entry over an intent-to-add mark whose mode and object name equal it,
+/// so a tracked file nobody named stays in the tree that index writes.
+/// Why this matters:
+///  staging the selected path invalidates the cached tree,
+///  and a commit native Git builds from the index,
+///  which a detached HEAD or a signing configuration asks for,
+///  then writes a tree that leaves that file out:
+///  a deletion the person did not make.
+#[test]
+fn a_first_build_keeps_a_tracked_file_whose_mark_equals_the_base() {
+    let root: PathBuf = fixture("index-builds-intent-first");
+    let (repo, indexes, _base) = committed_repository(root.as_path());
+    std::fs::write(repo.join("empty"), "").expect("empty file");
+    git(repo.as_path(), &["add", "empty"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=empty"]);
+    let base: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let base_tree: String = git_text(repo.as_path(), &["rev-parse", "HEAD^{tree}"]);
+    git(repo.as_path(), &["rm", "--cached", "--quiet", "empty"]);
+    git(repo.as_path(), &["add", "--intent-to-add", "empty"]);
+    std::fs::write(repo.join("a.txt"), "a changed\n").expect("change a");
+    let named: [OsString; 1] = [OsString::from("a.txt")];
+    let selection: IndexSelection<'_> = explicit_path(&named, base.as_str());
+    initialize_commit_index(&git_context(), repo.as_path(), repo.join(".git").join("index").as_path(), &indexes, &selection).expect("initialize");
+    let written: String = write_private_tree(&git_context(), repo.as_path(), indexes.commit_index.as_path(), indexes.object_directory.as_path()).expect("tree");
+    assert_eq!(
+        git_text(repo.as_path(), &["ls-tree", "-r", written.as_str(), "--", "b.txt", "empty"]),
+        git_text(repo.as_path(), &["ls-tree", "-r", base_tree.as_str(), "--", "b.txt", "empty"]),
+        "the first build writes the base's own entry at every path the selection did not name"
+    );
+    assert_eq!(
+        git_text(repo.as_path(), &["show", format!("{written}:a.txt").as_str()]),
+        "a changed",
+        "the named path carries the worktree content"
+    );
+    remove(root.as_path());
+}
+
 /// The selection an index commit makes:
 /// the whole index,
 /// nothing named.

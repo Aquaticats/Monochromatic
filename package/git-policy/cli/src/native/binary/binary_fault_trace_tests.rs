@@ -50,6 +50,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// first and last included.
 const POSITIONS_PER_SWEEP: usize = 48;
 
+/// How many runs one call's own kill control makes at most.
+/// A position cost up to about twenty seconds with its fixture and the recovery commands under the host's load
+/// (on 2026-11-09 the copy flow's 12 `pwrite64` positions took 234.1 s while its 16 `openat` ones took 2.3 s,
+/// so the spread is the host's and not the control's),
+/// and twelve positions keep the worst measured rate inside the five-minute per-test limit.
+const POSITIONS_PER_CALL: usize = 12;
+
 /// How long each call of the slow-storage control returns late,
 /// in microseconds:
 /// a slow disk's flush.
@@ -64,16 +71,32 @@ const SLOW_FLUSH_MICROSECONDS: u64 = 100_000;
 /// while the lock files that a failed removal would leave behind need a
 ///  person to remove them,
 /// with native Git as with the wrapper.
-const STORAGE_CALLS: [&str; 6] = ["write", "pwrite64", "fsync", "fdatasync", "rename", "renameat2"];
+/// `fdatasync` is not listed:
+/// the measured commit made no `fdatasync` in the service or in the Git it starts (2026-11-09),
+///  so injecting there faulted no call.
+const STORAGE_CALLS: [&str; 5] = ["write", "pwrite64", "fsync", "rename", "renameat2"];
 
 /// The calls a kill of the service is swept over:
-/// the writes and name changes above,
-/// directory changes and process starts.
-const KILL_CALLS: [&str; 12] =
-    ["write", "pwrite64", "fsync", "fdatasync", "rename", "renameat2", "unlink", "unlinkat", "mkdir", "mkdirat", "clone3", "vfork"];
-
-/// The calls a kill of the wrapper is swept over in its own flows.
-const WRAPPER_KILL_CALLS: [&str; 10] = ["write", "pwrite64", "fsync", "rename", "renameat2", "unlink", "unlinkat", "mkdirat", "clone3", "vfork"];
+/// every state-changing call the service process itself makes in one commit with no forks followed
+/// (measured 2026-11-09 with `strace --trace` over the whole set),
+/// writes,
+/// appends,
+/// renames,
+/// removals,
+/// directory creation,
+/// permissions,
+/// times and the process start of a Git.
+/// `openat` counts every open,
+/// reads included,
+/// because `strace --inject` names a call and an ordinal over all of them.
+/// `fsync`,
+/// `fdatasync`,
+/// `mkdirat` and `vfork` are not listed:
+/// the service makes none of them itself in this flow,
+///  so a kill at each tested nothing while the list said the service was killed there.
+const KILL_CALLS: [&str; 13] = [
+    "write", "pwrite64", "ftruncate", "copy_file_range", "openat", "rename", "renameat2", "unlink", "unlinkat", "mkdir", "chmod", "utimensat", "clone3",
+];
 
 /// The `strace` words that run a program under a tracer,
 /// in front of the program:
@@ -128,6 +151,17 @@ fn positions(count: usize, budget: usize) -> Vec<usize> {
     let mut spread: Vec<usize> = (0..budget).map(|step| { return 1 + (count - 1) * step / (budget - 1); }).collect();
     spread.dedup();
     return spread;
+}
+
+/// Fails when a sweep's list names a call its flow never makes:
+/// nothing would be faulted at that name,
+/// so the list would claim a coverage it never had.
+fn require_every_listed_call_is_made(label: &str, counts: &[(&'static str, usize)]) {
+    let absent: Vec<&'static str> = counts.iter().filter(|(_, count)| { return *count == 0; }).map(|(syscall, _)| { return *syscall; }).collect();
+    assert!(
+        absent.is_empty(),
+        "{label} lists calls its flow never makes, so faulting them would test nothing: {absent:?} (measured {counts:?})"
+    );
 }
 
 /// Every `(call, position)` of a sweep over `counts`,
@@ -290,6 +324,7 @@ fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(u
         return;
     }
     let counts: Vec<(&'static str, usize)> = calls.iter().map(|syscall| { return (*syscall, service_call_count(syscall, follow)); }).collect();
+    require_every_listed_call_is_made(label, counts.as_slice());
     let points: Vec<(&'static str, usize)> = sweep_points(counts.as_slice(), POSITIONS_PER_SWEEP);
     assert!(!points.is_empty(), "the commit made none of the calls {calls:?}: {counts:?}");
     let found: Found = Found { reached: AtomicUsize::new(0), landed: AtomicUsize::new(0) };
@@ -304,6 +339,40 @@ fn sweep_service(label: &str, calls: &[&'static str], effect: Effect, when: fn(u
         !matches!(effect, Effect::Kill) || found.landed.load(Ordering::SeqCst) > 0,
         "no commit landed through the restarted service, so the resend after a kill was not tested (call counts {counts:?})"
     );
+}
+
+/// Sweeps a kill of the service over the positions of one call of one commit.
+/// One control covers one call,
+/// so each call's positions stay inside the per-test limit.
+/// The resend after a kill is covered on its own by
+/// `binary_service_tests.rs` (`a_client_that_disappears_after_sending_still_lands_once`),
+/// so this control does not require one of its own kills to land a commit.
+fn sweep_service_call(label: &str, syscall: &'static str, recover: Recovery) {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no call was killed");
+        return;
+    }
+    assert!(KILL_CALLS.contains(&syscall), "{label} has no kill control for {syscall}, so a control here would test what its list does not name");
+    let count: usize = service_call_count(syscall, false);
+    require_every_listed_call_is_made(label, &[(syscall, count)]);
+    let points: Vec<(&'static str, usize)> = sweep_points(&[(syscall, count)], POSITIONS_PER_CALL);
+    let found: Found = Found { reached: AtomicUsize::new(0), landed: AtomicUsize::new(0) };
+    let failures: Vec<String> = in_batches(points.as_slice(), &|(_, position): &(&'static str, usize)| {
+        let fault: Injection = Injection { syscall, effect: Effect::Kill, when: When::Nth(*position), follow_forks: false };
+        return service_case(format!("{label}-{syscall}-{position}").as_str(), &fault, &found, recover);
+    });
+    assert!(failures.is_empty(), "{} of {} kills left the repository unrecovered ({syscall} count {count}):\n{}", failures.len(), points.len(), failures.join("\n"));
+    assert!(found.reached.load(Ordering::SeqCst) > 0, "no run was killed, so the sweep tested nothing ({syscall} count {count})");
+}
+
+/// Requires that every call the service kill list names is one the commit makes.
+fn require_the_service_kill_list_is_made() {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no call was counted");
+        return;
+    }
+    let counts: Vec<(&'static str, usize)> = KILL_CALLS.iter().map(|syscall| { return (*syscall, service_call_count(syscall, false)); }).collect();
+    require_every_listed_call_is_made("the service kill list", counts.as_slice());
 }
 
 /// The disk is full from the `n`th write on:
@@ -322,15 +391,127 @@ fn storage_that_fails_during_a_commit_leaves_a_recoverable_repository() {
     sweep_service("io-error", &STORAGE_CALLS, Effect::Fail("EIO"), When::FromNth, true, recovers_any_way);
 }
 
-/// The service is killed at the `n`th call of each kind,
-/// in the service itself or in a Git it started:
-/// the manager starts a new
-///  service,
+/// Every call the service kill list names is one the commit makes.
+#[test]
+fn the_service_kill_list_names_only_calls_the_flow_makes() {
+    require_the_service_kill_list_is_made();
+}
+
+/// The service is killed at each `write` it makes in a commit:
+/// the manager starts a new service,
 /// the client's request is answered or fails plainly,
 /// and no commit is lost or doubled.
 #[test]
-fn a_service_killed_at_any_call_leaves_a_recoverable_repository() {
-    sweep_service("service-kill", &KILL_CALLS, Effect::Kill, When::Nth, false, recovers_after_service_death);
+fn a_service_killed_at_each_write_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "write", recovers_after_service_death);
+}
+
+/// The service is killed at each `pwrite64` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_pwrite64_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "pwrite64", recovers_after_service_death);
+}
+
+/// The service is killed at each `ftruncate` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_ftruncate_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "ftruncate", recovers_after_service_death);
+}
+
+/// The service is killed at each `copy_file_range` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_copy_file_range_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "copy_file_range", recovers_after_service_death);
+}
+
+/// The service is killed at each `openat` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_openat_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "openat", recovers_after_service_death);
+}
+
+/// The service is killed at each `rename` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_rename_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "rename", recovers_after_service_death);
+}
+
+/// The service is killed at each `renameat2` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_renameat2_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "renameat2", recovers_after_service_death);
+}
+
+/// The service is killed at each `unlink` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_unlink_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "unlink", recovers_after_service_death);
+}
+
+/// The service is killed at each `unlinkat` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_unlinkat_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "unlinkat", recovers_after_service_death);
+}
+
+/// The service is killed at each `mkdir` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_mkdir_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "mkdir", recovers_after_service_death);
+}
+
+/// The service is killed at each `chmod` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_chmod_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "chmod", recovers_after_service_death);
+}
+
+/// The service is killed at each `utimensat` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_utimensat_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "utimensat", recovers_after_service_death);
+}
+
+/// The service is killed at each `clone3` it makes in a commit:
+/// the manager starts a new service,
+/// the client's request is answered or fails plainly,
+/// and no commit is lost or doubled.
+#[test]
+fn a_service_killed_at_each_clone3_leaves_a_recoverable_repository() {
+    sweep_service_call("service-kill", "clone3", recovers_after_service_death);
 }
 
 /// Every flush returns late,
@@ -457,6 +638,9 @@ struct Flow {
     setup: fn(&Fixture) -> PathBuf,
     /// The command line the wrapper runs.
     arguments: &'static [&'static str],
+    /// The calls the wrapper is killed at in this flow,
+    /// measured as the calls it makes itself with no forks followed.
+    killed_at: &'static [&'static str],
     /// Runs the next commands and requires that the repository recovered;
     /// the command line's first run is `killed`.
     recovered: fn(&Fixture, &Path, &Output) -> Result<(), String>,
@@ -474,20 +658,27 @@ fn flow_call_count(flow: &Flow, syscall: &'static str) -> usize {
     return count;
 }
 
-/// The wrapper is killed at the `n`th call of each kind in `flow`;
+/// The wrapper is killed at the `n`th call of `syscall` in `flow`;
 /// the processes it started end by themselves;
 /// the next commands
 ///  recover the repository.
-fn sweep_wrapper_kill(flow: &Flow) {
+/// One control covers one call,
+/// so each call's positions stay inside the per-test limit.
+fn sweep_wrapper_kill(flow: &Flow, syscall: &'static str) {
     if !strace_available() {
         eprintln!("skipped: strace is not installed, so no process was killed");
         return;
     }
-    let counts: Vec<(&'static str, usize)> = WRAPPER_KILL_CALLS.iter().map(|syscall| { return (*syscall, flow_call_count(flow, syscall)); }).collect();
-    let points: Vec<(&'static str, usize)> = sweep_points(counts.as_slice(), POSITIONS_PER_SWEEP);
-    assert!(!points.is_empty(), "the wrapper made none of the calls {WRAPPER_KILL_CALLS:?} in {}: {counts:?}", flow.name);
+    assert!(
+        flow.killed_at.contains(&syscall),
+        "{} has no kill control for {syscall}, so a control here would test what its list does not name",
+        flow.name
+    );
+    let count: usize = flow_call_count(flow, syscall);
+    require_every_listed_call_is_made(flow.name, &[(syscall, count)]);
+    let points: Vec<(&'static str, usize)> = sweep_points(&[(syscall, count)], POSITIONS_PER_CALL);
     let killed: AtomicUsize = AtomicUsize::new(0);
-    let failures: Vec<String> = in_batches(points.as_slice(), &|(syscall, position): &(&'static str, usize)| {
+    let failures: Vec<String> = in_batches(points.as_slice(), &|(_, position): &(&'static str, usize)| {
         let label: String = format!("kill-{}-{syscall}-{position}", flow.name);
         let fixture: Fixture = fixture(label.as_str());
         let repo: PathBuf = (flow.setup)(&fixture);
@@ -502,8 +693,19 @@ fn sweep_wrapper_kill(flow: &Flow) {
         remove_settled(&fixture);
         return verdict;
     });
-    assert!(failures.is_empty(), "{} of {} kills left the repository unrecovered (call counts {counts:?}):\n{}", failures.len(), points.len(), failures.join("\n"));
-    assert!(killed.load(Ordering::SeqCst) > 0, "no run was killed, so the sweep tested nothing (call counts {counts:?})");
+    assert!(failures.is_empty(), "{} of {} kills left the repository unrecovered ({syscall} count {count}):\n{}", failures.len(), points.len(), failures.join("\n"));
+    assert!(killed.load(Ordering::SeqCst) > 0, "no run was killed, so the sweep tested nothing ({syscall} count {count})");
+}
+
+/// Requires that every call a flow's kill controls cover is one the flow makes,
+/// so a list cannot name a call whose positions would be empty.
+fn require_the_kill_list_is_made(flow: &Flow) {
+    if !strace_available() {
+        eprintln!("skipped: strace is not installed, so no call was counted");
+        return;
+    }
+    let counts: Vec<(&'static str, usize)> = flow.killed_at.iter().map(|syscall| { return (*syscall, flow_call_count(flow, syscall)); }).collect();
+    require_every_listed_call_is_made(flow.name, counts.as_slice());
 }
 
 /// A repository with another session's work staged and a feature branch to merge,
@@ -569,11 +771,104 @@ fn merge_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<()
     return Ok(());
 }
 
-/// A merge over another session's staged work,
-/// killed at the `n`th call of each kind of the wrapper's own flow.
+/// The calls the merge flow's kill controls cover:
+/// what the wrapper itself makes in it with no forks followed (measured 2026-11-09).
+/// `unlinkat`,
+/// `mkdirat` and `vfork` are not listed:
+/// the wrapper removes with `unlink`,
+/// creates directories with `mkdir` and starts Git with `clone3` there,
+///  and made none of the three.
+/// `openat`,
+/// `ftruncate` and `mkdir` are every other state-changing call the flow makes,
+/// and `openat` counts reads too because `strace --inject` names a call and an ordinal over all of them.
+const MERGE_KILL_CALLS: [&str; 10] = ["write", "pwrite64", "fsync", "ftruncate", "openat", "rename", "renameat2", "unlink", "mkdir", "clone3"];
+
+/// The merge flow's shape,
+/// shared by each of its kill controls.
+fn merge_flow() -> Flow {
+    return Flow {
+        name: "merge",
+        setup: merge_setup,
+        arguments: &["merge", "--no-edit", "feature"],
+        killed_at: &MERGE_KILL_CALLS,
+        recovered: merge_recovered,
+    };
+}
+
+/// Every call the merge flow's kill controls cover is one the flow makes.
 #[test]
-fn a_merge_killed_at_any_call_leaves_a_recoverable_checkout() {
-    sweep_wrapper_kill(&Flow { name: "merge", setup: merge_setup, arguments: &["merge", "--no-edit", "feature"], recovered: merge_recovered });
+fn the_merge_kill_list_names_only_calls_the_flow_makes() {
+    require_the_kill_list_is_made(&merge_flow());
+}
+
+/// A merge over another session's staged work,
+/// killed at each `write` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_write_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "write");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `pwrite64` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_pwrite64_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "pwrite64");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `fsync` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_fsync_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "fsync");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `rename` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_rename_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "rename");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `renameat2` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_renameat2_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "renameat2");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `unlink` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_unlink_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "unlink");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `clone3` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_clone3_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "clone3");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `mkdir` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_mkdir_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "mkdir");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `ftruncate` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_ftruncate_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "ftruncate");
+}
+
+/// A merge over another session's staged work,
+/// killed at each `openat` the wrapper makes in it.
+#[test]
+fn a_merge_killed_at_each_openat_leaves_a_recoverable_checkout() {
+    sweep_wrapper_kill(&merge_flow(), "openat");
 }
 
 /// A repository whose committed configuration names an ignored rules file,
@@ -582,31 +877,41 @@ fn copy_setup(fixture: &Fixture) -> PathBuf {
     return super::worktree_copy::repository_with_rules(fixture, true);
 }
 
+/// The names a directory holds,
+/// or none when it does not exist.
+fn names_in(directory: &Path) -> Vec<String> {
+    return std::fs::read_dir(directory).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
+}
+
 /// After a worktree add killed anywhere:
-/// the next command in the repository recovers any copy;
+/// the next command in the repository answers;
+/// a command in the new worktree recovers what a dead owner left and names it;
 /// the worktree,
 /// if Git made it,
-/// has
-///  its ignored rules file;
-/// if it was not made,
-/// asking again makes it;
-/// no staging directory or pending journal is left.
+/// has its ignored rules file once its copy finished or resumed;
+/// a stage an interrupted add left is kept and named,
+/// as `38e01bcd33` decided,
+/// and no pending journal is left.
 fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(), String> {
     let status = run_unsettled(fixture, repo, &["status", "--porcelain=v1"]);
     if status.code != Some(0) {
         return Err(format!("the next command must succeed, exit {:?}: {} (the killed run: {:?})", status.code, String::from_utf8_lossy(status.stderr.as_slice()), killed.status));
     }
     let worktree: PathBuf = fixture.root.join("one");
+    // What a recovery pass told the person: a linked worktree runs one before it forwards, and so does a creating command.
+    let mut told: String = String::new();
     if worktree.join(".git").exists() {
         let inside = run_unsettled(fixture, worktree.as_path(), &["rev-parse", "--is-inside-work-tree"]);
         if inside.code != Some(0) {
             return Err(format!("the worktree Git made must answer, exit {:?}: {}", inside.code, String::from_utf8_lossy(inside.stderr.as_slice())));
         }
+        told.push_str(String::from_utf8_lossy(inside.stderr.as_slice()).as_ref());
     } else {
         // Git had not made it (or its half-made directory was removed by Git's own cleanup): the same command works again.
         let _pruned = run_unsettled(fixture, repo, &["worktree", "prune"]);
         let _removed = std::fs::remove_dir_all(&worktree);
         let again = run_unsettled(fixture, repo, &["worktree", "add", "--quiet", "-b", "one-again", "../one"]);
+        told.push_str(String::from_utf8_lossy(again.stderr.as_slice()).as_ref());
         if again.code != Some(0) {
             // The branch name of the killed run may exist: that is Git's answer, not a wrapper defect, when it says so.
             let words: String = String::from_utf8_lossy(again.stderr.as_slice()).into_owned();
@@ -615,23 +920,163 @@ fn copy_recovered(fixture: &Fixture, repo: &Path, killed: &Output) -> Result<(),
             }
         }
     }
-    let staging: Vec<String> = std::fs::read_dir(&fixture.root)
-        .map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).filter(|name| { return name.starts_with(".cli-git-worktree-copy-"); }).collect(); })
-        .unwrap_or_default();
-    if !staging.is_empty() {
-        return Err(format!("a staging directory stays after the next commands: {staging:?}"));
+    let made: bool = worktree.join(".git").exists();
+    let rules: bool = worktree.join(".cache/forbidden-strings.rules.txt").exists();
+    let journal_root: PathBuf = repo.join(".git/monochromatic-git-policy-cli-worktree-copy/v1");
+    let journals: Vec<String> = names_in(journal_root.as_path()).into_iter().filter(|name| { return name.ends_with(".json"); }).collect();
+    if !journals.is_empty() {
+        return Err(format!("a pending journal stays after the next commands: {journals:?}"));
+    }
+    let staging: Vec<String> = names_in(fixture.root.as_path()).into_iter().filter(|name| { return name.starts_with(".cli-git-worktree-copy-"); }).collect();
+    if made && staging.is_empty() && !rules {
+        // The copy either finished (the file is there) or died before it could record anything about itself;
+        // then the recovery pass must name the worktree as one an interrupted add left possibly incomplete.
+        let shown: String = worktree.to_string_lossy().into_owned();
+        if !told.contains(shown.as_str()) {
+            return Err(format!("the worktree has no ignored rules file, no stage is left, and no recovery pass named it: {told:?}"));
+        }
+    }
+    // A stage of an interrupted `git worktree add` is kept and never removed (`38e01bcd33`): the recovery pass must name it.
+    for name in &staging {
+        if !told.contains(name.as_str()) {
+            return Err(format!("the stage {name} stays and no recovery pass named it: {told:?}"));
+        }
     }
     return Ok(());
 }
 
-/// A worktree add with the ignored-state copy,
-/// killed at the `n`th call of each kind of the wrapper's own flow.
-#[test]
-fn a_worktree_copy_killed_at_any_call_leaves_a_recoverable_repository() {
-    sweep_wrapper_kill(&Flow {
+/// The calls the worktree-copy flow's kill controls cover:
+/// what the wrapper itself makes in it with no forks followed (measured 2026-11-09).
+/// `unlinkat`,
+/// `mkdirat` and `vfork` are not listed:
+/// the wrapper removes with `unlink` and `rmdir`,
+/// creates directories with `mkdir` and starts Git with `clone3` there,
+///  and made none of the three.
+/// `openat`,
+/// `openat2`,
+/// `ftruncate`,
+/// `rmdir`,
+/// `mkdir`,
+/// `chmod` and `ioctl` are every other state-changing call it makes;
+/// `ioctl` carries the `FICLONE` that fills each staged file and the btrfs subvolume creation (measured 2026-11-09),
+/// and `openat` counts reads too,
+/// because `strace --inject` names a call and an ordinal over all of them.
+const COPY_KILL_CALLS: [&str; 14] = [
+    "write", "pwrite64", "fsync", "ftruncate", "openat", "openat2", "rename", "renameat2", "unlink", "rmdir", "mkdir", "chmod", "ioctl", "clone3",
+];
+
+/// The worktree-copy flow's shape,
+/// shared by each of its kill controls.
+fn copy_flow() -> Flow {
+    return Flow {
         name: "copy",
         setup: copy_setup,
         arguments: &["worktree", "add", "--quiet", "-b", "one", "../one"],
+        killed_at: &COPY_KILL_CALLS,
         recovered: copy_recovered,
-    });
+    };
+}
+
+/// Every call the worktree-copy flow's kill controls cover is one the flow makes.
+#[test]
+fn the_worktree_copy_kill_list_names_only_calls_the_flow_makes() {
+    require_the_kill_list_is_made(&copy_flow());
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `write` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_write_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "write");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `pwrite64` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_pwrite64_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "pwrite64");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `fsync` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_fsync_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "fsync");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `rename` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_rename_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "rename");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `renameat2` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_renameat2_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "renameat2");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `unlink` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_unlink_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "unlink");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `clone3` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_clone3_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "clone3");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `openat` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_openat_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "openat");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `openat2` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_openat2_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "openat2");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `ftruncate` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_ftruncate_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "ftruncate");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `rmdir` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_rmdir_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "rmdir");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `mkdir` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_mkdir_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "mkdir");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `chmod` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_chmod_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "chmod");
+}
+
+/// A worktree add with the ignored-state copy,
+/// killed at each `ioctl` the wrapper makes in it.
+#[test]
+fn a_worktree_copy_killed_at_each_ioctl_leaves_a_recoverable_repository() {
+    sweep_wrapper_kill(&copy_flow(), "ioctl");
 }

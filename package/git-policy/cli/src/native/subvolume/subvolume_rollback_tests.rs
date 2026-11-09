@@ -132,6 +132,11 @@ fn remove_old_arguments(discard_unreadable: bool) -> MigrateArguments {
     return MigrateArguments { mode: MigrateMode::RemoveOld, discard_unreadable, ..migrate_arguments() };
 }
 
+/// The arguments of the deletion of the old tree that also discards what the carry left out.
+fn remove_old_discarding_left_out() -> MigrateArguments {
+    return MigrateArguments { discard_left_out: true, ..remove_old_arguments(false) };
+}
+
 /// Whether the running user is root,
 /// which cannot make an unreadable file.
 fn running_as_root() -> bool {
@@ -235,6 +240,135 @@ fn a_rollback_killed_right_after_its_exchange_does_not_exchange_again() {
     assert_eq!(code2, DONE, "{lines2:#?}");
     assert_eq!(platform.calls.get(), 2, "the second run did not exchange again");
     assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A migration stopped after its exchange is protected by the identity of the tree it installed,
+///  so a rollback refuses a
+///  directory put at the checkout's path and deletes nothing.
+/// Why:
+///   Recording the identity only at verification left every step between the exchange and the end unrecorded,
+/// and a
+///  replacement's own files were carried back over and then deleted with the new subvolume.
+#[test]
+fn a_migration_stopped_after_its_exchange_refuses_a_replaced_checkout_in_a_rollback() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-installed-identity");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::at("after-catchup", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "the tree was installed before the stop");
+    let installed: PathBuf = parent.join("installed.kept");
+    std::fs::rename(root.as_path(), installed.as_path()).expect("move the installed checkout aside");
+    std::fs::create_dir_all(root.join("ignored")).expect("a directory at the checkout's path");
+    std::fs::write(root.join("README.md"), b"the replacement's own\n").expect("the replacement's file");
+    set_seconds(root.join("README.md").as_path(), 1_000_000_000);
+    // The old tree's copy is newer, so a rollback that trusted the path would carry it over the replacement's file.
+    std::fs::write(layout.old_path.join("README.md"), b"from the old tree\n").expect("late write");
+    set_seconds(layout.old_path.join("README.md").as_path(), 2_000_000_000);
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("installed by the migration"), "the refusal names the identity it expected: {lines2:#?}");
+    assert_eq!(std::fs::read(root.join("README.md")).expect("the replacement's file"), b"the replacement's own\n", "nothing is written into the directory that took the checkout's place");
+    assert_eq!(platform.is_subvolume_root(installed.as_path()), Ok(true), "the installed subvolume is where the person moved it");
+    assert!(!layout.new_path.exists(), "nothing was renamed to the new subvolume's name");
+    assert!(layout.old_path.exists() && layout.journal_path.exists(), "the old tree and its journal are kept");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback resumed after its rename deletes only the directory the journal recorded installing,
+///  so a directory put at
+///  the new subvolume's name while the command was down is kept and named.
+/// Why:
+///   The resumed path renames the installed subvolume to that name and then deletes it,
+/// so an existence check alone
+///  would delete whatever the person put there.
+#[test]
+fn a_rollback_resumed_after_its_rename_keeps_a_directory_put_at_the_new_names_path() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-resume-replaced-new", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::at("rollback-after-rename", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    // The exchange and the rename happened: the installed subvolume waits at the new subvolume's name.
+    assert_eq!(platform.is_subvolume_root(layout.new_path.as_path()), Ok(true), "the installed subvolume is at the new name");
+    assert!(!layout.old_path.exists(), "the old tree's name is free again");
+    let installed: PathBuf = parent.join("installed.kept");
+    std::fs::rename(layout.new_path.as_path(), installed.as_path()).expect("move the installed subvolume somewhere safe");
+    std::fs::create_dir_all(layout.new_path.join("d")).expect("an unrelated directory at the new subvolume's name");
+    std::fs::write(layout.new_path.join("d/precious.txt"), b"its only copy\n").expect("a file of theirs");
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("installed checkout"), "the refusal names what it found and what the journal records: {lines2:#?}");
+    assert_eq!(std::fs::read(layout.new_path.join("d/precious.txt")).expect("their file"), b"its only copy\n", "the directory is kept where it was");
+    assert_eq!(platform.is_subvolume_root(installed.as_path()), Ok(true), "the installed subvolume is where the person moved it");
+    assert!(layout.journal_path.exists(), "the journal stays");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback resumed after the exchange was recorded deletes only the subvolume the journal recorded installing,
+///  so a subvolume another process made at the new subvolume's name is kept and named.
+/// Why:
+///   The recorded exchange makes the resumed run skip the swap,
+/// and with it the pair check that guards the exchange,
+/// so the deletion read only that the name holds a subvolume root,
+/// which a subvolume nobody recorded is too.
+#[test]
+fn a_rollback_resumed_after_its_exchange_keeps_a_subvolume_put_at_the_new_names_path() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-resume-replaced-subvolume", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::at("rollback-after-exchange", 0));
+    assert_eq!(code, FAILED, "{lines:#?}");
+    // The exchange, the rename and the record happened: the installed subvolume waits at the new subvolume's name.
+    assert_eq!(platform.is_subvolume_root(layout.new_path.as_path()), Ok(true), "the installed subvolume is at the new name");
+    let installed: PathBuf = parent.join("installed.kept");
+    std::fs::rename(layout.new_path.as_path(), installed.as_path()).expect("move the installed subvolume somewhere safe");
+    std::fs::create_dir_all(layout.new_path.join("d")).expect("an unrelated directory at the new subvolume's name");
+    std::fs::write(layout.new_path.join("d/precious.txt"), b"its only copy\n").expect("a file of theirs");
+    platform.register(layout.new_path.as_path());
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("installed checkout"), "the refusal names what it found and what the journal records: {lines2:#?}");
+    assert_eq!(std::fs::read(layout.new_path.join("d/precious.txt")).expect("their file"), b"its only copy\n", "the subvolume is kept where it was");
+    assert_eq!(platform.is_subvolume_root(installed.as_path()), Ok(true), "the installed subvolume is where the person moved it");
+    assert!(layout.journal_path.exists(), "the journal stays");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback resumed after its exchange renames and deletes only the directory the journal recorded installing,
+///  so a directory put at the old tree's name while the command was down is kept and named.
+/// Why:
+///   A kill after the exchange leaves the journal one step behind,
+/// and the resumed run used to rename whatever `old_path`
+///  held to the new subvolume's name and delete it,
+/// which destroyed a directory the migration never made with no
+///  other process running.
+#[test]
+fn a_rollback_resumed_after_its_exchange_keeps_a_directory_put_at_the_old_trees_name() {
+    let platform: KillAfterExchange = KillAfterExchange { inner: PlainPlatform::new(), kill_on: 2, calls: std::cell::Cell::new(0) };
+    let (parent, root) = migrated("rollback-resume-replaced-old", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let (code, lines) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, FAILED, "{lines:#?}");
+    // The exchange happened: the checkout is the original directory and the installed subvolume waits at the old tree's name.
+    assert_eq!(platform.inner.is_subvolume_root(root.as_path()), Ok(false), "the checkout is the original directory again");
+    assert_eq!(platform.inner.is_subvolume_root(layout.old_path.as_path()), Ok(true), "the installed subvolume waits at the old tree's name");
+    let installed: PathBuf = parent.join("installed.kept");
+    std::fs::rename(layout.old_path.as_path(), installed.as_path()).expect("move the installed subvolume somewhere safe");
+    std::fs::create_dir_all(layout.old_path.join("d")).expect("an unrelated directory at the old tree's name");
+    std::fs::write(layout.old_path.join("d/precious.txt"), b"its only copy\n").expect("a file of theirs");
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    assert!(lines2.join("\n").contains("installed checkout"), "the refusal names what it found and what the journal records: {lines2:#?}");
+    assert_eq!(std::fs::read(layout.old_path.join("d/precious.txt")).expect("their file"), b"its only copy\n", "the directory is kept where it was");
+    assert!(!layout.new_path.exists(), "nothing was renamed to the new subvolume's name");
+    assert_eq!(platform.inner.is_subvolume_root(installed.as_path()), Ok(true), "the installed subvolume is where the person moved it");
+    assert!(layout.journal_path.exists(), "the journal stays");
     remove(parent.as_path());
 }
 
@@ -533,13 +667,147 @@ fn writes_to_the_old_tree_after_the_catch_up_are_carried_before_it_is_deleted() 
     std::fs::remove_file(root.join("src/main.rs")).expect("deleted on purpose");
     set_seconds(layout.old_path.join("src/main.rs").as_path(), 1_000_000_000);
     let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
-    assert_eq!(code, DONE, "{lines:#?}");
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("carried README.md") && text.contains("carried ignored/late.txt"), "{text}");
+    // The file the person deleted is a left-out entry too, and no check can tell the two apart: it is named, and the
+    // deletion waits for the explicit flag.
+    assert!(text.contains("src/main.rs"), "{text}");
+    let (code2, lines2) = run_command(&platform, &remove_old_discarding_left_out(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
     assert_eq!(std::fs::read(root.join("README.md")).expect("carried"), b"saved by a late writer\n");
     assert_eq!(std::fs::read(root.join("ignored/late.txt")).expect("carried"), b"untracked work");
     assert!(!root.join("src/main.rs").exists(), "a file deleted on purpose is not brought back");
+    assert!(!layout.old_path.exists() && !layout.left_out_path.exists());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A subtree the carry refused because the checkout holds another kind of entry there holds back the deletion,
+///  and the refusal
+///  names that entry.
+/// Why:
+///   The carry keeps the destination's file,
+/// so the old tree's directory and everything in it is the only copy of those
+///  files,
+/// and deleting the tree would lose it with no race and no kill.
+#[test]
+fn a_subtree_the_carry_refused_as_a_type_conflict_holds_back_the_deletion() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-conflict", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let saved: PathBuf = layout.old_path.join("saved");
+    std::fs::create_dir_all(saved.as_path()).expect("the old tree's directory");
+    std::fs::write(saved.join("precious.txt"), b"the only copy\n").expect("its file");
+    // The checkout holds a plain file where the old tree holds that directory, and the file is newer, so the carry keeps it.
+    std::fs::write(root.join("saved"), b"a file, not a directory\n").expect("the checkout's file");
+    set_seconds(root.join("saved").as_path(), 2_000_000_000);
+    set_seconds(saved.as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
     let text: String = lines.join("\n");
-    assert!(text.contains("carried README.md") && text.contains("carried ignored/late.txt"), "{text}");
-    assert!(!layout.old_path.exists());
+    assert!(text.contains("saved"), "the refusal names the entry it kept: {text}");
+    assert!(lines.iter().any(|line: &String| { return line.contains("kept the newer or differently typed entry"); }), "the pass says what it kept: {lines:#?}");
+    assert_eq!(std::fs::read(saved.join("precious.txt")).expect("the only copy"), b"the only copy\n", "the subtree is kept");
+    assert_eq!(std::fs::read(root.join("saved")).expect("the checkout's file"), b"a file, not a directory\n", "the file is not replaced");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A rollback whose carry-back refused a subtree refuses,
+///  so the new subvolume keeps the only copy of those files,
+///  and `--discard-left-out` accepts the loss as it does for the deletion of the old tree.
+/// Why:
+///   The carry-back keeps the original tree's entry where the two trees hold different kinds of entry at one path,
+/// so the new subvolume's directory and everything in it is the only copy of those files,
+/// and the rollback deletes that subvolume:
+/// nothing in that sequence needs a race or a kill,
+/// so the check must come from the same rule the deletion of the old tree follows.
+#[test]
+fn a_rollback_whose_carry_back_refused_a_subtree_keeps_the_new_subvolume() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = checkout_with_worktree("rollback-carry-conflict");
+    std::fs::create_dir_all(root.join("ignored")).expect("an ignored directory");
+    std::fs::write(root.join("ignored/saved"), b"the original file\n").expect("a file of the original tree");
+    let (code, lines) = run_command(&platform, &migrate_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code, DONE, "{lines:#?}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    // In the installed checkout the file became a directory holding its only copy, and the original tree's file is newer.
+    std::fs::remove_file(root.join("ignored/saved")).expect("replace the file");
+    std::fs::create_dir_all(root.join("ignored/saved")).expect("its directory");
+    std::fs::write(root.join("ignored/saved/precious.txt"), b"its only copy\n").expect("its file");
+    set_seconds(root.join("ignored/saved").as_path(), 1_000_000_000);
+    set_seconds(root.join("ignored/saved/precious.txt").as_path(), 1_000_000_000);
+    set_seconds(layout.old_path.join("ignored/saved").as_path(), 2_000_000_000);
+    let (code2, lines2) = run_command(&platform, &rollback_arguments(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, REFUSED, "{lines2:#?}");
+    let text: String = lines2.join("\n");
+    assert!(text.contains("ignored/saved"), "the refusal names the entry it kept: {text}");
+    assert!(text.contains("--discard-left-out"), "and the flag that accepts the loss: {text}");
+    assert_eq!(std::fs::read(root.join("ignored/saved/precious.txt")).expect("the only copy"), b"its only copy\n", "the subtree stays in the new subvolume");
+    assert_eq!(std::fs::read(layout.old_path.join("ignored/saved")).expect("the original file"), b"the original file\n", "the file the carry kept is untouched");
+    assert_eq!(platform.is_subvolume_root(root.as_path()), Ok(true), "nothing was exchanged");
+    // The same flag the deletion of the old tree takes accepts the loss, and then the rollback finishes.
+    let discarding: MigrateArguments = MigrateArguments { discard_left_out: true, ..rollback_arguments() };
+    let (code3, lines3) = run_command(&platform, &discarding, root.as_path(), &Interrupt::never());
+    assert_eq!(code3, DONE, "{lines3:#?}");
+    assert_original_again(&platform, root.as_path());
+    remove(parent.as_path());
+}
+
+/// What:
+///  A file restored into the old tree with an older modification time,
+///  which the carry leaves out,
+///  holds back the deletion and is named.
+/// Why:
+///   The carry leaves out what it cannot tell from a file deleted on purpose,
+/// so counting it is not enough:
+///  the person must be told which entry they would lose,
+///  and deleting it must be their explicit word.
+#[test]
+fn a_file_the_carry_left_out_holds_back_the_deletion_and_is_named() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-left-out", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    // What unpacking a backup does: the file comes back with the time it had when it was saved.
+    let restored: PathBuf = layout.old_path.join("ignored/restored.txt");
+    std::fs::write(restored.as_path(), b"from a backup\n").expect("restored file");
+    set_seconds(restored.as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    let text: String = lines.join("\n");
+    assert!(text.contains("ignored/restored.txt"), "the refusal names the entry it would delete: {text}");
+    assert!(text.contains("--discard-left-out"), "the refusal names the flag that accepts the loss: {text}");
+    assert!(layout.old_path.join("ignored/restored.txt").exists() && layout.journal_path.exists(), "the old tree and its journal stay");
+    assert!(!root.join("ignored/restored.txt").exists(), "the carry did not put it in the checkout");
+    let (code2, lines2) = run_command(&platform, &remove_old_discarding_left_out(), root.as_path(), &Interrupt::never());
+    assert_eq!(code2, DONE, "{lines2:#?}");
+    assert!(!layout.old_path.exists() && !layout.journal_path.exists() && !layout.left_out_path.exists());
+    remove(parent.as_path());
+}
+
+/// What:
+///  The list of entries the carry left out is written beside the checkout by replacing the name,
+///  never through it:
+///  a symbolic link planted at that name leaves the file it points at untouched.
+/// Why:
+///   A plain write follows the link and truncates the person's file before any refusal can be read.
+#[test]
+fn the_left_out_list_is_not_written_through_a_link_at_its_name() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-list-link", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let notes: PathBuf = parent.join("notes.txt");
+    std::fs::write(notes.as_path(), b"a person's notes\n").expect("their file");
+    std::os::unix::fs::symlink(notes.as_path(), layout.left_out_path.as_path()).expect("a link at the list's name");
+    let restored: PathBuf = layout.old_path.join("ignored/restored.txt");
+    std::fs::write(restored.as_path(), b"from a backup\n").expect("restored file");
+    set_seconds(restored.as_path(), 1_000_000_000);
+    let (code, lines) = run_command(&platform, &remove_old_arguments(false), root.as_path(), &Interrupt::never());
+    assert_eq!(code, REFUSED, "{lines:#?}");
+    assert_eq!(std::fs::read(notes.as_path()).expect("their file"), b"a person's notes\n", "nothing is written through the link");
+    assert!(!std::fs::symlink_metadata(layout.left_out_path.as_path()).expect("the name").file_type().is_symlink(), "the name holds the list, not the link");
+    assert!(std::fs::read_to_string(layout.left_out_path.as_path()).expect("the list").contains("ignored/restored.txt"));
     remove(parent.as_path());
 }
 
@@ -557,6 +825,105 @@ fn an_old_tree_path_that_is_a_symbolic_link_is_refused() {
     assert_eq!(code, REFUSED, "{lines:#?}");
     assert!(lines.join("\n").contains("is a symbolic link") && elsewhere.join("README.md").exists());
     assert!(!root.join("ignored/newer.txt").exists(), "nothing is carried from where the link points");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A directory put at the checkout's path after the carry-back,
+/// before the exchange,
+///  is refused and exchanged back,
+///  and the original tree is kept.
+/// Why:
+///   The exchange takes two names,
+/// so nothing binds it to the directories that were checked;
+/// the last look before it
+///  and the read after it keep a replacement from being exchanged and deleted.
+#[test]
+fn a_replacement_that_arrives_before_the_exchange_is_not_exchanged_and_deleted() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("rollback-swap-replaced", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let installed: PathBuf = parent.join("checkout.kept");
+    let (at, kept) = (root.clone(), installed.clone());
+    let mut say: Vec<String> = Vec::new();
+    let never: Interrupt = Interrupt::never();
+    let mut sink = |text: &str| { say.push(String::from(text)); };
+    let mut run = crate::subvolume_run::Run::open(&platform, &layout, &never, &mut sink).expect("run");
+    let replace = &mut || {
+        std::fs::rename(at.as_path(), kept.as_path()).expect("move the installed checkout aside");
+        std::fs::create_dir_all(at.join("ignored")).expect("a directory at the checkout's path");
+        std::fs::write(at.join("ignored/precious.txt"), b"somebody else's file\n").expect("a file of theirs");
+    };
+    let refused = swap_back_seamed(&mut run, false, false, replace).expect("no failure");
+    let Some(reasons) = refused else { panic!("the rollback is refused, and nothing is exchanged: {say:?}") };
+    assert!(reasons.iter().any(|reason: &Refusal| { return reason.cause.contains("installed checkout") || reason.cause.contains("not two directories") || reason.cause.contains("did not exchange"); }), "{reasons:?}");
+    assert_eq!(std::fs::read(root.join("ignored/precious.txt")).expect("the replacement is kept"), b"somebody else's file\n");
+    assert!(installed.join("README.md").is_file(), "the installed checkout is where the other process moved it");
+    assert!(layout.old_path.exists(), "the original tree is kept");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A checkout moved aside between the identity check and the carry receives nothing:
+///  the carry goes through the descriptor of the directory that was checked,
+///  and the old tree is kept when the name no longer leads to it.
+/// Why:
+///   The check and the writes were detached,
+/// so a directory put at the checkout's path in that window received the old
+///  tree's newer files and the old tree was then deleted.
+#[test]
+fn a_checkout_replaced_after_the_identity_check_never_receives_the_carry() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-swap-after-check", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let installed: PathBuf = parent.join("checkout.kept");
+    // Newer than the checkout's copy, so the carry would write it wherever the path points by then.
+    std::fs::write(layout.old_path.join("README.md"), b"from the old tree\n").expect("late write");
+    let (at, kept) = (root.clone(), installed.clone());
+    let mut say = |_text: &str| {};
+    let never: Interrupt = Interrupt::never();
+    let mut run = crate::subvolume_run::Run::open(&platform, &layout, &never, &mut say).expect("run");
+    let swap = &mut || {
+        std::fs::rename(at.as_path(), kept.as_path()).expect("move the installed checkout aside");
+        std::fs::create_dir_all(at.join("src")).expect("a directory at the checkout's path");
+        std::fs::write(at.join("README.md"), b"the replacement's own\n").expect("the replacement's file");
+        // Older than the old tree's late write, so a carry that resolved the path would replace it.
+        set_seconds(at.join("README.md").as_path(), 1_000_000_000);
+    };
+    let refused = remove_old_tree_seamed(&mut run, false, false, swap).expect("no failure");
+    assert_eq!(std::fs::read(root.join("README.md")).expect("the replacement's file"), b"the replacement's own\n", "nothing is written into the directory that took the checkout's place");
+    assert_eq!(std::fs::read(installed.join("README.md")).expect("the installed checkout"), b"from the old tree\n", "the files go where the descriptor points");
+    assert!(layout.old_path.exists() && layout.journal_path.exists(), "the old tree and its journal are kept");
+    let Some(reasons) = refused else { panic!("the deletion is refused, because the name no longer leads to the directory that was checked") };
+    assert!(reasons.iter().any(|reason: &Refusal| { return reason.cause.contains("was the directory") && reason.cause.contains("now"); }), "{reasons:?}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A checkout replaced by hand since the migration is not the directory the migration installed,
+///  so neither `--remove-old` nor
+///  `--rollback` acts on it:
+/// one would write the old tree's newer files into a directory the migration never recorded and
+///  then delete the old tree,
+/// the other would swap the trees of another directory.
+#[test]
+fn a_root_that_is_not_the_installed_checkout_is_refused_by_both_deleting_modes() {
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (parent, root) = migrated("remove-old-wrong-root", &platform);
+    let layout = layout_of(root.as_path()).expect("layout");
+    let kept: PathBuf = parent.join("checkout.kept");
+    std::fs::rename(root.as_path(), kept.as_path()).expect("move the installed checkout aside");
+    std::fs::create_dir_all(root.join("ignored")).expect("another directory at the checkout's path");
+    std::fs::write(root.join("ignored/precious.txt"), b"written by somebody else\n").expect("file of the replacement");
+    // Newer than its copy, so the carry would write it over the replacement's file.
+    std::fs::write(layout.old_path.join("ignored/precious.txt"), b"from the old tree\n").expect("late write");
+    for arguments in [remove_old_discarding_left_out(), rollback_arguments()] {
+        let (code, lines) = run_command(&platform, &arguments, root.as_path(), &Interrupt::never());
+        assert_eq!(code, REFUSED, "{:?}: {lines:#?}", arguments.mode);
+        assert!(lines.join("\n").contains("installed by the migration"), "the refusal says which directory it expected: {lines:#?}");
+    }
+    assert_eq!(std::fs::read(root.join("ignored/precious.txt")).expect("the replacement's file"), b"written by somebody else\n", "nothing was written into the directory that took the checkout's place");
+    assert!(layout.old_path.exists() && layout.journal_path.exists() && kept.join("README.md").exists());
     remove(parent.as_path());
 }
 
@@ -818,25 +1185,31 @@ fn a_rollback_preview_before_the_exchange_is_not_refused() {
 }
 
 /// Remove the identity a journal records for the stage it made,
-/// as a journal written between the two records or by an earlier release has none.
+/// as a journal a kill left before that write,
+/// or one an earlier release wrote,
+/// has none.
 fn forget_the_recorded_stage(journal: &Path) {
     let text: String = std::fs::read_to_string(journal).expect("the journal");
     let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
     let document = value.as_object_mut().expect("a journal is an object");
-    assert!(document.remove("stage_identity").is_some(), "the control starts from a journal that records the stage");
+    let values = document.get_mut("values").and_then(serde_json::Value::as_object_mut).expect("the journal records values");
+    assert!(values.remove(crate::subvolume_journal::STAGE_ROOT).is_some(), "the control starts from a journal that records the stage");
+    if values.is_empty() {
+        document.remove("values");
+    }
     std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
 }
 
 /// What:
 ///  A rollback deletes no subvolume when the journal records no identity for the one the migration made.
 /// Why:
-///   The creation step and the identity are recorded by two writes,
-/// so a kill between them leaves a journal that records the
-///  creation and no identity;
-/// the rollback read that as permission and destroyed whatever subvolume stood at the
-///  stage's name,
+///   The identity of the stage reaches the journal in a write of its own,
+/// so a kill before it leaves a journal that records the
+///  creation and no identity,
+/// and a journal written before this release records none of the values at all;
+/// the rollback read a missing
+///  identity as permission and destroyed whatever subvolume stood at the stage's name,
 /// with the data it held.
-/// A journal an earlier release wrote has the same shape.
 #[test]
 fn a_rollback_refuses_a_stage_the_journal_records_no_identity_for() {
     let platform: PlainPlatform = PlainPlatform::new();

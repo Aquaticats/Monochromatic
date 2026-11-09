@@ -507,7 +507,9 @@ fn a_resume_refuses_a_stage_that_is_not_the_subvolume_the_journal_recorded() {
 
 /// Record the creation step as begun,
 /// and drop the identity of the stage,
-/// as a journal written by a run killed between the two records has it.
+/// as a journal a kill left before that write,
+/// or one an earlier release wrote,
+/// has it.
 fn record_the_creation_without_the_stage(journal: &Path) {
     let text: String = std::fs::read_to_string(journal).expect("the journal");
     let mut value: serde_json::Value = serde_json::from_str(text.as_str()).expect("a journal");
@@ -515,17 +517,21 @@ fn record_the_creation_without_the_stage(journal: &Path) {
     let steps = document.get_mut("steps").and_then(serde_json::Value::as_object_mut).expect("a journal records steps");
     let create = steps.get_mut("create").and_then(serde_json::Value::as_object_mut).expect("the journal records the creation");
     create.insert(String::from("state"), serde_json::Value::String(String::from("started")));
-    let identity = document.remove("stage_identity");
+    let values = document.get_mut("values").and_then(serde_json::Value::as_object_mut).expect("the journal records values");
+    let identity = values.remove(crate::subvolume_journal::STAGE_ROOT);
     assert!(identity.is_some(), "the control starts from a journal that records the stage");
+    if values.is_empty() {
+        document.remove("values");
+    }
     std::fs::write(journal, serde_json::to_string_pretty(&value).expect("a journal")).expect("write the journal");
 }
 
 /// What:
 ///  A resume adopts an empty subvolume at the stage's name when the journal records no identity for it.
 /// Why:
-///   The creation and the identity are two writes,
-/// so a kill between them leaves a journal that records the creation and
-///  no identity;
+///   The identity of the stage is a write of its own before the step is marked done,
+/// so a kill before it leaves a journal that records
+///  the creation and no identity;
 /// a copy into an empty subvolume loses nothing,
 /// so that state is finished rather than refused,
 /// and every

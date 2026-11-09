@@ -640,21 +640,27 @@ pub fn blocker_words(evidence: &Evidence) -> String {
     };
 }
 
+/// The sentence that ends a dead owner's line when the lock is left where it is,
+/// which is what every command but a merge does.
+pub const DEAD_OWNER_LOCK_LEFT: &str = "nothing was changed and the lock was left in place. If no other program is using this repository, removing the file lets the command run";
+
 /// What:
-///  The diagnostic for a lock whose Git lock PID file names a process that no longer runs.
+///  The diagnostic for a lock whose Git lock PID file names a process that no longer runs,
+///  ending in what the command does about it.
 /// Why:
 ///   That owner can never let go,
-/// so there is nothing to wait for.
+/// so there is nothing to wait for;
+/// a commit service and a merge each say what they do
+///  instead,
+/// and a removal that only some commands attempt must not be promised by the others.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function deadOwnerDiagnostic({ lockPath, pid, consequence }): string;
+/// function deadOwnerDiagnostic({ lockPath, pid, consequence, ending }): string;
 /// ```
-pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str) -> String {
+pub fn dead_owner_diagnostic(lock_path: &Path, pid: i64, consequence: &str, ending: &str) -> String {
     return format!(
-        "monochromatic-git-policy-cli: {lock} was left by PID {pid}, which no longer runs, so nothing will release it. {consequence}; nothing was \
-         changed and the lock was left in place. If no other program is using this repository, removing the file {lock} lets \
-         the command run.\n",
+        "monochromatic-git-policy-cli: {lock} was left by PID {pid}, which no longer runs, so nothing will release it. {consequence}; {ending}.\n",
         lock = lock_path.display()
     );
 }

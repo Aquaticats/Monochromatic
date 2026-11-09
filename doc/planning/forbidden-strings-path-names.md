@@ -85,11 +85,22 @@ The scanner's paired logical-name option preserves both identities separately.
 - `mise run //package/git-policy/forbidden-strings:test:unit` exercises real scanner
   output through the adapter,
   including exact historical bytes and a clean working-tree file.
+  `package/git-policy` holds only `cli` and `cli.fuzz` today;
+  the adapter's own checks are
+  `mise run //package/git-policy/cli:native:test:host`,
+  and the container gate is `mise run //package/git-policy/cli:native:test:container`.
 - `mise run //package/git-policy/forbidden-strings:lint:types` and
   `mise run //package/git-policy/forbidden-strings:lint:oxlint` check the policy source.
+  The policy source is Rust under `package/git-policy/cli/src/native/` now,
+  so its linters are
+  `mise run //package/git-policy/cli:lint:clippy` and
+  `mise run //package/git-policy/cli:lint:monochromatic-lint`.
 - `mise run //package/git-policy/cli:test:built:trust` checks packed host events in a
   disposable container;
-  its name-finding fixture asserts that the offending name
+  it went with the trust workflow on 2026-10-13 in `642b6d72cb`,
+  and `mise run //package/git-policy/cli:native:test:container` runs the suite in bounded
+  podman containers today.
+  Its name-finding fixture asserted that the offending name
   does not appear in host JSON output.
 - `mise run //package/forbidden-strings/cli.fuzz:lint:clippy` checks the expanded fuzz target,
   and `mise run //package/forbidden-strings/cli.fuzz:test` checks its generator library.

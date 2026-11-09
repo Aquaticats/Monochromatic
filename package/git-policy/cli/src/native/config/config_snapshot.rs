@@ -53,6 +53,11 @@ const DECIMAL_DIGITS_LIMIT: usize = 9;
 /// spelled as `git config --list` prints them.
 pub const MAINTENANCE_KEYS: [&str; 4] = ["maintenance.auto", "maintenance.autodetach", "gc.auto", "gc.autodetach"];
 
+/// The scope name Git lists for the values that came from a command line or its environment rather than a file:
+/// `-c`,
+/// `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS`.
+const COMMAND_SCOPE: &str = "command";
+
 /// What:
 ///  One configuration entry in listing order.
 /// Why:
@@ -629,7 +634,8 @@ impl ConfigSnapshot {
     /// What:
     ///  `git config --type=bool --get <key>`.
     /// Why:
-    ///   The hook switches are read this way.
+    ///   Every value Git would read is read here,
+    /// whatever scope it came from.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -637,6 +643,39 @@ impl ConfigSnapshot {
     /// ```
     pub fn bool_value(&self, key: &str) -> Lookup<bool> {
         return self.last_converted(key, canonical_bool);
+    }
+
+    /// What:
+    ///  `git config --type=bool --get <key>` over the entries the configuration files hold,
+    /// the `command` scope left out.
+    /// Why:
+    ///   The `command` scope is where `-c`,
+    /// `GIT_CONFIG_COUNT` and
+    /// `GIT_CONFIG_PARAMETERS` land,
+    /// so it holds the switches of whoever
+    ///  started this process:
+    /// the wrapper itself starts every Git with every hook event switched off,
+    /// and a Git child passes
+    ///  those values on to the commands it runs.
+    /// A question about what the person configured must not be
+    ///  answered by them.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// snapshot.boolValueFromFiles('hook.pre-commit.enabled');
+    /// ```
+    pub fn bool_value_from_files(&self, key: &str) -> Lookup<bool> {
+        let mut last: Lookup<bool> = Lookup::Unset;
+        for entry in &self.entries {
+            if entry.key != key || entry.scope == COMMAND_SCOPE {
+                continue;
+            }
+            match canonical_bool(entry.value.as_deref()) {
+                Some(converted) => last = Lookup::Found(converted),
+                None => return Lookup::Unhandled,
+            }
+        }
+        return last;
     }
 
     /// What:

@@ -126,9 +126,63 @@ fn a_journal_path_that_cannot_be_removed_is_reported() {
     let (parent, path) = journal_path("journal-undeletable");
     std::fs::create_dir(path.as_path()).expect("directory");
     std::fs::write(path.join("inside"), b"x").expect("file");
-    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), stage_identity: None, persisted: true };
+    let mut journal: Journal = Journal { path: path.clone(), started: String::from("x"), states: BTreeMap::new(), times: BTreeMap::new(), values: BTreeMap::new(), persisted: true };
     let error: MigrateError = journal.delete().expect_err("a directory is not a file");
     assert!(error.to_string().contains("cannot delete the journal"), "{error}");
+    remove(parent.as_path());
+}
+
+/// What:
+///  The identity of the stage reads back from the value the migration records for it,
+/// and a journal that records none
+///  answers none.
+/// Why:
+///   The rollback and the resume delete and fill that subvolume,
+/// and both judge it by this record;
+/// an identity
+///  stored in the same map as every other value is what lets one file carry all of them,
+/// and a value that is not
+///  an identity answers none so the callers refuse rather than guess.
+#[test]
+fn the_stage_identity_reads_back_from_the_recorded_value() {
+    let (parent, path) = journal_path("journal-stage-identity");
+    let identity = crate::fs_beneath::ObjectId { device: 0, inode: 256, birth: Some((7, 8)) };
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(journal.stage_identity(), None, "a journal that records none answers none");
+    journal.record_stage_identity(identity).expect("record");
+    let reloaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(reloaded.stage_identity(), Some(identity), "the identity is written and read back");
+    assert_eq!(reloaded.value(STAGE_ROOT), Some(identity.encode().as_str()), "it is one of the journal's values");
+    let mut not_an_identity: Journal = Journal::load(path.as_path()).expect("load");
+    not_an_identity.set_value(STAGE_ROOT, "not an identity");
+    not_an_identity.mark("verify", "done").expect("mark");
+    let reloaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(reloaded.stage_identity(), None, "a value that is not an identity answers none");
+    remove(parent.as_path());
+}
+
+/// What:
+///  A value recorded beside a step reaches the file with that step and is read back after a reload,
+///  and a journal of an
+///  earlier release,
+/// which has no values,
+/// loads as one with none.
+#[test]
+fn a_value_recorded_beside_a_step_is_read_back() {
+    let (parent, path) = journal_path("journal-values");
+    let mut journal: Journal = Journal::load(path.as_path()).expect("load");
+    journal.set_value("installed-root", "0:256");
+    journal.mark("verify", "done").expect("mark");
+    let reloaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(reloaded.value("installed-root"), Some("0:256"));
+    assert_eq!(reloaded.value("other"), None);
+    let text: String = std::fs::read_to_string(path.as_path()).expect("file");
+    assert!(text.contains("installed-root"), "the value is in the file: {text}");
+    // A file without the values object is a journal of an earlier release, not a broken one.
+    let earlier: String = String::from("{\"schema\": 1, \"started\": \"x\", \"steps\": {}}");
+    std::fs::write(path.as_path(), earlier).expect("an earlier release's journal");
+    let loaded: Journal = Journal::load(path.as_path()).expect("load");
+    assert_eq!(loaded.value("installed-root"), None);
     remove(parent.as_path());
 }
 

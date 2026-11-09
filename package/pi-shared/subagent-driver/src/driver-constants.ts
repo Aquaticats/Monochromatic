@@ -23,8 +23,12 @@ export const MILLISECONDS_PER_SECOND = 1_000;
 export const POLL_MILLISECONDS = 300;
 
 /**
- Longest wait for Pi's answer to one command. Pi answered the first prompt 5.2 to 5.4 seconds after starting in four real runs
- on 2026-11-08 (`doc/agent/drive-pi-as-a-coding-subagent.md`); this leaves room for a loaded host.
+ Longest silence Pi may keep while a command waits for its answer. A compaction Pi reports under way is not silence, since Pi is
+ working on its own session then, so this bound stops counting until the compaction ends; the deadline a run gives the wait is
+ the outer bound.
+
+ Pi answered the first prompt 5.2 to 5.4 seconds after starting in four real runs on 2026-11-08
+ (`doc/agent/drive-pi-as-a-coding-subagent.md`); this leaves room for a loaded host.
  */
 export const COMMAND_ANSWER_MILLISECONDS = 30_000;
 

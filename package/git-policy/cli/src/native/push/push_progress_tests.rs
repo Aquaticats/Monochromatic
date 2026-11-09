@@ -84,13 +84,32 @@ fn settle(meter: &mut Meter, root: i32) {
     }
 }
 
-/// An idle tree moves nothing between looks,
-/// and a write of the root shows at the next look.
+/// What:
+///  An idle tree moves nothing between looks,
+///  and a write of the root shows at the next look.
+/// Why the child says it has started before the tree is settled:
+///   A tree is idle only once the child is: settling before the shell was scheduled makes the shell's own start the next
+/// look's movement, which read as a write of the root and failed this control once in a run of 1,183 tests while it passed
+///  alone in under five seconds (report `kill-sweeps-reach-the-calls-they-name-1`, 2026-11-09).
+/// The child writes `started` first, and the
+///  control waits for that file, so the order is the control's and never the scheduler's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = shell('echo > started; sleep 0.6; echo a >> log; sleep 60', root);
+/// await exists(join(root, 'started')); settle(meter, child.pid); expect(meter.sample(pid)).toBe(false);
+/// ```
 #[test]
 fn a_write_of_the_root_is_progress_and_an_idle_tree_is_not() {
     let root: std::path::PathBuf = fixture("progress-root");
-    let child: Child = shell("sleep 0.6; echo a >> log; sleep 60", root.as_path());
+    // The child says it has started and is about to sleep, so the tree is settled after the shell's own start and not before.
+    let child: Child = shell(": > started; sleep 0.6; echo a >> log; sleep 60", root.as_path());
     let pid: i32 = i32::try_from(child.id()).expect("pid");
+    let began_waiting: Instant = Instant::now();
+    while !root.join("started").exists() {
+        assert!(began_waiting.elapsed() < PATIENCE, "the child never said it had started");
+        std::thread::sleep(POLL);
+    }
     let mut meter: Meter = Meter::new();
     settle(&mut meter, pid);
     let idle: u64 = meter.moved();

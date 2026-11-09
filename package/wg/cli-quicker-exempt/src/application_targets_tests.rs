@@ -9,7 +9,9 @@ use crate::application_targets::{
     is_helium_service_name,
     is_interpreter_service_name,
     is_odytty_service_name,
+    is_pi_service_name,
     is_qure_service_name,
+    is_socket_marked_cgroup,
     is_toolchain_updates_slice_name,
     scan_application_targets,
     ScanRoots,
@@ -693,6 +695,95 @@ fn scan_discovers_only_the_toolchain_updates_slice() -> io::Result<()> {
         cgroup_root: &cgroup_root,
     })?;
     assert_eq!(targets, vec![updates_slice]);
+    std::fs::remove_dir_all(&scratch)?;
+    return Ok(());
+}
+
+/// Accepts every `pi-<name>.service` agent unit the owner's Pi runs in,
+/// and nothing that merely shares its letters.
+#[test]
+fn pi_agent_service_names_are_marked_by_name() {
+    assert!(is_pi_service_name(
+        "pi-wg-quicker-model-providers-off-the-tunnel.service"
+    ));
+    assert!(is_pi_service_name(
+        "pi-commit-scratch-removal-off-the-path.service"
+    ));
+    // The unit must name something after the prefix.
+    assert!(!is_pi_service_name("pi-.service"));
+    // An interactive Pi is no unit, and no scope carries the service suffix.
+    assert!(!is_pi_service_name("pi.service"));
+    assert!(!is_pi_service_name("pi-agent.scope"));
+    // Another name that starts with the same letters is another program.
+    assert!(!is_pi_service_name("piwork-3.slice"));
+    assert!(!is_pi_service_name("not-pi-agent.service"));
+    // Any other unit whose name starts with the same letters is marked too,
+    // because a unit name is a name the user can choose.
+    assert!(is_pi_service_name("pi-agent@abc.service"));
+}
+
+/// Names the cgroups the watcher attaches the socket mark to itself:
+/// a direct `app.slice` entry whose name one of the watcher's own rules selects.
+#[test]
+fn socket_marked_cgroups_are_direct_named_app_slice_entries() {
+    let prefix = "/user.slice/user-1000.slice/user@1000.service/app.slice/";
+    for leaf in [
+        "pi-wg-quicker-model-providers-off-the-tunnel.service",
+        "app-com.mitchellh.ghostty@abc.service",
+        "app-ghostty-surface-transient-123.scope",
+        "app-steam@abc.service",
+        "app-firefox@abc.service",
+        "app-chatgpt@abc.service",
+        TOOLCHAIN_UPDATES_SLICE,
+    ] {
+        let cgroup = format!("{prefix}{leaf}");
+        assert!(is_socket_marked_cgroup(&cgroup, 1000), "{leaf}");
+    }
+    // A cgroup below a marked one inherits the program but is not the entry itself.
+    assert!(!is_socket_marked_cgroup(
+        &format!("{prefix}pi-agent.service/nested.scope"),
+        1000
+    ));
+    // A service the watcher does not name is left to the process watch.
+    assert!(!is_socket_marked_cgroup(&format!("{prefix}other.service"), 1000));
+    assert!(!is_socket_marked_cgroup(&format!("{prefix}pi-agent.scope"), 1000));
+    // Only the watched user's app slice is scanned.
+    assert!(!is_socket_marked_cgroup(&format!("{prefix}pi-agent.service"), 2000));
+    assert!(!is_socket_marked_cgroup(
+        "/user.slice/user-1000.slice/user@1000.service/pi-agent.service",
+        1000
+    ));
+    assert!(!is_socket_marked_cgroup(
+        "/user.slice/user-1000.slice/session-3.scope/pi-agent.service",
+        1000
+    ));
+    assert!(!is_socket_marked_cgroup("/", 1000));
+}
+
+/// Discovers Pi's agent units beside the other named application cgroups.
+#[test]
+fn scan_discovers_pi_agent_units() -> io::Result<()> {
+    let scratch = crate::test_scratch::scratch_root().join(format!(
+        "wg-quicker-application-targets-pi-{}",
+        std::process::id()
+    ));
+    let cgroup_root = scratch.join("cgroup");
+    let app_slice = cgroup_root.join("users/app.slice");
+    let proc_root = scratch.join("proc");
+    std::fs::create_dir_all(&app_slice)?;
+    std::fs::create_dir(&proc_root)?;
+    let agent_unit = app_slice.join("pi-wg-quicker-model-providers-off-the-tunnel.service");
+    let other_unit = app_slice.join("piwork-3.service");
+    let agent_scope = app_slice.join("pi-wg-quicker-shell-3.scope");
+    for path in [&agent_unit, &other_unit, &agent_scope] {
+        std::fs::create_dir(path)?;
+    }
+    let targets = scan_application_targets(&ScanRoots {
+        app_slice: &app_slice,
+        proc_root: &proc_root,
+        cgroup_root: &cgroup_root,
+    })?;
+    assert_eq!(targets, vec![agent_unit]);
     std::fs::remove_dir_all(&scratch)?;
     return Ok(());
 }
