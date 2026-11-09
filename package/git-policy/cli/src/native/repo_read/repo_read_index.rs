@@ -101,6 +101,54 @@ pub struct ParsedIndex {
 }
 
 /// What:
+///  Whether an `IEOT` body names exactly the entries this reader parsed.
+/// Why:
+///   Git reads the entries through this table when `index.threads` turns threaded loading on,
+///  and `read_ieot_extension` (`read-cache.c`,
+/// Git 2.56.0) words a version other than 1
+///  (`error: invalid IEOT version <n>`) and a table naming no block
+///  (`error: invalid number of IEOT entries <n>`);
+///  it then seeks each block by the table's own byte offsets,
+///  so a table naming other bytes is a different listing,
+/// or no listing at all:
+///  measured on Git 2.56.0,
+/// a first block one byte off ends the process without a word,
+///  and a first block pointing into the header prints `fatal: unknown index entry format 0xc0110000`.
+///   So the version must be 1,
+/// the table must name at least one block,
+/// and every block must begin where
+///  this reader parsed its first entry and cover every entry between them.
+///   A file with no `IEOT` extension is unaffected,
+///  and a table read this way answers the entries this reader already has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function offsetTableIsSilent(body: Uint8Array, starts: number[]): boolean;
+/// ```
+fn offset_table_is_silent(body: &[u8], starts: &[u32]) -> Option<()> {
+    if be32(body, 0)? != 1 {
+        return None;
+    }
+    let size: usize = body.len().checked_sub(4)?;
+    if size == 0 || size % 8 != 0 {
+        return None;
+    }
+    let mut next: usize = 0;
+    for block in 0..size / 8 {
+        let begins: usize = usize::try_from(be32(body, 4 + block * 8)?).ok()?;
+        let held: usize = usize::try_from(be32(body, 8 + block * 8)?).ok()?;
+        if held == 0 || usize::try_from(*starts.get(next)?).ok()? != begins {
+            return None;
+        }
+        next = next.checked_add(held)?;
+    }
+    if next != starts.len() {
+        return None;
+    }
+    return Some(());
+}
+
+/// What:
 ///  `parse_index`,
 /// keeping the cache-tree extension.
 /// Why:
@@ -124,9 +172,13 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
     }
     let count: usize = usize::try_from(be32(bytes, 8)?).ok()?;
     let mut entries: Vec<IndexEntry> = Vec::with_capacity(count.min(1 << 20));
+    // Where each entry begins, which is what an offset table (`IEOT`) names.
+    //  Kept for every file, because which extensions follow the entries is known only after they are read.
+    let mut starts: Vec<u32> = Vec::with_capacity(count.min(1 << 20));
     let mut at: usize = HEADER_LENGTH;
     let mut previous: Vec<u8> = Vec::new();
     for _ in 0..count {
+        starts.push(u32::try_from(at).ok()?);
         let mode: u32 = be32(bytes, at.checked_add(24)?)?;
         let id_at: usize = at.checked_add(STAT_LENGTH)?;
         let id: Vec<u8> = bytes.get(id_at..id_at.checked_add(hash_length)?)?.to_vec();
@@ -205,7 +257,12 @@ pub fn parse_index_with_tree(bytes: &[u8], format: ObjectFormat) -> Option<Parse
                 crate::index_fsmonitor::read_fsmonitor(body?, entries.len())?;
             }
             // Git reads these without a word on any body it is handed, measured on Git 2.56.0 with each body `abcd`.
-            b"UNTR" | b"EOIE" | b"IEOT" => {}
+            b"UNTR" | b"EOIE" => {}
+            // Git reads the entries through this table when threaded loading is on,
+            //  so only a table naming exactly the entries read here is answered.
+            b"IEOT" => {
+                offset_table_is_silent(body?, starts.as_slice())?;
+            }
             // An extension this reader does not know is one Git words (`ignoring <signature> extension`) or dies on.
             _ => return None,
         }
