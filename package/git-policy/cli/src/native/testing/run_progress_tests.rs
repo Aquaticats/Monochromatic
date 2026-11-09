@@ -57,6 +57,28 @@ fn a_run_that_stops_moving_is_ended_after_the_window() {
     assert_eq!(ended, Some(Ending::Quiet(window)), "the first look the window covers ends the run, and it is the window old");
 }
 
+/// A run whose counters stop being readable is still ended:
+/// a look that cannot be read is no sign of work,
+/// so the clock keeps running through it,
+/// and the ending says which reading was missing.
+#[test]
+fn a_run_whose_counters_stop_being_readable_is_ended() {
+    let window: Duration = Duration::from_secs(2);
+    let mut judge: Judge = Judge::new(window);
+    // One look that reads the run and finds it moving,
+    // as the first look of a test that then exhausts its descriptors does.
+    assert_eq!(judge.observe(Duration::ZERO, Some(moved(4096, 1, 3))), None, "the run moved");
+    let mut elapsed: Duration = Duration::ZERO;
+    let mut ended: Option<Ending> = None;
+    while ended.is_none() && elapsed < window * 4 {
+        elapsed += SAMPLE_INTERVAL;
+        ended = judge.observe(elapsed, None);
+    }
+    let reported: Ending = ended.expect("the run ends rather than wait for a reading that never comes");
+    let said: String = reported.to_string();
+    assert!(said.contains("counters"), "the ending names what could not be read: {said}");
+}
+
 /// A task waiting for the disk is at work,
 /// so a run whose only sign is a task in `D` is left alone.
 #[test]
