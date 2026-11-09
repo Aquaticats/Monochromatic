@@ -9,6 +9,11 @@
 //!      rejection.
 //!  Real-Git controls for the disagreements are in `command_commit_git_tests.rs`.
 //!
+//! The `.ts` names here are the TypeScript wrapper's,
+//!  deleted on 2026-10-13 in `642b6d72cb`,
+//!  where `git show 642b6d72cb^:package/git-policy/cli/src/parser/<name>` reads each:
+//!  `commit.unit.test.ts` and `argv.unit.test.ts`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(parseCommitRegion(args).isDryRun).toBe(true);
@@ -117,7 +122,9 @@ fn extracts_pathspecs_without_wrapper_flags_or_option_values() {
     );
 }
 
-/// Ported from `argv.unit.test.ts`:
+/// Ported from `argv.unit.test.ts`
+///  (deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper;
+///  `git show 642b6d72cb^:package/git-policy/cli/src/parser/argv.unit.test.ts` reads it):
 ///  "keeps an ordinary undeclared joined git option working".
 /// With Git's whole table declared,
 ///  the option is known and consumes nothing.
