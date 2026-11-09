@@ -98,8 +98,12 @@ pub const LINKED_WORKTREE_REQUIRED_CODE: &str = "linked-worktree-required";
 pub enum GuardedCommand {
     /// Every `git stash` form that changes state.
     Stash,
-    /// A `git clean` that is not a dry run.
+    /// A `git clean` that is not a dry run and deletes no ignored file.
     Clean,
+    /// A `git clean` that is not a dry run and deletes ignored files (`-x` or `-X`).
+    CleanIgnored,
+    /// A `git clean` that is not a dry run and deletes ignored files and nothing else (`-X` alone).
+    CleanIgnoredOnly,
     /// A `git reset` with `--hard`,
     ///  `--merge` or `--keep`.
     ResetHard,
@@ -171,6 +175,10 @@ pub enum LinkedWorktreeDecision {
 /// Why:
 ///   A `clean` deletes untracked files,
 /// so they count for it;
+/// a `clean -x` also deletes the ignored files,
+/// and a `clean -X` deletes nothing
+///  else,
+/// so each reads the set it can destroy;
 /// every other form loses tracked changes only.
 ///
 /// In TS you'd write (pseudocode):
@@ -178,10 +186,18 @@ pub enum LinkedWorktreeDecision {
 /// function dirtyScope(command: GuardedCommand): DirtyScope;
 /// ```
 pub fn dirty_scope(command: GuardedCommand) -> DirtyScope {
-    if command == GuardedCommand::Clean {
-        return DirtyScope::TrackedAndUntracked;
+    match command {
+        GuardedCommand::CleanIgnored => {
+            return DirtyScope::Everything;
+        }
+        GuardedCommand::CleanIgnoredOnly => {
+            return DirtyScope::IgnoredOnly;
+        }
+        GuardedCommand::Clean => {
+            return DirtyScope::TrackedAndUntracked;
+        }
+        _ => return DirtyScope::Tracked,
     }
-    return DirtyScope::Tracked;
 }
 
 /// What:
@@ -237,10 +253,18 @@ fn guarded_decision(
     if word == b"clean" {
         // `&[]` is an empty flag list: wrapper controls were removed before this point.
         let facts: CleanRegion = parse_clean_region(region, &[])?;
-        if clean_changes_worktree(&facts) {
-            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Clean));
+        if !clean_changes_worktree(&facts) {
+            return Ok(LinkedWorktreeDecision::Pass);
         }
-        return Ok(LinkedWorktreeDecision::Pass);
+        // An ignored file is not an untracked file to Git, and the person's environment file sits in exactly that
+        // difference, so a clean that deletes ignored files is its own guarded form with its own measurement.
+        if facts.ignored_only {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnoredOnly));
+        }
+        if facts.deletes_ignored {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::CleanIgnored));
+        }
+        return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Clean));
     }
     if word == b"reset" {
         let facts: ResetRegion = parse_reset_region(region, &[])?;

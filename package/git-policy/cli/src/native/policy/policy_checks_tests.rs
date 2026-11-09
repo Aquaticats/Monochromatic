@@ -495,6 +495,8 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, "Tracked"),
         (vec!["merge", "--abort"], GuardedCommand::AbortMerge, "Tracked"),
         (vec!["clean", "-fd"], GuardedCommand::Clean, "TrackedAndUntracked"),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, "Everything"),
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly, "IgnoredOnly"),
         (vec!["stash", "push"], GuardedCommand::Stash, "Tracked"),
     ] {
         let dirty_scope = format!("dirty:{scope}");

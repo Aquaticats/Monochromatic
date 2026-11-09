@@ -1544,8 +1544,18 @@ The rule is:
    clean or not.
 - In a linked worktree it is rejected while the worktree holds uncommitted tracked changes
    (for `git clean`,
-  also untracked files),
+  also untracked files,
+  and for `git clean -x` or `-X`,
+  ignored files),
    and runs when the worktree is clean.
+- An ignored file counts where the command can delete or replace it:
+  `git clean -x` is rejected while any tracked,
+  untracked or ignored file exists,
+  and `git clean -X` while any ignored file does.
+  A `git clean -fd`,
+  which keeps the ignored files,
+  is unaffected.
+  `git clean -nx` and `git clean -nX` are the dry runs that list what each would delete.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.

@@ -23,9 +23,11 @@ use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
 
 /// Every guarded form.
-const ALL_COMMANDS: [GuardedCommand; 18] = [
+const ALL_COMMANDS: [GuardedCommand; 20] = [
     GuardedCommand::Stash,
     GuardedCommand::Clean,
+    GuardedCommand::CleanIgnored,
+    GuardedCommand::CleanIgnoredOnly,
     GuardedCommand::ResetHard,
     GuardedCommand::ResetMixed,
     GuardedCommand::RestoreStaged,
@@ -65,6 +67,11 @@ fn destructive_forms_need_the_worktree_kind() {
         (vec!["clean", "-fd"], GuardedCommand::Clean),
         (vec!["clean", "-n", "--no-dry-run"], GuardedCommand::Clean),
         (vec!["clean", "-i"], GuardedCommand::Clean),
+        (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored),
+        (vec!["clean", "-f", "-x"], GuardedCommand::CleanIgnored),
+        (vec!["clean", "--force", "-d", "--quiet", "-x"], GuardedCommand::CleanIgnored),
+        (vec!["clean", "-fdX"], GuardedCommand::CleanIgnoredOnly),
+        (vec!["clean", "-X"], GuardedCommand::CleanIgnoredOnly),
         (vec!["reset"], GuardedCommand::ResetMixed),
         (vec!["reset", "--mixed"], GuardedCommand::ResetMixed),
         (vec!["reset", "file"], GuardedCommand::ResetMixed),
@@ -120,14 +127,16 @@ fn head_moves_need_the_dirtiness() {
     }
 }
 
-/// Only a deleting clean counts untracked files as uncommitted state.
+/// Each clean reads exactly the files it can delete;
+/// every other form loses tracked changes only.
 #[test]
-fn only_clean_counts_untracked_files() {
+fn each_form_counts_the_files_it_can_delete() {
     for command in ALL_COMMANDS {
-        let expected: DirtyScope = if command == GuardedCommand::Clean {
-            DirtyScope::TrackedAndUntracked
-        } else {
-            DirtyScope::Tracked
+        let expected: DirtyScope = match command {
+            GuardedCommand::Clean => DirtyScope::TrackedAndUntracked,
+            GuardedCommand::CleanIgnored => DirtyScope::Everything,
+            GuardedCommand::CleanIgnoredOnly => DirtyScope::IgnoredOnly,
+            _ => DirtyScope::Tracked,
         };
         assert_eq!(dirty_scope(command), expected, "{command:?}");
     }
@@ -151,6 +160,8 @@ fn harmless_forms_pass() {
         vec!["--no-pager", "stash", "list"],
         vec!["clean", "-n"],
         vec!["clean", "--dry-run", "-fd"],
+        vec!["clean", "-nx"],
+        vec!["clean", "-nX"],
         vec!["clean", "-i", "-n"],
         vec!["reset", "--soft", "HEAD~1"],
         vec!["reset", "--hard", "--soft"],
@@ -247,6 +258,8 @@ fn each_intent_gets_its_own_alternative() {
     assert!(main_worktree_message(GuardedCommand::ResetHard).contains("git reset --soft <commit>"));
     assert!(main_worktree_message(GuardedCommand::Stash).contains("git worktree add -b <branch> <path>"));
     assert!(main_worktree_message(GuardedCommand::Clean).contains("git clean -n"));
+    assert!(dirty_worktree_message(GuardedCommand::CleanIgnored).contains("ignored files"));
+    assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("ignored files"));
     assert!(dirty_worktree_message(GuardedCommand::Clean).contains("untracked files"));
     assert!(!dirty_worktree_message(GuardedCommand::RestoreWorktree).contains("untracked"));
     assert!(main_worktree_message(GuardedCommand::AbortMerge).contains("git merge --quit"));
@@ -267,6 +280,8 @@ fn the_readme_documents_what_the_texts_recommend() {
     for (command, phrase) in [
         (GuardedCommand::Stash, "git worktree add -b <branch> <path>"),
         (GuardedCommand::Clean, "git clean -n"),
+        (GuardedCommand::CleanIgnored, "git clean -nx"),
+        (GuardedCommand::CleanIgnoredOnly, "git clean -nX"),
         (GuardedCommand::ResetHard, "git reset --soft <commit>"),
         (GuardedCommand::ResetMixed, "git diff --cached --name-only"),
         (GuardedCommand::RestoreStaged, "git commit --message <message> -- <paths>"),

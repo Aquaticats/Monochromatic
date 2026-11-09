@@ -56,6 +56,16 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "it deletes untracked files that Git cannot bring back",
             "To see what would be deleted, run git clean -n (allowed). To remove specific files, delete them by name with rm. To clear build output, use the project's own clean task. For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD).",
         ),
+        GuardedCommand::CleanIgnored => return (
+            "git clean -x",
+            "it deletes ignored files as well as untracked ones, and an ignored file is where a person keeps their environment and their local secrets",
+            "To see what would be deleted, run git clean -nx (allowed). To delete only untracked files and keep the ignored ones, use git clean -fd (allowed while no untracked file is precious). For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD), and to clear ignored build output, use the project's own clean task.",
+        ),
+        GuardedCommand::CleanIgnoredOnly => return (
+            "git clean -X",
+            "it deletes ignored files, which is where a person keeps their environment and their local secrets",
+            "To see what would be deleted, run git clean -nX (allowed). To remove the ignored entries you no longer need, delete them by name with rm, or use the project's own clean task for its build output. For a pristine copy of the code, create a linked worktree (git worktree add <path> HEAD).",
+        ),
         GuardedCommand::ResetHard => return (
             "git reset --hard (or --merge, --keep)",
             "it overwrites tracked files and staged entries with committed content",
@@ -186,10 +196,11 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
 /// ```
 pub fn dirty_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
-    let what: &str = if command == GuardedCommand::Clean {
-        "changes to tracked files or untracked files"
-    } else {
-        "changes to tracked files"
+    let what: &str = match command {
+        GuardedCommand::Clean => "changes to tracked files or untracked files",
+        GuardedCommand::CleanIgnored => "changes to tracked files, untracked files or ignored files",
+        GuardedCommand::CleanIgnoredOnly => "ignored files",
+        _ => "changes to tracked files",
     };
     return format!(
         "monochromatic-git-policy-cli: {name} is rejected because this worktree has uncommitted {what}: {risk}. \

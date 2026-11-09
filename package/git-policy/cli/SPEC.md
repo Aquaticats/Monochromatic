@@ -8115,8 +8115,15 @@ and the abort forms of `merge`,
 `cherry-pick`,
 `revert` and `am`.
 A form is rejected in the main worktree and outside any worktree always,
-and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty
-(`clean` also counts untracked files).
+and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
+A `clean` counts untracked files as well,
+and a `clean` that deletes ignored files counts what it deletes:
+`git clean -x` counts tracked,
+untracked and ignored files,
+and `git clean -X` counts ignored files only.
+The forms are `Clean`,
+`CleanIgnored` and `CleanIgnoredOnly`,
+so a rejection says which files that spelling deletes.
 A `HEAD`-moving form is rejected only while tracked changes exist.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.

@@ -341,7 +341,7 @@ impl RepositoryFacts for GitFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         let arguments: Vec<OsString> = dirty_query_arguments(self.global_prefix.as_slice(), scope);
         let output: MetadataOutput = self.query(arguments, "the worktree status")?;
-        return dirty_from_output(&output);
+        return dirty_from_output(&output, scope);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

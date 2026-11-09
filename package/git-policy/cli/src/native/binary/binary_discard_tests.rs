@@ -397,3 +397,70 @@ fn a_finding_carries_its_hint_beside_an_unchanged_message() {
     assert!(text.contains("git monochromatic-git-policy-cli fix -- <path>") || text.contains("exactly one newline"), "{text}");
     remove(&fixture);
 }
+
+/// What:
+///  A repository whose `.gitignore` names the environment file and a directory,
+/// with both present and nothing tracked changed.
+/// Why:
+///  The ignored files are exactly what a `clean -x` deletes and the wrapper's own
+///  `--untracked-files=no` measurement cannot see.
+fn repository_with_ignored_work(fixture: &Fixture, name: &OsStr) -> PathBuf {
+    let repo: PathBuf = repository(fixture, name);
+    std::fs::write(repo.join(".gitignore"), b".env\nignored/\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    keep_ignored_work(repo.as_path());
+    return repo;
+}
+
+/// Write the ignored environment file and the ignored directory again.
+fn keep_ignored_work(repo: &std::path::Path) {
+    std::fs::write(repo.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    std::fs::create_dir_all(repo.join("ignored")).expect("ignored directory");
+    std::fs::write(repo.join("ignored/data.bin"), b"ignored work\n").expect("ignored work");
+}
+
+/// Whether the ignored work is still on disk.
+fn ignored_work_survives(repo: &std::path::Path) -> bool {
+    return repo.join(".env").exists() && repo.join("ignored/data.bin").exists();
+}
+
+/// A `clean` that deletes ignored files is rejected in a clean linked worktree,
+/// because a linked worktree that holds no tracked change can still hold the
+/// environment files the person depends on.
+#[test]
+fn a_clean_that_deletes_ignored_files_is_rejected_in_a_linked_worktree() {
+    let fixture: Fixture = fixture("discard-clean-ignored");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    keep_ignored_work(linked.as_path());
+    for arguments in [
+        vec!["clean", "-fdx"],
+        vec!["clean", "-fdX"],
+        vec!["clean", "--force", "-d", "-x"],
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} deleted ignored files: {}",
+            stderr_of(&observed)
+        );
+        assert!(
+            ignored_work_survives(linked.as_path()),
+            "{arguments:?} deleted the ignored work anyway"
+        );
+    }
+    // The same clean is allowed where the ignored files are not what it deletes.
+    let without_ignored: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fd"]);
+    assert!(!rejected_by_policy(&without_ignored), "{}", stderr_of(&without_ignored));
+    assert!(ignored_work_survives(linked.as_path()), "a plain clean deleted ignored work");
+    // And the documented way to clear build output still runs.
+    std::fs::remove_file(linked.join(".env")).expect("drop the ignored file");
+    std::fs::remove_dir_all(linked.join("ignored")).expect("drop the ignored directory");
+    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["clean", "-fdx"]);
+    assert!(!rejected_by_policy(&empty), "{}", stderr_of(&empty));
+    assert_eq!(empty.code, Some(0), "{}", stderr_of(&empty));
+    remove(&fixture);
+}

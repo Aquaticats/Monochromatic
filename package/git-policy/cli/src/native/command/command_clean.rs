@@ -38,6 +38,12 @@ pub const DRY_RUN: u16 = 1;
 /// `-i`,
 ///  `--interactive`.
 pub const INTERACTIVE: u16 = 2;
+/// `-x`,
+///  which makes the clean delete ignored files as well as untracked ones.
+pub const INCLUDE_IGNORED: u16 = 4;
+/// `-X`,
+///  which makes the clean delete ignored files only.
+pub const IGNORED_ONLY: u16 = 8;
 
 /// What:
 ///  Rows of `options[]` in `cmd_clean` (builtin/clean.c:936-948),
@@ -68,8 +74,8 @@ pub const CLEAN_TABLE: &[OptionSpec] = &[
     ),
     row(UNREAD, Some(b'd'), None, Arity::None, true),
     row(UNREAD, Some(b'e'), Some("exclude"), Arity::Required, false),
-    row(UNREAD, Some(b'x'), None, Arity::None, true),
-    row(UNREAD, Some(b'X'), None, Arity::None, true),
+    row(INCLUDE_IGNORED, Some(b'x'), None, Arity::None, true),
+    row(IGNORED_ONLY, Some(b'X'), None, Arity::None, true),
 ];
 
 /// What:
@@ -90,6 +96,11 @@ pub struct CleanRegion {
     pub dry_run: bool,
     /// `-i`/`--interactive` is on after every option was applied.
     pub interactive: bool,
+    /// The clean deletes ignored files,
+    ///  whether it also deletes untracked ones (`-x`) or only ignored ones (`-X`).
+    pub deletes_ignored: bool,
+    /// The clean deletes ignored files and nothing else (`-X` without `-x`).
+    pub ignored_only: bool,
     /// Wrapper-only flags in option position;
     ///  `escape` is `--no-enforce-worktree`.
     pub wrapper: WrapperFlags,
@@ -120,9 +131,15 @@ pub fn parse_clean_region(
     // `?` returns Git's refusal to our caller, or unwraps the tokenized region.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, flags.as_slice())?;
     // `Ok(x)` is the success case of `Result`.
+    // `git clean` refuses `-x` together with `-X`; whichever reading it took, both delete ignored files, so the
+    // measurement covers both.
+    let include_ignored: bool = is_enabled(&parsed, INCLUDE_IGNORED);
+    let ignored_only: bool = is_enabled(&parsed, IGNORED_ONLY);
     return Ok(CleanRegion {
         dry_run: is_enabled(&parsed, DRY_RUN),
         interactive: is_enabled(&parsed, INTERACTIVE),
+        deletes_ignored: include_ignored || ignored_only,
+        ignored_only: ignored_only && !include_ignored,
         wrapper: split_wrapper_flags(parsed.wrapper.as_slice()),
     });
 }

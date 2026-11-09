@@ -52,6 +52,21 @@ fn the_query_names_the_scope_after_the_global_options() {
             "--untracked-files=normal"
         ])
     );
+    // Git refuses `--ignored=matching` together with `--untracked-files=no`, so a reading that reaches ignored
+    // files asks for untracked ones too and filters the answer itself.
+    for scope in [DirtyScope::Everything, DirtyScope::IgnoredOnly] {
+        assert_eq!(
+            dirty_query_arguments(&[], scope),
+            os_arguments(&[
+                "--no-optional-locks",
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=normal",
+                "--ignored=matching"
+            ]),
+            "{scope:?}"
+        );
+    }
 }
 
 /// Output means dirty,
@@ -59,35 +74,48 @@ fn the_query_names_the_scope_after_the_global_options() {
 /// and a failure is an error carrying Git's first line.
 #[test]
 fn output_means_dirty_and_failure_is_an_error() {
-    assert_eq!(dirty_from_output(&output(true, b" M a.txt\n", b"")), Ok(true));
-    assert_eq!(dirty_from_output(&output(true, b"", b"")), Ok(false));
+    assert_eq!(dirty_from_output(&output(true, b" M a.txt\n", b""), DirtyScope::Tracked), Ok(true));
+    assert_eq!(dirty_from_output(&output(true, b"", b""), DirtyScope::Tracked), Ok(false));
     assert_eq!(
-        dirty_from_output(&output(false, b"", b"fatal: not a git repository\nmore\n")),
+        dirty_from_output(&output(false, b"", b"fatal: not a git repository\nmore\n"), DirtyScope::Tracked),
         Err(String::from(
             "Git could not read the worktree status: fatal: not a git repository"
         ))
     );
     assert_eq!(
-        dirty_from_output(&output(false, b" M a.txt\n", b"")),
+        dirty_from_output(&output(false, b" M a.txt\n", b""), DirtyScope::Tracked),
         Err(String::from("Git could not read the worktree status: "))
     );
 }
 
 /// Real Git:
-/// a tracked edit counts in both scopes,
-/// an untracked file only in the wider one.
+/// a tracked edit counts in every scope but the ignored one,
+/// an untracked file only in the wider ones,
+/// and an ignored file only where the reading is about ignored files.
 #[test]
-fn real_git_counts_untracked_files_only_in_the_wider_scope() {
+fn each_scope_counts_the_state_it_can_destroy() {
     let root = fixture("dirty-scope");
     let repo = repository(root.as_path(), "repo");
-    for (scope, expected) in [(DirtyScope::Tracked, false), (DirtyScope::TrackedAndUntracked, false)] {
-        assert_eq!(ask(repo.as_path(), scope), expected, "{scope:?} clean");
+    std::fs::write(repo.join(".gitignore"), b".env\n").expect("ignore file");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    for scope in [DirtyScope::Tracked, DirtyScope::TrackedAndUntracked, DirtyScope::Everything, DirtyScope::IgnoredOnly] {
+        assert!(!ask(repo.as_path(), scope), "{scope:?} clean");
     }
     std::fs::write(repo.join("new.txt"), "x\n").expect("untracked file");
-    assert!(!ask(repo.as_path(), DirtyScope::Tracked));
+    assert!(!ask(repo.as_path(), DirtyScope::Tracked), "an untracked file is not tracked work");
+    assert!(!ask(repo.as_path(), DirtyScope::IgnoredOnly), "an untracked file is not ignored");
     assert!(ask(repo.as_path(), DirtyScope::TrackedAndUntracked));
+    assert!(ask(repo.as_path(), DirtyScope::Everything));
     git(repo.as_path(), &["add", "--", "new.txt"]);
     assert!(ask(repo.as_path(), DirtyScope::Tracked));
+    git(repo.as_path(), &["commit", "--quiet", "--message=untracked"]);
+    std::fs::write(repo.join(".env"), b"SECRET=1\n").expect("ignored file");
+    assert!(!ask(repo.as_path(), DirtyScope::Tracked), "an ignored file is not tracked work");
+    assert!(!ask(repo.as_path(), DirtyScope::TrackedAndUntracked), "an ignored file is not untracked");
+    assert!(ask(repo.as_path(), DirtyScope::Everything), "a clean -x deletes the ignored file");
+    assert!(ask(repo.as_path(), DirtyScope::IgnoredOnly), "a clean -X deletes the ignored file");
     remove(root.as_path());
 }
 
@@ -96,7 +124,7 @@ fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
     let arguments: Vec<OsString> = dirty_query_arguments(&[], scope);
     let raw = crate::command_test_support::git_output(repo, arguments.as_slice());
     let output = output(raw.status.success(), &raw.stdout, &raw.stderr);
-    return dirty_from_output(&output).expect("status answers");
+    return dirty_from_output(&output, scope).expect("status answers");
 }
 
 /// A Git directory without an `index` file is absent;
