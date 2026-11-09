@@ -40,6 +40,33 @@ const BASE_SOURCE = 'kept = 1\n';
 const KEY = 'k';
 
 /**
+ Bits in one half of TOML's signed 64-bit integer range.
+ */
+const INTEGER_MAGNITUDE_BITS = 63;
+
+/**
+ Lowest TOML integer, as a bigint.
+ */
+const INTEGER_MIN = -(1n << BigInt(INTEGER_MAGNITUDE_BITS,));
+
+/**
+ Highest TOML integer, as a bigint.
+ */
+const INTEGER_MAX = (1n << BigInt(INTEGER_MAGNITUDE_BITS,))
+  - 1n;
+
+/**
+ Position of the exponent in an integer that outgrows the safe-double range
+ while still fitting in 64 bits.
+ */
+const UNSAFE_INTEGER_BITS = 60;
+
+/**
+ Integer beyond the safe-double range whose decimal spelling rounds.
+ */
+const UNSAFE_INTEGER = 2 ** UNSAFE_INTEGER_BITS;
+
+/**
  Wrapper-shaped values that must be rejected, one per kind and failure mode.
  */
 const REJECTED_VALUES = [
@@ -72,6 +99,28 @@ const REJECTED_VALUES = [
     name: 'integer payload beyond the exact integer range',
     tomlKind: 'integer',
     value: 1e21,
+  },
+  {
+    name: 'integer payload one past the 64-bit maximum',
+    tomlKind: 'integer',
+    value: INTEGER_MAX
+      + 1n,
+  },
+  {
+    name: 'integer payload one below the 64-bit minimum',
+    tomlKind: 'integer',
+    value: INTEGER_MIN
+      - 1n,
+  },
+  {
+    name: 'integer number payload beyond the safe-double range',
+    tomlKind: 'integer',
+    value: UNSAFE_INTEGER,
+  },
+  {
+    name: 'integer number payload one past the 64-bit maximum',
+    tomlKind: 'integer',
+    value: 2 ** INTEGER_MAGNITUDE_BITS,
   },
   {
     name: 'float payload that would inject a table header',
@@ -221,6 +270,16 @@ const REJECTED_VALUES = [
 const ACCEPTED_VALUES = [
   { name: 'integer from a bigint', value: tomlInteger(42n,), text: '42', },
   { name: 'integer from an integral number', value: tomlInteger(42,), text: '42', },
+  {
+    name: 'integer at the 64-bit maximum',
+    value: tomlInteger(INTEGER_MAX,),
+    text: '9223372036854775807',
+  },
+  {
+    name: 'integer at the 64-bit minimum',
+    value: tomlInteger(INTEGER_MIN,),
+    text: '-9223372036854775808',
+  },
   { name: 'float from a fractional number', value: tomlFloat(1.5,), text: '1.5', },
   { name: 'float from a whole number', value: tomlFloat(1,), text: '1.0', },
   { name: 'float from NaN', value: tomlFloat(Number.NaN,), text: 'nan', },

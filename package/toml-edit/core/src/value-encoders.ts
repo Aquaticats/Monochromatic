@@ -41,6 +41,21 @@ const REPRESENTABLE_KINDS = [
 ] as const;
 
 /**
+ Bits in one half of TOML's signed 64-bit integer range.
+ */
+const INTEGER_MAGNITUDE_BITS = 63;
+
+/**
+ Lowest TOML integer, as a bigint.
+ */
+const INTEGER_MIN_BIGINT = -(1n << BigInt(INTEGER_MAGNITUDE_BITS,));
+
+/**
+ Lowest integer just past TOML's range, as a bigint.
+ */
+const INTEGER_EXCLUSIVE_MAX_BIGINT = 1n << BigInt(INTEGER_MAGNITUDE_BITS,);
+
+/**
  Encode a tagged wrapper input ({@link tomlInteger}, {@link tomlFloat}, date kinds).
  
  The payload is validated against the kind it claims before any of it is
@@ -111,8 +126,8 @@ export function encodeWrapped(
  
  @returns Decimal digits for the integer.
  
- @throws {@link TomlTypeError} when the payload is not an exact integer that
-         TOML can spell without an exponent.
+ @throws {@link TomlTypeError} when the payload is not a bigint inside TOML's
+         signed 64-bit range, or a number that a double spells exactly.
  
  @example
  ```ts
@@ -120,18 +135,25 @@ export function encodeWrapped(
  ```
  */
 function encodeIntegerPayload({ value, }: { readonly value: unknown; },): string {
-  if ((typeof value) === 'bigint')
+  if (((typeof value) === 'bigint')
+    && (value
+      >= INTEGER_MIN_BIGINT)
+    && (value
+      < INTEGER_EXCLUSIVE_MAX_BIGINT)) {
     return value.toString();
+  }
   /**
-   Exact integers inside the safe range always spell as plain decimal digits,
-   which TOML reads back as an integer rather than a float.
+   A safe integer is the only number whose decimal spelling survives the round
+   trip: above it, `String` emits the shortest form that parses back to the same
+   double, which is a different integer.
    */
   if (((typeof value) === 'number') && Number.isSafeInteger(value,))
     return String(value,);
   throw rejectWrappedPayload({
     kind: 'integer',
     value,
-    expected: 'an integral number within the exact integer range, or a bigint',
+    expected:
+      'an integer number no larger than 9007199254740991 in magnitude, or a bigint in the signed 64-bit range TOML allows, -9223372036854775808 to 9223372036854775807',
   },);
 }
 
