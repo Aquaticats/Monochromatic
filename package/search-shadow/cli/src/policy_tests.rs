@@ -205,6 +205,64 @@ fn refuses_a_wide_rg_walk_with_no_path_at_a_repository_root() {
     assert!(text.contains("narrower path"));
 }
 
+/// What:
+/// `fn piped_rg(items: &[&str]) -> Option<String>` declares a helper that asks the policy about one piped invocation
+/// (standard input is a pipe,
+/// the working directory is not a repository root).
+/// Why:
+/// Every case below differs only in the arguments,
+/// and the lost-input risk does not depend on the directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipedRg = (items: string[]) => rgRefusal('rg', texts(items), false, false, 'pipe', '/anywhere');
+/// ```
+fn piped_rg(items: &[&str]) -> Option<String> {
+    return rg_refusal("rg", &texts(items), false, false, StdinKind::Pipe, "/anywhere");
+}
+
+/// A pipe on standard input with a named search path loses the piped lines:
+/// ripgrep reads the paths and never the pipe.
+/// It is refused wherever it runs, repository root or not.
+#[test]
+fn refuses_a_piped_search_that_names_a_search_path() {
+    for arguments in [&["--invert-match", "X", "."][..], &["X", "some/dir"], &["-l", "X", "a", "b"]] {
+        let message = piped_rg(arguments);
+
+        assert!(message.is_some(), "{arguments:?} with a pipe must be refused");
+        let text = message.unwrap_or_default();
+        // The message names the command, the input it would drop, and both ways forward (rule DGT).
+        assert!(text.contains("refused"), "{text}");
+        assert!(text.contains(&arguments.join(" ")), "the message must name the command: {text}");
+        assert!(text.contains("standard input is a pipe"), "the message must name the affected input: {text}");
+        assert!(text.contains("drop the search path"), "the message must offer dropping the path to filter the pipe: {text}");
+        assert!(text.contains("without a pipe"), "the message must offer dropping the pipe to search the path: {text}");
+    }
+}
+
+/// Every shape where ripgrep does read the pipe,
+/// or reads no input at all,
+/// must still run.
+#[test]
+fn lets_a_piped_search_through_when_the_pipe_is_read_or_no_search_runs() {
+    // No search path: the pipe is the input.
+    assert_eq!(piped_rg(&["X"]), None);
+    // `-` is ripgrep's explicit "read standard input", alone or beside other paths.
+    assert_eq!(piped_rg(&["X", "-"]), None);
+    assert_eq!(piped_rg(&["X", "-", "extra/path"]), None);
+    // `--files` lists files and reads no input.
+    assert_eq!(piped_rg(&["--files", "."]), None);
+    // Informational flags only print.
+    assert_eq!(piped_rg(&["--version"]), None);
+    assert_eq!(piped_rg(&["--help"]), None);
+    // A redirected file and a socket are deliberate, and an unpiped run reads nothing.
+    assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::File, "/anywhere"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::Socket, "/anywhere"), None);
+    assert_eq!(rg_refusal("rg", &texts(&["X", "."]), false, false, StdinKind::None, "/anywhere"), None);
+    // Other tools keep their own argument grammar.
+    assert_eq!(rg_refusal("grep", &texts(&["X", "."]), false, false, StdinKind::Pipe, "/anywhere"), None);
+}
+
 /// Each condition that makes the walk bounded or deliberate must let it through.
 #[test]
 fn lets_through_everything_that_is_not_a_wide_unbounded_rg_walk() {
