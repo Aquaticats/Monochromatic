@@ -4616,6 +4616,32 @@ their files and mutation evidence kept deliberately;
   (a subsection this page dropped on 2026-11-08;
   its surviving items are under "The branches and worktrees this effort still holds")
   goes with them.
+- Stale agent worktrees under `.claude/worktrees/` were removed on 2026-11-08 under the owner's
+  "Cleanup whenever it makes sense on your own."
+  and "It covers deleting stale detached worktrees."
+  (`questions-for-the-owner.md`).
+  Every branch was kept.
+  Commits that were on no branch are pinned under `refs/kept-detached-worktree-heads/`
+  (`integrate-064`,
+  `integrate-065`,
+  `integrate-072`,
+  `integrate-073`,
+  `integrate-075`).
+  Still present:
+  worktrees a Markdown file cites by path,
+  which go in the next pass once `wrapper-handover-stale-sections-moved-out` has landed and removed those citations;
+  worktrees whose branch holds commits main lacks (`agent-a5dcd5dad237603e3`,
+  `agent-ab3dd6294f9d91284`,
+  `agent-aba63f1400b66332c`,
+  `integrate-deadline-conversion`,
+  `source-layout`,
+  `pi-repository-move-tool-fixes`);
+  and worktrees with real uncommitted edits (`agent-a563e0c526d53df51`,
+  `agent-a6e4566588e9ec087`,
+  `fix-ureq`,
+  `follow-ups-059`).
+- The stale branch `integrate/git-policy-cli-deadline-stop-and-conversion-real-git` still needs the owner's word,
+  because the owner's cleanup messages named worktrees and not branches.
 - Test services that crash on purpose:
   checked 2026-11-08 by reading `coredumpctl`,
   and clean.
