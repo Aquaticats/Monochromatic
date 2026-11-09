@@ -84,7 +84,7 @@ pub struct Owed {
     /// The commit the batch landed.
     pub new: String,
     /// The paths whose entries the batch updates.
-    pub paths: Vec<String>,
+    pub paths: Vec<Vec<u8>>,
     /// Whether the paths are every path that differs between `old` and `new`.
     pub derived: bool,
 }
@@ -135,7 +135,12 @@ fn encode(owed: &Owed) -> String {
     fields.insert(String::from("ref"), Value::from(owed.reference.clone()));
     fields.insert(String::from("old"), Value::from(owed.old.clone()));
     fields.insert(String::from("new"), Value::from(owed.new.clone()));
-    fields.insert(String::from("paths"), Value::from(owed.paths.clone()));
+    // A path of the batch need not be text, so the record holds each one's bytes.
+    let mut paths_as_bytes: Vec<String> = Vec::with_capacity(owed.paths.len());
+    for path in &owed.paths {
+        paths_as_bytes.push(crate::path_bytes_in_records::hex_of_bytes(path.as_slice()));
+    }
+    fields.insert(String::from("pathsHex"), Value::from(paths_as_bytes));
     fields.insert(String::from("derived"), Value::from(owed.derived));
     return format!("{}\n", Value::Object(fields));
 }
@@ -159,12 +164,15 @@ fn decode(text: &str) -> Result<Owed, String> {
     let Some(index) = field_text(&value, "index") else {
         return Err(String::from("the record names no index file"));
     };
-    let mut paths: Vec<String> = Vec::new();
-    for entry in value.get("paths").and_then(Value::as_array).into_iter().flatten() {
-        let Some(path) = entry.as_str() else {
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for entry in value.get("pathsHex").and_then(Value::as_array).into_iter().flatten() {
+        let Some(digits) = entry.as_str() else {
             return Err(String::from("the record holds a path that is not text"));
         };
-        paths.push(path.to_string());
+        let Some(path) = crate::path_bytes_in_records::path_of_hex(digits) else {
+            return Err(String::from("the record holds a path whose bytes do not decode"));
+        };
+        paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
     }
     return Ok(Owed {
         seq,
