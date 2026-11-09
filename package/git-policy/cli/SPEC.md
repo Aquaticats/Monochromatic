@@ -8995,11 +8995,13 @@ a worktree that cannot be read is reported by what the index holds,
 and a merge whose own commits,
 refs or branch cannot be read counts as holding it too,
 because a refusal then cannot prove the checkout is untouched.
-A merge counts as installed when every path it changes holds its side,
-in the index or in the files,
-because Git installs all the entries of a merge in one step;
-one path that matches is what an independent commit of the same content leaves,
-and it is not evidence that recovery installed anything.
+A merge counts as installed when one of its paths both holds its side in the index or the files and is a path the branch does not already hold that side for.
+That is the only evidence an install leaves:
+an independent commit of the same content gives the branch that content,
+so the path stops being evidence,
+while an install leaves the branch as it was,
+whatever another command does to the checkout afterwards,
+and a merge that another command touched after the install still counts as installed.
 A record is kept for the next command when anything of the merge is present at all,
 so a half-installed merge is never only discarded.
 A begun merge's refusal still stops it,

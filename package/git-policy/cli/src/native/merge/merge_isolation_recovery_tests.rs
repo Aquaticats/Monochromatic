@@ -130,6 +130,44 @@ fn directory_to_file_world(name: &str) -> World {
 }
 
 /// What:
+///  A repository whose merge changes exactly one path,
+///  `f.txt`,
+///  with the merge commit ready and nothing of it in the checkout.
+/// Why:
+///  With one changed path,
+/// every entry matching is what an independent commit of that content leaves,
+/// so the
+///  control needs a merge that touches one path only.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repository(...); write('f.txt'); write('h.txt'); commit(); /* feature changes f.txt */ const merge = mergeTreeCommit(...);
+/// ```
+fn one_path_merge_world(name: &str) -> World {
+    let parent: PathBuf = fixture(name);
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    std::fs::write(repo.join("f.txt"), b"f.txt base\n").expect("file");
+    std::fs::write(repo.join("h.txt"), b"h.txt base\n").expect("file");
+    git(repo.as_path(), &["add", "--", "f.txt", "h.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(repo.as_path(), &["switch", "--quiet", "--create", "feature"]);
+    std::fs::write(repo.join("f.txt"), b"f.txt feature\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=feature work"]);
+    git(repo.as_path(), &["switch", "--quiet", "main"]);
+    std::fs::write(repo.join("h.txt"), b"h.txt main\n").expect("file");
+    git(repo.as_path(), &["commit", "--quiet", "--all", "--message=main work"]);
+    let old_oid: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let feature: String = git_text(repo.as_path(), &["rev-parse", "feature"]);
+    let tree: String = git_text(repo.as_path(), &["merge-tree", "--write-tree", old_oid.as_str(), feature.as_str()]);
+    let new_oid: String = git_text(
+        repo.as_path(),
+        &["commit-tree", tree.as_str(), "-p", old_oid.as_str(), "-p", feature.as_str(), "-m", "merge"],
+    );
+    let git_dir: PathBuf = repo.join(".git");
+    return World { parent, repo, git_dir, old_oid, new_oid };
+}
+
+/// What:
 ///  The record of a merge that was saved on `side_ref` because the index was locked,
 ///  and the side ref itself.
 /// Why:
@@ -2159,5 +2197,69 @@ fn a_note_a_filter_hides_is_not_replaced_and_stays_where_it_is() {
     assert!(refused.error.0.contains("f.txt"), "the path is named: {}", refused.error.0);
     assert_eq!(std::fs::read(world.repo.join("f.txt")).expect("the file"), note, "the note stays where it is");
     assert_eq!(aside_names(world.repo.as_path()), Vec::<String>::new(), "nothing is left at a private name");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A merge that is installed and then touched by another command still counts as installed,
+///  so the command stops.
+/// Why:
+///  The installed state was read as every path holding the merge,
+/// so one path another command edited and staged made a
+///  half-installed merge look uninstalled,
+/// the refusal was deferred,
+/// and a later commit could record the other half
+///  as ordinary staged work with no merge parent
+///  (a cross-vendor review of the eighth round,
+/// its third finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readTree(repo, old, merged, {updateWorktree: true}); deferredRecord(); write('f.txt', edit); git add f.txt; await expect(recover(...)).rejects.toMatch(/f.txt|partly installed/);
+/// ```
+#[test]
+fn an_installed_merge_another_command_touched_still_stops_the_command() {
+    let world: World = world("merge-recovery-installed-then-touched");
+    git(world.repo.as_path(), &["read-tree", "-m", "-u", world.old_oid.as_str(), world.new_oid.as_str()]);
+    let record: PathBuf = deferred_record_of(&world, "38383838-0000-4000-8000-000000000038", "refs/cli-git/kept/38");
+    // Another command edits and stages `f.txt`; `dir/new.txt` and `gone.txt` still hold the merge.
+    std::fs::write(world.repo.join("f.txt"), b"another command's edit\n").expect("the edit");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    let mut said: Vec<u8> = Vec::new();
+    let refused = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect_err("an installed merge stops the command");
+    assert!(refused.0.contains("f.txt") || refused.0.contains("partly installed"), "the state is named: {}", refused.0);
+    assert!(record.exists(), "the record is kept");
+    remove(world.parent.as_path());
+}
+
+/// What:
+///  A one-path merge whose content the branch's holder committed independently is not read as installed,
+///  so the command goes on instead of being refused for ever.
+/// Why:
+///  With one changed path,
+/// every entry and every file matching the merge is exactly what that independent
+///  commit leaves,
+/// so the branch being unchanged is what tells an install from it
+///  (a cross-vendor review of the eighth round,
+/// its fourth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = onePathMergeWorld(); const record = deferredRecord(); write('f.txt', mergeContent); git add f.txt; commit('independent'); const outcomes = await recover(...); expect(outcomes[0].action).toBe('saved-branch-moved');
+/// ```
+#[test]
+fn an_independent_commit_of_a_one_path_merge_does_not_block_the_command() {
+    let world: World = one_path_merge_world("merge-recovery-one-path-independent");
+    let record: PathBuf = deferred_record_of(&world, "39393939-0000-4000-8000-000000000039", "refs/cli-git/kept/39");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt feature\n").expect("the merge's content, committed independently");
+    git(world.repo.as_path(), &["add", "--", "f.txt"]);
+    git(world.repo.as_path(), &["commit", "--quiet", "--message=independent", "--", "f.txt"]);
+    let moved: String = git_text(world.repo.as_path(), &["rev-parse", "main"]);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::SavedBranchMoved, "nothing of the merge was installed");
+    assert!(!record.exists(), "the record only goes");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "main"]), moved, "the branch is the independent commit");
+    assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/39"]), world.new_oid, "the saved merge is kept");
     remove(world.parent.as_path());
 }

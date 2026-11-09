@@ -15,7 +15,9 @@
 //! const checkedOut = await symbolicRef({ place, root }); const current = await resolveCommit({ place, root, reference });
 //! ```
 
+use crate::merge_isolation_changes::{Change, parse_raw_changes};
 use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace, Standing};
+use crate::transaction_git::run_git_checked;
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::{GitRequest, run_git};
 use std::path::Path;
@@ -97,4 +99,40 @@ pub fn resolve_commit(place: &RecoveryPlace, root: &Path, reference: &str) -> Re
         return Ok(None);
     }
     return Ok(Some(String::from_utf8_lossy(&output.stdout).trim().to_owned()));
+}
+
+/// What:
+///  Whether the branch at `tip` does not already hold the merge's content at each of the merge's paths.
+/// Why:
+///   A path whose content the branch already has is one an independent commit could have made,
+/// so its match in the index
+///  or the worktree is no evidence that recovery installed anything;
+/// evidence is a path the branch does not have and
+///  the checkout holds the merge for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsTheBranchDoesNotHold({ place, root, tip, changes, nextOid }): boolean[]; // diff-tree tip..nextOid
+/// ```
+pub fn paths_the_branch_does_not_hold(
+    place: &RecoveryPlace,
+    root: &Path,
+    tip: &str,
+    next_oid: &str,
+    changes: &[Change],
+) -> Result<Vec<bool>, RecoveryError> {
+    let request: GitRequest = GitRequest::new(
+        root,
+        &["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", tip, next_oid],
+    );
+    let output = match run_git_checked(&place.git, &request) {
+        Ok(done) => done,
+        Err(error) => return Err(RecoveryError(error.to_string())),
+    };
+    let differing: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
+    let mut found: Vec<bool> = Vec::with_capacity(changes.len());
+    for change in changes {
+        found.push(differing.iter().any(|moved| { return moved.path == change.path; }));
+    }
+    return Ok(found);
 }

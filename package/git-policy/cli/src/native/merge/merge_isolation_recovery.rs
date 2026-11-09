@@ -35,7 +35,9 @@ use crate::merge_isolation_moved::settle_moved_branch;
 pub use crate::merge_isolation_recovery_cleanup::{drop_record_and_side_ref, partly_installed};
 /// The reads the decision rests on,
 /// named here so a caller keeps one import.
-pub use crate::merge_isolation_recovery_reads::{holds_the_merge, holds_the_merges_entry, resolve_commit, symbolic_ref};
+pub use crate::merge_isolation_recovery_reads::{
+    holds_the_merge, holds_the_merges_entry, paths_the_branch_does_not_hold, resolve_commit, symbolic_ref,
+};
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
 pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
@@ -285,19 +287,38 @@ pub fn settle_failed_merge(
     };
     let any_in_worktree: bool = judgements.iter().any(holds_the_merge);
     let every_file_is_the_merges: bool = !judgements.is_empty() && judgements.iter().all(holds_the_merge);
-    // A merge began when every one of its paths holds its side: one path that matches is what an independent commit of the same
-    //  content leaves, and it is not evidence that recovery installed anything.
-    let began: bool = every_entry_is_the_merges || every_file_is_the_merges;
+    // Every path holding the merge is what an install leaves.
+    let every_path_is_the_merges: bool = every_entry_is_the_merges || every_file_is_the_merges;
     let current: Option<String> = match resolve_commit(place, root, target) {
         Ok(found) => found,
-        Err(error) => return Err(MergeRefusal { error, began }),
+        Err(error) => return Err(MergeRefusal { error, began: every_path_is_the_merges }),
     };
     if current.as_deref() == Some(intent.new_oid.as_str()) {
         if let Err(error) = drop_record_and_side_ref(place, root, record, intent) {
-            return Err(MergeRefusal { error, began });
+            // The branch already names this merge, so a refusal here reports it as installed.
+            return Err(MergeRefusal { error, began: true });
         }
         return Ok(MergeRecoveryAction::AlreadyLanded);
     }
+    // Evidence of an install is a path the branch does not already hold the merge's content for and the checkout does:
+    //  an independent commit of the same content gives the branch that content, while an install leaves the branch as it was,
+    //  whatever another command does to the checkout afterwards.
+    let branch_lacks: Vec<bool> = match current.as_deref() {
+        Some(tip) => match paths_the_branch_does_not_hold(place, root, tip, intent.new_oid.as_str(), changes.as_slice()) {
+            Ok(found) => found,
+            Err(error) => return Err(MergeRefusal { error, began: every_path_is_the_merges }),
+        },
+        None => Vec::new(),
+    };
+    let mut evidence: bool = false;
+    for (index, lacks) in branch_lacks.iter().enumerate() {
+        let held: bool = index_standing.get(index) == Some(&Standing::New) || judgements.get(index).is_some_and(holds_the_merge);
+        if *lacks && held {
+            evidence = true;
+            break;
+        }
+    }
+    let began: bool = evidence;
     // The checkout belongs to the branch the merge was computed on: installing it into another branch's worktree would put
     //  this merge's files and index into a branch it is not for, and move a branch from a checkout that is not its own.
     let checked_out: Option<String> = match symbolic_ref(place, root) {
