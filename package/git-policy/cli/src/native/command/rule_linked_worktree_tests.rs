@@ -22,27 +22,44 @@ use crate::command_test_support::os_arguments;
 use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
 
-/// Every guarded form.
-const ALL_COMMANDS: [GuardedCommand; 18] = [
-    GuardedCommand::Stash,
-    GuardedCommand::Clean,
-    GuardedCommand::ResetHard,
-    GuardedCommand::ResetMixed,
-    GuardedCommand::RestoreStaged,
-    GuardedCommand::RestoreWorktree,
-    GuardedCommand::CheckoutPaths,
-    GuardedCommand::CheckoutMove,
-    GuardedCommand::SwitchForce,
-    GuardedCommand::SwitchMove,
-    GuardedCommand::Remove,
-    GuardedCommand::Move,
-    GuardedCommand::CheckoutIndex,
-    GuardedCommand::ReadTree,
-    GuardedCommand::AbortMerge,
-    GuardedCommand::AbortRebase,
-    GuardedCommand::AbortPick,
-    GuardedCommand::AbortAm,
-];
+/// The index of a form,
+/// so the coverage control can tell a full list from one with a hole.
+/// A `match` must name every variant,
+/// so a new form stops compilation here until it has an index.
+fn index_of(command: GuardedCommand) -> usize {
+    return match command {
+        GuardedCommand::Stash => 0,
+        GuardedCommand::Clean => 1,
+        GuardedCommand::ResetHard => 2,
+        GuardedCommand::ResetMixed => 3,
+        GuardedCommand::RestoreStaged => 4,
+        GuardedCommand::RestoreWorktree => 5,
+        GuardedCommand::CheckoutPaths => 6,
+        GuardedCommand::CheckoutMove => 7,
+        GuardedCommand::SwitchForce => 8,
+        GuardedCommand::SwitchMove => 9,
+        GuardedCommand::Remove => 10,
+        GuardedCommand::Move => 11,
+        GuardedCommand::CheckoutIndex => 12,
+        GuardedCommand::ReadTree => 13,
+        GuardedCommand::AbortMerge => 14,
+        GuardedCommand::AbortRebase => 15,
+        GuardedCommand::AbortPick => 16,
+        GuardedCommand::AbortAm => 17,
+    };
+}
+
+/// `GuardedCommand::ALL` holds every form once,
+/// so a control that walks it reaches every rejection text.
+#[test]
+fn every_guarded_form_is_listed_once() {
+    let mut seen: Vec<usize> = GuardedCommand::ALL.iter().map(|command| { return index_of(*command); }).collect();
+    seen.sort_unstable();
+    seen.dedup();
+    let forms: usize = index_of(GuardedCommand::AbortAm) + 1;
+    let expected: Vec<usize> = (0..forms).collect();
+    assert_eq!(seen, expected, "GuardedCommand::ALL must hold each of the {forms} forms once");
+}
 
 /// Decide one invocation written as text.
 fn decide(values: &[&str]) -> LinkedWorktreeDecision {
@@ -123,7 +140,7 @@ fn head_moves_need_the_dirtiness() {
 /// Only a deleting clean counts untracked files as uncommitted state.
 #[test]
 fn only_clean_counts_untracked_files() {
-    for command in ALL_COMMANDS {
+    for command in GuardedCommand::ALL {
         let expected: DirtyScope = if command == GuardedCommand::Clean {
             DirtyScope::TrackedAndUntracked
         } else {
@@ -182,7 +199,7 @@ fn harmless_forms_pass() {
 ///  each with its own text.
 #[test]
 fn only_main_and_absent_worktrees_are_rejected() {
-    for command in ALL_COMMANDS {
+    for command in GuardedCommand::ALL {
         assert_eq!(
             resolve_linked_worktree(command, EffectiveTarget::MainWorktree),
             Some(main_worktree_message(command))
@@ -212,7 +229,7 @@ fn only_main_and_absent_worktrees_are_rejected() {
 /// and the deliberate way to discard.
 #[test]
 fn every_text_names_the_loss_an_alternative_and_the_hatch() {
-    for command in ALL_COMMANDS {
+    for command in GuardedCommand::ALL {
         let main = main_worktree_message(command);
         let dirty = dirty_worktree_message(command);
         let outside = outside_worktree_message(command);

@@ -138,6 +138,45 @@ pub enum GuardedCommand {
     AbortAm,
 }
 
+/// The enum's own lists.
+impl GuardedCommand {
+    /// What:
+    ///  Every guarded form,
+    /// so a control can walk all of them instead of naming some.
+    ///  `[T; N]` is a fixed-size array.
+    /// Why:
+    ///   A control that lists the forms itself drifts from the enum;
+    /// one that walks this list
+    ///  reaches a new form as soon as it is added here,
+    /// and the coverage test in `rule_linked_worktree_tests`
+    ///  fails while it is missing.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const ALL_GUARDED_COMMANDS: readonly GuardedCommand[] = ['stash', 'clean', /* ... */ 'abort-am'];
+    /// ```
+    pub const ALL: [GuardedCommand; 18] = [
+        GuardedCommand::Stash,
+        GuardedCommand::Clean,
+        GuardedCommand::ResetHard,
+        GuardedCommand::ResetMixed,
+        GuardedCommand::RestoreStaged,
+        GuardedCommand::RestoreWorktree,
+        GuardedCommand::CheckoutPaths,
+        GuardedCommand::CheckoutMove,
+        GuardedCommand::SwitchForce,
+        GuardedCommand::SwitchMove,
+        GuardedCommand::Remove,
+        GuardedCommand::Move,
+        GuardedCommand::CheckoutIndex,
+        GuardedCommand::ReadTree,
+        GuardedCommand::AbortMerge,
+        GuardedCommand::AbortRebase,
+        GuardedCommand::AbortPick,
+        GuardedCommand::AbortAm,
+    ];
+}
+
 /// What:
 ///  The outcome of looking at the argument list only.
 /// Why:
