@@ -291,9 +291,6 @@ pub mod service_amend;
 /// The refusal of a conclusion whose operation another command ended while the commit was prepared.
 pub mod service_replay_conclusion;
 
-/// The staging start that puts the working copy of every unmerged file into the commit's own index.
-pub mod service_prepare_unmerged_staging;
-
 /// The commit an amend makes when the branch moved under it:
 /// the amended commit's own author,
 /// committer,
