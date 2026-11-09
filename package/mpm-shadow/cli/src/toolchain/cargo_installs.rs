@@ -443,7 +443,7 @@ pub fn shell_word(word: &str) -> String {
 /// naming that lock file,
 /// with the remedy for that scope as mpm's own pnpm-style verb naming the tool:
 /// `mpm update <tool id>` for a tree's lock,
-/// `mpm update -g <tool id>` for the machine-global lock,
+/// `mpm-shadow update -g <tool id>` for the machine-global lock,
 /// the id written as one shell word (`shell_word`).
 /// Why:
 /// One text for `install`,
@@ -455,8 +455,12 @@ pub fn shell_word(word: &str) -> String {
 /// The file is named because a launcher and a shell read whichever lock their own record names,
 /// so a warning from another checkout's launcher looks stale until the file it read is visible.
 /// The remedy names the tool so it moves only that row of the lock,
-/// and names `mpm` rather than a mise task because the repository is moving away from mise
-/// and `mpm update -g` works from any directory.
+/// and names a program rather than a mise task because the repository is moving away from mise.
+/// The machine-global sentence names `mpm-shadow`,
+/// never `mpm`:
+/// only a worktree's `PATH` makes `mpm` this tool (the plan's postinstall link),
+/// and the machine-wide `mpm` is the real mpm,
+/// which reads `update -g` as its own `upgrade` and refuses it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -473,7 +477,7 @@ pub fn older_lock_message_for(kind: ScopeKind, tool_id: &str, locked: &str, used
         ),
         ScopeKind::Global => format!(
             "{tool_id} is locked at {locked} in this machine's global lock, {lock}, but {used} runs, because older repository tools are \
-             never kept once a newer one is installed; upgrade the global lock with `mpm update -g {word}`"
+             never kept once a newer one is installed; upgrade the global lock with `mpm-shadow update -g {word}`"
         ),
     };
 }

@@ -165,14 +165,15 @@ fn renew_scratch(settings: &ClientConfig, last_renewed: &mut Option<Instant>) {
 
 /// The sends and the waits of `submit_traced`.
 ///
-/// The wait for the answer has no clock:
-/// it lasts as long as the service keeps sending,
+/// The wait for the answer lasts as long as the service keeps sending,
 /// and ends when the service goes
-///  silent for the silence bound.
+///  silent for the silence bound or at `ANSWER_CEILING` (twenty minutes,
+/// `wait_ceilings.rs`),
+/// where the request is withdrawn.
 /// The request is then sent again with the same identity,
 /// so nothing lands twice,
 /// and the
-///  command ends only when every try has met silence or a closed connection.
+///  command ends when every try has met silence or a closed connection.
 fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn Write, trace: &mut SubmitTrace) -> Result<Submitted, ClientFailure> {
     let line: String = encode_client(&ClientMessage::Commit(Box::new(request.clone())));
     let mut announced: bool = false;

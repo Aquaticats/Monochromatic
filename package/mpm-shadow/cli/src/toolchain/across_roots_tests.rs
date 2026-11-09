@@ -227,7 +227,7 @@ fn the_older_lock_sentence_names_the_upgrade_command_of_the_scope_it_is_for() {
     assert!(!repository.contains("update -g"), "{repository}");
     assert!(repository.contains(LOCK_FILE), "the file it compared is named, so a warning from another checkout's launcher is not read as stale: {repository}");
     let global = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5", Path::new(LOCK_FILE));
-    assert!(global.contains("in this machine's global lock") && global.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{global}");
+    assert!(global.contains("in this machine's global lock") && global.contains(&format!("`mpm-shadow update -g {GIT_TOOL}`")), "{global}");
     assert!(!global.contains("merge main"), "{global}");
     assert!(global.contains(LOCK_FILE), "the global sentence names its lock file too: {global}");
 }
@@ -287,7 +287,7 @@ fn the_global_scope_does_the_same_with_the_global_upgrade_command_and_its_postin
 
     let listed = run_status(&duo.global, &duo.rig.env, &duo.rig.runner, &duo.rig.host).expect("listed");
     assert!(!listed.drifted, "{}", listed.text);
-    assert!(listed.text.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{}", listed.text);
+    assert!(listed.text.contains(&format!("`mpm-shadow update -g {GIT_TOOL}`")), "{}", listed.text);
     drop(lock);
 }
 
@@ -649,7 +649,7 @@ fn a_release_archive_tools_older_copy_in_the_other_root_goes_with_its_downloads_
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(olderLockMessageFor('global', "odd id;'x", '0.4.4', '0.4.5')).toContain("`mpm update -g 'odd id;'\\''x'`");
+/// expect(olderLockMessageFor('global', "odd id;'x", '0.4.4', '0.4.5')).toContain("`mpm-shadow update -g 'odd id;'\\''x'`");
 /// ```
 #[test]
 fn the_hint_names_the_tool_as_one_shell_word_and_names_no_mise_task() {
@@ -661,11 +661,11 @@ fn the_hint_names_the_tool_as_one_shell_word_and_names_no_mise_task() {
         let repository: String = older_lock_message_for(ScopeKind::Repo, odd, "0.4.4", "0.4.5", Path::new("/work/toolchain.lock.json"));
         let global: String = older_lock_message_for(ScopeKind::Global, odd, "0.4.4", "0.4.5", Path::new("/work/toolchain.lock.json"));
         assert!(repository.contains(&format!("`mpm update {quoted}` or merge main")), "{repository}");
-        assert!(global.contains(&format!("`mpm update -g {quoted}`")), "{global}");
+        assert!(global.contains(&format!("`mpm-shadow update -g {quoted}`")), "{global}");
         assert!(!repository.contains("mise") && !global.contains("mise"), "{repository}\n{global}");
     }
     let plain: String = older_lock_message_for(ScopeKind::Global, GIT_TOOL, "0.4.4", "0.4.5", Path::new("/work/toolchain.lock.json"));
-    assert!(plain.contains(&format!("`mpm update -g {GIT_TOOL}`")), "{plain}");
+    assert!(plain.contains(&format!("`mpm-shadow update -g {GIT_TOOL}`")), "{plain}");
 }
 
 #[test]

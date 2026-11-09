@@ -30,10 +30,10 @@ use std::time::{Duration, Instant};
 /// and returns the stream with the service's version.
 /// Why:
 ///   With a manager to ask,
-/// the wait has no clock:
-/// it ends when the service greets,
-/// or when the manager has said twice in a
-///  row that the unit failed.
+/// the wait ends when the service greets,
+/// when the manager has said twice in a
+///  row that the unit failed,
+/// or at `START_CEILING` (one minute).
 /// Where the manager cannot be asked it ends at the start wait,
 /// as it always did.
 /// Once a service

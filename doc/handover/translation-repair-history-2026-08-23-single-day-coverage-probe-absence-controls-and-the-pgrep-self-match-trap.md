@@ -144,7 +144,7 @@ Every group it printed was one block repeated.
 Corrected by counting DISTINCT blocks per span,
 which reads 0.
 
-Same shape as the fabricated `neither shipped: 2` earlier in this work:
+Same shape as the fabricated `neither shipped: 2` count:
 an analysis script that reports a number nobody checked it could produce correctly.
 Every detector now runs a positive control on a planted case before it reads the run,
 and the reuse detector additionally runs a negative control proving

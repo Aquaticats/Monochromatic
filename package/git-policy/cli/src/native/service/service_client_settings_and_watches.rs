@@ -79,7 +79,7 @@ pub struct ClientConfig {
 /// and how often.
 /// Why:
 ///   The scratch sweep removes entries by age,
-/// and a wait with no bound can outlast any age;
+/// which says nothing about whether the command that made the entry still runs;
 /// a waiter that is alive says so by
 ///  touching its directory,
 /// one that died stops and the sweep collects the directory.
