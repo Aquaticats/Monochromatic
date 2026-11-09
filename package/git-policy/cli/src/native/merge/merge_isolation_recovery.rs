@@ -32,11 +32,14 @@ use crate::merge_isolation_journal::{
 use crate::merge_isolation_moved::settle_moved_branch;
 /// The steps shared with the settling of a moved branch;
 /// named here so the paths outside this file stay the same.
+pub use crate::merge_isolation_recovery_cleanup::{drop_record_and_side_ref, partly_installed, untouched};
+pub use crate::merge_isolation_recovery_notice::recovery_notice;
 pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk, finish_asides,
 };
+use crate::merge_isolation_recovery_cleanup::{drop_record, drop_side_ref};
 use crate::merge_isolation_recovery_steps::{
-    index_standings, install_entries, judge_changes, merge_changes, put_back_stranded_takes, remove_record,
+    index_standings, install_entries, judge_changes, merge_changes, put_back_stranded_takes,
 };
 /// The raw differences and the worktree states.
 use crate::merge_isolation_changes::Change;
@@ -71,59 +74,6 @@ pub struct MergeRecoveryOutcome {
     /// The side ref that keeps the merge commit,
     /// for a merge that was saved because the index was locked.
     pub side_ref: Option<String>,
-}
-
-/// What:
-///  The line that tells the person what recovery did to a merge whose owner is gone,
-/// for the outcomes that changed the checkout,
-/// or nothing for the outcomes that changed nothing.
-/// Why:
-///   A command a person ran to look at the worktree can move the branch onto a merge commit that a killed merge
-///  started;
-/// that is a state change the person did not ask for,
-/// and the only record of it was a debug line
-///  (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 1).
-///  A discarded record,
-/// a live owner's record and one whose branch already names the merge changed
-///  nothing of the branch,
-/// so they say nothing.
-/// The line names the ref and the commit,
-/// never the wrapper's own
-///  record files.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function recoveryNotice(outcome: MergeRecoveryOutcome): string | undefined;
-/// ```
-pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
-    let reference: &str = outcome.target_ref.as_deref().unwrap_or("HEAD (detached)");
-    return match outcome.action {
-        MergeRecoveryAction::Completed => Some(format!(
-            "monochromatic-git-policy-cli: finished an interrupted merge: {reference} now names {}, the merge commit. A command that \
-             started this merge ended before it moved the branch, so this command moved it; the merge's files were already in the \
-             checkout.\n",
-            outcome.new_oid
-        )),
-        MergeRecoveryAction::BranchMoved => Some(format!(
-            "monochromatic-git-policy-cli: {reference} moved while a merge was being prepared here, so that merge did not land; its \
-             files were put back and the checkout matches the branch.\n"
-        )),
-        // The merge was reported saved, so it is not dropped: the record goes, and the side ref keeps its commit.
-        MergeRecoveryAction::SavedBranchMoved => Some(format!(
-            "monochromatic-git-policy-cli: the merge saved on {} does not apply: {reference} moved after it was saved, so it cannot \
-             land as it was saved. Nothing was changed. The merge commit {} is kept on that ref, which nothing removes: land it with \
-             `git merge {}`, or delete the ref once you have decided.\n",
-            outcome.side_ref.as_deref().unwrap_or("its side ref"),
-            outcome.new_oid,
-            outcome.new_oid
-        )),
-        MergeRecoveryAction::OwnerActive
-        | MergeRecoveryAction::Discarded
-        | MergeRecoveryAction::AlreadyLanded
-        | MergeRecoveryAction::IndexHeld
-        | MergeRecoveryAction::DeferredRefused => None,
-    };
 }
 
 /// What:
@@ -403,7 +353,7 @@ pub fn settle_failed_merge(
             if intent.side_ref.is_some() {
                 // A merge that a command already reported as saved must not vanish: the record goes, so nothing stops a later
                 //  command, and the side ref keeps its commit and is named.
-                remove_record(record).map_err(untouched)?;
+                drop_record(record).map_err(untouched)?;
                 return Ok(MergeRecoveryAction::SavedBranchMoved);
             }
             let action: MergeRecoveryAction = settle_moved_branch(place, record, intent, head, out)?;
@@ -480,79 +430,8 @@ pub fn settle_failed_merge(
     if complete(place, root, intent, &changes, &judgements, out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    drop_record_and_side_ref(place, root, record, intent).map_err(|error| MergeRefusal { error, began: true })?;
+    drop_record_and_side_ref(place, root, record, intent).map_err(partly_installed)?;
     return Ok(MergeRecoveryAction::Completed);
-}
-
-/// What:
-///  A refusal about a merge that wrote nothing,
-/// so a command that meets it may go on when the merge was saved.
-/// Why:
-///  Every refusal before the index write leaves the checkout as it was,
-/// and the flag says so once for all of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const untouched = (error: RecoveryError): MergeRefusal => ({ error, began: false });
-/// ```
-fn untouched(error: RecoveryError) -> MergeRefusal {
-    return MergeRefusal { error, began: false };
-}
-
-/// What:
-///  Drop a record and,
-/// when it named one,
-/// the side ref that keeps its merge commit from being collected.
-/// Why:
-///   The side ref exists for the window between the save and the finish,
-/// so the merge's landing is what removes it,
-/// and only
-///  while the ref still holds the merge's commit:
-/// another command may have put its own commit on the name,
-/// and that
-///  commit may have no other.
-/// A ref that is not deleted stays,
-/// and the log says why,
-/// because nothing of the merge is lost either
-///  way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function dropRecordAndSideRef({ place, root, record, intent }): Promise<void>;
-/// ```
-fn drop_record_and_side_ref(place: &RecoveryPlace, root: &Path, record: &Path, intent: &MergeIntent) -> Result<(), RecoveryError> {
-    remove_record(record)?;
-    drop_side_ref(place, root, intent);
-    return Ok(());
-}
-
-/// What:
-///  Delete the side ref a record names,
-/// saying in the log when that fails.
-/// Why:
-///   A merge that lands must not leave a name pointing at its commit,
-/// but a deletion that fails is not a reason to
-///  keep the record or stop the command:
-/// the commit stays,
-/// and the name is what a person can delete.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function dropSideRef({ place, root, intent }): Promise<void>;
-/// ```
-fn drop_side_ref(place: &RecoveryPlace, root: &Path, intent: &MergeIntent) {
-    let Some(name) = intent.side_ref.as_deref() else {
-        return;
-    };
-    // The ref is deleted only while it still holds this merge's commit: another command may have put its own commit on the
-    //  name, and that commit may have no other.
-    let arguments: [&str; 5] = ["update-ref", "--no-deref", "-d", name, intent.new_oid.as_str()];
-    if let Err(error) = run_git_checked(&place.git, &GitRequest::new(root, &arguments)) {
-        debug(
-            "settleFailedMerge",
-            format!("the side ref {name} no longer holds the landed merge's commit, so it was left where it is: {error}").as_str(),
-        );
-    }
 }
 
 /// What:

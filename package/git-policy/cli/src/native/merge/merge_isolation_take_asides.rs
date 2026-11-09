@@ -221,7 +221,7 @@ pub fn put_back_stranded_takes(root: &Path, changes: &[Change], out: &mut dyn Wr
 /// ```ts
 /// type Take = { kind: 'nothing' } | { kind: 'aside'; aside: string } | { kind: 'changed' };
 /// ```
-pub(crate) enum Take {
+pub enum Take {
     /// Nothing stands there,
     /// as it was judged.
     Nothing,
@@ -264,7 +264,7 @@ pub(crate) enum Take {
 /// ```ts
 /// function takeAside(location: string, judged?: FileIdentity): Take; // renameNoReplace; identityOf(aside) === judged ? aside : putBack
 /// ```
-pub(crate) fn take_aside(
+pub fn take_aside(
     place: &RecoveryPlace,
     root: &Path,
     path: &[u8],
@@ -344,7 +344,7 @@ fn put_back_and_report(location: &Path, aside: PathBuf) -> Result<Take, Recovery
 /// ```ts
 /// function putBack(taken: { aside: string; location: string }[]): string[]; // names of files left at their private name
 /// ```
-pub(crate) fn put_back(taken: &[TakenOnDisk]) -> Vec<String> {
+pub fn put_back(taken: &[TakenOnDisk]) -> Vec<String> {
     let mut left: Vec<String> = Vec::new();
     for entry in taken {
         match rename_noreplace(entry.aside.as_path(), entry.location.as_path()) {
@@ -481,7 +481,7 @@ fn may_remove(place: &RecoveryPlace, root: &Path, entry: &TakenOnDisk) -> bool {
 /// ```ts
 /// for (const entry of taken) if (!exists(entry.location)) renameNoReplace(entry.aside, entry.location); else keepOrDrop(entry);
 /// ```
-pub(crate) fn restore_what_git_did_not_write(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
+pub fn restore_what_git_did_not_write(place: &RecoveryPlace, root: &Path, taken: &[TakenOnDisk], out: &mut dyn Write) -> Result<(), RecoveryError> {
     let mut written: Vec<TakenOnDisk> = Vec::new();
     for entry in taken {
         if std::fs::symlink_metadata(entry.location.as_path()).is_err() {

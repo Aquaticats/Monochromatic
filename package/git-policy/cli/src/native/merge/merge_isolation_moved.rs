@@ -35,9 +35,10 @@ use crate::merge_isolation_changes::{Change, parse_raw_changes};
 use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_steps::{
-    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_entries, index_holds_the_merge,
-    install_entries, judge_changes, merge_changes, put_back_stranded_takes, remove_record, standing_of_index,
+    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge, install_entries,
+    judge_changes, merge_changes, put_back_stranded_takes, remove_record,
 };
+use crate::merge_isolation_index_reading::{index_entries, standing_of_index};
 /// The fail-closed recovery failure,
 /// and the refusal that says whether the merge began.
 use crate::recovery_error::RecoveryError;
@@ -76,7 +77,7 @@ pub(crate) fn settle_moved_branch(
     // The same judgement the straight completion makes,
     // so a directory the branch's own files explain is read the same way here.
     let worktree: Vec<Judged> = judge_changes(place, root, changes.as_slice()).map_err(untouched)?;
-    let worktree_began: bool = worktree.iter().any(|judged| { return judged.standing == Standing::New; });
+    let worktree_began: bool = worktree.iter().any(holds_the_merge);
     // The index is read first and the worktree standings only decide when it holds nothing of the merge, as `||` ran.
     let began: bool = index_holds_the_merge(place, root, intent.old_oid.as_str(), changes.as_slice()).map_err(untouched)? || worktree_began;
     if !began {
@@ -119,7 +120,7 @@ pub(crate) fn settle_moved_branch(
     let staged_index: Vec<Change> = index_entries(place, root, intent.old_oid.as_str()).map_err(untouched)?;
     let mut staged: Vec<String> = Vec::new();
     for end in &ends {
-        let entry: Option<&Change> = staged_index.iter().find(|found| { return found.path == end.path; });
+        let entry: Option<&Change> = entry_of_path(staged_index.as_slice(), end.path.as_slice());
         if standing_of_index(entry, end, end) == Standing::Foreign {
             staged.push(String::from_utf8_lossy(end.path.as_slice()).into_owned());
         }
@@ -169,8 +170,23 @@ pub(crate) fn settle_moved_branch(
     if install_entries(place, root, ends.as_slice(), held.as_slice(), out)? == Installed::IndexHeld {
         return Ok(MergeRecoveryAction::IndexHeld);
     }
-    remove_record(record).map_err(|error| MergeRefusal { error, began: true })?;
+    remove_record(record).map_err(partly_installed)?;
     return Ok(MergeRecoveryAction::BranchMoved);
+}
+
+/// What:
+///  The refusal of a step that ran after the index was written,
+///  so the merge is partly installed.
+/// Why:
+///   Named once for both step types that can fail there,
+/// and it says what the flag means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const partlyInstalled = (error: RecoveryError): MergeRefusal => ({ error, began: true });
+/// ```
+fn partly_installed(error: RecoveryError) -> MergeRefusal {
+    return MergeRefusal { error, began: true };
 }
 
 /// What:
@@ -186,4 +202,21 @@ pub(crate) fn settle_moved_branch(
 /// ```
 fn untouched(error: RecoveryError) -> MergeRefusal {
     return MergeRefusal { error, began: false };
+}
+
+/// Whether one judgement holds the merge's content,
+/// which is the only evidence that Git began.
+fn holds_the_merge(judged: &Judged) -> bool {
+    return judged.standing == Standing::New;
+}
+
+/// The index entry of one path,
+/// or nothing when the index reports none for it.
+fn entry_of_path<'a>(staged: &'a [Change], path: &[u8]) -> Option<&'a Change> {
+    for candidate in staged {
+        if candidate.path == path {
+            return Some(candidate);
+        }
+    }
+    return None;
 }
