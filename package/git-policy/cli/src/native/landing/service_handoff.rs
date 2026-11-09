@@ -207,7 +207,7 @@ fn push_item(handoff: &ServiceHandoff, landed: &str) -> WorkItem {
 /// ```ts
 /// await writePushRecord({ repository, gitDir, reference, tip, parent })
 /// ```
-pub fn write_push_record(repository: &Path, git_dir: &Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
+pub fn write_push_record(repository: &std::path::Path, git_dir: &std::path::Path, reference: &str, tip: &str, parent: &str) -> Result<(), ClientFailure> {
     let item: WorkItem = WorkItem {
         kind: WorkKind::Push,
         repository: repository.to_path_buf(),
