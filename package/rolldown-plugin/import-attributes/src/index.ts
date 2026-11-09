@@ -10,9 +10,11 @@
  2. Intercepting dynamic import resolution by scanning the importer's source
  3. Loading matched files with the appropriate transform (e.g. text -> default string export)
  
- Static imports are handled via `transform` (rewriting specifiers before rolldown scans them).
- Dynamic imports require special handling because rolldown's Rust scanner discovers
- dependencies from the original AST before `transform` runs on the importing file.
+ Static and dynamic attribute syntax are both handled via `transform`, which
+ rewrites a specifier before rolldown scans the module it belongs to.
+ The importer scan in `resolveId` is the fallback for a specifier the transform
+ left untagged: measured on rolldown 1.3.0, a rewritten dynamic import resolves
+ from its tagged specifier and never reaches the scan.
  
  @example
  ```ts
