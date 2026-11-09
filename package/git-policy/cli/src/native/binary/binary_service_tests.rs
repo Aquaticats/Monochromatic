@@ -56,6 +56,15 @@ const COMMITTER: &str = "T <t@example.invalid> 1793535889 +0000";
 /// so only a hang reaches it.
 const PATIENCE: Duration = Duration::from_secs(60);
 
+/// How long the client of a killed service waits on the restarted one before it calls it stopped.
+/// The restart settles the batch the kill left open before it accepts a connection (`serve_in_a_landing` calls
+///  `settle_open_batches` before `start_acceptor_or_exit`), and that settle waits up to `SETTLE_LOCK_CEILING` for the
+///  `index.lock` the killed service left; `LANDING_LOCK_CEILING` bounds the first landing after it. Both are a minute, which is
+///  exactly this control's `PATIENCE`, so a settle that used its whole ceiling ended the client's wait (`ServiceSilent` after
+///  60 s, 2026-11-08). The event a killed-service control waits for is the answer; a service that never answers is ended by the
+///  per-test limit (five minutes), so the client's silence bound is above every ceiling the service can meet.
+const RESTART_PATIENCE: Duration = Duration::from_secs(240);
+
 /// The text of a Git query,
 /// without its final newline.
 fn query(fixture: &Fixture, repo: &Path, arguments: &[&str]) -> String {
@@ -124,6 +133,27 @@ fn ended_at_fault(service: &mut Service, point: &str) -> std::process::ExitStatu
 
 fn config(name: &str) -> ClientConfig {
     return ClientConfig { address: Bind::Abstract(name.to_string()), activation: Activation::Managed, start_wait: PATIENCE, heartbeat_silence: PATIENCE, start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING };
+}
+
+/// The client of a control whose service is killed and started again: `config` with `RESTART_PATIENCE` as its silence bound.
+fn restarted_service_client(name: &str) -> ClientConfig {
+    return ClientConfig { heartbeat_silence: RESTART_PATIENCE, ..config(name) };
+}
+
+/// What:
+///  The answer the client of a killed-service control ended with,
+/// and what it was told while it waited.
+/// Why:
+///   `submit_quietly` throws the notices away,
+/// and the failure this replaces said only `ServiceSilent` after sixty seconds,
+///  with nothing about what the client had seen (2026-11-08).
+///
+/// # Panics
+///  When the client ended without an answer,
+/// with the failure and every notice it printed.
+fn answered_after_the_restart(client: std::thread::JoinHandle<(Result<Submitted, ClientFailure>, String)>, point: &str) -> Submitted {
+    let (answered, notices) = client.join().expect("client thread");
+    return answered.unwrap_or_else(|failure| panic!("{point}: the client ended before the restarted service answered: {failure:?}; it was told:\n{notices}"));
 }
 
 /// A request that sets `path` to `content`,
@@ -652,8 +682,12 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
         let mut doomed: Service = start_service(&fixture, name.as_str(), Some(point));
         wait_until_reachable(name.as_str());
         let sent: CommitRequest = request(&fixture, &repo, "kill-1", "k.txt", "k\n");
-        let client_config: ClientConfig = config(name.as_str());
-        let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
+        let client_config: ClientConfig = restarted_service_client(name.as_str());
+        let client = std::thread::spawn(move || {
+            let mut notices: Vec<u8> = Vec::new();
+            let answered = submit(&client_config, &sent, &mut notices);
+            return (answered, String::from_utf8_lossy(&notices).into_owned());
+        });
         let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
         // A kill at these points leaves the batch's objects on `refs/worktree/cli-git-service/<seq>` without an intent that
@@ -662,7 +696,7 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
         let scratch_at_the_kill: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/worktree/cli-git-service/");
         assert_eq!(scratch_at_the_kill.len(), usize::from(before_the_branch_moved), "{point}: the killed batch's scratch reference is what the kill left: {scratch_at_the_kill:?}");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
-        let answered = client.join().expect("client thread").expect("the client is answered after the restart");
+        let answered = answered_after_the_restart(client, point);
         assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
         assert_eq!(count_of(&fixture, &repo, "message of kill-1"), 1, "{point}: exactly once");
         assert_healthy(&fixture, &repo, point);
@@ -1130,12 +1164,16 @@ fn a_service_killed_at_each_point_of_an_amend_lands_it_exactly_once() {
         let sent: CommitRequest = amend_request(&fixture, &repo, "ak-amend", "amended.txt", "amended\n");
         let mut doomed: Service = start_service(&fixture, name.as_str(), Some(point));
         wait_until_reachable(name.as_str());
-        let client_config: ClientConfig = config(name.as_str());
-        let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
+        let client_config: ClientConfig = restarted_service_client(name.as_str());
+        let client = std::thread::spawn(move || {
+            let mut notices: Vec<u8> = Vec::new();
+            let answered = submit(&client_config, &sent, &mut notices);
+            return (answered, String::from_utf8_lossy(&notices).into_owned());
+        });
         let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
-        let answered = client.join().expect("client thread").expect("the client is answered after the restart");
+        let answered = answered_after_the_restart(client, point);
         assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
         assert_eq!(count_of(&fixture, &repo, "message of ak-amend"), 1, "{point}: exactly once");
         assert_eq!(count_of(&fixture, &repo, "message of ak-first"), 0, "{point}: the replaced commit is off the branch");
