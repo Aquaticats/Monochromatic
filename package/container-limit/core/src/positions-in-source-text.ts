@@ -73,7 +73,7 @@ const BLANK = ' ';
  ```
  */
 export function isNameCharacter(character?: string,): boolean {
-  if (character === undefined)
+  if ((character === undefined) || (character === ''))
     return false;
   return NAME_CHARACTERS.includes(character,);
 }
@@ -104,7 +104,9 @@ export function continuesName({
 },): boolean {
   if (!isNameCharacter(characters[index],))
     return false;
-  return characters[index - 1] !== '\\';
+  if (!isNameCharacter(characters[index - 1],))
+    return false;
+  return characters[index - 2] !== '\\';
 }
 
 /**

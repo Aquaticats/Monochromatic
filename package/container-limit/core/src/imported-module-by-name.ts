@@ -26,7 +26,8 @@ import {
  
  @param to - index past the statement's semicolon
 
- @returns the specifier, and nothing when the clause names no module
+ @returns the specifier and the index of the `from` that separates the clause from it, or the end of the statement
+   when the clause names no module
 
  @example
  ```ts
@@ -41,7 +42,10 @@ function moduleSpecifierOf({
   readonly characters: readonly string[];
   readonly from: number;
   readonly to: number;
-},): { readonly specifier?: string; } {
+},): {
+  readonly clauseEnd: number;
+  readonly specifier?: string
+} {
   for (let index = from; index < to;) {
     if (!nameMatchesAt({
       characters,
@@ -58,7 +62,7 @@ function moduleSpecifierOf({
     while ((quote < to) && (!isQuote(characters[quote],)))
       quote += 1;
     if (quote >= to)
-      return {};
+      return { clauseEnd: to, };
     /**
      Index past the quote that closes the module specifier.
      */
@@ -67,13 +71,16 @@ function moduleSpecifierOf({
       quote,
       to,
     },);
-    return { specifier: characters.slice(
-      quote + 1,
-      quoteEnd - 1,
-    )
-      .join('',), };
+    return {
+      clauseEnd: index,
+      specifier: characters.slice(
+        quote + 1,
+        quoteEnd - 1,
+      )
+        .join('',),
+    };
   }
-  return {};
+  return { clauseEnd: to, };
 }
 
 /**
@@ -195,7 +202,10 @@ export function importedModuleByName({
     /**
      The module specifier this import names, when it names one.
      */
-    const { specifier, } = moduleSpecifierOf({
+    const {
+      clauseEnd,
+      specifier,
+    } = moduleSpecifierOf({
       characters,
       from: index + 'import'.length,
       to: end,
@@ -204,7 +214,7 @@ export function importedModuleByName({
       for (const [name, module,] of boundNamesOf({
         characters,
         from: index + 'import'.length,
-        to: end,
+        to: clauseEnd,
         specifier,
       },))
         modules.set(
