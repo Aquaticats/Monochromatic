@@ -1,5 +1,10 @@
 # Issue #413: Advisor hedging design interview
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/pi-plugin/advisor/src/config-schemas.ts` is now
+> `package/agent-harness-shared/advisor/src/config-schemas.ts` (2026-10-20 `093f32832a`).
+
 ## Request and current state
 
 The user requested resolution of GitHub issue #413 with `/grill-me` and `/grilling`,

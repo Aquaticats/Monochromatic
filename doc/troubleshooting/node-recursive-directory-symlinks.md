@@ -38,6 +38,12 @@ The actual `native/build.ts --owned` command then fails in `reuseNativeBuildFile
 with `EACCES: permission denied, scandir` through that external symlink.
 The retained stderr names the generated release path and `native/build-reuse.ts:136`.
 
+`package/pi-plugin/auto-mode/native/build-reuse.ts` was removed on 2026-10-19 in `ff55ced353`
+(refactor(pi-plugin-auto-mode):
+retire unapproved native Pi build);
+no file in the working tree
+carries it now.
+
 The replacement walks nonrecursive directory entries,
 extends its queue only for actual directories and collects only regular files.
 It leaves observed symbolic links untouched.

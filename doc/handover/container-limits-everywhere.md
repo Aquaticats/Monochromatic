@@ -1,5 +1,10 @@
 # Container limits everywhere
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/vm-builder/cli/src/disk-weight.ts` is deleted (2026-11-07 `55051ec758`) and no
+> path of that name exists today.
+
 Branch `feat/container-limits-everywhere`,
 worktree `.claude/worktrees/container-limits-everywhere`.
 

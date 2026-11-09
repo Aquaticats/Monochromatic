@@ -253,6 +253,48 @@ const ledger: readonly { readonly path: string; readonly role: Role; }[] = [
 ];
 
 /**
+ Package task files that run cargo clippy in a container, with the words that show each hands the lint the repository
+ root `clippy.toml`.
+
+ Clippy starts its configuration lookup in `CLIPPY_CONF_DIR`, else `CARGO_MANIFEST_DIR`, and walks up the directories
+ from there (`doc/troubleshooting/clippy-toml-unstable-note.md`). A container that mounts only the package directory at
+ `/work` therefore finds no `clippy.toml`, and the fleet-wide `disallowed-methods` ban, which lives only in the root
+ file, silently stops applying: each crate's `[lints.clippy] disallowed_methods = "deny"` only switches that ban on
+ (issue 1756).
+ */
+const CONTAINER_LINT_CONFIG_SITES: readonly { readonly path: string; readonly markers: readonly string[]; }[] = [
+  { path: 'package/ide/app/mise.toml', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
+  { path: 'package/ide/app/task.ts', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
+  { path: 'package/music-player/desktop-app/mise.toml', markers: ['../../../clippy.toml',], },
+  { path: 'package/music-player/desktop-app/task.ts', markers: ['../../../clippy.toml',], },
+  { path: 'package/nested-wayland-session/cli/mise.toml', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
+  { path: 'package/terminal/app/mise.toml', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
+  { path: 'package/terminal/app/task.ts', markers: ['CLIPPY_CONF_DIR=/clippy-conf',], },
+];
+
+/**
+ Package task files whose container cargo lint reads the repository root `clippy.toml` from an image that a build stages
+ it into, with the words that show the staging.
+
+ The linter's Clippy runs against a mount-free snapshot image, so a bind mount cannot reach it: `bin/test-container.ts`
+ copies the root file into the build context and `test.Containerfile` copies it to `/work/clippy.toml`, where Clippy
+ finds it above the crate it lints.
+ */
+const IMAGE_STAGED_LINT_CONFIG_SITES: readonly {
+  readonly path: string;
+  readonly stager: string;
+  readonly image: string;
+  readonly marker: string;
+}[] = [
+  {
+    path: 'package/linter/monochromatic-lint/mise.toml',
+    stager: 'package/linter/monochromatic-lint/bin/test-container.ts',
+    image: 'package/linter/monochromatic-lint/test.Containerfile',
+    marker: 'COPY clippy.toml /work/clippy.toml',
+  },
+];
+
+/**
  Absolute path of the repository root, four folders above this file.
  */
 const repositoryRoot = join(
@@ -299,6 +341,11 @@ const QUOTES: readonly string[] = [
   '"',
   '`',
 ];
+
+/**
+ Words that show a cargo clippy argument list, quoted as a program argument.
+ */
+const CLIPPY_ARGUMENT_WORDS: readonly string[] = QUOTES.map((quote,) => `${quote}clippy${quote}`,);
 
 /**
  Container programs the scan looks for.
@@ -678,6 +725,30 @@ function describeUncoveredStart({ path, line, argvText, }: UncoveredStart,): str
   return `${path}:${String(line,)} ${argvText.trim().replaceAll('\n', ' ',).slice(0, 160,)}`;
 }
 
+/**
+ Package task files the ledger lists that pass a cargo clippy argument to a container program.
+
+ @returns repository-relative paths
+
+ @example
+ ```ts
+ const files = packageTaskFilesRunningAContainerLint();
+ ```
+ */
+function packageTaskFilesRunningAContainerLint(): readonly string[] {
+  return ledger
+    .map((entry,) => entry.path,)
+    .filter((path,) => path.endsWith('/mise.toml',) || path.endsWith('/task.ts',),)
+    .filter((path,) => {
+      /**
+       Text of the entry's file.
+       */
+      const text = textOf(path,);
+      return namesProgram(text,)
+        && CLIPPY_ARGUMENT_WORDS.some((word,) => text.includes(word,),);
+    },);
+}
+
 await describe({
   name: 'the container start sites ledger',
   children: [
@@ -777,6 +848,35 @@ await describe({
           expect(text,).toContain(`${DISK_WEIGHT_SWITCH}: '${DISK_WEIGHT_OFF}'`,);
           expect(text,).toContain('run 42447009237',);
           expect(text,).toContain("crun: opening file 'io.weight' for writing",);
+        }
+      },
+    },),
+    it({
+      name: 'hands the repository root clippy.toml to every container cargo lint in a package task file',
+      fn: async () => {
+        /**
+         Paths covered by either list: a bind mount in the task file, or an image that stages the file.
+         */
+        const listed = new Set([
+          ...CONTAINER_LINT_CONFIG_SITES.map((site,) => site.path,),
+          ...IMAGE_STAGED_LINT_CONFIG_SITES.map((site,) => site.path,),
+        ],);
+        expect(packageTaskFilesRunningAContainerLint().filter((path,) => !listed.has(path,),),).toEqual([],);
+        /**
+         Sites whose file lacks every word that would hand the lint the root file.
+         */
+        const withoutMarker = CONTAINER_LINT_CONFIG_SITES
+          .filter((site,) => !site.markers.some((marker,) => textOf(site.path,).includes(marker,),),)
+          .map((site,) => site.path,);
+        expect(withoutMarker,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'stages the repository root clippy.toml into the image that carries the linter container lint',
+      fn: async () => {
+        for (const site of IMAGE_STAGED_LINT_CONFIG_SITES) {
+          expect(textOf(site.stager,),).toContain('../../../clippy.toml',);
+          expect(textOf(site.image,),).toContain(site.marker,);
         }
       },
     },),

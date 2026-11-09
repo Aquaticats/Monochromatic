@@ -335,6 +335,14 @@ Its direct unit catalog is
 The prior CAC assessment also exercised a 52-case management parity catalog before rejecting that migration shape:
 `doc/audit/tech-cli-git-parser-migration-to-cac-vet-2026-08-14-a48b54e2.md`.
 
+`package/git-policy/cli/src/parser/argv.unit.test.ts` was removed on 2026-10-13 in `642b6d72cb`
+(refactor(*):
+delete the TypeScript Git policy wrapper,
+its tasks,
+bins and trust workflow);
+no
+file in the working tree carries it now.
+
 Tradeoff:
 cli-git continues to own and test generic token-role logic.
 That ownership is the behavior these packages do not jointly provide.

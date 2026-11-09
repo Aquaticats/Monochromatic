@@ -319,6 +319,23 @@ All three mutation runners do this:
 and `package/forbidden-strings/cli/bin/mutate-container.mjs`.
 They pass arguments rather than an `exclude_re` config key because they also pass `--no-config`.
 
+`package/linter/monochromatic-lint/bin/mutate-container.mjs` moved on 2026-10-29 to
+`package/linter/monochromatic-lint/bin/mutate-container.ts` in `6682fc5d82`
+(refactor(mutation-test-cli-cargo-mutants):
+reduce the linter and scanner campaign scripts to
+TypeScript adapters).
+`package/forbidden-strings/cli/bin/mutate-container.mjs` moved on 2026-10-29 to
+`package/forbidden-strings/cli/bin/mutate-container.ts` in `6682fc5d82`
+(refactor(mutation-test-cli-cargo-mutants):
+reduce the linter and scanner campaign scripts to
+TypeScript adapters).
+`package/git-policy/cli/bin/mutate-native-container.mjs` moved on 2026-10-29 to
+`package/git-policy/cli/bin/mutate-native-container.ts` in `418c4dcc54` (refactor(git-policy-cli):
+rename the .mjs runners to .ts (names only;
+imports and task files follow,
+tasks broken until
+then)).
+
 Tradeoffs:
 
 - The exclusion is by kind,

@@ -829,6 +829,11 @@ and a 250 ms limit on that wait
 (`SAFETY_SWEEP`,
 `WRITE_QUIET`,
 and `WRITE_WAIT_LIMIT` in `src/refresh_policy.rs`).
+Those are the values `aab809c54` held.
+Commit `601ec387fa` (2026-10-05) changed them in that same file
+to a 1 s safety sweep,
+a 50 ms quiet time for an open write,
+and a 100 ms limit on that wait.
 The directory was copied to a scratch directory below `~/temp/agent`,
 outside the repository,
 and every session ran that copy.
@@ -1538,6 +1543,10 @@ a `-2x` frame is cut at the doubled rectangle and enlarged by half the factor.
   its only effect is the log line
   `Cannot watch <directory>: the inotify watch limit is reached; raise fs.inotify.max_user_watches`
   (`src/change_watch/watch_thread.rs`).
+  That text and that location are the ones the `aab809c54` build logged.
+  Commit `5bccc12ba7` (2026-10-06) moved the message to `src/change_watch/watch_ops.rs`,
+  where it reads
+  `Cannot watch <path>: the inotify watch limit (fs.inotify.max_user_watches) is reached`.
 - A real watch limit:
   `b` shows the message from the injected trigger,
   not from exhausted inotify watches.

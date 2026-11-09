@@ -36,6 +36,11 @@ At incident commit `3ef6fed29514fe2bad0728c9228f623f7d2516c7`,
 export const DEFAULT_MAX_ADVISOR_OUTPUT_TOKENS = 16_384;
 ```
 
+The `package/pi-plugin/advisor/src/` paths this record names moved on 2026-10-20 to
+`package/agent-harness-shared/advisor/src/` in `093f32832a`
+(refactor(agent-harness-shared-advisor):
+move the advisor core files).
+
 The user configuration selected the same value at incident time:
 
 ```json

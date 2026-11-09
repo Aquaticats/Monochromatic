@@ -642,3 +642,8 @@ Do not file from this document.
   The stopgap decision is superseded and
   `doc/handover/mise-lock-2026-10-20-followup.md` is deleted,
   so no lock remains to regenerate.
+
+`doc/handover/mise-lock-2026-10-20-followup.md` was removed on 2026-10-28 in `9903b2e748` (docs(*):
+close the mise lock incident after v2026.10.20 and the MPM cutover);
+no file in the working tree
+carries it now.

@@ -1122,6 +1122,9 @@ type,
 lockfile,
 and audit checks are the evidence for this scoped dependency change.
 
+`package/dependency-catalog/cli-cube/src/scripts/controller.ts` is not in the working tree and no
+commit in this repository carries it.
+
 The generated lockfile also synchronized stale catalog specifier metadata already
 present in `pnpm-workspace.yaml`.
 Those entries retained their existing resolved versions;

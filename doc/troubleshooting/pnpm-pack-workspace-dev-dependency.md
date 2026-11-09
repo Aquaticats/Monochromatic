@@ -89,6 +89,9 @@ An `npm pack` tarball installs unsuccessfully outside the workspace because its 
 `package/oxlint-plugin/no-restricted-syntax/src/external-consumer.unit.test.ts` creates a disposable publication
 workspace containing:
 
+`package/oxlint-plugin/no-restricted-syntax/src/external-consumer.unit.test.ts` is not in the
+working tree and no commit in this repository carries it.
+
 - built `dist/final` artifacts;
 - production manifest fields;
 - local catalog ranges for `@oxlint/plugins` and TypeScript;

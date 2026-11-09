@@ -1,5 +1,12 @@
 # Main merge into translation repair
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/markdown-lint/rolldown.node.config.ts` is deleted (2026-10-13 `5db89c1b61`)
+> and `package/linter/monochromatic-lint` serves its job today.
+> `package/cli/markdown-lint/src/rule/semantic-line-breaks.ts` is deleted
+> (2026-10-13 `5db89c1b61`) and `package/linter/monochromatic-lint` serves its job today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

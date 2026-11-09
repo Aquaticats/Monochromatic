@@ -1,5 +1,18 @@
 # Issue 401 formatting investigation handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/linter/rust/src/lsp.rs` is deleted (2026-10-06 `5bc05682ec`) and
+> `package/linter/monochromatic-lint` serves its job today.
+> `package/dev-script/file-enforcer/src/jetbrains` is deleted (2026-10-31 `e7b5130459`) and
+> `package/file-enforcer/cli/src/jetbrains_discovery.rs` holds that discovery today.
+> `doc/troubleshooting/stylelint.md` is deleted (2026-10-04 `7c5009228a`) and no path of
+> that name exists today.
+> `package/config/stylelint/index.mjs` is deleted (2026-10-04 `f1bca0541c`) and no path of
+> that name exists today.
+> `//:lint:stylelint` is retired (2026-10-04 `f1bca0541c`) and no stylelint task exists
+> today.
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

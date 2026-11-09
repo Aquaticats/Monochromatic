@@ -51,6 +51,9 @@ export async function observe(command) {
 }
 ```
 
+`package/git-policy/cli/bin/scratch.mjs` is not in the working tree and no commit in this
+repository carries it.
+
 Removing either function leaves a file that renders normally (twelve warnings for `readText` alone,
 five for the `once` call alone),
 so the trigger needs both together.

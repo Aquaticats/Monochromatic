@@ -1,5 +1,12 @@
 # Monorepo manager handover
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/git-policy/cli/src/allowed-worktree-dirs.ts` is deleted (2026-10-13 `642b6d72cb`)
+> and the Rust wrapper under `package/git-policy/cli/src/native/` serves its job today.
+> `package/module/jsonc-edit/package.json` is now `package/jsonc-edit/core-ts/package.json`
+> (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

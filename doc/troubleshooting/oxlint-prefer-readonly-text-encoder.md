@@ -43,6 +43,11 @@ while a decoder received from a caller is an affected capability.
 `package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/intrinsic-effect-catalog.ts`
 now records exact DOM provenance:
 
+`package/oxlint-plugin/prefer-readonly-parameter-type/src/prefer-readonly-parameter-types/intrinsic-effect-catalog.ts`
+was removed on 2026-07-23 in `2bf5f6bc5d` (refactor(oxlint-plugin-prefer-readonly-parameter-type):
+remove handwritten effect catalogs);
+no file in the working tree carries it now.
+
 - Owner:
   `TextEncoder`.
 - Member:
