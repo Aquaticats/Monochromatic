@@ -7,7 +7,12 @@ enforces the run's limits,
 records a feed and a summary,
 and delivers steering messages from an inbox folder.
 
-The skill `.agents/skills/pi-as-subagent/SKILL.md` says how to start a run.
+Two more commands read the same runs folder:
+`watch-overdue-pi-runs` ends when a run should have come back,
+and `check-in-on-pi-runs` describes one run that has not.
+
+The skill `.agents/skills/pi-as-subagent/SKILL.md` says how to start a run
+and which command to run to watch for one that should have come back.
 Evidence for how Pi behaves is in `doc/agent/drive-pi-as-a-coding-subagent.md`.
 
 ## Command line
@@ -190,6 +195,173 @@ A signal the driver itself sent is not a failure.
 
 A driver started by a Pi that a driver runs refuses at once,
 so agents cannot start agents without end.
+
+## Watching for runs that should have come back
+
+The owner's rule:
+"Regularly,
+check in on subagents that should have finished their jobs (based on time estimations 90%+ percentile) but haven't returned."
+
+`watch-overdue-pi-runs` is that check.
+It is one command in the shape rule `MWK` asks for:
+it ends at a terminal state and prints only lines to act on,
+never progress.
+
+```sh
+# from anywhere, with the runs folder the driver wrote into
+watch-overdue-pi-runs --runs-folder=$HOME/temp/agent/pi-runs --deadline-seconds=10800
+```
+
+It takes these options,
+each written as `--name=value`:
+
+- `--runs-folder`:
+  the folder the driver wrote one run folder per run into.
+  Required,
+  because no look is taken without knowing where the runs are.
+- `--deadline-seconds`:
+  how long the command may keep looking.
+  Required,
+  so every wait it takes is bounded by a decision rather than by a default.
+- `--interval-seconds`:
+  how long to wait between looks,
+  five minutes by default.
+- `--recheck-seconds`:
+  how long a run it reported is left alone before it is reported again,
+  half an hour by default.
+- `--limit-minutes`:
+  a limit of your own that replaces both computed limits.
+  It also passes the recheck interval,
+  because a person asking now is not a rotation to keep quiet.
+- `--state-file`:
+  where what was reported is kept,
+  `pi-overdue-watch/reported-runs.json` under `XDG_STATE_HOME` by default,
+  or under the home directory's `.local/state` when that variable is not set.
+- `--once`:
+  look once,
+  print what it found,
+  and end.
+
+It ends with one of these answers:
+
+- one line per run past a limit,
+  and one per call open past what finished calls take:
+
+  ```text
+  # --runs-folder=$HOME/temp/agent/pi-runs
+  OVERDUE pi-copy-route.service: up 96 min, and 90% of 120 finished runs were done within 85 min; feed quiet 4 min, bash open 12 min; $HOME/temp/agent/pi-runs/copy-route-4
+  STUCK? pi-copy-route.service: bash open 25 min, and 99.9% of 24,728 finished calls ended within 19 min; $HOME/temp/agent/pi-runs/copy-route-4
+  ```
+
+- `no Pi agent is running`,
+  so a caller that starts runs later starts the command again.
+- `no Pi agent is past a limit:` followed by what it compared against,
+  which is what `--once` answers with.
+- `the watch reached its deadline with no Pi agent past a limit:` and the same comparison.
+
+A run is reported once and then left alone for `--recheck-seconds`,
+so a coordinator that runs the command on every turn is told about one run about twice an hour.
+What it reported is kept in the state file,
+so a new process reads it too.
+
+### Where the two limits come from
+
+Both are computed from the runs folder on every look,
+never written down here,
+because the work decides them rather than the day they were measured:
+
+- a run is overdue once it has lasted longer than the 90th percentile of `totalMilliseconds`
+  in the finished runs,
+  leaving out the runs whose length is no evidence of how long work takes:
+  `model-error`,
+  `prompt-rejected`
+  and `driver-failed`.
+- a tool call is stuck once it has been open longer than the 99.9th percentile of
+  every ended call in those runs,
+  read from the moments each feed records.
+
+Neither sample is grouped by kind of job.
+The scratch script this came from grouped by three substrings of its day's run names
+(`-findings-on-main`,
+`-against-main`
+and `tokio`),
+and no boundary the driver or Pi records matches those:
+a run named outside that habit silently takes another kind's limit.
+Every finished run whose length is evidence is one sample instead,
+and a false alarm costs one look at the agent.
+A run that hit its wall clock or its turn cap is part of the sample:
+it did the work for as long as it was allowed.
+The calls of every finished run count,
+including the calls of a run whose length does not:
+a run the model provider ended still finished the calls it finished.
+
+How long a call has been open is the age systemd reports for the unit minus the moment the run's feed recorded for that
+call's start.
+The two clocks begin within the driver's own start-up of each other,
+a few hundred milliseconds,
+and a wall clock that steps between two reads shows up in that difference,
+so a limit in minutes is not moved by either.
+
+A sample too small for the percentile it is asked for answers its own largest value,
+so a machine with four finished calls compares against its longest one rather than inventing a shorter limit.
+A runs folder with no finished run at all sets no limit,
+and the command says so instead of calling every run overdue.
+
+### Checking in on one run
+
+When a line names a run,
+`check-in-on-pi-runs` says where it stands:
+
+```sh
+check-in-on-pi-runs --runs-folder=$HOME/temp/agent/pi-runs --unit=pi-copy-route.service
+```
+
+```text
+=== pi-copy-route.service
+up 48 min; main pid 3269231; /home/user/temp/agent/pi-runs/copy-route-4/feed.jsonl
+feed quiet 6 min; last call open: bash, started 41 min into the run: mise run //package/x:test
+processes under the agent: 6; the 6 oldest:
+  pid 4300 ppid 4242 12m S wait=do_wait bash -c mise run //package/x:test
+```
+
+A quiet feed is usually a long test run,
+so it reads the processes before it says anything:
+each line carries the age,
+the state,
+and the kernel call the process is waiting in,
+which tells a run waiting on a test suite from one waiting on a child of its own.
+
+It reads each process's command line and never its environment.
+The age of a unit is the difference between now and the start systemd stamped on the monotonic clock,
+so no wall clock can move it.
+
+A unit is `pi-<task>.service` and each attempt of that task writes `<task>-<number>`,
+so the run going now is the highest number of that name in the runs folder.
+A name the driver records itself would say this more directly;
+until a run writes its own folder into its summary,
+the two names are all there is to go on.
+
+### What the watch cannot bound
+
+Every wait the command takes is bounded by `--deadline-seconds`:
+the wait between looks is cut to what the deadline leaves,
+so the command ends even when no run ever passes a limit.
+
+What no in-process bound reaches is a file system call on a folder that stops answering,
+here as in a run of the driver,
+and one look reads every finished feed.
+Run the command as a systemd unit with its own `RuntimeMaxSec` when that matters,
+or give it a smaller `--deadline-seconds`;
+the driver README says why a call that cannot be cancelled also cannot be waited out.
+
+### What the tests reach
+
+`systemctl` and `ps` sit behind one seam,
+a function that runs a command and answers with what it printed,
+and the units a look judges are handed to it.
+A test writes its own runs folder,
+hands over its own units,
+and needs neither a running unit nor a process table.
 
 ## What is bounded, and what is not
 

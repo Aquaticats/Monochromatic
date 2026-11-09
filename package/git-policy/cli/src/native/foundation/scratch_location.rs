@@ -59,7 +59,8 @@ pub const REPOSITORY_SCRATCH_NAME: &str = REPOSITORY_SCRATCH.current;
 ///  add timing log (48 adds) 539.7 s;
 /// a day is about a hundred times the longest.
 /// The patience for an owner of another namespace
-///  (3,600 s) is far under a day.
+///  (`FOREIGN_OWNER_PATIENCE`,
+/// twice `LOCK_CEILING`) is far under a day.
 /// A wait for a live program's lock ends at a ceiling:
 /// one minute (`LANDING_LOCK_CEILING`,
 /// `MERGE_LOCK_CEILING`)

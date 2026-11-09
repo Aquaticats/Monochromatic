@@ -207,7 +207,8 @@ fn sequencer_state_follows_native_git() {
     remove(scene.root.as_path());
 }
 
-/// A missing or malformed store record fails closed.
+/// A malformed store record fails closed,
+/// and so does one that is absent in a backend whose ref store can hold conclusion values.
 #[test]
 fn store_records_must_be_json() {
     let scene: Scene = scene("conclusion-store-record");
@@ -226,9 +227,13 @@ fn store_records_must_be_json() {
         format!("{} is not UTF-8.", record.display())
     );
     std::fs::remove_file(&record).expect("missing");
+    // A files-backend transaction keeps no conclusion name in its ref store, so it writes no record: an absent one
+    // names nothing here, and this backend can never have named anything.
+    clean(&scene, RefFormat::Files).expect("absent names nothing in a files-backend transaction");
+    // A reftable transaction writes the record even when it names nothing, so an absent one is damage.
     assert!(
-        clean(&scene, RefFormat::Files)
-            .expect_err("missing")
+        clean(&scene, RefFormat::Reftable)
+            .expect_err("missing in a reftable transaction")
             .0
             .starts_with("reading ")
     );

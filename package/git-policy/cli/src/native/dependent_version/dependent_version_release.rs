@@ -17,6 +17,9 @@
 //!      decimal digit string,
 //! so it is exact at any size.
 //!
+//! `dependent-version-bump.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/dependent-version-bump.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // patchBumpVersion({ name, version }); JSON.stringify(text);

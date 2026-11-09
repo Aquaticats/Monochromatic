@@ -13,7 +13,11 @@ This record keeps the names of its time.
 
 Status:
 accepted for implementation by the user (2026-10-29),
-scope below.
+scope:
+the process-start retry (slice R),
+the candidate replacements,
+the journal syncs (slice J,
+task 69) and the in-process filesystem identity (slice S2).
 Owner package:
 `package/git-policy/cli`.
 Tracking issue:
@@ -547,7 +551,10 @@ and the listings were updated to match.
   (empty and half before the ref moves),
   `landing-1.json` and `ref-updated.json` (empty and half),
   `store-held.json`
-  after the ref moved,
+  after the ref moved
+  (in a reftable repository,
+  the only backend whose store can hold one,
+  since 2026-11-09T03:26:44Z),
   and the `owner.json` of `landing.lock`.
   Their messages are fail-closed by design.
 - Silent inconsistency:
@@ -587,7 +594,7 @@ and the listings were updated to match.
   which is the unsourced ordering assumption
   recorded under the J2 outcome.
 - What the user is told (resolved by follow-up 3;
-  the text below is the state when the harness was written):
+  the quoted message text is the state when the harness was written):
   only the
   owner-record messages name a path.
   The messages for `preparing.json`,
@@ -618,6 +625,13 @@ and the unsynced
 `store-held.json` is benign before the
 ref moves and sticks after it,
 so it can lose its own sync only if the landing barrier makes it durable.
+Note 2026-11-09T03:26:44Z:
+the writer now leaves the record out when its backend's ref store can hold no conclusion value,
+which is every files-backend repository,
+and its reader takes an absent record as naming nothing there.
+The condition above therefore holds where values exist (a reftable repository) and has no subject elsewhere,
+and the flush it removes is measured in
+`doc/planning/cli-git-commit-latency-under-many-agents.md`.
 Everything else listed in the torn snapshots bullet and in the records that are synced today bullet stays.
 
 #### Outcomes by phase
@@ -1226,7 +1240,7 @@ each in its own commit,
 and the exposure each one accepts is
 recorded here.
 A kill leaves the page cache intact,
-so no test below is a power loss;
+so no test under "J4 outcome" is a power loss;
 the harness damages files to
 stand for one.
 
@@ -1325,8 +1339,7 @@ before the barrier where the loss is reachable:
   such a directory when it holds no landing record,
   or put the candidate directory sync back (one call per commit).
 
-Superseded by "J4 follow-up:
-lost names converge" below:
+Superseded by the J4 follow-up "lost names converge":
 the `preparing.json`,
 `index-lock-1.json` and `owner.json`
 bullets and the paragraph after them describe the state when the syncs were dropped,
@@ -1334,7 +1347,7 @@ before recovery learned to converge
 on them.
 The tests `a_lost_index_lock_name_equals_a_lock_record_never_written` and
 `a_lost_owner_name_pins_the_known_gap_of_a_stuck_repository_naming_the_directory` no longer exist (replaced by the
-controls below),
+convergence controls in the J4 follow-up),
 and `a_lost_preparing_name_equals_a_preparing_record_never_written` was renamed.
 
 The "leaves `index.lock`" outcome of the first two bullets does not converge either,
@@ -1407,7 +1420,8 @@ change.
 The owner accepted the durability risk and refused to put the syncs back;
 the requirement that stays is that the wrapper
 never leaves a repository stuck.
-Recovery now converges on the three lost names above without a new sync,
+Recovery now converges on `preparing.json`,
+`index-lock-1.json` and `owner.json` without a new sync,
 a new spawn
 or a new syscall on a commit that finds its state whole:
 every new check runs in the branch that already found a dead
@@ -1637,8 +1651,7 @@ rule A waits sixty minutes of quiet (`FOREIGN_OWNER_PATIENCE`,
 reused so one constant
 serves both cases),
 so a fresh ownerless directory stops every guarded command for up to an hour,
-with the message
-above naming the manual way out.
+with the rule A message naming the manual way out.
 A shorter bound (for example tied to `CLI_GIT_LOCK_WAIT_SECONDS`,
 30 minutes by
 default) converges sooner and widens the window in which a live wrapper whose `owner.json` was removed by hand and that
@@ -1887,7 +1900,7 @@ the six constants were left at the counts measured before it,
 so `budget::` failed six times on main's tree.
 `src/native/commit/commit_index_stat_staleness.rs` answers the question in process from the index's bytes,
 so an index that describes the worktree starts no Git and takes no lock,
-and the counts below hold as they were measured before the refresh existed.
+and the counts under "Budgets" hold as they were measured before the refresh existed.
 The measurements,
 the reasoning and what is still to do are in
 `doc/handover/cli-git-rust-implementation.md`,
@@ -2160,8 +2173,10 @@ each with its reason):
 Rejected:
 `/dev/disk/by-uuid` as the source of the text (see "How `findmnt` 2.41 gets the text").
 Reading
-`ID_FS_UUID_SUB_ENC` (the Btrfs device UUID) instead of `ID_FS_UUID_ENC` is the natural mistake and the guard below
-catches it:
+`ID_FS_UUID_SUB_ENC` (the Btrfs device UUID) instead of `ID_FS_UUID_ENC` is the natural mistake,
+and `udev_records_give_one_plain_uuid`,
+`in_process_uuids_equal_what_findmnt_prints` and
+`identities_equal_the_command_only_resolution` catch it:
 the repository path then records `87fa7a73-...` against `findmnt`'s `1bb3d23e-...`.
 
 Guards shown failing before being kept (each break applied,
