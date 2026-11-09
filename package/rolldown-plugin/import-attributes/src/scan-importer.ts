@@ -49,7 +49,7 @@ const l = tagged({ tag: 'import-attributes', },);
  Sentinel returned by {@link readImporterSource} when the importer cannot be read.
  A `unique symbol` so the caller never needs a nullish union to model absence.
  */
-const UNREADABLE_IMPORTER: unique symbol = Symbol('import-attributes/unreadable-importer',);
+const UNREADABLE_IMPORTER: unique symbol = Symbol('import-attributes/importer-source-could-not-be-read',);
 
 /**
  Reads a file fresh on every call, reporting a read failure through the logger.
