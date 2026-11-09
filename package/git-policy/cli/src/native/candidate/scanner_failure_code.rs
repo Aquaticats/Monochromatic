@@ -56,6 +56,7 @@ use forbidden_strings::ScanFinding;
 pub fn candidate_failure_code(failure: CandidateFailure) -> EngineFailureCode {
     match failure {
         CandidateFailure::GitNotStarted
+        | CandidateFailure::GitStopped
         | CandidateFailure::GitFailed
         | CandidateFailure::ListingMalformed
         | CandidateFailure::UnsupportedMode

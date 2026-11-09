@@ -107,7 +107,7 @@ pub fn run_git(
         // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
         Err(error) => {
             return Err(match read_stopped_text(operation.as_str(), &error) {
-                Some(stopped) => CandidateError::new(CandidateFailure::GitNotStarted, stopped.as_str()),
+                Some(stopped) => CandidateError::new(CandidateFailure::GitStopped, stopped.as_str()),
                 None => not_started(purpose, operation.as_str(), &error),
             });
         }

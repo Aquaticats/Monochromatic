@@ -80,6 +80,9 @@ pub mod direct_fix_install_writes;
 /// and the sweep that finishes what a kill interrupted.
 pub mod direct_fix_install_journal;
 
+/// The sentences an install reports.
+pub mod direct_fix_install_messages;
+
 /// The direct fix:
 ///  converge corrections in memory,
 ///  then install them.

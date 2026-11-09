@@ -399,20 +399,31 @@ fn device_of(path: &Path) -> Result<u64, JournalFailure> {
     {
         /// `MetadataExt` adds `dev`.
         use std::os::unix::fs::MetadataExt;
-        let described: std::fs::Metadata = std::fs::metadata(path).map_err(|error| {
-            return JournalFailure::Unwritable { error };
-        })?;
+        let described: std::fs::Metadata = std::fs::metadata(path).map_err(unreadable)?;
         return Ok(described.dev());
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]
     {
-        let described: std::fs::Metadata = std::fs::metadata(path).map_err(|error| {
-            return JournalFailure::Unwritable { error };
-        })?;
+        let described: std::fs::Metadata = std::fs::metadata(path).map_err(unreadable)?;
         let _ = described;
         return Ok(0);
     }
+}
+
+/// What:
+///  The refusal of a path whose file system identity cannot be read.
+/// Why:
+///   A journal that cannot tell which file system it is on must not be written,
+///  because the swap that
+///       follows might cross one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unreadable = (error: Error) => ({ kind: 'unwritable', error });
+/// ```
+fn unreadable(error: std::io::Error) -> JournalFailure {
+    return JournalFailure::Unwritable { error };
 }
 
 /// The directories of a Git directory that start with the journal prefix,

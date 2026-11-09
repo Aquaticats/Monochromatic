@@ -28,6 +28,8 @@
 pub enum CandidateFailure {
     /// The real Git program could not be started at all.
     GitNotStarted,
+    /// A read-only Git query of the check was ended at the bound the wrapper gives every read.
+    GitStopped,
     /// A listing command ran and exited unsuccessfully.
     GitFailed,
     /// Listing output is not the NUL-delimited record format Git 2.56.0 prints.

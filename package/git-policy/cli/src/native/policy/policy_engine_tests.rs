@@ -70,6 +70,56 @@ fn a_skipped_check_is_reported_and_does_not_block_the_command() {
     assert_eq!(pass_exit_code(result.events.as_slice(), result.end), 0);
 }
 
+/// What:
+///  A read the wrapper ended is reported with its own hint,
+///  not with the one that speaks of a shallow
+///       history.
+/// Why:
+///  `content-unavailable` covers both a missing object and a Git that stopped answering,
+///  and `git
+///       fetch` answers only the first;
+///  a person told to fetch after a stopped read is told the wrong thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const e = run({ stopped: 'ls-files showed no sign of work' }); expect(e.events[0].hint).toBe(STOPPED_READ_HINT)
+/// ```
+#[test]
+fn a_read_that_was_ended_carries_its_own_hint() {
+    let (result, _called) = run(
+        Trigger::PreForward,
+        &PolicyConfig::defaults(),
+        &no_controls(),
+        &[],
+        vec![(
+            PolicyId::FinalNewline,
+            PolicyOutcome::Stopped {
+                message: String::from("git ls-files showed no sign of work"),
+                path: None,
+            },
+        )],
+    );
+    assert_eq!(result.end, StageEnd::Failed);
+    assert_eq!(
+        result.events,
+        [PolicyEvent::EngineFailure {
+            code: EngineFailureCode::ContentUnavailable,
+            hint: crate::policy_events::EngineFailureHint::Chosen(Some(
+                crate::policy_events::STOPPED_READ_HINT
+            )),
+            message: String::from("git ls-files showed no sign of work"),
+            trigger: Some(Trigger::PreForward),
+            policy: Some(PolicyId::FinalNewline),
+            path: None,
+        }]
+    );
+    // The code's own hint still speaks of what it answers, and it says nothing about a stopped read.
+    let generic: &str = crate::event_hints::engine_failure_hint("content-unavailable")
+        .expect("a hint for content-unavailable");
+    assert!(generic.contains("shallow history"), "{generic}");
+    assert!(!crate::policy_events::STOPPED_READ_HINT.contains("fetch"), "{}", crate::policy_events::STOPPED_READ_HINT);
+}
+
 /// The stage under test and the types it reads and produces.
 use super::{
     BLOCKED_EXIT_CODE, PolicyChecks, PolicyFinding, PolicyOutcome, StageEnd, StageRequest,

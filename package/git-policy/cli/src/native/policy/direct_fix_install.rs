@@ -52,8 +52,10 @@
 
 /// The journal a correction is installed through,
 ///  and the sweep that finishes what a kill interrupted.
-use crate::direct_fix_install_journal::{
-    JournalFailure, content_of, open_journal, recover_interrupted_installs, remove,
+use crate::direct_fix_install_journal::{content_of, open_journal, recover_interrupted_installs, remove};
+/// The sentences the install reports.
+use crate::direct_fix_install_messages::{
+    install_failure, journal_refusal, kept_notice, restore_failed, unchanged_failure,
 };
 /// The two file-system primitives,
 ///  and what the file being replaced had.
@@ -70,9 +72,6 @@ use std::path::{Path, PathBuf};
 /// `Rc<T>` is a shared,
 ///  read-only handle.
 use std::rc::Rc;
-
-/// The start of every installation failure message.
-const INSTALL_FAILED: &str = "monochromatic-git-policy-cli fix could not install its corrections";
 
 /// What:
 ///  One file to correct:
@@ -137,7 +136,7 @@ pub struct Prepared {
     destination: PathBuf,
     /// The journal directory that holds the corrected bytes,
     ///  and then the bytes the swap displaced.
-    journal: PathBuf,
+    pub(crate) journal: PathBuf,
     /// The bytes the fix read.
     original: Rc<[u8]>,
     /// The corrected bytes.
@@ -206,21 +205,6 @@ fn after_swap(destination: &Path) {
 pub struct InstallOutcome {
     /// One sentence per journal that stays.
     pub notices: Vec<String>,
-}
-
-/// What:
-///  An installation failure message:
-///  the shared start,
-///  then what happened.
-/// Why:
-///   Every failure reads the same way and names no candidate file.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const installFailure = (detail: string) => `monochromatic-git-policy-cli fix could not install its corrections: ${detail}`;
-/// ```
-fn install_failure(detail: &str) -> String {
-    return format!("{INSTALL_FAILED}: {detail}");
 }
 
 /// What:
@@ -355,24 +339,6 @@ fn displaced_is_unchanged(site: &Prepared) -> Result<bool, String> {
 }
 
 /// What:
-///  The sentence a journal that stays is reported with.
-/// Why:
-///   The person must be able to find the bytes,
-///  and the message must not name the candidate's pathname,
-///       which can hold the text a scan exists to keep out of output.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// `kept ${contentOf(journal)} ...`;
-/// ```
-fn kept_notice(site: &Prepared) -> String {
-    return format!(
-        "monochromatic-git-policy-cli kept {}, which holds the bytes of a file that was written while the fix ran; nothing there was removed, and the file itself holds what the other writer put there.",
-        content_of(site.journal.as_path()).display()
-    );
-}
-
-/// What:
 ///  Keep or remove the journal of a site whose swap succeeded and whose displaced bytes were the
 ///       bytes the fix read.
 /// Why:
@@ -424,7 +390,7 @@ fn undo_if_still_ours(site: &Prepared) -> Result<bool, String> {
         content_of(site.journal.as_path()).as_path(),
         site.destination.as_path(),
     )
-    .map_err(|error| { return format!("restoring a corrected file failed ({error})"); })?;
+    .map_err(restore_failed)?;
     remove(site.journal.as_path());
     return Ok(true);
 }
@@ -484,7 +450,7 @@ fn prepare_one(root: &Path, git_dir: &Path, change: &InstallChange) -> Result<Pr
     };
     let destination: PathBuf = root.join(relative);
     let found: SiteState = state_of(destination.as_path(), "reading a corrected file")
-        .map_err(|detail| { return install_failure(&format!("{detail}, so no file was changed.")); })?;
+        .map_err(unchanged_failure)?;
     let SiteState::File { bytes, kept } = found else {
         if let SiteState::Absent = found {
             return Err(install_failure(
@@ -509,7 +475,7 @@ fn prepare_one(root: &Path, git_dir: &Path, change: &InstallChange) -> Result<Pr
         &change.replacement,
         writer_token().as_deref(),
     )
-    .map_err(|failure| { return journal_refusal(&failure); })?;
+    .map_err(journal_refusal)?;
     let content: PathBuf = content_of(journal.as_path());
     match write_new(content.as_path(), &change.replacement, &kept) {
         Ok(()) => {}
@@ -528,21 +494,6 @@ fn prepare_one(root: &Path, git_dir: &Path, change: &InstallChange) -> Result<Pr
         replacement: Rc::clone(&change.replacement),
         kept,
     });
-}
-
-/// What:
-///  The failure sentence of a journal that could not be made.
-/// Why:
-///   Both refusals are complete answers for the person,
-///  and one of them is not an accident of this
-///       machine but a property of the repository's layout.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const refusal = (failure) => installFailure(`${failure}, so no file was changed.`);
-/// ```
-fn journal_refusal(failure: &JournalFailure) -> String {
-    return install_failure(format!("{failure}, so no file was changed.").as_str());
 }
 
 /// What:

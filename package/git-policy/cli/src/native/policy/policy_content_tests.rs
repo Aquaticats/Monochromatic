@@ -177,6 +177,27 @@ fn a_candidate_too_large_to_read_is_a_skipped_check_that_names_the_file() {
             path: Some(crate::event_path::EventPath::from_git_bytes(b"big.bin")),
         }
     );
+    // A read the wrapper ended is a stopped check with its own hint, at the level of the listing and of one file.
+    assert_eq!(
+        candidate_read_failure(
+            &candidate,
+            &CandidateError::new(CandidateFailure::GitStopped, "git ls-files showed no sign of work")
+        ),
+        PolicyOutcome::Stopped {
+            message: String::from("git ls-files showed no sign of work"),
+            path: Some(crate::event_path::EventPath::from_git_bytes(b"big.bin")),
+        }
+    );
+    assert_eq!(
+        candidate_failure(&CandidateError::new(
+            CandidateFailure::GitStopped,
+            "git ls-files showed no sign of work"
+        )),
+        PolicyOutcome::Stopped {
+            message: String::from("git ls-files showed no sign of work"),
+            path: None,
+        }
+    );
     assert_eq!(
         candidate_read_failure(
             &candidate,

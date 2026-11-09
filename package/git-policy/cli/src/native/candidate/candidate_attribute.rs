@@ -248,7 +248,7 @@ impl CandidateAttributes {
                 // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
                 if let Some(stopped) = read_stopped_text(operation.as_str(), &error) {
                     return Err(attribute_failure(
-                        CandidateFailure::GitNotStarted,
+                        CandidateFailure::GitStopped,
                         stopped.as_str(),
                     ));
                 }

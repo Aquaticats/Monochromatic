@@ -250,6 +250,20 @@ fn overlaid_bytes(
 /// const candidateFailure = (error: CandidateError): PolicyOutcome => ({ kind: 'failed', code: candidateFailureCode(error.failure), message: error.message });
 /// ```
 pub fn candidate_failure(error: &CandidateError) -> PolicyOutcome {
+    // What: A read the wrapper ended is its own answer, because its hint is its own: fetching history answers a
+    //       missing object and nothing about a Git that stopped answering.
+    // Why:  The person must be told that nothing changed and to run the command again, not to fetch.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (error.failure === 'git-stopped') return { kind: 'stopped', message: error.message, path: undefined };
+    // ```
+    if error.failure == CandidateFailure::GitStopped {
+        return PolicyOutcome::Stopped {
+            message: error.message.clone(),
+            path: None,
+        };
+    }
     return PolicyOutcome::Failed {
         code: candidate_failure_code(error.failure),
         // `.clone()` copies the message the remembered failure keeps.
@@ -276,6 +290,12 @@ pub fn candidate_failure(error: &CandidateError) -> PolicyOutcome {
 /// const readFailure = (candidate, error) => error.failure === 'object-too-large' ? { kind: 'skipped', path: candidate.path, message: error.message } : candidateFailure(error);
 /// ```
 pub fn candidate_read_failure(candidate: &Candidate, error: &CandidateError) -> PolicyOutcome {
+    if error.failure == CandidateFailure::GitStopped {
+        return PolicyOutcome::Stopped {
+            message: error.message.clone(),
+            path: Some(EventPath::from_git_bytes(candidate.path.as_slice())),
+        };
+    }
     if error.failure != CandidateFailure::ObjectTooLarge {
         return candidate_failure(error);
     }

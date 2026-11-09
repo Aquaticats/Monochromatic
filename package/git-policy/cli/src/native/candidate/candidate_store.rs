@@ -272,7 +272,7 @@ impl CandidateStore {
                 // A read the wrapper ended at its ceiling says what blocked it and what stayed as it was.
                 if let Some(stopped) = read_stopped_text(operation, &error) {
                     return Err(CandidateError::new(
-                        CandidateFailure::GitNotStarted,
+                        CandidateFailure::GitStopped,
                         stopped.as_str(),
                     ));
                 }
