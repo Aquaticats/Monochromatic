@@ -24,9 +24,27 @@ import {
 } from '@monochromatic-dev/cloudflare-worker-rand';
 
 /**
- Draws taken where a case needs every outcome of a small domain to appear.
+ Draws per case: enough that every outcome of a small domain appears, and that
+ a one-sided assertion cannot pass by luck.
  */
 const MANY_DRAWS = 400;
+
+/**
+ Bit widths the raw draw must honour: one word, the sign-sensitive 32-bit
+ width, two words, and the widest exactly representable draw.
+ */
+const DRAW_WIDTHS = [
+  1,
+  31,
+  32,
+  33,
+  53,
+] as const;
+
+/**
+ Upper bound of an interval whose span needs exactly the 32-bit draw.
+ */
+const THIRTY_TWO_BIT_SPAN_MAX = 2 ** 31;
 
 /**
  Whether `text` is a lowercase canonical version 4 UUID.
@@ -94,19 +112,28 @@ await describe({
       name: drawBits.name,
       children: [
         it({
-          name: 'stays inside the requested width at one word, two words and the exact-integer limit',
+          name: 'stays inside the requested width on both bounds at one word, the sign-sensitive 32-bit width, two words and the exact-integer limit',
           fn: async () => {
-            for (let attempt = 0; attempt < 200; attempt += 1) {
-              expect(drawBits(1,) < 2,).toBe(true,);
-              expect(drawBits(32,) < (2 ** 32),).toBe(true,);
-              expect(drawBits(33,) < (2 ** 33),).toBe(true,);
-              /**
-               Widest draw this Worker supports, which must stay exactly
-               representable so the modulo-free comparison is sound.
-               */
-              const wide = drawBits(53,);
-              expect(wide < (2 ** 53),).toBe(true,);
-              expect(Number.isSafeInteger(wide,),).toBe(true,);
+            /**
+             Every width drawn once per attempt, flattened so each result is
+             asserted once.
+             */
+            const draws = Array.from({ length: MANY_DRAWS, }, function drawEveryWidth() {
+              return DRAW_WIDTHS.map((bits) => ({
+                bits,
+                drawn: drawBits(bits,),
+              }),);
+            },)
+              .flat();
+            for (const {
+              bits,
+              drawn,
+            } of draws) {
+              // The lower bound is the assertion a signed 32-bit reduction
+              // fails: a negative draw still satisfies the upper bound.
+              expect(drawn >= 0,).toBe(true,);
+              expect(drawn < (2 ** bits),).toBe(true,);
+              expect(Number.isSafeInteger(drawn,),).toBe(true,);
             }
           },
         },),
@@ -265,6 +292,26 @@ await describe({
               expect(Number.isSafeInteger(drawn,),).toBe(true,);
               expect(drawn >= min,).toBe(true,);
               expect(drawn <= 0,).toBe(true,);
+            }
+          },
+        },),
+        it({
+          name: 'stays inside an interval whose span needs the 32-bit draw, where a signed reduction leaves it',
+          fn: async () => {
+            /**
+             Every draw across a span of 2^31 + 1 values, so the draw width is
+             exactly 32, the width a signed reduction turns negative.
+             */
+            const draws = Array.from({ length: MANY_DRAWS, }, function drawInInterval() {
+              return randomIntInclusive({
+                min: 0,
+                max: THIRTY_TWO_BIT_SPAN_MAX,
+              },);
+            },);
+            for (const drawn of draws) {
+              expect(drawn >= 0,).toBe(true,);
+              expect(drawn <= THIRTY_TWO_BIT_SPAN_MAX,).toBe(true,);
+              expect(Number.isSafeInteger(drawn,),).toBe(true,);
             }
           },
         },),
