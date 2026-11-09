@@ -69,6 +69,24 @@ export const MODEL_ERROR_TEXT = 'no key for this provider';
 export const RECOVERED_REPLY = 'recovered';
 
 /**
+ A provider failure a retry can fix, shaped as one real run's feed recorded it on 2026-11-09
+ (`pi-runs/repo-read-and-index-route-findings-on-main-1/summary.json`).
+ */
+export const TRANSIENT_ERROR_TEXT = 'Request timed out.';
+
+/**
+ A failure no retry can fix, shaped as three real runs' feeds recorded it on 2026-11-09
+ (`pi-runs/toml-edit-wrapped-values-validated-1/summary.json`): the provider is not configured, so another attempt cannot
+ reach a different answer.
+ */
+export const PERMANENT_ERROR_TEXT = 'Provider is not configured: neuralwatt';
+
+/**
+ A rate limit, which the coordinator measures apart from other failures.
+ */
+export const RATE_LIMIT_ERROR_TEXT = '429 {"error":{"message":"Too many requests"}}';
+
+/**
  The text the standard-error scenario writes, so a test can see the copy reach its file.
  */
 export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard error';
@@ -398,6 +416,42 @@ const promptPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<string,
     function endInError(id,) {
       answer({ id, },);
       finishRunInError(MODEL_ERROR_TEXT,);
+    },
+  ],
+  [
+    'transient-error-then-success',
+    function failOnceThenRecover(id,) {
+      answer({ id, },);
+      if (seen.prompts === 1) {
+        finishRunInError(TRANSIENT_ERROR_TEXT,);
+        return;
+      }
+      finishRun(RECOVERED_REPLY,);
+    },
+  ],
+  [
+    'always-transient-error',
+    function failEveryAttempt(id,) {
+      answer({ id, },);
+      finishRunInError(TRANSIENT_ERROR_TEXT,);
+    },
+  ],
+  [
+    'permanent-error',
+    function failEveryAttemptForGood(id,) {
+      answer({ id, },);
+      finishRunInError(PERMANENT_ERROR_TEXT,);
+    },
+  ],
+  [
+    'rate-limit-then-success',
+    function hitARateLimitOnceThenRecover(id,) {
+      answer({ id, },);
+      if (seen.prompts === 1) {
+        finishRunInError(RATE_LIMIT_ERROR_TEXT,);
+        return;
+      }
+      finishRun(RECOVERED_REPLY,);
     },
   ],
   [

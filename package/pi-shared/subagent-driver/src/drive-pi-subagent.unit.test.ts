@@ -45,7 +45,10 @@ import {
 import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
+  PERMANENT_ERROR_TEXT,
+  RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
+  TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-prompt-plays-fixture.ts';
 
 /**
@@ -75,10 +78,24 @@ const IDLE_SECONDS = 0.2;
 const LONG_IDLE_SECONDS = 60;
 /** Turns allowed, below the stand-in's many-turns scenario and above every other. */
 const TURN_CAP = 3;
+/**
+ Turns a run may start when its subject is how many retries follow model errors: the default retry cap of three retries makes
+ four attempts, and each attempt is a turn.
+ */
+const TURN_CAP_ABOVE_RETRIES = 8;
+/**
+ Seconds before the first retry after a model error, small enough that a test's three-growing delays take under half a second
+ and large enough that the feed records the growth rather than rounding it away.
+ */
+const RETRY_BASE_SECONDS = 0.05;
 /** Milliseconds between looks at a file a test waits on. */
 const LOOK_MILLISECONDS = 20;
 /** Milliseconds in a second. */
 const MILLISECONDS_PER_SECOND = 1_000;
+/**
+ Milliseconds of the first retry delay, which `--retry-base-seconds` names in seconds.
+ */
+const RETRY_BASE_MILLISECONDS = RETRY_BASE_SECONDS * MILLISECONDS_PER_SECOND;
 /** Status of a run that ended on its own terms. */
 const CLEAN_STATUS = 0;
 /** Status of a run that did not. */
@@ -191,6 +208,12 @@ type RunRequest = {
   readonly withoutPrompt?: boolean;
   readonly wallSeconds?: number;
   readonly idleSeconds?: number;
+
+  /**
+   Turns this run may start. A retry after a model error is a turn of its own, so a test that counts retries sets this above the
+   default.
+   */
+  readonly turnCap?: number;
 
   /**
    Runs after the folders are made and before the driver starts.
@@ -462,6 +485,7 @@ async function runDriver(
     withoutPrompt = false,
     wallSeconds = RUN_WALL_SECONDS,
     idleSeconds = IDLE_SECONDS,
+    turnCap = TURN_CAP,
     prepare,
     whileRunning,
   }: RunRequest,
@@ -496,7 +520,7 @@ async function runDriver(
     '--model=stand-in-model',
     `--wall-seconds=${String(wallSeconds,)}`,
     `--idle-seconds=${String(idleSeconds,)}`,
-    `--turn-cap=${String(TURN_CAP,)}`,
+    `--turn-cap=${String(turnCap,)}`,
     ...extraOptions,
   ], {
     env: {
@@ -792,6 +816,73 @@ await describe({
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.endReason,).toBe('idle',);
         expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+      },
+    },),
+    it({
+      name: 'a transient model error is answered with another attempt, and the run goes on',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'transient-error-then-success',
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.lastAssistantText,).toBe(RECOVERED_REPLY,);
+        expect(run.summary.modelError,).toBeUndefined();
+        expect(run.summary.retries,).toBe(1,);
+        expect(run.feed.filter((entry,) => entry.kind === 'retry',),).toMatchObject([{
+          attempt: 1,
+          of: 3,
+          errorKind: 'transient',
+        },],);
+        expect(String(run.feed.find((entry,) => entry.kind === 'retry')?.error,),).toContain(TRANSIENT_ERROR_TEXT,);
+        expect(run.feed.find((entry,) => entry.kind === 'retry_prompt')?.success,).toBe(true,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(2,);
+      },
+    },),
+    it({
+      name: 'a model error that keeps coming back ends the run once the retries run out, naming the attempts',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'always-transient-error',
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
+          turnCap: TURN_CAP_ABOVE_RETRIES,
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(TRANSIENT_ERROR_TEXT,);
+        expect(run.summary.retries,).toBe(3,);
+        expect(run.summary.modelErrorAttempts,).toBe(4,);
+        expect(run.feed.filter((entry,) => entry.kind === 'retry',).map((entry,) => entry.delayMilliseconds),)
+          .toEqual([RETRY_BASE_MILLISECONDS, 2 * RETRY_BASE_MILLISECONDS, 4 * RETRY_BASE_MILLISECONDS,],);
+        expect(run.standardError,).toContain('after 4 attempts',);
+      },
+    },),
+    it({
+      name: 'a model error no retry can fix ends the run without an attempt at one',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'permanent-error', },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('model-error',);
+        expect(String(run.summary.modelError,),).toContain(PERMANENT_ERROR_TEXT,);
+        expect(run.summary.retries,).toBe(0,);
+        expect(run.summary.modelErrorAttempts,).toBe(1,);
+        expect(run.feed.some((entry,) => entry.kind === 'retry'),).toBe(false,);
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a rate limit is retried like a transient failure and counted apart',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'rate-limit-then-success',
+          extraOptions: [`--retry-base-seconds=${String(RETRY_BASE_SECONDS,)}`,],
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.retries,).toBe(1,);
+        expect(run.summary.rateLimitErrors,).toBe(1,);
+        expect(run.feed.find((entry,) => entry.kind === 'retry')?.errorKind,).toBe('throttled',);
       },
     },),
     it({
