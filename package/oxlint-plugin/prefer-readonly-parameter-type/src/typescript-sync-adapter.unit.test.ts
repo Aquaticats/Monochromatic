@@ -378,11 +378,10 @@ await describe({
         },),
         it({
           name: 'accepts Windows source paths with noncanonical casing',
+          skip: process.platform === 'win32'
+            ? false
+            : 'this check needs the case-insensitive filesystem Windows provides',
           fn: async () => {
-            if (process.platform !== 'win32') {
-              expect(true,).toBe(true,);
-              return;
-            }
             closeSemanticBridge();
             using directory = createSemanticFixtureDirectory();
             /** Canonically cased source written inside configured project. */

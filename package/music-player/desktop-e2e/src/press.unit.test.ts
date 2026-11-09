@@ -296,9 +296,10 @@ await describe({
     it({
       name: 'passes when no shortcut was used and the watched fields did not move',
       fn: async ({ expect, }) => {
-        const { session, } = fakeSession();
+        const { calls, session, } = fakeSession();
         await noEffect({ session, act: tapKey('x',), watch: nothingMoved, what: 'x', settleMs: 1, },);
-        expect(true,).toBe(true,);
+        // The press reached the session and nothing else did, so the check above had a press to check.
+        expect(calls,).toEqual(['tap x',],);
       },
     },),
     it({
