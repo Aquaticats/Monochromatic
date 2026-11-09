@@ -257,6 +257,10 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
 /// (`wait_ceilings.rs`,
 /// `WAITING_NOTICE_AFTER`).
+/// Returns the identities of the requests whose scratch tree the landing did not read for good,
+/// because the answer sent their client back to read the private index of the attempt it captured
+/// (`service_commit_tree_ownership.rs`):
+/// those trees stay where they are until the client that owns them removes them.
 pub(crate) fn land_group(
     context: &LandContext,
     instance: Option<&str>,
@@ -265,7 +269,7 @@ pub(crate) fn land_group(
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
     place_after: Duration,
-) {
+) -> Vec<String> {
     let group_began: Instant = Instant::now();
     // Requests this service already landed are answered from memory; the rest are still to land.
     let mut again: Vec<Queued> = Vec::new();
@@ -295,7 +299,7 @@ pub(crate) fn land_group(
         }
     }
     if fresh.is_empty() {
-        return;
+        return Vec::new();
     }
     // A batch whose branch moved but whose index update had to give up (another program held Git's index lock the whole
     //  time) left its intent open; settling it first puts the index right before anything else changes it.
@@ -313,7 +317,7 @@ pub(crate) fn land_group(
                 stream.send(&ServiceMessage::Failed { id: request.id.clone(), code });
                 log_answer(&unlanded, request, arrival, position + 1, format!("failed:{}", code.word()).as_str());
             }
-            return;
+            return Vec::new();
         }
     };
     *seq = claim.seq();
@@ -341,6 +345,9 @@ pub(crate) fn land_group(
     let waiting: usize = crate::service_reply::Reply::waiting();
     let queued_behind: usize = waiting.saturating_sub(fresh.len());
     let times: BatchTimes = BatchTimes { batch: *seq, size: fresh.len(), group_began, settle, landing, land_total: landing_began.elapsed(), landed_at: Instant::now(), queued_behind };
+    // The trees this answer leaves to their clients: the ones whose request was told to prepare again, or that the branch
+    //  moved under, because each client reads the private index of that attempt to capture its change for the rebuild.
+    let mut kept: Vec<String> = Vec::new();
     match result {
         Ok(outcomes) => {
             // What this batch landed is remembered before any answer, so a commit sent back in the same batch is told about it.
@@ -377,10 +384,12 @@ pub(crate) fn land_group(
                     Outcome::RetryPrepare { base } => {
                         let known = captures.remembered(request.common_dir.as_path(), request.repository.as_path());
                         stream.send(&ServiceMessage::RetryPrepare { id: request.id.clone(), base, landed: known });
+                        kept.push(request.id.clone());
                         "retry-prepare"
                     }
                     Outcome::BranchMoved => {
                         stream.send(&ServiceMessage::Failed { id: request.id.clone(), code: FailureCode::BranchMoved });
+                        kept.push(request.id.clone());
                         "branch-moved"
                     }
                 };
@@ -394,6 +403,7 @@ pub(crate) fn land_group(
             }
         }
     }
+    return kept;
 }
 
 /// What a batch tells its requests is controlled in the test module.

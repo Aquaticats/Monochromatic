@@ -65,7 +65,7 @@ use crate::service_branch_shows::{branch_moved, display_text};
 use crate::service_landed_aftermath::{LandedAftermath, after_a_silent_or_failed_service, the_landed_commit};
 use crate::service_messages::{ClientFailure, render};
 /// Which end of the commit's scratch tree a submitted request leaves it to.
-use crate::service_commit_tree_ownership::the_service_never_took;
+use crate::service_commit_tree_ownership::the_tree_goes_back_to_this_process;
 use crate::service_native::{BuildInput, GitBuilt, build_with_git};
 use crate::service_prepare::{NativeInputs, PrepareInputs, Prepared, Ready, prepare};
 use crate::service_replay::{Captured, Retry, conflict_result, retry_of};
@@ -296,10 +296,15 @@ pub fn service_commit<F: RepositoryFacts>(
         //  Both bounds of that wait, the renewed directory and the notices a terminal which stopped draining cannot hold, are
         //  in `service_commit_waiting_notices.rs`.
         let submitted: Result<Submitted, ClientFailure> = submit_saying_where_it_stands(&config, ready.scratch.0.as_path(), &sent, &mut timing.submit);
-        // A request the service took is one whose tree the service removes once its landing is over, so this process leaves it
-        //  alone; only a definite answer that the service never took the request leaves the tree to this process, which removes
-        //  it as it ends.
-        ready.scratch.held_by_the_service(!the_service_never_took(&submitted));
+        // A request the service landed is one whose tree the service removes once its landing is over, so this process leaves it
+        //  alone; a definite answer that the service never took the request, or that it did not land it, leaves the tree to this
+        //  process, which removes it as the attempt ends (after the rebuild has captured the change from its private index).
+        ready.scratch.held_by_the_service(!the_tree_goes_back_to_this_process(&submitted));
+        // The service answered that this attempt did not land the commit: the rebuild below captures the change from this
+        //  attempt's private index, so this is the instant a control holds to prove that index is still there to be read.
+        if matches!(submitted, Ok(Submitted::PrepareAgain { .. } | Submitted::Moved)) {
+            reach_service_phase(Phase::ServiceSentBack)?;
+        }
         match submitted {
             Ok(Submitted::Landed { commit, .. }) => {
                 let after_landing: Instant = Instant::now();

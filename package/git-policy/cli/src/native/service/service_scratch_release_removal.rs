@@ -16,6 +16,10 @@
 //!  and a removal that cannot finish says so in the journal rather than nowhere.
 //!  Whatever is left of such a directory is inside the repository scratch directory,
 //!  where the sweep of a later command removes it.
+//!  A tree of a request the landing answered as not landed is not removed here:
+//!  that request's command still reads the private index of the attempt that captured its change,
+//!  so it is the command's to remove
+//!  (`service_commit_tree_ownership.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

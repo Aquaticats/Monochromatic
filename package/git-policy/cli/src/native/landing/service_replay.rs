@@ -186,12 +186,25 @@ pub fn retry_of(context: &GitContext, cwd: &Path, ready: &Ready, landed: Vec<Lan
 ///   The retry merges this tree,
 /// so it is written once,
 /// when the service sends the commit back.
+///  The index file is looked at first:
+///  `git write-tree` answers with the empty tree for an index that is gone,
+///  so a read that found nothing would rebuild the commit as a deletion of every file and report a conflict naming
+///  paths the commit never touched.
+///  A private index that is gone is named instead,
+///  and nothing is replayed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await capturedTree(context, cwd, commitIndex, objectDirectory)
 /// ```
 pub fn captured_tree(context: &GitContext, cwd: &Path, commit_index: &Path, object_directory: &Path) -> Result<String, TransactionStop> {
+    if !std::fs::symlink_metadata(commit_index).is_ok_and(|metadata| { return metadata.is_file(); }) {
+        return Err(failed(format!(
+            "The change this commit captured cannot be read back: the private index of the attempt that captured it, {}, is not there, \
+             so this commit was not made. Run the commit again. {NOTHING_CHANGED}",
+            commit_index.display()
+        )));
+    }
     let written = run_git_checked(context, &indexed_request(cwd, &["write-tree"], Some(commit_index), Some(object_directory)))?;
     return Ok(String::from_utf8_lossy(written.stdout.as_slice()).trim().to_string());
 }

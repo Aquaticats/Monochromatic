@@ -11133,6 +11133,18 @@ exit `1`,
 a message naming the paths and the commit that landed first,
 and the message the person typed saved in a file with the command that reuses it.
 A merged tree equal to the branch ends with `concurrent-commit/already-committed`.
+A commit sent back to be prepared again reads the private index of the attempt that captured its change,
+so that attempt's scratch tree belongs to the command until it has read it:
+the service removes the tree of a request it answered as landed,
+and leaves the tree of a request it answered as not landed to the command,
+which removes it once the change is captured
+(`the_tree_goes_back_to_this_process` in `src/native/landing/service_commit_tree_ownership.rs`).
+The tree is named after the request and the attempt,
+so the next attempt never shares a directory with one a removal is taking,
+and a tree whose removal never ran is collected by the age sweep of the repository scratch directory.
+Before the capture reads the index it checks that the file is there:
+`git write-tree` answers with the empty tree for an index that is gone,
+which would rebuild the commit as a deletion of every file and report a conflict naming paths it never changed.
 A commit Git built without an editor is built again on the new tip,
 signed again by Git,
 in five builds at most (the first and four more);

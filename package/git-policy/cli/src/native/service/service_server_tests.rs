@@ -232,6 +232,8 @@ fn the_batch_cap_is_the_measured_cost_knee() {
 /// and goes once that landing is over:
 /// nothing else in the service removes it,
 /// and nothing removes it earlier.
+/// A tree whose client was sent back to capture its change from the private index is left where it is,
+/// because the removal would take that index from under the client.
 #[test]
 fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
     let root: std::path::PathBuf = short_directory("landed");
@@ -241,11 +243,17 @@ fn a_requests_tree_goes_only_after_the_landing_that_reads_it() {
     std::fs::write(tree.join("conclusion"), b"copies the cleanup reads").expect("a conclusion copy");
     let index: std::path::PathBuf = tree.join("commit.index");
     std::fs::write(&index, b"the private index").expect("a private index");
-    let trees: Vec<std::path::PathBuf> = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).into_iter().collect();
-    assert_eq!(trees, vec![tree.clone()], "a request names its tree in the field it carries for it");
-    // The landing reads the tree; only after it is over does the service start the removal.
+    let named: std::path::PathBuf = crate::service_scratch_release_removal::the_tree_of(tree.as_path(), git_dir.as_path()).expect("a request names its tree in the field it carries for it");
+    assert_eq!(named, tree, "the tree the request names is the one the service removes");
+    let id: String = String::from("the-request-the-service-sent-back");
+    let trees: Vec<(String, std::path::PathBuf)> = vec![(id.clone(), tree.clone())];
+    // The landing reads the tree; only after it is over does the service start the removal, and only for the requests it
+    //  answered that the commit landed.
     assert!(index.exists() && tree.exists(), "the landing has the tree it reads");
-    crate::service_server::remove_the_trees(trees.as_slice());
+    crate::service_server::remove_the_trees(trees.as_slice(), std::slice::from_ref(&id));
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert!(index.exists() && tree.exists(), "a tree whose client was sent back to read it is left to that client");
+    crate::service_server::remove_the_trees(trees.as_slice(), &[]);
     let began: std::time::Instant = std::time::Instant::now();
     while tree.exists() {
         assert!(began.elapsed() < std::time::Duration::from_secs(30), "the removal the landing started did not finish");
