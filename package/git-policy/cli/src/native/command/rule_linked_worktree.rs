@@ -43,12 +43,13 @@ use crate::command_discard::{
 };
 use crate::command_options::OptionError;
 use crate::command_reset::{ResetMode, ResetRegion, parse_reset_region};
-use crate::command_stash::{parse_stash_region, stash_changes_state};
+use crate::command_stash::{StashSubcommand, parse_stash_region, stash_changes_state};
 use crate::effective_target::EffectiveTarget;
 use crate::global_arguments::command_tokens;
 use crate::rule_worktree_dirty::DirtyScope;
 pub use crate::rule_linked_worktree_messages::{
     dirty_worktree_message, main_worktree_message, outside_worktree_message,
+    repository_stash_message,
 };
 /// What:
 ///  `OsString` is owned operating-system text of raw bytes.
@@ -96,8 +97,11 @@ pub const LINKED_WORKTREE_REQUIRED_CODE: &str = "linked-worktree-required";
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GuardedCommand {
-    /// Every `git stash` form that changes state.
+    /// Every `git stash` form that changes state except `drop` and `clear`.
     Stash,
+    /// A `git stash drop` or `git stash clear`,
+    /// which deletes an entry of the one stash the whole repository shares.
+    StashDrop,
     /// A `git clean` that is not a dry run and deletes no ignored file.
     Clean,
     /// A `git clean` that is not a dry run and deletes ignored files (`-x` or `-X`).
@@ -171,32 +175,54 @@ pub enum LinkedWorktreeDecision {
 }
 
 /// What:
-///  The files that count as uncommitted state for a guarded command.
+///  The question that decides a guarded form in a linked worktree.
+///  An `enum` is a closed set of named alternatives.
 /// Why:
-///   A `clean` deletes untracked files,
-/// so they count for it;
-/// a `clean -x` also deletes the ignored files,
-/// and a `clean -X` deletes nothing
-///  else,
-/// so each reads the set it can destroy;
-/// every other form loses tracked changes only.
+///   Almost every form destroys state of the worktree it runs in,
+/// and a status answers that;
+///  `git stash drop` and `git stash clear` delete an entry of `refs/stash`,
+///  which every worktree of
+///  the repository shares,
+/// so the running worktree's cleanliness says nothing about them and the
+///  repository's stash is asked instead.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function dirtyScope(command: GuardedCommand): DirtyScope;
+/// type DirtyQuestion = { kind: 'worktree'; scope: DirtyScope } | { kind: 'repository-stash' };
 /// ```
-pub fn dirty_scope(command: GuardedCommand) -> DirtyScope {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DirtyQuestion {
+    /// Ask `git status` for the given scope.
+    Worktree(DirtyScope),
+    /// Ask whether the repository holds a stash entry.
+    RepositoryStash,
+}
+
+/// What:
+///  Which question a guarded form's answer needs.
+/// Why:
+///   Each form reads the object it can destroy;
+///  asking the wrong one rejects a harmless command or misses the loss.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function dirtyQuestion(command: GuardedCommand): DirtyQuestion;
+/// ```
+pub fn dirty_question(command: GuardedCommand) -> DirtyQuestion {
     match command {
+        GuardedCommand::StashDrop => {
+            return DirtyQuestion::RepositoryStash;
+        }
         GuardedCommand::CleanIgnored => {
-            return DirtyScope::Everything;
+            return DirtyQuestion::Worktree(DirtyScope::Everything);
         }
         GuardedCommand::CleanIgnoredOnly => {
-            return DirtyScope::IgnoredOnly;
+            return DirtyQuestion::Worktree(DirtyScope::IgnoredOnly);
         }
         GuardedCommand::Clean => {
-            return DirtyScope::TrackedAndUntracked;
+            return DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked);
         }
-        _ => return DirtyScope::Tracked,
+        _ => return DirtyQuestion::Worktree(DirtyScope::Tracked),
     }
 }
 
@@ -241,12 +267,18 @@ fn guarded_decision(
 ) -> Result<LinkedWorktreeDecision, OptionError> {
     if word == b"stash" {
         // A region the stash parser refuses stays guarded, as every stash form was before the read-only forms.
-        let reads_only: bool = match parse_stash_region(region, &[]) {
-            Ok(facts) => !stash_changes_state(facts.subcommand),
-            Err(_) => false,
+        let subcommand: Option<StashSubcommand> = match parse_stash_region(region, &[]) {
+            Ok(facts) => Some(facts.subcommand),
+            Err(_) => None,
         };
-        if reads_only {
+        if let Some(reading) = subcommand
+            && !stash_changes_state(reading)
+        {
             return Ok(LinkedWorktreeDecision::Pass);
+        }
+        // `drop` and `clear` delete entries of `refs/stash`, the one stash every worktree of the repository shares.
+        if matches!(subcommand, Some(StashSubcommand::Drop | StashSubcommand::Clear)) {
+            return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::StashDrop));
         }
         return Ok(LinkedWorktreeDecision::NeedsEffectiveTarget(GuardedCommand::Stash));
     }

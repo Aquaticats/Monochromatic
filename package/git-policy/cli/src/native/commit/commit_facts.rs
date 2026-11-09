@@ -116,6 +116,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.worktree_dirty(scope);
     }
 
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        return self.inner.repository_holds_a_stash();
+    }
+
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         return self.inner.sequencer_state();
     }
@@ -157,6 +161,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         return (**self).worktree_dirty(scope);
+    }
+
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        return (**self).repository_holds_a_stash();
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

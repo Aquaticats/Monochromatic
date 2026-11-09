@@ -1576,6 +1576,12 @@ The rule is:
    and `git checkout -f`,
   `git reset --hard` and the other forms that overwrite stay rejected.
 - A status Git cannot read stops the command instead of reading as clean.
+- `git stash drop` and `git stash clear` delete entries of `refs/stash`,
+  the one stash every worktree of the repository shares,
+  so they are rejected in a linked worktree while the repository holds an entry,
+  whatever that worktree's own status says.
+  `git stash list` and `git stash show` read the stash,
+  and `git stash branch <branch>` moves an entry into its own branch and keeps the work.
 - Repositories under an allowlisted tool directory are exempt:
   uv's cache (`UV_CACHE_DIR`,
   else

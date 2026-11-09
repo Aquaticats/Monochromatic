@@ -532,3 +532,51 @@ fn a_head_move_keeps_an_ignored_file_the_target_branch_tracks() {
     );
     remove(&fixture);
 }
+
+/// A stash entry the repository holds,
+/// as the person reads it.
+fn stash_entries(fixture: &Fixture, repo: &std::path::Path) -> String {
+    let output: std::process::Output = git(fixture, repo, &["stash", "list"]);
+    return String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+}
+
+/// `stash drop` and `stash clear` from a clean linked worktree discard a stash the whole repository shares,
+/// so they are rejected while the repository holds one,
+/// and run when it holds none.
+#[test]
+fn a_stash_drop_that_would_discard_the_repository_stash_is_rejected() {
+    let fixture: Fixture = fixture("discard-stash-drop");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    // The person parks work in progress in the main worktree; the entry belongs to the repository.
+    std::fs::write(repo.join("tracked.txt"), b"the person wrote this\n").expect("edit");
+    git(&fixture, repo.as_path(), &["stash", "push", "--quiet", "--message", "the person work"]);
+    assert_eq!(stash_entries(&fixture, repo.as_path()).lines().count(), 1);
+    for arguments in [vec!["stash", "drop"], vec!["stash", "clear"]] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(
+            rejected_by_policy(&observed),
+            "{arguments:?} in a clean linked worktree: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            stash_entries(&fixture, repo.as_path()).lines().count(),
+            1,
+            "{arguments:?} emptied the repository stash anyway"
+        );
+    }
+    // The deliberate override still drops it.
+    let hatch: Observed = run_wrapped(&fixture, linked.as_path(), &["stash", "--no-enforce-worktree", "drop"]);
+    assert_eq!(hatch.code, Some(0), "{}", stderr_of(&hatch));
+    assert_eq!(stash_entries(&fixture, repo.as_path()), "");
+    // With no entry left, the same command runs: there is nothing to lose.
+    let empty: Observed = run_wrapped(&fixture, linked.as_path(), &["stash", "drop"]);
+    assert!(!rejected_by_policy(&empty), "{}", stderr_of(&empty));
+    // Reading the stash stays available everywhere.
+    for arguments in [vec!["stash", "list"], vec!["stash", "show"]] {
+        let read: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(!rejected_by_policy(&read), "{arguments:?}: {}", stderr_of(&read));
+    }
+    remove(&fixture);
+}

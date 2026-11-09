@@ -81,8 +81,9 @@ use crate::rule_branch_worktree::{
 };
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{
-    GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
-    dirty_scope, dirty_worktree_message, resolve_linked_worktree,
+    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
+    decide_linked_worktree, dirty_question, dirty_worktree_message, repository_stash_message,
+    resolve_linked_worktree,
 };
 /// Whether a Git directory has no index file yet.
 use crate::rule_worktree_dirty::index_file_is_absent;
@@ -400,10 +401,16 @@ fn check_linked_worktree(
         record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));
         return clean();
     }
-    match facts.worktree_dirty(dirty_scope(command)) {
+    // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
+    //  nothing about it and the repository's own stash is asked instead.
+    let (measured, rejection): (Result<bool, String>, String) = match dirty_question(command) {
+        DirtyQuestion::Worktree(scope) => (facts.worktree_dirty(scope), dirty_worktree_message(command)),
+        DirtyQuestion::RepositoryStash => (facts.repository_holds_a_stash(), repository_stash_message(command)),
+    };
+    match measured {
         Ok(true) => {
             record_audit(&location.identity, command, AuditOutcome::Rejected, arguments, Some(true));
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{}{conflict_note}", dirty_worktree_message(command)));
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
         }
         Ok(false) => {
             record_audit(&location.identity, command, AuditOutcome::Allowed, arguments, Some(false));

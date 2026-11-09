@@ -47,6 +47,8 @@ pub(crate) struct ScriptedFacts {
     /// The answer to `worktree_dirty`,
     /// whatever the scope.
     pub(crate) dirty: Result<bool, String>,
+    /// The answer to `repository_holds_a_stash`.
+    pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
     pub(crate) remote_guess: Result<bool, String>,
     /// Every fact asked for,
@@ -79,6 +81,11 @@ impl RepositoryFacts for ScriptedFacts {
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String> {
         self.asked.push(format!("dirty:{scope:?}"));
         return self.dirty.clone();
+    }
+
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        self.asked.push(String::from("stash"));
+        return self.stash.clone();
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
@@ -179,6 +186,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         index: Ok(IndexVsHead::Matches),
         sequencer: Ok(SequencerState::NotInProgress),
         dirty: Ok(false),
+        stash: Ok(false),
         remote_guess: Ok(false),
         asked: Vec::<String>::new(),
         candidates_repository: None,

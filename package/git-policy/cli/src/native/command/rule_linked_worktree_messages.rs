@@ -51,6 +51,11 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "it moves your uncommitted changes out of the worktree, and a later pop or drop can lose them",
             "To park work in progress, commit it with explicit paths (git commit --message <message> -- <paths>) on a topic branch, ideally in its own linked worktree (git worktree add -b <branch> <path>). Reading stashes is allowed: git stash list and git stash show.",
         ),
+        GuardedCommand::StashDrop => return (
+            "git stash drop (or git stash clear)",
+            "it deletes entries of the one stash the whole repository shares, and git stash clear deletes every entry, so work parked in any worktree of this repository is gone",
+            "git stash list and git stash show read the stash without changing it (allowed). To keep the work, move it into its own branch with git stash branch <branch> (allowed), which applies the entry and keeps it in the branch. To drop one entry on purpose, read it first (git stash show -p stash@{0} > backup.patch) and then use the hatch below.",
+        ),
         GuardedCommand::Clean => return (
             "git clean",
             "it deletes untracked files that Git cannot bring back",
@@ -179,6 +184,27 @@ pub fn main_worktree_message(command: GuardedCommand) -> String {
     let (name, risk, instead): (&str, &str, &str) = describe(command);
     return format!(
         "monochromatic-git-policy-cli: {name} is rejected in the main git worktree: {risk}, and nothing records which command did it. \
+         {instead} {HATCH_ADVICE}"
+    );
+}
+
+/// What:
+///  The rejection text for a `git stash drop` or `git stash clear` that would delete an entry of the
+///  repository's one stash.
+/// Why:
+///   The entry belongs to the repository,
+/// not to the worktree the command runs in,
+///  so the text says where
+///       the stash lives and what keeps the work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function repositoryStashMessage({ command }): string;
+/// ```
+pub fn repository_stash_message(command: GuardedCommand) -> String {
+    let (name, risk, instead): (&str, &str, &str) = describe(command);
+    return format!(
+        "monochromatic-git-policy-cli: {name} is rejected because this repository holds a stash entry: {risk}, and it is not this worktree's. \
          {instead} {HATCH_ADVICE}"
     );
 }

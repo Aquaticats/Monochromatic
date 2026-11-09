@@ -14,8 +14,9 @@
 /// The decision,
 ///  its texts and the argument builder.
 use super::{
-    GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision, decide_linked_worktree,
-    dirty_scope, dirty_worktree_message, main_worktree_message, outside_worktree_message,
+    DirtyQuestion, GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE, LinkedWorktreeDecision,
+    decide_linked_worktree, dirty_question, dirty_worktree_message,
+    main_worktree_message, outside_worktree_message, repository_stash_message,
     resolve_linked_worktree,
 };
 use crate::command_test_support::os_arguments;
@@ -23,8 +24,9 @@ use crate::effective_target::EffectiveTarget;
 use crate::rule_worktree_dirty::DirtyScope;
 
 /// Every guarded form.
-const ALL_COMMANDS: [GuardedCommand; 20] = [
+const ALL_COMMANDS: [GuardedCommand; 21] = [
     GuardedCommand::Stash,
+    GuardedCommand::StashDrop,
     GuardedCommand::Clean,
     GuardedCommand::CleanIgnored,
     GuardedCommand::CleanIgnoredOnly,
@@ -58,9 +60,9 @@ fn destructive_forms_need_the_worktree_kind() {
     assert_eq!(LINKED_WORKTREE_REQUIRED_CODE, "linked-worktree-required");
     for (values, command) in [
         (vec!["stash"], GuardedCommand::Stash),
-        (vec!["stash", "drop"], GuardedCommand::Stash),
+        (vec!["stash", "drop"], GuardedCommand::StashDrop),
         (vec!["stash", "pop"], GuardedCommand::Stash),
-        (vec!["stash", "clear"], GuardedCommand::Stash),
+        (vec!["stash", "clear"], GuardedCommand::StashDrop),
         (vec!["stash", "push", "-m", "note"], GuardedCommand::Stash),
         (vec!["stash", "--no-such-option"], GuardedCommand::Stash),
         (vec!["clean"], GuardedCommand::Clean),
@@ -127,18 +129,21 @@ fn head_moves_need_the_dirtiness() {
     }
 }
 
-/// Each clean reads exactly the files it can delete;
-/// every other form loses tracked changes only.
+/// Each form asks the question about the object it can destroy:
+///  each clean reads exactly the files it deletes,
+/// a stash drop asks the repository,
+/// and every other form loses tracked changes only.
 #[test]
-fn each_form_counts_the_files_it_can_delete() {
+fn each_form_asks_about_the_state_it_can_destroy() {
     for command in ALL_COMMANDS {
-        let expected: DirtyScope = match command {
-            GuardedCommand::Clean => DirtyScope::TrackedAndUntracked,
-            GuardedCommand::CleanIgnored => DirtyScope::Everything,
-            GuardedCommand::CleanIgnoredOnly => DirtyScope::IgnoredOnly,
-            _ => DirtyScope::Tracked,
+        let expected: DirtyQuestion = match command {
+            GuardedCommand::Clean => DirtyQuestion::Worktree(DirtyScope::TrackedAndUntracked),
+            GuardedCommand::CleanIgnored => DirtyQuestion::Worktree(DirtyScope::Everything),
+            GuardedCommand::CleanIgnoredOnly => DirtyQuestion::Worktree(DirtyScope::IgnoredOnly),
+            GuardedCommand::StashDrop => DirtyQuestion::RepositoryStash,
+            _ => DirtyQuestion::Worktree(DirtyScope::Tracked),
         };
-        assert_eq!(dirty_scope(command), expected, "{command:?}");
+        assert_eq!(dirty_question(command), expected, "{command:?}");
     }
 }
 
@@ -257,6 +262,11 @@ fn each_intent_gets_its_own_alternative() {
     assert!(revert.contains("git diff -- <path> > backup.patch"));
     assert!(main_worktree_message(GuardedCommand::ResetHard).contains("git reset --soft <commit>"));
     assert!(main_worktree_message(GuardedCommand::Stash).contains("git worktree add -b <branch> <path>"));
+    assert!(main_worktree_message(GuardedCommand::StashDrop).contains("git stash branch <branch>"));
+    let stash: String = repository_stash_message(GuardedCommand::StashDrop);
+    assert!(stash.contains("this repository holds a stash entry"), "{stash}");
+    assert!(stash.contains("not this worktree's"), "{stash}");
+    assert!(stash.contains("--no-enforce-worktree"), "{stash}");
     assert!(main_worktree_message(GuardedCommand::Clean).contains("git clean -n"));
     assert!(dirty_worktree_message(GuardedCommand::CleanIgnored).contains("ignored files"));
     assert!(dirty_worktree_message(GuardedCommand::CleanIgnoredOnly).contains("ignored files"));
@@ -279,6 +289,7 @@ fn the_readme_documents_what_the_texts_recommend() {
     assert!(readme.contains("### Discarding commands"));
     for (command, phrase) in [
         (GuardedCommand::Stash, "git worktree add -b <branch> <path>"),
+        (GuardedCommand::StashDrop, "git stash branch <branch>"),
         (GuardedCommand::Clean, "git clean -n"),
         (GuardedCommand::CleanIgnored, "git clean -nx"),
         (GuardedCommand::CleanIgnoredOnly, "git clean -nX"),

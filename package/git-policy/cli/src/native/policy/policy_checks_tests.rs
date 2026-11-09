@@ -29,6 +29,7 @@ use crate::policy_test_support::{
 use crate::policy_trigger::Trigger;
 use crate::rule_linked_worktree::{
     GuardedCommand, dirty_worktree_message, main_worktree_message, outside_worktree_message,
+    repository_stash_message,
 };
 use crate::test_support::{fixture, remove};
 use crate::worktree_identity::WorktreeIdentity;
@@ -537,6 +538,60 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                 asked(&["location", dirty_scope.as_str()])
             ),
             "{values:?} linked dirty"
+        );
+    }
+}
+
+/// linked-worktree-only:
+///  `git stash drop` and `git stash clear` are rejected in a linked worktree while the repository holds a stash entry,
+/// because the entry belongs to the repository and not to the worktree the command runs in.
+#[test]
+fn a_stash_drop_asks_the_repository_not_the_worktree() {
+    let command: GuardedCommand = GuardedCommand::StashDrop;
+    for values in [vec!["stash", "drop"], vec!["stash", "clear"]] {
+        // The worktree's own status is never asked, whatever it would say.
+        let mut clean_worktree: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        clean_worktree.stash = Ok(true);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), clean_worktree),
+            (
+                one("linked-worktree-required", &repository_stash_message(command)),
+                asked(&["location", "stash"])
+            ),
+            "{values:?} with a stash"
+        );
+        let mut no_stash: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), true);
+        no_stash.stash = Ok(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), no_stash),
+            (clean(), asked(&["location", "stash"])),
+            "{values:?} without a stash"
+        );
+        // The main worktree is refused before either question.
+        let mut main: ScriptedFacts = dirty_in(main_worktree("/r", ""), false);
+        main.stash = Ok(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), main),
+            (
+                one("linked-worktree-required", &main_worktree_message(command)),
+                location_only()
+            ),
+            "{values:?} in the main worktree"
+        );
+        // A question Git cannot answer stops the command instead of reading as "no stash".
+        let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        unreadable.stash = Err(String::from("Git could not read the repository stash: fatal"));
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), unreadable),
+            (
+                PolicyOutcome::Failed {
+                    code: EngineFailureCode::ContentUnavailable,
+                    message: String::from("Git could not read the repository stash: fatal"),
+                    path: None,
+                },
+                asked(&["location", "stash"])
+            ),
+            "{values:?} unreadable"
         );
     }
 }

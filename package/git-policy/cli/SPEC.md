@@ -8126,6 +8126,15 @@ The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
 A `HEAD`-moving form is rejected only while tracked changes exist.
+`git stash drop` and `git stash clear` are measured against the repository instead:
+they delete entries of `refs/stash`,
+which every worktree of the repository shares,
+so a clean linked worktree does not make them safe.
+The query is `git rev-parse --verify --quiet refs/stash`,
+which reads no worktree,
+and the record's `dirty` field says whether that query found an entry.
+A `drop` or `clear` runs where the repository holds no entry,
+because then it deletes nothing.
 A `checkout` or `switch` that changes any file is also forwarded with `--no-overwrite-ignore`,
 directly after the subcommand,
 so Git itself refuses a switch that would replace an ignored file the target tree tracks,

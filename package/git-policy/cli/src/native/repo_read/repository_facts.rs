@@ -46,6 +46,7 @@ use crate::repository_location::{
 use crate::rule_branch_worktree::{remote_guess_creates_branch, remote_guess_query_arguments};
 use crate::rule_commit_index::{IndexVsHead, index_query_arguments, index_state_from_exit};
 use crate::rule_worktree_dirty::{DirtyScope, dirty_from_output, dirty_query_arguments};
+use crate::rule_repository_stash::{stash_from_output, stash_query_arguments};
 use crate::rule_commit_sequencer::{
     SequencerFacts, SequencerState, sequencer_head_paths, sequencer_query_arguments,
     sequencer_state, sequencer_state_when_query_fails,
@@ -99,6 +100,10 @@ pub trait RepositoryFacts {
     fn index_vs_head(&mut self) -> Result<IndexVsHead, String>;
     /// Whether the worktree holds uncommitted state of the given scope.
     fn worktree_dirty(&mut self, scope: DirtyScope) -> Result<bool, String>;
+    /// Whether the repository holds a stash entry.
+    /// Asked for `git stash drop` and `git stash clear`,
+    /// which delete entries of the one stash every worktree shares.
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String>;
     /// Whether a merge,
     ///  cherry-pick or revert awaits its concluding commit.
     fn sequencer_state(&mut self) -> Result<SequencerState, String>;
@@ -342,6 +347,12 @@ impl RepositoryFacts for GitFacts {
         let arguments: Vec<OsString> = dirty_query_arguments(self.global_prefix.as_slice(), scope);
         let output: MetadataOutput = self.query(arguments, "the worktree status")?;
         return dirty_from_output(&output, scope);
+    }
+
+    fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
+        let arguments: Vec<OsString> = stash_query_arguments(self.global_prefix.as_slice());
+        let output: MetadataOutput = self.query(arguments, "the repository stash")?;
+        return stash_from_output(&output);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

@@ -130,6 +130,9 @@ pub mod rule_linked_worktree_messages;
 /// The transform that stops a `checkout` or `switch` replacing an ignored file.
 pub mod rule_keep_ignored_files;
 
+/// The one-query question whether the repository holds a stash entry.
+pub mod rule_repository_stash;
+
 /// Pure decision of the branch-worktree-only policy and its one-query remote guess.
 pub mod rule_branch_worktree;
 
