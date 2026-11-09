@@ -155,6 +155,21 @@ fn a_linked_worktree_reports_the_shared_common_directory() {
     remove(root.as_path());
 }
 
+/// A bare repository has no worktree top level,
+/// so a relative `core.hooksPath` resolves against its Git directory.
+#[test]
+fn a_relative_hooks_path_in_a_bare_repository_resolves_against_the_git_directory() {
+    let root: PathBuf = fixture("doctor-bare");
+    let bare: PathBuf = root.join("bare.git");
+    std::fs::create_dir(bare.as_path()).expect("bare directory");
+    git(bare.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main"]);
+    git(bare.as_path(), &["config", "core.hooksPath", "custom-hooks"]);
+    let location: HooksLocation = located(&git_context(), bare.as_path()).expect("locate");
+    assert_eq!(location.common_directory, bare);
+    assert_eq!(location.configured, Some(bare.join("custom-hooks")));
+    remove(root.as_path());
+}
+
 /// A directory with no hooks ends with status 0 and prints only the line that says Git's fsmonitor is off.
 #[test]
 fn a_repository_without_traditional_hooks_exits_zero_silently() {
