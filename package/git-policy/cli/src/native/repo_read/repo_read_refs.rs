@@ -100,7 +100,7 @@ pub struct Refs {
 /// Why:
 ///   Git's rule is its `refname_disposition` table (`refs.c`,
 /// `check_refname_component`):
-/// every printable byte but space and `*` `:` `?` `[` `\\` `^` `~`,
+/// every printable byte but space and `*` `:` `?` `[` `\` `^` `~`,
 /// with `.` refused directly after another `.`,
 /// `{` refused directly after `@`,
 /// a component refused when it is empty,

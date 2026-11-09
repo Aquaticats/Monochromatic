@@ -8162,7 +8162,7 @@ the differential controls of `repo_read_query_tests.rs` and `repo_read_query_ref
   `:`,
   `?`,
   `[`,
-  `\\`,
+  `\`,
   `^` and `~`,
   with `..`,
   `@{`,
