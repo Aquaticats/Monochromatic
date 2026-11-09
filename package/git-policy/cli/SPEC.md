@@ -1889,6 +1889,29 @@ the migration never recorded,
 and the carry would write into it and the rollback would exchange it.
 A journal written by an earlier release records no identity,
 and a command that has none does not refuse on a guess.
+A window stays open between the exchange and that record,
+and is written here rather than closed:
+a kill after the exchange or the rename and before `record_installed` and the `exchange` mark
+leaves a journal that records `exchange` as started and holds no `installed-root`,
+so the next command has nothing to compare.
+If the person then moves the installed subvolume aside and puts another checkout,
+also a subvolume,
+at the checkout's path,
+with a version of a file whose modification time is older than the original tree's copy,
+`--rollback` reads the journal as a run with only its bookkeeping left:
+it marks the exchange done,
+carries the replacement's files into the original tree,
+keeping the original tree's newer copy of that file,
+exchanges the two directories,
+and deletes what stands at the new subvolume's name,
+which is the replacement,
+so the replacement's version of that file is gone.
+A kill alone reaches the state;
+a second process replacing the checkout in that moment is what turns it into a loss.
+Recording the identity of `<root>.subvol-new` before the exchange would name the same object the exchange installs,
+because an exchange moves names and not the object;
+that change is not made in this round,
+so the window is recorded here as a known limit.
 A rollback resumed after its exchange renames what the old tree's name holds to the new subvolume's name and then deletes
 it,
 so that object's identity is compared with the recorded installed checkout before anything is renamed,
