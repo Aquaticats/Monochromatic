@@ -31,6 +31,9 @@ use search_shadow::cli::run_cli;
 /// Imports the list of shadowed names.
 use search_shadow::constants::SHADOWED_NAMES;
 
+/// Imports the reader of the name the program was started under.
+use search_shadow::invoked_name::invoked_name;
+
 /// Imports the shadow-mode function.
 use search_shadow::shim::run_shim;
 
@@ -39,9 +42,6 @@ use std::ffi::OsString;
 
 /// Imports the process-environment module.
 use std::env;
-
-/// Imports `Path` to take the file name off argv[0].
-use std::path::Path;
 
 /// What:
 /// `fn main()` is the entry point the operating system calls.
@@ -65,20 +65,16 @@ fn main() {
     // ```
     let all_arguments: Vec<OsString> = env::args_os().collect();
 
-    // What:     The name the program was started under: take argv[0], keep only its final path segment, and make it
-    // text. `unwrap_or_default()` substitutes an empty text if any step has nothing.
-    // Why:      A symlink named `rg` makes argv[0] end in `rg`, which selects shadow mode.
+    // What:     `invoked_name(&all_arguments)` lends the argument list to the library reader, which takes the first
+    // argument's final path segment as text.
+    // Why:      A symlink named `rg` makes argv[0] end in `rg`, which selects shadow mode; an empty argument list
+    // answers an empty name instead of stopping the program.
     //
     // In TS you'd write (pseudocode):
     // ```ts
-    // const invokedAs = path.basename(process.argv[0]);
+    // const invokedAs = invokedName(allArguments);
     // ```
-    let mut invoked_as: String = String::new();
-    // `if let Some(file_name) = ...file_name()` runs the block when argv[0] has a final segment; `&all_arguments[0]`
-    // lends the first element without copying it.
-    if let Some(file_name) = Path::new(&all_arguments[0]).file_name() {
-        invoked_as = file_name.to_string_lossy().to_string();
-    }
+    let invoked_as: String = invoked_name(&all_arguments);
 
     if SHADOWED_NAMES.contains(&invoked_as.as_str()) {
         // `all_arguments[1..].to_vec()` copies everything after argv[0] into a new owned list.

@@ -57,7 +57,82 @@ about 26 to 30 agents would reach 20 open calls.
 Anything else using this key counts against the same limit,
 and the host may run short before the provider does.
 
-The trial at twenty is still running and decides the raise to 20 by itself.
+The trial passed,
+so 20 is now the permanent limit in `.agents/skills/pi-as-subagent/SKILL.md`,
+under your "Try 20,
+and if it doesn't blow up (in terms of api rate limits),
+we're permanently raising the practical limit to 20."
+Over 100 one-minute samples,
+60 had at least 20 agents running,
+the fewest were 16 and the most 20.
+Those 100 minutes saw 4919 model turns and no rate-limit error.
+The errors were 2 Cloudflare 520 responses and 1 request timeout,
+each ending one run,
+which is what the driver job is fixing.
+The median model turn was 3937 ms against 3153 ms in the two hours before,
+and that difference has not been compared with the run-to-run spread,
+so it may be noise.
+
+### Should a commit whose command died before its checks ran still be pushed?
+
+A landing moves the branch first and runs the post-commit checks after,
+holding the push until those checks approve it.
+If the command is killed in that gap,
+no verdict exists,
+and the commit is on the branch with its push held.
+The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now pushes such a commit the next time the service wakes for that worktree,
+because a cross-vendor review found a push could stay stranded,
+and a held push with no living owner would otherwise wait forever,
+against your "nothing should ever wait forever or indefinitely".
+A check that is still running is never overtaken:
+only a command proven gone has its push released.
+
+The cost is that a commit whose checks never ran can reach the remote.
+The alternative keeps that commit local until someone pushes it,
+which needs the wrapper to hand the service a durable verdict,
+and the protocol has no such message today.
+Ranking:
+push it (current) > keep it local,
+because a commit left unpushed with no message is easy to miss,
+and a pushed commit can still be followed by a fix.
+That is the session's judgment and not something measured.
+Nothing is waiting on this answer;
+write "keep it local" here to change it.
+
+### Should a commit add the manifests of dependents it bumps?
+
+Your decision of 2026-09-15 and `SPEC.md` say opposite things.
+`doc/decision/private-npm-registry.md:158-160` says:
+"A cli-git commit policy bumps dependents by patch,
+transitively,
+in the same commit as a hand bump."
+It rejects "a read-only check plus a `version:bump` command (two steps when forgotten)".
+`doc/decision/cli-git-policies-platform.md:751-754` says the same.
+`package/git-policy/cli/SPEC.md:207-208` says:
+"A commit adds no paths of its own:
+only the paths it selected reach the landing."
+
+The code follows `SPEC.md`,
+and an audit reproduced the result
+(`doc/planning/cli-git-config-and-dependent-version-route-findings-on-main.md`,
+finding 2).
+A hand bump of `a` commits only `a`'s manifest,
+and nothing says the dependents were left behind.
+After that commit,
+`check` and `fix` are silent too,
+because the raise now equals `HEAD`.
+So a published package can depend on an older version of a package it was meant to follow.
+
+Recommended:
+build what the decision says,
+so a commit adds the dependents' manifests and updates them in the worktree when that copy still matches `HEAD`.
+It is the only option where a forgotten step cannot leave a stale dependent,
+at the price of a commit touching paths the person did not name.
+The alternative keeps `SPEC.md`,
+changes the decision,
+and makes a commit warn loudly that dependents were left behind.
+That is much less code,
+and the person has one more step to remember.
 
 ### May a moved-path note be added to records in `doc/decision/`?
 
@@ -1099,6 +1174,23 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-09T02:08:59-05:00,
+  `search-shadow link` when something else already sits at a tool's name:
+  it leaves the entry in place,
+  names it on stderr and exits 0,
+  because the rest of the run succeeded.
+  It takes over an entry only when the link resolves to this program,
+  resolves to a shadow of any version,
+  or is spelled `.../search-shadow`,
+  the last so an upgrade can replace a link a version prune left dangling.
+  A dangling link named `find` that points elsewhere is left alone.
+  Say "undo" to make a conflict exit non-zero or refuse the whole run.
+- 2026-11-09T02:08:59-05:00,
+  the audit `doc/planning/cli-git-tests-that-pass-without-their-race.md` asked whether its weak controls should get fixed now.
+  They are queued for a fix agent,
+  in test code only,
+  under your "Fix flaky tests properly."
+  Say "undo" to leave it as an audit.
 - 2026-11-08T23:47:13-05:00,
   conclusion record on repositories using the files backend:
   a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),
