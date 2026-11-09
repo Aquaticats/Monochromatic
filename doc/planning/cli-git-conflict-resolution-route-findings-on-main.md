@@ -747,3 +747,69 @@ The gap the audit left open is closed for both unattended merges:
 `a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file`
 start a merge whose own `.gitattributes` excludes the conflicted file,
 and both fail when `merge_attribute_source` is forced to `Invocation`.
+
+## The second cross-vendor review, and what it found
+
+The second review of the same branch
+(model `openai/gpt-6.1-sol`,
+2026-11-09)
+reported five findings at `[P1]` and three at `[P2]`.
+Each was reproduced against the branch as it stood;
+the owner ordered work on the four that were not the window,
+and instructed that the window be recorded rather than closed.
+
+- `[P1]` the baseline of a path was read after the merge was computed,
+  `ede571f4af`:
+  an edit made while the word merge ran became the baseline and was then overwritten.
+  The baseline now precedes the merge.
+  Control:
+  `an_edit_made_while_the_pass_merges_is_not_replaced`,
+  which waits for the pass's own `git check-attr` inside the command.
+- `[P1]` a configuration key was matched case-sensitively,
+  `773faf0865`:
+  `git -c Attr.Tree=rules merge` reached the pass as no choice at all.
+  The key is now read through `canonical_key`,
+  which is the wrapper's one spelling of a configuration key and which became public for this.
+  Controls:
+  `a_configuration_option_in_any_letter_case_names_the_tree`,
+  `a_configuration_option_in_any_letter_case_names_the_tree_of_an_isolated_merge`.
+- `[P1]` a merge driver that never returns but keeps writing was unbounded,
+  `ad7549e99e`:
+  the push stall window cannot see it,
+  because the driver moves bytes in every sample.
+  A command of a commit's merge step now runs under a total ceiling of 300 seconds
+  (`CLI_GIT_PUSH_MERGE_CEILING_SECONDS`),
+  with `SingleFlightError::Ceiling` saying what was not changed.
+  Control:
+  `a_merge_driver_that_keeps_working_is_stopped_at_the_merge_ceiling`,
+  which timed out at 300 seconds with the stall window restored.
+- `[P1]` different bytes of the same length with a restored modification time passed the check,
+  `f1ffeff185`:
+  the guard compares the conflicted file's bytes now,
+  read up to three times the pass's 8 MiB stage limit.
+  Control:
+  `a_same_length_resolution_with_a_restored_time_is_not_replaced`.
+- `[P1]` a second process inside the window between the check and the install still loses its resolution.
+  Recorded in `SPEC.md` with what the person sees there,
+  as the owner instructed;
+  no mechanism was added.
+- `[P2]` a line about an index that could not be read again claimed no file was conflicted,
+  `08b765358e`:
+  the list is an `Option` now.
+  Control:
+  `a_line_about_an_unread_index_does_not_claim_a_clean_one`.
+- `[P2]` the replay's toplevel parser removed a line break that belonged to a directory's name,
+  `50622d0ff3`:
+  exactly one terminator is removed.
+  Control:
+  `the_toplevel_keeps_a_line_break_that_belongs_to_a_directory_name`.
+- `[P2]` the remaining count included a resolution another command had staged.
+  Not reproduced:
+  in a fixture of 200 conflicted files whose resolution is written and staged by another command inside the pass,
+  that command's `git add` completed after the fresh index read,
+  so the count was right at the instant it was computed and the merge was installed whole.
+  The reviewer's sequence needs a pause inside the wrapper,
+  which this work did not build;
+  the one-line change (count from the fresh index) exists but has no control,
+  so it was not made.
+  Stays open.

@@ -429,7 +429,8 @@ fn a_rule_the_captured_side_introduces_keeps_the_replay_from_merging_the_file() 
 /// Why:
 ///   Git's toplevel output ends with the directory's own line break and then the line's terminator,
 /// so removing every line break removes one byte of the path
-/// (cross-vendor review round 2, finding 8).
+/// (cross-vendor review round 2,
+/// finding 8).
 #[test]
 fn the_toplevel_keeps_a_line_break_that_belongs_to_a_directory_name() {
     assert_eq!(toplevel_of(b"/tmp/a repository \n\n"), PathBuf::from("/tmp/a repository \n"), "only the line's terminator is removed");

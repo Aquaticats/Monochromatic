@@ -463,8 +463,10 @@ fn a_gitattributes_the_merge_left_conflicted_names_no_rule_for_the_worktree_pass
 /// Why:
 ///   Git puts a command-line configuration above every file,
 /// so a tree that excludes the file must govern the pass
-/// (cross-vendor review of this branch, finding 3;
-/// cross-vendor review round 2, finding 2 for the letters).
+/// (cross-vendor review of this branch,
+/// finding 3;
+/// cross-vendor review round 2,
+/// finding 2 for the letters).
 /// The pass named the merge's own tree over it,
 /// and the merge was committed although a rule the
 ///  person asked for forbids it.
@@ -632,7 +634,8 @@ fn watched_run(fixture: &Fixture, repo: &Path, arguments: &[&str], watcher: impl
 ///   The baseline of a path was read after the merge was computed,
 /// so an edit made during the merge became the baseline and `checkout-index --force` then wrote
 ///  the earlier merge over it
-/// (cross-vendor review round 2, finding 1).
+/// (cross-vendor review round 2,
+/// finding 1).
 #[test]
 fn an_edit_made_while_the_pass_merges_is_not_replaced() {
     let fixture: Fixture = fixture("word-merge-edit-during-the-pass");
@@ -661,7 +664,8 @@ fn an_edit_made_while_the_pass_merges_is_not_replaced() {
 /// length and modification time,
 /// and a writer can restore the time it saved,
 /// so different bytes passed it and `checkout-index --force` then wrote the merge over them
-/// (cross-vendor review round 2, finding 3).
+/// (cross-vendor review round 2,
+/// finding 3).
 /// These are conflicted files the pass has already read,
 /// so the bytes are what it compares.
 #[test]

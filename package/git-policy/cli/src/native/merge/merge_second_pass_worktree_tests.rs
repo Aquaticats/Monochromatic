@@ -284,7 +284,8 @@ fn a_worktree_file_edited_after_it_was_read_is_left_alone() {
 /// Why:
 ///   The read failing left the list of conflicted paths empty,
 /// so the line claimed a state nobody had
-/// (cross-vendor review round 2, finding 7,
+/// (cross-vendor review round 2,
+/// finding 7,
 /// which is outside the ordered list of the round).
 #[test]
 fn a_line_about_an_unread_index_does_not_claim_a_clean_one() {

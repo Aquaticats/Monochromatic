@@ -8108,7 +8108,9 @@ and what the person sees if they are in it is their resolution replaced:
 the file holds the pass's merged bytes,
 the line names the path among those staged as resolved,
 and `git diff --cached -- <path>` and the file itself show the merge rather than what they wrote.
-Nothing else is lost: the index stages, the merge's own inputs and the commit are untouched.
+Nothing else is lost:
+/// the index stages,
+/// the merge's own inputs and the commit are untouched.
 When a finish is planned the line says the wrapper finishes the operation below;
 otherwise it says what is left to do.
 A finish that does not end the operation (a commit the commit service cannot be reached for,

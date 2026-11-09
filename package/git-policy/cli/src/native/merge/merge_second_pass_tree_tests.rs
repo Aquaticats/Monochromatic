@@ -311,7 +311,8 @@ fn a_configuration_option_on_the_command_line_names_the_tree() {
 ///   Git reads `Attr.Tree` as `attr.tree` (`git config --get` and `check-attr` agree),
 /// so matching the exact lower-case spelling let the pass name its own source over the one the person
 ///  asked for
-/// (cross-vendor review round 2, finding 2).
+/// (cross-vendor review round 2,
+/// finding 2).
 #[test]
 fn a_configuration_option_in_any_letter_case_names_the_tree() {
     let (root, repo) = probed_repository("second-pass-attr-any-case");

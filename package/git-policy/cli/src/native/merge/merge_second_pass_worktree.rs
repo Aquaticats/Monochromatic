@@ -356,9 +356,14 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     if ended != 0 {
         // The ending step's words are its own; the merge changed before it ran, and the person must be told what the index holds now.
         // An index that cannot be read again is not a clean one, so the line says the state could not be read.
-        let conflicted_now: Option<Vec<String>> = index_entries(&layout).map(|entries_after| {
-            return conflicted_paths(entries_after.as_slice()).iter().map(|path| { return path_message_text(path.as_slice()); }).collect();
-        });
+        let mut conflicted_now: Option<Vec<String>> = None;
+        if let Some(entries_after) = index_entries(&layout) {
+            let mut left_now: Vec<String> = Vec::new();
+            for path in conflicted_paths(entries_after.as_slice()) {
+                left_now.push(path_message_text(path.as_slice()));
+            }
+            conflicted_now = Some(left_now);
+        }
         let ending: &'static str = ending_command(layout.git_dir.as_path(), operation.as_str());
         let after: String = format!("{}\n", unfinished_words(operation.as_str(), listed.as_str(), conflicted_now.as_deref(), ending));
         if let Err(error) = stderr.write_all(after.as_bytes()) {

@@ -796,7 +796,8 @@ fn unrelated_histories_are_merged() {
 /// the driver rewrites a scratch file for ever,
 /// so every sample of the process tree shows bytes moved,
 /// and the wait would never end
-/// (cross-vendor review round 2, finding 3).
+/// (cross-vendor review round 2,
+/// finding 3).
 /// A ceiling on the whole command ends it,
 /// and the words say what was not changed.
 #[test]

@@ -32,7 +32,8 @@ pub(super) const LARGEST_RECORDED_BYTES: u64 = 3 * crate::merge_second_pass::LAR
 
 /// What a worktree path held when the conflicts were read:
 /// its bytes,
-/// or nothing when they cannot be compared (the file cannot be read, or it is larger than a conflicted file can be).
+/// or nothing when they cannot be compared (the file cannot be read,
+/// or it is larger than a conflicted file can be).
 /// Why:
 ///   The pass computes a merge from the index stages and then replaces the worktree file.
 /// A file that moved in between holds bytes the merge was never computed from,
@@ -112,8 +113,8 @@ fn still_holds(before: &Before<'_>, file: &Merged) -> bool {
         return false;
     }
     let Some(recorded) = before.held.get(&file.path) else { return false };
-    let now: Held = worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
-    return *recorded == now;
+    let current: Held = worktree_state(path_under(before.worktree_root, file.path.as_slice()).as_path());
+    return *recorded == current;
 }
 
 /// What:

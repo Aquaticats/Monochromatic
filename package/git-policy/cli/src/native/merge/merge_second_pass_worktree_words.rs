@@ -79,17 +79,17 @@ pub(super) fn ending_command(git_dir: &Path, operation: &str) -> &'static str {
 /// ```
 pub(super) fn unfinished_words(operation: &str, staged: &str, conflicted: Option<&[String]>, ending: &str) -> String {
     let kept: String = format!("the files the second merge pass staged as resolved are {staged}");
-    let Some(conflicted) = conflicted else {
+    let Some(known) = conflicted else {
         // An index that cannot be read again is not a clean one, and the line must not say it is.
         return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and the index could not be read again, so which files are conflicted now cannot be said; run {ending} to end the {operation}.");
     };
-    if conflicted.is_empty() {
+    if known.is_empty() {
         return format!("{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and no file is conflicted; run {ending} to end the {operation}.");
     }
-    let one: bool = conflicted.len() == 1;
+    let one: bool = known.len() == 1;
     return format!(
         "{LINE_PREFIX}{REPORT_MARK}: the {operation} did not finish: {kept}, and {} {} conflicted again where the ending step stopped; resolve {} and run {ending} to end the {operation}.",
-        conflicted.join(", "),
+        known.join(", "),
         if one { "is" } else { "are" },
         if one { "it" } else { "them" },
     );
