@@ -202,7 +202,7 @@ pub fn literal_pathspecs_enabled(global_prefix: &[OsString], variable: Option<&O
     if let Some(literal) = from_options {
         return literal;
     }
-    return variable.is_some_and(|value| crate::repo_read_config_text::parse_bool(Some(value.as_encoded_bytes())) == Some(true));
+    return variable.is_some_and(|value| return crate::repo_read_config_text::parse_bool(Some(value.as_encoded_bytes())) == Some(true));
 }
 
 /// What:

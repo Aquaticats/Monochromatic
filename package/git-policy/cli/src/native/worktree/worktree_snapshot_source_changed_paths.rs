@@ -118,7 +118,7 @@ fn subcommand_word(arguments: &[OsString]) -> String {
     let layout: crate::global_arguments::GlobalLayout = crate::global_arguments::global_layout(arguments);
     return arguments
         .get(layout.prefix_len)
-        .map_or_else(String::new, |word| word.to_string_lossy().into_owned());
+        .map_or_else(String::new, |word| return word.to_string_lossy().into_owned());
 }
 
 /// What:
