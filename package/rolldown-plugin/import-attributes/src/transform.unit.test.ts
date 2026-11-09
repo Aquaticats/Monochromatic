@@ -55,6 +55,25 @@ function expectParses(code: string,): void {
 await describe({
   name: transformImportAttributes.name,
   children: [
+    //region Whitespace between a specifier and its clause
+
+    it({
+      name: 'elides a clause separated from its specifier by a form feed',
+      fn: async () => {
+        /**
+         Static import whose clause follows a form feed, which the parser accepts as whitespace.
+         */
+        const code = `import query from './a.sql'\fwith { type: 'text' };`;
+        const transformed = transform(code,);
+
+        expect(transformed,).toContain(`'./a.sql?${ATTR_QUERY_KEY}=text'`,);
+        expect(transformed,).not.toContain('with',);
+        expectParses(transformed,);
+      },
+    },),
+
+    //endregion
+
     //region Specifier escaping
 
     it({

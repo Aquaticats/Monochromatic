@@ -21,13 +21,23 @@ type WriterOutput = string | typeof NO_STDOUT;
  
  @example
  ```ts
- const parser: Parser<PreToolUseInput> = function jsonParser(raw): PreToolUseInput {
-   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
-   return JSON.parse(raw) as PreToolUseInput;
- };
+ const parser: Parser<PreToolUseInput> = makeHookInputParser<PreToolUseInput>();
  ```
  */
 type Parser<TInput,> = (raw: string,) => TInput;
+
+/**
+ Reads one JSON file this package wrote itself, as the shape that file declares.
+ */
+type OwnedFileParser<TFile,> = (raw: string,) => TFile;
+
+/**
+ Serializes a handler response as JSON, which is always a string.
+
+ Narrower than {@link Writer} on purpose: a JSON writer never answers with
+ {@link NO_STDOUT}, so callers and tests may treat its result as text.
+ */
+type JsonWriter<TOutput,> = (output: TOutput,) => string;
 
 /**
  Handler is the pure function at the heart of every hook plugin.
@@ -45,6 +55,74 @@ type HookHandler<TInput, TOutput,> = (input: TInput,) => TOutput | Promise<TOutp
  convention Claude Code expects.
  */
 type Writer<TOutput,> = (output: TOutput,) => WriterOutput;
+
+/**
+ Builds the parser every hook handler uses for its own event payload.
+ 
+ One owner for the trusted-JSON rule and its lint suppression: a hook payload
+ arrives from the host that dispatched the hook, on stdin, in the shape its
+ `hook_event_name` names, so it is asserted rather than re-validated in eighteen
+ places. A handler that ever needs validation belongs in this function, not in a
+ copy of it.
+ 
+ @returns parser that asserts the raw payload as `TInput`
+ 
+ @example
+ ```ts
+ const guardrailParser = makeHookInputParser<PreToolUseInput>();
+ guardrailParser('{"hook_event_name":"PreToolUse"}');
+ ```
+ */
+function makeHookInputParser<TInput,>(): Parser<TInput> {
+  return function parseHookInput(raw: string,): TInput {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON contract from Claude Code hook system
+    return JSON.parse(raw,) as TInput;
+  };
+}
+
+/**
+ Builds the parser used for JSON this package wrote itself: spawn-state records,
+ PID mappings, and transcript lines.
+ 
+ Same trusted-JSON rule as {@link makeHookInputParser}, different owner: these
+ files are produced by our own hook and CLI code, so a parse failure means a
+ truncated write, which callers handle by skipping the record.
+ 
+ @returns parser that asserts the raw file text as `TFile`
+ 
+ @example
+ ```ts
+ const parseSpawnState = makeOwnedFileParser<SpawnState>();
+ parseSpawnState('{"spawnId":"abc"}');
+ ```
+ */
+function makeOwnedFileParser<TFile,>(): OwnedFileParser<TFile> {
+  return function parseOwnedJson(raw: string,): TFile {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- trusted JSON written by this package's own hooks and CLI
+    return JSON.parse(raw,) as TFile;
+  };
+}
+
+/**
+ Builds the writer that serializes a handler response for stdout.
+ 
+ One owner for the wire convention: no trailing newline, because the host parses
+ the payload strictly. The same suppression-free `JSON.stringify` call serves
+ every handler that answers in JSON.
+ 
+ @returns writer that serializes `TOutput` as JSON
+ 
+ @example
+ ```ts
+ const guardrailWriter = makeJsonWriter<GuardrailOutput>();
+ process.stdout.write(guardrailWriter({}));
+ ```
+ */
+function makeJsonWriter<TOutput,>(): JsonWriter<TOutput> {
+  return function writeJson(output: TOutput,): string {
+    return JSON.stringify(output,);
+  };
+}
 
 /**
  Runtime shell for a hook plugin entry script.
@@ -112,12 +190,17 @@ async function runHookPlugin<TInput, TOutput,>(
 
 export type {
   HookHandler,
+  JsonWriter,
+  OwnedFileParser,
   Parser,
   Writer,
   WriterOutput,
 };
 
 export {
+  makeHookInputParser,
+  makeJsonWriter,
+  makeOwnedFileParser,
   NO_STDOUT,
   runHookPlugin,
 };
