@@ -7956,6 +7956,7 @@ Each commit passes through three phases:
     in parallel with other commits and without the real index lock,
     capture the invocation facts,
     build a private index for the selection,
+    refresh the stat data of that private index when it no longer describes the worktree,
     run the pre-forward policies over it until they settle,
     and make the commit.
     The wrapper builds it from the command line (message and identity options,
@@ -7989,6 +7990,10 @@ Each commit passes through three phases:
     then creates Git's own `index.lock` exclusively,
     advances the target ref by compare-and-swap from the tip it read,
     builds the new index beside the real one,
+    records the worktree's stat data in it
+    (`git update-index --refresh` with `GIT_INDEX_FILE` set to the copy,
+    asked for only when the copy no longer describes the worktree,
+    and left out for the entries the reset just wrote),
     and installs it by renaming the lock over `index`.
     The lock is therefore held for the branch move and the index build only
     (`lock_hold_ms` in the service's log line for the request),
@@ -10161,7 +10166,7 @@ For injected commit-only semantics:
     One window stays open in that rebuild and is written here rather than closed
     (`initialize_retry_index`,
     `commit_index.rs`):
-    the real index is classified at the start of the build and copied after the stat refresh,
+    the real index is classified at the start of the build and copied at once,
     and a command that replaces it between the two
     leaves the copy holding intent-to-add entries the classification never named,
     so the clearing above does not reach them.
@@ -10175,7 +10180,9 @@ For injected commit-only semantics:
     and the restage drops it).
     No lock covers it:
     the real index belongs to the person and their other commands,
-    and a lock held across the stat refresh would stop them to protect a path nothing named.
+    and a lock held across the copy would stop them to protect a path nothing named.
+    The stat refresh of the private index runs after it,
+    on that index alone (`commit_index_stat_refresh.rs`).
 2.  Carry into that index every selected entry that the real index stages as an addition
     (`git diff-index --cached --diff-filter=A` against the base,
     with the same pathspecs;
