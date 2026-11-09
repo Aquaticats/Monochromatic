@@ -7,6 +7,7 @@ use super::*;
 use crate::path_bytes_in_records::hex_of_path;
 use crate::worktree_copy_install_entry::InstalledPath;
 use crate::worktree_copy_journal_encoding_and_validation::*;
+use crate::path_bytes_in_records::hex_of_bytes;
 use crate::worktree_copy_journal_removal::*;
 use crate::test_support::{fixture, remove};
 use std::os::unix::fs::PermissionsExt;
@@ -919,5 +920,44 @@ fn recovery_installs_an_ignored_name_that_is_not_text_under_its_own_name() {
     assert_eq!(std::fs::read(installed.as_path()).expect("copied under its own name"), b"payload");
     let replacement: PathBuf = destination.join("cache/bad\u{FFFD}.bin");
     assert!(!replacement.exists(), "nothing is installed at the replacement spelling");
+    remove(root.as_path());
+}
+
+/// What:
+///  A journal whose selected root and claimed path are not text keeps their bytes,
+/// and the release before the bytes form refuses it rather than reading a replacement spelling.
+/// Why:
+///   The earlier release reads those two lists as arrays of text and has no field for their bytes,
+/// so a record that carries bytes only must make it refuse.
+#[cfg(unix)]
+#[test]
+fn a_journal_keeps_the_bytes_of_its_lists_and_an_earlier_release_refuses_one_that_has_no_text() {
+    let root: PathBuf = fixture("journal-list-bytes");
+    let journal_root: PathBuf = root.join("journals");
+    let path: PathBuf = journal_root.join("id.json");
+    let awkward: Vec<u8> = b"cache/bad\xff.bin".to_vec();
+    let mut journal: Journal = sample(root.as_path());
+    journal.selected_roots = vec![awkward.clone()];
+    journal.intended_entries = vec![awkward.clone()];
+    let text: String = encode_journal(&journal);
+    assert!(
+        text.contains(&format!("\"selectedRootsHex\":[\"{}\"]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        "the root's bytes are in the record: {text}"
+    );
+    assert!(
+        text.contains(&format!("\"intendedEntriesHex\":[\"{}\"]", quote(hex_of_bytes(awkward.as_slice()).as_str()))),
+        "the claim's bytes are in the record: {text}"
+    );
+    assert!(!text.contains("\"selectedRoots\":["), "a root that is not text has no plain spelling: {text}");
+    assert!(!text.contains("\"intendedEntries\":["), "a claim that is not text has no plain spelling: {text}");
+    let read_back: Journal =
+        parse_journal(text.as_str(), path.as_path(), journal_root.as_path()).expect("a journal whose lists are bytes reads");
+    assert_eq!(read_back.selected_roots, vec![awkward.clone()]);
+    assert_eq!(read_back.intended_entries, vec![awkward.clone()]);
+    let earlier: String = strip_bytes_fields(text.as_str());
+    assert!(
+        parse_journal(earlier.as_str(), path.as_path(), journal_root.as_path()).is_err(),
+        "the earlier release's fields name no list, so it refuses the record: {earlier}"
+    );
     remove(root.as_path());
 }
