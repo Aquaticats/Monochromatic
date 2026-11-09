@@ -59,6 +59,92 @@ and the host may run short before the provider does.
 
 The trial at twenty is still running and decides the raise to 20 by itself.
 
+### May a moved-path note be added to records in `doc/decision/`?
+
+Rule `WR6` says a historical record keeps a moved identifier's original text and gains an in-place note with the current value and the move date.
+Agents may not edit `doc/decision/` without your approval,
+so these open issues are stuck on that alone:
+4365,
+5929,
+6201,
+3279,
+5926,
+5788,
+3191,
+3275,
+5765,
+5766,
+6101 and 4357.
+The note would add a line beside each stale path and change no decision.
+
+Recommended:
+yes,
+for notes of that one kind only,
+because the original words stay and the records stop pointing nowhere.
+The alternative is to leave those issues open,
+and each stays a dead reference.
+
+### Which build profile should the uncovered crates follow? (issue 1641)
+
+22 tracked `Cargo.toml` files declare a build profile,
+and the rules that keep those profiles the same name 11 folders.
+The other crates are uncovered,
+and several say "Enforced by file-enforcer" in their own comments,
+which is not true of them.
+They are `cargo-shadow/cli`,
+`codex-plugin/bash-limit`,
+`git-policy/cli`,
+`git-policy/cli.fuzz`,
+`ide/app`,
+`jsonc-edit/core-rust.fuzz`,
+`linter/monochromatic-lint.fuzz`,
+`mpm-shadow/cli`,
+`pnpm-shadow/cli`,
+`search-shadow/cli`,
+`wg/cli-quicker-exempt` and `xml-edit/core-rust.fuzz`.
+
+Recommended:
+add one rule for the shape the shadow crates share (`panic = "abort"`) and cover the rest with the existing rules,
+so the comments become true.
+The alternative is to delete the claims and leave these crates free to drift,
+which is less work and protects nothing.
+
+### Should upstream forks keep their own MIT text? (issue 1645)
+
+The rule that writes license files knows no MIT text,
+so the MIT files of the packages under `upstream-fork/` are neither written nor removed by it.
+All carry the same copyright line,
+naming Sindre Sorhus.
+
+Recommended:
+keep one text per package and teach the rule to seed it,
+because a shared text would put that copyright on any other MIT project added later.
+The alternative,
+one shared root `LICENSES/MIT.txt`,
+is simpler and is only correct while every MIT fork has the same author.
+
+### Should 30 packages declare a license? (issue 2994)
+
+30 `package/*/*/package.json` files have no `license` field,
+so no license text is due for them and none ships.
+This is a legal choice about your code,
+and nothing about it can be measured.
+Name a license,
+or say these packages stay undeclared.
+
+### Who owns the repository links in `package.json`? (issue 1124)
+
+221 `package.json` files still link to `github.com/Aquaticat/Monochromatic`,
+and 3 link to the current organization.
+No rule owns those fields since the TypeScript tool went away,
+so they drift.
+
+Recommended:
+add a file-enforcer rule for `repository` and `homepage`,
+matching what it already does for `Cargo.toml`,
+so one run corrects them all and they stay correct.
+The alternative is a single rewrite with nothing to keep it true.
+
 ### Are the three findings left on the stat-data landing worth another round?
 
 The landing that keeps stat data went through six rounds of cross-vendor review and is on main.

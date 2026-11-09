@@ -125,15 +125,18 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T01:24:26-05:00)
+#### Reviews and landings in progress (2026-11-09T01:44:42-05:00)
 
-- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`,
-  at `66c35466ea`:
-  the cross-vendor review (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-2-sol.txt`)
-  says a rewrite reported as never started can stay queued in Tokio and run later,
-  so the report's promise that the index stayed as it was can be false.
+- `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
+  the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
+  names a final wake that can be missed so a run waits for ever,
+  index preparation that can block the runtime before its first await,
+  and refused jobs that later run outside the blocking-job budget.
   Not ready to merge.
-  Run 3 of its agent is on that finding.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `tokio-pure-file-sites-on-the-awaited-runner` as run 4,
+  with the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-push-route-records-and-ceilings`,
   at `5b0393dbf6`:
   its agent reports all eleven audit findings fixed,
@@ -178,8 +181,16 @@ The old tree kept for the rollback stays until the owner deletes it.
   The cause of 36,651 ms is not established.
 - `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness` landed as `b0216835d5`,
   with three findings of its sixth review left open and asked in `questions-for-the-owner.md`.
-- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`,
-  `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
+- `fix/git-policy-cli-merge-recovery-says-so-and-survives-a-held-index`:
+  the cross-vendor review of its second round (`${HOME}/temp/agent/reviews/merge-route-round-2-sol.txt`)
+  says a branch that advances discards a merge already reported as saved,
+  and that finishing a saved merge can overwrite a staged-only edit.
+  Not ready to merge.
+  Waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `merge-route-findings-fixed` as run 3,
+  with `merge-route-findings-fixed-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+- `fix/git-policy-cli-worktree-removal-keeps-what-it-left-out`
   and `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   their agents are working through their reviews.
 - `fix/git-policy-cli-conversion-compares-modes-and-can-finish`,

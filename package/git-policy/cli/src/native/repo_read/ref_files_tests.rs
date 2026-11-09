@@ -170,6 +170,30 @@ fn a_symbolic_branch_is_left_to_git() {
     remove(root.as_path());
 }
 
+/// A chain whose last name does not exist is printed by `symbolic-ref` all the same,
+///  so the reader leaves it to Git.
+#[test]
+fn a_chain_ending_at_a_missing_branch_is_left_to_git() {
+    let root: PathBuf = fixture("ref-files-chain-nowhere");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let found: Probe = probe(repo.as_path());
+    git(repo.as_path(), &["symbolic-ref", "refs/heads/alias", "refs/heads/nowhere"]);
+    write_head(&found, b"ref: refs/heads/alias\n");
+    assert_eq!(
+        oracle(repo.as_path()),
+        Ok(SymbolicHead::Branch(String::from("refs/heads/nowhere"))),
+        "the oracle prints the end of the chain, missing or not"
+    );
+    assert_eq!(compared(repo.as_path(), &found, "alias to nowhere"), None);
+    write_head(&found, b"ref: refs/heads/main\n");
+    assert_eq!(
+        compared(repo.as_path(), &found, "plain main"),
+        Some(SymbolicHead::Branch(String::from("refs/heads/main"))),
+        "the same fixture is answered when nothing is symbolic"
+    );
+    remove(root.as_path());
+}
+
 /// A loose branch file that is garbage,
 /// a directory or a link is left to Git.
 #[test]
