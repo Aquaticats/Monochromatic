@@ -128,7 +128,7 @@ fn stage_entries_holding_intents(pending: &PendingJournal, stage_root: &Path, in
         if !present.contains(claim.as_str()) {
             let message: String = format!(
                 "monochromatic-git-policy-cli: worktree-copy journal intent is absent from private stage {}.",
-                quote(pending.journal.stage_root.as_str())
+                quote(pending.journal.stage_root.to_string_lossy().as_ref())
             );
             return Err(crate::worktree_copy_error::failure_with_cause(message.as_str(), None));
         }
@@ -151,15 +151,15 @@ pub fn snapshot_from_journal(
     pending: &PendingJournal,
     intended: &BTreeSet<String>,
 ) -> Result<StagedSnapshot, WorktreeCopyError> {
-    let stage_root: PathBuf = PathBuf::from(pending.journal.stage_root.as_str());
-    let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = stage_entries_holding_intents(pending, stage_root.as_path(), intended);
+    let stage_root: &Path = pending.journal.stage_root.as_path();
+    let outcome: Result<Vec<WorktreeCopyEntry>, WorktreeCopyError> = stage_entries_holding_intents(pending, stage_root, intended);
     // Every failure here reads as a failed recovery, with its own cause after it.
     let entries: Vec<WorktreeCopyEntry> = match outcome {
         Ok(entries) => entries,
         Err(error) => {
             let message: String = format!(
                 "monochromatic-git-policy-cli: could not recover staged ignored state at {}.",
-                quote(pending.journal.stage_root.as_str())
+                quote(pending.journal.stage_root.to_string_lossy().as_ref())
             );
             return Err(crate::worktree_copy_error::failure_with_cause(
                 message.as_str(),
@@ -170,9 +170,9 @@ pub fn snapshot_from_journal(
     return Ok(StagedSnapshot {
         entries,
         selected_roots: pending.journal.selected_roots.clone(),
-        source_root: PathBuf::from(pending.journal.source_root.as_str()),
-        stage_container: PathBuf::from(pending.journal.stage_container.as_str()),
-        stage_root,
+        source_root: pending.journal.source_root.clone(),
+        stage_container: pending.journal.stage_container.clone(),
+        stage_root: stage_root.to_path_buf(),
         unreadable: Vec::new(),
     });
 }
@@ -245,8 +245,7 @@ fn install_recorded(
     pending: PendingJournal,
     snapshot: &SnapshotSource<'_>,
 ) -> Result<(PendingJournal, Outcome), WorktreeCopyError> {
-    let stage: PathBuf = PathBuf::from(pending.journal.stage_container.as_str());
-    let opened = open_install_log(stage.as_path())?;
+    let opened = open_install_log(pending.journal.stage_container.as_path())?;
     let mut intended: BTreeSet<String> = pending.journal.intended_entries.iter().cloned().collect();
     intended.extend(opened.recorded.intended.iter().cloned());
     let mut created_paths: BTreeSet<String> = BTreeSet::new();
@@ -271,12 +270,11 @@ fn install_recorded(
         .union(&state.created_paths)
         .cloned()
         .collect();
-    let destination: PathBuf = PathBuf::from(state.pending.journal.destination_root.as_str());
+    let destination: PathBuf = state.pending.journal.destination_root.clone();
     // The last moment before the first entry: every entry is written through this path, and the registration the stage
     // was made for is the only destination this copy may fill. A check earlier in the command cannot cover a destination
     // that another command moved and made again since.
-    let container: PathBuf = PathBuf::from(state.pending.journal.stage_container.as_str());
-    if let Some(bound) = crate::worktree_copy_stage_binding::stage_binding(container.as_path())?
+    if let Some(bound) = crate::worktree_copy_stage_binding::stage_binding(state.pending.journal.stage_container.as_path())?
         && crate::worktree_add_binding::path_identity(bound.destination.as_path()) != Some(bound.destination_id)
     {
         let message: String = format!(
