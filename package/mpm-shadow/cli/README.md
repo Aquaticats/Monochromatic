@@ -1282,7 +1282,10 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   (measured 2026-11-07:
   122 of the 853 launcher records in this repository's checkouts named a deleted folder).
   A launcher whose record is stale therefore runs the newest copy without a new `install` in its tree,
-  and the older-lock warning still names the locked version and the version that runs.
+  and the older-lock warning still names the locked version,
+  the version that runs,
+  and the path of the lock file it compared,
+  which is the lock its own record names.
   The launcher also rewrites its own record to name the program it started (atomically,
   only that field),
   because the shadows behind it (`cargo-shadow`,
@@ -1339,7 +1342,9 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   for one)
   finds that checkout's `.cache/*-bin` first.
   Both run the same newest copy;
-  they differ only in which lock the older-lock warning compares.
+  they differ only in which lock the older-lock warning compares,
+  and the warning names that lock file's path,
+  so two runs of the same message are told apart by the line's own text.
 - Measured 2026-10-31 with `hyperfine` 2.0.0,
   400 runs per arm,
   `cli-git-native --version`

@@ -31,6 +31,8 @@ mod cli;
 mod rule;
 /// Registers the `walk` child module.
 mod walk;
+/// Registers the working-tree discovery the walk's tracked-file union reads through.
+mod git_working_tree;
 /// Registers the per-file scan that runs in parallel over every candidate file.
 mod candidate_file_scan;
 /// Registers the rules compilation and file listing that run side by side at startup.
@@ -289,6 +291,8 @@ use crate::candidate_file_scan::{scan_candidate_file, CandidateFileScan};
 /// Imports the side-by-side startup work,
 /// so the rules compile while the working tree is listed.
 use crate::startup_work::{run_startup_work, StartupRequest};
+/// Imports the listing result that carries the tracked-file union's diagnostic.
+use crate::walk::WorkingTreeListing;
 
 /// Implements `build_skip_set`.
 // What:     `fn build_skip_set(rules_path: &str) -> HashSet<PathBuf>`
@@ -825,7 +829,7 @@ pub fn run_cli_from_env() -> Result<i32> {
         quiet_absence: !explicit_rules_source,
         list_working_tree: all,
     };
-    let (rules_result, listed_result): (Result<_>, Option<Result<Vec<String>>>) = run_startup_work(&startup_request);
+    let (rules_result, listed_result): (Result<_>, Option<Result<WorkingTreeListing>>) = run_startup_work(&startup_request);
 
     // What:     `let loaded = match rules_result { Ok(r) => r, Err(e) => { ...; return ... } };`
     //           destructures the `Result<LoadedRules>`. `Ok(r)` binds the loaded sets;
@@ -874,7 +878,27 @@ pub fn run_cli_from_env() -> Result<i32> {
     // ```
     if let Some(listed) = listed_result {
         match listed {
-            Ok(f) => files = f,
+            Ok(listing) => {
+                // What:     The tracked-file union's gap is printed before the
+                //           scan starts, on the same stderr channel as every
+                //           other CLI diagnostic, and its path goes through the
+                //           pathname scan so a matching component is masked and
+                //           protocol-sensitive bytes are escaped like every
+                //           other path in a finding.
+                // Why:      A scan that cannot cover force-added tracked files
+                //           must say so; silence there reads as a clean scan.
+                //           Printing the raw path would make this the one
+                //           diagnostic that can quote a pathname the rules
+                //           forbid.
+                if let Some(gap) = listing.union_gap {
+                    let shown = path_scan::scan_path(&gap.at.to_string_lossy(), &loaded).display;
+                    eprintln!(
+                        "forbidden-strings: the tracked-file union is unavailable: {}: {}; tracked files that .gitignore hides are not covered by this scan",
+                        shown, gap.cause
+                    );
+                }
+                files = listing.files;
+            }
             Err(e) => {
                 // eprintln, not tracing: same user-facing "forbidden-strings: <msg>" CLI error
                 // contract on stderr asserted by integration tests.
