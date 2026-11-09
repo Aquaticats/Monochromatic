@@ -45,7 +45,8 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (!(await readLog(log)).split('\n').includes(receiptLine(sha))) await appendFile(log, text); // one write on an 'a' handle
+//! const line = receiptLine(sha) + '\n'; const held = (await readLog(log)).splitAfter('\n').includes(line);
+//! if (!held) await appendFile(log, '\n' + text); // one write on an 'a' handle
 //! ```
 
 use crate::private_storage::create_private_directory_all;
