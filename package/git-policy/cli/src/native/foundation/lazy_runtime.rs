@@ -431,10 +431,7 @@ where
         Ok(built) if matches!(built.flavor, BuiltFlavor::MultiThread { .. }) => Some(built.runtime.spawn(future)),
         // A stand-in runtime has no worker of its own, but a build that arrived after its deadline does: the work it was
         //  built for runs there.
-        Ok(_) | Err(_) => match LATE_RUNTIME.get() {
-            Some(late) => Some(late.spawn(future)),
-            None => None,
-        },
+        Ok(_) | Err(_) => LATE_RUNTIME.get().map(|late| { return late.spawn(future); }),
     };
 }
 
