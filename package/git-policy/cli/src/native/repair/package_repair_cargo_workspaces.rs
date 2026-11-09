@@ -148,7 +148,12 @@ pub fn distinct_workspaces(mut found: Vec<Workspace>) -> Vec<Workspace> {
 /// ```
 pub fn manifest_directories(request: &RepairRequest<'_>) -> Result<Vec<PathBuf>, String> {
     use std::os::unix::ffi::OsStrExt;
-    let listing = GitRequest::new(request.destination, &["ls-files", "-z", "--", "*Cargo.toml"]);
+    // `--full-name` names every manifest from the top of the worktree, which is how each name is joined to the
+    // destination; and the pattern is the wrapper's own pathspec, so no mode the caller set reaches it: under
+    // literal mode it would match nothing, case-insensitive matching would widen it, and two glob modes at once
+    // make Git refuse the listing.
+    let listing: GitRequest =
+        GitRequest::new(request.destination, &["ls-files", "-z", "--full-name", "--", "*Cargo.toml"]).own_pathspecs();
     let output = match run_git(request.git, &listing) {
         Ok(done) => done,
         Err(error) => return Err(format!("git could not list the tracked manifests ({error})")),
