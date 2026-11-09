@@ -356,7 +356,8 @@ fn the_host_gather_reports_no_lock_when_none_exists() {
 /// a missing command is not invented.
 #[test]
 fn the_proven_holder_line_names_its_proof() {
-    let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"));
+    let end: WaitEnd<'_> = WaitEnd { within: MERGE_LOCK_CEILING, ending: "git merge meets Git's own refusal" };
+    let descriptor: String = proven_holder_line(55, true, Some("git"), Path::new("/repo/index.lock"), end);
     let ceiling_seconds: u64 = MERGE_LOCK_CEILING.as_secs();
     assert_eq!(
         descriptor,
@@ -365,7 +366,7 @@ fn the_proven_holder_line_names_its_proof() {
         )
     );
     assert!(!descriptor.contains("giving up"), "a notice while the wait goes on never says the wait ended; only the ceiling's line does: {descriptor}");
-    let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"));
+    let file: String = proven_holder_line(9, false, None, Path::new("/repo/index.lock"), end);
     assert!(file.contains("waiting for PID 9, which holds"));
     assert!(file.contains("(proven by its Git lock PID file)"));
 }
@@ -408,7 +409,8 @@ fn many_unreadable_processes_are_summarized_in_the_wait_line() {
     let reasons: Vec<String> = (0..200).map(|number| { return format!("PID {number}: Permission denied (os error 13)"); }).collect();
     let scan: HolderEvidence = HolderEvidence { method: "proc-fd", holders: Vec::new(), partial: reasons.clone() };
     let evidence: Evidence = evidence_with(PidFile::Absent, Some(scan));
-    let line: String = unproven_wait_line(Path::new("/repo/index.lock"), Some(&evidence));
+    let end: WaitEnd<'_> = WaitEnd { within: crate::wait_ceilings::LANDING_LOCK_CEILING, ending: crate::service_index_attempts::COMMIT_WITHDRAWN };
+    let line: String = unproven_wait_line(Path::new("/repo/index.lock"), Some(&evidence), end);
     assert!(line.contains(format!("{} processes could not be looked at", reasons.len()).as_str()), "{line}");
     assert!(line.contains("PID 0: Permission denied"), "{line}");
     assert!(!line.contains("PID 100: Permission denied"), "a line that lists every reason is not a summary: {line}");
