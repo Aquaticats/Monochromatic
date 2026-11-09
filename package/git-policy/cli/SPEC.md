@@ -10314,7 +10314,7 @@ The `git` a shell alias starts searches from another directory:
 Git changes to the top of the working tree before it starts that shell
 (`git.c:388` to `git.c:407`),
 so a relative entry names there the directory the shell searches,
-and the caller's `-C` moves neither.
+not the one the caller's `-C` reached.
 A repository Git found by walking up to it is the case that changes directory;
 with no repository to walk to,
 and with one `--git-dir` or `GIT_DIR` named,
@@ -10330,6 +10330,8 @@ environment and directory,
 so it fails with them and there is no alias to read.
 A failure that hits only the first start can still leave an alias to Git,
 and that is this reading's remaining limit.
+No fact of the caller then describes a repository the command never runs in,
+and the audit names what Git runs.
 A second window needs another process:
 those relative entries are made absolute from a pathname the reading captures once,
 before any probe,
@@ -10349,8 +10351,6 @@ and the uncommitted changes to their tracked files are gone,
 with no guard notice and no refusal.
 No command renames a working directory inside those few instructions,
 so the window takes a second program working against the same path.
-No fact of the caller then describes a repository the command never runs in,
-and the audit names what Git runs.
 A built-in word is decided without reading any configuration,
 so no process is started for it.
 The expansion is resolved once per invocation and read by all three of them:
