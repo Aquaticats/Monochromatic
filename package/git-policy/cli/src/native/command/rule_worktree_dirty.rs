@@ -290,13 +290,30 @@ pub fn ignored_paths_from_answer(answer: &MetadataOutput) -> Result<Vec<Vec<u8>>
             .to_string();
         return Err(format!("Git could not read the ignored files: {detail}"));
     }
+    return Ok(nul_separated_paths(answer.stdout.as_slice()));
+}
+
+/// What:
+///  The paths one `-z` answer holds,
+/// each in the answer's own bytes and none empty.
+///  `&[u8]` borrows the answer's standard output.
+/// Why:
+///   Every `-z` answer separates its paths with zero bytes,
+/// and two readers of two such answers
+///       (the ignored files and a tree's paths) split them the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function nulSeparatedPaths(answer: Buffer): Buffer[];
+/// ```
+pub fn nul_separated_paths(answer: &[u8]) -> Vec<Vec<u8>> {
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for path in answer.stdout.split(is_nul) {
+    for path in answer.split(is_nul) {
         if !path.is_empty() {
             paths.push(path.to_vec());
         }
     }
-    return Ok(paths);
+    return paths;
 }
 
 /// What:

@@ -24,6 +24,7 @@ use super::support::{
 };
 use std::ffi::OsStr;
 use std::path::PathBuf;
+use std::process::Output;
 
 /// A repository with one tracked file edited,
 /// and a second branch `topic`.
@@ -1164,5 +1165,69 @@ fn a_forced_form_keeps_an_ignored_file_where_the_target_needs_a_directory() {
         std::fs::read(linked.join("private/config.txt")).expect("tracked file"),
         b"the tracked version\n"
     );
+    remove(&fixture);
+}
+
+/// A forced switch to the previous branch keeps an ignored file that branch tracks,
+/// in both shorthands Git
+///  reads for it.
+#[test]
+fn a_forced_switch_to_the_previous_branch_keeps_an_ignored_file() {
+    let fixture: Fixture = fixture("discard-previous-branch");
+    let repo: PathBuf = repository_with_ignored_work(&fixture, OsStr::new("repo"));
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "tracks"]);
+    std::fs::write(repo.join(".env"), b"the tracked version\n").expect("tracked environment file");
+    git(&fixture, repo.as_path(), &["add", "--force", "--", ".env"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tracks"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    // The worktree visited `tracks` last, so both `-` and `@{-1}` name it.
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "tracks"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    // The named expression is the previous branch, and `-` is Git's own shorthand for it in a switch.
+    let resolved: Output = git(&fixture, linked.as_path(), &["rev-parse", "--symbolic-full-name", "@{-1}"]);
+    assert_eq!(
+        String::from_utf8_lossy(resolved.stdout.as_slice()).trim(),
+        "refs/heads/tracks",
+        "the control needs the previous-branch expression to name the branch"
+    );
+    let replaced: Observed = run_direct(&fixture, linked.as_path(), &["switch", "--force", "-"]);
+    assert_eq!(replaced.code, Some(0), "{}", stderr_of(&replaced));
+    assert_eq!(branch_of(&fixture, linked.as_path()), "tracks", "Git reads - as the previous branch");
+    assert_eq!(
+        std::fs::read(linked.join(".env")).expect("ignored file"),
+        b"the tracked version\n",
+        "real Git kept the ignored file, so this control proves nothing"
+    );
+    // Back to where the person was, with the person's content again.
+    git(&fixture, linked.as_path(), &["switch", "--force", "side"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    for expression in ["-", "@{-1}"] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", expression]);
+        assert!(
+            rejected_by_policy(&observed),
+            "switch --force {expression} replaced the ignored file: {}",
+            stderr_of(&observed)
+        );
+        assert_eq!(
+            std::fs::read(linked.join(".env")).expect("ignored file"),
+            b"SECRET=the person value\n",
+            "switch --force {expression} replaced the ignored file"
+        );
+        assert!(stderr_of(&observed).contains(".env"), "{expression}: {}", stderr_of(&observed));
+        assert_eq!(branch_of(&fixture, linked.as_path()), "side", "switch --force {expression} moved HEAD");
+    }
+    // A branch that tracks nothing the worktree ignores still switches, in the same shorthand.
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "tracks"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
+    std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("ignored file");
+    git(&fixture, repo.as_path(), &["branch", "free"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "free"]);
+    git(&fixture, linked.as_path(), &["switch", "--quiet", "side"]);
+    let free: Observed = run_wrapped(&fixture, linked.as_path(), &["switch", "--force", "-"]);
+    assert_eq!(free.code, Some(0), "{}", stderr_of(&free));
+    assert_eq!(branch_of(&fixture, linked.as_path()), "free");
     remove(&fixture);
 }

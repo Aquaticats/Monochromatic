@@ -9165,10 +9165,15 @@ Every path is named with `:(top,literal)` magic,
 anchored at the top of the worktree and read as itself,
 and the query turns off a caller's `--literal-pathspecs`,
 which would otherwise make the magic a path.
-A tree or an answer Git cannot read is a `fact-unavailable` finding,
-never a clean worktree,
-and a revision Git cannot resolve is read as `HEAD`,
+A revision Git cannot resolve is read as `HEAD`,
 because every form that names no tree writes `HEAD`'s content.
+A revision spelled `-`,
+which only `switch` and `checkout` read as the previous branch,
+is read as `@{-1}` before the tree is listed,
+because no other Git command resolves `-` and the tree would otherwise be read as `HEAD`'s;
+`@{-N}` is resolved by Git itself wherever an object name is read.
+A tree or an answer Git cannot read is a `fact-unavailable` finding,
+never a clean worktree.
 A status Git cannot read is a `fact-unavailable` finding,
 never a clean worktree.
 Repositories under an allowlisted tool cache are exempt.
