@@ -120,9 +120,7 @@ pub fn render_skipped(sha: &str, subject: &str) -> String {
 
 /// What:
 ///  The review entry:
-/// its fields,
-/// the receipt line of the commit,
-/// and the blank line that separates entries.
+/// its fields and the receipt line of the commit.
 /// Why:
 ///   `Named superlinear cost` is the choice for `yes` and `no`,
 /// the two-line gesture for `partial`,
@@ -132,6 +130,10 @@ pub fn render_skipped(sha: &str, subject: &str) -> String {
 /// The receipt is the entry's last line,
 /// so only an entry written whole carries one and the
 ///  once-per-commit test cannot find it in an entry the system cut short.
+/// The entry ends with one line feed and no blank line:
+/// the write of the next entry supplies the line feed
+///  that separates them,
+/// so two entries always sit one blank line apart and the last one ends the file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -145,7 +147,7 @@ pub fn render_review(entry: &ReviewEntry) -> String {
         _ => String::from("  unjudged"),
     };
     return format!(
-        "- Date:\n  {date}\n  Subject:\n  {sha} `{subject}`\n  Input size:\n  `{files} code files, {lines} diff lines{capped}, luna input {units} chars`\n  Reviewer route:\n  `{ROUTE}`\n  Wall-clock cost:\n  {seconds} s\n  Named superlinear cost:\n{judged}\n  Findings kept:\n    `````text\n    {outcome}\n    `````\n{receipt}\n\n",
+        "- Date:\n  {date}\n  Subject:\n  {sha} `{subject}`\n  Input size:\n  `{files} code files, {lines} diff lines{capped}, luna input {units} chars`\n  Reviewer route:\n  `{ROUTE}`\n  Wall-clock cost:\n  {seconds} s\n  Named superlinear cost:\n{judged}\n  Findings kept:\n    `````text\n    {outcome}\n    `````\n{receipt}\n",
         date = entry.date,
         sha = short(entry.sha.as_str()),
         subject = on_one_line(entry.subject.as_str()),
