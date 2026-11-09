@@ -179,6 +179,25 @@ pub fn tool_install_dir(toolchain_root: &Path, id: &str, version: &str) -> Resul
     return Ok(tool_dir.join(version));
 }
 
+/// The directory name below a Go-installed tool's version directory that `go install` writes its executables into.
+pub const GO_BIN_DIRECTORY_NAME: &str = "bin";
+
+/// What:
+/// The `bin` directory below a Go-installed tool's version directory:
+/// the `GOBIN` the `go-install` route gives `go install`,
+/// and the place the observation of that route reads.
+/// Why:
+/// The installer creates it before `go` runs and the observer reads it afterwards,
+/// so both must name the same path.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function goBinDirOf(toolchainRoot: string, id: string, version: string): string  // throws on an unsafe name
+/// ```
+pub fn go_bin_dir_of(toolchain_root: &Path, id: &str, version: &str) -> Result<PathBuf, ToolchainError> {
+    return Ok(tool_install_dir(toolchain_root, id, version)?.join(GO_BIN_DIRECTORY_NAME));
+}
+
 /// What:
 /// The directory a version's downloaded archives are kept in:
 /// `<toolchain root>/downloads/<install dir name>/<version>`.
