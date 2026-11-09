@@ -423,7 +423,7 @@ fn each_of_the_four_shims_is_recognized() {
     let root: PathBuf = fixture("doctor-shims-all");
     let repo: PathBuf = repository(root.as_path(), "repo");
     for name in ["pre-push", "post-checkout", "post-commit", "post-merge"] {
-        assert!(is_lfs_shim(write_shim(repo.as_path(), name).as_path()), "{name}");
+        assert!(is_lfs_shim(write_shim(repo.as_path(), name).as_path()).expect("the shim is readable"), "{name}");
     }
     let (code, stdout, _stderr) = exit_parts(doctor_action(&git_context(), repo.as_path()));
     assert_eq!((code, stdout.as_str()), (0, ""));
@@ -508,5 +508,44 @@ fn the_report_moves_none_of_the_names_it_reads() {
     assert!(save.join("copy.txt").exists(), "a saved copy stays where it is");
     assert!(!repo.join(".git/monochromatic-git-policy-cli").exists(), "the report wrote the current name");
     assert!(stderr.contains("discarded copies:"), "the saved copies are still reported: {stderr}");
+    remove(root.as_path());
+}
+
+
+/// A listing that never answers,
+/// as a directory on a mount whose server stopped answering does not.
+///
+/// The thread parks, so it spends no processor time while it waits: this is a stall, not a load.
+fn stalled_listing(_directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// What:
+///  A directory listing that never answers ends at the ceiling as an error,
+/// never as an empty directory.
+/// Why:
+///  A mount whose server stopped answering holds `readdir` and `lstat` in the kernel with no end,
+/// and the owner's rule is
+///  "nothing should ever wait forever or indefinitely".
+/// Silence would read as "no hooks here",
+/// which is the one answer a
+///  report must not give when it could not look.
+#[test]
+fn a_stalled_directory_listing_gives_up_at_its_ceiling() {
+    let root: PathBuf = fixture("doctor-stalled-listing");
+    let named: PathBuf = root.clone();
+    let (done, finished) = std::sync::mpsc::channel::<std::io::Result<Vec<PathBuf>>>();
+    let worker = std::thread::spawn(move || {
+        let outcome: std::io::Result<Vec<PathBuf>> = scan_hooks_directory_with(stalled_listing, std::time::Duration::from_millis(50), named.as_path());
+        let _sent = done.send(outcome);
+    });
+    // The worker is left behind on purpose: a read that never answers has no end, and the test process ends it.
+    let answered: Result<std::io::Result<Vec<PathBuf>>, _> = finished.recv_timeout(std::time::Duration::from_secs(10));
+    let _abandoned = worker;
+    let outcome: std::io::Result<Vec<PathBuf>> = answered.unwrap_or_else(|_| { panic!("the listing never returned, so a directory on a mount that stopped answering holds the report forever") });
+    let error: std::io::Error = outcome.expect_err("a listing that gives no answer is an error, never an empty directory");
+    assert_eq!(error.kind(), ErrorKind::TimedOut, "{error}");
     remove(root.as_path());
 }

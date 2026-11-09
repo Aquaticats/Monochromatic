@@ -4,6 +4,7 @@
 //! and that it never blocks.
 
 use super::*;
+use crate::test_support::SharedSink;
 
 /// A transaction identifier in the registry's spelling.
 const TRANSACTION: &str = "0b6c2c1e-6f5b-4d0e-9a55-3f5d8e2f6a10";
@@ -139,20 +140,20 @@ fn the_wrappers_own_overrides_do_not_warn() {
 #[test]
 fn the_writer_emits_one_line_or_nothing() {
     let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
-    let mut warned: Vec<u8> = Vec::new();
-    warn_traditional_hooks(Some(&configured), &mut warned);
-    assert_eq!(String::from_utf8(warned).expect("UTF-8").matches('\n').count(), 1);
-    let mut silent: Vec<u8> = Vec::new();
-    warn_traditional_hooks(Some(&listing_snapshot(&[])), &mut silent);
-    warn_traditional_hooks(None, &mut silent);
-    assert!(silent.is_empty());
+    let warned: SharedSink = SharedSink::default();
+    warn_traditional_hooks(Some(&configured), warned.clone());
+    assert_eq!(warned.text().matches('\n').count(), 1);
+    let silent: SharedSink = SharedSink::default();
+    warn_traditional_hooks(Some(&listing_snapshot(&[])), silent.clone());
+    warn_traditional_hooks(None, silent.clone());
+    assert_eq!(silent.text(), "");
 }
 
 /// A stream that refuses the warning does not stop the command.
 #[test]
 fn a_refusing_stream_does_not_panic() {
     let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
-    warn_traditional_hooks(Some(&configured), &mut RefusingStream);
+    warn_traditional_hooks(Some(&configured), RefusingStream);
 }
 
 /// A value with quotes,
@@ -164,4 +165,64 @@ fn a_hostile_value_stays_inside_one_line() {
     let line: String = traditional_hooks_warning(Some(&snapshot)).expect("a warning");
     assert_eq!(line.matches('\n').count(), 1, "{line}");
     assert!(!line.contains("{\"type\":\"core-finding\""), "{line}");
+}
+
+/// What:
+///  A stream whose write waits for an answer that never comes,
+/// as a full pipe does.
+/// Why:
+///   A write to a descriptor whose reader has stopped draining waits in the kernel with no end;
+/// this sink waits the same way,
+///  in the process,
+/// so the bound can be proved without a full pipe.
+struct BlockedStream {
+    /// Kept alive so the wait below has no end.
+    _sender: std::sync::mpsc::Sender<()>,
+    /// Waited on,
+    /// never answered.
+    waiting: std::sync::mpsc::Receiver<()>,
+}
+
+impl BlockedStream {
+    /// A stream that blocks its first write until this value is dropped.
+    fn new() -> Self {
+        let (sender, waiting) = std::sync::mpsc::channel::<()>();
+        return Self { _sender: sender, waiting };
+    }
+}
+
+impl Write for BlockedStream {
+    /// Waits for an answer that never comes.
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let _never = self.waiting.recv();
+        return Ok(buffer.len());
+    }
+
+    /// Nothing is buffered.
+    fn flush(&mut self) -> std::io::Result<()> {
+        return Ok(());
+    }
+}
+
+/// What:
+///  A warning whose stream blocks returns anyway,
+/// inside its ceiling.
+/// Why:
+///  The warning is written on the commit's preparation path,
+/// and the owner's rule is "nothing should ever wait forever or indefinitely":
+///  a full pipe must not hold a commit,
+/// and its line is optional beside the command's own result.
+#[test]
+fn a_blocked_warning_write_returns_within_its_ceiling() {
+    let configured: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\nmy-hooks")]);
+    let (done, finished) = std::sync::mpsc::channel::<()>();
+    let writer = std::thread::spawn(move || {
+        let stream = BlockedStream::new();
+        warn_traditional_hooks(Some(&configured), stream);
+        let _sent = done.send(());
+    });
+    let answered: Result<(), _> = finished.recv_timeout(std::time::Duration::from_secs(30));
+    // The writer is left waiting on purpose: a blocked write has no end, and the test process ends it.
+    let _abandoned = writer;
+    assert!(answered.is_ok(), "the warning write never returned, so a stream that stops draining holds a commit forever");
 }

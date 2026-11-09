@@ -53,6 +53,12 @@ use crate::lazy_runtime::run_on_runtime;
 use std::io::ErrorKind;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
+/// `Duration` is how long a file system read of the report may take.
+use std::time::Duration;
+/// The ceiling of each file system read of the report.
+use crate::wait_ceilings::REPORT_SCAN_CEILING;
+/// The job of such a read, run on a thread of its own.
+use crate::work_awaited_within_a_ceiling::work_within;
 
 /// Exit status when at least one traditional hook was found.
 pub const HOOKS_FOUND_EXIT_CODE: i32 = 1;
@@ -136,6 +142,42 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 }
 
 /// What:
+///  The names in one directory,
+/// as one read of it.
+///  `fn(&Path) -> std::io::Result<Vec<PathBuf>>` is a function pointer,
+/// so a control can stand a read that never answers where the
+///  listing stands.
+/// Why:
+///   The listing of a directory is where a mount that stopped answering waits,
+/// so it is the read the bound is placed
+///  on,
+/// and it is a value the report is given rather than a call it makes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EntryListing = (directory: string) => string[];
+/// ```
+pub type EntryListing = fn(&Path) -> std::io::Result<Vec<PathBuf>>;
+
+/// What:
+///  The names in one directory,
+/// read by the system.
+/// Why:
+///   This is the production listing the bounded scan takes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listEntries = (directory) => readdirSync(directory, { withFileTypes: true }).map((entry) => join(directory, entry.name));
+/// ```
+fn list_entries(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(directory)? {
+        entries.push(entry?.path());
+    }
+    return Ok(entries);
+}
+
+/// What:
 ///  The traditional hooks in one directory:
 /// executable regular files and symbolic links,
 /// except `*.sample`.
@@ -146,33 +188,64 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 ///  directory the command could not look at.
 ///  A link counts whatever it points at (a dangling link too),
 /// because Git follows it when it starts the hook.
+///  Every call here reads the file system,
+/// and a mount that stops answering holds such a call in the kernel with no end,
+/// so
+///  the whole scan runs on a thread of its own and is awaited only to `REPORT_SCAN_CEILING`.
+///  A scan that gives no answer is an error,
+/// never an empty directory:
+/// silence would read as "no hooks here".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// (await readdir(directory)).filter((name) => !name.endsWith('.sample') && (isSymlink(name) || isExecutableFile(name)));
 /// ```
 pub fn scan_hooks_directory(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
-    let entries = match std::fs::read_dir(directory) {
-        Ok(found) => found,
-        Err(error) if error.kind() == ErrorKind::NotFound || error.kind() == ErrorKind::NotADirectory => {
-            return Ok(Vec::new());
+    return scan_hooks_directory_with(list_entries, REPORT_SCAN_CEILING, directory);
+}
+
+/// What:
+///  `scan_hooks_directory` with the listing and the ceiling given.
+/// Why:
+///   The listing and the ceiling are the two things a control varies;
+/// `REPORT_SCAN_CEILING` says why the production value is
+///  what it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// scanHooksDirectoryWith(listEntries, REPORT_SCAN_CEILING, directory);
+/// ```
+pub fn scan_hooks_directory_with(listing: EntryListing, ceiling: Duration, directory: &Path) -> std::io::Result<Vec<PathBuf>> {
+    let named: PathBuf = directory.to_path_buf();
+    let scanned: Option<std::io::Result<Vec<PathBuf>>> = work_within(ceiling, move || {
+        let entries: Vec<PathBuf> = match listing(named.as_path()) {
+            Ok(found) => found,
+            Err(error) if error.kind() == ErrorKind::NotFound || error.kind() == ErrorKind::NotADirectory => {
+                return Ok(Vec::new());
+            }
+            Err(error) => return Err(error),
+        };
+        let mut hooks: Vec<PathBuf> = Vec::new();
+        for path in entries {
+            if path.file_name().is_some_and(|name| { return name.as_encoded_bytes().ends_with(SAMPLE_SUFFIX); }) {
+                continue;
+            }
+            let metadata: std::fs::Metadata = std::fs::symlink_metadata(path.as_path())?;
+            let kind: std::fs::FileType = metadata.file_type();
+            if kind.is_symlink() || (kind.is_file() && is_executable(&metadata)) {
+                hooks.push(path);
+            }
         }
-        Err(error) => return Err(error),
+        hooks.sort();
+        return Ok(hooks);
+    });
+    let Some(answer) = scanned else {
+        return Err(std::io::Error::new(
+            ErrorKind::TimedOut,
+            format!("the listing of {} gave no answer within {ceiling:?}", directory.display()),
+        ));
     };
-    let mut hooks: Vec<PathBuf> = Vec::new();
-    for entry in entries {
-        let found = entry?;
-        if found.file_name().as_encoded_bytes().ends_with(SAMPLE_SUFFIX) {
-            continue;
-        }
-        let metadata: std::fs::Metadata = std::fs::symlink_metadata(found.path())?;
-        let kind: std::fs::FileType = metadata.file_type();
-        if kind.is_symlink() || (kind.is_file() && is_executable(&metadata)) {
-            hooks.push(found.path());
-        }
-    }
-    hooks.sort();
-    return Ok(hooks);
+    return answer;
 }
 
 /// What:
@@ -268,7 +341,7 @@ async fn query(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<O
 /// bytes.endsWith('\n') ? bytes.slice(0, -1) : bytes
 /// ```
 fn without_the_terminator(answer: &[u8]) -> &[u8] {
-    return match answer.strip_suffix(&[b'\n'][..]) {
+    return match answer.strip_suffix(b"\n".as_slice()) {
         Some(body) => body,
         None => answer,
     };
@@ -320,10 +393,7 @@ fn path_answer(bytes: &[u8]) -> PathBuf {
 /// const answer = await gitQuestion(context, cwd, args);
 /// ```
 async fn path_answer_question(context: &GitContext, cwd: &Path, arguments: &[&str]) -> Result<PathBuf, String> {
-    let answer: Vec<u8> = match query(context, cwd, arguments).await? {
-        Some(bytes) => bytes,
-        None => Vec::new(),
-    };
+    let answer: Vec<u8> = query(context, cwd, arguments).await?.unwrap_or_default();
     let value: &[u8] = without_the_terminator(answer.as_slice());
     if value.is_empty() {
         return Err(format!("git {} printed no path", arguments.join(" ")));
@@ -358,16 +428,16 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
         }
         None => None,
     };
-    let Some(configured) = configured else {
+    let Some(chosen) = configured else {
         return Ok(HooksLocation {
             common_directory: common,
             configured: None,
         });
     };
-    if configured.is_absolute() {
+    if chosen.is_absolute() {
         return Ok(HooksLocation {
             common_directory: common,
-            configured: Some(configured),
+            configured: Some(chosen),
         });
     }
     // A relative value resolves where Git runs hooks; a repository without a worktree has no top level.
@@ -377,7 +447,7 @@ pub async fn locate_hooks(context: &GitContext, cwd: &Path) -> Result<HooksLocat
     };
     return Ok(HooksLocation {
         common_directory: common,
-        configured: Some(base.join(configured)),
+        configured: Some(base.join(chosen)),
     });
 }
 
@@ -424,28 +494,40 @@ pub fn lfs_shim_text(name: &str) -> String {
 /// ```ts
 /// isFile(path) && readFileSync(path).equals(lfsShimText(basename(path)))
 /// ```
-pub fn is_lfs_shim(path: &Path) -> bool {
+pub fn is_lfs_shim(path: &Path) -> std::io::Result<bool> {
     use std::io::Read;
     let Some(name) = path.file_name().and_then(std::ffi::OsStr::to_str) else {
-        return false;
+        return Ok(false);
     };
     if !LFS_SHIM_NAMES.contains(&name) {
-        return false;
+        return Ok(false);
     }
-    let Ok(metadata) = std::fs::symlink_metadata(path) else {
-        return false;
+    let named: PathBuf = path.to_path_buf();
+    let wanted: String = name.to_string();
+    // The type check, the open and the read of the file all wait on the file system, so they run under the ceiling.
+    let compared: Option<std::io::Result<bool>> = work_within(REPORT_SCAN_CEILING, move || {
+        let Ok(metadata) = std::fs::symlink_metadata(named.as_path()) else {
+            return Ok(false);
+        };
+        if !metadata.file_type().is_file() {
+            return Ok(false);
+        }
+        let Ok(file) = std::fs::File::open(named.as_path()) else {
+            return Ok(false);
+        };
+        let mut content: Vec<u8> = Vec::new();
+        if file.take(LFS_SHIM_LIMIT).read_to_end(&mut content).is_err() {
+            return Ok(false);
+        }
+        return Ok(content == lfs_shim_text(wanted.as_str()).as_bytes());
+    });
+    return match compared {
+        Some(answer) => answer,
+        None => Err(std::io::Error::new(
+            ErrorKind::TimedOut,
+            format!("the read of {} gave no answer within {REPORT_SCAN_CEILING:?}", path.display()),
+        )),
     };
-    if !metadata.file_type().is_file() {
-        return false;
-    }
-    let Ok(file) = std::fs::File::open(path) else {
-        return false;
-    };
-    let mut content: Vec<u8> = Vec::new();
-    if file.take(LFS_SHIM_LIMIT).read_to_end(&mut content).is_err() {
-        return false;
-    }
-    return content == lfs_shim_text(name).as_bytes();
 }
 
 /// What:
@@ -551,6 +633,8 @@ pub async fn doctor_action_with_section(
         Ok(found) => found,
         Err(message) => return doctor_failure(message.as_str()),
     };
+    // The scan reads directories and shim files under its ceiling (`scan_hooks_directory`), so a mount that stops
+    // answering ends the read instead of the report.
     let found: Vec<PathBuf> = match find_traditional_hooks(hook_directories(&location).as_slice()) {
         Ok(listed) => listed,
         Err(error) => return doctor_failure(format!("cannot read a hooks directory: {error}").as_str()),
@@ -558,10 +642,10 @@ pub async fn doctor_action_with_section(
     let mut shims: Vec<PathBuf> = Vec::new();
     let mut hooks: Vec<PathBuf> = Vec::new();
     for path in found {
-        if is_lfs_shim(path.as_path()) {
-            shims.push(path);
-        } else {
-            hooks.push(path);
+        match is_lfs_shim(path.as_path()) {
+            Ok(true) => shims.push(path),
+            Ok(false) => hooks.push(path),
+            Err(error) => return doctor_failure(format!("cannot read a hook file: {error}").as_str()),
         }
     }
     let shim_report: String = if shims.is_empty() { String::new() } else { render_lfs_shims(shims.as_slice()) };
@@ -570,6 +654,7 @@ pub async fn doctor_action_with_section(
     // A report changes nothing, so the earlier release's names in this directory are read where they are and never moved
     // (`SPEC.md`, section Doctor): moving them is left to the commands that write there.
     let discarded: String = doctor_section(location.common_directory.as_path(), findings.discarded);
+    // The host facts read `statfs` and the mount table under their own ceiling (`host_section`).
     let section: String = filesystem_section(location.common_directory.as_path(), home);
     if hooks.is_empty() && findings.hooks.is_empty() {
         return Action::Exit {

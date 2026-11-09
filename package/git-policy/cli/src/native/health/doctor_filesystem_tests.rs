@@ -9,6 +9,7 @@ use super::*;
 use crate::action::Action;
 use crate::doctor::{doctor_action, doctor_action_with_section};
 use crate::test_support::{executable, fixture, git_context, remove, repository};
+use std::time::Duration;
 use crate::transaction_git::GitContext;
 use std::os::unix::fs::MetadataExt;
 
@@ -314,4 +315,42 @@ fn the_kernel_command_line_is_split_at_unquoted_spaces() {
     assert_eq!(kernel_value("a\"b c\"d"), "a\"b c\"d", "quotes inside a value stay");
     assert_eq!(kernel_value("\"unterminated"), "unterminated");
     assert_eq!(parse_rootflags("rootflags=\"never closed and more words"), vec![String::from("\"never closed and more words")]);
+}
+
+/// A read of the host's facts that never answers,
+/// as one on a mount whose server stopped answering does not.
+///
+/// The thread parks, so it spends no processor time while it waits: this is a stall, not a load.
+fn stalled_host_facts(_common_directory: &Path) -> String {
+    loop {
+        std::thread::park();
+    }
+}
+
+/// What:
+///  A read of the host facts that never answers ends at its ceiling with one line that says so.
+/// Why:
+///  `statfs` and the mount table wait in the kernel on a mount whose server stopped answering,
+/// and the owner's rule is
+///  "nothing should ever wait forever or indefinitely".
+/// The line matters as much as the bound: a section silently
+///  left out would read as "nothing to say about this file system".
+#[test]
+fn a_stalled_host_facts_read_gives_up_at_its_ceiling() {
+    let parent: PathBuf = fixture("doctor-filesystem-stalled");
+    let repo: PathBuf = repository(parent.as_path(), "repo");
+    let named: PathBuf = repo.join(".git");
+    let (done, finished) = std::sync::mpsc::channel::<String>();
+    let worker = std::thread::spawn(move || {
+        let section: String = host_section_with(stalled_host_facts, Duration::from_millis(50), named.as_path());
+        let _sent = done.send(section);
+    });
+    // The worker is left behind on purpose: a read that never answers has no end, and the test process ends it.
+    let answered: Result<String, _> = finished.recv_timeout(Duration::from_secs(10));
+    let _abandoned = worker;
+    let section: String = answered.unwrap_or_else(|_| { panic!("the host facts never returned, so a mount that stopped answering holds the report forever") });
+    assert!(section.starts_with(SECTION_MARKER), "{section}");
+    assert!(section.contains("could not be read within"), "{section}");
+    assert!(section.ends_with('\n'), "{section}");
+    remove(parent.as_path());
 }

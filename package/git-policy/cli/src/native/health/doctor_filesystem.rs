@@ -37,6 +37,10 @@
 use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
 use crate::shell_quote::shell_quote;
+/// The ceiling of a read of the host's facts.
+use crate::wait_ceilings::REPORT_SCAN_CEILING;
+/// The job of such a read, run on a thread of its own.
+use crate::work_awaited_within_a_ceiling::work_within;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 
@@ -383,6 +387,26 @@ pub fn render_section(facts: &FilesystemFacts) -> String {
 /// const section = hostSection(commonGitDirectory);
 /// ```
 pub fn host_section(common_directory: &Path) -> String {
+    return host_section_with(section_of_the_host, REPORT_SCAN_CEILING, common_directory);
+}
+
+/// What:
+///  The section's own facts read:
+/// the checkout's file system kind,
+/// its subvolume state,
+/// its mount and the kernel
+///  command line,
+/// for the repository whose common Git directory is given;
+/// empty when that directory is not a `.git` directory or its
+///  file system cannot be identified.
+/// Why:
+///   This is the read the ceiling is placed on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const sectionOfTheHost = (commonDirectory) => { ... };
+/// ```
+fn section_of_the_host(common_directory: &Path) -> String {
     let is_git_directory: bool = match common_directory.file_name() {
         Some(name) => name == ".git",
         None => false,
@@ -394,6 +418,45 @@ pub fn host_section(common_directory: &Path) -> String {
     return match gather_facts(root) {
         Some(facts) => render_section(&facts),
         None => String::new(),
+    };
+}
+
+/// What:
+///  What one read of the host's facts answers,
+/// as a function pointer,
+/// so a control can stand a read that never answers where the file system stands.
+/// Why:
+///  `statfs`,
+/// the subvolume check and the mount table wait in the kernel on a mount whose server stopped
+///  answering,
+/// so the read is a value the section is given rather than a call it makes itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HostFactsRead = (commonDirectory: string) => string;
+/// ```
+pub type HostFactsRead = fn(&Path) -> String;
+
+/// What:
+///  `host_section` with the facts read and the ceiling given.
+/// Why:
+///   A read that gives no answer within the ceiling becomes one line that says so,
+/// because a report that
+///  silently left the section out would read as "nothing to say about this file system".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hostSectionWith(sectionOfTheHost, REPORT_SCAN_CEILING, commonGitDirectory);
+/// ```
+pub fn host_section_with(reader: HostFactsRead, ceiling: std::time::Duration, common_directory: &Path) -> String {
+    let named: PathBuf = common_directory.to_path_buf();
+    let read: Option<String> = work_within(ceiling, move || { return reader(named.as_path()); });
+    return match read {
+        Some(text) => text,
+        None => format!(
+            "{SECTION_MARKER} the host facts of {} could not be read within {ceiling:?}, so nothing is said about its file system\n",
+            common_directory.display()
+        ),
     };
 }
 

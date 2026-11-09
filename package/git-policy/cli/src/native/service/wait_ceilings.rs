@@ -573,6 +573,50 @@ pub const REVIEW_CEILING: Duration = Duration::from_secs(2 * 60);
 /// 7 s.
 pub const SHORT_EXTRA_WAIT: Duration = Duration::from_secs(7);
 
+/// The longest the optional configuration warning of a commit may take to reach the stream it is written to.
+///  The warning is written on the commit's preparation path before the request is submitted,
+/// and a stream whose reader
+///  has stopped draining waits in the kernel until it resumes.
+/// Owner,
+/// 2026-11-03:
+/// "nothing should ever wait forever or indefinitely",
+/// with the commit delta the
+///  owner allows at 5,000 ms (`native:perf`, "commits vs native git should not take 5s longer"),
+/// so this value leaves
+///  4,750 ms of that slack untouched.
+///  Measured on this host,
+/// 2026-11-09:
+/// writing one line of 1 KiB to a pipe whose reader drains it took
+///  0.006 ms at the median and 3.6 ms at the slowest of 200 writes,
+/// so 250 ms is about 39,000 times the median and 69 times
+///  the slowest of them.
+/// A write that is still waiting at this value is abandoned and logged;
+/// the commit goes on,
+///  because the line
+///  is optional beside the command's own result.
+pub const WARNING_WRITE_CEILING: Duration = Duration::from_millis(250);
+
+/// The longest a read of the health report's own file system facts may take:
+/// the hook directories it scans,
+/// the shim
+///  files it compares,
+/// and the checkout's `statfs` and mount table.
+///  Those calls wait in the kernel on a mount whose server has stopped answering,
+/// and the owner's rule is
+///  "nothing should ever wait forever or indefinitely".
+/// Doctor runs on request,
+/// never on the commit path,
+/// so its
+///  ceiling may be generous;
+/// what it must not do is wait with no end.
+///  Measured on this host,
+/// 2026-11-09:
+/// listing 50 entries of a hooks directory and statting each took 0.36 ms at the
+///  median and 0.79 ms at the slowest of 200 scans,
+/// so 5 s is about 14,000 times the median and 6,300 times the
+///  slowest of them.
+pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
+
 /// The ceilings are derived and checked as controls in the test module.
 #[cfg(test)]
 #[path = "wait_ceilings_tests.rs"]

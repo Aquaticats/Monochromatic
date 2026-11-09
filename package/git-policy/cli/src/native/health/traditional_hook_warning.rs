@@ -30,6 +30,11 @@ use crate::diagnostics::render_configuration_warning;
 use crate::config_snapshot::ConfigSnapshot;
 /// The name of the absent hooks directory the wrapper's own overrides use.
 use crate::hooks_off::NO_HOOKS_DIRECTORY;
+/// The longest this optional line may take to reach the stream it is written to.
+use crate::wait_ceilings::WARNING_WRITE_CEILING;
+/// The job run on a thread of its own,
+/// awaited no longer than that ceiling.
+use crate::work_awaited_within_a_ceiling::work_within;
 use crate::shadow_git::{SHADOW_NO_HOOKS_NAME, SHADOW_ROOT_NAME};
 /// How the wrapper names its transaction directories.
 use crate::random_id::is_canonical_uuid;
@@ -161,22 +166,34 @@ pub fn traditional_hooks_warning(snapshot: Option<&ConfigSnapshot>) -> Option<St
 ///   The command's exit status already carries its result,
 /// so a stream that refuses the line is logged and the
 ///  command goes on.
+///  A stream whose reader has stopped draining waits in the kernel with no end,
+/// and this line sits on
+///  the commit's preparation path,
+/// so the write runs on a thread of its own and the command waits for it no longer
+///  than `WARNING_WRITE_CEILING`.
+/// A line still waiting then is left behind and logged;
+/// the commit goes on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const line = traditionalHooksWarning(snapshot); if (line !== undefined) stream.write(line);
+/// const line = traditionalHooksWarning(snapshot); if (line !== undefined) writeWithin(WARNING_WRITE_CEILING, stream, line);
 /// ```
-pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: &mut impl Write) {
+pub fn warn_traditional_hooks(snapshot: Option<&ConfigSnapshot>, stream: impl Write + Send + 'static) {
     let Some(line) = traditional_hooks_warning(snapshot) else {
         return;
     };
-    // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
-    let written: std::io::Result<()> = match stream.write_all(line.as_bytes()) {
-        Ok(()) => stream.flush(),
-        Err(error) => Err(error),
-    };
-    if let Err(error) = written {
-        debug(TAG, format!("the warning could not be written: {error}").as_str());
+    let delivered: Option<std::io::Result<()>> = work_within(WARNING_WRITE_CEILING, move || {
+        let mut target = stream;
+        // The stream is flushed only after the line was written, as `.and_then(...)` ran it.
+        return match target.write_all(line.as_bytes()) {
+            Ok(()) => target.flush(),
+            Err(error) => Err(error),
+        };
+    });
+    match delivered {
+        Some(Err(error)) => debug(TAG, format!("the warning could not be written: {error}").as_str()),
+        Some(Ok(())) => {}
+        None => debug(TAG, format!("the warning was not written within {WARNING_WRITE_CEILING:?}").as_str()),
     }
 }
 

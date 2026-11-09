@@ -532,6 +532,12 @@ the commit path only warns when `core.hooksPath` is configured and never scans a
 - It does not load configuration,
   recover transactions or take a lock,
   and it changes nothing.
+  Each file system read of it (the hook directories,
+  the shim files and the host facts of the filesystem section)
+  is awaited for at most the `REPORT_SCAN_CEILING` of `service/wait_ceilings.rs`,
+  so a mount that stops answering cannot hold the command:
+  a read that gives no answer makes the command say which read it was and carries on,
+  with status `2` for a hooks directory and one line of standard error for the host facts.
 
 ## Lifecycle
 
@@ -5780,6 +5786,10 @@ The trigger is the configuration snapshot the commit reads once for its other ne
 the commit starts no process and makes no file system call for this warning,
 so a repository without the setting pays nothing,
 and the hooks directory is not scanned on the commit path.
+The line is delivered on a thread of its own and awaited for at most the `WARNING_WRITE_CEILING` of
+`service/wait_ceilings.rs`,
+so a standard error whose reader has stopped draining cannot hold the commit:
+a line still waiting at that ceiling is abandoned and logged.
 The wrapper's own per-transaction `core.hooksPath` overrides (`<tx>/hooks` and `<tx>/no-hooks`),
 which reach commands that config hooks start,
 never trigger it.
