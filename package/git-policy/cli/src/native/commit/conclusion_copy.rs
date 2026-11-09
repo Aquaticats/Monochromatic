@@ -18,7 +18,7 @@
 /// Names and helpers the landing side already uses.
 use crate::conclusion_cleanup::{
     CONCLUSION_COPY_DIRECTORY, CONCLUSION_STATE_FILES, SEQUENCER_DIRECTORY, STORE_RECORD_FILENAME,
-    is_store_held, resolve_pseudoref,
+    is_store_held, resolve_pseudoref, store_names_conclusions,
 };
 /// Private file writes and directory creation.
 use crate::private_storage::{create_private_directory, write_private_file};
@@ -168,11 +168,16 @@ pub fn copy_conclusion_state(
             write_private_file(copies.join(name).as_path(), bytes.as_slice()),
         )?;
     }
-    let record: String = store_held.finish();
-    io_step(
-        "writing the store-held record",
-        write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{record}\n").as_bytes()),
-    )?;
+    // The record names the conclusion values this backend's ref store holds. A files backend holds none, so the record
+    // would say nothing there and its whole cost is a flush of the disk that every commit then waits for: it is not
+    // written, and an absent one is that state (see `store_names_conclusions`).
+    if store_names_conclusions(ref_format) || !store_held.is_empty() {
+        let record: String = store_held.finish();
+        io_step(
+            "writing the store-held record",
+            write_private_file(copies.join(STORE_RECORD_FILENAME).as_path(), format!("{record}\n").as_bytes()),
+        )?;
+    }
     let sequencer: PathBuf = git_dir.join(SEQUENCER_DIRECTORY);
     if recovery_step(path_present(sequencer.as_path()))? {
         io_step(
