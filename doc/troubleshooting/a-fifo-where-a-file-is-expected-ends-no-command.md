@@ -308,6 +308,15 @@ same scripts:
   (`rc=0`,
   16.1 s).
 
+Run again after merging `main` on 2026-11-09 (commit `84294c24f7`'s tree,
+built fresh),
+the same three scripts end the same way:
+`repro-01` `rc=0` in 0.0 s with the branch moved,
+`repro-02`'s configured variant at `rc=2` in 0.1 s,
+0.1 s and 0.0 s,
+and `repro-05` with the wrapped `add` ended and the wrapped `commit` ended before the script's 130 s check,
+the service with no thread in `wait_for_partner`.
+
 The bound is in the harness as well as the code:
 each control runs the read inside `finished_within` (five seconds) so a regression fails instead of hanging the
 suite.
@@ -352,8 +361,17 @@ on the commit,
 merge and worktree paths
 (`src/native/{landing,invocation,command,merge,worktree,lock,policy,repo_read,push,repair,service,binary,process}`,
 tests excluded):
-154 plain `File::open`,
-`std::fs::read` and `std::fs::read_to_string` calls.
+155 plain `File::open`,
+`std::fs::read` and `std::fs::read_to_string` calls,
+counted on 2026-11-09 with:
+
+```bash
+# in package/git-policy/cli/src/native
+rg -n 'std::fs::read\(|std::fs::read_to_string\(|File::open\(' \
+  --glob '!**/*_tests.rs' --glob '!**/testing/**' --glob '!**/*_test_support.rs' \
+  landing invocation command merge worktree lock policy repo_read push repair service binary process | wc -l
+```
+
 They fall into these groups:
 
 - `/proc` and `/sys` reads (process tables,

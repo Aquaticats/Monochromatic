@@ -123,22 +123,6 @@ pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
 }
 
 /// What:
-///  The plain file `path` names,
-///  opened without blocking and following a link,
-///  and refused when the open handle is a named pipe,
-/// a device or a directory.
-/// Why:
-///   See `read_plain_file_through_links`.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function openPlainFileThroughLinks(path: string): File; // throws
-/// ```
-pub fn open_plain_file_through_links(path: &Path) -> std::io::Result<std::fs::File> {
-    return opened_plain(path, Links::Followed);
-}
-
-/// What:
 ///  The bytes of the plain file at `path`,
 ///  read through the open `links` makes,
 ///  and refused when it is larger than `limit`.
