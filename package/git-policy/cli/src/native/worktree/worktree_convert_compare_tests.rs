@@ -160,6 +160,49 @@ fn a_same_size_edit_with_the_time_put_back_is_a_difference() {
     remove(root.as_path());
 }
 
+/// How far after an edit the proving pass of a control is recorded as having finished.
+/// Why:
+///  The edit and the pass read the same clock,
+/// so the margin puts the pass after the edit whatever the clock's resolution is,
+/// which is the sequence the review describes.
+const PROOF_MARGIN_MS: i64 = 1_000;
+
+/// What:
+///  An edit of the same length whose modification time was put back is a difference even when it was made before the
+///  proving pass started.
+/// Why:
+///   The comparison skipped the contents of a file whose change time was older than the proof,
+/// because the proving pass
+///  set the copy's own change time before that instant;
+/// an edit made after the first copy and before the pass leaves a
+///  change time older than the proof,
+/// so the old tree was declared equivalent and the only copy of the edited bytes was
+///  deleted with it.
+/// The third review of this route names it.
+#[test]
+fn a_same_size_edit_before_the_proving_pass_is_still_a_difference() {
+    let (root, old, installed) = twin_trees("compare-before-the-proof");
+    let file: PathBuf = old.join("dir/file");
+    let before: std::fs::Metadata = std::fs::metadata(&file).expect("metadata");
+    let mut edited: Vec<u8> = std::fs::read(&file).expect("bytes");
+    edited[0] = b'D';
+    std::fs::write(&file, &edited).expect("an edit of the same length");
+    std::fs::OpenOptions::new().write(true).open(&file).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back");
+    let proved_at: i64 = crate::worktree_convert_journal::now_milliseconds() + PROOF_MARGIN_MS;
+    let difference: String = first_difference_after(old.as_path(), installed.as_path(), Some(proved_at)).expect("compared").expect("a difference");
+    assert!(difference.contains("dir/file") && difference.contains("contents"), "{difference}");
+    assert_eq!(std::fs::read(&file).expect("old"), edited, "the old tree still holds the edited bytes");
+    // An edit made after the instant the proof finished is named as one made after the proof, which is what tells a person
+    // reading the report whether the copy or the edit came first.
+    let proved_before_it: i64 = crate::worktree_convert_journal::now_milliseconds() - PROOF_MARGIN_MS;
+    edited[0] = b'E';
+    std::fs::write(&file, &edited).expect("a later edit of the same length");
+    std::fs::OpenOptions::new().write(true).open(&file).expect("open the edited file").set_times(std::fs::FileTimes::new().set_modified(before.modified().expect("modified"))).expect("put the time back again");
+    let later: String = first_difference_after(old.as_path(), installed.as_path(), Some(proved_before_it)).expect("compared").expect("a difference");
+    assert!(later.contains("dir/file") && later.contains("after the copy was proved"), "{later}");
+    remove(root.as_path());
+}
+
 /// What:
 ///  A mode change of the old root directory itself is a difference.
 /// Why:
