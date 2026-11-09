@@ -520,6 +520,85 @@ await describe({
               },
             },),
             it({
+              name: 'denies a commit in a command string that follows the lock file',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `flock /tmp/repo.lock -c '${FIXTURE_REAL_GIT_PATH} commit -m x'`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a read-only probe whose words follow a lock command string',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`flock -c '${FIXTURE_REAL_GIT_PATH} branch' /tmp/repo.lock`,),)
+                  .toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a watch program whose argument spells a command separator',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `watch --exec printf '%s\\n' '; ${FIXTURE_REAL_GIT_PATH} commit'`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit behind the watch exec option',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`watch -x ${FIXTURE_REAL_GIT_PATH} commit`,),).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a command word after a mask that looks hexadecimal',
+              fn: async ({ expect: e, },) => {
+                e(await fixtureMutates(`taskset 1 cc ${FIXTURE_REAL_GIT_PATH} commit`,),).toBe(false,);
+              },
+            },),
+            it({
+              name: 'allows a find command whose arguments spell a batching word',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    String.raw`find . -exec printf '%s\n' + -exec ${FIXTURE_REAL_GIT_PATH} commit \;`,
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside a shell a unit starts without a search path',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --user -E PATH=${FIXTURE_REAL_GIT_DIRECTORY} -- sh -c 'git commit -m x'`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'denies a commit inside a shell a unit starts without a search path by long option',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    `systemd-run --user --setenv=PATH=${FIXTURE_REAL_GIT_DIRECTORY} -- sh -c 'git commit -m x'`,
+                  ),
+                ).toBe(true,);
+              },
+            },),
+            it({
+              name: 'allows a commit inside a shell a unit starts with another variable set',
+              fn: async ({ expect: e, },) => {
+                e(
+                  await fixtureMutates(
+                    "systemd-run --user -E HOME=/root -- sh -c 'git commit -m x'",
+                  ),
+                ).toBe(false,);
+              },
+            },),
+            it({
               name: 'denies a commit inside the command string watch runs',
               fn: async ({ expect: e, },) => {
                 e(await fixtureMutates(`watch '${FIXTURE_REAL_GIT_PATH} commit -m x'`,),).toBe(true,);
