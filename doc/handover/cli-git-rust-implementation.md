@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:29:17-05:00)
+#### Reviews and landings in progress (2026-11-09T04:30:59-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -221,7 +221,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   with the owner's "Log only" for `git worktree remove` and "Allow,
   add audit line" for `git branch -D`.
   On top of main 678 of 678 selected tests and 15 of 15 `discard::` binary tests pass,
-  and the review `discarding-commands-round-1` is running.
+  and the review (`${HOME}/temp/agent/reviews/discarding-commands-round-1-sol.txt`) names three ways an ignored or excluded file is still deleted with the audit saying clean,
+  among them a forced checkout and an alias,
+  and five smaller defects,
+  among them a removal whose audit can block for ever on a FIFO.
+  Not ready to merge.
+  It waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `discarding-commands-findings-fixed` as run 2,
+  with `discarding-commands-round-2-prompt.md` and the session file named in run 1's `summary.json`.
   One visible change:
   `git clean -fdx` is refused in a linked worktree that has ignored files,
   such as one with `node_modules`.
@@ -381,8 +389,9 @@ The old tree kept for the rollback stays until the owner deletes it.
   The test `a_running_renewal_renews_the_held_claims_until_it_is_dropped` compares against a snapshot taken before the drop,
   which went to the inbox of `controls-witness-their-race-by-ordering`.
 - `doc/planning/cli-git-repo-read-and-index-route-findings-on-main.md` names two defects in the in-process readers.
-  The branch `fix/git-policy-cli-readers-match-git-on-extensions-and-ref-names` fixes both and bounds an interrupted read.
-  459 of 459 selected tests pass on top of main,
+  The fixes landed on main as `f8f2043a9c`,
+  and they also bound an interrupted read.
+  459 of 459 selected tests passed on top of main,
   and the cross-vendor review (`${HOME}/temp/agent/reviews/repo-read-round-1-sol.txt`) names one difference,
   which it did not run:
   a hand-altered `IEOT` version where Git prints an error and the reader stays silent.
@@ -391,6 +400,11 @@ The old tree kept for the rollback stays until the owner deletes it.
   and 0.34 ms against 3.9 ms on a small one.
   A follow-up makes the listing cheaper or leaves large repositories to Git,
   and closes the `IEOT` difference.
+  It waits for a free agent slot,
+  since all twenty are taken:
+  start the run `reader-ref-listing-cost` from main,
+  on `fix/git-policy-cli-reader-ref-listing-cost`,
+  with `reader-ref-listing-cost-prompt.md`.
 - `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
   among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
   Its fix landed on main as `3d53f1f46a`,
