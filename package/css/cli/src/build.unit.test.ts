@@ -4,13 +4,14 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import { join, } from 'node:path';
+import { dirname, join, } from 'node:path';
 
 import { buildCss, } from '@monochromatic-dev/css-cli';
 
@@ -69,11 +70,19 @@ async function buildInTempDir({
   await Promise.all(
     Object.entries(files,).map(
       async function writeFixture([relativePath, content,],) {
+        /**
+         Absolute path of the seeded file.
+         */
+        const absolutePath = join(
+          dir,
+          relativePath,
+        );
+        await mkdir(
+          dirname(absolutePath,),
+          { recursive: true, },
+        );
         await writeFile(
-          join(
-            dir,
-            relativePath,
-          ),
+          absolutePath,
           content,
         );
       },
@@ -235,6 +244,44 @@ await describe({
         },),
 
         //endregion Import inlining
+
+        //region Package manifests
+
+        it({
+          name: 'throws naming the manifest when package.json is not parseable',
+          fn: async () => {
+            let caught: unknown;
+            try {
+              await buildInTempDir({
+                files: {
+                  'main.css': "@import 'manifest-pkg/test.css';",
+                  'node_modules/manifest-pkg/package.json': '{ "exports": ',
+                  'node_modules/manifest-pkg/test.css': '.m { color: red; }',
+                },
+              },);
+            }
+            catch (error) {
+              caught = error;
+            }
+            expect(String(caught,),).toContain('node_modules/manifest-pkg/package.json',);
+          },
+        },),
+
+        it({
+          name: 'falls through to the direct file path when package.json is absent',
+          fn: async () => {
+            const result = await buildInTempDir({
+              files: {
+                'main.css': "@import 'manifest-less-pkg/test.css';",
+                'node_modules/manifest-less-pkg/test.css': '.m { color: red; }',
+              },
+            },);
+
+            expect(result,).toContain('.m { color: red; }',);
+          },
+        },),
+
+        //endregion Package manifests
 
         //region Errors
 

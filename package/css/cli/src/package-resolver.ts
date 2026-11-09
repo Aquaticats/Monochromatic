@@ -14,6 +14,7 @@ import {
   existsSync,
   readTextFileSync,
 } from './fs.ts';
+import { CssPackageManifestError, } from './errors.ts';
 import { splitPackageSpecifier, } from './specifier.ts';
 
 //region Package Resolution
@@ -99,10 +100,16 @@ export function findPackageDir({
 
 /**
  Reads and parses a package.json from the given directory.
+ Absence is decided before reading, so a manifest that exists but cannot be
+ read or parsed is reported as such instead of being mistaken for one the
+ package does not have.
  
  @param packageDir - Absolute path to the package directory
  
- @returns Parsed package.json, or {@link PACKAGE_JSON_ABSENT} when missing or unparseable
+ @returns Parsed package.json, or {@link PACKAGE_JSON_ABSENT} when the directory holds no manifest
+ 
+ @throws CssPackageManifestError when a manifest exists but cannot be read or
+ parsed; it names the manifest path and carries the underlying failure
  
  @example
  ```ts
@@ -121,6 +128,9 @@ export function readPackageJson(
       'package.json',
     ],
   );
+  if (!existsSync(packageJsonPath,))
+    return PACKAGE_JSON_ABSENT;
+
   try {
     /**
      Raw JSON text
@@ -130,10 +140,10 @@ export function readPackageJson(
     return JSON.parse(raw,) as Record<string, unknown>;
   }
   catch (error: unknown) {
-    if (Error.isError(error,))
-      return PACKAGE_JSON_ABSENT;
-
-    throw error;
+    throw new CssPackageManifestError({
+      manifestPath: packageJsonPath,
+      cause: error,
+    },);
   }
 }
 

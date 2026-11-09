@@ -1443,6 +1443,9 @@ importers:
 
   package/css/cli:
     dependencies:
+      '@monochromatic-dev/caught-value-core':
+        specifier: workspace:*
+        version: link:../../caught-value/core
       '@monochromatic-dev/css-core-edit':
         specifier: workspace:*
         version: link:../core-edit
