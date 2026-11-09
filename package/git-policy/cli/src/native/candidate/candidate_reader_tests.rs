@@ -249,7 +249,9 @@ fn overlay_selects_the_object_directory() {
 ///  "no `HEAD`" would make a baseline choose the empty tree instead of the real `HEAD`,
 ///  so a staged listing would
 ///  call every file an addition.
-///  The ceiling is the seam: the fixture's commit is ordinary, the ceiling is tiny.
+///  The ceiling is the seam:
+/// the fixture's commit is ordinary,
+/// the ceiling is tiny.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
