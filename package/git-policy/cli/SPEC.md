@@ -2913,6 +2913,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   a push whose connection is open and that shows no sign of work for this long is ended as a stall.
 - `PHASE_PATIENCE` 5 minutes:
   the test marker compiled into the executable ends its pause at the limit of any test.
+- `READ_CEILING` 120 seconds:
+  every read-only Git query of the check path ends at this bound:
+  the candidate listings,
+  the `git add` replay,
+  the real-index query and the rule facts run through the same watch as the service's steps
+  (`repo_read/git_metadata.rs`).
+  It is `PLUMBING_STEP_CEILING`:
+  the longest read step of the service's landings over 1,651 landings was
+  9,663 ms,
+  so two minutes is twelve times it,
+  and the longest client preparation of the commit timing log was 250,280 ms,
+  which is the whole of every read inside it.
+  It is below `ANSWER_CEILING`,
+  so the person hears what blocked the check before the service's own bound.
 - `PLUMBING_STEP_CEILING` 120 seconds and `OBJECT_STEP_CEILING` 10 minutes:
   the longest one Git
   step runs,
@@ -2973,6 +2987,23 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
 
 What happens at the bound,
 on the commit path:
+
+- A check-path Git read that reaches `READ_CEILING` is ended,
+  and the check that needed it fails with `content-unavailable`,
+  naming the read (the Git program and its subcommand,
+  never a pathname),
+  the bound it reached (the quiet window before the ceiling,
+  or the ceiling itself) and that the index,
+  the worktree and the staged changes are as they were,
+  with the hint of a stopped read rather than the hint of content that is missing from the clone
+  (`STOPPED_READ_HINT`,
+  `policy/policy_events.rs`):
+  the bound's "Return with an error",
+  not a rejected commit,
+  and the person runs the command again.
+  A read that answers is untouched:
+  the watch ends nothing that shows work,
+  and it ends nothing before the ceiling.
 
 - The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
   At the bound the batch is withdrawn before the branch
@@ -5166,6 +5197,32 @@ the input and the origin's branch at the moment it ran)
 and `src/native/binary/binary_lfs_server_tests.rs`
 (the real `git-lfs` against an LFS server written inline in the test).
 
+### Candidate content
+
+A policy reads a candidate's bytes from the object the index names,
+never from the worktree,
+so an edit after staging cannot change what it checks.
+One object is read whole only up to 32 MiB (`CONTENT_CEILING`,
+with its measurement beside it in
+`candidate/candidate_batch.rs`):
+above that the reply is consumed through a 64 KiB buffer and thrown away,
+the object is never held,
+and the reader stays in step for the next request.
+The check then reports `policy-incomplete`,
+an engine failure naming the file,
+the object and both sizes,
+and the pass goes on:
+such a finding never blocks the command,
+so a large asset costs a skipped check that names itself,
+never a commit that fails.
+The ceiling is 1.57 times the largest file this repository tracks (20,453,084 bytes),
+so no content committed here is skipped.
+It bounds the bytes a check reads whole,
+never a reply's type field:
+a `HEAD` commit larger than
+the ceiling still names its commit,
+so a staged listing compares against the real `HEAD` and not the empty tree.
+
 ### Direct check
 
 Use worktree bytes selected by explicit pathspecs or `--all`.
@@ -5186,6 +5243,193 @@ Run the fix again.
 Emit final findings and one fix summary to stdout.
 A patch targeting an unselected tracked file adds it under the "Added paths" precondition;
 its original worktree bytes for the concurrent-change check are the verified `HEAD` blob.
+
+#### What an install keeps
+
+Each corrected file is written into a journal inside the Git directory and then swapped with the
+file through `renameat2(RENAME_EXCHANGE)`,
+so the corrected bytes go in while the file they displaced stays
+readable:
+
+- the corrected bytes are created with the destination's own permission bits and owner,
+  so a file kept at `0600` stays private and the set-user-id,
+  set-group-id and sticky bits survive;
+  the owner is
+  given before the bits,
+  because changing a file's owner clears those bits even when the owner
+  and group stay the same;
+  an owner this process may not give is refused rather than handed over,
+  and the comparison is against what the
+  replacement actually carries,
+  read from its own descriptor,
+  never against the process's credentials:
+  a directory with its set-group-ID bit gives every new file that directory's group,
+  so a
+  `0640` file would otherwise change which group may read it;
+- the bytes the swap displaced are read after the swap,
+  when nothing can overwrite them any more,
+  and compared with what the fix read,
+  permission bits and owner included;
+  a difference swaps them
+  back and fails the fix,
+  so a write or a permission change that arrived while the fix ran is kept
+  rather than replaced;
+- a selected path that is not a regular file - a symbolic link,
+  a directory,
+  a device - is refused
+  instead of replaced,
+  and a path that is gone is refused rather than created;
+- rollback swaps first and then judges what the swap took out of the file,
+  which is now at a name this
+  command owns:
+  bytes,
+  permission bits,
+  owner and file kind,
+  never through a symbolic link.
+  Only bytes that are
+  this fix's replacement let the journal go;
+  anything else - a save that landed beside the swap,
+  a file the
+  person narrowed,
+  a link they put at the path - stays in the journal and is named,
+  and the file is left
+  holding the bytes the fix displaced;
+- a site whose displaced file no longer holds what the fix read is read once more before its
+  journal is removed,
+  so a write that arrived through an already-open descriptor is kept and named,
+  and a journal the fix
+  cannot remove is named rather than reported as a success that says nothing.
+
+What a replacement does not carry is its extended attributes and access-control list,
+its inode number and birth time,
+and its share of a hard link,
+whose other name keeps the bytes it had.
+
+The window that remains is two file system calls wide,
+not the length of a pass:
+a descriptor write that arrives after the last reading of the displaced file and
+before its journal is removed is lost,
+which every atomic replacement has,
+and a write to the path after the swap
+replaces the corrected bytes,
+which is the newest state the person asked for.
+When the first is hit the person
+loses that one write and nothing of the file's earlier state;
+when a write is caught before that reading,
+it is on
+disk in the journal the message names.
+A rollback has no such window of its own:
+it decides nothing by reading the destination.
+
+Git loses that same write on its own file replacement,
+so this is not a cost the wrapper adds.
+Read in `git/git` at `master` on 2026-11-09:
+`entry.c`'s `checkout_entry_ca()` takes
+`changed = ie_match_stat(...)` of the file it would write,
+and with `state->force` set - which
+`git checkout -- <path>` and `git checkout <commit> -- <path>` use to discard local changes - it
+runs `unlink(path.buf)` under the comment "We unlink the old file,
+to get the new one with the right
+permissions (including umask,
+...)";
+`write_entry()` then opens the name with `create_file()`,
+which is
+`open(path, O_WRONLY | O_CREAT | O_EXCL, mode)`.
+A writer holding the old inode therefore writes
+into an unlinked file there too,
+and loses that write when its descriptor closes.
+The path that takes
+an explicit output name (`to_tempfile`,
+as `git checkout-index --temp` uses) writes `mkstemp` and
+renames,
+which orphans the old inode in the same way.
+
+#### The journal, and what a later fix does with it
+
+One journal directory per corrected file,
+`<git dir>/cli-git-direct-fix-<suffix>/`,
+`0700`,
+holding the corrected bytes (`content`) and
+a record of the file (`record`:
+its pathname,
+permission bits,
+owner,
+the writer's owner token,
+and the
+digest of the corrected bytes).
+The record is written before the file is touched.
+The Git directory is the
+worktree's own,
+from `known_git_dir`,
+never the parent of an alternate index a caller named:
+`GIT_INDEX_FILE`
+can point inside the worktree,
+and its parent is then a directory a later `git add --all` stages.
+A fix that
+cannot learn that directory refuses with `NO_GIT_DIR_MESSAGE` instead of guessing,
+and a worktree whose
+Git directory is on another file system is refused before anything is written,
+because the swap needs
+both names on one file system.
+Nothing of a fix lives in the worktree,
+so no `gitignore` rule can
+expose a leftover and no `git add` can stage one.
+
+Every settled `fix` sweeps the journals of that Git directory,
+before it decides whether anything
+needs correcting,
+and acts only on a proof that the writer is gone
+(the crate's existing owner proof).
+The
+sweep never exchanges two files:
+a recovery that swapped would need a proof that the exchange it is undoing
+happened,
+and the destination's bytes are not that proof,
+a reading of the destination is not a licence
+to swap,
+and two recoveries can exchange one journal twice.
+So the one removal is the one the record
+proves,
+by the same judgement the rollback makes of a file it took out of a swap:
+`content` is a regular file,
+read without following a symbolic link,
+whose bytes hash to the recorded replacement and whose permission bits and owner are the ones the
+record names.
+A digest alone would take a file the person saved with the correction's own bytes,
+or the same
+bytes narrowed to `0600`,
+for the fix's own and discard what they chose.
+A name that is not a regular
+file is never opened at all:
+the swap moves whatever stood at the destination into the journal,
+and opening a
+FIFO that no process writes to waits for ever,
+so the type is read first - here,
+in `read_record`,
+and in the
+judgement every other read of this route goes through.
+Everything else stays and is named on every later
+`fix`:
+the person's bytes wait in the named journal until they act on it,
+and no command decides for them
+which of two versions belongs at the path.
+
+What the sweep found reaches the person on every path out of a settled fix,
+not only on the one that
+installs:
+a fix whose installation fails,
+and one that cannot find the worktree or the Git directory,
+report the
+notices beside their own failure,
+because the path in a notice is the only place the person finds the edit an
+interrupted fix displaced.
+
+No lock stands in this route:
+the lock inventory guard covers `candidate/`,
+`policy/`,
+`markdown/`,
+`standards_review/` and `commit/`,
+and a lock there must be listed with its reason beside it.
 
 ## Policy order and stopping
 
@@ -6721,6 +6965,32 @@ It uses:
   the service then answers that the content is unavailable,
   the wrapper prepares once more,
   and a second loss ends the commit with a plain message that says what happened.
+
+The `git add` prediction copies the real index into
+`<git-dir>/cli-git-add-policy-<pid>-<nanoseconds>-<count>`,
+`0700`,
+on the same file system as the real index,
+with the real index's access and modification times.
+The copy is built under a staging name,
+`cli-git-add-policy-<suffix>.making`,
+with its `owner` record already inside it - the writer's process id,
+the platform's identity of its birth
+and its PID namespace - and one `rename` publishes it under the name a sweep visits,
+so a copy this
+release publishes always names its writer.
+The command removes the directory on every path it ends by;
+every copy made later sweeps the directory it is created in and removes a copy only when its
+record proves the owner gone
+(a dead process id in this PID namespace,
+a reused id kept,
+an owner of another namespace alive until its record outlives the foreign-owner patience).
+A copy with no record is kept,
+whatever its name says,
+because a process id means something only inside its own PID namespace:
+another namespace's live command looks exactly like a dead one from here,
+and removing its copy makes it fail while it copies or reads the index.
+No lock protects the sweep:
+a copy has one writer and only a proven-dead writer's copy is removed.
 
 #### Maintenance that may run while a commit is made
 
