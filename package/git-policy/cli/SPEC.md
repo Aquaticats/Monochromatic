@@ -1986,6 +1986,14 @@ the hold retry that runs the command again while the service holds the index,
 its fallback when no place for the kept output could be made,
 and `from_forwarded` keep the signal,
 and `run_coordinated_action` ends by it through `end_as_git_ended`.
+A signal this process blocks is unblocked before it is raised,
+in the calling thread,
+which is the thread `raise` signals:
+a parent that blocked the signal before the wrapper ran left it pending and the wrapper exited
+normally with the status a shell prints for the death (finding 5 of the round-3 review).
+Test:
+`a_blocked_terminating_signal_still_ends_by_it`.
+
 The plain child route is one of those:
 a command the wrapper may not run again (`git add --patch`) starts its Git once,
 through `run_plain`,
@@ -3533,15 +3541,22 @@ and
   and an interrupted upgrade then writes the newer files without a reload,
   which leaves the files and the record agreeing while the manager runs the release they replaced.
   The client knows:
-  a service that answers was started from another release and will not retire is proof that the
-  unit the manager loaded and the files on disk disagree,
+  another release answering at all is proof that the unit the manager loaded and the files on disk
+  disagree,
   so `reach_current` drops the record
-  (`units_record_dir` in the client's settings),
-  and the next commit writes the units and asks for the reload.
-  The message now says so,
+  (`units_record_dir` in the client's settings) the moment it first sees that answer,
+  not at the retirement deadline:
+  a service that takes the retire and leaves can be followed by a manager trying a cached executable
+  an upgrade removed,
+  which ends the wait with `DidNotStart` and never reaches the deadline
+  (finding 3 of the round-3 review).
+  The next commit then writes the units and asks for the reload.
+  The message says so,
   and names the restart for a service that still will not stop.
-  Test:
-  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`.
+  Tests:
+  `a_service_of_another_release_that_will_not_stop_drops_the_record_of_the_units`,
+  and
+  `a_service_of_another_release_that_takes_the_retire_and_never_returns_drops_the_record`.
 
 
 #### Commands that add commits
@@ -4991,25 +5006,47 @@ the options weighed and the controls.)
   every start of real Git writes the marker it gives that Git into the file,
   and the file records the path it chose,
   and every child inherits the descriptor.
-  A wrapper that finds no marker anywhere reads that record:
-  a marker whose start was its own process is the launcher that replaced itself with it,
-  and one whose start was the process that started it is the launcher that waits for it,
-  and either is refused with the words the guard already writes,
-  naming the file the record kept.
-  A record naming any other process is a command that has ended,
+  A wrapper reads that record after any marker that does not refuse it,
+  including one an ancestor still holds:
+  a launcher that replaces itself with the wrapper leaves its marker only in the record,
+  and the older marker above names the outer start and matches nothing,
+  so reading the record only when no marker exists let the process start itself without end
+  (finding 1 of the round-3 review).
+  The record continues the chain when its start is this process or a live process above it,
+  four levels deep,
+  which covers a launcher a relay and the relay's own shell (finding 2);
+  a record naming any other process is a command that has ended,
   so its count starts again at one and a long session of one command after another is never refused.
+  A read of the wrapper's own continues the chain from any process of it,
+  as the marker path refuses it from any process,
+  or the branch a relay starts from a recorded read would be uncounted.
+  A record whose start is further above than four processes starts the count again:
+  that is the shape this bound does not count,
+  and it is written here rather than closed.
   A memory file has no directory entry and no name to sweep:
   the kernel frees it with the last process that holds it,
-  and the guard reads it only when no marker exists,
   so a marked start costs nothing.
+  What the record must never be is one of the three descriptors a child reads and writes as its
+  streams:
+  `memfd_create` takes the lowest free number,
+  which is `0` when standard input is closed,
+  and the wrapper then wrote its marker into it and a child hashed the marker as its input
+  (finding 4 of the round-3 review);
+  the record is moved to `F_DUPFD 3` and the number the kernel gave is closed,
+  so a stream that was closed stays closed.
   The record costs nothing a forwarded command can feel:
   measured by alternating two builds that differ only in it,
   300 pairs,
   paired median −0.02 ms,
   mean −0.04 ms,
   against a 6.3 ms median and a spread of 4.4 to 10.3 ms.
-  Test:
-  `a_launcher_that_clears_the_environment_and_replaces_itself_ends_the_chain`.
+  Tests:
+  `a_launcher_that_clears_the_environment_and_replaces_itself_ends_the_chain`,
+  `a_record_of_this_process_is_read_even_when_an_older_marker_sits_above`,
+  `a_record_of_a_live_process_above_continues_the_chain_through_relays`,
+  `a_chain_of_relays_between_two_starts_still_ends`,
+  and
+  `a_record_never_takes_the_descriptor_a_child_reads_as_standard_input`.
 - What a cleared environment still hides:
   a launcher that closes every descriptor it did not open and then `exec`s the wrapper.
   The record is the descriptor,
