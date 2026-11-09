@@ -196,37 +196,49 @@ fn a_tagged_key_stops_the_check_by_line() {
     remove(&fixture);
 }
 
-/// A comment a tab introduces is not part of a package name:
-/// the list item `- app` and the tab and `# published` after it name `app`,
-/// so the check reports its stale version.
+/// A '#' on a list item stops the check with the line that holds it,
+/// instead of reading the item
+///       as a mapping or as another name:
+/// the generator writes no '#' on an item.
 #[test]
-fn a_tab_comment_keeps_the_package_name() {
-    let fixture: Fixture = fixture("dependent-version-tab-comment");
+fn a_hash_on_a_list_item_stops_the_check() {
+    let fixture: Fixture = fixture("dependent-version-item-hash");
     let repo: PathBuf = app_workspace(&fixture);
-    write(
-        repo.as_path(),
-        "package/config/pnpr/config.yaml",
-        concat!(
-            "auth:\n",
-            "  oidc:\n",
-            "    - name: github\n",
-            "      workloads:\n",
-            "        - registry: r\n",
-            "          packages:\n",
-            "            - '@s/base'\n",
-            "            - app\t# published\n",
-        ),
-    );
-    let reported: Observed = run_wrapped(
+    let text: String = concat!(
+        "auth:\n",
+        "  oidc:\n",
+        "    - name: github\n",
+        "      workloads:\n",
+        "        - registry: r\n",
+        "          packages:\n",
+        "            - '@s/base'\n",
+        "            - app # publication: enabled\n",
+    )
+    .to_string();
+    let hashed: usize = text.lines().count();
+    write(repo.as_path(), "package/config/pnpr/config.yaml", &text);
+    let refused: Observed = run_wrapped(
         &fixture,
         repo.as_path(),
         &["monochromatic-git-policy-cli", "check", "--all"],
     );
-    assert_eq!(reported.code, Some(1), "{}", String::from_utf8_lossy(&reported.stdout));
-    let events: String = String::from_utf8_lossy(&reported.stdout).into_owned();
-    assert!(events.contains("\"code\":\"mono/dependent-version-bump/dependent-version-stale\""), "{events}");
-    assert!(events.contains("\"path\":\"package/module/app/package.json\""), "{events}");
-    assert!(!events.contains("app\\t# published"), "{events}");
+    assert_eq!(
+        refused.code,
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+    let events: String = String::from_utf8_lossy(&refused.stdout).into_owned();
+    assert!(events.contains("\"code\":\"policy-incomplete\""), "{events}");
+    assert!(
+        events.contains(
+            format!(
+                "holds a '#' on a list item, where the generated configuration writes none on line {hashed}"
+            )
+            .as_str()
+        ),
+        "{events}"
+    );
     remove(&fixture);
 }
 

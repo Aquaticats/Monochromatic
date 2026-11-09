@@ -58,7 +58,7 @@ use super::lock::Lock;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
-use super::observe::{observe_tool, satisfies_lock};
+use super::observe::{compared_with_lock, observe_tool, satisfies_lock};
 /// Imports `retire_after_install` from `super::sync_old_copies`.
 use super::sync_old_copies::retire_after_install;
 /// Imports `version_matches` from `super::parse_output`.
@@ -223,7 +223,7 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
         // a repository-published tool is never replaced by an older one (it keeps the newest and warns instead).
         if tool.declaration.route != Route::CargoBinstall
             && !is_repository_published(tool)
-            && let Some(warning) = replacement_warning(&tool.declaration.id, &observed, &tool.version)
+            && let Some(warning) = replacement_warning(&tool.declaration.id, &observed, compared_with_lock(tool))
         {
             report.warnings.push(warning);
         }

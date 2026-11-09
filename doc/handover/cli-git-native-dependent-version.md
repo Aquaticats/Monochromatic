@@ -1750,3 +1750,62 @@ removing the named check makes each fail again.
 The 119 `dependent_version` library tests and the 10 binary controls of the
 module pass,
 and the package lint is clean.
+
+## Round: a '#' on a list item, 2026-11-09
+
+The third review found a colon inside a trailing comment turning a package
+item into a mapping
+(`dependent_version_yaml_lines.rs`,
+`split_key`'s plain colon scan).
+Reproduced:
+`- app # publication: enabled` parsed as
+`Sequence([Mapping([("app # publication", Scalar("enabled"))])])`,
+because `parse_sequence` asks `split_key` before `read_scalar` and the colon
+scan ran past the comment.
+`read_publishable_names` then refused that item later,
+`holds a value that is not a package name`,
+so the policy failed closed while the tree was wrong and the diagnostic named
+another cause.
+
+The rule already answers it:
+the template writes no `#` on a list item,
+so such a line is now refused with its line as
+`holds a '#' on a list item, where the generated configuration writes none`
+(`read_lines`,
+after the item-gap check).
+`split_key` also stops its plain colon scan where a comment starts,
+so a colon in a comment names no key for any caller:
+a comment-only line is refused as `holds no key and colon`,
+and a key before the comment still reads.
+
+The controls:
+`dependent_version_yaml_tests.rs::refuses_a_hash_on_a_list_item` and
+`dependent_version_publishable_tests.rs::refuses_a_hash_on_a_list_item`
+were red first
+(the documents were accepted),
+and
+`binary_dependent_version_tests.rs::a_hash_on_a_list_item_stops_the_check`
+reads the same configuration through `check --all`
+and expects exit 2 with `policy-incomplete` and the line.
+That control replaces `a_tab_comment_keeps_the_package_name`,
+and the publishable control replaces `reads_a_comment_a_tab_introduces`:
+round 1 read a tab comment on an item as a name,
+and this round's rule refuses the item instead,
+so the old contract is gone and both are renamed for what they now pin.
+Removing the line check makes both library controls fail again with
+`expected a problem for ...`.
+
+The line reader passed the package linter's 300-code-line limit,
+so its scalar half moved to
+`dependent_version_yaml_lines_scalar.rs`
+(`read_scalar`,
+`plain_body`,
+`holds_a_mapping_colon`,
+`read_quoted`),
+declared by the line reader and re-exported,
+with `read_quoted` shared as `pub(super)`.
+Nothing the policy calls changed name.
+
+120 `dependent_version` library tests and the 10 binary controls of the
+module pass,
+and the package lint is clean.

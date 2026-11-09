@@ -11,8 +11,8 @@ use crate::work_item::WorkKind;
 fn item(branch: &str) -> WorkItem {
     return WorkItem {
         kind: WorkKind::Push,
-        repository: String::from("/srv/repo"),
-        git_dir: String::from("/srv/repo/.git"),
+        repository: PathBuf::from("/srv/repo"),
+        git_dir: PathBuf::from("/srv/repo/.git"),
         branch_ref: branch.to_owned(),
         oid: String::from("0123456789abcdef0123456789abcdef01234567"),
         parent: String::new(),
