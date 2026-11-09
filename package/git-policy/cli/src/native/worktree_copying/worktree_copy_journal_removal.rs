@@ -287,7 +287,7 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
 
 /// What:
 ///  Removes a tree if it exists,
-/// sharing its subtrees among threads.
+/// sharing its subtrees among workers of the blocking pool.
 /// Why:
 ///   An absent tree is the normal answer for a retried removal;
 /// a failed split removal falls back to the plain recursive

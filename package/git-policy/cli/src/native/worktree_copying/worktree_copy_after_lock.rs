@@ -16,8 +16,11 @@
 //! through its one lock (`shared_notice_stream.rs`),
 //! so the person reads the whole report on the
 //!  stream they chose.
-//! The disposal runs there instead of on a thread when the repair has nothing to do,
-//! because a thread
+//! The two are waits of one task of the process's runtime:
+//! each puts its storage work on the blocking pool
+//!  (`side_by_side_on_the_runtime.rs` says why),
+//! and the disposal runs here instead when the repair has nothing to do,
+//! because a wait
 //!  nothing runs beside buys nothing.
 //! The code sits in a file of its own so
 //!  `worktree_copy.rs` stays under the line limit,

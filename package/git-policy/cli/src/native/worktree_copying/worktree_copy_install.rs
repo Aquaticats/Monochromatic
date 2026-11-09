@@ -214,7 +214,7 @@ fn install_batch(
 }
 
 /// What:
-///  The leaves below which a batch's files and links are created on one thread:
+///  The leaves below which a batch's files and links are created by one worker:
 /// `PARALLEL_BREAK_EVEN_ENTRIES`.
 /// Why:
 ///   A large batch spends its time in independent link calls;
