@@ -40,6 +40,7 @@ use crate::transaction_git::{GitContext, GitRequest, run_git};
 use crate::worktree_clean::stored_stats;
 use crate::worktree_path_failure_message::{path_failure, subject_failure};
 use crate::worktree_copy_prune::Prune;
+use crate::worktree_copy_selection::STAGE_PREFIX;
 use crate::worktree_snapshot_source::SnapshotSource;
 pub use crate::worktree_trash_dispose::{PendingTrash, TRASH_REFERENCE, delete_trash, dispose_pending_trash, empty_trash};
 pub use crate::worktree_trash_manifest::{TrashManifest, entry_name, is_trash_name};
@@ -177,13 +178,30 @@ impl Aside {
     }
 
     /// Set one directory aside by renaming it into the trash,
-    /// or remove it when there is no trash;
-    /// `relative` is its path
-    ///  below the snapshot.
+    /// or remove it when there is no trash or when it is another command's stage
+    ///  container;
+    /// `relative` is its path below the snapshot.
+    /// Why:
+    ///   A stage container holds another worktree's ignored state,
+    /// credentials included,
+    /// and it is removed here,
+    ///  before the snapshot is installed,
+    /// because the trash stands inside the new worktree until the emptying runs and a
+    ///  command that runs `git add --all` in that window stages what it holds;
+    /// emptying the trash afterwards does not
+    ///  take those blobs out of the index.
+    /// Everything else still waits for the emptying,
+    /// so the add pays only the
+    ///  container's own removal.
     fn put(&mut self, relative: &Path) -> Result<(), String> {
         let (parent, name): (File, OsString) = self.holder(relative)?;
         let shown: PathBuf = self.stage.join(relative);
-        match self.trash.as_ref() {
+        // A container is removed here and never renamed into the trash: the pattern is None for it either way.
+        let into_trash: Option<&Trash> = match names_the_container(relative) {
+            true => None,
+            false => self.trash.as_ref(),
+        };
+        match into_trash {
             Some(trash) => {
                 let looked: ObjectId = path_failure(identity_at(&parent, name.as_os_str()), shown.as_path(), "cannot be examined")?;
                 let to: String = entry_name(self.entries.len());
@@ -433,6 +451,24 @@ pub fn prune_snapshot(stage: &Path, source: &SnapshotSource) -> Result<Pruned, S
     };
     debug(TAG, format!("{count} directories set aside in {} ({})", stage.display(), if manifest.is_some() { "into the trash" } else { "removed in place" }).as_str());
     return Ok(Pruned { count, trash: manifest });
+}
+
+/// What:
+///  Whether a path below the snapshot names another command's stage container,
+/// by its last component of the
+///  reserved prefix.
+/// Why:
+///   The walk calls the setting-aside step with the container itself,
+/// so the last component is what says whether what it
+///  holds is another command's ignored state.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// path.basename(relative).startsWith(STAGE_PREFIX)
+/// ```
+fn names_the_container(relative: &Path) -> bool {
+    let Some(name) = relative.file_name() else { return false };
+    return name.as_bytes().starts_with(STAGE_PREFIX.as_bytes());
 }
 
 /// What:

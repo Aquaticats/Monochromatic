@@ -609,6 +609,13 @@ Read-only commands,
    Those directories are emptied side by side,
      within the threads and memory the host allows,
      beside the package repair.
+   Another command's stage container is not put in that trash at all:
+     it is removed before the worktree is installed,
+     so
+   nothing it holds is in the new worktree while an `git add --all` could stage it
+     (a container of 20,000 one-kilobyte
+   files takes about half a second to remove on this host,
+     against a tenth of a millisecond to rename).
    Nothing the leave-out set aside is left in the new worktree when the command ends:
      a commit that stops ignoring
    `.claude/cli-git-trash` would otherwise let `git add --all` stage another command's stage container,

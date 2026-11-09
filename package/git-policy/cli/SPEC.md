@@ -1088,6 +1088,26 @@ the identity of the trash directory (device,
 inode and birth time,
 taken when it was
 made) and the identity of each directory moved into it.
+A directory the leave-out set aside as another command's stage container is removed in the foreground,
+before the
+ snapshot is installed,
+and never renamed into the trash:
+a container holds another worktree's ignored state,
+credentials included,
+ the trash stands inside the new worktree from the install until the emptying runs,
+so a command that runs
+ `git add --all` in that window stages what the container holds,
+and emptying the trash afterwards does not take those
+ blobs out of the index.
+Everything else the leave-out sets aside,
+the caches,
+the other checkouts and the run
+ records,
+still waits for the emptying,
+so an add pays only the container's own removal:
+measured on this host,
+ a container of 20,000 one-kilobyte files takes 460 ms to remove,
+against 0.1 ms to rename into the trash.
 The trash is emptied before the command that made it returns,
 and never handed to the commit service:
 a trash that outlived the command sat inside the new worktree,

@@ -452,3 +452,68 @@ fn btrfs_a_snapshot_does_not_carry_an_inherited_trash_forward() {
     assert!(!manifest.entries.is_empty(), "what the inherited trash held was moved into this add's trash, so the emptying covers it");
     remove(root.as_path());
 }
+
+/// What:
+///  Whether any file named `wanted` lies below `root`,
+/// walked once,
+/// breadth first.
+/// Why:
+///   The trash renames each directory it sets aside to a fresh name,
+/// so a control cannot name the path a
+///  container would have there;
+/// finding its file says whether it reached the trash at all.
+fn holds_a_named_file(root: &Path, wanted: &str) -> bool {
+    let mut pending: Vec<PathBuf> = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(listed) = std::fs::read_dir(directory.as_path()) else { continue };
+        for entry in listed.flatten() {
+            if entry.file_name().to_string_lossy() == wanted {
+                return true;
+            }
+            if entry.file_type().is_ok_and(is_dir_kind) {
+                pending.push(entry.path());
+            }
+        }
+    }
+    return false;
+}
+
+/// What:
+///  A stage container of another command is removed before the snapshot is installed,
+/// not renamed into the
+///  trash that waits for its emptying.
+/// Why:
+///   A container holds another worktree's ignored state,
+/// credentials included,
+/// and the trash stands inside the
+///  new worktree from the install until the emptying runs;
+/// a command that runs `git add --all` in that window stages
+///  the credentials,
+/// and emptying the trash afterwards does not take the blobs out of the index.
+/// What the leave-out
+///  moves for the caches,
+/// the other checkouts and the run records still waits for the emptying,
+/// so the add pays only
+///  the container's removal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { stage, trash } = await snapshotOf(repo); // prune, before the swap
+/// expect(existsSync(join(stage, container))).toBe(false); expect(findIn(join(stage, TRASH_PARENT), 'credentials')).toEqual([]);
+/// expect(existsSync(join(stage, TRASH_PARENT, trash.name))).toBe(true); // the cache still waits there
+/// ```
+#[test]
+fn btrfs_a_stage_container_is_removed_before_the_snapshot_is_installed() {
+    let Some(root) = btrfs_fixture("trash-container-before-install") else { return };
+    let repo: PathBuf = main_with_state(root.as_path());
+    let container: String = format!(".claude/worktrees/{STAGE_PREFIX}8f14e45fceea167a5a36dedd4bea2543");
+    put(repo.as_path(), format!("{container}/payload/credentials").as_str(), b"another worktree's token\n");
+    let (stage, _source, trash) = snapshot_of(root.as_path(), repo.as_path());
+    assert!(std::fs::symlink_metadata(stage.join(container.as_str())).is_err(), "the container is gone before the worktree is installed");
+    let manifest: TrashManifest = trash.expect("the leave-out made a trash");
+    let trash_dir: PathBuf = stage.join(TRASH_PARENT).join(&manifest.name);
+    assert!(trash_dir.is_dir(), "the trash waits for the emptying that runs before the command returns");
+    assert!(!holds_a_named_file(stage.join(TRASH_PARENT).as_path(), "credentials"), "the container's credentials are nowhere in the trash");
+    assert!(trash_dir.is_dir() && std::fs::read_dir(&trash_dir).expect("listing").count() > 0, "what the leave-out set aside for the cache still waits in the trash");
+    remove(root.as_path());
+}
