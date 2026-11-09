@@ -351,16 +351,18 @@ const { containerLimitArguments } = await import(process.getBuiltinModule('node:
 const { pnpmStoreMountArguments } = await import(process.getBuiltinModule('node:url').pathToFileURL(process.getBuiltinModule('node:path').resolve(process.cwd(), 'package/test-harness/core-matrix/src/pnpm-store-mount.ts')).href)
 // One rule ties the worker count to the bound: a worker of the browser suites needs at most one CPU and about half a
 // GiB, so the bound is one CPU per worker and one GiB per worker plus one GiB for the browsers' own fixed cost.
-// Measured in this image, whole suite, three projects, peak of a one-second sample of `podman stats`, host load average
-// 55 to 68 on 8 CPUs:
+// The worker-count study below ran on the heaviest shape this suite has had, every OPFS test file on a persistent
+// context, whole suite, three projects, peak of a one-second sample of `podman stats`, host load average 55 to 68 on
+// 8 CPUs:
 //
 //   workers  bound     peak memory  peak CPU  peak processes  wall time  2026-11-08
 //   2        4g/4cpu   1,936 MiB    250%      680             31.6 s     23:22:20-05:00
 //   4        4g/4cpu   2,807 MiB    286%      1,129           33.4 s     23:22:52-05:00
 //   8        8g/8cpu   4,174 MiB    546%      1,863           21.8 s     23:23:22-05:00, 3 firefox tests lost their browser
 //
-// 4 workers is the largest count that finished cleanly, and the run stays at 55% of a 5 GiB memory cap and 72% of a 4
-// CPU quota; 8 workers bought 12 s of wall time, another 1.4 GiB and three firefox crashes, so the bound and the worker
+// The merged tree at this bound, one OPFS test file on a persistent context, 2026-11-08T23:42:11-05:00 at load
+// average 42: 3,052 MiB, 328% CPU, 1,248 processes, 19.5 s, exit 0, which is 60% of the memory cap and 82% of the CPU
+// quota. 8 workers bought 12 s of wall time, another 1.4 GiB and three firefox crashes, so the bound and the worker
 // count both stop at four. Playwright's own default is half the host's 32 logical CPUs, because a CFS quota does not
 // change what `os.cpus().length` reports, so without this argument the run used 16 workers: at the earlier 2g/2cpu
 // bound that was killed at its memory cap after 16 minutes once, and failed 53 of 84 tests in firefox and webkit on
