@@ -109,18 +109,40 @@ pub fn find_asset<'a>(release: &'a Value, name: &str) -> Option<&'a Value> {
     return None;
 }
 
+/// One URL path segment:
+/// every byte outside the unreserved set is percent-encoded.
+/// Why:
+/// A git tag may hold `#`, `?`, `%` and `+`;
+/// left as they are, they end the path at a fragment,
+/// start a query or spell another character,
+/// so the request would name a different release or none.
+fn encode_path_segment(text: &str) -> String {
+    let mut encoded: String = String::new();
+    for byte in text.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    return encoded;
+}
+
 /// The release object of one tag of a repository.
 pub fn release_by_tag(ctx: &Context, repo: &str, tag: &str) -> Result<Value, ResolveError> {
-    let url: String = format!("https://api.github.com/repos/{repo}/releases/tags/{}", tag.replace('+', "%2B"));
+    let url: String = format!("https://api.github.com/repos/{repo}/releases/tags/{}", encode_path_segment(tag));
     return get_json(ctx, &url, &api_headers(ctx));
 }
 
 /// SHA-256 of a release asset:
-/// the `digest` GitHub reports,
+/// the `sha256:` digest GitHub reports,
 /// or the hash of the downloaded file.
+/// Why:
+/// GitHub may report a digest of another algorithm (or none),
+/// and recording that text as the SHA-256 would write a lock row that can never verify.
 pub fn asset_digest(ctx: &Context, asset: &Value, url: &str) -> Result<String, ResolveError> {
-    if let Some(digest) = asset.get("digest").and_then(Value::as_str) {
-        return Ok(digest.strip_prefix("sha256:").unwrap_or(digest).to_string());
+    if let Some(sha256) = asset.get("digest").and_then(Value::as_str).and_then(|digest| return digest.strip_prefix("sha256:")) {
+        return Ok(sha256.to_string());
     }
     return hash_download(ctx, url);
 }

@@ -15,7 +15,7 @@ use super::hash::sha256_hex;
 use super::install::install_tool;
 use super::install_archive::safe_file_name;
 use super::install_bin::{percent_decode, release_tag_url, seed_bin_config};
-use super::install_support::{atomic_symlink, restore_exec_bits};
+use super::install_support::{atomic_symlink, download_verified, extract_conda, restore_exec_bits};
 use super::cargo_installs::version_directory;
 use super::archive_staging::{has_complete_marker, staging_dir_of};
 use super::layout::tool_install_dir;
@@ -651,4 +651,66 @@ fn a_conda_package_without_a_payload_member_is_refused() {
     set_artifact(&mut rig, "uv", url, &sha256_hex(body));
     let error = install_tool(&rig.context(), &rig.tool("uv")).expect_err("no payload");
     assert!(error.message.contains("holds no pkg-*.tar.zst payload"), "{error}");
+}
+
+/// A failed rename must not leave the verified `.download` temporary beside the target:
+/// the download failure and the SHA-256 mismatch before it both remove theirs,
+/// so the third reported failure does too.
+#[test]
+fn a_download_whose_rename_fails_removes_its_temporary_file() {
+    let rig = Rig::new();
+    let target: std::path::PathBuf = rig.scope.root.join("tool.tar.gz");
+    fs::create_dir_all(&target).expect("a directory stands where the file would go");
+    let temporary: std::path::PathBuf = target.with_file_name("tool.tar.gz.download");
+    rig.http.serve("https://files.example/tool.tar.gz", b"payload");
+    let error = download_verified(&rig.context(), "https://files.example/tool.tar.gz", &target, &sha256_hex(b"payload"))
+        .expect_err("a rename onto a directory fails");
+    assert!(error.to_string().contains("cannot move the verified download"), "{error}");
+    assert!(!temporary.exists(), "the failed download left {} behind", temporary.display());
+}
+
+/// A failed unzip reports the failure and leaves no `.conda-staging` directory behind.
+#[test]
+fn a_conda_extraction_whose_unzip_fails_removes_its_staging_directory() {
+    let rig = Rig::new();
+    let into: std::path::PathBuf = rig.scope.root.join("conda-tool");
+    fs::create_dir_all(&into).expect("make the install directory");
+    rig.runner.fail("unzip", "cannot find zipfile directory");
+    let error = extract_conda(&rig.context(), &rig.scope.root.join("tool.conda"), &into).expect_err("the unzip failed");
+    assert!(error.to_string().contains("unzip failed"), "{error}");
+    assert!(!into.join(".conda-staging").exists(), "the failed extraction left its staging directory behind");
+}
+
+/// An outer archive holding no `pkg-*.tar.zst` payload reports that and leaves no `.conda-staging` behind.
+#[test]
+fn a_conda_extraction_that_finds_no_payload_removes_its_staging_directory() {
+    let rig = Rig::new();
+    let into: std::path::PathBuf = rig.scope.root.join("conda-tool");
+    fs::create_dir_all(&into).expect("make the install directory");
+    rig.runner.on("unzip", Box::new(|request| {
+        let staging = request.args.last().expect("the -d directory");
+        fs::write(std::path::Path::new(staging).join("info.json"), "{}").expect("write a non-payload member");
+    }));
+    let error = extract_conda(&rig.context(), &rig.scope.root.join("tool.conda"), &into).expect_err("there is no payload");
+    assert!(error.to_string().contains("holds no pkg-*.tar.zst payload"), "{error}");
+    assert!(!into.join(".conda-staging").exists(), "the failed extraction left its staging directory behind");
+}
+
+/// Components and targets are added to the channel `packageId` names:
+/// that is the toolchain the install step created, and the locked version can spell a date the channel does not.
+#[test]
+fn rust_components_and_targets_use_the_package_id_channel_that_was_installed() {
+    let mut rig = Rig::new();
+    let rust = rig.lock.tools.iter_mut().find(|tool| return tool.declaration.id == "rust").expect("the rust tool");
+    rust.declaration.package_id = Some("nightly".to_string());
+    install_tool(&rig.context(), &rig.tool("rust")).expect("installed");
+    assert_eq!(
+        rig.runner.lines(),
+        vec![
+            "rustup toolchain install --no-self-update nightly".to_string(),
+            "rustup component add clippy --toolchain nightly".to_string(),
+            "rustup component add rust-src --toolchain nightly".to_string(),
+            "rustup target add aarch64-linux-android --toolchain nightly".to_string(),
+        ]
+    );
 }

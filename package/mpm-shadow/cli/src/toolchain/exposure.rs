@@ -229,6 +229,30 @@ pub struct CommandReport {
 }
 
 /// What:
+/// The `PATH` a postinstall command runs with:
+/// the exposure directory and the toolchain bin directory first,
+/// then the inherited `PATH`.
+/// Why:
+/// A directory name holding the path separator cannot be joined into `PATH`,
+/// so the failure is returned for the caller to report instead of being thrown away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function postinstallPath(exposure: string, toolchainBin: string, inherited?: string): string  // throws
+/// ```
+pub(crate) fn postinstall_path(
+    exposure: &Path,
+    toolchain_bin: &Path,
+    inherited: Option<&str>,
+) -> Result<String, std::env::JoinPathsError> {
+    let mut directories: Vec<PathBuf> = vec![exposure.to_path_buf(), toolchain_bin.to_path_buf()];
+    if let Some(existing) = inherited {
+        directories.extend(std::env::split_paths(existing));
+    }
+    return std::env::join_paths(&directories).map(|path| return path.to_string_lossy().to_string());
+}
+
+/// What:
 /// Runs each postinstall command of `tools` from the scope root,
 /// with the exposure and toolchain bin
 ///           directories first on `PATH`.
@@ -241,13 +265,23 @@ pub struct CommandReport {
 /// ```
 pub fn run_postinstall_commands(ctx: &Context, tools: &[&LockedTool]) -> CommandReport {
     let mut report: CommandReport = CommandReport::default();
-    let mut directories: Vec<PathBuf> = vec![ctx.scope.exposure_dir.clone(), ctx.scope.toolchain_bin_dir.clone()];
-    if let Some(existing) = ctx.env.get("PATH") {
-        directories.extend(std::env::split_paths(existing));
-    }
-    let joined: String = match std::env::join_paths(&directories) {
-        Ok(path) => path.to_string_lossy().to_string(),
-        Err(_) => ctx.env.get("PATH").unwrap_or("").to_string(),
+    let joined: String = match postinstall_path(&ctx.scope.exposure_dir, &ctx.scope.toolchain_bin_dir, ctx.env.get("PATH")) {
+        Ok(path) => path,
+        Err(error) => {
+            // Refusing beats running the command on the inherited PATH alone, where it would miss the tools the
+            // exposure and toolchain directories link.
+            for tool in tools {
+                if let Some(Postinstall::Run(_)) = &tool.declaration.options.postinstall {
+                    report.failed.push((
+                        tool.declaration.id.clone(),
+                        format!(
+                            "the postinstall command was not run: the exposure and toolchain directories cannot be put on PATH ({error})"
+                        ),
+                    ));
+                }
+            }
+            return report;
+        }
     };
     let mut env: BTreeMap<String, String> = ctx.env.all().clone();
     env.insert("PATH".to_string(), joined);
