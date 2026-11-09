@@ -464,6 +464,10 @@ pub fn read_named_ignored_roots(
         let request: GitRequest = GitRequest {
             cwd: source_root.to_path_buf(),
             arguments: vec![
+                // The named spec below is pathspec magic, so literal pathspec mode, from `GIT_LITERAL_PATHSPECS`
+                // or `--literal-pathspecs`, is switched off here: under it the name would match nothing and a
+                // configured ignored file would silently not be copied.
+                "--no-literal-pathspecs".into(),
                 "ls-files".into(),
                 "--others".into(),
                 "--ignored".into(),

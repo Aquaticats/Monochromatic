@@ -113,7 +113,7 @@ pub(crate) fn with_specs(git: &GitContext, repository: &Path, index: Option<&Pat
     let mut arguments: Vec<&OsStr> = words.iter().map(OsStr::new).collect();
     arguments.push(OsStr::new("--"));
     arguments.extend(specs.iter().map(OsString::as_os_str));
-    let mut request: GitRequest = GitRequest::new(repository, arguments.as_slice());
+    let mut request: GitRequest = GitRequest::new(repository, arguments.as_slice()).without_pathspec_modes();
     request.index = index.map(Path::to_path_buf);
     return match run_git(git, &request) {
         Ok(output) if output.succeeded() => Ok(output),
@@ -265,3 +265,9 @@ pub(crate) fn moved_since_listing(git: &GitContext, repository: &Path, live_inde
     }
     return Ok(names_in(&moved.join(&0)));
 }
+
+/// Controls for the reads,
+///  against real Git.
+#[cfg(test)]
+#[path = "owed_index_entries_tests.rs"]
+mod tests;
