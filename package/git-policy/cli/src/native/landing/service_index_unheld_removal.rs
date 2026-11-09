@@ -114,65 +114,33 @@ pub enum Unheld {
 /// which say something else.
 const UNREADABLE_PROCESS_REASON: &str = "PID ";
 
-/// Whether a descriptor's link names a file a repository could hold,
-/// rather than a pipe,
-/// a socket,
-/// an anonymous or memory file,
-/// a device,
-/// or a file of `/proc` or `/sys`.
-/// The question is asked of the link's text,
-/// which the kernel answers from its own memory.
-fn names_a_file_of_a_repository(link: &Path) -> bool {
-    let Ok(target) = std::fs::read_link(link) else {
-        // A target that cannot be read may be a file that has been carried away:
-        // the count is then unknown rather than zero.
-        return true;
-    };
-    let text: String = target.to_string_lossy().into_owned();
-    // The kernel writes a memory file's link as `/memfd:<name> (deleted)`, with the leading slash its other pseudo
-    // names do not have, so the slash is dropped before they are matched: a test for `memfd:` alone skipped the file,
-    // the count became unknown, and an abandoned lock stayed while a capture was open (cross-vendor review of
-    // 2026-11-09, finding 4).
-    let name: &str = text.strip_prefix('/').unwrap_or(text.as_str());
-    for pseudo in ["pipe:[", "socket:[", "anon_inode:", "memfd:"] {
-        if name.starts_with(pseudo) {
-            return false;
-        }
-    }
-    for directory in ["/proc/", "/sys/", "/dev/"] {
-        if text.starts_with(directory) {
-            return false;
-        }
-    }
-    return true;
-}
-
 /// How many descriptors of this process (every thread's) name the file with this device and inode.
 /// A process that cannot be counted is not proven to hold none,
 /// so the count is then the largest there is.
-/// Each descriptor is read through the one reader that refuses a file system whose attributes are not in the memory of
-/// the kernel (`open_file_of_a_descriptor.rs`),
-/// so a server that has stopped is never asked for anything:
-/// a descriptor that cannot be read that way,
-/// and whose link names a file a repository could hold,
-/// makes the count unknown.
+/// Each descriptor is read as the file the kernel has open under that number,
+/// with `statx(2)` and `AT_EMPTY_PATH`,
+/// so no path is walked and no file system revalidates a directory entry:
+/// the count is the same on every mount type,
+/// and a mount this process cannot classify (`open_file_of_a_descriptor.rs`) does not make it unknown.
+/// That matters because this count is the last thing an unheld removal decides on,
+/// and an unknown count keeps an abandoned lock where it is for ever,
+/// which on a container's overlay filesystem is every lock.
 fn own_descriptors_of(device: u64, inode: u64) -> usize {
     let Ok(listing) = std::fs::read_dir("/proc/self/fd") else {
         return usize::MAX;
     };
     let mut count: usize = 0;
     for entry in listing.flatten() {
-        match crate::open_file_of_a_descriptor::opened_file_of(Path::new("/proc/self"), entry.file_name().as_os_str()) {
+        let Ok(number) = entry.file_name().to_string_lossy().parse::<i32>() else {
+            continue;
+        };
+        match crate::open_file_of_a_descriptor::opened_file_of_our_own(number) {
             Ok(opened) if opened.device == device && opened.inode == inode => count += 1,
             Ok(_) => {}
             // A descriptor that ended while it was being counted names nothing any more.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(_) => {
-                if !names_a_file_of_a_repository(entry.path().as_path()) {
-                    continue;
-                }
-                return usize::MAX;
-            }
+            Err(error) if error.raw_os_error() == Some(libc::EBADF) => continue,
+            Err(_) => return usize::MAX,
         }
     }
     return count;

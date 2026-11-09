@@ -469,18 +469,22 @@ fn a_descriptor_the_scan_could_not_identify_keeps_the_lock() {
     remove(root.as_path());
 }
 
-/// The removal reads this process's own descriptors through the one reader that refuses a file system whose attributes
-/// are not in the memory of the kernel:
+/// The removal reads this process's own descriptors through the reader that asks the kernel about the open file itself:
 /// `std::fs::metadata` on every `/proc/self/fd` entry asks each file system for its own attributes,
 /// and one that has
 /// stopped waits there as it waits on a path walk
 /// (cross-vendor review of 2026-11-09,
-/// finding 2).
+/// finding 2),
+/// while the walk a mount type cannot vouch for is refused altogether,
+/// which on a container's overlay filesystem makes the count unknown for every descriptor
+/// (`open_file_of_a_descriptor.rs`,
+/// `opened_file_of_our_own`).
 #[test]
-fn this_processes_descriptors_are_read_through_the_gated_reader() {
+fn this_processes_descriptors_are_read_through_the_reader_that_walks_no_path() {
     let source: &str = include_str!("service_index_unheld_removal.rs");
     assert!(!source.contains("fs::metadata("), "no descriptor of this process is read with `metadata`");
-    assert!(source.contains("opened_file_of("), "the gated reader is what reads them");
+    assert!(source.contains("opened_file_of_our_own("), "the reader that asks the kernel about the open file is what reads them");
+    assert!(!source.contains("open_file_of_a_descriptor::opened_file_of("), "no descriptor of this process is read through the path of its link");
 }
 
 /// A descriptor of this process that is no file of a repository at all
