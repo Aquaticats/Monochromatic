@@ -42,6 +42,12 @@ pub mod process_start;
 /// and relaying only process-sent signals.
 pub mod signal_relay;
 
+/// The descriptor the relay sends through:
+/// made once,
+/// pointed at the child being waited for,
+/// and the pidfd that names that child.
+pub mod signal_relay_descriptor;
+
 /// The processes of this host that use a directory or a file.
 pub mod process_use;
 
@@ -52,6 +58,14 @@ pub mod open_file_of_a_descriptor;
 /// The processes below one process,
 /// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
+
+/// Signalling one member of a tree through a descriptor opened while the number still named it,
+/// and what each signal came to.
+pub mod member_signalled_through_its_pidfd;
+
+/// The number of the child a caller waits for,
+/// published the moment the child starts.
+pub mod child_number_told_at_start;
 
 /// A child started with the standard library and awaited on the runtime through a pidfd,
 /// owned through every failure after its start.

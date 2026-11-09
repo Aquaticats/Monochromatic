@@ -478,8 +478,8 @@ pub fn pull_step(forward: &CoordinatedForward, real_index: &Path) -> PullStep {
     debug(TAG, "the fetch of a pull that merges runs, then the merge goes through the isolated merge");
     match run_forwarded_git(forward.real_git.as_path(), fetch.as_slice(), overlay.as_slice(), None) {
         ForwardedRun::Ran(0) => {}
-        // A failed fetch ends the pull with status 1, as `cmd_pull` does.
-        ForwardedRun::Ran(_) => return PullStep::Ended(CoordinatedRun::Ran(1)),
+        // A failed fetch ends the pull with status 1, as `cmd_pull` does, and a fetch Git was killed in is a failed one.
+        ForwardedRun::Ran(_) | ForwardedRun::Killed(_) => return PullStep::Ended(CoordinatedRun::Ran(1)),
         ForwardedRun::Failed { stderr, code } => return PullStep::Ended(CoordinatedRun::Failed { stderr, code }),
     }
     // The fetch can update the branch that is checked out; Git then moves the working tree along with it before it merges.

@@ -86,15 +86,33 @@ pub fn instance_of(git_dir: &Path) -> String {
     return instance_named_by(real.as_path());
 }
 
-/// The 32 hexadecimal digits of the FNV-1a hash of a path's bytes.
-fn instance_named_by(real: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
+/// What:
+///  The 32 hexadecimal digits of the 128-bit FNV-1a hash of these bytes.
+/// Why:
+///   Two texts the program writes and later compares are one call of this function,
+/// so the instance name of a worktree
+///  and the record of what the service manager was told never hash differently.
+/// A digest compares whole texts by their bytes,
+/// so a change of
+///  any character anywhere in either is a different digest.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// digestOfBytes(Buffer.from(text)) // '3f9a...' (32 digits)
+/// ```
+pub fn digest_of_bytes(bytes: &[u8]) -> String {
     let mut hash: u128 = FNV_OFFSET;
-    for byte in real.as_os_str().as_bytes() {
+    for byte in bytes {
         hash ^= u128::from(*byte);
         hash = hash.wrapping_mul(FNV_PRIME);
     }
     return format!("{hash:032x}");
+}
+
+/// The 32 hexadecimal digits of the FNV-1a hash of a path's bytes.
+fn instance_named_by(real: &Path) -> String {
+    use std::os::unix::ffi::OsStrExt;
+    return digest_of_bytes(real.as_os_str().as_bytes());
 }
 
 /// What:
