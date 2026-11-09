@@ -7870,7 +7870,10 @@ A merge saved on a side ref that cannot be finished now never stops a command wh
 the line says where the merge is and what blocked it,
 and the command goes on.
 Once its index has been written or a file of it moved aside it is a begun merge,
-so a refusal stops the command and says the merge is partly installed in that worktree.
+so a refusal stops the command and says the merge is partly installed in that worktree;
+that is decided by what the index and the checkout hold when the refusal is made,
+not by which step refused,
+so a foreign file or a staged entry met after the install began stops the command too.
 A begun merge's refusal still stops it,
 because the checkout may hold that merge's files.
 Standard output is never touched by these lines,

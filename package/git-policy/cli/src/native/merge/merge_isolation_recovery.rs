@@ -395,8 +395,12 @@ pub fn settle_failed_merge(
             foreign.push(String::from_utf8_lossy(change.path.as_slice()).into_owned());
         }
     }
+    // The index and the worktree have already been read here: a refusal now leaves whatever of the merge they hold, so the
+    //  flag says what that is.
+    let began: bool = index_started || worktree_started;
     if !foreign.is_empty() {
-        return Err(untouched(RecoveryError(format!(
+        return Err(MergeRefusal {
+            error: RecoveryError(format!(
             "A merge in {} was interrupted while Git updated these files, and they now hold neither their old nor \
              their merged content: {}. Nothing was changed and the record {} was kept. Save your edits to them \
              elsewhere, restore them with `git restore -- <path>`, then run any git command again so recovery can \
@@ -404,7 +408,9 @@ pub fn settle_failed_merge(
             root.display(),
             foreign.join(", "),
             record.display()
-        ))));
+            )),
+            began,
+        });
     }
     // A staged version of a path the merge replaces has no other name, so it is never written over: the finish stops and names
     //  the paths, and the staged content stays in the index.
@@ -415,7 +421,8 @@ pub fn settle_failed_merge(
         }
     }
     if !staged.is_empty() {
-        return Err(untouched(RecoveryError(format!(
+        return Err(MergeRefusal {
+            error: RecoveryError(format!(
             "A merge of {target} in {} is unfinished, and the index holds staged content for these paths that the merge would \
              replace: {}. Nothing was changed, the record {} was kept, and the staged content is still in the index. Commit or \
              unstage it, then run any git command again so recovery can finish the merge; or remove the record to abandon the \
@@ -423,7 +430,9 @@ pub fn settle_failed_merge(
             root.display(),
             staged.join(", "),
             record.display()
-        ))));
+            )),
+            began,
+        });
     }
     // A lock that outlasts the wait leaves everything as it was; the record stays for the next command, which finishes the
     //  same merge (the recovery is idempotent).
