@@ -535,6 +535,49 @@ fn an_interrupted_add_that_is_removed_stops_being_reported() {
     remove(root.as_path());
 }
 
+/// What:
+///  A kill inside the index install leaves the new worktree's `index.lock`,
+/// and the report names it with the one
+///  step that makes the rest work.
+/// Why:
+///   `git -C <destination> reset --hard` cannot start while that lock stands (Git answers
+/// `fatal: Unable to create '.../index.lock': File exists`),
+/// so a report that offers only that command offers a
+///  remedy that cannot run;
+/// and `git status` in the worktree still works,
+/// so the worktree looks usable while every
+///  write to it fails.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(admin, 'index.lock'), '')
+/// const line = reap(common).find((text) => text.includes('index.lock'))
+/// expect(git(destination).resetHard().code).toBe(128)
+/// rmSync(join(admin, 'index.lock')); expect(git(destination).resetHard().code).toBe(0)
+/// expect(reap(common)).toEqual([])
+/// ```
+#[test]
+fn a_leftover_index_lock_is_named_and_the_remedy_works() {
+    let (root, repo, destination, admin) = killed_add("claim-add-index-lock", true, false);
+    let lock: PathBuf = admin.join("index.lock");
+    std::fs::write(lock.as_path(), b"").expect("the lock a killed Git leaves");
+    let notices: Vec<String> = reap_abandoned_stages(repo.join(".git").as_path()).expect("reap");
+    let Some(line) = notices.iter().find(|notice: &&String| { return notice.contains("index.lock"); }) else {
+        panic!("the report names the lock the remedy has to get past: {notices:?}");
+    };
+    assert!(line.contains(lock.to_string_lossy().as_ref()), "the exact file is named: {line}");
+    // The premise: the command the report offered cannot run while the lock stands.
+    let blocked: std::process::Output = crate::test_support::git_output(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(blocked.status.code(), Some(128), "{}", String::from_utf8_lossy(&blocked.stderr));
+    assert!(String::from_utf8_lossy(&blocked.stderr).contains("index.lock"), "{}", String::from_utf8_lossy(&blocked.stderr));
+    // The remedy the report prints: the named file goes once no Git runs there, and then the checkout finishes.
+    std::fs::remove_file(lock.as_path()).expect("the named lock");
+    crate::test_support::git(destination.as_path(), &["reset", "--hard"]);
+    assert_eq!(reap_abandoned_stages(repo.join(".git").as_path()).expect("after the remedy"), Vec::<String>::new(), "the remedy finishes the add");
+    assert!(!stage_claims_exist(repo.join(".git").as_path()).expect("claims"), "and the records go");
+    remove(root.as_path());
+}
+
 /// An add that was marked complete before the kill is a whole worktree:
 /// recovery keeps it and says nothing.
 #[test]
