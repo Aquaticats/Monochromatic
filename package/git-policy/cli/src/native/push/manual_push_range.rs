@@ -35,7 +35,6 @@ use std::process::Stdio;
 /// How long a range query may run.
 use std::time::Duration;
 /// The descriptor that names the query for good.
-use crate::pinned_member_signalled_through_a_pidfd::{Delivered, PinnedProcess, pin_of_our_own_child};
 
 /// Remote-tracking ref namespace Git's default fetch refspec writes.
 const TRACKING_NAMESPACE: &str = "refs/remotes/";
@@ -116,12 +115,18 @@ pub fn run_git_bytes(
 }
 
 /// What:
-///  The body of `run_git_bytes`,
-/// where a control's refused thread start is honoured by the shared starter.
+///  The body of `run_git_bytes`:
+/// the request list on a thread of its own,
+/// and the answers read,
+/// and the query ended at its ceiling,
+/// by the thread that reads them.
 /// Why:
-///  Both of the query's threads are started before Git is,
-/// so the refusal has to reach the code that starts them
-///  and nothing else.
+///  Git reads and answers in one loop,
+/// so neither side can wait for the other;
+/// and the thread that reads the answers owns the
+///  child while it waits,
+/// so the ceiling's kill reaches that child and never a number another thread
+///  could have reaped after it ended.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -133,93 +138,65 @@ fn run_git_bytes_starting_with(
     input: Option<&str>,
 ) -> Result<Vec<u8>, ManualPushRangeError> {
     let mut command = git_command(git, arguments);
-    command
-        .stdin(if input.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    // Both threads are started before Git is, so a refused start costs the query its start and never leaves Git, killed and
-    //  unreaped, behind a command that met a shortage of processes.
-    let (stdin_hand_over, stdin_taken) = std::sync::mpsc::channel::<std::process::ChildStdin>();
-    // The input is written on this thread while `wait_with_output` reads both replies on the caller's: neither can hold the
-    //  other up, which is what a request list larger than a pipe did before.
+    // The request list goes in through a pipe of this process's own, so its write end is this process's and a refused thread
+    //  start costs the query its start rather than leaving a child nothing waits for.
+    let (reader, writer) = match std::io::pipe() {
+        Ok(pair) => pair,
+        Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be given its input: {error}"))),
+    };
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    // The input is written on this thread while the caller reads both replies: neither can hold the other up, which is what a
+    //  request list larger than a pipe did before.
     let writing: Option<std::thread::JoinHandle<()>> = match input {
         Some(requests) => {
             let text: String = requests.to_owned();
-            match crate::thread_started_before_its_child::start_named_thread("cli-git-range-input", Box::new(move || {
-                // Nothing is handed over when the start below fails, and then there is no request list to write.
-                let Ok(mut stdin) = stdin_taken.recv() else {
-                    return;
-                };
+            let mut writing_end = writer;
+            let started = std::thread::Builder::new().name(String::from("cli-git-range-input")).spawn(move || {
                 // A Git exit before reading the whole input surfaces through its status, so the write error is ignored here.
-                let _written = stdin.write_all(text.as_bytes());
-            })) {
-                Ok(written) => Some(written),
+                let _written = writing_end.write_all(text.as_bytes());
+            });
+            match started {
+                Ok(written) => {
+                    command.stdin(Stdio::from(reader));
+                    Some(written)
+                }
                 Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!(
                     "git was not started, because no thread could be given its request list: {error}. Hint: check the process limit \
                      (`ulimit -u`) and the control group's `pids.max`, free some, and run the command again"
                 ))),
             }
         }
-        None => None,
+        None => {
+            drop(writer);
+            drop(reader);
+            command.stdin(Stdio::null());
+            None
+        }
     };
-    let (sender, receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
-    let (hand_over, taken) = std::sync::mpsc::channel::<Child>();
-    if let Err(error) = crate::thread_started_before_its_child::start_named_thread("cli-git-range-answer", Box::new(move || {
-        // Nothing is handed over when the start below fails, and then there is no child to wait for.
-        let Ok(child) = taken.recv() else {
-            return;
-        };
-        // This thread owns the child until it ends; a caller that stopped waiting took the failure.
-        let _abandoned = sender.send(child.wait_with_output());
-    })) {
-        return Err(range_error(ManualPushCause::GitNotStarted, format!(
-            "git was not started, because no thread could wait for it: {error}. Hint: check the process limit (`ulimit -u`) and the \
-             control group's `pids.max`, free some, and run the command again"
-        )));
-    }
-    let mut child: Child = match command.spawn_retrying() {
+    let child: Child = match command.spawn_retrying() {
         Ok(started) => started,
         Err(error) => return Err(range_error(ManualPushCause::GitNotStarted, format!("git could not be started: {error}"))),
     };
-    // The descriptor is taken while the number certainly names this process's own unreaped child, so the signal a ceiling sends
-    //  later reaches that child and never a number that was reused after the answering thread reaped it.
-    let reach: Option<PinnedProcess> = pin_of_our_own_child(child.id());
-    if let Some(stdin) = child.stdin.take() {
-        let _handed_over = stdin_hand_over.send(stdin);
-    }
-    let _handed_over = hand_over.send(child);
-    let answered: std::io::Result<std::process::Output> = match receiver.recv_timeout(RANGE_QUERY_CEILING) {
+    // This thread waits for the child and ends it at the ceiling, so no other thread signals its number and none can reach a
+    //  process that took the number after it was reaped.
+    let answered: std::process::Output = match crate::child_waited_for_within_a_ceiling::output_within(child, RANGE_QUERY_CEILING) {
         Ok(output) => output,
-        Err(_timed_out) => {
-            let ended: bool = end_the_query(&reach);
+        Err(error) if error.kind() == std::io::ErrorKind::TimedOut => {
             let shown: String = words_of(arguments);
-            let ending: &str = if ended {
-                "and was ended"
-            } else {
-                "and nothing was signalled, because no descriptor naming it could be taken before it was reaped, so check with `ps` \
-                 whether it is still running"
-            };
             return Err(range_error(ManualPushCause::GitSilent, format!(
-                "git {shown} did not answer within {} seconds, the longest one of these queries waits, {ending}. Hint: check with `ps` \
-                 what that Git waits for, and run the command again.",
+                "git {shown} did not answer within {} seconds, the longest one of these queries waits, and was ended. Hint: check \
+                 with `ps` what that Git waits for, and run the command again.",
                 RANGE_QUERY_CEILING.as_secs()
             )));
         }
-    };
-    // What: the thread that writes the request list is not joined.
-    // Why:  a program the query started can hold the read end of its input without reading it, so the write stays in
-    //       `write_all` past the answer and past `RANGE_QUERY_CEILING`. What ends it is the last read end of that input
-    //       closing, whose next write fails with `EPIPE`, or this process exiting, which ends every thread of it.
-    let _input_thread_left_to_end = writing;
-    let output = match answered {
-        Ok(finished) => finished,
         Err(error) => return Err(range_error(ManualPushCause::GitSilent, format!("git did not finish: {error}"))),
     };
-    if !output.status.success() {
+    // What: the thread that writes the request list is not joined.
+    // Why:  its write ends when the query's input closes, which the query's own end does: the next write fails with `EPIPE`
+    //       and the thread ends. A program the query started that holds the read end open past that keeps this thread alive
+    //       until it ends or this process exits, and nothing of the command waits for it.
+    let _input_thread_left_to_end = writing;
+    if !answered.status.success() {
         let mut shown: Vec<String> = Vec::new();
         for argument in arguments {
             shown.push(argument.to_string_lossy().into_owned());
@@ -227,34 +204,10 @@ fn run_git_bytes_starting_with(
         return Err(range_error(ManualPushCause::ContentMissing, format!(
             "git {} failed: {}",
             shown.join(" "),
-            String::from_utf8_lossy(&output.stderr).trim_end()
+            String::from_utf8_lossy(&answered.stderr).trim_end()
         )));
     }
-    return Ok(output.stdout);
-}
-
-/// What:
-///  End a query past its ceiling with `SIGKILL`,
-/// through the descriptor taken while the number certainly named it.
-/// Why:
-///  A number is a safe address only while its process is this process's own unreaped child,
-/// and the answering thread reaps the
-///  query as soon as it ends.
-/// The descriptor reaches that one process or fails,
-/// and never a successor;
-///  a host that gave
-/// none proves nothing about what the number names by now,
-/// so nothing is signalled and the sentence says so.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function endTheQuery(reach: Pin | undefined): boolean;
-/// ```
-fn end_the_query(reach: &Option<PinnedProcess>) -> bool {
-    return match reach {
-        Some(pinned) => pinned.signal(libc::SIGKILL) == Delivered::Sent,
-        None => false,
-    };
+    return Ok(answered.stdout);
 }
 
 /// One argument as the words a message shows it with.

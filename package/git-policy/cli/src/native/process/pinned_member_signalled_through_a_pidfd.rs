@@ -34,7 +34,7 @@
 #[cfg(unix)]
 use std::ffi::c_int;
 /// One process of a tree and the start time that proves it is still that process.
-use crate::process_tree::{ProcessLook, TreeMember, look_of, look_of_through};
+use crate::process_tree::{ProcessLook, TreeMember, look_of_through};
 /// The descriptor that names one process until it is closed.
 #[cfg(target_os = "linux")]
 use std::os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd};
@@ -52,8 +52,7 @@ pub enum Delivered {
 
 /// What:
 ///  One process,
-/// pinned by a descriptor where the kernel gives one,
-/// and by its number and start time otherwise.
+/// pinned by a descriptor that names it for good.
 /// Why:
 ///  A signal sent through the descriptor reaches this process or nothing;
 /// a number checked a moment earlier cannot
@@ -61,17 +60,16 @@ pub enum Delivered {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Pinned = { member: Member; descriptor?: number };
+/// type Pinned = { descriptor: number };
 /// ```
 #[cfg(unix)]
 #[derive(Debug)]
 pub struct PinnedProcess {
-    /// The process and the start time it was pinned with.
-    member: TreeMember,
-    /// The pidfd,
-    /// where the kernel has pidfds.
+    /// The pidfd.
+    /// It names one process for good,
+    /// and it is the only way this module ever signals something.
     #[cfg(target_os = "linux")]
-    descriptor: Option<OwnedFd>,
+    descriptor: OwnedFd,
 }
 
 /// What:
@@ -150,13 +148,12 @@ fn pin_after_two_looks_of(first: &std::path::Path, second: &std::path::Path, mem
     // SAFETY: `pidfd_open` takes two integers and returns a descriptor or -1; it touches no memory of this process.
     let raw: libc::c_long = unsafe { libc::syscall(libc::SYS_pidfd_open, libc::c_long::from(member.pid), 0 as libc::c_long) };
     if raw < 0 {
-        let error: std::io::Error = std::io::Error::last_os_error();
-        // The process went between the read and the call, or the number is not a process.
-        if error.raw_os_error() == Some(libc::ESRCH) {
-            return PinOutcome::Gone;
-        }
-        // No pidfd on this kernel or under this sandbox: the pin signals by number after reading the start time again.
-        return PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: None });
+        // The process went between the read and the call,
+        // the number is not a process,
+        // or this host has no descriptor to give (an old kernel,
+        //  a sandbox, or a descriptor limit).
+        // Either way nothing here can name the process for good, so nothing is signalled.
+        return PinOutcome::Gone;
     }
     let Ok(number) = i32::try_from(raw) else {
         return PinOutcome::Gone;
@@ -165,15 +162,15 @@ fn pin_after_two_looks_of(first: &std::path::Path, second: &std::path::Path, mem
     let descriptor: OwnedFd = unsafe { OwnedFd::from_raw_fd(number) };
     return match look_of_through(second, member.pid) {
         // The number named the process before and after the descriptor was made, so the descriptor is that process's.
-        ProcessLook::Alive(found) if found.started == started => {
-            PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: Some(descriptor) })
-        }
+        ProcessLook::Alive(found) if found.started == started => PinOutcome::Held(PinnedProcess { descriptor }),
         ProcessLook::Alive(_) | ProcessLook::Gone => PinOutcome::Gone,
-        // A second look that fails proves nothing about the process the descriptor already names: it keeps the descriptor,
-        //  which is the whole reason a descriptor is taken while the identity was known.
-        ProcessLook::Unknown => {
-            PinOutcome::Held(PinnedProcess { member: TreeMember { pid: member.pid, started }, descriptor: Some(descriptor) })
-        }
+        // The descriptor was opened after the first look,
+        // and a second look that fails does not establish that the number still
+        //  named the process the first look found:
+        // between the two, that process can have ended and been reaped, and the number
+        //  can name an unrelated process the descriptor then names.
+        // Nothing is signalled.
+        ProcessLook::Unknown => PinOutcome::Gone,
     };
 }
 
@@ -183,47 +180,8 @@ pub fn pin_of(member: &TreeMember) -> PinOutcome {
     return pin_of_through(std::path::Path::new(crate::process_tree::PROC), member);
 }
 
-/// What:
-///  The pin of a child this process has just started and has not reaped.
-/// Why:
-///  A number names a process only until that process is reaped,
-/// and another thread of this process reaps the child as soon as it
-///  ends,
-/// so a number read now cannot be signalled later.
-/// Taken straight after the start,
-/// the number certainly names the child,
-///  and the descriptor taken then names it for good,
-/// whatever the record says afterwards.
-/// A child whose record could not be read
-///  has no pin:
-/// nothing proves what the number names,
-/// so nothing is signalled,
-/// and the sentence to the person says the query was not ended.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const pin = pinOfOurOwnChild(child.pid); // undefined when nothing proves what the number names
-/// ```
-#[cfg(all(unix, target_os = "linux"))]
-pub fn pin_of_our_own_child(pid: u32) -> Option<PinnedProcess> {
-    let number: i32 = i32::try_from(pid).ok()?;
-    let member: TreeMember = crate::process_tree::member_of(number)?;
-    return match pin_of(&member) {
-        PinOutcome::Held(pinned) => Some(pinned),
-        PinOutcome::Gone | PinOutcome::Unreadable => None,
-    };
-}
-
-/// Without `/proc` and without pidfds nothing about a number is known,
-/// so no pin is made and nothing is signalled.
-// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-#[cfg(all(unix, not(target_os = "linux")))]
-pub fn pin_of_our_own_child(_pid: u32) -> Option<PinnedProcess> {
-    return None;
-}
-
 /// Without `/proc` nothing is known about a number,
-/// so the pin signals by number as it always did.
+/// so no pin is made and nothing is signalled.
 // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
 #[cfg(all(unix, not(target_os = "linux")))]
 pub fn pin_of(_member: &TreeMember) -> PinOutcome {
@@ -233,48 +191,19 @@ pub fn pin_of(_member: &TreeMember) -> PinOutcome {
 /// Methods over a pinned process.
 #[cfg(unix)]
 impl PinnedProcess {
-    /// What:
-    ///  Whether the signal of this pin goes through a descriptor,
-    /// which never reaches a successor of the process.
-    /// Why:
-    ///   A control reads it to show which of the two ways a signal takes,
-    /// and the number-then-signal window it
-    ///  closes is the reason this module exists.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// pin.heldByAPidfd;
-    /// ```
-    pub fn held_by_a_pidfd(&self) -> bool {
-        #[cfg(target_os = "linux")]
-        return self.descriptor.is_some();
-        #[cfg(not(target_os = "linux"))]
-        return false;
-    }
-
     /// Send `signal` to the pinned process,
     /// and to no other.
     pub fn signal(&self, signal: c_int) -> Delivered {
-        #[cfg(target_os = "linux")]
-        if let Some(descriptor) = &self.descriptor {
-            // SAFETY: `pidfd_send_signal` takes a descriptor, a signal number, a null `siginfo` and flags; it touches no memory.
-            let result: libc::c_long = unsafe {
-                libc::syscall(
-                    libc::SYS_pidfd_send_signal,
-                    libc::c_long::from(descriptor.as_raw_fd()),
-                    libc::c_long::from(signal),
-                    0 as libc::c_long,
-                    0 as libc::c_long,
-                )
-            };
-            return if result == 0 { Delivered::Sent } else { Delivered::Gone };
-        }
-        // Without a pidfd the start time is read again right before the signal: the window that remains is the pidfd's to close.
-        if !matches!(look_of(self.member.pid), ProcessLook::Alive(found) if found.started == self.member.started) {
-            return Delivered::Gone;
-        }
-        // SAFETY: `kill` takes two integers and touches no memory of this process.
-        let result: c_int = unsafe { libc::kill(self.member.pid, signal) };
+        // SAFETY: `pidfd_send_signal` takes a descriptor, a signal number, a null `siginfo` and flags; it touches no memory.
+        let result: libc::c_long = unsafe {
+            libc::syscall(
+                libc::SYS_pidfd_send_signal,
+                libc::c_long::from(self.descriptor.as_raw_fd()),
+                libc::c_long::from(signal),
+                0 as libc::c_long,
+                0 as libc::c_long,
+            )
+        };
         return if result == 0 { Delivered::Sent } else { Delivered::Gone };
     }
 }

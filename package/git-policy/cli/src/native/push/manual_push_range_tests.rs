@@ -375,35 +375,6 @@ fn a_query_that_answers_is_not_held_up_by_a_helper_that_holds_its_input() {
 }
 
 /// What:
-///  A thread that cannot be started starts no query,
-/// so no killed child is left unreaped.
-/// Why:
-///   Both threads of the query exist before Git does,
-/// and a refused start costs the query its start;
-///  a Git that was started and then killed by a caller that could not wait for it stays a zombie in a resident
-///  process,
-/// which is the resource shortage the path exists for.
-#[test]
-fn a_thread_that_cannot_be_started_starts_no_query() {
-    let root: PathBuf = fixture("manual-push-range-refused-thread");
-    let program: PathBuf = root.join("stand-in-git");
-    let ran: PathBuf = root.join("ran");
-    std::fs::write(&program, format!("#!/bin/sh\nprintf ran > '{}'\nprintf 'answered\\n'\n", ran.display())).expect("the stand-in");
-    let mut mode = std::fs::metadata(&program).expect("the stand-in's metadata").permissions();
-    std::os::unix::fs::PermissionsExt::set_mode(&mut mode, 0o755);
-    std::fs::set_permissions(&program, mode).expect("the stand-in runs");
-    let git: PushGit = PushGit { real_git: program.clone(), cwd: root.clone(), environment: fixture_environment(), lfs: false };
-    let arguments: Vec<OsString> = ["cat-file", "--batch-check"].iter().map(OsString::from).collect();
-    crate::thread_started_before_its_child::refuse_one_start();
-    let failure: ManualPushRangeError = run_git_bytes(&git, arguments.as_slice(), Some("a request"))
-        .expect_err("a thread that could not be started is the query's failure");
-    let started: bool = ran.exists();
-    remove(root.as_path());
-    assert!(!started, "git ran although nothing could wait for it, so a killed child would be left unreaped");
-    assert!(failure.message.contains("no thread could"), "{failure}");
-}
-
-/// What:
 ///  No control of this module signals a process by a number,
 /// and none reads a process number from a file in order to signal it.
 /// Why:

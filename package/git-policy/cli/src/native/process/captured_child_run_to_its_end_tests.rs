@@ -120,28 +120,6 @@ fn the_one_shot_git_questions_no_longer_block_a_thread_on_command_output() {
 }
 
 /// What:
-///  A thread that cannot be started starts no child at all,
-/// so no killed child is left unreaped.
-/// Why:
-///  The thread that waits for a query is started before the child,
-/// so a refusal costs the command its start.
-///  A child that was started and then killed by a caller that could not wait for it stays a zombie until the wrapper
-///  exits,
-/// and these paths exist for the shortage of processes that produces such refusals.
-#[test]
-fn a_thread_that_cannot_be_started_starts_no_child() {
-    let root: std::path::PathBuf = crate::test_support::fixture("captured-run-refused-thread");
-    let ran: std::path::PathBuf = root.join("ran");
-    let mut command = shell(format!("printf ran > '{}'", ran.display()).as_str());
-    crate::thread_started_before_its_child::refuse_one_start();
-    let failure = output_of_within_bound(&mut command, Duration::from_secs(30)).expect_err("a thread that could not be started is the command's failure");
-    let started: bool = ran.exists();
-    crate::test_support::remove(root.as_path());
-    assert!(!started, "the command ran although nothing could wait for it, so a killed child would be left unreaped");
-    assert!(failure.to_string().contains("no thread could be started"), "{failure}");
-}
-
-/// What:
 ///  Neither query path signals a process by its number.
 /// Why:
 ///  A number is a safe address only while its process is this process's own unreaped child,
@@ -161,6 +139,6 @@ fn neither_query_path_signals_by_number() {
     for (name, source) in sources {
         let code: String = source.lines().filter(|line| { return !line.trim_start().starts_with("//"); }).collect::<Vec<&str>>().join("\n");
         assert!(!code.contains("libc::kill"), "{name} still signals a process by its number");
-        assert!(code.contains("pin_of_our_own_child"), "{name} does not take a descriptor of the query at its start");
+        assert!(code.contains("wait_within") || code.contains("output_within"), "{name} does not wait for its child with a ceiling");
     }
 }

@@ -1,7 +1,7 @@
 //! Controls for holding one process of a tree by a pidfd and signalling it through that hold.
 
 use super::*;
-use crate::process_tree::TreeMember;
+use crate::process_tree::{TreeMember, look_of};
 use crate::test_support::spawn_owned;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -66,7 +66,6 @@ fn a_member_is_held_by_its_pidfd_and_only_that_process_is_signalled() {
         PinOutcome::Held(pinned) => pinned,
         other => panic!("the running process is held: {other:?}"),
     };
-    assert!(held.held_by_a_pidfd(), "the hold is a descriptor, which no reused number can reach");
     // Another start time is another process: nothing is held and nothing is signalled.
     let stale: TreeMember = TreeMember { pid: member.pid, started: member.started + 1 };
     assert!(matches!(pin_of(&stale), PinOutcome::Gone), "a number whose start time changed is not held");
@@ -119,18 +118,21 @@ fn a_member_whose_record_could_not_be_read_is_not_signalled() {
 }
 
 /// What:
-///  A look at the record that fails after the pin's descriptor is open keeps the descriptor,
-/// and the signal goes through it.
+///  A look at the record that fails after the pin's descriptor was opened does not hold the process at all,
+/// and nothing is signalled.
 /// Why:
-///   The descriptor names one process for good;
-/// a record that could not be read says nothing about that process,
-///  so reading the failure as an exit dropped a valid pin and sent nothing.
-/// Every further attempt met the same descriptor
-///  shortage,
-/// so termination and the kill both failed while the stop waited for a process nothing had stopped.
+///  The descriptor was opened after the first look,
+/// and a second look that fails does not establish that the
+///  number still named the process the first look found:
+/// between the two, that process can have ended and been
+///  reaped,
+/// and the number can name an unrelated process,
+/// which the descriptor then names.
+/// The pin this branch kept for that case was a
+///  descriptor of the wrong process, and the signal ended it.
 #[cfg(target_os = "linux")]
 #[test]
-fn a_second_look_that_fails_keeps_the_pidfd() {
+fn a_second_look_that_fails_holds_nothing_and_signals_nothing() {
     let mut process: Child = sleeper();
     let member: TreeMember = member_of(&process);
     // The first look reads the real record and finds the process; the second, made after the descriptor is open, reads a root
@@ -140,13 +142,36 @@ fn a_second_look_that_fails_keeps_the_pidfd() {
     std::fs::create_dir_all(refusing.join(member.pid.to_string()).join("stat").as_path()).expect("a directory where the record should be");
     let outcome: PinOutcome = pin_after_two_looks_of(std::path::Path::new("/proc"), refusing.as_path(), &member);
     crate::test_support::remove(root.as_path());
-    let held: PinnedProcess = match outcome {
-        PinOutcome::Held(pinned) => pinned,
-        other => panic!("a look that failed after the descriptor was open lost the pin: {other:?}"),
-    };
-    assert!(held.held_by_a_pidfd(), "the descriptor taken while the identity was known is kept");
-    assert_eq!(held.signal(libc::SIGKILL), Delivered::Sent, "the signal goes through the descriptor");
-    let ended: bool = ended_within_bound(member.pid);
+    let delivered: Delivered = delivered_by(outcome, libc::SIGKILL);
+    std::thread::sleep(Duration::from_millis(300));
+    let survived: bool = runs(member.pid);
+    process.kill().expect("the control ends its sleeper");
     process.wait().expect("the sleeper is collected");
-    assert!(ended, "the pinned process ended");
+    assert_eq!(delivered, Delivered::Gone, "a look that failed after the descriptor was opened signals nothing");
+    assert!(survived, "the process the first look found was left alone");
+}
+
+/// What:
+///  Nothing in the pin module signals a process by its number,
+/// and no pin exists without a descriptor.
+/// Why:
+///  A number is a safe address only while its process is this process's own unreaped child,
+/// and every other caller
+///  of this module names a process it found through `/proc`,
+/// which can be reaped between the look and the signal.
+///  A host that gives no descriptor therefore signals nothing at all:
+/// the fallback that read the start time again and
+///  then called `kill` was a window a reuse of the number could pass through.
+#[test]
+fn no_pin_signals_a_process_by_its_number() {
+    let code: String = include_str!("pinned_member_signalled_through_a_pidfd.rs")
+        .lines()
+        .filter(|line| { return !line.trim_start().starts_with("//"); })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    // The needle is built at run time, so the control's own text does not contain it.
+    let kill: String = format!("libc::{}", "kill");
+    assert!(!code.contains(kill.as_str()), "the pin module still signals a process by its number");
+    let optional: String = format!("descriptor: {}<", "Option");
+    assert!(!code.contains(optional.as_str()), "a pin can still exist without a descriptor");
 }
