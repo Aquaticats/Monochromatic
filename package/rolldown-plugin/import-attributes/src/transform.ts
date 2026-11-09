@@ -228,7 +228,7 @@ export function transformImportAttributes({
   replacements.sort(function byStartDesc(
     a,
     b,
-  ) {
+  ): number {
     return b.start
       - a
         .start;

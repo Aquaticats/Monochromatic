@@ -32,7 +32,10 @@ import {
   dirname,
   resolve,
 } from 'node:path';
-import type { Plugin, } from 'rolldown';
+import type {
+  Plugin,
+  ResolveIdResult,
+} from 'rolldown';
 
 import { NO_ATTR_TYPE, } from './ast-extract.ts';
 import { HANDLERS, } from './handlers.ts';
@@ -86,7 +89,7 @@ function importAttributesPlugin(): Plugin {
     transform(
       code,
       id,
-    ) {
+    ): { code: string; } | null {
       /**
        Transformed module, or {@link NO_TRANSFORM} when no attribute clause was present.
        */
@@ -117,7 +120,7 @@ function importAttributesPlugin(): Plugin {
       source,
       importer,
       options,
-    ) {
+    ): Promise<ResolveIdResult> {
       /**
        Check for query-param-tagged specifiers (from static imports after transform).
        */
@@ -239,7 +242,7 @@ function importAttributesPlugin(): Plugin {
      {@link NO_QUERY_ATTR}) by reading the file and passing its content
      through the registered {@link HANDLERS} handler.
      */
-    async load(id,) {
+    async load(id,): Promise<{ code: string; } | null> {
       /**
        Attribute type encoded in the requested ID; absent IDs are left to other loaders.
        */
