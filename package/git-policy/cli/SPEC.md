@@ -5067,7 +5067,8 @@ now inside these bounds:
   A PID file holding a number this process table does not have is waited for the same way by a commit,
   and its line says which number it read and that a Git of another PID namespace writes one this table has
   never had:
-  the number proves no death, so no commit ends early on it
+  the number proves no death,
+  so no commit ends early on it
   (cross-vendor review of 2026-11-09,
   finding 2).
   A merge is the command that acts on that evidence:
