@@ -8974,7 +8974,11 @@ nothing is set aside for it,
 the merge's own deletions empty it before the checkout,
 and the merge's file takes its place.
 A directory that no such deletion explains is someone else's and stops the finish,
-naming the path.
+naming the path,
+and so does a directory that holds any file the merge does not delete,
+such as an untracked file of the person's:
+it is refused before anything is written,
+because replacing it would leave the merge half installed and the file in the way.
 A record that is discarded,
 a record whose owner still runs and a branch that already names the merge
 change nothing of the branch and say nothing.

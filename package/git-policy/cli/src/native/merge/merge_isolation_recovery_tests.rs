@@ -2263,3 +2263,37 @@ fn an_independent_commit_of_a_one_path_merge_does_not_block_the_command() {
     assert_eq!(git_text(world.repo.as_path(), &["rev-parse", "refs/cli-git/kept/39"]), world.new_oid, "the saved merge is kept");
     remove(world.parent.as_path());
 }
+
+/// What:
+///  A directory that holds a file the merge does not delete stops the merge before anything is written.
+/// Why:
+///  The directory rule read a directory that had a tracked deletion beneath it as the branch's own,
+/// without looking at
+///  what else was in it,
+/// so an untracked file there was met after the merge's index entries were written and its child was
+///  taken,
+/// and every later command failed trying to replace the same nonempty directory
+///  (a cross-vendor review of the eighth round,
+/// its fifth finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const world = directoryToFileWorld(); write('dir/notes.txt', mine); const record = deferredRecord(); const before = snapshot(world); await expect(recover(...)).rejects.toMatch(/dir/); expect(snapshot(world)).toEqual(before);
+/// ```
+#[test]
+fn a_directory_holding_an_untracked_file_refuses_before_anything_is_written() {
+    let world: World = directory_to_file_world("merge-recovery-directory-extra-file");
+    std::fs::write(world.repo.join("dir/notes.txt"), b"my own notes\n").expect("the person's untracked file");
+    let record: PathBuf = deferred_record_of(&world, "40404040-0000-4000-8000-000000000040", "refs/cli-git/kept/40");
+    let before = snapshot(&world);
+    let mut said: Vec<u8> = Vec::new();
+    let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("a saved merge that wrote nothing lets the command go on");
+    assert_eq!(outcomes[0].action, MergeRecoveryAction::DeferredRefused, "it is refused, not installed");
+    let text: String = String::from_utf8(said).expect("the notices are UTF-8");
+    assert!(text.contains("dir"), "the path is named: {text}");
+    assert_eq!(snapshot(&world), before, "nothing was written and nothing was taken");
+    assert_eq!(std::fs::read(world.repo.join("dir/notes.txt")).expect("the person's file"), b"my own notes\n");
+    assert!(world.repo.join("dir/child.txt").is_file(), "the child is where it was");
+    assert!(record.exists(), "the record is kept");
+    remove(world.parent.as_path());
+}

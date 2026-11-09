@@ -250,7 +250,10 @@ pub fn judge_changes(place: &RecoveryPlace, root: &Path, changes: &[Change]) -> 
         }
         let location: PathBuf = worktree_path(root, change.path.as_slice());
         let stands_as_a_directory: bool = std::fs::symlink_metadata(location.as_path()).map(is_a_directory).unwrap_or(false);
-        if !stands_as_a_directory || !the_branchs_files_stand_below(change, changes) {
+        if !stands_as_a_directory
+            || !the_branchs_files_stand_below(change, changes)
+            || !the_directory_holds_only_what_the_merge_deletes(change, changes, root)
+        {
             continue;
         }
         judgements[index] = Judged { standing: Standing::Directory, identity: None, content: None };
@@ -271,6 +274,41 @@ fn is_a_directory(found: std::fs::Metadata) -> bool {
 /// Whether one change deletes a file of the branch below `prefix`.
 fn takes_a_file_below(other: &Change, prefix: &[u8]) -> bool {
     return other.path.starts_with(prefix) && other.existed() && !other.exists_after();
+}
+
+/// What:
+///  Whether a directory standing where the merge puts a file holds only files of the branch that the merge deletes,
+///  and nothing else.
+/// Why:
+///   The branch's own directory is the merge's to replace,
+/// but an untracked file in it is a person's,
+/// and a directory
+///  that keeps one cannot be replaced:
+/// the merge would be half installed before the failure,
+/// so it is refused
+///  before anything is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aDirectoriesFilesAreAllDeletedByTheMerge({ change, changes, root }): boolean; // readdir(dir) every name is a change that exists before and not after
+/// ```
+fn the_directory_holds_only_what_the_merge_deletes(change: &Change, changes: &[Change], root: &Path) -> bool {
+    let location: PathBuf = worktree_path(root, change.path.as_slice());
+    let listing: std::fs::ReadDir = match std::fs::read_dir(location.as_path()) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    let mut prefix: Vec<u8> = change.path.clone();
+    prefix.push(b'/');
+    for entry in listing.flatten() {
+        let mut child: Vec<u8> = prefix.clone();
+        child.extend_from_slice(entry.file_name().as_encoded_bytes());
+        let deleted: bool = changes.iter().any(|other| { return other.path == child && other.existed() && !other.exists_after(); });
+        if !deleted {
+            return false;
+        }
+    }
+    return true;
 }
 
 /// What:
