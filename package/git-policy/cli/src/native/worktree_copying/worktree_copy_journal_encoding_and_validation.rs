@@ -319,9 +319,36 @@ pub fn is_canonical_absolute(path: &Path) -> bool {
     if rest.is_empty() {
         return true;
     }
-    return rest
-        .split(|byte| return *byte == b'/')
-        .all(|component| return !component.is_empty() && component != b"." && component != b"..");
+    return rest.split(is_separator_byte).all(is_plain_component);
+}
+
+/// What:
+///  Whether a byte separates the components of a path.
+/// Why:
+///  The canonical check splits the path's bytes on it,
+/// so a name that holds other bytes stays whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// byte === 0x2f
+/// ```
+fn is_separator_byte(byte: &u8) -> bool {
+    return *byte == b'/';
+}
+
+/// What:
+///  Whether a path component is a plain name:
+/// not empty,
+/// not `.` and not `..`.
+/// Why:
+///   A journal path that is not in canonical form could name a different file than the one validated.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// component.length > 0 && component !== '.' && component !== '..'
+/// ```
+fn is_plain_component(component: &[u8]) -> bool {
+    return !component.is_empty() && component != b"." && component != b"..";
 }
 
 /// What:
