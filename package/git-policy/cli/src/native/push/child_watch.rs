@@ -101,7 +101,8 @@ pub use crate::child_watch_step_bounds_and_errors::watched_timeout_text;
 pub use crate::child_watch_step_bounds_and_errors::no_watcher_text;
 pub(crate) use crate::child_watch_step_bounds_and_errors::{Outlived, ending_of_a_watched_step};
 use crate::child_watch_running_task::{RunningWatcher, WATCHER_END_BOUND, a_waiter_thread_is_refused_now, running_watcher_of};
-/// The refusal a control arms, which only a control build can reach.
+/// The refusal a control arms,
+/// which only a control build can reach.
 #[cfg(test)]
 pub(crate) use crate::child_watch_running_task::refuse_the_next_left_running_waiter;
 use crate::child_watch_step_bounds_and_errors::{output_of};
