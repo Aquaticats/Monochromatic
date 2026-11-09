@@ -58,6 +58,33 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 /// What:
+///  The threads that watch this run,
+/// as the kernel numbers them.
+/// Why:
+///   A watcher reads the counters of every task,
+/// and those reads are its own work,
+/// not the run's;
+/// a second watcher
+///  (a control arms one beside the fixture's)
+/// would otherwise count the other's reads at every look,
+/// so two of them would
+///  keep each other, and the run they watch, alive for ever.
+static WATCHING_THREADS: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
+
+/// Add `thread` to the watchers a look leaves out.
+fn start_watching(thread: i32) {
+    let Ok(mut watching) = WATCHING_THREADS.lock() else { return };
+    watching.push(thread);
+}
+
+/// The threads a look leaves out,
+/// which is every watcher of this process.
+fn watching() -> Vec<i32> {
+    let Ok(watching) = WATCHING_THREADS.lock() else { return Vec::new() };
+    return watching.clone();
+}
+
+/// What:
 ///  What one look at the run found,
 /// added up over every task of this process and of the processes it started.
 /// Why:
@@ -180,14 +207,14 @@ impl Tally {
     }
 
     /// Add every task of the process `number`,
-    /// leaving out the thread `skip` where one is named,
-    /// which is the reading thread itself.
-    fn add_process(&mut self, number: i32, skip: Option<i32>) {
+    /// leaving out the threads `leaving_out` names,
+    /// which are the watchers whose own readings are not the run's work.
+    fn add_process(&mut self, number: i32, leaving_out: &[i32]) {
         let Ok(tasks) = std::fs::read_dir(format!("/proc/{number}/task")) else { return };
         for task in tasks.flatten() {
             let name: std::ffi::OsString = task.file_name();
             let Some(tid) = name.to_str().and_then(|text| { return text.parse::<i32>().ok(); }) else { continue };
-            if Some(tid) == skip {
+            if leaving_out.contains(&tid) {
                 continue;
             }
             self.add_task(task.path().as_path());
@@ -283,26 +310,31 @@ fn children_of(parent: i32) -> Vec<i32> {
 }
 
 /// What:
-///  One look at the run under `reader`,
-/// the thread whose own counters are left out,
-/// or nothing where this system counts no task's work.
+///  One look at the run,
+/// leaving out the counters of `reader` and of every other watcher,
+/// or nothing where this system counts no
+///  task's work.
 /// Why:
-///   The reading thread's own bytes would otherwise be a sign of work at every look,
+///   The watchers' own reads would otherwise be a sign of work at every look,
 /// so a run that had stopped
-///  would never be judged quiet.
+///  would never be judged quiet,
+/// and one watcher would keep another alive.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const tally = { bytes: 0, ticks: 0, working: false, members: 0, readable: false };
-/// addProcess(process.pid, reader); for (const child of processesBelow()) addProcess(child, undefined);
+/// const watched = [...watching(), reader];
+/// addProcess(process.pid, watched); for (const child of processesBelow()) addProcess(child, []);
 /// return tally.readable ? tally : undefined;
 /// ```
 fn look(reader: i32) -> Option<Look> {
     let mut tally: Tally = Tally::default();
     let own: i32 = i32::try_from(std::process::id()).unwrap_or(i32::MAX);
-    tally.add_process(own, Some(reader));
+    let mut leaving_out: Vec<i32> = watching();
+    leaving_out.push(reader);
+    tally.add_process(own, leaving_out.as_slice());
     for child in processes_below() {
-        tally.add_process(child, None);
+        tally.add_process(child, &[]);
     }
     if !tally.readable {
         return None;
@@ -457,6 +489,8 @@ fn run(window: Duration) {
         end(Ending::Unmeasurable(window));
     };
     let mut judge: Judge = Judge::new(window);
+    // The watcher's own readings are not the run's work, and neither are another watcher's (`look`).
+    start_watching(reader);
     loop {
         std::thread::sleep(SAMPLE_INTERVAL);
         if let Some(ending) = judge.observe(started.elapsed(), look(reader)) {
