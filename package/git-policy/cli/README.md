@@ -3397,6 +3397,11 @@ a backquote,
 a quote or a newline in a path expands nothing and splits nothing when the line is pasted into a shell.
 The record stays until the worktree is whole or gone,
 so the same line comes again from every command that runs the recovery.
+A look at the destination that fails,
+rather than finding no pointer,
+keeps the record too:
+a directory the person or another process holds closed for a moment is no evidence
+ that the add left nothing.
 
 A worktree added from the main checkout receives the main checkout's ignored state minus what a new worktree does not need.
 Left out by directory name,

@@ -2010,6 +2010,16 @@ which JSON quoting did not do:
 beneath `/work/other` when `bucket=other` stood in the person's shell.
 A record or a completion marker that cannot be
 looked up keeps the record and says that the state is unknown.
+The same holds for the destination's own pointer,
+which is asked three things and not two:
+it is there,
+it is not,
+or the
+ directory cannot be searched,
+and only its absence says the add left nothing to finish.
+A refusal read as absence
+ deleted the record and the claim of a worktree that is still registered,
+and no later command named it.
 The cost:
 an interrupted or failed add keeps naming the same worktree and stage in every command that
 runs the recovery,
