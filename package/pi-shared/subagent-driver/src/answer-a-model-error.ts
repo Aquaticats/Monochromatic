@@ -97,8 +97,9 @@ async function answerWithAnotherAttempt(
  A failure another attempt may fix is waited out and then answered with a continuation prompt: Pi drops an assistant message
  that ended in an error when it builds the request for the model, so the attempt reads the last state the model produced
  successfully. The delay grows with each attempt and is cut to the time the run has left, so no attempt is waited for past the
- run's own wall clock. Once the retries a run allows have gone, the run ends on the error, as it ended before any of this
- existed.
+ run's own wall clock. The attempt also waits for Pi to rest: a prompt handed to a Pi that is at work is queued behind that run
+ or refused, and the error it answers may yet be recovered by that run's own reply. Once the retries a run allows have gone, the
+ run ends on the error, as it ended before any of this existed.
 
  @param watch - watch request
 
@@ -129,6 +130,12 @@ export async function answerModelError(
   } = retry;
   if ((at !== undefined) && (awaited !== undefined)) {
     if (Date.now() < at) {
+      return 'still-running';
+    }
+    if (watch.record
+      .isRunning()) {
+      // A prompt sent to a Pi that is at work is queued behind that run or refused, and either way this attempt lands in a run
+      // it did not start, whose reply may still recover the error. The attempt stays owed until Pi rests.
       return 'still-running';
     }
     delete retry.at;

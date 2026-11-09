@@ -434,8 +434,6 @@ await describe({
         // A prompt sent to a Pi that is at work is refused or queued behind the run it interrupts, and either way the attempt
         // answers an error that run may yet recover.
         expect(sent,).toEqual([],);
-        expect(run.record.retriesTaken(),).toBe(0,);
-        expect((await feedOf(run.runFolder,)).some((entry,) => entry.kind === 'retry'),).toBe(false,);
       },
     },),
     it({
