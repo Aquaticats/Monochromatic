@@ -218,3 +218,25 @@ fn a_torn_utf8_tail_does_not_stop_later_deliveries() {
     assert!(written.starts_with(seeded.as_slice()), "the torn bytes are kept as they were");
     remove(root.as_path());
 }
+
+/// A receipt the cut-short write never gave a line feed is not a receipt:
+/// the commit is reviewed again,
+/// the fragment keeps a line of its own,
+/// and a later entry cannot join it and destroy the evidence.
+#[test]
+fn an_unterminated_receipt_is_not_a_receipt_and_keeps_its_line() {
+    let root: PathBuf = fixture("append-unterminated-receipt");
+    let log: PathBuf = root.join("log.md");
+    let whole: String = entry("aaa");
+    let receipt: String = receipt_line(sha("aaa").as_str());
+    let cut: usize = whole.find(receipt.as_str()).expect("the entry carries its receipt") + receipt.len();
+    let fragment: &str = &whole[..cut];
+    std::fs::write(log.as_path(), fragment).expect("seed the fragment");
+    assert!(!names_commit(log.as_path(), sha("aaa").as_str()), "a receipt without its line feed is not a receipt");
+    assert_eq!(deliver(log.as_path(), sha("aaa").as_str(), whole.as_str()), Ok(Delivery::Appended), "so the commit is reviewed again");
+    assert_eq!(std::fs::read_to_string(log.as_path()).expect("log"), format!("{fragment}\n{whole}"), "the fragment keeps its line and the whole entry follows it");
+    assert_eq!(deliver(log.as_path(), sha("bbb").as_str(), entry("bbb").as_str()), Ok(Delivery::Appended));
+    let after: String = std::fs::read_to_string(log.as_path()).expect("log");
+    assert!(after.lines().any(|line| return line == receipt), "a later entry leaves the first receipt a whole line: {after}");
+    remove(root.as_path());
+}
