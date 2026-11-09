@@ -376,6 +376,50 @@ fn a_copy_that_leaves_a_socket_out_says_so() {
     remove(parent.as_path());
 }
 
+/// A socket in the worktree stops the conversion before the swap,
+/// naming the entry,
+/// and a person who deletes
+///  it finishes the conversion by running the command again.
+#[test]
+fn a_socket_stops_a_conversion_before_the_swap_and_deleting_it_finishes() {
+    let (parent, _root, worktree) = quiet_worktree("convert-socket-stop");
+    let listener: std::os::unix::net::UnixListener = bind_socket_in(worktree.as_path(), "agent.sock");
+    drop(listener);
+    let platform: PlainPlatform = PlainPlatform::new();
+    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
+    assert!(message.contains("agent.sock") && message.contains("not recreated"), "{message}");
+    assert!(message.contains("nothing was swapped"), "{message}");
+    assert!(!platform.is_subvolume_root(worktree.as_path()).expect("examined"), "nothing was swapped");
+    assert!(worktree.join("agent.sock").exists(), "the socket is still in the worktree");
+    std::fs::remove_file(worktree.join("agent.sock")).expect("the person removes the socket");
+    let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(finished.expect("converted"), Verdict::Resumed, "{lines:#?}");
+    assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"), "the conversion finished");
+    remove(parent.as_path());
+}
+
+/// A socket that reaches the old tree after the swap names the entry to delete,
+/// and the conversion finishes once it
+///  is gone;
+/// nothing else is asked of the person.
+#[test]
+fn a_socket_left_in_the_old_tree_names_the_entry_to_delete() {
+    let (parent, _root, worktree) = quiet_worktree("convert-socket-past");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    let listener: std::os::unix::net::UnixListener = bind_socket_in(converting.as_path(), "agent.sock");
+    drop(listener);
+    let message: String = run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0.expect_err("the conversion refuses").to_string();
+    assert!(message.contains("agent.sock") && message.contains("delete it from"), "{message}");
+    assert!(converting.join("agent.sock").exists(), "the old tree is kept whole");
+    std::fs::remove_file(converting.join("agent.sock")).expect("the person deletes the socket");
+    let (finished, lines) = run(&platform, worktree.as_path(), RUN, &Interrupt::never());
+    assert_eq!(finished.expect("converted"), Verdict::Resumed, "{lines:#?}");
+    assert!(std::fs::symlink_metadata(&converting).is_err(), "the old tree is gone");
+    remove(parent.as_path());
+}
+
 /// On a real btrfs filesystem the same conversion creates a real subvolume (root inode 256),
 /// clones the file data,
 /// keeps the
