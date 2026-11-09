@@ -2765,12 +2765,16 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   1.04 s).
 - `LANDING_LOCK_CEILING` 1 minute:
   the landing waits for a foreign `index.lock` this long.
-  It is five times the longest wait for a foreign lock that ended because the holder let go (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
+  It is five times the longest wait at a holder's place that ended when the lock was released (`LONGEST_SELF_RELEASED_FOREIGN_LOCK_WAIT`,
   8 s,
-  the longest of ten landings that waited over a second in the `lock_wait_ms` of 3,634 answers since 2026-11-01),
+  the largest of the 71 landings that waited at a place at all in the 4,386 answers since 2026-11-02T04:01:38-05:00;
+  the longest whole lock acquisition is 11,490 ms once the wrapper's own staging of a cold index is counted,
+  which keeps the one minute at 5.2 times it),
   in whole
   minutes.
-  The only longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07).
+  The longer waits in that journal were one lock that a live or killed `git commit` left for 62 minutes (2026-11-07),
+  one 497,803 ms wait that ended when a person removed the lock,
+  and five refusals at 600,090 to 600,718 ms.
   The lock that outlasts one commit's wait is remembered by its file identity,
   and the commits queued behind it are refused at once
   instead of each waiting a ceiling (`src/native/landing/service_index_refused_lock.rs`).
@@ -2785,16 +2789,17 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the same kind of holder,
   the only
   sample there is.
-  The commit timing log read on 2026-11-08 (1,332 records,
-  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z) adds no sample of its own:
+  The commit timing log read on 2026-11-08 (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z) adds no sample of its own:
   it holds no record of a
   merge,
-  though 278 merge commits were made in the window,
+  though 351 merge commits were made in the window,
   and no `git reset` step,
   so the reconciliation never ran in it.
   What it shows is
   that no wait a holder released came near a minute:
-  the longest was under 23,783 ms of answer time.
+  the longest was under 23,783 ms of answer time,
+  and the longest wait at a holder's place that ended when the lock was released was 8,000 ms.
   The memory of a lock that outlasted a wait is per process and the service lands every batch of a worktree on one
   thread,
   so only the landing has queued commits to spare it for;
@@ -2803,8 +2808,9 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   the settling of an earlier service's open batches.
   Five times the longest settle in the journal
   since 2026-11-01 (`LONGEST_SETTLE_WAIT`,
-  172 ms of 3,630 settles,
-  99th percentile 20 ms),
+  172 ms of 4,386 settles read on 2026-11-08,
+  99th percentile 17 ms;
+  the read of 2026-11-07 had 3,630 settles and 20 ms),
   in whole minutes.
   The settle's whole time
   holds any wait it made,
@@ -2813,12 +2819,20 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   `service settle-earlier-batches`),
   so the journal stays its only sample.
 - `LOCK_CEILING` 10 minutes,
-  measured on 2026-11-08 from the commit timing log (1,332 records,
-  2026-11-05T03:13:38Z to 2026-11-08T20:59:20Z):
+  measured on 2026-11-08 from the commit timing log (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z)
+  and the service journal (4,386 answers,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00):
   the six records that hold a waiting notice were two that landed after 3,636 and 23,783 ms of answer time
   and four are the commits that met the lock that never went on 2026-11-07 (62 waiting notices each,
   644,710 to 1,200,776 ms,
   every one stopped).
+  Of the journal's 4,386 landings,
+  609 waited on the index at all (95th percentile 6 ms,
+  99th percentile 158 ms),
+  71 waited at a holder's place,
+  and the longest whole lock acquisition was 11,490 ms counted with the wrapper's own staging
+  (8,000 ms at the place).
   No wait a holder released reached the ten minutes,
   and the longest of those four is 776 ms past the
   client's twenty-minute `ANSWER_CEILING`,

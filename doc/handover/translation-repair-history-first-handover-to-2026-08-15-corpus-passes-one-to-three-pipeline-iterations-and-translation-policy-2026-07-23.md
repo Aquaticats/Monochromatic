@@ -127,7 +127,7 @@ Remaining 87.
 
 USER DIRECTIVE (2026-07-23,
   supersedes the measurement-continuity
-freeze recorded above):
+freeze):
   iteratively improve the system whenever a
 change is highly confident to improve it,
   and RESTART ALL PASSES

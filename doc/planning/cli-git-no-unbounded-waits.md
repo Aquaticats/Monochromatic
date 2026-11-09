@@ -447,8 +447,13 @@ each with its margin:
   It is also the bound of the whole rerun
   loop of entry 5.
 - `LOCK_CEILING` 600 s:
-  unmeasured,
-  no foreign-holder wait is logged anywhere.
+  unmeasured when this was written,
+  no foreign-holder wait was logged anywhere
+  (measured on 2026-11-08 from the commit timing log and the service journal:
+  the longest wait on a lock was 11,490 ms,
+  so the ten minutes is 52 times it and no wait takes it;
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceilings' waits read again from the service journal").
   It is below `ANSWER_CEILING` so that the service
   ends its own wait and answers before the client gives up.
   A person's `git commit` with an editor open longer than this makes

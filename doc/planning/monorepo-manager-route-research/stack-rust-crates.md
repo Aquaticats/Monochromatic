@@ -111,7 +111,10 @@ Measured with `rg --glob 'Cargo.toml'` and the lockfiles of the two `zbus` users
    (`rg --files-with-matches --ignore-case unsafe` over the linter packages exited 1).
 - Rules that apply to every design:
    `MXR` (300 code lines per `.rs` file) and `RDC` (rustdoc on every documentable item,
-  private included).
+  private included) (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
   A local `zbus` `#[proxy]` trait needs `///` on every method;
    depending on a generated proxy crate moves that code out of the repository.
 

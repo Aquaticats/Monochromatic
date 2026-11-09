@@ -425,7 +425,8 @@ these instructions live HERE,
 in this section,
 and nowhere else.
 They are not on any GitHub issue:
-the numbering incident recorded below means
+the task-tracker numbering was reused,
+so
 GitHub `#108` is a dependency audit,
 and task-tracker item 108 carries a pointer
 back to this section rather than a copy.
@@ -511,7 +512,7 @@ and the two findings those
 comments carried that this document did not already hold,
 the `PROBE_ENTRY`
 step and the document-scale gap,
-are recorded above.
+are recorded in this handover.
 
 ONLY `#431` AND `#432` ARE REAL GITHUB ISSUES for this work,
 because they were
@@ -539,8 +540,7 @@ not carried forward from earlier in the night:
 -   `mise run //package/module/translation-repair:lint` (moved on 2026-10-18 to
     `//package/translation-repair/<package>:lint`) reports 0 warnings and
     0 errors.
--   Working tree is clean except four generated artifacts,
-    described below.
+-   Working tree is clean except four generated artifacts.
 -   `HEAD` equals `origin/translation-repair-rebased`;
     auto-push is doing its
     job and nothing is stranded locally.

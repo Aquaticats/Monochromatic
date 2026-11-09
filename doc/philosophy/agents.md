@@ -910,7 +910,10 @@ Positional pointers ("above",
  "the previous section",
  "as noted earlier") go stale silently when content moves:
  lines get reordered,
- files split apart under MXL/MXR,
+ files split apart under MXL/MXR (MXR and RDC:
+ retired from `AGENTS.md` 2026-09-29;
+ `rust/max-lines`,
+ `rust/require-rustdoc` and `MXL` now),
  headings get renumbered,
  or a doc gets promoted out of a package under DL1.
 A name-based reference (rule tag,

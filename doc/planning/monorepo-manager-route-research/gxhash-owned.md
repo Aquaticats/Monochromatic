@@ -108,7 +108,10 @@ tracked in issue #545.
 A (dirty-room reimplementation) > B (fork) > C (published crate with workarounds) > D (different hash).
 
 - A over B:
-   both end as repository-owned code under MXR and RDC,
+   both end as repository-owned code under MXR and RDC (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now),
    but B starts from 56 `unsafe` occurrences,
    pointer walking,
    undocumented items,
@@ -743,14 +746,18 @@ Upstream activity:
 
 ## Repository constraints that shape the options
 
-- MXR (`AGENTS.md:1012-1020`):
+- MXR (`AGENTS.md:1012-1020`;
+  retired from `AGENTS.md` 2026-09-29,
+  `rust/max-lines` and `MXL` now):
    `.rs` files have a 300 code-line budget from `monochromatic-rust-linter` rule `max-lines`;
    `tests/`,
    `*_tests.rs`,
    `fuzz/`,
    and `build.rs` are exempt;
    "never disable" (Verified).
-- RDC (`AGENTS.md:1022-1028`):
+- RDC (`AGENTS.md:1022-1028`;
+  retired from `AGENTS.md` 2026-09-29,
+  `rust/require-rustdoc` now):
    rustdoc on every documentable item,
    private included,
    from `require-rustdoc`;
@@ -832,7 +839,9 @@ Shape:
   with ogxd credited and the MIT notice shipped for the derived parts.
   The crates.io name `gxhash` is taken (`cargo search gxhash` lists `gxhash = "3.5.0"`,
    Verified).
-- Module split that fits MXR by construction:
+- Module split that fits MXR by construction (MXR:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines` and `MXL` now):
    primitive wrappers per architecture,
    in-bounds short loads,
    compression,
@@ -878,7 +887,10 @@ Pros:
    and parallel lane evaluation become possible
   (see "Optimization opportunities").
 - Fits MXR,
-   RDC,
+   RDC (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now),
    and the publishing precedent from the start.
 
 Cons:
@@ -931,7 +943,10 @@ Cons:
    upstream items carry no rustdoc (for example `x86.rs:16-66`),
    tests sit inline in `mod.rs` and `hasher.rs` instead of `*_tests.rs`,
    and `#[rustfmt::skip]` wraps the module (`src/lib.rs:5`).
-  MXR and RDC say "never disable",
+  MXR and RDC say "never disable" (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now),
    and the linter defaults exempt only tests,
    fuzz,
    build scripts,
@@ -946,7 +961,10 @@ Cons:
 
 Disqualifying problems found:
  kept as upstream code,
- it cannot satisfy MXR and RDC;
+ it cannot satisfy MXR and RDC (MXR and RDC:
+retired from `AGENTS.md` 2026-09-29;
+`rust/max-lines`,
+`rust/require-rustdoc` and `MXL` now);
  conformed,
  it becomes Option A with more code to remove.
 
@@ -1073,7 +1091,10 @@ Disqualifying problems found:
 A > B > C > D.
 
 - A over B:
-   both end as repository-owned code under MXR and RDC,
+   both end as repository-owned code under MXR and RDC (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now),
    but B starts from 56 `unsafe` occurrences,
    raw pointer walking,
    undocumented items,

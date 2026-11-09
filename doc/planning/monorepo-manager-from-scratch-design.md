@@ -2669,7 +2669,10 @@ and collision reproducer under `gxhash/lab/` in the session scratchpad.
 - Ownership shape:
    dirty-room reimplementation crediting ogxd,
    not a fork:
-   a fork starts from 56 `unsafe` uses and undocumented items that rules `MXR` and `RDC` would force rewriting anyway,
+   a fork starts from 56 `unsafe` uses and undocumented items that rules `MXR` and `RDC` (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now) would force rewriting anyway,
    and upstream is idle.
 - License:
    `LGPL-3.0-or-later`,

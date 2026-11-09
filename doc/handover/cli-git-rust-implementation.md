@@ -825,7 +825,7 @@ Update 2026-11-04T15:49:27-05:00 (main `7929d95d65`):
   so the reviewer works and the input was too heavy.
   A third run over only the three fixed source files on main (846 lines) also timed out after 3600 s with no output
   (`~/temp/agent/issue-6261/sol-review-after-fixes/`).
-  The fourth run answered (see the release blockers below) and
+  The fourth run answered (see the release blockers entry dated 2026-11-07T02:03:01-05:00) and
   its findings are fixed on `fix/git-policy-cli-earlier-helper-review-fixes`;
   no cross-vendor review of that fix has
   run.
@@ -3092,11 +3092,13 @@ In practice it's 16."
 Each running agent has a prompt and a run folder under `${HOME}/temp/agent/pi-runs/`.
 A read-only audit listed the open work that can start
 (`queue-audit-report.md` in that folder).
-
-- The wizard skill emits TypeScript root scripts (owner:
-  "Wizard writes TypeScript").
-- Whether `zbus` in `package/nested-wayland-session/cli` and `turso_sync_engine` for the Android check
-  still fail to compile on the pinned nightly (see `### Known flakes and failures not yet fixed` and `### Gate and tooling`).
+The two items this section listed are gone:
+the wizard-skill TypeScript conversion became void once the owner asked for the skill itself to go
+("Remove and Blocklist the wizard skill.",
+recorded under "Answered 2026-11-07T13:52:06-05:00 to 13:57:11-05:00" in
+[`questions-for-the-owner.md`](questions-for-the-owner.md)),
+and the `zbus` and `turso_sync_engine` compile question closed,
+as `### Known flakes and failures not yet fixed` records for the pinned `nightly-2026-11-08`.
 Only these wait on the repository move's last stages:
 the merge named first in the list of ordered work,
 the checksum and the IDE check themselves,
@@ -3111,6 +3113,34 @@ Converting the remaining worktrees waits on a defect instead:
 and the conversion compares them with the real path as text and refuses them.
 `--all` looked at 15 and did not say so.
 Branch `fix/git-policy-cli-registration-compared-as-the-same-file` holds the fix.
+
+`mpm-shadow`'s older-lock warning and `package/mpm-shadow/cli/README.md` told the reader to run `mpm update -g <tool id>`
+for the machine-global lock.
+Measured 2026-11-08 and fixed on branch `fix/mpm-shadow-printed-global-update-reaches-the-shadow`:
+what decides is the program the shell starts,
+not the verb.
+`toolchain-global/exposure/mpm` is a link to `~/.local/bin/mpm`,
+the uv tool `meta-package-manager`,
+which the global plan's `mpm` entry exposes;
+no scope but a worktree's `PATH` ever makes `mpm` the shadow,
+through `.cache/mpm-shadow-bin/mpm`,
+the `mpm-shadow` entry's postinstall link.
+Started as `mpm`,
+the real program maps `update` onto its own `upgrade` and refuses `-g`;
+started as `mpm-shadow`,
+the shadow runs the verb (`names_a_declared_verb`,
+`src/main.rs`).
+The sentence and the README now name `mpm-shadow`,
+and `tests/printed_remedy.rs` runs the warning's own command in a disposable home.
+
+Still open,
+because it is the owner's file under the config directory:
+the machine-global plan declares no `mpm-shadow` entry,
+so `mpm-shadow` is not on the machine `PATH` either.
+Adding the entry the repository plan carries (`route: archive`,
+`bins: ["mpm-shadow"]`,
+`tagPrefix: monochromatic-mpm-shadow-v`,
+then `mpm-shadow install -g`) exposes it in the global exposure directory.
 
 Ordered behind other work rather than waiting for a slot:
 
@@ -3229,6 +3259,164 @@ Also unmeasured:
 how the locked-index fallback behaves while the service lands another commit,
 which is the case that reaches it.
 
+### The refresh of a stale index asks for Git and the real index's lock only when it is stale (2026-11-08T17:50:00-05:00)
+
+The refresh `cd1755d728` added ran `git update-index --refresh` on the real index before the private copies were made,
+and Git takes `index.lock` on every one of those runs,
+even the refresh of an index that already describes the worktree
+(measured on 2026-11-08 in throwaway repositories:
+the lock file is created on every run and renamed over the index
+only when the run writes,
+so an up-to-date index paid the lock and wrote nothing).
+So every commit paid one Git start,
+one hold of the real index's lock and a stat pass of the whole index:
+the six `budget::` controls counted one `update-index` more than their constants,
+and
+`commit_timing::a_client_that_updates_the_service_never_takes_the_real_index_lock_and_the_new_service_finds_it_free`
+saw the client create and rename the real `index.lock`,
+which that control forbids.
+Both were reproduced on 2026-11-08 with
+`mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast budget:: commit_timing::`
+(7 failures,
+25 passes).
+
+Fixed on branch `fix/git-policy-cli-commit-budget-after-index-refresh` (`b841aa178f`,
+style in `8909ecd6e7`):
+`commit/commit_index_stat_staleness.rs` answers the question in process from the index's own bytes,
+an entry is stale when the stat data it records is not the file's,
+and only then does `refresh_stat_data_when_stale` run Git's refresh.
+The entries of the paths the commit stages from the worktree are left out,
+because `git add` writes their stat data into the private index afresh.
+The question reads the index it is given,
+so a form it does not understand answers "stale" and Git's own refresh decides.
+Entries Git calls racily clean are not asked for:
+three refreshes of an index written in the same second as its entry left the index's bytes identical (the same SHA-1),
+so such a refresh writes nothing the private copies could carry,
+and native `git commit` reads those entries too.
+
+Neither a budget constant nor a control assertion changed:
+the six `budget::` counts are back to the values `cd1755d728` was measured on
+and the upgrade control's statements hold as written.
+Its doc comment now states the boundary it relies on
+(the client takes the real `index.lock` only to write a stale index's stat data,
+before it makes its request),
+and `binary_budget_tests.rs` says why its `update-index` counts are the pre-refresh ones.
+
+Measured on 2026-11-08 with the release build of this branch on this host,
+a throwaway repository whose clean filter sleeps 100 ms per file,
+and this checkout (22,161 entries):
+
+- Fresh index,
+  12 files:
+  the in-process question 0 ms (under a millisecond),
+  Git's own refresh 2 ms.
+- Stale index,
+  12 files (every file with a new inode and its modification time kept):
+  the question 0 ms (it stops at the first stale entry),
+  Git's refresh 1,152 ms and it keeps it.
+  A `git commit` over a copy of the stale index cost 1,368 ms,
+  which is what the code before `cd1755d728` paid inside the scratch step's 3,006 ms ceiling;
+  with the refresh the copies carry the worktree's stat data and the same commit over them costs 216 ms.
+- Fresh index,
+  1,000 files:
+  the question 5 ms,
+  Git's own refresh 8 ms.
+- This checkout's 22,161 entries:
+  the question 47 to 58 ms warm
+  (a whole pass over the same paths,
+  one `lstat` each,
+  56 to 58 ms relative to the worktree root and 96 ms with
+  absolute paths),
+  against `git --no-optional-locks diff-files` 10 ms on the same worktree,
+  whose stat pass Git preloads across threads (`core.preloadIndex`).
+  So the commit pays about the stat pass native `git commit` also makes,
+  single-threaded,
+  and saves one Git start and the real index's lock;
+  against the code before `cd1755d728` it adds that pass.
+- The six `budget::` controls and all 32 `budget::` and `commit_timing::` tests pass
+  (`mise run //package/git-policy/cli:native:test:binary:host -- --no-fail-fast budget:: commit_timing::`,
+  32 of 32),
+  and the new controls are `commit_index_stat_staleness_tests.rs`
+  (an index Git has just written needs no refresh,
+  a file whose inode changed does,
+  only a change the commit does not stage does,
+  an entry without stat data does,
+  an assume-unchanged entry does not,
+  an unreadable index does,
+  a missing one does not)
+  and `commit_index_stat_refresh_tests.rs`
+  (an up-to-date index is answered without starting Git,
+  a stale one asks it,
+  and a refresh that meets another program's lock is not kept,
+  leaves the index as it was and does not wait for it).
+
+Checked on the final tree at 2026-11-08T18:40:00-05:00:
+the whole native library suite passed (`mise run //package/git-policy/cli:native:test:host -- --no-fail-fast`,
+4,731 tests run,
+4,731 passed,
+8 skipped),
+the 69 `budget::`,
+`commit_timing::` and `commit::` binary tests passed,
+`native:clippy` and `monochromatic-lint --max-warnings 0` were clean,
+and `native:perf` kept both owner bounds on the release binary:
+`commit-service` paired delta median 22.6 ms,
+p95 318.6 ms,
+max 348.2 ms against the 5,000 ms bound,
+and every forwarded command's added p95 under 2.1 ms against the 2,000 ms bound.
+Two `standards_review_client` tests failed and one ended at the 300 s nextest timeout in a loaded
+7-minute run of the same suite,
+and all twelve of that module pass alone in 3 s,
+so they are host-load flakes that this change does not touch.
+
+Owner question:
+`package/git-policy/cli/SPEC.md:5471` says a commit prepares
+"in parallel with other commits and without the real index lock",
+and `doc/decision/cli-git-concurrent-commits.md:29` says the same.
+The step here takes that lock when the index is stale,
+which the two controls this branch fixed do not see,
+because their repositories have an index Git has just written.
+It is taken for one `git update-index --refresh` (2 to 50 ms on this checkout) and never held across the request,
+and a client that meets the lock degrades to the private copy at once rather than waiting or failing,
+so concurrent commits still never fail on it and nothing waits on it in preparation.
+Two readings are open:
+
+- Amend the record to allow a bounded stat refresh inside preparation that degrades on a held lock,
+  which is what this branch does and what keeps the scratch step inside its ceiling.
+- Keep preparation lock-free,
+  and hand the write to the landing,
+  which already holds `index.lock`:
+  it would build its private copy,
+  answer the same in-process staleness question over the live index,
+  run `git update-index --refresh` on the copy with `GIT_INDEX_FILE` set to it,
+  and install that copy.
+  Then nothing outside the landing writes the real index,
+  and the cost moves to the landing,
+  inside its lock,
+  on every commit after the worktree moved.
+  The first commit after the move would still pay the refresh on its private copy in preparation,
+  as the locked-index fallback does today.
+
+Still to do:
+
+- The landing's in-process index reset writes the commit's paths with all-zero stat data
+  (`index/index_reset.rs` `StatData::default()`,
+  as `git reset --no-refresh` does),
+  where native `git commit` leaves the worktree's stat data.
+  The next commit therefore finds those paths stale and refreshes them once,
+  through the question here,
+  one Git start and one hash per path the previous commit landed and this one does not name.
+  Native Git pays nothing for them.
+- The question's pass is single-threaded;
+  preloading it across threads as Git's `core.preloadIndex` does would cut the 56 ms above to about Git's 10 ms.
+- A commit that meets another program's `index.lock` does not fail and does not wait for it in the refresh
+  (Git answers a held lock at once,
+  measured 0.00 s,
+  and the private index is refreshed instead),
+  and the landing still waits for that lock as it always has,
+  bounded by `LANDING_LOCK_CEILING`.
+- The cost added to a wrapper commit on main against native Git is still unmeasured end to end:
+  `native:perf` compares paired commit deltas and is the run for it.
+
 ### A snapshot worktree add leaves another add's stage behind as an empty placeholder
 
 Found 2026-11-08 when the move to the 860 stopped on one
@@ -3252,7 +3440,7 @@ then the rung's own snapshot.
 The new worktree then lists `.cli-git-worktree-copy-<id>` at inode 2 on a device of its own:
 empty,
 and `btrfs subvolume show` answers `Not a Btrfs subvolume` for it.
-The cause is the one read above:
+The cause is the one the `worktree/worktree_snapshot.rs:237-243` reading gives:
 `remove_stubs` named the registered worktrees and the destination,
 and a stage container in flight is neither.
 An `rmdir` of the stand-in succeeds and removes the snapshot's entry alone:
@@ -4333,12 +4521,20 @@ running tests),
 and a throwaway.
 Remaining:
 - convert the worktrees still ordinary once their holders are done (busy worktrees are refused by the tool itself);
-- the dry-run summary reads "0 converted or completed" beside "would convert" lines;
-  it should count what would convert (small fix,
-  not done);
-- sweep the conversion journal's `cli-git-convert.tmp.<pid>.<nanos>` leftovers,
-  and read the migration journal without following
-  a link (`Journal::load` uses `read_to_string`);
+- the summary's skipped count is zero beside lines that say a worktree is already a subvolume,
+  and no counter names an undone conversion:
+  `ConversionReport::on_event` (`worktree/worktree_convert_command.rs`) counts `WouldConvert` and a
+  `Skipped` verdict but neither `AlreadySubvolume` nor `Abandoned`.
+  Measured 2026-11-08T18:54:31-05:00:
+  the third run of `all_worktrees_are_listed_then_converted` printed
+  "2 worktree(s) looked at,
+  0 converted or completed,
+  0 skipped."
+  under two lines saying the worktree is already a subvolume.
+  Not fixed;
+  the owner's wording call:
+  count both in the skipped count,
+  or give each its own counter in the summary;
 - the `node_modules` links that point nowhere are counted (read only,
   nothing relinked,
   2026-11-08T17:10:51-05:00):
@@ -4400,6 +4596,16 @@ Two small fixes this section listed are done:
   the other half of this line was already done when it was written:
   `Journal::load` reads through `read_plain_file` (`O_NOFOLLOW`),
   and the same test file plants a symlink at the name.
+
+Converting the remaining worktrees no longer waits on a defect either:
+the conversion compared a registration's text with the real path and refused a worktree spelled
+through the repository link,
+which 301 of the 353 registrations did at 2026-11-08T16:24
+(`--all` looked at 15 of them without saying so).
+Merge `1486f5c112` (2026-11-08T17:37:33-05:00,
+branch `fix/git-policy-cli-registration-compared-as-the-same-file`)
+compares registrations by the file each one names
+(`package/git-policy/cli/src/native/subvolume/subvolume_registered_worktrees.rs`).
 
 ### Worktree add follow-ups
 
@@ -6796,6 +7002,34 @@ are in append mode now).
   and the cause inside the claim tests is not measured.
   Not the four fixes on that branch:
   none of them is in `landing/`.
+- `foundation::earlier_names_folded_into_current::tests::a_kill_at_any_step_of_the_whole_fold_then_a_second_fold_gives_the_same_result`
+  aborted one host full-suite run on
+  `fix/git-policy-cli-service-home-and-convert-dry-run-count`
+  (2026-11-08T19:08:21-05:00,
+  4768 tests,
+  1181 tests run;
+  1180 passed,
+  1 failed,
+  the run stopped after the failure)
+  through the crate's own watchdog:
+  "the unit-test run exceeded 120s:
+  a test is stuck",
+  `SIGABRT` at 123.2 s.
+  Measured alone in the same tree:
+  72.3 s,
+  then 5.4 s,
+  both passing,
+  so this test's cost varies by more than a factor of ten on this host,
+  and its slow end alone sits only 1.7 times under the `RUN_LIMIT` of
+  `testing/test_support.rs` that a full suite's concurrency eats.
+  Not the branch's two comment-only edits,
+  which touch neither `src/native/foundation` nor the watchdog.
+  Not fixed:
+  what makes one iteration expensive is not measured,
+  and the shape of a fix is open
+  (a shorter loop,
+  a cheaper fixture,
+  or its own bound).
 
 ### Questions waiting for the owner
 
@@ -9039,6 +9273,62 @@ what the ten minutes is worth and what the three ceilings now rest on.
   so that basis would make it two minutes rather than the twenty it ships.
   Another change owns the constant;
   it was not touched here.
+
+### The lock ceilings' waits read again with the service journal (2026-11-08T18:43-05:00)
+
+The citations beside the lock ceilings now carry the count,
+median,
+95th and 99th percentile and maximum
+of the wait each bounds,
+from the timing log and the service journal together.
+No value changed.
+The entry before this one answered the same question from the timing log alone.
+
+- Read:
+  both generations of the commit timing log (1,608 records,
+  2026-11-05T03:13:38Z to 2026-11-08T23:49:56Z,
+  134 worktrees,
+  releases 0.5.34 to 0.6.1-alpha.5)
+  and the service journal (4,386 `answered` lines,
+  2026-11-02T04:01:38-05:00 to 2026-11-08T18:49:55-05:00),
+  read-only,
+  by a scratch script under `${HOME}/temp/agent/lock-ceiling-journal` (not committed).
+- The journal needs both identifiers:
+  `cli-git-service` before the program was renamed and `monochromatic-git-policy-cli-service` after.
+  A read with the current identifier alone returns 1,429 of the 4,386 answers.
+- Figures:
+  the landing's wait for the index (`lock_wait_ms`) has 3,777 zeros in 4,386 answers,
+  median 0 ms,
+  95th percentile 6 ms,
+  99th percentile 158 ms,
+  longest 600,718 ms;
+  609 landings waited at all and 20 waited over a second;
+  14 of those landed (largest 11,490 ms counted with the wrapper's own staging of a cold index,
+  8,000 ms at the holder's place),
+  one more landed only when a person removed the lock,
+  and five were refused by the lock that never went.
+  The settle's 99th percentile is 17 ms and its longest 172 ms over the same 4,386 answers,
+  and the service's own hold of the index is 119,721 ms at most.
+  The whole command is 1,228,797 ms at most and the answer wait 1,200,776 ms.
+- What the values rest on:
+  one minute still holds at 7.5 times the longest place wait and 5.2 times the longest acquisition,
+  the settle's whole-minute rounding still gives one minute,
+  and the ten minutes is 52 times the longest whole lock acquisition;
+  no wait takes it.
+  The merge and the reconciliation still have no sample of their own:
+  none of the 1,608 records is a merge and none names a `git reset` step.
+- Section:
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceilings' waits read again from the service journal".
+- Open,
+  for the owner:
+  `FOREIGN_OWNER_PATIENCE` (1,200 s) is 28,797 ms shorter than the longest whole command in the log
+  (1,228,797 ms,
+  one of the commits that stopped at the lock that never went),
+  and the log times a command rather than a record's hold,
+  so it does not prove the patience too short.
+  Another change owns that constant;
+  nothing was changed here.
 
 ### Design stance
 

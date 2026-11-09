@@ -192,7 +192,7 @@ so the number beside it was adopted from the sibling the parentheses name.
 
 These start containers through `runLimitArguments`,
 `limitArguments` or a literal that already carries the weight.
-They change only by taking the shared constant (the copies above),
+They change only by taking the shared constant (the copies the "Shared constant" section lists),
 never by gaining flags.
 
 - `package/git-policy/cli/bin/*.ts` (`build-git-test-image.ts`,
@@ -335,7 +335,7 @@ never by gaining flags.
 - `.github/workflows/music-player-release.yml` (`podman run` at the lines that read `--memory="$BUILD_MEMORY"`,
   the
   smoke test and the runtime image checks) and `.github/workflows/ide-release.yml:298` to `:308`:
-  see the workflow decisions below.
+  see the "Workflow decisions" section.
 
 ### Image builds (`podman build`, no weight option exists)
 
@@ -469,7 +469,7 @@ after the first dry runs of the two release workflows on `main`:
   neither starts a container or reads this branch's files.
 
 Earlier reasoning,
-kept for the record (superseded by the update above):
+kept for the record (superseded by the update dated 2026-11-08 in "Workflow decisions"):
 - On a dedicated hosted runner the job is the only tenant,
   so the weight has no sibling to yield disk time to.
 - `playwright-image.yml` builds through `core-exec`'s `playwright-image-build.ts` (build bound only).

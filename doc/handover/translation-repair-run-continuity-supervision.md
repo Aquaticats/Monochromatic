@@ -331,7 +331,7 @@ The two are now separable.
 
 ## Verifying it rather than trusting it
 
-Every check below was run against the live system before the supervisor was
+Every check this section lists was run against the live system before the supervisor was
  armed,
 because a supervisor whose detection is wrong is worse than none:
 it
