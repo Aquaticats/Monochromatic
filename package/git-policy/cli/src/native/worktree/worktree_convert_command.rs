@@ -216,6 +216,43 @@ pub fn execute(platform: Arc<dyn Platform + Send + Sync>, arguments: &ConvertArg
 }
 
 /// What:
+///  What a run found to convert and how its targets are grouped into lanes.
+/// Why:
+///  The two are found together, in one job of the blocking pool
+/// (`execute_run_awaiting`),
+///  because both read the filesystem and one of them starts Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type FoundTargets = { found: Targets | string; lanes: number[][] };
+/// ```
+struct FoundTargets {
+    /// The targets, or the reason a run was refused before anything changed.
+    found: Result<Targets, String>,
+    /// The lanes of the targets,
+    /// empty when the run was refused.
+    lanes: Vec<Vec<usize>>,
+}
+
+/// What:
+///  Finds what a run covers, and groups its targets into lanes.
+/// Why:
+///  See `FoundTargets`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function findTheTargetsAndLanes(arguments: ConvertArguments, cwd: string): FoundTargets;
+/// ```
+fn find_the_targets_and_lanes(arguments: &ConvertArguments, cwd: &Path) -> FoundTargets {
+    let found: Targets = match targets(arguments, cwd) {
+        Ok(covered) => covered,
+        Err(reason) => return FoundTargets { found: Err(reason), lanes: Vec::new() },
+    };
+    let lanes: Vec<Vec<usize>> = lanes_of(found.covered.as_slice());
+    return FoundTargets { found: Ok(found), lanes };
+}
+
+/// What:
 ///  The lanes of a run:
 /// the targets that name one worktree share a lane,
 /// so they run one after another,
@@ -414,8 +451,21 @@ pub fn execute_run(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
 /// ```
 pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str)) -> i32 {
     let ConvertRun { platform, arguments, cwd, interrupt, host } = run;
-    let found: Targets = match targets(arguments, cwd) {
+    // Finding the targets and grouping their lanes is storage and Git work (`canonicalize`, a scan of the linked
+    //  worktrees), so it is one job of the blocking pool: a path whose lookup stalls would otherwise hold the thread that
+    //  polls this runtime before the future's first await, where no timeout could expire.
+    let (arguments_owned, cwd_owned): (ConvertArguments, PathBuf) = ((*arguments).clone(), cwd.to_path_buf());
+    let found: FoundTargets = match run_blocking_job_within_the_budget(move || { return find_the_targets_and_lanes(&arguments_owned, cwd_owned.as_path()); }).await {
         Ok(found) => found,
+        Err(refused) => {
+            say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {refused}").as_str());
+            say("Nothing was changed.");
+            return REFUSED_EXIT_CODE;
+        }
+    };
+    let FoundTargets { found, lanes } = found;
+    let found: Targets = match found {
+        Ok(covered) => covered,
         Err(reason) => {
             say(format!("git monochromatic-git-policy-cli convert-worktree-to-subvolume: refused: {reason}").as_str());
             say("Nothing was changed.");
@@ -434,7 +484,6 @@ pub async fn execute_run_awaiting(run: &ConvertRun<'_>, say: &mut dyn FnMut(&str
     if !arguments.dry_run && !arguments.abandon && !list.is_empty() {
         say(RISK_NOTICE);
     }
-    let lanes: Vec<Vec<usize>> = lanes_of(list.as_ref());
     let workers: usize = conversion_workers(lanes.len(), arguments.jobs, host);
     debug(TAG, format!("{} worktree(s) in {} lane(s) on {workers} worker(s) (host {host:?}, cap {:?})", list.len(), lanes.len(), arguments.jobs).as_str());
     // Each worktree has its own administrative directory, index, claim and journal, so the conversions share nothing but the

@@ -20,6 +20,9 @@ use std::time::Duration;
 /// How many worktrees the controls convert.
 const WORKTREES: usize = 4;
 
+/// The name of the linked worktree a control registers while a run waits.
+const LATER: &str = "later";
+
 /// How many worktrees a control converts when the conversions run one after another:
 /// one proves that a conversion takes a place of the bound, and two show a serial report beside a side-by-side one.
 const ONE_CONVERSION: usize = 1;
@@ -473,6 +476,64 @@ fn the_conversions_take_places_of_the_processs_bound_on_blocking_jobs() {
     assert!(
         finished.recv_timeout(PATIENCE).expect("the job that holds the place never returned"),
         "no job of the work under test asked for a place of the process's bound, so it did not take one"
+    );
+    remove(parent.as_path());
+}
+
+/// What:
+///  What a run covers is found after the run's first wait, not before it.
+/// Why:
+///  Finding the targets runs Git for `--all` and scans the linked worktrees, and grouping them into lanes resolves each
+/// path with a synchronous `std::fs::canonicalize`
+/// (`lanes_of`).
+/// On the thread that polls the runtime that work happens before the future's first await,
+///  where a path whose lookup stalls holds the runtime and no timeout can expire.
+/// The control keeps the process's only place inside another job,
+///  registers a linked worktree while the run waits,
+/// and shows that the run finds it:
+/// a run that had looked before it waited could not.
+#[test]
+fn what_a_run_covers_is_found_after_it_first_waits_rather_than_before() {
+    let (parent, root) = checkout_with_worktrees("convert-finds-targets-after-waiting", ONE_CONVERSION);
+    crate::blocking_jobs_within_the_budget::hold_blocking_jobs_to(crate::parallel_test_support::ONE_PLACE);
+    let (holding, held) = std::sync::mpsc::channel::<()>();
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let busy = crate::lazy_runtime::spawn_on_runtime(async move {
+        let _outcome = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+            let _told = holding.send(());
+            let _ = waiting.recv();
+        })
+        .await;
+    });
+    assert!(busy.is_some(), "the runtime has a worker, so the process's only place can be held");
+    assert!(held.recv_timeout(PATIENCE).is_ok(), "the job that holds the only place never started");
+    // The run on a thread of its own, so this control can register a worktree while the run waits.
+    let run_root: PathBuf = root.clone();
+    let run = std::thread::spawn(move || {
+        let arguments: ConvertArguments = all_arguments();
+        let mut lines: Vec<String> = Vec::new();
+        let run: ConvertRun<'_> = ConvertRun { platform: shared_quiet(), arguments: &arguments, cwd: run_root.as_path(), interrupt: Arc::new(Interrupt::never()), host: &LARGE_HOST };
+        let code: i32 = execute_run(&run, &mut |text: &str| { lines.push(String::from(text)); });
+        return (code, lines);
+    });
+    // The run has asked for a place, so whatever it does before its first wait is done by now.
+    assert!(
+        crate::blocking_jobs_within_the_budget::jobs_waiting_for_a_place::wait_until_a_job_waits(PATIENCE),
+        "the run asked for a place of the process's bound"
+    );
+    // A linked worktree registered now must still be found by a run that has not looked yet.
+    git(root.as_path(), &["worktree", "add", "--quiet", "--detach", LATER]);
+    let mut exclude: String = std::fs::read_to_string(root.join(".git/info/exclude")).unwrap_or_default();
+    exclude.push_str(format!("/{LATER}/\n").as_str());
+    std::fs::write(root.join(".git/info/exclude"), exclude).expect("exclude");
+    backdate(root.join(LATER).as_path());
+    git(root.join(LATER).as_path(), &["update-index", "--refresh"]);
+    let _let_go = release.send(());
+    let (code, lines) = run.join().expect("the run's thread ended");
+    assert_eq!(code, 0, "{lines:#?}");
+    assert!(
+        lines.iter().any(|line: &String| { return line.ends_with(format!("/{LATER}").as_str()); }),
+        "the worktree registered while the run waited was not converted, so the run had decided what it covers before it first waited: {lines:#?}"
     );
     remove(parent.as_path());
 }
