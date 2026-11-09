@@ -443,12 +443,19 @@ fn spawn_other_claimer(claim: PathBuf, placed: std::sync::mpsc::Sender<()>, let_
     });
 }
 
-/// A landing that meets a stale lock another reclaimer holds a claim on neither removes it nor fails at once:
-/// it looks again at
-///  the poll pace,
-/// which the count of refusals shows,
-/// and ends at its ceiling;
-/// the stale lock stays for the reclaimer that holds it.
+/// What:
+///  A landing that meets a stale lock another reclaimer holds a claim on neither removes it nor fails at once:
+///  it ends at its ceiling,
+///  and the stale lock stays for the reclaimer that holds it.
+/// Why:
+///   The count of refusals this control used to require (more than one) was a clock in disguise:
+/// how many attempts fit in the ceiling depends on how long each attempt takes,
+/// and on 2026-11-09 this host stalled one attempt for ten seconds (the same two controls, alone, took 0.3 to 19.6 s over
+/// six runs),
+/// so the count fell to one and the control failed while the landing behaved as designed.
+/// That the wait looks again at the poll pace is what `a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped`
+/// controls, through `WaitNotes::polled`,
+/// which no clock decides.
 #[test]
 fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
     let (root, index, lock) = index_in("claim-landing-busy");
@@ -465,24 +472,32 @@ fn a_landing_waits_for_the_reclaimer_that_holds_a_claim() {
     let failure = acquire_within(&platform, &index, 9, ceiling, &|_| {}).expect_err("the lock is not taken while the other reclaimer holds a claim");
     assert_eq!(failure.code, FailureCode::IndexInUse, "the wait ends at its ceiling, as for any held lock");
     assert!(began.elapsed() >= ceiling, "the wait ended before its ceiling");
-    assert!(refused.get() > 1, "the landing looked again while the claim stood: {} refusals", refused.get());
+    assert!(refused.get() >= 1, "the landing met the reclaimer's claim: {} refusals", refused.get());
     assert!(lock.exists(), "the stale lock stays for the reclaimer that holds the claim");
     let_go_tx.send(()).expect("the other reclaimer is told to let go");
     other.join().expect("the other reclaimer ends");
     remove(root.as_path());
 }
 
-/// A landing that meets a stale lock another reclaimer holds a claim on waits in the same acquisition and takes the lock once
+/// What:
+///  A landing that meets a stale lock another reclaimer holds a claim on waits in the same acquisition and takes the lock once
 ///  the claim is gone without the lock having been unlinked:
-/// the end of a claim leaves no event on the lock's name,
-/// so the wait
-///  looks again at the poll pace.
+///  the end of a claim leaves no event on the lock's name,
+///  so the wait looks again at the poll pace.
 /// The other reclaimer lets go only after the landing was refused,
 /// so the control meets the busy case.
+/// Why:
+///   The poll pace was asserted through a one-second ceiling,
+/// which a stalled attempt eats:
+/// on 2026-11-09 two of these controls failed at 11.268 s and 11.271 s in a run of 1,269 tests while the same two, alone,
+/// took 0.3 to 19.6 s over six runs on this host.
+/// The wait now says in `WaitNotes::polled` that it looked again at the poll pace while a claim stood,
+/// and the ceiling is the product's own (`LANDING_LOCK_CEILING`),
+/// so a stall no longer decides the verdict and a wait that blocked for the notice interval is still caught.
 #[test]
 fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     let (root, index, lock) = index_in("claim-landing-wakes");
-    let ceiling: std::time::Duration = crate::service_index_watch::POLL_PAUSE * 20;
+    let ceiling: std::time::Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
     let (placed_tx, placed_rx) = std::sync::mpsc::channel::<()>();
     let (first_tx, first_rx) = std::sync::mpsc::channel::<()>();
     let other = spawn_other_claimer(claim_at(&lock, 0), placed_tx, first_rx, CLAIMER_GIVE_UP);
@@ -491,17 +506,49 @@ fn a_landing_takes_the_stale_lock_when_the_other_reclaimers_claim_is_dropped() {
     let counting = counting_rename(&refused, &first_tx);
     let platform: Platform = Platform { rename: &counting, ..SYSTEM };
     let holders = std::cell::RefCell::new(Vec::<String>::new());
-    let taken = acquire_within(&platform, &index, 9, ceiling, &|announce| {
-        if let Announce::Holder(who) = announce {
+    let mut notes: crate::service_index_found::WaitNotes = crate::service_index_found::WaitNotes::default();
+    let announce = |note: Announce| {
+        if let Announce::Holder(who) = note {
             holders.borrow_mut().push(who);
         }
-    })
+    };
+    crate::service_index_attempts::forget_waits_chosen();
+    let taken = acquire_placing(&platform, &index, 9, ceiling, &announce, &mut notes, None)
     .expect("the stale lock is reclaimed in the same acquisition once the claim is dropped");
     assert!(refused.get() >= 1, "the acquisition met the other reclaimer's claim");
+    assert!(notes.polled, "the wait looked again at the poll pace while another reclaimer held a claim, as nothing wakes it when the claim goes");
+    // The span the wait asked for, which the clock cannot say: a thread the scheduler holds makes a wait that asked for the poll
+    //  pace look slow and one held just after a sleep makes a wait that asked for the notice look quick.
+    let chosen: Vec<Duration> = crate::service_index_attempts::waits_chosen_by_this_thread();
+    assert!(!chosen.is_empty(), "the acquisition waited for the claim instead of taking the lock at once");
+    assert!(
+        chosen[0] <= crate::service_index_watch::POLL_PAUSE,
+        "the wait that followed the refusal meeting the claim asked for {:?}: a claim's end leaves no event on the lock's name, so the wait looks again at the poll pace ({} ms), not at the notice interval ({:?})",
+        chosen[0],
+        crate::service_index_watch::POLL_PAUSE.as_millis(),
+        notice_every()
+    );
     assert!(holders.borrow().is_empty(), "a claimed stale lock is no dead holder to give up on: {:?}", holders.borrow());
     drop(taken);
     other.join().expect("the other reclaimer ends");
     remove(root.as_path());
+}
+
+/// The wait that follows a refusal which met another reclaimer's claim is the poll pace,
+/// and only a watched wait is the notice interval.
+#[test]
+fn a_wait_while_a_claim_stands_asks_for_the_poll_pace() {
+    let notice: Duration = notice_every();
+    let ceiling: Duration = crate::wait_ceilings::LANDING_LOCK_CEILING;
+    assert!(notice > crate::service_index_watch::POLL_PAUSE, "the notice interval and the poll pace are told apart: {notice:?}");
+    // No watch can end a claim, so the wait that met one looks again at the poll pace.
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, ceiling, false), crate::service_index_watch::POLL_PAUSE);
+    // A watched wait is the notice itself, which is what makes the cap above the figure that decides.
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, ceiling, true), notice);
+    // The ceiling bounds both.
+    let short: Duration = crate::service_index_watch::POLL_PAUSE / 2;
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, short, false), short);
+    assert_eq!(crate::service_index_attempts::until_next_wake(notice, short, true), short);
 }
 
 /// The longest file name Linux gives a directory entry.

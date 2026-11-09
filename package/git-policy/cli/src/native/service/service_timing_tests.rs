@@ -93,6 +93,7 @@ fn landing() -> LandTiming {
             staging: Duration::from_millis(STAGE_MS),
             stage_kind: "cold",
             placing: Duration::from_millis(PLACE_MS),
+            polled: false,
         },
     };
 }
