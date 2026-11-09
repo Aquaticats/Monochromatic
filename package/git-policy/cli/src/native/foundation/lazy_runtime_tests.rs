@@ -75,12 +75,70 @@ fn a_build_that_fails_is_replaced_by_the_current_thread_runtime() {
 /// a second call sees the flavor the first built.
 #[test]
 fn every_call_runs_on_the_same_runtime() {
-    assert_eq!(built_flavor(), None, "nothing is built before the first need");
+    // Whether one is built before the first need is the control of the child below: a sibling test of this process may have
+    //  built it already, and that is no part of what this one says.
     assert_eq!(run_on_runtime(async { return 1; }).expect("runs"), 1);
     let first: Option<BuiltFlavor> = built_flavor();
     assert!(first.is_some());
     assert_eq!(run_on_runtime(async { return 2; }).expect("runs"), 2);
     assert_eq!(built_flavor(), first);
+}
+
+/// What:
+///  The path this file's child test `name` has when the test binary is run directly.
+/// Why:
+///   A test binary names its tests from the module path without the crate name,
+/// and a name that matches no test runs
+///  nothing and succeeds,
+/// which the control below rules out by reading what the child said.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const path = `${module_path.split('::').slice(1).join('::')}::${name}`;
+/// ```
+fn child_path(name: &str) -> String {
+    let module: &str = module_path!();
+    let without_crate: &str = module.split_once("::").map_or(module, |(_, rest)| { return rest; });
+    return format!("{without_crate}::{name}");
+}
+
+/// Child of the control below:
+/// a process that has needed no runtime yet.
+#[test]
+#[ignore = "started by nothing_is_built_before_the_first_need in a process of its own"]
+fn child_that_has_needed_no_runtime_yet() {
+    let before: Option<BuiltFlavor> = built_flavor();
+    let ran: u32 = run_on_runtime(async { return 7; }).expect("runs");
+    let after: Option<BuiltFlavor> = built_flavor();
+    assert!(ran == 7 && before.is_none() && after.is_some(), "before {before:?}, after {after:?}");
+}
+
+/// What:
+///  Nothing is built before the first need,
+///  and the first need builds the one runtime.
+/// Why:
+///   Laziness is measurable only in a process that has needed nothing,
+/// and a sibling test of the same process can have built the runtime
+///  before this one runs,
+/// which made the assertion an order of the runner's rather than a fact about the code.
+/// The child is a process of its own, so the fact is the code's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const output = spawnSync(exe, ['--exact', childPath('childThatHasNeededNoRuntimeYet'), '--ignored']);
+/// expect(output.status).toBe(0);
+/// ```
+#[test]
+fn nothing_is_built_before_the_first_need() {
+    let output: std::process::Output = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
+        .args(["--exact", child_path("child_that_has_needed_no_runtime_yet").as_str(), "--ignored", "--nocapture", "--test-threads=1"])
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("the child test runs");
+    let ran: String = String::from_utf8_lossy(output.stdout.as_slice()).into_owned();
+    let said: String = String::from_utf8_lossy(output.stderr.as_slice()).into_owned();
+    assert!(ran.contains(child_path("child_that_has_needed_no_runtime_yet").as_str()), "the child ran the test named, not nothing:\n{ran}");
+    assert!(output.status.success(), "a process that has needed no runtime builds one at its first need:\n{ran}\n{said}");
 }
 
 /// A call from inside the runtime is refused with an error where `block_on` would panic.
