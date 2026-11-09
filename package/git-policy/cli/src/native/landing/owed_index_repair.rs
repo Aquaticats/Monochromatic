@@ -66,11 +66,7 @@ use std::path::{Path, PathBuf};
 /// derived from the two branch values when the batch names none.
 fn names_of(git: &GitContext, repository: &Path, owed: &Owed) -> Result<Vec<Vec<u8>>, FailureCode> {
     if !owed.derived {
-        let mut listed: Vec<Vec<u8>> = Vec::with_capacity(owed.paths.len());
-        for path in &owed.paths {
-            listed.push(path.clone());
-        }
-        return Ok(listed);
+        return Ok(owed.paths.clone());
     }
     let names: Vec<u8> = crate::service_land_follow::derived_names(git, repository, owed.old.as_str(), owed.new.as_str())?;
     return Ok(names_in(names.as_slice()));

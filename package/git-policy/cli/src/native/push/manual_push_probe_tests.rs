@@ -1,8 +1,10 @@
 //! Controls for the manual-push probe against real repositories and bare remotes,
 //! with Git writing the report.
-//! The TypeScript corpus is `src/policy-engine/manual-push.integration.unit.test.ts` (probe and ls-remote cases)
-//! and `src/policy-engine/manual-push-scope.unit.test.ts`;
-//! the update-discovery cases are reproduced here.
+//! The corpus is `package/git-policy/cli/src/manual-push.integration.unit.test.ts` (probe and
+//! ls-remote cases) and `package/git-policy/cli/src/policy-engine/manual-push-scope.unit.test.ts`,
+//! both deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//! so `git show 642b6d72cb^` holds each.
+//! The update-discovery cases are reproduced here.
 
 use super::*;
 use crate::auto_push_single_flight::PushGit;

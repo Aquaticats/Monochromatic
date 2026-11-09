@@ -34,7 +34,6 @@
 use crate::capture_invocation::InvocationCapture;
 use crate::commit_transaction::TransactionStop;
 use crate::private_index_request::CaptureIndexes;
-use crate::path_bytes_in_records as path_bytes;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
@@ -138,49 +137,14 @@ fn encode(owed: &Owed) -> String {
     fields.insert(String::from("ref"), Value::from(owed.reference.clone()));
     fields.insert(String::from("old"), Value::from(owed.old.clone()));
     fields.insert(String::from("new"), Value::from(owed.new.clone()));
-    // The paths go in as text and as their bytes, as an intent's do, so one that is not text comes back as it was.
-    fields.insert(String::from("paths"), Value::from(owed.paths.iter().map(Vec::as_slice).map(String::from_utf8_lossy).map(std::borrow::Cow::into_owned).collect::<Vec<String>>()));
-    fields.insert(String::from("pathsHex"), Value::from(owed.paths.iter().map(Vec::as_slice).map(path_bytes::hex_of_bytes).collect::<Vec<String>>()));
+    // A path of the batch need not be text, so the record holds each one's bytes.
+    let mut paths_as_bytes: Vec<String> = Vec::with_capacity(owed.paths.len());
+    for path in &owed.paths {
+        paths_as_bytes.push(crate::path_bytes_in_records::hex_of_bytes(path.as_slice()));
+    }
+    fields.insert(String::from("pathsHex"), Value::from(paths_as_bytes));
     fields.insert(String::from("derived"), Value::from(owed.derived));
     return format!("{}\n", Value::Object(fields));
-}
-
-/// What:
-///  The paths a record holds:
-/// the bytes of `pathsHex` when it has them,
-/// the plain text of `paths` otherwise.
-/// Why:
-///   A path that is not text survives only in the bytes,
-/// and a record an earlier release wrote holds only the plain list;
-/// a line of bytes that is there and does not decode is damage,
-/// and a reader that took it for an absent line would name a path that is not the one the record means.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const owedPaths = (value) => value.pathsHex?.map(pathOfHex) ?? value.paths.map(textToBytes)
-/// ```
-fn owed_paths(value: &Value) -> Result<Vec<Vec<u8>>, String> {
-    if let Some(list) = value.get("pathsHex").and_then(Value::as_array) {
-        let mut paths: Vec<Vec<u8>> = Vec::with_capacity(list.len());
-        for entry in list {
-            let Some(hex) = entry.as_str() else {
-                return Err(String::from("the record holds a path that is not hexadecimal digits"));
-            };
-            let Some(path) = path_bytes::path_of_hex(hex) else {
-                return Err(String::from("the record holds a path that is not hexadecimal digits"));
-            };
-            paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
-        }
-        return Ok(paths);
-    }
-    let mut paths: Vec<Vec<u8>> = Vec::new();
-    for entry in value.get("paths").and_then(Value::as_array).into_iter().flatten() {
-        let Some(path) = entry.as_str() else {
-            return Err(String::from("the record holds a path that is not text"));
-        };
-        paths.push(path.as_bytes().to_vec());
-    }
-    return Ok(paths);
 }
 
 /// The record a file's text holds,
@@ -202,7 +166,16 @@ fn decode(text: &str) -> Result<Owed, String> {
     let Some(index) = field_text(&value, "index") else {
         return Err(String::from("the record names no index file"));
     };
-    let paths: Vec<Vec<u8>> = owed_paths(&value)?;
+    let mut paths: Vec<Vec<u8>> = Vec::new();
+    for entry in value.get("pathsHex").and_then(Value::as_array).into_iter().flatten() {
+        let Some(digits) = entry.as_str() else {
+            return Err(String::from("the record holds a path that is not text"));
+        };
+        let Some(path) = crate::path_bytes_in_records::path_of_hex(digits) else {
+            return Err(String::from("the record holds a path whose bytes do not decode"));
+        };
+        paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
+    }
     return Ok(Owed {
         seq,
         repository: PathBuf::from(field_text(&value, "repository").unwrap_or_default()),
