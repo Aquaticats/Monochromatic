@@ -122,6 +122,49 @@ fn a_correction_below_the_top_is_recorded_by_its_repository_relative_name() {
     remove(root.as_path());
 }
 
+/// A caller whose two glob modes disagree makes Git refuse every pathspec it is given,
+/// and the completion-record step still reads the corrected entry:
+/// its pathspec is the wrapper's own, so it runs without the caller's modes.
+#[test]
+fn a_completion_record_reads_its_entry_under_the_callers_conflicting_glob_modes() {
+    let root: PathBuf = fixture("worktree-records-glob-modes");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), b"old").expect("a");
+    git(repo.as_path(), &["add", "--", "a.txt"]);
+    let index: PathBuf = repo.join(".git/index");
+    let corrected: String = {
+        let mut child = std::process::Command::new(REAL_GIT)
+            .current_dir(&repo)
+            .args(["hash-object", "-w", "--stdin"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("hash-object");
+        std::io::Write::write_all(&mut child.stdin.take().expect("stdin"), b"old\n").expect("write");
+        String::from_utf8_lossy(child.wait_with_output().expect("output").stdout.as_slice()).trim().to_string()
+    };
+    git(repo.as_path(), &["update-index", "--cacheinfo", "100644", corrected.as_str(), "a.txt"]);
+    let mut inherited: GitContext = context();
+    inherited.overlay.push((OsString::from("GIT_GLOB_PATHSPECS"), OsString::from("1")));
+    inherited.overlay.push((OsString::from("GIT_NOGLOB_PATHSPECS"), OsString::from("1")));
+    let records: Vec<AddedPath> = selected_worktree_records(
+        &inherited,
+        repo.as_path(),
+        repo.as_path(),
+        index.as_path(),
+        &[InstallChange {
+            path: b"a.txt".to_vec(),
+            mode: CandidateMode::Regular,
+            original: Rc::from(b"old".as_slice()),
+            replacement: Rc::from(b"old\n".as_slice()),
+        }],
+    )
+    .expect("the corrected entry is read despite the caller's modes");
+    assert_eq!(records.len(), 1, "the correction is recorded: {records:?}");
+    assert_eq!(records[0].path, b"a.txt");
+    remove(root.as_path());
+}
+
 /// A symbolic link or submodule correction is never recorded.
 #[test]
 fn non_ordinary_modes_get_no_completion() {
