@@ -1099,6 +1099,41 @@ fn a_step_that_finishes_inside_its_ceiling_is_answered() {
 }
 
 /// What:
+///  A watched step that finished inside its ceiling is answered,
+/// though the ceiling passes while its standard error is still held open.
+/// Why:
+///  A watcher exists here,
+/// so the watch's own ceiling fires while the wait is in its post-exit drain,
+/// and
+///  `ending_of_a_watched_step` replaced the collected status with `CeilingReached`
+/// (the fourth review's finding 2).
+///  A status already collected decides:
+/// the pin of the child reports it has ended,
+/// so nothing of the stop
+///  replaces its answer.
+#[test]
+fn a_watched_step_that_finished_inside_its_ceiling_is_answered() {
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    command.arg("-c").arg("sleep 6 >/dev/null & printf answer; exit 0").stdin(Stdio::null());
+    let began: Instant = Instant::now();
+    let output: std::process::Output = output_watched_within(
+        &mut command,
+        "a watched step with a holder on its standard error",
+        "a watched step with a holder on its standard error",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        // Below the one second the read of a held stream may go on after the step ended: the ceiling passes during that drain.
+        StepBound::EndAt(Duration::from_millis(300)),
+    )
+    .expect("the step's exit status and standard output are its answer");
+    let waited: Duration = began.elapsed();
+    assert!(output.status.success(), "{:?}", output.status);
+    assert_eq!(output.stdout, b"answer".to_vec(), "the step's answer comes back");
+    assert!(waited < Duration::from_secs(3), "the step was reported at its ceiling after {waited:?}");
+}
+
+/// What:
 ///  Each stream of a step is looked for through its own pipe,
 /// so a program holding only the standard error is found there.
 /// Why:
@@ -1142,4 +1177,50 @@ fn each_stream_is_found_by_its_own_pipe() {
     let _ended = holder.kill();
     let _reaped = holder.wait();
     assert!(named.contains(&i64::from(holder_pid)), "the program holding the pipe was not found through that pipe: {named:?}");
+}
+
+/// What:
+///  A root the pin reports gone has no tree read for it,
+/// and a root that is still there has one.
+/// Why:
+///  Once the root is reaped its number may name another process,
+/// and the children of that process are not this step's;
+/// enumerating them would signal a command of the person's that has nothing to do with the stop
+/// (the fourth review's finding 1).
+/// The control process below stands for whatever took the number.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_tree_of_a_root_that_has_ended_is_not_read() {
+    // A control process with a child of its own: the tree a reused number could offer.
+    let mut shell: Child = {
+        use std::os::unix::process::CommandExt as _;
+        Command::new("sh")
+        .args(["-c", "sleep 600 & echo $!; wait"])
+        .process_group(0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("the control's process")
+    };
+    let mut line: String = String::new();
+    std::io::BufRead::read_line(&mut std::io::BufReader::new(shell.stdout.take().expect("piped stdout")), &mut line).expect("the child's number");
+    let shell_pid: i32 = i32::try_from(shell.id()).expect("a process number");
+    // A child of this control, pinned at its start and then ended and reaped: its pin names a process that has gone.
+    let mut gone_child: Child = crate::test_support::spawn_owned(Command::new("sleep").arg("600").stdin(Stdio::null())).expect("a child");
+    let gone_pin: crate::child_watch_clock_marks_and_stopping::RootPin =
+        crate::child_watch_clock_marks_and_stopping::pin_at_start(gone_child.id());
+    gone_child.kill().expect("the control ends its child");
+    gone_child.wait().expect("the child is collected");
+    // A root that is still there is the positive control: its tree is read.
+    let live_pin: crate::child_watch_clock_marks_and_stopping::RootPin =
+        crate::child_watch_clock_marks_and_stopping::pin_at_start(u32::try_from(shell_pid).expect("a process number"));
+    let for_a_gone_root: Vec<crate::process_tree::TreeMember> =
+        crate::child_watch_clock_marks_and_stopping::descendants_of_a_root_that_still_runs(&gone_pin, shell_pid);
+    let for_a_live_root: Vec<crate::process_tree::TreeMember> =
+        crate::child_watch_clock_marks_and_stopping::descendants_of_a_root_that_still_runs(&live_pin, shell_pid);
+    // SAFETY: `kill` takes two integers and touches no memory; the number is this control's own process group leader.
+    let _ended = unsafe { libc::kill(-shell_pid, libc::SIGKILL) };
+    let _collected = shell.wait();
+    assert!(for_a_gone_root.is_empty(), "the tree of a root that has ended was read: {for_a_gone_root:?}");
+    assert_eq!(for_a_live_root.len(), 1, "the tree of the root that is still there was not read: {for_a_live_root:?}");
 }

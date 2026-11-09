@@ -110,6 +110,11 @@ pub(crate) async fn watch_loop(
         // The ceiling ends the child whatever it shows and whether or not a quiet child may be ended.
         let ceiling: Duration = Duration::from_micros(flags.ceiling.load(Ordering::Acquire));
         if waited >= ceiling {
+            // The status a wait already collected decides: a root the pin reports gone has ended, and reporting it as ended at
+            //  its ceiling would turn a finished step into a failed one (the fourth review's finding 2).
+            if !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&root_pin) {
+                continue;
+            }
             flags.ceiling_hit.store(true, Ordering::Release);
             expired.store(true, Ordering::Release);
             marks.keep_gap();
@@ -124,6 +129,10 @@ pub(crate) async fn watch_loop(
             None => false,
         };
         if quiet && stoppable.load(Ordering::Acquire) {
+            // The same answer decides here: a step that ended before its quiet window has a status, and a stop does not replace it.
+            if !crate::child_watch_clock_marks_and_stopping::the_root_is_still_there(&root_pin) {
+                continue;
+            }
             // Raised before the child is signalled, so the waiting thread that its end releases reads it as true.
             expired.store(true, Ordering::Release);
             marks.keep_gap();

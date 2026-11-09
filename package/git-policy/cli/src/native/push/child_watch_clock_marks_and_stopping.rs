@@ -315,6 +315,71 @@ pub(crate) fn send_to_the_root(_pinned: &RootPin, raw: i32, signal: libc::c_int)
 }
 
 /// What:
+///  Whether the step's root is still there,
+/// as the pin taken when the child started tells it.
+/// Why:
+///   The pin names the child for good,
+/// so a pin that reports the process gone means the step itself ended;
+/// the status its wait
+///  collected is then the answer,
+/// and nothing of a stop may replace it
+/// (the fourth review's finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillThere = (pin) => pin.kind === 'held' || pin.kind === 'unproven';
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+pub(crate) fn the_root_is_still_there(pin: &RootPin) -> bool {
+    return match pin {
+        // The descriptor becomes readable when the process it names exits, which answers this without a signal.
+        Pinned::Held(member) => !member.has_ended(),
+        Pinned::Gone => false,
+        // Nothing proved which process the number names, so the stop goes on as if the root were there: a bound the step keeps
+        //  is never lost to a record that could not be read.
+        Pinned::Unproven => true,
+    };
+}
+
+/// What:
+///  The processes below a step's root,
+/// read only while its pin proves the root is still the process it names.
+/// Why:
+///  Once the root is reaped its number may name another process,
+/// and the children of that process are not this
+///  step's:
+/// enumerating them would signal a command of the person's that has nothing to do with the stop
+///  (the fourth review's finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = stillThere(pin) ? descendantsOf(pid) : [];
+/// ```
+#[cfg(all(unix, target_os = "linux"))]
+pub(crate) fn descendants_of_a_root_that_still_runs(pin: &RootPin, raw: i32) -> Vec<TreeMember> {
+    if !the_root_is_still_there(pin) {
+        return Vec::new();
+    }
+    return descendants_of(raw);
+}
+
+/// Without a descriptor nothing is known about the root,
+/// so the stop goes on as if it were there.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+pub(crate) fn the_root_is_still_there(_pin: &RootPin) -> bool {
+    return true;
+}
+
+/// Without `/proc` no process is listed,
+/// so there is no tree to read.
+// UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+#[cfg(all(unix, not(target_os = "linux")))]
+pub(crate) fn descendants_of_a_root_that_still_runs(_pin: &RootPin, _raw: i32) -> Vec<TreeMember> {
+    return Vec::new();
+}
+
+/// What:
 ///  Whether the stop keeps waiting after it has killed what it could.
 /// Why:
 ///   The wait after the kill ends with a grace of its own,
@@ -369,10 +434,12 @@ pub(crate) async fn stop_process(pid: u32, locks: &LockLedger, incoming: &mut Un
     // The processes below the child are read before it is stopped, because a process's link to its parent is gone once the
     // parent has exited; a step's helpers (a transport, a hook) would otherwise outlive it and hold its output open, and the
     // wait for that output would outlast the bound by as long as they live.
-    let below: Vec<TreeMember> = descendants_of(raw);
+    // Nothing about the tree is read once the pin says the root ended: the number may name another process by then, and the
+    //  children of that process are not this step's (the fourth review's finding 1).
+    let below: Vec<TreeMember> = descendants_of_a_root_that_still_runs(root_pin, raw);
     // Three answers, not two: a record that could not be read is not a process that has gone, so nothing is signalled for it
     //  and nothing is concluded either.
-    let root: MemberRead = member_read(raw);
+    let root: MemberRead = if the_root_is_still_there(root_pin) { member_read(raw) } else { MemberRead::Gone };
     let mut tree: Vec<TreeMember> = match &root {
         MemberRead::Found { member, .. } => vec![member.clone()],
         MemberRead::Gone | MemberRead::Unreadable => Vec::new(),
