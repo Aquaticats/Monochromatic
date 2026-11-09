@@ -292,3 +292,44 @@ pub fn state_of_file(context: &GitContext, root: &Path, path: &[u8], location: &
 #[cfg(test)]
 #[path = "merge_isolation_changes_tests.rs"]
 mod tests;
+
+/// What:
+///  Whether a directory standing where the merge puts a file holds only files of the branch that the merge deletes,
+///  and nothing else.
+/// Why:
+///   The branch's own directory is the merge's to replace,
+/// but an untracked file in it is a person's,
+/// and a directory
+///  that keeps one cannot be replaced:
+/// the merge would be half installed before the failure,
+/// so it is refused
+///  before anything is written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function aDirectoriesFilesAreAllDeletedByTheMerge({ change, changes, root }): boolean; // readdir(dir) every name is a change that exists before and not after
+/// ```
+pub fn the_directory_holds_only_what_the_merge_deletes(change: &Change, changes: &[Change], root: &Path) -> bool {
+    let location: PathBuf = worktree_path(root, change.path.as_slice());
+    let listing: std::fs::ReadDir = match std::fs::read_dir(location.as_path()) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    let mut prefix: Vec<u8> = change.path.clone();
+    prefix.push(b'/');
+    for entry in listing.flatten() {
+        let mut child: Vec<u8> = prefix.clone();
+        child.extend_from_slice(entry.file_name().as_encoded_bytes());
+        let mut deleted: bool = false;
+        for other in changes {
+            if other.path == child && other.existed() && !other.exists_after() {
+                deleted = true;
+                break;
+            }
+        }
+        if !deleted {
+            return false;
+        }
+    }
+    return true;
+}

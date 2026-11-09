@@ -132,7 +132,14 @@ pub fn paths_the_branch_does_not_hold(
     let differing: Vec<Change> = parse_raw_changes(output.stdout.as_slice()).map_err(RecoveryError)?;
     let mut found: Vec<bool> = Vec::with_capacity(changes.len());
     for change in changes {
-        found.push(differing.iter().any(|moved| { return moved.path == change.path; }));
+        let mut lacks: bool = false;
+        for moved in &differing {
+            if moved.path == change.path {
+                lacks = true;
+                break;
+            }
+        }
+        found.push(lacks);
     }
     return Ok(found);
 }
