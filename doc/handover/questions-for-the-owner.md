@@ -92,6 +92,14 @@ Each record is cited so the context is one read away.
   If it is,
   a foreign host's process reads as dead to the copy,
   which the audit could not settle alone.
+  A new `git worktree add` from a worktree still being filled now gets no ignored-state copy and one line saying so.
+  The only remedy today is to remove that worktree and add it again,
+  because Git refuses an existing path and the wrapper has no way to copy ignored state on demand.
+  Should the wrapper gain a command that fills an existing worktree?
+  Two gaps stay open:
+  a copy still staging records no destination,
+  so it is not detected until the record written before Git is on `main`;
+  and the snapshot and clone routes can still carry a half-filled set from a busy source.
 - The `search-shadow` refusal of `rg` with a piped standard input and a named path is on `main` and not yet released.
   It refuses on the kind of standard input alone,
   so a program that starts `rg` through `PATH` with a pipe it never writes to is refused too,
