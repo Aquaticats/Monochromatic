@@ -73,6 +73,32 @@ The median model turn was 3937 ms against 3153 ms in the two hours before,
 and that difference has not been compared with the run-to-run spread,
 so it may be noise.
 
+### Should a commit whose command died before its checks ran still be pushed?
+
+A landing moves the branch first and runs the post-commit checks after,
+holding the push until those checks approve it.
+If the command is killed in that gap,
+no verdict exists,
+and the commit is on the branch with its push held.
+The branch `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update` now pushes such a commit the next time the service wakes for that worktree,
+because a cross-vendor review found a push could stay stranded,
+and a held push with no living owner would otherwise wait forever,
+against your "nothing should ever wait forever or indefinitely".
+A check that is still running is never overtaken:
+only a command proven gone has its push released.
+
+The cost is that a commit whose checks never ran can reach the remote.
+The alternative keeps that commit local until someone pushes it,
+which needs the wrapper to hand the service a durable verdict,
+and the protocol has no such message today.
+Ranking:
+push it (current) > keep it local,
+because a commit left unpushed with no message is easy to miss,
+and a pushed commit can still be followed by a fix.
+That is the session's judgment and not something measured.
+Nothing is waiting on this answer;
+write "keep it local" here to change it.
+
 ### Should a commit add the manifests of dependents it bumps?
 
 Your decision of 2026-09-15 and `SPEC.md` say opposite things.

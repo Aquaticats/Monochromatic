@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:28:11-05:00)
+#### Reviews and landings in progress (2026-11-09T02:39:01-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -153,13 +153,19 @@ The old tree kept for the rollback stays until the owner deletes it.
   resume the run `unit-test-watchdog-under-contention` as run 4,
   with `unit-test-watchdog-round-4-prompt.md` and the session file named in run 3's `summary.json`.
 - `fix/git-policy-cli-landing-recovery-keeps-the-owed-index-update`:
-  the cross-vendor review of its fourth round
-  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`)
-  names more defects,
-  among them a tab in a file name that makes the next commit revert another file,
-  and a promotion that publishes a commit whose gate then blocks it.
-  Not ready to merge.
-  Run 5 of its agent is on them.
+  its agent fixed the seven findings of the fourth review
+  (`${HOME}/temp/agent/reviews/landing-route-round-4-sol.txt`),
+  among them a tab in a file name that made the next commit revert another file,
+  and a promotion that published a commit whose gate then blocked it.
+  Not ready to merge:
+  the package lint fails on file length in three files,
+  two tests fail,
+  and one fix has no failing-output control and another no test.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  and goes ahead of the other waiting rounds:
+  resume the run `landing-route-findings-fixed` as run 6,
+  with `landing-route-findings-fixed-round-6-prompt.md` and the session file named in run 5's `summary.json`.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
   at `6f11d10f45`:
   the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
@@ -196,11 +202,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   and two races that need another program to rename a directory inside a small window.
   Two subvolume tests abort near 120 seconds on the branch merged with main,
   even run alone.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  and goes ahead of the other waiting rounds:
-  resume the run `worktree-removal-findings-fixed` as run 3,
-  with `worktree-removal-findings-fixed-round-3-prompt.md` and the session file named in run 2's `summary.json`.
+  Run 3 of its agent is on the three defects and judges the races.
   After that round it lands.
 - `fix/git-policy-cli-commit-checks-keep-newer-writes-and-modes`:
   its agent is working through its review.
