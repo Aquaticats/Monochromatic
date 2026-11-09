@@ -3196,7 +3196,9 @@ on the commit path:
   when `HEAD` names another branch,
   nothing is written,
   the record and the side ref stay,
-  and the line names the branch the merge is for.
+  and the line names the branch the merge is for;
+  `HEAD` is read again immediately before the branch moves,
+  and a worktree that changed branch by then keeps the record as well.
   The record and the side ref go when the merge lands,
   and the side ref is deleted only while it still holds the merge's commit.
   and everything the merge does not change is left as it is,
@@ -3215,6 +3217,16 @@ on the commit path:
   So a staged entry that arrives after the check and before the write replaces the merge's entry,
   and the merge lands over it;
   the window is the length of one `git update-index` call on the index lock.
+  Closing it needs another command to stage inside that window,
+  and the person would see the merge land and their staged version gone from the index,
+  with nothing in the output saying which one it was.
+  The same shape is a second window:
+  `HEAD` is read to learn whose checkout this is,
+  and another command can switch the worktree to a branch that names the same commit between that read and the install,
+  so the merge's files and index land in a checkout that now belongs to the other branch.
+  The read is made once more immediately before the branch moves,
+  and a `HEAD` that differs keeps the record, moves nothing and says which branch the merge is for;
+  a switch that lands after that second read is not covered.
   An edit made meanwhile to one of the merge's own paths is never overwritten:
   the finish stops and names the file.
   A merge whose commit cannot be kept on a side ref is refused with nothing changed,

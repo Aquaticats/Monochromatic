@@ -484,6 +484,19 @@ fn complete(
     if install_entries(place, root, changes, judgements, out)? == Installed::IndexHeld {
         return Ok(Installed::IndexHeld);
     }
+    // The checkout was checked for its branch before anything was installed; this is the one more look before the branch moves,
+    //  because another command can switch the worktree between the two while both branches name the same commit.
+    let checked_out: Option<String> = symbolic_ref(place, root).map_err(partly_installed)?;
+    if checked_out != intent.target_ref {
+        return Err(partly_installed(RecoveryError(format!(
+            "A merge of {} in {} was installed here, and this worktree now has {} checked out: the branch was not moved and the \
+             record was kept. Check out {} in this worktree and run any git command again.",
+            intent.target_ref.as_deref().unwrap_or("a detached HEAD"),
+            root.display(),
+            checked_out.as_deref().unwrap_or("a detached HEAD"),
+            intent.target_ref.as_deref().unwrap_or("a detached HEAD")
+        ))));
+    }
     let message: String = String::from("merge: Merge made by the 'ort' strategy. (completed by monochromatic-git-policy-cli recovery)");
     let mut arguments: Vec<&str> = vec!["update-ref", "-m", message.as_str()];
     if intent.target_ref.is_none() {
