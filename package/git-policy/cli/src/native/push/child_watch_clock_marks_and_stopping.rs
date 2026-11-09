@@ -27,6 +27,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use crate::stopped_git_locks::LockLedger;
 use crate::bounded_push::STOP_GRACE;
 use crate::stop_waits_while_a_member_cannot_be_interrupted::escalation_waits;
+use crate::pinned_member_signalled_through_a_pidfd::Delivered;
 use crate::process_tree::{ProcessLook, TreeMember, descendants_of, kill_members, look_of, still_running, terminate_members};
 use std::time::{Duration, Instant};
 
@@ -190,17 +191,20 @@ impl Marks {
 /// and a step that is never signalled because its record could not be read keeps running past its ceiling.
 #[cfg(unix)]
 pub(crate) fn signal_root(root: &ProcessLook, raw: i32, signal: libc::c_int) {
-    let send: bool = match root {
-        ProcessLook::Alive(found) => still_running(found),
-        ProcessLook::Unknown => true,
-        ProcessLook::Gone => false,
-    };
-    if send {
-        // SAFETY: `kill` takes no pointers; the process was checked a moment ago to be the one that was found, or its record
-        //  could not be read and the signal is sent as the platform without `/proc` always did.
-        unsafe {
-            libc::kill(raw, signal);
+    match root {
+        ProcessLook::Alive(found) => {
+            // The member is held by a pidfd where the kernel gives one, so a number reused between the look and the signal is
+            //  never reached.
+            let _delivered: Delivered = crate::pinned_member_signalled_through_a_pidfd::signal_member(found, signal);
         }
+        ProcessLook::Unknown => {
+            // SAFETY: `kill` takes no pointers; the number named the step a moment ago and its record could not be read to say
+            //  otherwise, so it is signalled as the platform without `/proc` always did.
+            unsafe {
+                libc::kill(raw, signal);
+            }
+        }
+        ProcessLook::Gone => {}
     }
 }
 

@@ -55,6 +55,11 @@ pub mod process_use;
 /// read before it is stopped and signalled only while they are still the ones found.
 pub mod process_tree;
 
+/// One process of that tree held by a pidfd,
+/// so a signal reaches it and never a number that was used for another one.
+#[cfg(unix)]
+pub mod pinned_member_signalled_through_a_pidfd;
+
 /// A child started with the standard library and awaited on the runtime through a pidfd,
 /// owned through every failure after its start.
 pub mod child_awaited_through_a_pidfd;

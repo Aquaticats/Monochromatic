@@ -38,6 +38,9 @@
 //! The third is signalled and waited for like the first,
 //! because a stop that reads a refusal as an exit ends nothing and sweeps the locks of a live tree.
 
+/// What a signal sent through a pin came to.
+use crate::pinned_member_signalled_through_a_pidfd::Delivered;
+
 /// One process of a tree and the start time that proves it is still that process.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TreeMember {
@@ -270,7 +273,7 @@ pub fn look_of_through(proc_root: &std::path::Path, pid: i32) -> ProcessLook {
 /// The root of the process table on Linux,
 /// where a record is read from.
 #[cfg(target_os = "linux")]
-const PROC: &str = "/proc";
+pub(crate) const PROC: &str = "/proc";
 
 /// What a look at the record of process `pid` came to.
 #[cfg(target_os = "linux")]
@@ -300,15 +303,15 @@ pub fn look_of(_pid: i32) -> ProcessLook {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const member of tree) if (member.stillRunning()) process.kill(member.pid, signal);
+/// for (const member of tree) signalMember(member, signal); // through its pidfd
 /// ```
 #[cfg(unix)]
 pub fn signal_members(members: &[TreeMember], signal: i32) {
     for member in members {
-        if still_running(member) {
-            // SAFETY: `kill` takes no pointers; a failure is ignored because the process may have ended since the check.
-            unsafe { libc::kill(member.pid, signal) };
-        }
+        // The member is held by a pidfd where the kernel gives one, so the signal reaches that process and never a number
+        //  that was reused between the look and the call
+        //  (`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`, finding 7).
+        let _delivered: Delivered = crate::pinned_member_signalled_through_a_pidfd::signal_member(member, signal);
     }
 }
 

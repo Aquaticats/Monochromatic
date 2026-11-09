@@ -2730,6 +2730,29 @@ finding 4).
 A member whose record reads as gone is never signalled:
 its number may be another process's by now.
 
+A signal is sent through a descriptor that names the process,
+never to a number read a moment earlier.
+Reading `/proc/<pid>/stat` and then calling `kill` leaves the window between the two in which the
+number can be reused by another process of this account,
+and the cargo-shadow review called that shape a P1.
+Every member and the root of a step are therefore held by a pidfd where the kernel gives one
+(`src/native/process/pinned_member_signalled_through_a_pidfd.rs`),
+the start time is read before and after the descriptor is opened to show the number named one process
+throughout,
+and the signal goes through the descriptor with `pidfd_send_signal`.
+This is the pattern `binary/binary_supervisor_pin.rs` already uses for the hang guard of the binary
+tests,
+in production form.
+Where the kernel gives no pidfd the start time is read again right before the number is signalled,
+and the window that remains is the pidfd's to close
+(`doc/planning/cli-git-process-and-child-lifetime-route-findings-on-main.md`,
+finding 7).
+Two signals stay by number on purpose:
+the root of a step whose record could not be read (finding 4),
+and the whole process group of the repair tool,
+whose leader is unreaped at that moment,
+so the kernel cannot have given its number to anything else.
+
 The read of a step that is ended at its ceiling ends with the step,
 not with the last program that holds its pipes open.
 A step's output is read whole through two pipes
