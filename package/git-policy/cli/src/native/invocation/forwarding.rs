@@ -108,6 +108,22 @@ pub fn git_command(
 pub const SIGNAL_EXIT_BASE: i32 = 128;
 
 /// What:
+///  The signal the control of `end_as_git_ended` blocks and expects a death by,
+/// which is the one a supervisor or a person sends to stop a command.
+/// Why:
+///  A control cannot name a signal the wrapper's own start is likely to block,
+/// and this one shows the case:
+/// the signal is blocked,
+/// so raising
+///  it leaves it pending unless the block is lifted first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const SIGNAL_TO_END_BY = 15; // SIGTERM
+/// ```
+pub const SIGNAL_TO_END_BY: i32 = libc::SIGTERM;
+
+/// What:
 ///  Translate a child's end into this process's exit code.
 /// Why:
 ///   Git 2.56.0 `run-command.c` reports a child killed by signal N as `128 + N`,
@@ -234,10 +250,22 @@ pub fn run_real_git(
 pub fn end_as_git_ended(signal: i32) -> i32 {
     #[cfg(unix)]
     {
-        // SAFETY: `signal` and `raise` take one number each, touch no memory of this process, and cannot fail in a way this
-        //  process observes: a signal it blocks is left pending, which the return below covers.
+        // SAFETY: `sigemptyset` and `sigaddset` write only this local set, `pthread_sigmask` reads it, `signal` and
+        //  `raise` take one number each, and none of them touches other memory of this process; every call is checked
+        //  only by what this process then observes, which is the death the caller asked for.
         unsafe {
             libc::signal(signal, libc::SIG_DFL);
+            // What: The block this process may hold on the signal is lifted before it is raised.
+            // Why:  A blocked signal stays pending and `raise` returns, so the wrapper left the command as a normal exit
+            //       with `128 + the signal` where native Git's caller sees `WIFSIGNALED`; a signal a parent blocked before
+            //       the wrapper ran, or one this process's own start left blocked, is removed here
+            //       (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`, finding 5 of the
+            //       round-3 review). `pthread_sigmask` changes the calling thread's mask, which is the thread `raise`
+            //       sends to.
+            let mut blocked: libc::sigset_t = std::mem::zeroed();
+            libc::sigemptyset(&mut blocked);
+            libc::sigaddset(&mut blocked, signal);
+            let _unblocked = libc::pthread_sigmask(libc::SIG_UNBLOCK, &blocked, std::ptr::null_mut());
             libc::raise(signal);
         }
     }
