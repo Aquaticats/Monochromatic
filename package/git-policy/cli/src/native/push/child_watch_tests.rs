@@ -6,6 +6,7 @@
 #![cfg(unix)]
 
 use super::*;
+use std::os::fd::AsFd as _;
 use std::io::Write;
 use crate::child_class::CHILD_WAIT_VARIABLE;
 use crate::wait_progress::Cadence;
@@ -1046,4 +1047,87 @@ fn a_member_in_uninterruptible_io_cannot_hold_the_stop_past_its_ceiling() {
     assert!(inside_grace, "the stop did not wait at all after the kill");
     assert!(after_the_grace, "a member in uninterruptible I/O was given up at the grace rather than at the ceiling");
     assert!(!past_the_ceiling, "a member in uninterruptible I/O held the stop past its ceiling");
+}
+
+/// What:
+///  A step that finished inside its ceiling is answered,
+/// though a program it started still holds its standard error open.
+/// Why:
+///  The fallback ceiling — the one this wait carries when no watch could run — wrapped the wait for the child
+/// *and* the
+///  reads of its streams,
+/// so a step that ended inside the ceiling was reported as ended at it when a program held its
+///  standard error past the ceiling
+/// (the third review's finding 5).
+/// The ceiling bounds the wait for the child; the
+///  drain after its end is bounded by `OUTPUT_DRAIN_AFTER_EXIT`, which is much shorter.
+/// The ceiling here is below
+///  that drain, and no watch runs, so the state the review describes is the one this step is in.
+#[test]
+fn a_step_that_finishes_inside_its_ceiling_is_answered() {
+    let refused: crate::lazy_runtime::RefusalForTheControl = crate::lazy_runtime::a_control_refuses_every_task();
+    let sink: SharedSink = SharedSink::default();
+    let mut command: Command = Command::new("sh");
+    // The helper holds the standard error alone, and the step finishes at once with its whole answer on the standard output.
+    command.arg("-c").arg("sleep 6 >/dev/null & printf answer; exit 0").stdin(Stdio::null());
+    let began: Instant = Instant::now();
+    let output: std::process::Output = output_watched_within(
+        &mut command,
+        "a step with a holder on its standard error",
+        "a step with a holder on its standard error",
+        terms(Duration::from_secs(3600), &sink),
+        true,
+        StepBound::EndAt(Duration::from_millis(500)),
+    )
+    .expect("the step's exit status and standard output are its answer");
+    let waited: Duration = began.elapsed();
+    drop(refused);
+    assert!(output.status.success(), "{:?}", output.status);
+    assert_eq!(output.stdout, b"answer".to_vec(), "the step's answer comes back");
+    assert!(waited < Duration::from_secs(3), "the step was reported at its ceiling after {waited:?}");
+}
+
+/// What:
+///  Each stream of a step is looked for through its own pipe,
+/// so a program holding only the standard error is found there.
+/// Why:
+///  The identity of the standard output's pipe was given to the reader of the standard error too,
+/// so a program holding only
+///  the standard error was never found,
+/// and the sentence said it no longer shows in the process table
+/// (the third review's finding 7).
+/// The first half of this control reads the module's own wiring; the second shows that
+///  the identity of a pipe is what finds the program holding it,
+/// so the reader that is given the wrong pipe cannot
+///  find that program at all.
+#[cfg(target_os = "linux")]
+#[test]
+fn each_stream_is_found_by_its_own_pipe() {
+    let module: String = include_str!("../process/step_output_read_whole_through_pipes.rs")
+        .lines()
+        .filter(|line| { return !line.trim_start().starts_with("//"); })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    assert!(module.contains("standard_output.as_fd()"), "the standard output's pipe identity is not taken from it");
+    assert!(module.contains("standard_error.as_fd()"), "the standard error's pipe identity is not taken from it");
+    // A program of this control holds the write end of one pipe as its standard error and writes nothing into it.
+    let (error_read, error_write) = std::io::pipe().expect("a pipe");
+    let mut holder: Child = Command::new("sleep")
+        .arg("6")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(error_write))
+        .spawn()
+        .expect("a holder of the pipe");
+    let holder_pid: i32 = i32::try_from(holder.id()).expect("a process number");
+    let identity: Option<(u64, u64)> = crate::step_output_read_whole_through_pipes::pipe_identity(error_read.as_fd());
+    let named: Vec<i64> = match identity {
+        Some((mount, inode)) => {
+            crate::process_use::processes_using(&crate::process_use::UseTarget::File { mount, inode }).users.iter().map(|user| { return user.pid; }).collect()
+        }
+        None => Vec::new(),
+    };
+    let _ended = holder.kill();
+    let _reaped = holder.wait();
+    assert!(named.contains(&i64::from(holder_pid)), "the program holding the pipe was not found through that pipe: {named:?}");
 }

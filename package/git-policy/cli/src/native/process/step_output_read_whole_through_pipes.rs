@@ -318,15 +318,18 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
     let mut input_closed: Child = child;
     drop(input_closed.stdin.take());
     // The read ends of the pipes, which are the same open file as their write ends: a program that holds one holds the
-    //  output open, and the pipe's identity is what finds it.
-    let held: Option<(u64, u64)> = pipe_identity(standard_output.as_fd());
+    //  output open, and the pipe's identity is what finds it. Each stream is found by its own pipe: a program that holds only
+    //  the standard error open is not holding the standard output, and naming the wrong pipe named no holder at all
+    //  (the third review's finding 7).
+    let held_output: Option<(u64, u64)> = pipe_identity(standard_output.as_fd());
+    let held_error: Option<(u64, u64)> = pipe_identity(standard_error.as_fd());
     let mut owned = adopt(input_closed);
     // The moment the child ended, told to both reads so each can end its drain of whatever a program it started still writes.
     let (ended, ends) = tokio::sync::watch::channel::<Option<Instant>>(None);
     let reading = async {
         return tokio::join!(
-            read_until_the_step_has_ended(standard_output, ends.clone(), waiting_for, held),
-            read_until_the_step_has_ended(standard_error, ends, waiting_for, held),
+            read_until_the_step_has_ended(standard_output, ends.clone(), waiting_for, held_output),
+            read_until_the_step_has_ended(standard_error, ends, waiting_for, held_error),
         );
     };
     let waiting = async {
@@ -334,9 +337,12 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
         ended.send_replace(Some(Instant::now()));
         return status;
     };
-    let (read, waited): ((std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>), std::io::Result<ExitStatus>) = match ceiling {
-        Some(carried) => match tokio::time::timeout(carried.limit, async { return tokio::join!(reading, waiting); }).await {
-            Ok(both) => both,
+    // The ceiling bounds the wait for the child, and the reads are bounded by their own drain once the child has ended: a
+    //  ceiling that wrapped both reported a step that finished inside its ceiling as ended at it, because a program the step
+    //  started still held one stream open (the third review's finding 5).
+    let waited: std::io::Result<ExitStatus> = match ceiling {
+        Some(carried) => match tokio::time::timeout(carried.limit, waiting).await {
+            Ok(status) => status,
             Err(_elapsed) => {
                 // Nothing ended this step before its ceiling, so this wait carries it: whatever the watch could not do, a step
                 //  never outlives the ceiling the wrapper gives it.
@@ -344,8 +350,9 @@ async fn read_until_the_child_ends_awaiting(pipes: StepPipes, child: Child, wait
                 return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, waiting_carried_the_ceiling(waiting_for, carried)));
             }
         },
-        None => tokio::join!(reading, waiting),
+        None => waiting.await,
     };
+    let read: (std::io::Result<Vec<u8>>, std::io::Result<Vec<u8>>) = reading.await;
     let status: ExitStatus = waited?;
     let (read_output, read_error) = read;
     // The step's answer is its exit status and its standard output, so neither is thrown away because a program the step started
@@ -444,7 +451,7 @@ async fn wait_for_the_end(ends: &mut tokio::sync::watch::Receiver<Option<Instant
 /// const { stx_mnt_id, stx_ino } = statx(fd, '', AT_EMPTY_PATH, STATX_MNT_ID);
 /// ```
 #[cfg(target_os = "linux")]
-fn pipe_identity(descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)> {
+pub(crate) fn pipe_identity(descriptor: std::os::fd::BorrowedFd<'_>) -> Option<(u64, u64)> {
     let found = rustix::fs::statx(descriptor, "", rustix::fs::AtFlags::EMPTY_PATH, rustix::fs::StatxFlags::MNT_ID).ok()?;
     return Some((found.stx_mnt_id, found.stx_ino));
 }
