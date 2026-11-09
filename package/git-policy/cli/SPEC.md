@@ -1571,10 +1571,13 @@ An index is read up to a gigabyte,
 the largest index this repository held at 3,097,973 bytes (measured 2026-11-09) and the bound the
 merge pass uses;
 the record files the migration reads (its journal,
-its list of unreadable files,
 a registration's `gitdir` and the repository's configuration) are read up to a mebibyte,
 and a longer one is refused with its path named
-rather than read whole.
+rather than read whole;
+its list of unreadable files is read line by line from a handle opened the same way,
+so a list longer than any fixed bound is still read and the writer and the reader agree on what
+it can hold,
+because the paths the run keeps are what the read holds.
 The conversion reads a worktree's `.git` file and a registration's `gitdir` up to
 `GIT_FILE_LIMIT` (64 KiB),
 as it did before this work.

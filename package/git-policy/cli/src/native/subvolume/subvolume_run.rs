@@ -19,7 +19,6 @@
 //! class Run { platform; layout; journal; interrupt; say(line); async pass(label, source, destination, options) { ... } }
 //! ```
 
-use crate::plain_file::read_plain_text;
 use crate::subvolume_error::{Interrupt, MigrateError};
 use crate::subvolume_journal::Journal;
 use crate::subvolume_lock::relative_lock_paths;
@@ -35,6 +34,48 @@ use std::time::Instant;
 /// relative to a checkout,
 /// of the lock the migration holds during its last pass.
 pub const INDEX_LOCK: &str = ".git/index.lock";
+
+/// What:
+///  The paths recorded in the plain file at `path`,
+/// read line by line from a handle opened without waiting.
+/// Why:
+///   Both cleanup modes call `Run::open` before they do anything,
+/// and the writer has no bound on how many paths a list
+///  holds,
+/// so a whole-file cap here was a bound the writer did not share:
+/// the migration could write a safeguard it
+///  then refused to reopen,
+/// which blocked the rollback and the removal until a person edited the file.
+/// Reading
+///  line by line holds the same paths the run needs and not the record's bytes twice,
+/// and a named pipe or
+///  device at the name is refused by the plain-file open.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function readUnreadableList(path: string): Promise<Set<string>>;
+/// ```
+fn read_unreadable_list(path: &Path) -> std::io::Result<BTreeSet<PathBuf>> {
+    let file: std::fs::File = crate::plain_file::open_plain_file(path)?;
+    let mut reader: std::io::BufReader<std::fs::File> = std::io::BufReader::new(file);
+    let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut line: Vec<u8> = Vec::new();
+    loop {
+        line.clear();
+        let read: usize = std::io::BufRead::read_until(&mut reader, b'\n', &mut line)?;
+        if read == 0 {
+            break;
+        }
+        if line.last() == Some(&b'\n') {
+            line.pop();
+        }
+        if line.is_empty() {
+            continue;
+        }
+        listed.insert(PathBuf::from(String::from_utf8_lossy(line.as_slice()).as_ref()));
+    }
+    return Ok(listed);
+}
 
 /// What:
 ///  One command's working state.
@@ -79,16 +120,8 @@ impl Run<'_> {
         say: &'a mut dyn FnMut(&str),
     ) -> Result<Run<'a>, MigrateError> {
         let journal: Journal = Journal::load(layout.journal_path.as_path())?;
-        let unreadable: BTreeSet<PathBuf> = match read_plain_text(&layout.unreadable_path) {
-            Ok(text) => {
-                let mut listed: BTreeSet<PathBuf> = BTreeSet::new();
-                for line in text.lines() {
-                    if !line.is_empty() {
-                        listed.insert(PathBuf::from(line));
-                    }
-                }
-                listed
-            }
+        let unreadable: BTreeSet<PathBuf> = match read_unreadable_list(layout.unreadable_path.as_path()) {
+            Ok(listed) => listed,
             // Only a missing list means "no unreadable files were recorded"; a list that exists and cannot be read is
             // the safeguard failing, and counting it as empty would let the deletion unlink files that exist only there.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),

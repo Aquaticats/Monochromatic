@@ -47,6 +47,29 @@ use std::path::Path;
 pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 
 /// What:
+///  The plain file at `path` itself:
+/// opened without blocking and without following a link,
+/// and refused when the
+///  open handle is a named pipe,
+/// a device or a directory.
+/// Why:
+///   A caller that reads the file line by line needs the handle,
+/// and the type is taken from it so a name
+///  swapped for a pipe between a check and the open cannot redirect the read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openPlainFile(path: string): File; // throws
+/// ```
+pub fn open_plain_file(path: &Path) -> std::io::Result<std::fs::File> {
+    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "it is not a plain file (a named pipe, a device or a directory)"));
+    }
+    return Ok(file);
+}
+
+/// What:
 ///  The bytes of the plain file at `path`,
 /// opened without blocking and without following a link,
 /// refused when it is
@@ -59,10 +82,7 @@ pub const SMALL_FILE_LIMIT: u64 = 1 << 20;
 /// function readPlainFile(path: string, limit: number): Buffer; // throws
 /// ```
 pub fn read_plain_file(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW | libc::O_CLOEXEC).open(path)?;
-    if !file.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "it is not a plain file (a named pipe, a device or a directory)"));
-    }
+    let file: std::fs::File = open_plain_file(path)?;
     let mut bytes: Vec<u8> = Vec::new();
     std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
     if bytes.len() as u64 > limit {
