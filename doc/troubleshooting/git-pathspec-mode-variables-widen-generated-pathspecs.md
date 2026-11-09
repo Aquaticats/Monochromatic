@@ -150,10 +150,25 @@ after it:
 
 ## Verified workarounds
 
-Remove the four mode variables from the environment of every Git the tool starts for its own pathspecs.
-The wrapper does this through `GitRequest::without_pathspec_modes`,
-which appends the four names
-`conflict_side_modes::MODE_VARIABLES` already holds to the request's `unset` list.
+A mode reaches a generated pathspec twice,
+so both halves have to go:
+as one of the four variables in the child's environment,
+and as a global option the request forwards before its own words.
+
+The wrapper declares the request's pathspecs its own once,
+with `GitRequest::own_pathspecs`,
+and that does both:
+it appends the four names `conflict_side_modes::MODE_VARIABLES` already holds to the request's `unset` list,
+and it marks the request,
+so `GitRequest::full_arguments` takes the caller's global options through
+`global_arguments::without_pathspec_mode_options`,
+which drops `conflict_side_modes::MODE_OPTIONS`
+and keeps the value a separated-value option consumes,
+so `-C --icase-pathspecs` still changes into that directory.
+
+Every start of a request goes through `full_arguments`:
+the started command and the in-process reader both take their argument list from it,
+so no route chooses between the two halves itself.
 
 Tradeoffs:
 a `:(top,literal)` spec in a mode-free environment is the path itself and nothing else,
@@ -161,11 +176,9 @@ so a tool that wanted the caller's mode for its own spec cannot have both;
 and the caller's own command still keeps its mode,
 because only the tool's internal starts are changed.
 
-Where the tool's Git prefix can also carry the caller's global option (`--literal-pathspecs`),
-an explicit `--no-literal-pathspecs` after the prefix is enough for that half:
-`git.c:286-289` sets `GIT_LITERAL_PATHSPECS` to `0`,
-and `git.c` reads the last occurrence,
-so the option wins over an earlier one.
+Global options alone are `git.c:282-300` setting the variables,
+so dropping the option and removing the variable leave the same state,
+and no `--no-...` flag has to be written after the forwarded prefix.
 
 ## What does not work
 

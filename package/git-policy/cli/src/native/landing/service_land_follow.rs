@@ -83,9 +83,9 @@ pub enum IndexPaths<'a> {
 }
 
 fn run(git: &GitContext, repository: &Path, arguments: &[&str], input: Option<Vec<u8>>, index: Option<&Path>) -> Result<GitOutput, FailureCode> {
-    // Every pathspec this module writes is its own, so the caller's pathspec mode must not reach it
-    // (`GitRequest::without_pathspec_modes`).
-    let mut request: GitRequest = GitRequest::new(repository, arguments).without_pathspec_modes();
+    // Every pathspec this module writes is its own, so no pathspec mode of the caller's reaches it
+    // (`GitRequest::own_pathspecs`), whether the caller set it as a variable or as a global option.
+    let mut request: GitRequest = GitRequest::new(repository, arguments).own_pathspecs();
     request.input = input;
     request.index = index.map(Path::to_path_buf);
     return match run_git(git, &request) {
@@ -187,33 +187,12 @@ fn pathspec_input(names: &[u8]) -> Vec<u8> {
     return input;
 }
 
-/// The global option that turns the caller's literal pathspec mode off for the `reset` below.
-/// Why:
-///   Every spec this module hands `reset` is `:(top,literal)<path>`,
-/// which literal pathspec mode,
-/// from `GIT_LITERAL_PATHSPECS` or `--literal-pathspecs`,
-/// turns into a name that matches nothing;
-/// `reset` accepts such a spec without a word and updates nothing,
-/// so the service would lose the index update it owes while reporting success.
-/// The service inherits the environment of the command that first started it,
-/// so a person with the variable in their shell reaches this step.
-///  The mode variables are removed from every Git this module starts (see `run`),
-/// so this option answers the caller's own global option in the prefix,
-/// which no removal can reach;
-///  a mode that only a variable set is gone with the variable.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const MAGIC_ENABLED = '--no-literal-pathspecs';
-/// ```
-const MAGIC_ENABLED: &str = "--no-literal-pathspecs";
-
 /// One try of the index update.
 fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<'_>, index: Option<&Path>) -> Result<(), FailureCode> {
     let output: GitOutput = match paths {
         IndexPaths::Listed(listed) => {
             let specs: Vec<String> = listed.iter().map(top_literal_spec).collect();
-            let mut arguments: Vec<&str> = vec![MAGIC_ENABLED, "reset", "--no-refresh", new, "--"];
+            let mut arguments: Vec<&str> = vec!["reset", "--no-refresh", new, "--"];
             arguments.extend(specs.iter().map(String::as_str));
             run(git, repository, &arguments, None, index)?
         }
@@ -228,14 +207,14 @@ fn reset_once(git: &GitContext, repository: &Path, new: &str, paths: IndexPaths<
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &[MAGIC_ENABLED, "reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
         IndexPaths::Derived { old } => {
             let input: Vec<u8> = pathspec_input(derived_names(git, repository, old, new)?.as_slice());
             if input.is_empty() {
                 return Ok(());
             }
-            run(git, repository, &[MAGIC_ENABLED, "reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
+            run(git, repository, &["reset", "--no-refresh", new, "--pathspec-from-file=-", "--pathspec-file-nul"], Some(input), index)?
         }
     };
     if !output.succeeded() {

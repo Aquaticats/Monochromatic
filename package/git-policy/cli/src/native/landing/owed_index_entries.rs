@@ -117,7 +117,7 @@ pub(crate) fn with_specs(git: &GitContext, repository: &Path, index: Option<&Pat
     let mut arguments: Vec<&OsStr> = words.iter().map(OsStr::new).collect();
     arguments.push(OsStr::new("--"));
     arguments.extend(specs.iter().map(OsString::as_os_str));
-    let mut request: GitRequest = GitRequest::new(repository, arguments.as_slice()).without_pathspec_modes();
+    let mut request: GitRequest = GitRequest::new(repository, arguments.as_slice()).own_pathspecs();
     request.index = index.map(Path::to_path_buf);
     return match run_git(git, &request) {
         Ok(output) if output.succeeded() => Ok(output),
