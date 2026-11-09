@@ -7231,17 +7231,26 @@ The wording of a refusal:
       and two bodies that must not diverge,
       in a folder whose conflict resolution is the one thing here a person's
       data depends on.
+  - `778fc95c23`,
+    the reconcile's own questions awaited:
+    `is_ancestor_awaiting`,
+    `sweep_private_fetch_refs_awaiting` and
+    `fetch_remote_tip_awaiting`
+    (`push/auto_push_reconcile_basics_and_limits.rs`),
+    and `common_dir_of_awaiting` and `signs_commits_awaiting`
+    (`push/auto_push_reconcile_merge_commit.rs`),
+    with `ancestry_of` and `refs_to_sweep` as the one copy each of how an
+    ancestry exit status is read and which private fetch refs may be swept.
+    These need no decision about the second pass.
+    Control:
+    `the_awaited_questions_of_the_reconcile_answer_what_the_synchronous_ones_answer`
+    (`push::auto_push_reconcile`,
+    79 of 79).
   - What the awaited chain still lacks once the second pass is settled,
     in order:
     `reconcile_divergent_push_awaiting` and `integrate_and_push_awaiting` with a
     `MergePusherAwaiting` (`push/auto_push_reconcile.rs`),
-    `fetch_remote_tip_awaiting`,
-    `is_ancestor_awaiting` and
-    `sweep_private_fetch_refs_awaiting`
-    (`push/auto_push_reconcile_basics_and_limits.rs`),
-    `commit_merge_awaiting`,
-    `common_dir_of_awaiting` and
-    `signs_commits_awaiting` (`push/auto_push_reconcile_merge_commit.rs`),
+    `commit_merge_awaiting` (`push/auto_push_reconcile_merge_commit.rs`),
     `advance_local_branch_awaiting` and its helpers
     (`push/auto_push_reconcile_branch_advance.rs`),
     then `push_once_awaiting` (`push/auto_push.rs`) and the two handlers
