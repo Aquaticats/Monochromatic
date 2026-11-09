@@ -10,7 +10,7 @@
 Status:
 accepted on 2026-10-18 after Q7.
 This revision replaces the earlier rollout draft.
-Implementation is permitted and proceeds through the work items below.
+Implementation is permitted and proceeds through the work items under `Work items`.
 
 The [evaluation](depot-expanded-ci-evaluation.md) supplies the evidence and its limits.
 The [independent review record](depot-expanded-ci-evaluation-independent-review.md) records the
@@ -508,7 +508,8 @@ Required-check membership,
 spend authority,
 trust boundaries and the weekly matrix membership are
 not engineering details;
-they are recorded above or remain explicitly open.
+they are recorded in the sections from `Purpose and accepted constraints` to `Verification`,
+or remain explicitly open.
 
 ## Shared-understanding check
 

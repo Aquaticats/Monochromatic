@@ -135,11 +135,8 @@ Instruments already exist:
 `~/temp/agent/join-107.mjs` and
 `~/temp/agent/severed-sentence-census.mjs`.
 
-SOURCE EDITS ARE OFF AGAIN WHILE THIS RUNS,
-for the reason recorded above:
-the process in
-flight is safe,
-but any interruption plus a rebuild stamps a new digest and the guard
+SOURCE EDITS ARE OFF AGAIN WHILE THIS RUNS:
+any interruption plus a rebuild stamps a new digest and the guard
 refuses to resume into this pool.
 
 ### The checker is deliberately NOT windowed, and that is a decision rather than an omission

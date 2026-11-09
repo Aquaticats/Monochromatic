@@ -281,7 +281,7 @@ unchanged (the `config` read that follows the old `init` is the wrapper's own re
   `rev-list`,
   `merge-base` are the read-only query children;
   they belong to the query-children owner and
-  their counts and durations are listed above for that work.
+  their counts and durations are listed under `Where a commit's wall-clock went` for that work.
 
 ## Bounds by class
 

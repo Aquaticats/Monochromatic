@@ -169,7 +169,7 @@ Measured process lifetimes of one commit (strace):
   exist plus `hook.<event>.enabled=false` for every event,
   and the wrapper starts no hook and no hook shim.
   The S1
-  shim record above,
+  shim record,
   `write_hook_dispatch`,
   `run_post_commit_hook` and the fifteen-shape parity suite describe code that
   no longer exists;
@@ -181,7 +181,7 @@ Measured process lifetimes of one commit (strace):
   and `/dev/disk/by-uuid` when the mapping is unambiguous;
   otherwise `findmnt` stays.
   Needs a check of how the
-  identity is consumed before choosing (recorded below when read).
+  identity is consumed before choosing (recorded under `What must stay identical` when read).
 - One configuration snapshot (`git config --list -z --show-scope`) in place of the separate `config` runs
   (`core.hooksPath`,
   the four `hook.<event>.enabled` reads already batched,
@@ -287,7 +287,7 @@ Measured process lifetimes of one commit (strace):
 - Merging `core.hooksPath` with the maintenance reads by hand:
   different phases and a `--type=path` value;
   covered
-  instead by the snapshot above.
+  instead by `config_snapshot.rs`.
 - Capping Git's threads (`pack.threads=1`,
   `core.preloadindex=false`):
   101 ms against 105 and 100 ms baseline,
@@ -398,7 +398,7 @@ or nothing.
 If a filesystem persisted the unlinks but not the
 rename,
 the published name `<id>` would be left without `owner.json`,
-and the J3 outcome below shows that this state
+and the `J3 outcome: what recovery does with emptied, halved and dropped records` section shows that this state
 sticks (deleting `owner.json` fails closed at every phase,
 naming the directory).
 No such state was produced by any
@@ -618,7 +618,7 @@ and the unsynced
 `store-held.json` is benign before the
 ref moves and sticks after it,
 so it can lose its own sync only if the landing barrier makes it durable.
-Everything else listed under the first two bullets above stays.
+Everything else listed in the torn snapshots bullet and in the records that are synced today bullet stays.
 
 #### Outcomes by phase
 
@@ -1655,7 +1655,7 @@ none hidden:
   On a busy host the number can be reused soon;
   the lock then
   stays until it is removed by hand with the command the message names.
-- A lock of unknown origin (see the limits above).
+- A lock of unknown origin (see the unknown-origin limit under `Named limits of rule B2`).
 - A `.pending` staging candidate whose `owner.json` name was lost is kept in place and reported as live
   (`StagingUnattributed`).
   This is not a stuck case:
@@ -1876,6 +1876,22 @@ question the readers leave to Git takes the old way,
 with the start.
 The reasons and the numbers are in
 `doc/planning/cli-git-main-commit-within-native-plus-five.md`.
+
+Lowered again on 2026-11-08:
+the `update-index` start of the stat-data refresh is zero unless the real index no longer describes the worktree.
+The refresh `cd1755d728` added to keep the scratch commit inside its ceiling ran
+`git update-index --refresh` on the real index before the private copies were made,
+which is one start in every scenario,
+and Git takes `index.lock` on every such run even when it writes nothing;
+the six constants were left at the counts measured before it,
+so `budget::` failed six times on main's tree.
+`src/native/commit/commit_index_stat_staleness.rs` answers the question in process from the index's bytes,
+so an index that describes the worktree starts no Git and takes no lock,
+and the counts below hold as they were measured before the refresh existed.
+The measurements,
+the reasoning and what is still to do are in
+`doc/handover/cli-git-rust-implementation.md`,
+"The refresh of a stale index asks for Git and the real index's lock only when it is stale".
 
 ## Filesystem identity without `findmnt` (slice S2)
 

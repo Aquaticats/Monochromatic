@@ -220,7 +220,8 @@ is affordable on a worker thread:
 The decision follows from the numbers and from the smoothness requirement:
 shaping and re-breaking run on the worker in chunks,
 starting at the viewport and spreading outward
-(slice 5 below adds a bounded step on the window thread for the lines near the view after a new width);
+(slice 5 adds a bounded step on the window thread
+for the lines near the view after a new width);
 lines not yet shaped count as one row (or their last known height) in the vertical map,
 and each finished chunk
 corrects the map with the existing keep-view-still machinery,
@@ -410,7 +411,7 @@ Status as of 2026-10-12 (the branch `feat/ide-soft-wrap`):
 7. Slice 4 (2026-10-12),
    the last:
    **built.**
-   Besides item 5 above:
+   Besides item 5:
    the caret stops of a line were found in time that grew with the square of its length
    (100,000 characters took over 90 s to open in a debug build) and now grow with its length;
    a tile of lines wrapped to more rows than the 64 MiB raster limit holds is painted in a clip of the rows near the

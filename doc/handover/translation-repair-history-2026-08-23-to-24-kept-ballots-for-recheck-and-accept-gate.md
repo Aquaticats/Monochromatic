@@ -547,7 +547,7 @@ Every record that bought a recheck round kept its ballots,
 and the accept gate's panel readings are on the artifact per claim.
 Both live-artifact VUBs are met and both tasks close.
 
-This also confirms the reading recorded above rather than merely being consistent with it.
+This also confirms the launch-ordering diagnosis rather than merely being consistent with it.
 The 160 records with no reading came from passes whose builds predate the fields;
 the first entry settled by a pass launched after them carries every field on every eligible record.
 No code changed between the two observations.

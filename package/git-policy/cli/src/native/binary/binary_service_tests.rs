@@ -165,6 +165,29 @@ fn assert_healthy(fixture: &Fixture, repo: &Path, what: &str) {
     assert!(checked.status.success() && checked.stderr.is_empty(), "{what}: fsck: {}", String::from_utf8_lossy(&checked.stderr));
 }
 
+/// What:
+///  The references of the wrapper's two side namespaces,
+/// as `name object` lines.
+/// Why:
+///   A kill leaves the batch's scratch reference and the commit it holds behind,
+/// and every one of them must be accounted for
+///  after the restart rather than being pinned for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await git(['for-each-ref', '--format=%(refname) %(objectname)', namespace])
+/// ```
+fn side_refs(fixture: &Fixture, repo: &Path, namespace: &str) -> Vec<(String, String)> {
+    return query(fixture, repo, &["for-each-ref", "--format=%(refname) %(objectname)", namespace])
+        .lines()
+        .filter(|line| { return !line.is_empty(); })
+        .map(|line| {
+            let (name, object) = line.split_once(' ').expect("a reference and its object");
+            return (name.to_string(), object.to_string());
+        })
+        .collect();
+}
+
 fn submit_quietly(config: &ClientConfig, request: &CommitRequest) -> Result<Submitted, ClientFailure> {
     return submit(config, request, &mut std::io::sink());
 }
@@ -617,6 +640,9 @@ fn clients_sent_together_all_land_once() {
 /// the client that was waiting reconnects with the
 ///  same identity,
 /// and the commit is on the branch exactly once with the index and the repository healthy.
+/// The references the kill leaves are accounted for as well:
+/// no batch's scratch reference survives the restart,
+/// and the commit of a batch that the branch never took is kept where the person can find it.
 #[test]
 fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
     for point in FAULT_POINTS {
@@ -630,11 +656,24 @@ fn a_service_killed_at_each_point_of_a_batch_lands_the_commit_exactly_once() {
         let client = std::thread::spawn(move || { return submit_quietly(&client_config, &sent); });
         let status = ended_at_fault(&mut doomed, point);
         assert!(!status.success(), "{point}: the service was killed");
+        // A kill at these points leaves the batch's objects on `refs/worktree/cli-git-service/<seq>` without an intent that
+        //  names them; the branch takes the commit only from `after-ref` on.
+        let before_the_branch_moved: bool = matches!(point, "after-objects" | "after-intent");
+        let scratch_at_the_kill: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/worktree/cli-git-service/");
+        assert_eq!(scratch_at_the_kill.len(), usize::from(before_the_branch_moved), "{point}: the killed batch's scratch reference is what the kill left: {scratch_at_the_kill:?}");
         let restarted: Service = start_service(&fixture, name.as_str(), None);
         let answered = client.join().expect("client thread").expect("the client is answered after the restart");
         assert!(matches!(answered, Submitted::Landed { .. }), "{point}: {answered:?}");
         assert_eq!(count_of(&fixture, &repo, "message of kill-1"), 1, "{point}: exactly once");
         assert_healthy(&fixture, &repo, point);
+        assert_eq!(side_refs(&fixture, &repo, "refs/worktree/cli-git-service/"), Vec::new(), "{point}: the restart removed the scratch reference of the batch no intent named");
+        let kept: Vec<(String, String)> = side_refs(&fixture, &repo, "refs/cli-git/kept/");
+        if before_the_branch_moved {
+            assert_eq!(kept.len(), 1, "{point}: the commit of the batch that did not land is kept: {kept:?}");
+            assert_eq!(query(&fixture, &repo, &["log", "-1", "--format=%s", kept[0].0.as_str()]), "message of kill-1", "{point}: the kept reference holds the batch's own commit");
+        } else {
+            assert_eq!(kept, Vec::new(), "{point}: the branch took the commit, so nothing was kept");
+        }
         stop(restarted);
         remove_settled(&fixture);
     }

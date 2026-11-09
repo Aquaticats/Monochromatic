@@ -114,7 +114,7 @@ What would move the belief now:
 the destination rule decided and luxuanwen3 shipped under it;
 one pass over a second entry from the census read the same way,
 shihai4h or the Wikipedia shape SS3B_0016;
-then the two passes the preceding section asked for.
+then the two passes "What the 2026-09-04 pages showed" asked for.
 
 ## What the luxuanwen3 re-run on the either-rendering build showed (2026-09-04, 12:43 UTC)
 
@@ -142,7 +142,7 @@ THE READING:
 unchanged,
 not yet ready.
 A defect found in the pipeline's own fix counts against the rate the same as one found in the corpus.
-What would move the belief is unchanged from the preceding section:
+What would move the belief is unchanged from "What the luxuanwen3 re-run of 2026-09-04 showed":
 luxuanwen3 shipped and read under the rule,
 SS3B_0016 shipped and read,
 then the two passes the census section asked for.

@@ -6,7 +6,7 @@ the proposal for keeping it latest was answered by the owner (move anyway,
 fix forward;
 update everything daily)
 and is carried out in [`toolchain-always-latest.md`](toolchain-always-latest.md),
-which supersedes the proposal and the open question below.
+which supersedes the proposal and the open question in the `Proposal: keeping the nightly latest` section.
 The failure branch of "move anyway" (a fix-forward issue per newly failing package,
 found by checking every package
 before and after the update) is built and described in that note,
@@ -21,7 +21,8 @@ verbatim):
 This note takes the rule at its plain meaning:
 the `rust` row of `toolchain.lock.json` follows the newest published nightly,
 and a person or a job moves it without being asked.
-Whether "latest" tolerates a short lag when the newest nightly breaks a package is the one open question below.
+Whether "latest" tolerates a short lag when the newest nightly breaks a package is the one open question
+in the `Proposal: keeping the nightly latest` section.
 
 ## What was found before the move
 
@@ -91,7 +92,7 @@ Whether "latest" tolerates a short lag when the newest nightly breaks a package 
   so there was no unrelated drift to report.
 - Commit `df38060025` (2026-11-07T04:31:02-05:00) holds the lock change alone.
   Its message says "not yet verified" because it was written before the checks;
-  the checks below are the verification,
+  the checks in `Verification` are the verification,
   and commits are not amended.
 - `update` writes the lock and installs nothing,
   so `mise run toolchain:install` followed
@@ -351,7 +352,7 @@ Nothing here is built.
 
 - For each crate that builds on a runner,
   `cargo clippy --all-targets` and the tests with the candidate nightly
-  (the host tasks above are the list;
+  (the host tasks in `Verification` are the list;
   a file next to the lock would name them so that adding a crate is one line).
 - The container gates do not count:
   they use pacman's Rust or the hand-kept 2026-10-29 default.

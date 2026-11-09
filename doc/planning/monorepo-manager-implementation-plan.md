@@ -189,7 +189,10 @@ Publication is excluded entirely from this frontier.
 - Mise is removed entirely,
    in one step,
    only when meow supports the full platform matrix including macOS and Windows.
-- Rules `MXR` and `RDC` apply to every `.rs` file:
+- Rules `MXR` and `RDC` apply to every `.rs` file (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now):
    300 code lines per file,
    rustdoc on every documentable item,
    with tests and fuzz targets exempt.

@@ -78,7 +78,7 @@ it never will.
 
 Everything here is the coordinator's reading under the owner's delegation and open to the owner's veto,
 except the three
-answers quoted above.
+answers quoted under `The rule and the answers it rests on`.
 
 ## Method
 
@@ -110,7 +110,7 @@ Status words:
 "built" is built on this branch,
 "bounded" already had a bound,
 "exempt" is an idle wait by design,
-"coordinator" is an unclear end behavior with options below.
+"coordinator" is an unclear end behavior with options under the `Options for the coordinator to pick` heading.
 
 ## The waits
 
@@ -277,14 +277,14 @@ Status words:
     Ended today by completion or by quiet.
     No time bound.
     Coordinator:
-    option set A below.
+    option set A.
 22. Steps marked `never_stop` (`child_watch.rs:337`:
     reference updates,
     a commit Git builds):
     never ended by the wrapper.
     No bound.
     Coordinator:
-    option set A below.
+    option set A.
 23. `src/native/bounded_push.rs:453` and `src/native/push_progress.rs` (pushes,
     fetches and LFS uploads of the service):
     a push with no connection is ended after the stall window (30 s labelled unmeasured);
@@ -313,7 +313,7 @@ Status words:
     ended
     by the person (interrupt) or by Git.
     Coordinator:
-    option set B below.
+    option set B.
 26. `src/native/package_repair_command.rs:205` (600 s),
     `src/native/markdown_linter_guard.rs:142` (60 s),
     `src/native/standards_review_run.rs:210` `run_contained` (bounded by the review's own deadlines),
@@ -447,8 +447,13 @@ each with its margin:
   It is also the bound of the whole rerun
   loop of entry 5.
 - `LOCK_CEILING` 600 s:
-  unmeasured,
-  no foreign-holder wait is logged anywhere.
+  unmeasured when this was written,
+  no foreign-holder wait was logged anywhere
+  (measured on 2026-11-08 from the commit timing log and the service journal:
+  the longest wait on a lock was 11,490 ms,
+  so the ten minutes is 52 times it and no wait takes it;
+  `doc/planning/cli-git-shipped-limits-audit.md`,
+  "The lock ceilings' waits read again from the service journal").
   It is below `ANSWER_CEILING` so that the service
   ends its own wait and answers before the client gives up.
   A person's `git commit` with an editor open longer than this makes
@@ -715,7 +720,7 @@ veto open,
 ## Branch write and tool ceilings, 2026-11-04T09:35:19-05:00
 
 The owner answered two questions through the question tool on 2026-11-04.
-They amend the pick of option set A above (every step class has a ceiling,
+They amend the pick of option set A (every step class has a ceiling,
 the reference update's being 60 seconds)
 and the outcome of pick 9 of `doc/planning/cli-git-shipped-limits-audit.md` (tools and checks end only on no progress).
 Paths are relative to `package/git-policy/cli`.
@@ -758,7 +763,7 @@ derived in code (see the audit).
 by `may_be_rerun`,
 it only reads or writes unreferenced objects,
 or it is one of the exact forms the experiment proved);
-which forms those are was decided by experiment (next section),
+which forms those are was decided by experiment (`The cut experiment`),
 not by reading,
 and every other form has no ceiling.
 The first build of this branch (`a8b7473fc7`) had instead a list of subcommands,
@@ -1713,7 +1718,7 @@ with its disposition and its test (red first unless said):
   that was that the proof rests on the sequence number being new at each use;
   the round 3 review rejected it (an earlier release or
   another writer may have made the log),
-  and round 4 replaced it with a check (below).
+  and round 4 replaced it with the `git reflog exists` check.
 - Unbounded capture read (sol-1 P1,
   sol-2 A).
   The output is read once as a snapshot of the last `STEP_OUTPUT_LIMIT` bytes of the
@@ -1839,7 +1844,7 @@ retry (Recommended)".
 It is built (the stop of the service goes only to a service that has left,
 and a service still
 there after `RETIREMENT_WAIT` fails the commit with a retryable sentence);
-the options below are kept as the record of what was weighed.
+the options in the `Options` list are kept as the record of what was weighed.
 
 What exists today:
 
@@ -2032,7 +2037,8 @@ its fix and its test:
   only while it still carries the token of the confirmation it removes,
   so a replacement from a stale listing stays.
   The comment about
-  the order of the two removals was wrong (the decision first leaves the confirmation standing alone) and is replaced by the rule above.
+  the order of the two removals was wrong (the decision first leaves the confirmation standing alone)
+  and is replaced by the rule stated for `end_group`.
   Tests:
   `a_confirmation_that_outlived_its_decision_confirms_nothing_of_the_next_decision` (the reviewer's schedule:
   failed when the

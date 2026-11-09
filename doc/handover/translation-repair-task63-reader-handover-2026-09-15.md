@@ -210,7 +210,7 @@ do not invent a new harness shape.
 
 ## Remaining work in order
 
-1. Execute the geometry golden checkpoint described above.
+1. Execute the geometry golden checkpoint that "The one pending verification" describes.
 2. Implement the whole-root reader.
    A module such as `src/preparation-input-read-root.ts` decodes the closed root keys
    `scope`,

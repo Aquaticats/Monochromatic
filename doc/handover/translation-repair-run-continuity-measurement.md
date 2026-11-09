@@ -476,9 +476,9 @@ Stripping blockquote markers and collapsing whitespace makes the cached text
  and the shipped text equal on 10 of 10 unrefined rows,
 with no exceptions.
 
-This corrects a claim recorded earlier in this file and in
+This corrects the length-preserving claim recorded in this file and in
  `doc/planning/the-third-rendering.md`,
-that the wrap is length-preserving because it only exchanges a space for a
+that the wrap keeps its length because it only exchanges a space for a
  newline.
 That holds in running prose and fails inside a blockquote.
 `#167` is where the wrap's treatment of line-structured slices is decided,

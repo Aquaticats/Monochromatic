@@ -234,6 +234,10 @@ RLM per rule plus `mise run //package/llm/token-count:count -- --model claude-op
    GCW and WXG move to `package/git-policy/cli/README.md`;
    `doc/agent/regression-suite.md` Case 3 gets updated to match GCR.
    Approved.
+   The move held until the 2026-10-13 rewrite `4f5bc1d30c` of that README dropped both codes,
+   so neither is defined in any `AGENTS.md`,
+   skill or package doc now,
+   and the Batch 8 rule blocks recorded in this plan are their only remaining text.
 - Batch 9 (command execution and long-form flags):
    13 rules become 12,
    1002 to 814 tokens;
@@ -270,6 +274,10 @@ RLM per rule plus `mise run //package/llm/token-count:count -- --model claude-op
    MXL widens to Rust;
    MXR and RDC move to `package/rust-linter-plugin/builtin/README.md` with codes kept (219 to 180 tokens).
    Approved.
+   That package was deleted on 2026-10-06 by `5bc05682ec`,
+   so both codes are defined nowhere now:
+   `rust/max-lines` and `rust/require-rustdoc` in `monochromatic-lint.config.jsonc` enforce both behaviours,
+   and `MXL` in `AGENTS.md` carries the max-lines split guidance for Rust.
 - Batch 13 (logging,
    security,
    TSDoc):
@@ -1070,6 +1078,12 @@ GCR:
 
 ### Batch 8, moved to `package/git-policy/cli/README.md`
 
+`37117e363` put both blocks in that README on 2026-09-29,
+and the 2026-10-13 rewrite `4f5bc1d30c` dropped them.
+Neither code is defined anywhere today,
+so these two blocks are their only text,
+and nothing reserves the codes against reuse.
+
 ```md
 GCW:
  Worktree-guard reviews:
@@ -1375,6 +1389,13 @@ LN7:
 ```
 
 ### Batch 12, moved to `package/rust-linter-plugin/builtin/README.md`
+
+`37117e363` put both blocks in that README on 2026-09-29,
+and `5bc05682ec` deleted the package holding it on 2026-10-06.
+`rust/max-lines` and `rust/require-rustdoc` in `monochromatic-lint.config.jsonc` still enforce both behaviours,
+and `MXL` in `AGENTS.md` carries the max-lines split guidance.
+These two blocks are the codes' only remaining text,
+and nothing reserves the codes against reuse.
 
 ```md
 MXR:
@@ -2118,14 +2139,26 @@ only the #423-gated JCH follow-up remains (issue comment posted on #423).
    RDC,
    AP5 into package docs;
    RCO into `choosing-technology`.
+   Of the four rule codes,
+   none survives:
+   `4f5bc1d30c` dropped GCW and WXG from `package/git-policy/cli/README.md` on 2026-10-13,
+   and `5bc05682ec` deleted `package/rust-linter-plugin/builtin/README.md`,
+   its package gone with it,
+   on 2026-10-06.
 - 718e8663e:
    retired-code references point at successors or enforcing lint rules;
    living Rust comments cite MXL,
    MXR,
    RDC without a file.
+   MXR and RDC have had no definition since `5bc05682ec` deleted the README that held them on 2026-10-06.
    Dated research snapshots citing old `AGENTS.md` line numbers stay as historical records.
 - Untracked `forbidden-strings.append.local.txt` entry `local-039` reserves the 53 retired codes;
    verified by scanning a `PP9:` probe (flagged) and a `PP8:` probe (passed).
+   MXR,
+   RDC,
+   GCW and WXG are not among the 53,
+   because the plan moved them rather than retiring them,
+   so no rule reserves those four codes against reuse.
 - 5dadad6c7:
    philosophy doc removal record,
    magic-number section,
@@ -2295,6 +2328,11 @@ checked 2026-09-29):
    MXR and RDC to `package/rust-linter-plugin/builtin/README.md`,
    RCO to the `choosing-technology` skill's "Replacement parity overlay",
    AP5 to `package/config/rolldown/README.md`.
+- Neither recorded destination of the four rule codes survives:
+   `4f5bc1d30c` dropped GCW and WXG from the `git-policy` README on 2026-10-13,
+   and `5bc05682ec` deleted the `rust-linter-plugin` package,
+   its README included,
+   on 2026-10-06.
 - Rewrite references to retired codes;
    add forbidden-strings entries for retired codes.
 - Update `doc/philosophy/agents.md` and `doc/agent/regression-suite.md` Case 3.

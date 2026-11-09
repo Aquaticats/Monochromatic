@@ -106,7 +106,7 @@ commit `c7b46ae`).
   "CI keeps the frozen
   behavior already recorded (the 2026-10-29 trustLockfile amendment)".
   A frozen policy refusal stops the command by a delegated
-  pick of 2026-11-03 (below).
+  pick under the `Delegated picks of 2026-11-03` heading.
   Replaces the fail-closed behavior built first,
   and,
   for a policy refusal of a local install,
@@ -169,7 +169,8 @@ commit `c7b46ae`).
   Which entries are checked follows `trustLockfile`:
   all of them when false (pnpm's default),
   the ones new since the base revision when true (the repository's setting).
-  The set-aside goes through the same transaction and ownership rules as the review findings below,
+  The set-aside goes through the same transaction and ownership rules as the review findings under the
+  Review findings fixed (cross-vendor review of 2026-11-03T13:26:08Z) heading,
   so it never overwrites
   another writer's lockfile.
 - The crates.io database dump path is ported (`dump.rs`,
@@ -267,7 +268,8 @@ and what each rests on:
 - A local install checks existing entries (pnpm's `startLockfileVerification` is not gated on frozen).
 - `--breaking` edits the manifests,
   so they are part of the transaction.
-  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick of 2026-11-03 (below).
+  The catalog write and the `file-enforcer` sync are inside the transaction by a delegated pick
+  under the `Delegated picks of 2026-11-03` heading.
 - Update arguments are read in every supported spelling,
   before and after the command word,
   and an unmapped option is refused.
@@ -287,7 +289,7 @@ and what each rests on:
 The second review covered `504a82aa3f..09bb7820ea` in three parts (Git reader,
 journal and restore,
 install and policy).
-The nine delegated picks below stand;
+The nine delegated picks under the `Delegated picks of 2026-11-03` heading stand;
 the review found defects in how they were built,
 not in the picks.
 What changed:
@@ -557,7 +559,9 @@ and none is veto-open any more.
   and `check` is clean.
   The installed binary is stale,
   not the source.
-- A strict cutoff with exemptions keeps the approach recorded above:
+- A strict cutoff with exemptions keeps the approach recorded in the
+  Review findings fixed (second cross-vendor review,
+  started 2026-11-03T16:25:50.931Z) section:
   resolve without the cutoff,
   enforce it on the other crates.
 - A `file-enforcer` sync failure after the catalog write of `--breaking` restores the catalog (and the update is not kept).
@@ -723,7 +727,7 @@ stop is `cgroup.kill`,
 quiescence is
 `cgroup.events` reporting `populated 0`,
 and a survivor after a crash is a membership query of the group the journal recorded.
-The probes below ran on this host:
+The `Probe 1` to `Probe 5` subsections ran on this host:
 Linux 7.2.15-ogc1.1.fc45.x86_64,
 systemd 262.1-1.fc45,
 cgroup2 mounted at `/sys/fs/cgroup`
@@ -794,7 +798,7 @@ i.e. a single process managing it".
 The group a shell,
 a terminal or a harness scope runs in is such a cgroup unless its unit has `Delegate=`,
 so the child group
-this tool makes there works on this host (every probe above) but is not what systemd supports;
+this tool makes there works on this host (every one of Probe 1 to Probe 5) but is not what systemd supports;
 what systemd does with an
 unknown child group of a non-delegated unit (a trim when the unit stops,
 a change of controllers) was not probed.
@@ -826,7 +830,7 @@ and it needs the user manager.
   which has
   exited,
   instead of the process,
-  and only the measurement above is claimed.
+  and only the measurement that `cgroup.kill` alone left `populated 1` is claimed.
   So the stop is `cgroup.kill`,
   then `SIGKILL` to every process listed by `cgroup.procs` (through a pidfd that is checked
   against the listing again),
@@ -1173,7 +1177,7 @@ The contract is `doc/planning/cargo-shadow-guarantees.md`;
 its acceptance list is the reviewer's finite checklist,
 and its coverage map
 says which test shows each row.
-Where the sections of rounds 5 to 7 above say otherwise,
+Where the sections of rounds 5 to 7 say otherwise,
 the contract and this section are current:
 
 - The wrapper no longer enters a group around a spawn (7a F1,
@@ -1211,7 +1215,10 @@ Reviews answered:
 `cargo-shadow-sol-8a.txt` and `cargo-shadow-sol-8b.txt` (in `/var/home/user/temp/agent/reviews/`).
 The contract (`doc/planning/cargo-shadow-guarantees.md`) keeps its sixteen acceptance rows;
 a counterexample reopened rows but added none.
-Where the sections above say otherwise,
+Where the sections from What `cargo update` does under the cargo shadow to
+Round 8 (2026-11-04):
+the contract first,
+then the code say otherwise,
 the contract and this section are current:
 
 - A run that recorded its end appends `settled <scope path>` to the journal;
@@ -1297,7 +1304,9 @@ forcing only at exit;
 "nothing should ever wait forever or indefinitely";
 "never discard user
 data".
-Where the sections above say otherwise,
+Where the sections from What `cargo update` does under the cargo shadow to
+Round 9 (2026-11-04):
+the answers to the round 8 reviews say otherwise,
 the contract and this section are current.
 
 ### 9a D1: an unsettled scope is not completed by a later look
@@ -1662,7 +1671,7 @@ for the boot
 authority,
 "Check and state premise (Recommended)",
 which is what round 10 built and is kept unchanged.
-Option B of "9a D1" above is therefore built;
+Option B of "9a D1" is therefore built;
 options A (refuse and acknowledge) stays as the fallback for what B cannot prove,
 and C
 is not built.
@@ -2432,7 +2441,10 @@ Nothing was published and nothing was merged into main.
 ## Resume point (round 16, rewritten 2026-11-04T11:17:02-05:00 after the gate)
 
 Done:
-rounds 10 to 16 (the sections above).
+rounds 10 to 16 (the Round 10 (2026-11-04):
+the answers to the round 9 reviews section
+to the Round 16 (2026-11-04T11:17:02-05:00):
+the certification pass section).
 Open for the owner:
 the picks of rounds 8 to 13 stay veto-open as listed in their sections;
 the first publication needs the owner's
@@ -2478,7 +2490,7 @@ Next:
   and checks that nothing of the second start ran;
   `an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_status_2` covers a start as a child.
   The bounded fallback and the hop limit are gone.
-- The nine delegated picks of 2026-11-03 are kept (see the section above).
+- The nine delegated picks of 2026-11-03 are kept (see the Delegated picks of 2026-11-03 section).
 
 ## Resume point (round 21, written 2026-11-04T17:51:00-05:00, paused by the owner)
 
@@ -2587,7 +2599,7 @@ coverage):
    `assert_scope_record` proves the record,
    not placement;
    the double-fork probe has no reparenting handshake.
-10. The fifth-pass open list not covered above:
+10. The fifth-pass open list not covered by items 1 to 9:
     R2 stranded path,
     admission schedules for the remaining boot and unreadable records,
     the acknowledgement writer's ordering,
@@ -2625,7 +2637,7 @@ The owner's pause of 2026-11-04 was lifted for this merge.
 The branch `feat/cargo-shadow-check-to-start-race` took main twice (`0a3aa354ca`,
 with 0.1.5-alpha.1,
 and the merge of the locks for `monochromatic-lint` 0.5.2-alpha.2),
-and the release gate ran for the first time on the round (the resume point above says it had not).
+and the release gate ran for the first time on the round (the round 21 Resume point section says it had not).
 
 - The gate found one red test that the round itself caused:
   the new `spawned` trace event sits between the launch and the launcher line,
@@ -2693,21 +2705,22 @@ and rebuilding the packets as cert7 under 250 KB each with the manifest.
 
 ## Sixth-pass follow-up (worktree `pi-cargo-shadow-sixth-pass`, branch `fix/cargo-shadow-sixth-pass-review-items`)
 
-Started 2026-11-08T15:42:46-05:00 from the point above,
+Started 2026-11-08T15:42:46-05:00 from the `Still open from the resume point` list,
 in the order the sixth pass asked.
 Each item was checked against the code first;
 the ones already covered in round 21 are named as such.
 Every new test was shown red under a planted change of the production line,
 and the plant was restored (with a file copy inside this worktree,
 never a Git restore).
-The whole suite and the lint were run on this tree (see "Gates" below).
+The whole suite and the lint were run on this tree (see the Gates section).
 
 ### Group 5 (output barriers)
 
 Done:
 
 - A path-targeted barrier switch joins the failpoints (`arm_output_file_sync_of`,
-  `arm_output_directory_sync_of`, `output_file_sync_of`,
+  `arm_output_directory_sync_of`,
+  `output_file_sync_of`,
   `output_directory_sync_of`,
   `path_targets_armed`),
   and `make_durable` takes the real sync's result.
@@ -2726,7 +2739,8 @@ Done:
   the settled lockfile and the restored manifest.
   Red when recovery skips the manifest barrier.
 - `a_refusal_survives_a_failed_completion_directory_sync_and_names_it` adds the refused outcome with
-  `CompletionSync` (the rename succeeds, the parent barrier fails) to the rename case.
+  `CompletionSync` (the rename succeeds,
+  the parent barrier fails) to the rename case.
   Red when the install step drops the completion error from a refusal.
 - `the_completion_parent_barrier_is_synchronized_by_the_kernel_before_the_journal_is_removed` runs
   `finish_journal` in a helper under `strace` and requires the fsync of the directory that lists the marker
@@ -2744,16 +2758,21 @@ Done:
   and both the fallback name and the stranded exchange temporary keep the inode and are named in the message.
   Red when the durability failure path unlinks the stranded temporary.
 - `the_recovery_makes_a_kept_roots_lockfile_and_manifest_durable_through_the_real_barrier` now also pins the recovery's
-  order (both output barriers, marker, marker parent, removal);
+  order (both output barriers,
+  marker,
+  marker parent,
+  removal);
   `an_unready_journal_reports_its_mandatory_and_cleanup_failures_through_the_report` adds the real
   `OutputFileSync` and `OutputDirectorySync` faults to the unready schedule,
   beside the synthetic `RecoverDurability` one.
   Red when the recovery's lockfile `make_durable` loop is removed.
 - `assert_recovery_keeps_a_damaged_ready_journal` now asserts the manifest too,
-  so a recovery that restores manifests before rejecting a damaged ready record is red; it was shown red with such a
+  so a recovery that restores manifests before rejecting a damaged ready record is red;
+  it was shown red with such a
   plant.
 - `an_update_stops_before_any_work_when_a_mandatory_recovery_finish_fails` covers the update call site:
-  the journal (renamed `.done` by the successful rename, with the failed parent barrier) is kept,
+  the journal (renamed `.done` by the successful rename,
+  with the failed parent barrier) is kept,
   its snapshot is unchanged,
   and cargo was never asked.
   Red when the update call site's mandatory guard is removed.
@@ -2778,7 +2797,8 @@ Still open for group 8:
 
 ### Group 9 (K2 retry)
 
-Done: `a_directory_whose_own_or_parent_barrier_failed_is_not_taken_as_durable_by_a_later_preservation` retries a
+Done:
+`a_directory_whose_own_or_parent_barrier_failed_is_not_taken_as_durable_by_a_later_preservation` retries a
 preservation after the new directory's own barrier failed and after its parent's barrier failed,
 and requires the walk through the remembered directory to the anchor.
 Red for both cases with `remember_unsynced` removed.
@@ -2787,7 +2807,8 @@ Red for both cases with `remember_unsynced` removed.
 
 Done:
 
-- `a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused`: another machine,
+- `a_boot_identity_that_is_not_a_reboot_keeps_recovery_and_admission_refused`:
+  another machine,
   an unreadable current identity,
   a malformed current identity,
   a malformed recorded identity and a record without an identity,
@@ -2832,7 +2853,10 @@ Done:
   short write and record sync with the weaker route forced,
   no payload started,
   the record step traced and no launch,
-  and the control shows attempt, write, sync, launch in order.
+  and the control shows attempt,
+  write,
+  sync,
+  launch in order.
   The fsync itself is guarded by the existing
   `the_record_sync_is_given_to_the_kernel_after_the_write`,
   which was shown red when the real `fsync` was replaced.
@@ -2844,7 +2868,8 @@ Done:
   and `the_acknowledgement_barriers_are_the_real_syscalls_in_writer_and_reader_order` observes the writer's publication
   followed by a directory fsync and the reader's file-before-directory order under `strace`.
   The writer has two directory barriers
-  (`atomic_write` already syncs the directory, and `acknowledge` syncs it again),
+  (`atomic_write` already syncs the directory,
+  and `acknowledge` syncs it again),
   so no single removal is observable;
   removing both was shown red.
 - `the_acknowledge_command_works_as_printed_with_a_quoted_path_and_refuses_while_the_workspace_is_locked` runs the printed
@@ -2890,7 +2915,7 @@ Still open for group 14:
   "What the map does not claim").
 - the double-fork probe now says it has no reparenting handshake.
 - the unreadable-record case also refuses admission and keeps the journal and snapshot.
-- R2 stranded path and the acknowledgement writer's ordering are covered above.
+- R2 stranded path and the acknowledgement writer's ordering are already covered.
 
 Still open from the fifth-pass list:
 
@@ -2905,18 +2930,20 @@ Still open from the fifth-pass list:
 
 ### Gates
 
-- `mise run //package/cargo-shadow/cli:test:debug`: 800 tests run,
+- `mise run //package/cargo-shadow/cli:test:debug`:
+  800 tests run,
   800 passed,
   21 skipped,
   exit 0 (the skips are the host-gated schedules the tests name).
 - `mise run //package/cargo-shadow/cli:lint:clippy` (release,
   all targets,
-  warnings denied): exit 0.
+  warnings denied):
+  exit 0.
 - The release `test` gate was started and stopped after ten minutes with 73 of 800 tests passed:
   the host carried a load average of about 125 on 8 CPUs from other sessions' suites,
   and two scope tests had been running for five minutes each.
   It is not reported as passing or failing;
-  the debug nextest task above is the run this session reports,
+  the `mise run //package/cargo-shadow/cli:test:debug` task is the run this session reports,
   and the release gate remains open.
 - Nothing was released,
   locked or installed,

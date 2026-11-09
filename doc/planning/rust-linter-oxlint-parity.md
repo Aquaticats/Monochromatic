@@ -260,7 +260,9 @@ No dependency on `ra_ap_hir`,
 
 `README.md:66` and `README.md:132` state there is deliberately no inline
 suppression,
- and `AGENTS.md` MXL and RDC say never disable those two rules.
+ and `AGENTS.md` MXL and RDC say never disable those two rules (RDC:
+retired from `AGENTS.md` 2026-09-29;
+`rust/require-rustdoc` now).
 oxlint ships `--report-unused-disable-directives` as a headline feature,
  and
 `AGENTS.md` LN3/LN6 do allow justified `oxlint-disable-next-line` for TypeScript.
@@ -284,7 +286,10 @@ No config key,
  override,
  or nested config can flip that declaration,
 which keeps MXL,
- MXR and RDC literally true.
+ MXR and RDC literally true (MXR and RDC:
+retired from `AGENTS.md` 2026-09-29;
+`rust/max-lines`,
+`rust/require-rustdoc` and `MXL` now).
 
 Settled alongside it,
  not asked:
@@ -324,7 +329,8 @@ doc comments are not directives,
 although the coverage ledger listed "any comment token".
 Markdown directives are HTML comments,
 and MDX has none.
-The `README.md:66` and `README.md:132` lines cited above no longer exist in the package README;
+The `README.md:66` and `README.md:132` lines cited in `Inline disable directives`
+no longer exist in the package README;
 its section "Inline directives" replaces them.
 
 ### D3. Config file format and location
@@ -654,7 +660,7 @@ Four packages,
  clippy and the linter's own dogfood run clean on all
 of them.
 
-The `README.md` correction recorded above is done:
+The `README.md` correction recorded in `Inline disable directives` is done:
 the file claimed `require-rustdoc` had no fixtures carve-out,
  which was wrong,
 and it listed module paths that no longer exist.
@@ -757,7 +763,7 @@ The `implicit_return` debt recorded here earlier is cleared.
 
 ## Further items adopted without asking
 
-Settled after the questions above,
+Settled after the questions in `Open decisions`,
  because each has one defensible answer:
 
 - The hardcoded exemption predicates in `src/config.rs`
@@ -786,7 +792,10 @@ Settled after the questions above,
 - The crate dogfoods itself,
    so every new `.rs` file obeys MXR's 300 code-line
   cap with no disable,
-   and RDC rustdoc on every item.
+   and RDC rustdoc on every item (MXR and RDC:
+  retired from `AGENTS.md` 2026-09-29;
+  `rust/max-lines`,
+  `rust/require-rustdoc` and `MXL` now).
 
 ## Deferred to implementation
 
@@ -952,7 +961,7 @@ rather than one umbrella task:
      structural
     match,
      rewrite emission.
-     Verified against the probe cases recorded above.
+     Verified against the probe cases in `Verified against the real parser`.
 8.  Plugin registry:
      rule crates as packages,
      namespaced ids,

@@ -32,7 +32,7 @@ the earlier text said the interview was in progress and the
 independent whole-report review remained pending.
 The interview has since settled the
 operating model and the review has run;
-the record is cited above.
+the record is cited under `Decision and acceptance limits`.
 The original sentence is
 preserved in this note.
 
@@ -1228,7 +1228,7 @@ Correction (2026-10-18):
 the earlier text said the review had not run because the agent
 service quota was exhausted.
 The review has since run;
-the record is cited above.
+the record is cited under `Remaining research and interview boundary`.
 The original
 sentence is preserved in this note.
 Source/hash/pointer/arithmetic checks are concrete verification,

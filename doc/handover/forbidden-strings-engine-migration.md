@@ -913,7 +913,7 @@ Running (completion notifications arrive automatically):
 - #376 rule-file port,
    opus.
    RETURNED;
-   see URGENT section above.
+   see the "URGENT context for the post-compact session" section.
   Bench sidecar plus data files plus repo-root append file plus review doc.
   Settled semantics in the issue:
   512 quantifier caps,

@@ -17,6 +17,19 @@ not of whichever copy ran `install`
 (the owner's pick with the veto open),
 and
 the older-lock sentence names the lock file it compared.
+Both reached this machine in `monochromatic-mpm-shadow` 0.2.7-alpha.7
+(the lock names it since commit `b539f97c9c`,
+installed here at 2026-11-08T18:09):
+`strings` on
+`~/.local/share/monochromatic-dev/toolchain/mpm-shadow/current/monochromatic-mpm-shadow-0.2.7-alpha.7-x86_64-unknown-linux-gnu/mpm-shadow`
+shows `in this tree's lock` and no `in this tree but`.
+A launcher copied before that install still carries the older code until `mpm install` runs in its tree.
+The third follow-up,
+a record that names a program no version move deletes,
+is fixed on branch `fix/mpm-shadow-launcher-records-and-lock-warning`
+(2026-11-08),
+and no release carries it yet;
+the section "Fixed 2026-11-08T18:11:43-05:00" below records why and how.
 The tool is `package/mpm-shadow/cli`,
 which this repository owns,
 so there is no upstream to file against.
@@ -345,10 +358,11 @@ and only a shadow that belongs to no install needs `/proc` now.
   145 carried all three markers of the current release,
   88 the record rewrite without the file check,
   8 only the both-versions sentence.
-- Not fixed:
+- Not fixed here,
+  and fixed in "Fixed 2026-11-08T18:11:43-05:00" below:
   the dangling records themselves.
-  A record still names the version-carrying folder below `current`
-  (`the_program_a_record_names_is_the_version_folder_a_newer_install_deletes` in `published_archive_tests.rs`),
+  A record written by a release before that fix names the version-carrying folder below `current`
+  (the measurement is `the_program_a_record_names_is_the_version_folder_a_newer_install_deletes` in `published_archive_tests.rs`),
   so installing a newer version of any repository-published tool deletes a folder that every other tree's record names.
   The census found 1078 records of which 284 named a file that no longer exists
   (2026-11-07:
@@ -392,6 +406,128 @@ the launcher was the running copy's bytes.
 The two controls it needs are unchanged and green:
 `a_launcher_is_made_with_its_record_beside_it` and
 `a_launcher_is_made_from_the_running_binary_after_its_file_was_deleted`.
+
+## Fixed 2026-11-08T18:11:43-05:00: a record names a program path that no version move deletes
+
+Status:
+in `package/mpm-shadow/cli` on branch `fix/mpm-shadow-launcher-records-and-lock-warning`
+(commits `85820b8991`,
+`c6594e15b0` and the documentation commit that carries this section);
+no release was dispatched,
+so the records on a machine keep healing only through a launcher that already carries the follow-`current` code,
+until a release with this fix is installed.
+
+### The census of 2026-11-08T17:58:00-05:00
+
+Read-only,
+over every `.launch` record under `.cache/toolchain-launchers` of the main checkout and every worktree
+`git worktree list --porcelain` reports,
+plus the two machine-global records:
+
+- 1105 records,
+  289 of them naming a `real` path that no longer exists.
+- All 289 named a release folder of a repository-published archive tool:
+  `mpm-shadow` 121,
+  `cargo:monochromatic-cargo-shadow` 42,
+  `cargo:monochromatic-git-policy-cli` 37,
+  `cargo:monochromatic-lint` 35,
+  `cargo:monochromatic-pnpm-shadow` 27,
+  `cargo:monochromatic-search-shadow` 27.
+- All 289 are followable:
+  the program of the same name exists under the nearest `current` link,
+  so a launcher that carries the follow-`current` code runs the newest copy and rewrites its record.
+- 202 records named another tree's lock file,
+  the separate condition under "Limits".
+- The census started no launcher (starting one rewrites its record) and wrote nothing.
+
+A second read-only run at 2026-11-08T18:17:00-05:00,
+after other sessions added and removed worktrees,
+read 1051 records with 299 dangling,
+again all of them release folders of a repository-published archive tool and all of them followable.
+The tree set differs,
+so the two totals are not a trend line;
+what both readings show is a quarter of the records naming a deleted folder,
+and that the count is not falling.
+`install` kept writing the same kind of record,
+so each newer install of a repository tool staled every other tree's record again.
+
+### What leaves a record stale
+
+A record is written by `ensure_launcher` from what `find_tool_bin` found (`layout.rs`).
+For a release archive of this repository that search starts at `<tool directory>/current` and descends,
+and a release archive unpacks into a folder whose name carries the version,
+so the record named
+`<tool directory>/current/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu/mpm-shadow-release`.
+Installing any newer version of that tool in any tree deletes the version directory,
+and every record that named a folder inside it dangles at once.
+The launcher's own repair (`refresh_stale_record` in `launcher.rs`) is real:
+it follows `current`,
+runs the program of the same file name and rewrites the record.
+But it runs only when the launcher runs,
+and until then the record stays stale,
+which is what the count measures.
+
+### The fix
+
+`link_stable_programs` in `install_archive.rs` writes one link per declared program of a release archive of this
+repository into the staging directory before the completion marker:
+`<version directory>/<program name>`,
+pointing at the program inside the archive folder as a relative target.
+`find_tool_bin` then finds `current/<program name>`,
+a path that names no version,
+which is the shape a `cargo-binstall` tool already has (`current/bin/<name>`).
+A record written by this installer survives every later version move,
+and a launcher that repairs an old record by following `current` lands on that same path,
+because the search under `current` finds the new link first.
+A version directory an earlier release unpacked in place carries no link,
+and its program is still found below `current`.
+
+### Tests
+
+- `a_record_names_a_program_a_newer_install_in_another_tree_leaves_in_place` (`published_archive_tests.rs`):
+one tree installs 0.2.0,
+another installs 0.2.1 (which deletes the 0.2.0 folder),
+and the first tree's record must still name a program.
+Red before the fix,
+with the fix removed and the equality check commented out so the later assertion could speak:
+
+  ```text
+  thread '...a_record_names_a_program_a_newer_install_in_another_tree_leaves_in_place' panicked at src/toolchain/published_archive_tests.rs:273:5:
+  the record of a tree that installed the older release still names a program that exists: <toolchain root>/mpm-shadow/current/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu/mpm-shadow-release
+  ```
+
+  With the equality check in place the same run failed one assertion earlier:
+
+  ```text
+  assertion `left == right` failed: the record names the program through `current`, not a folder named after the version
+    left: "<toolchain root>/mpm-shadow/current/monochromatic-mpm-shadow-0.2.0-x86_64-unknown-linux-gnu/mpm-shadow-release"
+   right: "<toolchain root>/mpm-shadow/current/mpm-shadow-release"
+  ```
+
+- `the_program_a_record_names_is_the_version_folder_a_newer_install_deletes` keeps measuring the layout an earlier
+release unpacked in place,
+which the launcher still follows through `current`.
+- The launcher's repair needs no change and keeps its tests:
+`a_launcher_rewrites_a_stale_record_to_the_program_it_started_so_a_shadow_behind_it_can_see_where_it_leads`
+and `a_record_that_cannot_be_rewritten_is_a_warning_and_the_program_still_runs` (`tests/launcher.rs`),
+and the unit test `the_warning_names_the_program_under_current_when_the_recorded_folder_was_deleted`
+(`launcher_tests.rs`).
+
+### What still needs doing
+
+A release of `monochromatic-mpm-shadow` that carries this fix
+(`mise run //package/mpm-shadow/cli:release -- <from> <to> <note>`),
+then `mpm install` in each tree:
+the 299 records heal on the first run of each launcher of such a release,
+and the trees that only run `mpm install` heal then.
+The records heal,
+not the launcher binaries already on disk:
+a copy older than the follow-`current` rule still exits 127 on a dangling record until that tree's install replaces it.
+`mpm install` also rewrites every record in the tree that runs it,
+so one install per tree is enough;
+nothing here writes to a tree it was not run in.
+Two of the three follow-ups this file opened are already out:
+`0.2.7-alpha.7` carries the newest-install launcher rule and the lock file in the older-lock sentence.
 
 ## Upstream filing decision
 
