@@ -148,8 +148,14 @@ The old tree kept for the rollback stays until the owner deletes it.
   with its index's content and one warning.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
   at `493e72d1e9`:
-  the library suite passed 4835 of 4835,
-  and a cross-vendor review of the last round is running.
+  the library suite passed 4835 of 4835.
+  The cross-vendor review of that round (`${HOME}/temp/agent/reviews/copy-records-round-5-sol.txt`)
+  names three more ways a new worktree can end up unfilled or filled by the wrong command,
+  so it is not ready to merge.
+  This one waits for a free agent slot,
+  since all twenty are taken:
+  resume the run `copy-route-records-before-git` as run 6,
+  with `copy-route-records-round-6-prompt.md` and the session file named in run 5's `summary.json`.
   The fix for a ladder rung that already made its destination has no test of its own,
   and the two-process race has no failing test,
   because nothing can hold a wrapper at a named step.
