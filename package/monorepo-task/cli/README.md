@@ -15,7 +15,8 @@ the published command is `dist/final/node/run.mjs`.
 
 `package.json` declares three entries alongside the `task-run` command.
 
-- `.` is the library: the task shapes and loader helpers from `src/index.ts`,
+- `.` is the library:
+  the task shapes and loader helpers from `src/index.ts`,
   built to `dist/final/node/index.mjs`,
   so importing the package name loads no command line.
 - `./ts` is the TypeScript source of the same library,
@@ -23,7 +24,8 @@ the published command is `dist/final/node/run.mjs`.
   ([workspace TypeScript source imports](../../../doc/decision/workspace-ts-source-imports.md)).
 - `./ts/*` is any other module under `src/`.
 
-`src/run.ts` stays the command line: it runs `main()` when it loads,
+`src/run.ts` stays the command line:
+it runs `main()` when it loads,
  so nothing re-exports it and an import of the package name never dispatches a task.
 `bin` names the built `dist/final/node/run.mjs`,
  which keeps the `#!/usr/bin/env node` shebang.
