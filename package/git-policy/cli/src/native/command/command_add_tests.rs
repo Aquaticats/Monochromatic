@@ -319,7 +319,8 @@ fn literal_mode_stages_the_literal_file_in_git() {
 /// Git reads the value of a global option as that option's value,
 /// so `git -C --literal-pathspecs add -- '**'` changes into the directory of that name
 /// and expands the pattern over the whole worktree:
-/// the caller's mode is no mode at all, and the bulk rejection stands.
+/// the caller's mode is no mode at all,
+/// and the bulk rejection stands.
 #[test]
 fn a_directory_named_like_a_mode_option_is_no_mode_in_git() {
     let directory: PathBuf = fixture("add-global-value");

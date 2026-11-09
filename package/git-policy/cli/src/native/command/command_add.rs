@@ -185,14 +185,17 @@ pub fn stages_in_bulk(spelling: &[u8], literal: bool) -> bool {
 /// or it rejects a literal file name or lets a whole-tree spelling through.
 ///  A value Git would refuse to read as a boolean counts as unset,
 /// so a spelling this reading does not model keeps the rejection instead of lifting it.
+///   Only the tokens Git reads as options count:
+///  in `git -C --literal-pathspecs add -- '**'` that word is the directory `-C` changes to,
+///  and Git sets no mode at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const literalPathspecs = (globalPrefix: string[], variable?: string) => last(globalPrefix.filter((o) => LITERAL_OPTIONS.includes(o))) === '--literal-pathspecs' || (variable !== undefined && parseBool(variable) === true);
+/// const literalPathspecs = (globalPrefix: string[], variable?: string) => last(optionTokens(globalPrefix).filter((o) => LITERAL_OPTIONS.includes(o))) === '--literal-pathspecs' || (variable !== undefined && parseBool(variable) === true);
 /// ```
 pub fn literal_pathspecs_enabled(global_prefix: &[OsString], variable: Option<&OsStr>) -> bool {
     let mut from_options: Option<bool> = None;
-    for option in global_prefix {
+    for option in crate::global_arguments::option_tokens(global_prefix) {
         let spelling: &[u8] = option.as_encoded_bytes();
         if spelling == LITERAL_OPTIONS[0] {
             from_options = Some(true);
