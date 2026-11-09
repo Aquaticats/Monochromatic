@@ -17,7 +17,7 @@ use super::{ADD_ESCAPE_HATCH, ADD_TABLE, AddRegion, BulkKind, BulkMatch, caller_
 use crate::command_options::OptionErrorKind;
 use crate::command_test_completion::{git_completion, render_completion};
 use crate::command_test_support::{
-    assert_table_invariants, git, os_arguments, output_text, remove, repository_with_tracked_file,
+    assert_table_invariants, fixture, git, os_arguments, output_text, remove, repository, repository_with_tracked_file,
 };
 use std::path::{Path, PathBuf};
 
@@ -270,6 +270,9 @@ fn the_caller_mode_is_its_last_literal_option_then_the_variable() {
     assert!(!literal(&["--literal-pathspecs", "--no-literal-pathspecs"], None), "the later option wins");
     assert!(literal(&["--no-literal-pathspecs", "--literal-pathspecs"], None));
     assert!(literal(&["-C", "dir", "-c", "core.pager=cat", "--literal-pathspecs"], None), "other global options do not disturb it");
+    assert!(!literal(&["-C", "--literal-pathspecs"], None), "the value of -C is no option of the caller's");
+    assert!(!literal(&["-c", "--no-literal-pathspecs"], None), "nor is the value of -c");
+    assert!(literal(&["-C", "--literal-pathspecs", "--literal-pathspecs"], None), "the option after that value still counts");
     for (value, expected) in [("1", true), ("true", true), ("yes", true), ("ON", true), ("0", false), ("false", false), ("", false), ("banana", false)] {
         assert_eq!(literal(&[], Some(value)), expected, "GIT_LITERAL_PATHSPECS={value:?}");
         assert!(!literal(&["--no-literal-pathspecs"], Some(value)), "an option the caller wrote overrides the variable");
@@ -310,6 +313,21 @@ fn literal_mode_stages_the_literal_file_in_git() {
         git(root.as_path(), &["reset", "--quiet"]);
     }
     assert!(stages_in_bulk(b"**", true) == false && stages_in_bulk(b"**", false) && stages_in_bulk(b".", true));
+    remove(directory.as_path());
+}
+
+/// Git reads the value of a global option as that option's value,
+/// so `git -C --literal-pathspecs add -- '**'` changes into the directory of that name
+/// and expands the pattern over the whole worktree:
+/// the caller's mode is no mode at all, and the bulk rejection stands.
+#[test]
+fn a_directory_named_like_a_mode_option_is_no_mode_in_git() {
+    let directory: PathBuf = fixture("add-global-value");
+    let root: PathBuf = repository(directory.as_path(), "--literal-pathspecs");
+    std::fs::write(root.join("a.txt"), b"a\n").expect("write a.txt");
+    std::fs::write(root.join("b.txt"), b"b\n").expect("write b.txt");
+    git(directory.as_path(), &["-C", "--literal-pathspecs", "add", "--", "**"]);
+    assert_eq!(staged(root.as_path()), "a.txt\nb.txt", "Git stages everything below the directory -C named");
     remove(directory.as_path());
 }
 

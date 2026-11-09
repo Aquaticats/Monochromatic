@@ -109,6 +109,21 @@ fn a_literal_pathspec_mode_caller_stages_by_its_own_spelling() {
     assert_eq!(decide(&["--literal-pathspecs", "add", "-A"]), rejection("-A"), "a flag is no pathspec and stays bulk");
 }
 
+/// A value a global option consumes is no mode of the caller's:
+/// `git -C --literal-pathspecs add -- '**'` changes into the directory of that name,
+/// and Git then expands the pattern over the whole worktree.
+#[test]
+fn a_global_option_value_is_no_pathspec_mode() {
+    assert_eq!(decide(&["-C", "--literal-pathspecs", "add", "--", "**"]), rejection("**"));
+    assert_eq!(decide(&["-c", "--literal-pathspecs", "add", "--", "**"]), rejection("**"));
+    assert_eq!(decide(&["--git-dir", "--literal-pathspecs", "add", "--", "."]), rejection("."));
+    assert_eq!(
+        decide(&["-C", "--literal-pathspecs", "--literal-pathspecs", "add", "--", "**"]),
+        None,
+        "the option after the value is the caller's own mode again"
+    );
+}
+
 /// A token that is not UTF-8 beside a bulk token does not disturb the decision or the text.
 #[test]
 fn undecodable_paths_do_not_disturb_the_decision() {
