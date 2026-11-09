@@ -13,7 +13,9 @@
 //! ```
 
 /// Import the shared invocation fixtures.
-use crate::markdown_source::MarkdownSource;
+use crate::markdown_source::{
+    MarkdownSource, block_containers, paragraph_placements, verbatim_blocks,
+};
 use crate::run_output::RunOutput;
 use crate::run_test_support::{codes, read, run, write};
 use crate::test_fs::Fixture;
@@ -63,12 +65,6 @@ struct Case {
     source: String,
 }
 
-/// Split into the tokens a reader sees,
-///  ignoring where lines break and how much space separates them.
-fn tokens(text: &str) -> Vec<&str> {
-    return text.split_whitespace().collect::<Vec<&str>>();
-}
-
 /// The comment marker that opens a line of Rust comment text,
 ///  which a broken doc comment line gains on its continuation line.
 ///  Only that one leading marker is set aside:
@@ -83,23 +79,35 @@ fn without_leading_comment_marker(line: &str) -> &str {
     return trimmed;
 }
 
-/// Tokens of Rust source with the one leading comment marker of each line removed.
-fn tokens_without_comment_markers(text: &str) -> Vec<&str> {
-    let mut found: Vec<&str> = Vec::<&str>::new();
-    for line in text.lines() {
-        found.extend(without_leading_comment_marker(line).split_whitespace());
+/// Drop the quote markers that open a line,
+///  which a broken line inside a quotation gains at the depth it continues.
+///  A marker is container structure,
+/// like a list marker or a Rust comment marker,
+///  and not a token a reader sees;
+///  the tests that require a particular depth compare exact bytes and parsed containers instead.
+fn without_leading_quote_markers(line: &str) -> &str {
+    let mut rest: &str = line.trim_start();
+    while let Some(after_marker) = rest.strip_prefix('>') {
+        rest = after_marker.trim_start();
     }
-    return found;
+    return rest;
 }
 
 /// The tokens a language compares:
-///  Markdown compares every token,
-///  Rust compares all but its doc comment markers.
+///  Rust source without the doc comment marker each line starts with,
+///  and every language without the quote markers that place a line in a quotation.
 fn comparable_tokens<'text>(filename: &str, text: &'text str) -> Vec<&'text str> {
-    if filename.ends_with(".rs") {
-        return tokens_without_comment_markers(text);
+    let rust: bool = filename.ends_with(".rs");
+    let mut found: Vec<&'text str> = Vec::<&'text str>::new();
+    for line in text.lines() {
+        let without_comment: &'text str = if rust {
+            without_leading_comment_marker(line)
+        } else {
+            line
+        };
+        found.extend(without_leading_quote_markers(without_comment).split_whitespace());
     }
-    return tokens(text);
+    return found;
 }
 
 /// Fix one source on standard input under a configuration and return the fixed source.
@@ -175,21 +183,27 @@ fn a_doc_example_in_a_rust_file_is_left_as_written_beside_its_broken_doc_comment
     );
 }
 
-/// A line break inside a blockquote adds no marker token and the text stays in the quotation:
-///  CommonMark 0.31.2,
-/// section 5.1 "Block quotes",
-/// rule 2 "Laziness" and example 251,
-///  keeps a line without `>` in the paragraph of the quotation it continues.
+/// A line break inside a blockquote re-emits the marker at the depth the paragraph sits at,
+///  so the raw text keeps the quotation and a later edit cannot move the broken line out of it.
 #[test]
-fn a_blockquote_break_adds_no_marker_and_stays_in_the_quote() {
+fn a_blockquote_break_keeps_the_marker_at_the_same_depth() {
     let source: &str = "> I think we can make it much better. Because we control the code.\n> Second line, here.\n";
     let (fixed, remaining): (String, Vec<String>) = fix_file("a.md", source, EVERY_FIXABLE_RULE);
     assert_eq!(
         fixed,
-        "> I think we can make it much better.\nBecause we control the code.\n> Second line,\nhere.\n"
+        "> I think we can make it much better.\n> Because we control the code.\n> Second line,\n> here.\n"
     );
     assert_eq!(remaining, Vec::<String>::new());
-    assert_eq!(tokens(fixed.as_str()), tokens(source));
+    assert_eq!(
+        comparable_tokens("a.md", fixed.as_str()),
+        comparable_tokens("a.md", source)
+    );
+    // Every written line carries its marker, so the quotation holds in the raw text too.
+    /// Whether every line of one quotation starts with its marker and a space.
+    fn every_line_quoted(text: &str) -> bool {
+        return text.lines().all(|line| return line.starts_with("> "));
+    }
+    assert!(every_line_quoted(fixed.as_str()), "{fixed}");
     let context: MarkdownSource = parse(fixed.as_str());
     let mut root_children: Vec<MdastNodeType> = Vec::<MdastNodeType>::new();
     for id in context.all_nodes() {
@@ -225,6 +239,25 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
             "{}: {fixed}",
             case.name
         );
+        if case.filename.ends_with(".md") || case.filename.ends_with(".mdx") {
+            let mdx: bool = case.filename.ends_with(".mdx");
+            let before = MarkdownSource::new(case.filename.clone(), case.source.clone(), mdx)
+                .expect("fixture parses");
+            let after = MarkdownSource::new(case.filename.clone(), fixed.clone(), mdx)
+                .expect("fixed fixture parses");
+            assert_eq!(
+                block_containers(&before).expect("an acyclic parse"),
+                block_containers(&after).expect("an acyclic parse"),
+                "{} changed a block boundary",
+                case.name
+            );
+            assert_eq!(
+                verbatim_blocks(&before).expect("an acyclic parse"),
+                verbatim_blocks(&after).expect("an acyclic parse"),
+                "{} changed quoted source",
+                case.name
+            );
+        }
         let again: String = fix_with(
             &fixture.path,
             case.filename.as_str(),
@@ -235,14 +268,64 @@ fn whitespace_fix_keeps_every_token_of_every_fixture() {
     }
 }
 
+/// The property's comparisons can each fail:
+///  a paragraph moved into another quotation,
+///  one changed word,
+///  one quotation split in two,
+///  and one character changed inside a fence are all detected,
+///  so a green run is not a comparison that never looks.
+#[test]
+fn the_property_comparisons_detect_a_moved_word_a_split_quotation_and_a_changed_fence() {
+    let plain: MarkdownSource = parse("> quoted words\n\nplain text\n");
+    let quoted: MarkdownSource = parse("> quoted words\n\n> plain text\n");
+    assert_ne!(
+        paragraph_placements(&plain).expect("an acyclic parse"),
+        paragraph_placements(&quoted).expect("an acyclic parse")
+    );
+    assert_ne!(
+        comparable_tokens("a.md", "one two\n"),
+        comparable_tokens("a.md", "one three\n")
+    );
+    // One quotation with two paragraphs is not the same block structure as two quotations,
+    // which the paragraph comparison above cannot tell apart.
+    let joined: MarkdownSource = parse("> first\n>\n> second\n");
+    let split: MarkdownSource = parse("> first\n\n> second\n");
+    assert_eq!(
+        paragraph_placements(&joined).expect("an acyclic parse"),
+        paragraph_placements(&split).expect("an acyclic parse")
+    );
+    assert_ne!(
+        block_containers(&joined).expect("an acyclic parse"),
+        block_containers(&split).expect("an acyclic parse")
+    );
+    // A marker the token comparison sets aside inside a fence is still compared as quoted source.
+    let kept: MarkdownSource = parse("```text\n> keep\n```\n");
+    let lost: MarkdownSource = parse("```text\nkeep\n```\n");
+    assert_eq!(
+        comparable_tokens("a.md", "```text\n> keep\n```\n"),
+        comparable_tokens("a.md", "```text\nkeep\n```\n")
+    );
+    assert_ne!(
+        verbatim_blocks(&kept).expect("an acyclic parse"),
+        verbatim_blocks(&lost).expect("an acyclic parse")
+    );
+}
+
 /// The measurement on a real tree,
-///  run once by hand:
-///  `MONOCHROMATIC_LINT_PROPERTY_ROOT=<directory> MONOCHROMATIC_LINT_PROPERTY_STEP=<n> cargo nextest run --run-ignored only real_tree`.
-///  Every `n`th Markdown and Rust file under the directory is fixed on standard input,
-///  and the files whose tokens changed are listed in the failure.
+///  run through the package task:
+///  `MONOCHROMATIC_LINT_PROPERTY_ROOT=<directory> MONOCHROMATIC_LINT_PROPERTY_STEP=<n> mise run //package/linter/monochromatic-lint:test:property`.
+///  Every `n`th tracked Markdown,
+/// MDX and Rust file under the directory is fixed on standard input.
+///  Tokens are compared for every file;
+///  every Markdown host is parsed before and after so its paragraphs,
+///  its block boundaries and its quoted source are compared as well.
+///  Nothing is skipped:
+/// a host the linter cannot process,
+///  a file that cannot be read and a host that stops parsing are failures,
+///  so the measurement cannot pass by measuring less.
 #[test]
 #[ignore = "measurement over a real tree named by MONOCHROMATIC_LINT_PROPERTY_ROOT, not a unit control"]
-fn real_tree_keeps_every_token_under_the_whitespace_rule() {
+fn real_tree_keeps_every_token_and_block_structure_under_the_whitespace_rule() {
     let root: String = std::env::var("MONOCHROMATIC_LINT_PROPERTY_ROOT")
         .expect("MONOCHROMATIC_LINT_PROPERTY_ROOT names the tree to measure");
     let step: usize = match std::env::var("MONOCHROMATIC_LINT_PROPERTY_STEP") {
@@ -250,41 +333,106 @@ fn real_tree_keeps_every_token_under_the_whitespace_rule() {
         Err(_) => 1,
     };
     let listing: std::process::Output = std::process::Command::new("git")
-        .args(["-C", root.as_str(), "ls-files", "*.md", "*.mdx", "*.rs"])
+        .args([
+            "-C",
+            root.as_str(),
+            "ls-files",
+            "-z",
+            "*.md",
+            "*.mdx",
+            "*.rs",
+        ])
         .output()
-        .expect("git lists the tracked files");
+        .expect("git runs");
+    assert!(
+        listing.status.success(),
+        "git lists {root}: {}",
+        String::from_utf8_lossy(listing.stderr.as_slice())
+    );
     let names: Vec<String> = String::from_utf8(listing.stdout)
         .expect("tracked names are text")
-        .lines()
+        .split('\0')
+        .filter(|name| return !name.is_empty())
         .map(String::from)
         .collect::<Vec<String>>();
+    assert!(!names.is_empty(), "{root} lists no Markdown or Rust file");
     let fixture: Fixture = Fixture::new();
-    let (mut measured, mut changed, mut broken): (usize, usize, Vec<String>) = (0, 0, Vec::new());
+    write(&fixture.path, CONFIG_FILE, EVERY_FIXABLE_RULE);
+    let mut measured: usize = 0;
+    let mut changed: usize = 0;
+    let mut tokens: usize = 0;
+    let mut structured: usize = 0;
+    let mut quoted: usize = 0;
+    let mut broken_tokens: Vec<String> = Vec::<String>::new();
+    let mut moved: Vec<String> = Vec::<String>::new();
+    let mut reshaped: Vec<String> = Vec::<String>::new();
+    let mut misquoted: Vec<String> = Vec::<String>::new();
     for name in names.iter().step_by(step) {
-        let Ok(source): Result<String, std::io::Error> =
-            std::fs::read_to_string(Path::new(root.as_str()).join(name))
-        else {
-            continue;
-        };
-        measured += 1;
-        let fixed: String = fix_with(
+        let source: String = std::fs::read_to_string(Path::new(root.as_str()).join(name))
+            .unwrap_or_else(|error| panic!("{name} is readable text: {error}"));
+        let output: RunOutput = run(
             &fixture.path,
-            name.as_str(),
+            &["--stdin", "--stdin-filename", name.as_str(), "--fix"],
             source.as_str(),
-            EVERY_FIXABLE_RULE,
         );
+        assert_ne!(
+            output.exit_code, 2,
+            "{name} is processed: {}",
+            output.stderr
+        );
+        measured += 1;
+        let fixed: String = output.stdout;
         if fixed != source {
             changed += 1;
         }
-        if comparable_tokens(name.as_str(), fixed.as_str())
-            != comparable_tokens(name.as_str(), source.as_str())
-        {
-            broken.push(name.clone());
+        let written: Vec<&str> = comparable_tokens(name.as_str(), source.as_str());
+        tokens += written.len();
+        if written != comparable_tokens(name.as_str(), fixed.as_str()) {
+            broken_tokens.push(name.clone());
+        }
+        if !(name.ends_with(".md") || name.ends_with(".mdx")) {
+            continue;
+        }
+        let mdx: bool = name.ends_with(".mdx");
+        let before: MarkdownSource = MarkdownSource::new(name.clone(), source, mdx)
+            .unwrap_or_else(|error| panic!("{name} parses: {error}"));
+        let after: MarkdownSource = MarkdownSource::new(name.clone(), fixed, mdx)
+            .unwrap_or_else(|error| panic!("{name} still parses after the fix: {error}"));
+        structured += 1;
+        let placement_before = paragraph_placements(&before).expect("an acyclic parse");
+        let placement_after = paragraph_placements(&after).expect("an acyclic parse");
+        if placement_before != placement_after {
+            moved.push(name.clone());
+        }
+        let shape_before = block_containers(&before).expect("an acyclic parse");
+        let shape_after = block_containers(&after).expect("an acyclic parse");
+        if shape_before != shape_after {
+            reshaped.push(name.clone());
+        }
+        let quoted_before = verbatim_blocks(&before).expect("an acyclic parse");
+        let quoted_after = verbatim_blocks(&after).expect("an acyclic parse");
+        quoted += quoted_before.len();
+        if quoted_before != quoted_after {
+            misquoted.push(name.clone());
         }
     }
     eprintln!(
-        "measured {measured} files, {changed} changed by the fix, {} changed a token",
-        broken.len()
+        "measured {measured} files ({changed} changed by the fix, {tokens} tokens, {structured} Markdown hosts parsed, {quoted} quoted blocks)"
     );
-    assert!(broken.is_empty(), "token sequence changed in: {broken:#?}");
+    assert!(
+        broken_tokens.is_empty(),
+        "token sequence changed in: {broken_tokens:#?}"
+    );
+    assert!(
+        moved.is_empty(),
+        "paragraph containers or words changed in: {moved:#?}"
+    );
+    assert!(
+        reshaped.is_empty(),
+        "block boundaries changed in: {reshaped:#?}"
+    );
+    assert!(
+        misquoted.is_empty(),
+        "quoted source changed in: {misquoted:#?}"
+    );
 }

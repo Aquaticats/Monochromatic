@@ -582,6 +582,7 @@ fn a_journal_names_its_owner() {
     assert_eq!(owner_token_of(path.as_path()), Some(owner.token()));
     assert_eq!(owner_token_of(Path::new("/journals/abc.json")), None, "a name an earlier release wrote names no owner");
     assert_eq!(owner_token_of(Path::new("/journals/abc.def.stage")), None, "a file that is no journal");
+    assert_eq!(owner_token_of(Path::new("/journals/abc..json")), None, "a name without a token field names no owner");
 }
 
 /// A temporary file names the process that writes it,
@@ -594,6 +595,7 @@ fn a_temporary_names_its_writer() {
     let name: String = temporary.file_name().expect("name").to_string_lossy().into_owned();
     assert_eq!(temporary_writer_token(name.as_str()), Some(owner.token().as_str()));
     assert_eq!(temporary_writer_token("abc.stage.0f1e.tmp"), Some("stage"), "an older release's name reads as a token that names nobody");
+    assert_eq!(temporary_writer_token("abc..0f1e.tmp"), None, "a name without a token field names no writer");
     assert_eq!(temporary_writer_token("abc.tmp"), None);
     assert_eq!(temporary_writer_token("abc.json"), None, "only temporaries have writers");
     assert!(crate::worktree_copy_owner::CopyOwner::from_token("stage").is_none());
