@@ -276,7 +276,7 @@ pub(crate) fn landing_reset_copy(context: &crate::transaction_git::GitContext, r
     if old_copy && built.exists() {
         age(built.as_path());
     }
-    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &held, &copy);
+    let done: bool = crate::index_reset_file::reset_index_file(context, repo, new, paths, &held, &copy).is_some();
     if done {
         held.release_with(built.as_path()).expect("installed");
     } else {
