@@ -4,6 +4,9 @@
 //! Why:
 //!  Injecting `--atomic` over an explicit `--no-at` would override the caller's choice.
 //!
+//! `atomic-push.unit.test.ts` was deleted on 2026-10-13 in `642b6d72cb` with the TypeScript wrapper,
+//!  and `git show 642b6d72cb^:package/git-policy/cli/src/rule/atomic-push.unit.test.ts` reads it there.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // expect(atomicPush(['push', 'origin', 'main'])).toEqual(['push', '--atomic', 'origin', 'main']);

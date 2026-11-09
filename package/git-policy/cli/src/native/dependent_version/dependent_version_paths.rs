@@ -15,6 +15,12 @@
 //! `PNPR_CONFIG_PATH`
 //!      (`publishable-names.ts:10`) and `isNonTestSourcePath` (`source-imports.ts:38-55`).
 //!
+//! The `.ts` names here are the TypeScript wrapper's,
+//!  deleted on 2026-10-13 in `642b6d72cb`,
+//!  where `git show 642b6d72cb^:package/git-policy/cli/src/optional/repository-policy/<name>` reads each:
+//!  `dependent-version-bump-policy.ts`,
+//! `publishable-names.ts` and `source-imports.ts`.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // isWorkspaceManifestPath(path); packageDirectory(manifestPath); isNonTestSourcePath({ directory, path });
