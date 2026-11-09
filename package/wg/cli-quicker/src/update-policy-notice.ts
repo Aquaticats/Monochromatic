@@ -93,7 +93,7 @@ export function updatePolicyNotice(
     'POLICY NOTICE: by this repository\'s policy, and without any switch to turn it off,',
     'the following traffic leaves OUTSIDE the WireGuard tunnel while ExemptMark is configured:',
     '  1. Update entry points: mise toolchain tasks that fetch, mpm-shadow install, update and outdated, the mpm shadow,',
-    '     and the TypeScript toolchain sync and update scripts, together with every process they start.',
+    '     and the TypeScript mpm-shadow launcher, together with every process they start.',
     '  2. Everything the toolchain installed, not only its updates: every process whose executable is under the toolchain',
     '     and toolchain-global directories of the monochromatic-dev data directory, together with every process it starts.',
     '     That is every script and dev server run by the toolchain\'s node, every build by its compilers,',
@@ -309,7 +309,7 @@ export function startNotices(input: StartNoticeInput,): readonly string[] {
   if (input.exemptMark === undefined)
     return [
       `Config for ${input.target} has no ExemptMark; Ghostty, Steam, Helium, Pale Moon, Firefox, Firefox Nightly, ChatGPT, Interpreter, Qure, OdyTTY and Pi will use the tunnel. `
-        + `So will toolchain sync and update runs. ${policiesNotInForceWithoutMark()} `
+        + `So will toolchain update runs. ${policiesNotInForceWithoutMark()} `
         + `Add \`ExemptMark = ${String(input.recommendedMark,)}\` under \`[Interface]\`, then bring this interface down and up again so application exemptions attach.`,
     ];
   if (input.tableOff)
