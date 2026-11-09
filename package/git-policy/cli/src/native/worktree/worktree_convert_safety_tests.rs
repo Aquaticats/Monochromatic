@@ -17,6 +17,7 @@ use crate::subvolume_test_support::{PlainPlatform, backdate, checkout_with_workt
 use crate::test_support::{fixture, git, remove};
 use crate::worktree_convert_journal::Phase as JournalPhase;
 use crate::worktree_convert_remove::remove_recorded_old_tree_seamed;
+use std::os::unix::fs::MetadataExt;
 
 /// The options of a real run.
 const RUN: ConvertOptions = ConvertOptions { dry_run: false, abandon: false, command_line_attributes: false };
@@ -150,6 +151,24 @@ fn a_file_written_after_a_synced_kill_is_not_lost() {
     assert_eq!(finished.expect("finished"), Verdict::Resumed, "{lines:#?}");
     assert_eq!(std::fs::read(worktree.join("late.txt")).expect("late file"), b"written after the proof\n");
     assert!(platform.is_subvolume_root(worktree.as_path()).expect("examined"));
+    remove(parent.as_path());
+}
+
+/// A permission change made in the last window of a conversion,
+/// after the proving pass and before the removal,
+/// keeps the old tree and is named;
+/// nothing is deleted and the installed copy is not altered.
+#[test]
+fn a_permission_change_after_the_proof_keeps_the_old_tree() {
+    let (parent, _root, worktree) = quiet_worktree("safety-mode");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let converting: PathBuf = converting_path(worktree.as_path());
+    assert!(run(&platform, worktree.as_path(), RUN, &Interrupt::at("exchanged", 0)).0.is_err());
+    std::fs::set_permissions(converting.join("script.sh"), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("a narrowed copy in the old tree");
+    let message: String = failure_of(run(&platform, worktree.as_path(), RUN, &Interrupt::never()).0);
+    assert!(message.contains("script.sh") && message.contains("permission bits") && message.contains("kept"), "{message}");
+    assert!(converting.join("script.sh").exists(), "the old tree is kept whole");
+    assert_eq!(std::fs::metadata(worktree.join("script.sh")).expect("installed").mode() & 0o777, 0o755, "the installed copy is unchanged");
     remove(parent.as_path());
 }
 
