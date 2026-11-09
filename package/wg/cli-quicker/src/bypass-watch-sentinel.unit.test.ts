@@ -229,7 +229,7 @@ await describe({
         expect(calls[0]?.line,).toContain('POLICY NOT IN FORCE',);
         expect(calls[0]?.line,).toContain('pid 4242',);
         expect(calls[0]?.line,).toContain('bypass table',);
-        expect(calls[0]?.line,).toContain('update hosts',);
+        expect(calls[0]?.line,).toContain('clearnet hosts',);
         expect(calls[0]?.line,).toContain('wg-quicker up',);
       },
     },),

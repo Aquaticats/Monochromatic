@@ -21,7 +21,7 @@ import type { DeliveryCommand, } from '../dist/final/node/runtime-failure-report
 import type { BypassState, } from '../dist/final/node/tunnel-bypass-hosts.mjs';
 import {
   POLICY_BYPASS_TABLE,
-  POLICY_UPDATE_HOSTS,
+  POLICY_CLEARNET_HOSTS,
 } from '../dist/final/node/update-policy-notice.mjs';
 
 /**
@@ -56,7 +56,7 @@ await describe({
          */
         const stopped = watcherStoppedReport({ error: new Error('state vanished',), },);
         expect(stopped,).toContain(POLICY_BYPASS_TABLE,);
-        expect(stopped,).toContain(POLICY_UPDATE_HOSTS,);
+        expect(stopped,).toContain(POLICY_CLEARNET_HOSTS,);
         expect(stopped,).toContain('state vanished',);
         expect(stopped,).toContain('run `wg-quicker up` again',);
       },
@@ -131,7 +131,7 @@ await describe({
           deliver,
         },);
         expect(delivered,).toHaveLength(1,);
-        expect(delivered[0],).toContain('POLICY NOT IN FORCE: update hosts',);
+        expect(delivered[0],).toContain('POLICY NOT IN FORCE: clearnet hosts',);
         expect(delivered[0],).toContain('resolvectl is unavailable',);
         expect(kinds[0],).toBe('update-host refresh failed',);
         await refreshOrReport({

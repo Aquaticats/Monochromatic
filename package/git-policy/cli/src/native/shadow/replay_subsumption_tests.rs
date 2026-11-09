@@ -36,7 +36,7 @@ fn entry(mode: &str, oid: &str) -> Option<TreeEntry> {
 /// A shared path with its three entries.
 fn shared(base: Option<TreeEntry>, landed: Option<TreeEntry>, prepared: Option<TreeEntry>) -> SharedPath {
     return SharedPath {
-        path: String::from("p.txt"),
+        path: b"p.txt".to_vec(),
         base,
         landed,
         prepared,
@@ -66,8 +66,8 @@ fn subsumed_records_keep_the_base_mode_only_for_regular_files() {
 /// an absent entry writes zeros of the width.
 #[test]
 fn exact_records_name_the_entry_or_zeros() {
-    assert_eq!(exact_record("p.txt", &entry("100644", "abcd"), 4), b"100644 abcd\tp.txt\0".to_vec());
-    assert_eq!(exact_record("p.txt", &None, 4), b"0 0000\tp.txt\0".to_vec());
+    assert_eq!(exact_record(b"p.txt", &entry("100644", "abcd"), 4), b"100644 abcd\tp.txt\0".to_vec());
+    assert_eq!(exact_record(b"p.txt", &None, 4), b"0 0000\tp.txt\0".to_vec());
 }
 
 /// Prepared-ordered paths take the landed entry and landed-ordered paths take the prepared entry.
@@ -132,9 +132,9 @@ fn the_scenario_settles_each_path_by_its_rule() {
     let (root, repo, base, current, prepared) = scenario("replay-subsumption-scenario");
     let scratch: PathBuf = root.join("scratch");
     std::fs::create_dir(&scratch).expect("scratch");
-    let order: BTreeMap<String, CaptureOrderDecision> = BTreeMap::from([
-        (String::from("e.txt"), CaptureOrderDecision::Prepared),
-        (String::from("f.txt"), CaptureOrderDecision::Landed),
+    let order: BTreeMap<Vec<u8>, CaptureOrderDecision> = BTreeMap::from([
+        (b"e.txt".to_vec(), CaptureOrderDecision::Prepared),
+        (b"f.txt".to_vec(), CaptureOrderDecision::Landed),
     ]);
     let outcome: SubsumptionBase = subsume_landed_changes(
         &git_context(),
@@ -148,8 +148,8 @@ fn the_scenario_settles_each_path_by_its_rule() {
         &order,
     )
     .expect("subsumption");
-    assert_eq!(outcome.subsumed_paths, vec!["a.txt", "b.txt", "e.txt"]);
-    assert_eq!(outcome.kept_landed_paths, vec!["f.txt"]);
+    assert_eq!(outcome.subsumed_paths, vec![b"a.txt".to_vec(), b"b.txt".to_vec(), b"e.txt".to_vec()]);
+    assert_eq!(outcome.kept_landed_paths, vec![b"f.txt".to_vec()]);
     assert_ne!(outcome.merge_base, base);
     let landed_b: String = rev(repo.as_path(), &format!("{current}:b.txt"));
     assert_eq!(rev(repo.as_path(), &format!("{}:b.txt", outcome.merge_base)), landed_b);
@@ -244,7 +244,7 @@ fn identical_gitlinks_and_binary_blobs_are_subsumed_only_when_identical() {
         &BTreeMap::new(),
     )
     .expect("subsumption");
-    assert_eq!(outcome.subsumed_paths, vec!["bin1.dat", "sub1"]);
+    assert_eq!(outcome.subsumed_paths, vec![b"bin1.dat".to_vec(), b"sub1".to_vec()]);
     remove(root.as_path());
 }
 
@@ -319,7 +319,7 @@ fn deciding_the_unordered_paths_reads_the_text_list_once_per_path() {
         .collect();
     assert_eq!(candidates.len(), width, "every path is a text candidate");
     let checked: u64 = crate::collected_elements_looked_at::looked_at();
-    let text_paths: Vec<String> = subsumed_text_paths(
+    let text_paths: Vec<Vec<u8>> = subsumed_text_paths(
         &git_context(),
         repo.join(".git").as_path(),
         repo.as_path(),

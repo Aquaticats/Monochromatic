@@ -81,7 +81,7 @@ fn end_attempts(repo: &Repo) {
 /// The record of a failed push and a pending push,
 /// both under the fixture's worktree.
 fn records(repo: &Repo) {
-    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
+    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, crate::push_failure_notice::PushOutcome::Refused, "refused by test policy").expect("notice");
     enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, OTHER_COMMIT)).expect("pending push");
 }
 
@@ -346,7 +346,7 @@ fn a_snapshot_whose_checkout_is_gone_is_settled_and_shown() {
 #[test]
 fn a_recorded_failure_keeps_its_words_over_the_pending_push_of_the_same_commit() {
     let repo: Repo = repo("rescue-same-commit");
-    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, "refused by test policy").expect("notice");
+    record_push_failure(repo.linked.as_path(), BRANCH, COMMIT, crate::push_failure_notice::PushOutcome::Refused, "refused by test policy").expect("notice");
     enqueue(work_directory(repo.linked.as_path()).as_path(), &item(WorkKind::Push, COMMIT)).expect("pending push");
     snapshot_linked_worktrees(repo.common.as_path());
     std::fs::remove_dir_all(&repo.linked).expect("Git removes the worktree");

@@ -246,6 +246,8 @@ fn side_oids(owned: &[SharedPath], empty_blob: &str, side: fn(&SharedPath) -> &O
 /// Why:
 ///   Only candidates whose three blobs are all text reach this check;
 /// the caller has already removed identical entries.
+///  A path answers as its bytes,
+/// so a name that is not text reaches the synthetic base unchanged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -257,7 +259,7 @@ pub fn subsumed_text_paths(
     cwd: &Path,
     object_directory: &Path,
     candidates: &[SharedPath],
-) -> Result<Vec<String>, TextSubsumptionError> {
+) -> Result<Vec<Vec<u8>>, TextSubsumptionError> {
     if candidates.is_empty() {
         return Ok(Vec::new());
     }
@@ -322,7 +324,7 @@ pub fn subsumed_text_paths(
     let prepared_zero: BTreeMap<Vec<u8>, Vec<PatchHunk>> =
         indexed_hunks(context, shadow, cwd, &base_tree, &prepared_tree, 0)?;
     // `mut` lets the subsumed paths be collected in candidate order.
-    let mut subsumed: Vec<String> = Vec::new();
+    let mut subsumed: Vec<Vec<u8>> = Vec::new();
     for (index, shared) in owned.iter().enumerate() {
         let name: Vec<u8> = index.to_string().into_bytes();
         let prepared_bytes: Vec<u8> = blob_of(&blobs, &shared.prepared).unwrap_or_default();
