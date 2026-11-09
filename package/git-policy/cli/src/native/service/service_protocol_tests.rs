@@ -17,8 +17,8 @@ fn request() -> CommitRequest {
         reference: String::from("refs/heads/main"),
         base: String::from(BLOB),
         changes: vec![
-            Change { path: String::from("src/a \"b\".txt"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
-            Change { path: String::from("old.txt"), mode: ALLOWED_MODES[0], blob: None },
+            Change { path: PathBuf::from("src/a \"b\".txt"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
+            Change { path: PathBuf::from("old.txt"), mode: ALLOWED_MODES[0], blob: None },
         ],
         message: String::from("subject\n\nbody with \"quotes\" and a\ttab\n"),
         author: None,
@@ -39,6 +39,30 @@ fn a_commit_request_round_trips() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(!line.contains('\n'), "one line per message");
+    assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
+}
+
+/// What:
+///  A change whose path is not text survives the socket.
+/// Why:
+///   A commit's changed paths travel as JSON,
+/// and a name that lost its bytes would reach the service as another name,
+/// or as none;
+/// the plain field beside the bytes stays for a reader that predates it.
+#[test]
+fn a_change_path_that_is_not_text_round_trips() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let name: PathBuf = PathBuf::from(OsStr::from_bytes(b"caf\xff.txt"));
+    let mut sent: CommitRequest = request();
+    sent.changes = vec![
+        Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) },
+        Change { path: PathBuf::from("gone.txt"), mode: ALLOWED_MODES[0], blob: None },
+    ];
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
+    let value: serde_json::Value = serde_json::from_str(line.as_str()).expect("one JSON object");
+    assert_eq!(value["changes"][0]["path"].as_str(), Some("caf\u{fffd}.txt"), "the plain field is the readable spelling");
+    assert_eq!(value["changes"][0]["pathHex"].as_str(), Some("636166ff2e747874"), "the bytes are the name");
     assert_eq!(decode_client(line.as_str()), Ok(ClientMessage::Commit(Box::new(sent))));
 }
 
@@ -88,7 +112,7 @@ fn unacceptable_requests_are_refused() {
     let hostile_paths = ["/etc/passwd", "../up", "a/../b", "a//b", "a/./b", ".git/config", "dir/.git/x", "", "a\nb"];
     for path in hostile_paths {
         let mut bad: CommitRequest = request();
-        bad.changes[0].path = String::from(path);
+        bad.changes[0].path = PathBuf::from(path);
         assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(bad))).as_str()).is_err(), "{path:?}");
     }
     let mut bad_mode: CommitRequest = request();
@@ -107,7 +131,7 @@ fn unacceptable_requests_are_refused() {
     empty.changes.clear();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(empty))).as_str()).is_ok(), "an empty commit changes no path");
     let mut many: CommitRequest = request();
-    many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: format!("f{n}"), mode: ALLOWED_MODES[0], blob: None }; }).collect();
+    many.changes = (0..=MAX_CHANGES).map(|n| { return Change { path: PathBuf::from(format!("f{n}")), mode: ALLOWED_MODES[0], blob: None }; }).collect();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(many))).as_str()).is_err());
 }
 
@@ -382,7 +406,7 @@ fn a_commit_request_names_its_worktrees_git_directory() {
 fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_line() {
     let mut sent: CommitRequest = request();
     let path: String = "p".repeat(P99_CHANGED_PATH_CHARACTERS);
-    sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: path.clone(), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    sent.changes = (0..MAX_CHANGES).map(|_number: usize| { return Change { path: PathBuf::from(path.clone()), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent)));
     assert!(line.len() <= MAX_LINE_BYTES, "{} bytes must fit {MAX_LINE_BYTES}", line.len());
 }
@@ -392,9 +416,9 @@ fn a_request_of_the_most_changes_at_the_ninety_ninth_percentile_path_fits_one_li
 #[test]
 fn the_decoder_accepts_the_most_changes_and_refuses_one_more() {
     let mut sent: CommitRequest = request();
-    sent.changes = (0..MAX_CHANGES).map(|number: usize| { return Change { path: format!("f{number}"), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
+    sent.changes = (0..MAX_CHANGES).map(|number: usize| { return Change { path: PathBuf::from(format!("f{number}")), mode: ALLOWED_MODES[0], blob: Some(String::from(BLOB)) }; }).collect();
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent.clone()))).as_str()).is_ok());
-    sent.changes.push(Change { path: String::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
+    sent.changes.push(Change { path: PathBuf::from("one-more"), mode: ALLOWED_MODES[0], blob: None });
     assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(sent))).as_str()).is_err());
 }
 

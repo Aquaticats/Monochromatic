@@ -62,9 +62,22 @@ pub const GITDIR_HEX_PREFIX: &str = "gitdirHex=";
 /// const pathBytesHex = (path: string) => Buffer.from(path).toString('hex');
 /// ```
 pub fn hex_of_path(path: &Path) -> String {
-    use std::os::unix::ffi::OsStrExt;
-    let mut hex: String = String::with_capacity(path.as_os_str().as_bytes().len() * 2);
-    for byte in path.as_os_str().as_bytes() {
+    return hex_of_bytes(crate::path_bytes::path_bytes_of(path));
+}
+
+/// What:
+///  The bytes as lowercase hexadecimal digits.
+/// Why:
+///   `hex_of_path` writes a path this way,
+/// and a list of paths in one line of a record needs the same spelling for each of them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pathBytesHex = (bytes: Uint8Array) => Buffer.from(bytes).toString('hex');
+/// ```
+pub fn hex_of_bytes(bytes: &[u8]) -> String {
+    let mut hex: String = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
         hex.push_str(format!("{byte:02x}").as_str());
     }
     return hex;

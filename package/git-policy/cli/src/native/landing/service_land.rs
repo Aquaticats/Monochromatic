@@ -320,13 +320,13 @@ fn land_batch_body(
         }
         // A commit Git built carries no list of changes: its index entries are the paths that differ from the old branch.
         let derived: bool = first.commit.is_some();
-        let paths: Vec<String> = if derived {
+        let paths: Vec<Vec<u8>> = if derived {
             Vec::new()
         } else {
-            let mut named: Vec<String> = Vec::new();
+            let mut named: Vec<Vec<u8>> = Vec::new();
             for request in &batch {
                 for change in &request.changes {
-                    named.push(change.path.clone());
+                    named.push(crate::path_bytes::path_bytes_of(change.path.as_path()).to_vec());
                 }
             }
             named

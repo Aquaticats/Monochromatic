@@ -34,18 +34,20 @@ fn put(fields: &mut Map<String, Value>, key: &str, value: Value) {
 /// its path,
 /// mode and blob (null for a deletion).
 /// Why:
-///  `encode_client` maps every change of a request through it.
+///  `encode_client` maps every change of a request through it,
+/// and the path takes two fields (see `path_bytes::write_field`),
+/// so a file name that is not text reaches the service as the name Git listed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const changeJson = (change: Change) => ({ path: change.path, mode: change.mode, blob: change.blob ?? null });
+/// const changeJson = (change: Change) => ({ path: shown, pathHex: hex(change.path), mode: change.mode, blob: change.blob ?? null });
 /// ```
 fn change_json(change: &Change) -> Value {
-    return Value::Object(Map::from_iter([
-        (String::from("path"), Value::from(change.path.as_str())),
-        (String::from("mode"), Value::from(change.mode)),
-        (String::from("blob"), change.blob.as_deref().map_or(Value::Null, Value::from)),
-    ]));
+    let mut fields: Map<String, Value> = Map::new();
+    path_bytes::write_field(&mut fields, "path", change.path.as_path());
+    put(&mut fields, "mode", Value::from(change.mode));
+    put(&mut fields, "blob", change.blob.as_deref().map_or(Value::Null, Value::from));
+    return Value::Object(fields);
 }
 
 /// What:

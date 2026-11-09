@@ -15,6 +15,7 @@
 //! ```
 
 use serde_json::Value;
+use crate::path_bytes as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::{Path, PathBuf};
 
@@ -113,12 +114,13 @@ pub const ALLOWED_MODES: [u32; 3] = [0o100_644, 0o100_755, 0o120_000];
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Change = { path: string; mode: number; blob?: string }; // no blob means delete
+/// type Change = { path: Uint8Array; mode: number; blob?: string }; // no blob means delete
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Change {
-    /// Repository-relative path with `/` separators.
-    pub path: String,
+    /// Repository-relative path with `/` separators,
+    /// as the bytes Git listed: a file name that is not text is still a file name.
+    pub path: PathBuf,
     /// File mode,
     /// one of `ALLOWED_MODES`.
     pub mode: u32,
@@ -449,10 +451,10 @@ pub fn is_object_name(text: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isPlainPart = (part: string) => part !== '' && !['.', '..', '.git'].includes(part);
+/// const isPlainPart = (part: Uint8Array) => part.length > 0 && !['.', '..', '.git'].includes(text(part));
 /// ```
-fn is_plain_part(part: &str) -> bool {
-    return !part.is_empty() && part != "." && part != ".." && part != ".git";
+fn is_plain_part(part: &[u8]) -> bool {
+    return !part.is_empty() && part != b"." && part != b".." && part != b".git";
 }
 
 /// What:
@@ -490,11 +492,16 @@ fn is_plain_component(part: std::path::Component<'_>) -> bool {
 /// no empty,
 /// `.` or `..` part,
 /// no NUL or newline.
-pub fn is_plain_path(path: &str) -> bool {
-    return !path.is_empty()
-        && !path.starts_with('/')
-        && !path.contains(['\0', '\n'])
-        && path.split('/').all(is_plain_part);
+/// Why:
+///  The bytes are checked rather than their text,
+/// so a name that is not text is a name like any other and no name is judged by a spelling of it.
+pub fn is_plain_path(path: &Path) -> bool {
+    let bytes: &[u8] = path_bytes::path_bytes_of(path);
+    return !bytes.is_empty()
+        && !bytes.starts_with(b"/")
+        && !bytes.contains(&b'\0')
+        && !bytes.contains(&b'\n')
+        && bytes.split(|byte| { return *byte == b'/'; }).all(is_plain_part);
 }
 
 /// The name prefix of a commit's scratch directory.

@@ -178,7 +178,7 @@ fn request(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &str) 
         git_dir: repo.join(".git"),
         reference: String::from("refs/heads/main"),
         base: query(fixture, repo, &["rev-parse", "HEAD"]),
-        changes: vec![Change { path: path.to_string(), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
         author: None,
         committer: COMMITTER.to_string(),
@@ -798,7 +798,7 @@ fn hostile_input_is_refused_and_the_service_keeps_serving() {
         "x".repeat(git_policy_cli::service_protocol::MAX_LINE_BYTES + 10),
         encode_client(&ClientMessage::Commit(Box::new({
             let mut escaping: CommitRequest = request(&fixture, &repo, "evil-1", "e.txt", "e\n");
-            escaping.changes[0].path = String::from("../outside.txt");
+            escaping.changes[0].path = PathBuf::from("../outside.txt");
             escaping
         }))),
     ];

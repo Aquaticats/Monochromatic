@@ -61,7 +61,7 @@ pub(super) fn request(world: &World, id: &str, path: &str, content: &str) -> Com
         git_dir: world.repo.join(".git"),
         reference: String::from("refs/heads/main"),
         base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
-        changes: vec![Change { path: String::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+        changes: vec![Change { path: PathBuf::from(path), mode: ALLOWED_MODES[0], blob: Some(blob) }],
         message: format!("message of {id}\n"),
         author: None,
         committer: String::from(COMMITTER),
@@ -154,15 +154,63 @@ fn a_member_that_overlaps_an_earlier_one_stays_only_if_it_captured_later() {
     }
 }
 
+/// What:
+///  The changes a commit makes are read as the bytes of the names Git lists.
+/// Why:
+///   The listing was decoded as text,
+/// so one file whose name is not text sent the whole commit to native Git instead of the service,
+/// which is the route that answers late and the route that must never fail.
+#[test]
+fn the_changes_of_a_worktree_hold_a_name_that_is_not_text() {
+    use crate::private_index_request::CaptureIndexes;
+    use crate::service_prepare_changes_config_and_pathspec_steps::changes_of;
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let world: World = world("service-changes-bytes");
+    let name: PathBuf = PathBuf::from(OsStr::from_bytes(b"caf\xff.txt"));
+    std::fs::write(world.repo.join(name.as_path()), "x\n").expect("write");
+    let arguments: Vec<&OsStr> = vec![OsStr::new("add"), OsStr::new("--"), name.as_os_str()];
+    git(world.repo.as_path(), arguments.as_slice());
+    let git_dir: PathBuf = world.repo.join(".git");
+    let indexes: CaptureIndexes = CaptureIndexes {
+        captured_index: git_dir.join("captured.index"),
+        commit_index: git_dir.join("commit.index"),
+        object_directory: git_dir.join("objects"),
+    };
+    std::fs::copy(git_dir.join("index"), indexes.commit_index.as_path()).expect("the private index");
+    let changes: Vec<Change> = changes_of(&world.context.git, world.repo.as_path(), &indexes, "HEAD")
+        .expect("the listing")
+        .expect("the embedded route carries the name");
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].path, name);
+    assert_eq!(changes[0].mode, ALLOWED_MODES[0]);
+    assert!(changes[0].blob.is_some(), "the object of the staged content: {changes:?}");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A name that is not text is quoted for `fast-import` as the bytes it holds.
+/// Why:
+///   The quoted form is written as text in the stream,
+/// so a byte above 0x7f written as a Rust character would be two bytes on the wire,
+/// which is another name;
+/// a byte that could end the line is the octal escape `fast-import` reads.
+#[test]
+fn a_name_that_is_not_text_is_quoted_as_its_bytes() {
+    use crate::service_land_git_steps_and_import_stream::quoted;
+    assert_eq!(quoted(b"caf\xff.txt"), b"\"caf\xff.txt\"".to_vec(), "one byte above 0x7f stays one byte");
+    assert_eq!(quoted(b"a \"b\"\\c\nd"), b"\"a \\042b\\042\\134c\\012d\"".to_vec(), "a quote, a backslash and a line break are escaped");
+}
+
 /// A directory and a file of the same name overlap,
 /// so a request for one is sent back when the other changed.
 #[test]
 fn a_file_and_a_directory_of_one_name_overlap() {
-    assert!(overlaps("a", "a/b"));
-    assert!(overlaps("a/b", "a"));
-    assert!(overlaps("a/b", "a/b"));
-    assert!(!overlaps("a/b", "a/bc"));
-    assert!(!overlaps("ab", "a"));
+    assert!(overlaps(b"a", b"a/b"));
+    assert!(overlaps(b"a/b", b"a"));
+    assert!(overlaps(b"a/b", b"a/b"));
+    assert!(!overlaps(b"a/b", b"a/bc"));
+    assert!(!overlaps(b"ab", b"a"));
 }
 
 /// Names that need quoting in the import stream land as themselves.
@@ -188,7 +236,7 @@ fn a_deletion_removes_the_path() {
     let add: CommitRequest = request(&world, "add", "gone.txt", "x\n");
     land_batch(&world.context, 1, &[add]).expect("added");
     let mut delete: CommitRequest = request(&world, "delete", "stays.txt", "y\n");
-    delete.changes = vec![Change { path: String::from("gone.txt"), mode: ALLOWED_MODES[0], blob: None }];
+    delete.changes = vec![Change { path: PathBuf::from("gone.txt"), mode: ALLOWED_MODES[0], blob: None }];
     land_batch(&world.context, 2, &[delete]).expect("deleted");
     assert_eq!(git_text(world.repo.as_path(), &["ls-tree", "-r", "--name-only", "HEAD"]).lines().filter(|name| { return *name == "gone.txt"; }).count(), 0);
     remove(world.root.as_path());
@@ -1189,7 +1237,7 @@ fn a_linked_worktrees_head_is_read_from_its_own_git_directory() {
             repository: linked.clone(),
             reference: String::from("refs/heads/wt"),
             base: git_text(linked.as_path(), &["rev-parse", "HEAD"]),
-            changes: vec![Change { path: format!("{id}.txt"), mode: ALLOWED_MODES[0], blob: Some(blob) }],
+            changes: vec![Change { path: PathBuf::from(format!("{id}.txt")), mode: ALLOWED_MODES[0], blob: Some(blob) }],
             git_dir: git_dir.clone(),
             index: git_dir.join("index"),
             ..request(&world, id, "unused.txt", "x\n")
@@ -1380,6 +1428,85 @@ fn the_import_and_the_connectivity_check_of_a_landing_start_without_quiet() {
     assert_eq!(named("fast-import"), 1, "one import, for the request: {starts:?}");
     assert_eq!(named("--objects"), 1, "one connectivity check (rev-list --objects), for the commit Git built: {starts:?}");
     assert_eq!(crate::recording_git::quiet_starts(log.as_path()), Vec::<String>::new(), "no start carries --quiet or -q");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A request that changes a file whose name is not text,
+/// prepared against the branch as it is now.
+/// Why:
+///  Its name has to reach the service as the bytes Git listed,
+/// so the helper takes the name as a path and not as text.
+fn request_of_a_name_that_is_not_text(world: &World, id: &str) -> (CommitRequest, PathBuf) {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let name: PathBuf = PathBuf::from(OsStr::from_bytes(b"caf\xff.txt"));
+    let file: PathBuf = world.repo.join(name.as_path());
+    std::fs::write(&file, "x\n").expect("write");
+    let arguments: Vec<&OsStr> = vec![OsStr::new("hash-object"), OsStr::new("-w"), OsStr::new("--"), name.as_os_str()];
+    let object: String = git_text(world.repo.as_path(), arguments.as_slice());
+    let landed: CommitRequest = CommitRequest {
+        id: String::from(id),
+        repository: world.repo.clone(),
+        common_dir: world.repo.join(".git"),
+        git_dir: world.repo.join(".git"),
+        reference: String::from("refs/heads/main"),
+        base: git_text(world.repo.as_path(), &["rev-parse", "HEAD"]),
+        changes: vec![Change { path: name.clone(), mode: ALLOWED_MODES[0], blob: Some(object) }],
+        message: format!("message of {id}\n"),
+        author: None,
+        committer: String::from(COMMITTER),
+        amend: false,
+        tree: None,
+        commit: None,
+        cleanup: None,
+        index: world.repo.join(".git/index"),
+        captured: 0,
+    };
+    return (landed, name);
+}
+
+/// The names one `-z` listing holds,
+/// as the bytes Git wrote.
+fn names_in(listing: &[u8]) -> Vec<&[u8]> {
+    return listing.split(|byte| { return *byte == 0; }).filter(|name| { return !name.is_empty(); }).collect();
+}
+
+/// What:
+///  A commit whose file name is not text lands through the service with that name.
+/// Why:
+///   The owner's rule "Commits should never fail";
+/// the changed paths travel the socket,
+/// and a name that lost its bytes would commit another name,
+/// or none.
+#[test]
+fn a_changed_path_that_is_not_text_lands_as_itself() {
+    let world: World = world("service-land-bytes");
+    let (landed, name) = request_of_a_name_that_is_not_text(&world, "bytes");
+    land_batch(&world.context, 1, &[landed]).expect("landed");
+    let listed: Vec<u8> = git_output(world.repo.as_path(), &["ls-tree", "-r", "--name-only", "-z", "HEAD"]).stdout;
+    assert_eq!(names_in(listed.as_slice()), vec![crate::path_bytes::path_bytes_of(name.as_path())], "the commit holds the name Git wrote");
+    let index: Vec<u8> = git_output(world.repo.as_path(), &["ls-files", "-z"]).stdout;
+    assert_eq!(names_in(index.as_slice()), vec![crate::path_bytes::path_bytes_of(name.as_path())], "the index holds the same name");
+    remove(world.root.as_path());
+}
+
+/// What:
+///  A restart finishes the index of a batch whose file name is not text with that name.
+/// Why:
+///   The intent is the only record of the paths a batch updates,
+/// so a list that lost their bytes would write another name into the index after a kill,
+/// and the person's next commit would stage the wrong file.
+#[test]
+fn a_restart_finishes_the_index_of_a_path_that_is_not_text() {
+    let world: World = world("service-land-bytes-restart");
+    let (landed, name) = request_of_a_name_that_is_not_text(&world, "bytes");
+    land_with_failed_index(&world, 1, &[landed]);
+    let reports: Vec<RecoveryReport> = recover(&world.context);
+    assert!(reports.iter().any(|report| { return report.seq == 1 && report.decision == Recovery::Finish; }), "{reports:?}");
+    let index: Vec<u8> = git_output(world.repo.as_path(), &["ls-files", "-z"]).stdout;
+    assert_eq!(names_in(index.as_slice()), vec![crate::path_bytes::path_bytes_of(name.as_path())], "the index holds the name the intent recorded");
+    assert_eq!(git_text(world.repo.as_path(), &["status", "--porcelain=v1"]), "", "the index shows the landing again");
     remove(world.root.as_path());
 }
 

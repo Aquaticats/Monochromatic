@@ -87,16 +87,16 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     let mut changes: Vec<Change> = Vec::new();
     for entry in value.get("changes").and_then(Value::as_array).ok_or("changes is missing")? {
-        let path: &str = field(entry, "path")?;
+        let path: PathBuf = path_bytes::read_field(entry, "path")?;
         let mode: u32 = match u32::try_from(entry.get("mode").and_then(Value::as_u64).ok_or("mode is missing")?) {
             Ok(found) => found,
             Err(_out_of_range) => return Err(String::from("mode is out of range")),
         };
         let blob: Option<String> = entry.get("blob").and_then(Value::as_str).map(str::to_string);
-        if !is_plain_path(path) || !ALLOWED_MODES.contains(&mode) || matches!(blob.as_deref(), Some(name) if !is_object_name(name)) {
-            return Err(format!("change for {path:?} is not acceptable"));
+        if !is_plain_path(path.as_path()) || !ALLOWED_MODES.contains(&mode) || matches!(blob.as_deref(), Some(name) if !is_object_name(name)) {
+            return Err(format!("change for {:?} is not acceptable", crate::path_bytes::path_message_text(crate::path_bytes::path_bytes_of(path.as_path()))));
         }
-        changes.push(Change { path: path.to_string(), mode, blob });
+        changes.push(Change { path, mode, blob });
     }
     if changes.len() > MAX_CHANGES {
         return Err(String::from("number of changes is not acceptable"));

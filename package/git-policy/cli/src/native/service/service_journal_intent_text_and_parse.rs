@@ -61,7 +61,7 @@ pub struct Intent {
     /// in the same order as the identities.
     pub commits: Vec<String>,
     /// Paths whose index entries the batch updates.
-    pub paths: Vec<String>,
+    pub paths: Vec<Vec<u8>>,
     /// Whether the index entries to update are the paths that differ between `old` and `new`,
     /// read from the repository
     ///  when they are needed (a commit Git built has no list of changes to carry,
@@ -142,7 +142,8 @@ pub fn intent_text(intent: &Intent) -> String {
         format!("new={}", intent.new),
         format!("ids={}", intent.ids.join("\t")),
         format!("commits={}", intent.commits.join("\t")),
-        format!("paths={}", intent.paths.join("\t")),
+        format!("paths={}", intent.paths.iter().map(|path| { return String::from_utf8_lossy(path).into_owned(); }).collect::<Vec<String>>().join("\t")),
+        format!("paths{HEX_SUFFIX}={}", intent.paths.iter().map(|path| { return path_bytes::hex_of_bytes(path); }).collect::<Vec<String>>().join("\t")),
         format!("derived={}", u8::from(intent.derived)),
     ]);
     lines.extend(cleanup_lines(intent.cleanup.as_ref()));
@@ -238,6 +239,43 @@ pub(crate) fn intent_list(text: &str, key: &str) -> Option<Vec<String>> {
 }
 
 /// What:
+///  The paths of an intent's list:
+/// the items of the line of bytes when the intent has one,
+/// the items of the plain line otherwise.
+/// Why:
+///   A path that is not text survives only in its bytes,
+/// and an intent an earlier release wrote holds only the plain line.
+/// An item that does not decode is damage and rejects the intent,
+/// because the entries it names would be updated under another name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const intentPathList = (text, key) => { const hex = value(text, key + 'Hex'); return (hex ?? value(text, key))?.split('\t').filter(Boolean).map((item) => hex === undefined ? item : pathOfHex(item)); };
+/// ```
+pub(crate) fn intent_path_list(text: &str, key: &str) -> Result<Option<Vec<Vec<u8>>>, String> {
+    let items: Vec<&str> = match intent_value(text, format!("{key}{HEX_SUFFIX}").as_str()) {
+        Some(bytes) => {
+            let mut paths: Vec<Vec<u8>> = Vec::new();
+            for item in bytes.split('\t') {
+                if item.is_empty() {
+                    continue;
+                }
+                let Some(path) = path_bytes::path_of_hex(item) else {
+                    return Err(String::from("an item of a list of bytes is not the bytes of a path"));
+                };
+                paths.push(crate::path_bytes::path_bytes_of(path.as_path()).to_vec());
+            }
+            return Ok(Some(paths));
+        }
+        None => match intent_value(text, key) {
+            Some(plain) => plain.split('\t').collect(),
+            None => return Ok(None),
+        },
+    };
+    return Ok(Some(items.into_iter().filter(|item| { return !item.is_empty(); }).map(|item| { return item.as_bytes().to_vec(); }).collect()));
+}
+
+/// What:
 ///  The cleanup of an intent from its field:
 /// the Git directory,
 /// the scratch directory and the reftable flag,
@@ -303,7 +341,7 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         new: intent_value(text, "new")?.to_string(),
         ids: intent_list(text, "ids")?,
         commits: intent_list(text, "commits")?,
-        paths: intent_list(text, "paths")?,
+        paths: intent_path_list(text, "paths").ok()??,
         // Intents written before these fields existed name neither.
         derived: intent_value(text, "derived") == Some("1"),
         index,

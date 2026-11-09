@@ -41,7 +41,7 @@ use std::path::Path;
 
 /// The index entries a batch's intent names.
 pub(crate) fn intent_paths(intent: &Intent) -> IndexPaths<'_> {
-    return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Listed(intent.paths.as_slice()) };
+    return if intent.derived { IndexPaths::Derived { old: intent.old.as_str() } } else { IndexPaths::Named(intent.paths.as_slice()) };
 }
 
 /// What:
