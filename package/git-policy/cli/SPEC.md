@@ -5005,8 +5005,11 @@ so no event is an exception.
   values it already reads for classification),
   so the options follow the `-c` options an alias value may carry;
   put before the alias word they would lose to them (measured on Git 2.56.0).
+  An alias Git refuses or does not select is forwarded as the caller typed it instead,
+  so those options no longer reach a command Git will not run (see "Discarding commands").
   A shell alias (`!...`) is run by Git's shell,
-  and a `git` it starts through `PATH` is the wrapper again.
+  which finds real Git's own `git` first on `PATH`,
+  so the command inside it runs with the options Git gives that shell and not with these.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
   repository configures and the wrapper reads `core.hooksPath` that way (the commit warning,
@@ -9473,6 +9476,25 @@ either spelling) is expanded the way Git expands it,
 up to 16 expansions,
 and the guard decides on the expansion,
 which is also the argument list the wrapper forwards and the audit record names.
+Two aliases are left unexpanded and forwarded as the caller typed them,
+because the expansion the wrapper read is not the command that runs:
+one whose value moves the directory or sets an environment variable,
+which Git refuses with `changes environment variables` and runs nothing for
+(`-C` with a directory,
+`--git-dir`,
+`--work-tree`,
+`--namespace`,
+`--bare`,
+`--shallow-file`,
+`--attr-source`,
+`--literal-pathspecs` and its family,
+`--no-optional-locks`,
+`--no-advice`,
+`-P`),
+and one whose name an installed `git-<name>` program carries,
+which Git runs before it looks any alias up.
+No fact of the caller then describes a repository the command never runs in,
+and the audit names what Git runs.
 A built-in word is decided without reading any configuration,
 so no process is started for it.
 The expansion is resolved once per invocation and read by all three of them:
@@ -9486,7 +9508,28 @@ so no process is started for it.
 A shell alias (`!...`) and an undefined name are forwarded as they are:
 a shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
-so a `git` inside it is real Git and not this wrapper.
+so a `git` inside it is real Git and not this wrapper,
+which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
+not the wrapper first on `PATH`).
+One plain form of it is read,
+only so the guard can decide:
+a value written `!git <words>` whose bytes hold no quote,
+backslash,
+`$`,
+backtick,
+glob,
+brace or separator,
+and whose words name no global option of their own.
+`!git reset --hard` is then refused where `git reset --hard` is refused,
+and the alias itself is still forwarded unchanged,
+because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
+which a substituted argument list would lose.
+Everything else,
+`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included,
+runs as Git runs it:
+through real Git,
+with no guard and no index-writer coordination,
+because the wrapper never sees that command start.
 `git by the word Git will run` is the boundary of this guard.
 
 A form is rejected in the main worktree and outside any worktree always,
