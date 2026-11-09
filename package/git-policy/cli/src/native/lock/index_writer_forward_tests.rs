@@ -30,6 +30,8 @@ fn add_forward(repo: &Path) -> CoordinatedForward {
         subcommand_index: 2,
         subcommand: Some(OsString::from("add")),
         route: Route::Direct,
+        // These controls name a built-in, which no shell alias runs.
+        shell_command: None,
     };
     return CoordinatedForward {
         real_git: PathBuf::from(REAL_GIT),
@@ -89,6 +91,8 @@ fn a_non_writer_with_a_copy_runs_settled() {
         subcommand_index: 2,
         subcommand: Some(OsString::from("status")),
         route: Route::Direct,
+        // These controls name a built-in, which no shell alias runs.
+        shell_command: None,
     };
     forward.arguments = vec![
         OsString::from("-C"),
@@ -118,6 +122,8 @@ fn a_non_writer_is_not_coordinated() {
         subcommand_index: 2,
         subcommand: Some(OsString::from("status")),
         route: Route::Direct,
+        // These controls name a built-in, which no shell alias runs.
+        shell_command: None,
     };
     assert_eq!(run_coordinated_forward(&forward), CoordinatedRun::NotCoordinated);
     remove(root.as_path());

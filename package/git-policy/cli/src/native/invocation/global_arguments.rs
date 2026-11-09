@@ -285,7 +285,8 @@ pub fn global_layout(arguments: &[OsString]) -> GlobalLayout {
 ///  Whether Git refuses these words as an alias expansion,
 ///  because one of the globals moves
 ///       the directory or sets a variable of the environment
-///  (`git.c:316`, `git.c:418`).
+///  (`git.c:316`,
+/// `git.c:418`).
 /// Why:
 ///   The wrapper expands an alias itself before handing Git the arguments,
 ///  so it must not build an

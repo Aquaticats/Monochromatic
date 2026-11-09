@@ -90,6 +90,20 @@ pub struct ResolvedCommand {
     pub subcommand: Option<OsString>,
     /// How it was reached.
     pub route: Route,
+    /// What:
+    ///  The command Git runs inside the shell of a `!` alias,
+    ///  when the alias holds one plain `git` command.
+    /// Why:
+    ///   Git runs the shell with its own executable directory first on `PATH`
+    ///  (`exec-cmd.c:333` to `:350`),
+    ///  so the `git` such an alias names is the real Git and no guard sees it;
+    ///  a plain reading of the alias value at
+    ///  least lets the guard read the command that the shell will run.
+    ///  The wrapper never forwards this reading:
+    ///  the shell keeps the
+    ///  environment Git gives it,
+    ///  which a substituted argument vector would lose.
+    pub shell_command: Option<Vec<OsString>>,
 }
 
 /// Methods over a resolved command.
@@ -295,6 +309,27 @@ pub fn lookup_alias(context: &GitContext, global: &[OsString], name: &OsString) 
 /// ({ args, subcommandIndex, subcommand, route })
 /// ```
 fn resolved(arguments: &[OsString], layout: &GlobalLayout, route: Route) -> ResolvedCommand {
+    return resolved_with_shell_command(arguments, layout, route, None);
+}
+
+/// What:
+///  The resolved command with the reading of a shell alias,
+///  when this ending has one.
+/// Why:
+///   Every ending but a shell alias leaves the shell reading absent,
+///  and one builder keeps that field from
+///       being forgotten.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolvedWithShellCommand(args, layout, route, shellCommand): ResolvedGitCommand;
+/// ```
+fn resolved_with_shell_command(
+    arguments: &[OsString],
+    layout: &GlobalLayout,
+    route: Route,
+    shell_command: Option<Vec<OsString>>,
+) -> ResolvedCommand {
     let subcommand: Option<OsString> = if layout.outcome == GlobalOutcome::Command {
         arguments.get(layout.prefix_len).cloned()
     } else {
@@ -305,6 +340,7 @@ fn resolved(arguments: &[OsString], layout: &GlobalLayout, route: Route) -> Reso
         subcommand_index: layout.prefix_len,
         subcommand,
         route,
+        shell_command,
     };
 }
 
@@ -352,6 +388,30 @@ pub fn resolve_forwarded_command(
     environment: &[(OsString, OsString)],
     arguments: &[OsString],
 ) -> ResolvedCommand {
+    return resolve_command(context, environment, arguments, 0);
+}
+
+/// What:
+///  Resolve the command,
+///  and read the one `git` command a shell alias runs,
+///  one shell deep.
+///  `usize` counts the shells already read.
+/// Why:
+///   A `!` alias runs a shell that runs the real Git,
+///  so no guard sees that command unless the value
+///  is read here;
+///  the count stops a shell alias that names itself from reading without end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function resolveCommand({ context, environment, args, shellDepth }): ResolvedGitCommand;
+/// ```
+fn resolve_command(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    arguments: &[OsString],
+    shell_depth: usize,
+) -> ResolvedCommand {
     // `mut` allows replacing the arguments with each expansion.
     let mut current: Vec<OsString> = arguments.to_vec();
     let mut seen: Vec<OsString> = Vec::new();
@@ -391,7 +451,9 @@ pub fn resolve_forwarded_command(
         };
         // Git decides what an alias is from its first byte, and splits the value it read, without trimming it.
         if value.first() == Some(&b'!') {
-            return resolved(current.as_slice(), &layout, Route::ShellAlias);
+            let shell_command: Option<Vec<OsString>> =
+                shell_command_of(context, environment, value.as_slice(), shell_depth);
+            return resolved_with_shell_command(current.as_slice(), &layout, Route::ShellAlias, shell_command);
         }
         let Some(words) = split_alias_command(value.as_slice()) else {
             return resolved(current.as_slice(), &layout, Route::Unresolved);
@@ -451,6 +513,116 @@ pub fn creates_worktrees(command: &ResolvedCommand) -> bool {
         }
     }
     return false;
+}
+
+/// What:
+///  The argument vector of the one plain `git` command a `!` alias names,
+///  when the value names one.
+///  `&[(OsString, OsString)]` borrows the environment the nested reading asks about.
+/// Why:
+///   Git prepends its own executable directory to `PATH` before it runs the shell
+///  (`exec-cmd.c:333` to
+///  `:350`),
+///  so the `git` a shell alias names is the real Git and the wrapper never sees that command
+///  run;
+///  reading the value reaches the guard the decision this crate already knows.
+///  The reading is kept to one command with no global
+///  option of its own:
+///  a global such as `-C` would move the command away from the repository the caller described.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function shellCommandOf({ context, environment, value, shellDepth }): string[] | undefined;
+/// ```
+fn shell_command_of(
+    context: &GitContext,
+    environment: &[(OsString, OsString)],
+    value: &[u8],
+    shell_depth: usize,
+) -> Option<Vec<OsString>> {
+    // One shell is read: a shell alias named inside another is left unread, so a chain of them cannot repeat.
+    if shell_depth >= 1 {
+        return None;
+    }
+    let words: Vec<OsString> = os_words(shell_git_words(value)?);
+    let nested: ResolvedCommand = resolve_command(context, environment, words.as_slice(), shell_depth + 1);
+    // Only a built-in this crate already read is handed on, and only when no global option stands before it.
+    if !nested.is_builtin() || nested.subcommand_index != 0 {
+        return None;
+    }
+    return Some(nested.arguments);
+}
+
+/// What:
+///  The words after `!git` in an alias value,
+///  when the value is exactly one plain `git` command.
+/// Why:
+///   The shell splits and expands its command line,
+///  so only a value whose bytes the shell passes through
+///       unchanged reads here as the words the shell runs;
+///  anything the shell would expand,
+///  quote or separate
+///  is left unread rather than guessed at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function shellGitWords(value: string): string[] | undefined;
+/// ```
+fn shell_git_words(value: &[u8]) -> Option<Vec<Vec<u8>>> {
+    let remainder: &[u8] = value.strip_prefix(b"!git")?;
+    // `!gitk` names another program, so only a space or the end of the value may follow.
+    if !remainder.is_empty() && remainder.first() != Some(&b' ') {
+        return None;
+    }
+    let mut words: Vec<Vec<u8>> = Vec::new();
+    let mut current: Vec<u8> = Vec::new();
+    for &byte in remainder {
+        if byte == b' ' {
+            if !current.is_empty() {
+                words.push(std::mem::take(&mut current));
+            }
+            continue;
+        }
+        if !is_plain_shell_byte(byte) {
+            return None;
+        }
+        current.push(byte);
+    }
+    if !current.is_empty() {
+        words.push(current);
+    }
+    if words.is_empty() {
+        return None;
+    }
+    return Some(words);
+}
+
+/// What:
+///  Whether the shell passes a byte through in the same word,
+///  without quoting it,
+///  expanding it or separating
+///       on it.
+/// Why:
+///   These are the bytes of ordinary arguments;
+///  `$`,
+///  a backtick,
+///  a quote,
+///  a backslash,
+///  a glob,
+///  a
+///  redirection,
+///  a separator,
+///  a brace and a leading `~` all mean something to the shell,
+/// and `#` can start a
+///  comment.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (byte: number) => /[A-Za-z0-9_./:=@+,-]/.test(String.fromCharCode(byte))
+/// ```
+fn is_plain_shell_byte(byte: u8) -> bool {
+    return byte.is_ascii_alphanumeric()
+        || matches!(byte, b'-' | b'_' | b'.' | b'/' | b':' | b'=' | b'@' | b'+' | b',' );
 }
 
 /// Resolution controls stay out of the release executable.

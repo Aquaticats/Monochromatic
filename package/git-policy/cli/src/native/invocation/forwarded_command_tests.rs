@@ -225,6 +225,81 @@ fn an_alias_shadowed_by_an_external_command_is_left_to_git() {
     remove(root.as_path());
 }
 
+/// What:
+///  The one plain `git` command a `!` alias runs is read,
+///  and the caller's arguments are not replaced with it.
+/// Why:
+///   Git runs the shell with its own executable directory first on `PATH`,
+///  so the `git` such an alias
+///       names is the real Git;
+///  the reading reaches the guard,
+///  while forwarding the shell itself is what keeps the
+///       environment Git gives it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// resolveForwardedCommand({ args: ['fixtureshell'] }).shellCommand // ['reset', '--hard']
+/// ```
+#[test]
+fn a_shell_alias_that_names_one_git_command_is_read_for_the_guard() {
+    let context: GitContext = context_with_aliases(&[("fixtureshell", "!git reset --hard")]);
+    let resolved: ResolvedCommand =
+        resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
+    assert_eq!(resolved.route, Route::ShellAlias);
+    assert_eq!(
+        resolved.shell_command,
+        Some(args(&["reset", "--hard"])),
+        "the shell's own command is read"
+    );
+    assert_eq!(resolved.arguments, args(&["fixtureshell"]), "the caller's arguments stay untouched");
+    // A nested alias named after `git` is the command the shell runs, so the chain is followed.
+    let chained: GitContext = context_with_aliases(&[("fixtureshell", "!git fixturewipe"), ("fixturewipe", "reset --hard")]);
+    let followed: ResolvedCommand =
+        resolve_forwarded_command(&chained, no_environment().as_slice(), &args(&["fixtureshell"]));
+    assert_eq!(followed.shell_command, Some(args(&["reset", "--hard"])));
+}
+
+/// What:
+///  Anything the shell would expand,
+///  quote,
+///  separate or run a second time is left unread.
+/// Why:
+///   Reading it would be a shell parser,
+///  and a wrong reading would decide about a command nobody runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const value of ["!sh -c 'git reset --hard'", "!git -C /elsewhere reset --hard", "!git status; rm -rf x"]) assert.equal(read(value), undefined);
+/// ```
+#[test]
+fn a_shell_alias_the_reading_cannot_follow_is_left_unread() {
+    for value in [
+        "!sh -c 'git reset --hard'",
+        "!git -C /elsewhere reset --hard",
+        "!git status; rm -rf x",
+        "!git reset --hard && echo done",
+        "!git reset --hard $BRANCH",
+        "!git reset --hard `cat file`",
+        "!git reset --hard *.txt",
+        "!git",
+        "!gitk reset",
+        "!git reset --hard | tee log",
+        "!git reset --hard > log",
+    ] {
+        let context: GitContext = context_with_aliases(&[("fixtureshell", value)]);
+        let resolved: ResolvedCommand =
+            resolve_forwarded_command(&context, no_environment().as_slice(), &args(&["fixtureshell"]));
+        assert_eq!(resolved.route, Route::ShellAlias, "{value}");
+        assert_eq!(resolved.shell_command, None, "{value} must stay unread");
+        assert_eq!(resolved.arguments, args(&["fixtureshell"]), "{value}");
+    }
+    // One shell is read, so a shell alias that names another shell alias is left unread rather than followed twice.
+    let doubled: GitContext = context_with_aliases(&[("fixtureshell", "!git fixturesecond"), ("fixturesecond", "!git reset --hard")]);
+    let resolved: ResolvedCommand =
+        resolve_forwarded_command(&doubled, no_environment().as_slice(), &args(&["fixtureshell"]));
+    assert_eq!(resolved.shell_command, None, "a second shell is not read");
+}
+
 /// A built-in named directly is resolved without an alias lookup and keeps its global options.
 #[test]
 fn a_direct_builtin_resolves_past_its_global_options() {

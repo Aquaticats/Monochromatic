@@ -19,7 +19,8 @@
 //!  every entry a directory whose `git-<word>` is a regular file with the owner execute bit
 //!  (`run-command.c:191` to `:219`),
 //!  and a word that holds a directory separator run from the path as it
-//!  stands, without any search.
+//!  stands,
+//! without any search.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -109,7 +110,8 @@ pub fn dashed_external_selected(
 
 /// What:
 ///  The directories Git searches for `git-<word>`,
-///  its exec path first and then every `PATH` entry, or
+///  its exec path first and then every `PATH` entry,
+/// or
 ///       nothing when the exec path cannot be read.
 /// Why:
 ///  `setup_path` puts the exec path in front of `PATH` once,

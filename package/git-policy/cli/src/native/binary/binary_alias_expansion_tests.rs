@@ -29,7 +29,8 @@ fn repository_with_unstaged_work(fixture: &Fixture, name: &str) -> PathBuf {
     return repo;
 }
 
-/// The tracked file of a repository, as it is on disk.
+/// The tracked file of a repository,
+/// as it is on disk.
 fn tracked(repo: &Path) -> Vec<u8> {
     return std::fs::read(repo.join("tracked.txt")).expect("tracked file");
 }
@@ -111,5 +112,79 @@ fn an_alias_value_that_starts_with_a_space_fails_instead_of_resetting() {
     assert_eq!(tracked(repo.as_path()), USER_DATA, "the wrapper trimmed the value into a reset");
     assert_ne!(observed.code, Some(0), "the wrapper ran a command Git refuses");
     assert!(stderr_of(&observed).contains("is not a git command"), "{}", stderr_of(&observed));
+    remove(&fixture);
+}
+
+/// What:
+///  A shell alias that names one plain `git` command is read by the guard,
+///  so the discard guard refuses it and the
+///       work stays.
+/// Why:
+///  Git runs the shell with its own executable directory first on `PATH`,
+///  so the `git` inside such an
+///       alias is real Git and the wrapper never sees that command start;
+///  without the reading the prefix
+///       `reset --hard` discards the person work unguarded,
+///  and `git by the word Git will run` would have a
+///       hole a one line alias opens.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // real Git: tracked.txt becomes BASE; the wrapper: refused, tracked.txt stays USER DATA
+/// ```
+#[test]
+fn a_shell_alias_that_names_one_git_command_is_refused_like_the_command() {
+    let fixture: Fixture = fixture("alias-expansion-shell");
+    let refused: PathBuf = repository_with_unstaged_work(&fixture, "refused");
+    let control: PathBuf = repository_with_unstaged_work(&fixture, "control");
+    let arguments: [&str; 3] = ["-c", "alias.wipe=!git reset --hard", "wipe"];
+    // The positive control proves the alias discards the work when nothing reads it.
+    let direct_run: Observed = observe(direct(&fixture).current_dir(control.as_path()).args(arguments), b"");
+    assert_eq!(direct_run.code, Some(0), "direct Git failed: {}", stderr_of(&direct_run));
+    assert_eq!(tracked(control.as_path()), b"BASE\n", "the positive control discarded nothing");
+    let observed: Observed = run_wrapped(&fixture, refused.as_path(), arguments.as_slice());
+    assert_ne!(observed.code, Some(0), "the wrapper ran the shell alias's reset: {}", stderr_of(&observed));
+    assert_eq!(tracked(refused.as_path()), USER_DATA, "the shell alias discarded the work");
+    remove(&fixture);
+}
+
+/// What:
+///  The same refusal from a clean linked worktree,
+///  where the guard of uncommitted work has nothing to reject and the copy of a
+///       main checkout is not involved.
+/// Why:
+///   Git refuses such an alias before any command runs,
+///  so no fact of the linked worktree describes the repository the
+///       alias names,
+///  and neither repository loses its work.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // git -c 'alias.wipe=-C <other> reset --hard' wipe in a clean linked worktree => status 128
+/// ```
+#[test]
+fn a_directory_changing_alias_from_a_linked_worktree_resets_nothing() {
+    let fixture: Fixture = fixture("alias-expansion-linked-worktree");
+    let main: PathBuf = repository_with_unstaged_work(&fixture, "main");
+    let other: PathBuf = repository_with_unstaged_work(&fixture, "other");
+    let linked: PathBuf = fixture.root.join("linked");
+    let linked_argument: String = linked.display().to_string();
+    git(
+        &fixture,
+        main.as_path(),
+        &["worktree", "add", "--quiet", "-b", "side", linked_argument.as_str()],
+    );
+    // The linked worktree is clean, so no dirty check is what keeps the other repository.
+    let cleaned: Observed = observe(direct(&fixture).current_dir(linked.as_path()).args(["reset", "--quiet", "--hard"]), b"");
+    assert_eq!(cleaned.code, Some(0), "{}", stderr_of(&cleaned));
+    let status: Vec<u8> = super::support::porcelain(&fixture, linked.as_path()).into_bytes();
+    assert!(status.is_empty(), "the linked worktree is clean: {}", String::from_utf8_lossy(&status));
+    let alias: String = format!("alias.wipe=-C {} reset --hard", other.display());
+    let arguments: [&str; 3] = ["-c", alias.as_str(), "wipe"];
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+    assert_ne!(observed.code, Some(0), "the wrapper ran the alias: {}", stderr_of(&observed));
+    assert!(stderr_of(&observed).contains("changes environment variables"), "{}", stderr_of(&observed));
+    assert_eq!(tracked(other.as_path()), USER_DATA, "the other repository lost its work");
+    assert_eq!(tracked(linked.as_path()), b"BASE\n", "the linked worktree changed");
     remove(&fixture);
 }

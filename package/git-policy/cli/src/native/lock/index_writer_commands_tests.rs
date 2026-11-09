@@ -20,6 +20,8 @@ fn direct(words: &[&str]) -> ResolvedCommand {
         subcommand_index: 0,
         subcommand: words.first().map(OsString::from),
         route: Route::Direct,
+        // These controls name a built-in, which no shell alias runs.
+        shell_command: None,
     };
 }
 
@@ -256,6 +258,8 @@ fn global_options_before_the_subcommand_do_not_hide_it() {
         subcommand_index: 2,
         subcommand: Some(OsString::from("rm")),
         route: Route::Direct,
+        // These controls name a built-in, which no shell alias runs.
+        shell_command: None,
     };
     assert!(is_index_writer(&command));
 }
