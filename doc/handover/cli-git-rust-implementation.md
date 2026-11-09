@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T04:42:40-05:00)
+#### Reviews and landings in progress (2026-11-09T04:46:00-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -337,11 +337,15 @@ The old tree kept for the rollback stays until the owner deletes it.
   and rustup observation and reconciliation looking at different toolchains,
   which needs a `packageId` that differs from the version and the plan's only one is `{version}`.
   Run 2 of its agent reports them fixed,
-  703 of 703 tests pass on top of main,
-  and the review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-2-sol.txt`) names a prune that can delete a version a lock still names,
-  and a `current` link left pointing at a deleted version.
-  Not ready to merge.
-  Run 3 of its agent is on them.
+  Run 3 fixed the second review's findings,
+  710 of 710 tests pass on top of main,
+  and the third review (`${HOME}/temp/agent/reviews/mpm-shadow-open-issues-round-3-sol.txt`) names four smaller defects in the same prune,
+  among them a recursive removal that can take a version just installed.
+  A small round 4 is meant to be the last before this branch lands.
+  It waits for a free agent slot,
+  behind the merge and commit-ceiling rounds:
+  resume the run `mpm-shadow-open-issues` as run 4,
+  with `mpm-shadow-round-4-prompt.md` and the session file named in run 3's `summary.json`.
   Checking its claims against real tools found that a `rustup` listing installs a missing toolchain unless `RUSTUP_AUTO_INSTALL=0` is set.
   By its own report the agent ran its cargo commands outside the required resource limits,
   and that listing installed `1.79.0` in the real rustup home before the guard existed,
