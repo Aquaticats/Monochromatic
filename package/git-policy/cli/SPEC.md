@@ -7190,6 +7190,15 @@ which holds a copy of the conclusion state of the worktree
 `REVERT_HEAD`,
 `MERGE_RR`,
 and the `sequencer/` directory).
+The copies also name the conclusion values a reftable repository keeps in its ref store
+(`conclusion/store-held.json`,
+`store_names_conclusions` in `conclusion_cleanup.rs`):
+a backend whose store can hold such a value writes the record and flushes it,
+a files-backend repository can hold none,
+so its copy writes no record,
+an absent record names nothing there,
+and no commit waits for the flush of bytes that would say nothing
+(`doc/planning/cli-git-commit-latency-under-many-agents.md`).
 The landing removes the same state from the worktree exactly as native Git removed it in the scratch repository,
 each entry only while it still holds the bytes copied at preparation,
 and journals the cleanup with the batch.
