@@ -125,7 +125,7 @@ What gave the folder that label is not known.
 and `cargo-shadow-lean.timer` is running again.
 The old tree kept for the rollback stays until the owner deletes it.
 
-#### Reviews and landings in progress (2026-11-09T02:39:01-05:00)
+#### Reviews and landings in progress (2026-11-09T02:42:13-05:00)
 
 - `feat/git-policy-cli-tokio-pure-file-sites-on-the-awaited-runner`:
   the cross-vendor review of its third round (`${HOME}/temp/agent/reviews/tokio-pure-file-sites-round-3-sol.txt`)
@@ -161,11 +161,7 @@ The old tree kept for the rollback stays until the owner deletes it.
   the package lint fails on file length in three files,
   two tests fail,
   and one fix has no failing-output control and another no test.
-  Waits for a free agent slot,
-  since all twenty are taken,
-  and goes ahead of the other waiting rounds:
-  resume the run `landing-route-findings-fixed` as run 6,
-  with `landing-route-findings-fixed-round-6-prompt.md` and the session file named in run 5's `summary.json`.
+  Run 6 of its agent is on those.
 - `fix/git-policy-cli-worktree-copy-records-before-git-and-binds-registration`,
   at `6f11d10f45`:
   the cross-vendor review of its sixth round (`${HOME}/temp/agent/reviews/copy-records-round-6-sol.txt`)
@@ -236,6 +232,13 @@ The old tree kept for the rollback stays until the owner deletes it.
   since all twenty are taken:
   start a run with `tests-that-pass-without-their-race-fixed-prompt.md`,
   branch `fix/git-policy-cli-controls-witness-their-race-by-ordering`.
+- `doc/planning/cli-git-policy-and-candidate-route-findings-on-main.md` names two defects,
+  among them `GIT_LITERAL_PATHSPECS=1` emptying a commit's checks so a secret lands.
+  Waits for a free agent slot,
+  since all twenty are taken,
+  and goes first:
+  start a run with `policy-and-candidate-findings-fixed-prompt.md`,
+  branch `fix/git-policy-cli-candidates-survive-literal-pathspecs`.
 - `doc/planning/cli-git-hook-route-findings-on-main.md` names four defects,
   among them a stopped push that kills a local remote's `post-receive` after the branch has landed and then reports failure.
   Waits for a free agent slot,

@@ -136,6 +136,12 @@ and the person has one more step to remember.
 
 ### Should `add-explicit` judge a pathspec by its spelling or by what it selects?
 
+The session picked the audit's recommendation,
+extending the fixed list,
+because it starts no process and is non-destructive.
+A fix agent is queued for it.
+Write "ask Git" here to change that.
+
 The policy exists so `git add` names the paths it stages
 (`package/git-policy/cli/src/native/command/rule_add_explicit.rs:1-20`).
 It reads the arguments alone and compares each positional pathspec with four
