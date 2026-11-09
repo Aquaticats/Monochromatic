@@ -46,7 +46,12 @@ const COMMAND_FREE_WORD_PART_TYPES: ReadonlySet<string> = new Set([
 /**
  Text that opens an expansion or a substitution inside a word.
  */
-const EXPANSION_OPENERS: readonly string[] = ['$', '`', '<(', '>(',];
+const EXPANSION_OPENERS: readonly string[] = [
+  '$',
+  '`',
+  '<(',
+  '>(',
+];
 
 //endregion Fixtures
 
@@ -188,7 +193,7 @@ function visitPart(
    literal, and also past its nesting budget, where that text can still hold a command.
    A missing list is therefore a leaf only for text that cannot open an expansion.
    */
-  if (((part.type === 'BraceExpansion') || (part.type === 'ExtendedGlob')) && !textOpensAnExpansion(part.text,))
+  if (((part.type === 'BraceExpansion') || (part.type === 'ExtendedGlob')) && (!textOpensAnExpansion(part.text,)))
     return EMPTY_VISIT_RESULT;
   return visitResultForUnreadNodeKind(part.type,);
 }

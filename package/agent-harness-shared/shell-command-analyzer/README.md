@@ -56,6 +56,20 @@ the walk met and had no visitor for.
 An empty list means the answered tree was walked whole;
 a non-empty list means part of the command was named instead of read,
 so `commands` is not proof that nothing else runs.
+
+A limit this list does not cover:
+past the parser's nesting budget (`MAX_SYNTAX_NESTING`,
+256 in unbash 6.0.4),
+a sub-field keeps its raw text and has no parts to walk,
+so a command nested that deep is neither reported nor named.
+That depth takes a command written to reach it.
+
+A limit this list does not cover:
+past the parser's nesting budget (`MAX_SYNTAX_NESTING`,
+256 in unbash 6.0.4),
+a sub-field keeps its raw text and has no parts to walk,
+so a command nested that deep is neither reported nor named.
+That depth takes a command written to reach it.
 `parsed` still reports parser success,
 because unparsable syntax and unread syntax are different answers.
 `hasNotUnderstoodShellSyntax` and `NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON`

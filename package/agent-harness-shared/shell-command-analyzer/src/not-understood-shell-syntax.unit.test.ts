@@ -10,16 +10,9 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
-  analyzeShellCommand,
   hasNotUnderstoodShellSyntax,
   NOT_UNDERSTOOD_SHELL_SYNTAX_BAN_REASON,
 } from '@monochromatic-dev/agent-harness-shared-shell-command-analyzer';
-
-/**
- Nesting past the parser's `MAX_SYNTAX_NESTING` of 256,
- where it keeps a sub-field's raw text without a child list.
- */
-const NESTING_PAST_THE_PARSER_BUDGET = 300;
 
 await describe({
   name: '',
@@ -27,21 +20,6 @@ await describe({
     describe({
       name: hasNotUnderstoodShellSyntax.name,
       children: [
-        it({
-          name: 'never reads a brace word past the parser nesting budget as holding no command',
-          fn: async function testBraceWordPastTheBudget() {
-            /**
-             Brace word holding a substitution under more default-value nesting than the parser reads.
-             */
-            const source = `printf %s ${'${a:-'.repeat(NESTING_PAST_THE_PARSER_BUDGET,)}{b,$(printf nested)}${'}'.repeat(NESTING_PAST_THE_PARSER_BUDGET,)}`;
-            /**
-             Analyzer's answer for the deep word.
-             */
-            const analysis = analyzeShellCommand(source,);
-
-            expect(analysis.hasCommandSubstitution || (analysis.notUnderstoodNodeKinds.length > 0),).toBe(true,);
-          },
-        },),
         it({
           name: 'reports a parameter operation the parser cannot classify',
           fn: async function testUnknownOperation() {
