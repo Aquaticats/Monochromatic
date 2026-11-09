@@ -444,3 +444,29 @@ fn only_a_cut_or_refused_start_of_init_is_retried() {
     assert!(!start_was_cut_or_refused(&finished(128, b"fatal: not a repository\n".to_vec())), "a failure of another kind");
     assert!(!start_was_cut_or_refused(&finished(0, Vec::new())), "a start that worked");
 }
+
+/// A valid reference whose name is not text,
+/// outside the target branch,
+/// does not stop the shadow:
+/// real Git commits beside it,
+/// and the commit the wrapper builds needs the same repository.
+#[test]
+fn a_ref_name_that_is_not_text_does_not_stop_the_shadow() {
+    let root: PathBuf = fixture("shadow-create-non-utf8-ref");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let tag: std::ffi::OsString = crate::path_bytes::os_from_path_bytes(b"refs/tags/nonutf-\xff");
+    git(repo.as_path(), &[std::ffi::OsStr::new("update-ref"), tag.as_os_str(), std::ffi::OsStr::new(head.as_str())]);
+    // The positive control: real Git accepts this repository and its refs and commits in it.
+    git(repo.as_path(), &["commit", "--quiet", "--allow-empty", "--message=native control"]);
+    let (shadow, _transaction, _capture) = create(repo.as_path(), root.as_path(), TRANSACTION);
+    // The snapshot carries the name as the bytes it is, so the shadow's Git sees the same ref.
+    let listed = run_git_checked(
+        &git_context(),
+        &shadow_request(shadow.as_path(), shadow.as_path(), &["for-each-ref", "--format=%(refname)"]),
+    )
+    .expect("the shadow lists its refs");
+    let names: Vec<&[u8]> = listed.stdout.split(|byte| { return *byte == b'\n'; }).collect();
+    assert!(names.contains(&b"refs/tags/nonutf-\xff".as_slice()), "{}", String::from_utf8_lossy(listed.stdout.as_slice()));
+    remove(root.as_path());
+}

@@ -44,7 +44,7 @@ use crate::private_storage::read_regular_file;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::{RepoLayout, read_layout_after_success_for};
 use crate::merge_second_pass_worktree_unchanged::{Before, Held, Kept, held_paths, still_the_same};
-use crate::merge_second_pass_worktree_words::{closing_words, ending_command, moved_words, unfinished_words};
+use crate::merge_second_pass_worktree_words::{closing_words, ending_command, moved_words, unfinished_words, unreadable_words};
 use crate::repo_read_object::to_hex;
 use crate::transaction_git::GitContext;
 use std::collections::{BTreeMap, BTreeSet};
@@ -301,11 +301,22 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     for path in &kept.moved {
         moved_names.push(path_message_text(path.as_slice()));
     }
+    let mut unreadable_names: Vec<String> = Vec::new();
+    for path in &kept.unreadable {
+        unreadable_names.push(path_message_text(path.as_slice()));
+    }
     if kept.files.is_empty() {
-        warn(TAG, format!("every merged file moved while the pass computed its merge, so they stay as they are now: {}", moved_names.join(", ")).as_str());
-        // The person must still be told which file the pass did not touch.
-        let alone: String = format!("{}\n", moved_words(moved_names.as_slice()).trim_end());
-        if let Err(error) = stderr.write_all(alone.as_bytes()) {
+        warn(TAG, format!("every merged file moved or could not be compared while the pass computed its merge, so they stay as they are now: {}{}", moved_names.join(", "), unreadable_names.join(", ")).as_str());
+        // The person must still be told which file the pass did not touch, and which of the two reasons it was.
+        let mut alone: String = String::new();
+        if !moved_names.is_empty() {
+            alone.push_str(moved_words(moved_names.as_slice()).as_str());
+        }
+        if !unreadable_names.is_empty() {
+            alone.push_str(unreadable_words(unreadable_names.as_slice()).as_str());
+        }
+        let told: String = format!("{}\n", alone.trim_end());
+        if let Err(error) = stderr.write_all(told.as_bytes()) {
             debug(TAG, format!("standard error did not take the line about the files the pass left alone: {error}").as_str());
         }
         return None;
@@ -342,6 +353,10 @@ pub fn resolve_after(watched: Option<&Watch>, forward: &CoordinatedForward, code
     if !moved_names.is_empty() {
         // A path the pass left is said in the same breath, so the person knows why it still conflicts.
         text.push_str(moved_words(moved_names.as_slice()).as_str());
+    }
+    if !unreadable_names.is_empty() {
+        // A path nobody could compare is its own reason, never the one about an edit.
+        text.push_str(unreadable_words(unreadable_names.as_slice()).as_str());
     }
     if planned.is_none() {
         text.push_str(format!("{}\n", closing_words(operation.as_str(), remaining)).as_str());

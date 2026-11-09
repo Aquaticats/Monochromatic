@@ -138,3 +138,66 @@ fn applies_only_to_stale_records_and_reports_a_missing_tool() {
     assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
     remove(&root);
 }
+
+/// How long an answer that must not wait may take in a control.
+const PATIENCE: Duration = Duration::from_secs(10);
+
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("no NUL in a fixture path");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  A launcher record that is a named pipe with no writer is left alone,
+///  so the repair answers and the waits beside it keep their deadlines.
+/// Why:
+///   The toolchain repair shares one task with the pnpm and Cargo repairs (`package_repair.rs`),
+/// and a record that is opened by its extension alone blocks the whole task for ever.
+/// A copy can leave any entry in the launcher directory,
+/// and a pipe with no writer is the one entry that never answers.
+#[test]
+fn a_record_that_is_a_named_pipe_is_left_alone() {
+    let (root, destination, _bin, environment) = scene("toolchain-pipe");
+    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    make_pipe(destination.join(LAUNCHERS).join("stalled.launch").as_path());
+    // Two workers, so a read that blocks on the pipe leaves a worker to time the answer.
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().expect("a runtime");
+    let repair = runtime.spawn(async move { return repair_toolchain_awaiting(destination.as_path(), &environment).await; });
+    let answered = runtime.block_on(async { return tokio::time::timeout(PATIENCE, repair).await; });
+    // The runtime is never dropped: a read that did block on the pipe holds a worker for ever, and dropping the runtime
+    // would wait for that worker, so a control that caught the defect would hang instead of reporting it.
+    std::mem::forget(runtime);
+    remove(&root);
+    let Ok(joined) = answered else {
+        panic!("a launcher record that is a named pipe with no writer stopped the repair and every wait that shares its task, and nothing ended the wait")
+    };
+    let Some(Finding { outcome: Outcome::Failed { run_instead, .. }, .. }) = joined.expect("the repair task") else { panic!("the stale record beside the pipe is still repaired") };
+    assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
+}
+
+/// What:
+///  The launcher records are read as a job of the process's blocking pool,
+///  never on the task that polls the repairs.
+/// Why:
+///   A synchronous read on the shared task stops the pnpm repair's quiet window and ceiling for as long as it takes,
+/// and a control holds the process's only place,
+/// so it proves the read reached the bound by asking for it.
+#[test]
+fn the_launcher_records_are_read_as_a_job_of_the_pool() {
+    let (root, destination, _bin, environment) = scene("toolchain-asks-for-a-place");
+    record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
+    let (_given_back, finished) = crate::parallel_test_support::hold_the_only_place();
+    let repair = crate::lazy_runtime::spawn_on_runtime(async move { return repair_toolchain_awaiting(destination.as_path(), &environment).await; });
+    assert!(repair.is_some(), "this process's runtime has a worker of its own");
+    let asked: bool = finished.recv_timeout(crate::parallel_test_support::PATIENCE).expect("the control that holds the only place answered");
+    remove(&root);
+    assert!(
+        asked,
+        "the launcher records were read without asking for a place of the process's bound on blocking jobs, so the read ran on the task that polls the repairs"
+    );
+}
