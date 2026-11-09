@@ -40,8 +40,8 @@ pub const HEX_SUFFIX: &str = "Hex";
 ///  The words of a line that names a Git directory by its bytes,
 /// in a record of lines.
 /// Why:
-///   The work queue's journal, the note that names an instance's worktree and a removal's snapshot all name one
-/// directory,
+///   The work queue's journal,
+/// the note that names an instance's worktree and a removal's snapshot all name one directory,
 /// and each of them separates its lines by line breaks,
 /// so the bytes take the same `key=value` form in all three.
 ///
@@ -146,7 +146,12 @@ pub fn write_field(fields: &mut Map<String, Value>, key: &str, path: &Path) {
 /// ```
 pub fn read_field(value: &Value, key: &str) -> Result<PathBuf, String> {
     match value.get(format!("{key}{HEX_SUFFIX}")) {
-        Some(Value::String(hex)) => return path_of_hex(hex.as_str()).ok_or_else(|| { return format!("the {key} field is not the bytes of a path"); }),
+        Some(Value::String(hex)) => {
+            return match path_of_hex(hex.as_str()) {
+                Some(path) => Ok(path),
+                None => Err(format!("the {key} field is not the bytes of a path")),
+            };
+        }
         Some(_not_text) => return Err(format!("the {key} field is not the bytes of a path")),
         None => {}
     }

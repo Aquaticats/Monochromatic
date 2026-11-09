@@ -282,6 +282,14 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         Some(named) => named,
         None => git_dir_of_worktree(repository.as_path()),
     };
+    // The line that holds the paths' bytes is the one a reader takes; the plain line is an earlier release's.
+    let cleanup: Option<Cleanup> = match intent_value(text, format!("cleanup{HEX_SUFFIX}").as_str()) {
+        Some(hexadecimal) => parse_cleanup(hexadecimal, true),
+        None => match intent_value(text, "cleanup") {
+            Some(plain) => parse_cleanup(plain, false),
+            None => None,
+        },
+    };
     return Some(Intent {
         seq: intent_value(text, "seq")?.parse().ok()?,
         repository,
@@ -296,10 +304,6 @@ pub fn parse_intent(text: &str) -> Option<Intent> {
         derived: intent_value(text, "derived") == Some("1"),
         index,
         git_dir: worktree_git_dir,
-        // The line that holds the paths' bytes is the one a reader takes; the plain line is an earlier release's.
-        cleanup: match intent_value(text, &format!("cleanup{HEX_SUFFIX}")) {
-            Some(hexadecimal) => parse_cleanup(hexadecimal, true),
-            None => intent_value(text, "cleanup").and_then(|plain| { return parse_cleanup(plain, false); }),
-        },
+        cleanup,
     });
 }

@@ -45,7 +45,7 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::diagnostic_log::{debug, warn};
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::process_identity::current_birth_identity;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
 use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
@@ -85,25 +85,11 @@ const ATTEMPTS: &str = "attempts";
 ///  the first.
 const LOOK_ROUNDS: usize = 2;
 
-/// What a Git directory,
-/// the process that took a snapshot,
-/// and the checkout say about a removal.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Removal {
-    /// The Git directory is gone:
-    /// Git removed the worktree.
-    Done,
-    /// Every command that took the snapshot has ended and the checkout is intact:
-    /// Git refused,
-    /// or it was a dry run.
-    Refused,
-    /// A command that took the snapshot may still be removing,
-    /// the checkout is missing from a registered worktree,
-    /// or the
-    ///  evidence cannot be read:
-    /// not decided yet.
-    Undecided,
-}
+/// What a snapshot's Git directory,
+/// its taker and its checkout say about a removal.
+#[path = "worktree_removal_rescue_removal_state.rs"]
+mod removal_state;
+use removal_state::{Removal, named_git_dir, removal_of};
 
 /// The files of a directory,
 /// or none when it cannot be read.
@@ -234,119 +220,6 @@ fn register_attempt(snapshot: &Path) -> std::io::Result<()> {
     return write_private_file_unsynced(own.as_path(), identity.as_bytes());
 }
 
-/// What:
-///  Whether a command that took the snapshot may still be running,
-/// which a process that cannot be told apart from it counts as.
-/// Why:
-///   A process number alone can be reused,
-/// so the birth identity recorded with it decides.
-/// A record that cannot be read,
-/// or a
-///  process that cannot be inspected,
-/// is an owner that may be alive:
-/// discarding the snapshot on a guess would lose the records.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await attemptsMayBeRunning(snapshot)
-/// ```
-fn attempt_may_be_running(snapshot: &Path) -> bool {
-    // The loop stops at the first attempt that may be running, as `any` did.
-    for path in files_of(snapshot.join(ATTEMPTS).as_path()) {
-        if attempt_file_may_be_running(path.as_path()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/// Whether the command that wrote one attempt file may still be running;
-/// a file that cannot be understood counts as running.
-fn attempt_file_may_be_running(path: &Path) -> bool {
-    let Ok(pid) = name_of(path).parse::<i64>() else { return false };
-    let Ok(recorded) = std::fs::read_to_string(path) else { return true };
-    if recorded.is_empty() {
-        // Being written.
-        return true;
-    }
-    return match process_birth_identity(pid) {
-        Ok(Some(now)) => now == recorded,
-        Ok(None) => false,
-        Err(error) => {
-            warn(TAG, format!("the process {pid} of a worktree removal cannot be inspected: {error}").as_str());
-            true
-        }
-    };
-}
-
-/// Whether the checkout a registered worktree's Git directory names is still there;
-/// nothing when the Git directory does not say.
-fn checkout_present(git_dir: &Path) -> Option<bool> {
-    // Git writes this file itself, as the bytes of the checkout's `.git`, so it is read as bytes and never as text.
-    let bytes: Vec<u8> = std::fs::read(git_dir.join("gitdir")).ok()?;
-    let trimmed: &[u8] = match bytes.split(|byte| { return *byte == b'\n'; }).next() {
-        Some(first) => first,
-        None => bytes.as_slice(),
-    };
-    let marker: PathBuf = PathBuf::from(crate::path_bytes::os_from_path_bytes(trimmed));
-    if marker.as_os_str().is_empty() {
-        return None;
-    }
-    return Some(git_dir.join(marker).exists());
-}
-
-/// What:
-///  What a snapshot's Git directory,
-/// its taker and its checkout show of the removal it was taken for.
-/// Why:
-///   Git deletes the checkout first and the Git directory last,
-/// and refuses before it deletes anything.
-/// So a missing Git
-///  directory is a removal;
-/// an intact checkout whose taker has ended is a refusal;
-/// anything else may be a removal in progress
-///  or one that was cut short,
-/// and deciding on it would either lose the records or keep them for nothing.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await removalOf(gitDir, snapshot) // 'done' | 'refused' | 'undecided'
-/// ```
-/// What:
-///  The Git directory a snapshot's `gitdir` file names:
-/// its bytes when the file is one this release wrote,
-/// its plain text when it is an earlier release's.
-/// Why:
-///   The removal of a worktree is judged by looking at this directory,
-/// and a spelling that lost the path's bytes names nothing,
-/// which reads as a removal that finished and would promote a live worktree's records.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const namedGitDir = (text) => text.trim().startsWith('gitdirHex=') ? pathOfHex(text.trim().slice(10)) : text.trim() || undefined;
-/// ```
-fn named_git_dir(text: &str) -> Option<PathBuf> {
-    let trimmed: &str = text.trim_end_matches('\n');
-    return match trimmed.strip_prefix(GITDIR_HEX_PREFIX) {
-        Some(hexadecimal) => path_bytes::path_of_hex(hexadecimal),
-        None if trimmed.is_empty() => None,
-        None => Some(PathBuf::from(trimmed)),
-    };
-}
-
-fn removal_of(git_dir: &Path, snapshot: &Path) -> Removal {
-    match std::fs::symlink_metadata(git_dir) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Removal::Done,
-        Err(_) => return Removal::Undecided,
-        Ok(_) => {}
-    }
-    if attempt_may_be_running(snapshot) {
-        return Removal::Undecided;
-    }
-    return if checkout_present(git_dir) == Some(true) { Removal::Refused } else { Removal::Undecided };
-}
-
-/// What:
 ///  Copies the unshown notices and the unfinished push records of each linked worktree into a snapshot of that worktree,
 /// and
 ///  says what could not be copied.

@@ -161,7 +161,7 @@ fn the_checkout_of_a_directory_that_is_not_text_is_found_by_the_bytes_git_wrote(
     records(&repo);
     assert!(snapshot_linked_worktrees(repo.common.as_path()).is_empty());
     end_attempts(&repo);
-    assert_eq!(checkout_present(linked.as_path()), Some(true), "the registration names the checkout that is there");
+    assert_eq!(removal_state::checkout_present(linked.as_path()), Some(true), "the registration names the checkout that is there");
     assert!(settle_removals(repo.common.as_path()).is_empty());
     assert!(shown(&repo).is_empty(), "the worktree is there, so nothing is shown");
     assert!(!snapshot_of(&repo).exists(), "a refused removal's snapshot is discarded");
