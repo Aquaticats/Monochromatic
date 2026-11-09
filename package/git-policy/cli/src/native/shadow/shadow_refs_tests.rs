@@ -4,6 +4,7 @@
 use super::*;
 use crate::private_storage::take_file_syncs;
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 
 /// A bare shadow repository in the fixture,
@@ -45,24 +46,24 @@ fn decorated_repository(root: &Path) -> (PathBuf, String) {
 fn packed_refs_skip_the_target_and_symbolic_refs() {
     let refs: Vec<RefSnapshotEntry> = vec![
         RefSnapshotEntry {
-            name: String::from("refs/heads/alias"),
+            name: b"refs/heads/alias".to_vec(),
             oid: String::new(),
-            symref: String::from("refs/heads/main"),
+            symref: b"refs/heads/main".to_vec(),
         },
         RefSnapshotEntry {
-            name: String::from("refs/heads/main"),
+            name: b"refs/heads/main".to_vec(),
             oid: String::from("1111111111111111111111111111111111111111"),
-            symref: String::new(),
+            symref: Vec::new(),
         },
         RefSnapshotEntry {
-            name: String::from("refs/tags/v1"),
+            name: b"refs/tags/v1".to_vec(),
             oid: String::from("2222222222222222222222222222222222222222"),
-            symref: String::new(),
+            symref: Vec::new(),
         },
     ];
     assert_eq!(
         format_packed_refs(&refs, "refs/heads/main"),
-        "# pack-refs with: sorted \n2222222222222222222222222222222222222222 refs/tags/v1\n"
+        b"# pack-refs with: sorted \n2222222222222222222222222222222222222222 refs/tags/v1\n".to_vec()
     );
 }
 
@@ -74,12 +75,12 @@ fn real_refs_sort_by_bytes_and_mark_symbolic_refs() {
     let root: PathBuf = fixture("shadow-refs-list");
     let (repo, _head) = decorated_repository(root.as_path());
     let refs: Vec<RefSnapshotEntry> = list_real_refs(&git_context(), repo.as_path()).expect("refs");
-    let names: Vec<&str> = refs.iter().map(|entry| { return entry.name.as_str(); }).collect();
-    let zeta: usize = names.iter().position(|name| { return *name == "refs/heads/Zeta"; }).expect("Zeta");
-    let main: usize = names.iter().position(|name| { return *name == "refs/heads/main"; }).expect("main");
+    let names: Vec<&[u8]> = refs.iter().map(|entry| { return entry.name.as_slice(); }).collect();
+    let zeta: usize = names.iter().position(|name| { return *name == b"refs/heads/Zeta".as_slice(); }).expect("Zeta");
+    let main: usize = names.iter().position(|name| { return *name == b"refs/heads/main".as_slice(); }).expect("main");
     assert!(zeta < main, "{names:?}");
-    let alias = refs.iter().find(|entry| { return entry.name == "refs/heads/alias"; }).expect("alias");
-    assert_eq!(alias.symref, "refs/heads/main");
+    let alias = refs.iter().find(|entry| { return entry.name.as_slice() == b"refs/heads/alias".as_slice(); }).expect("alias");
+    assert_eq!(alias.symref, b"refs/heads/main".to_vec());
     remove(root.as_path());
 }
 
@@ -230,5 +231,93 @@ fn reftable_shadow_snapshots_refs_in_one_transaction() {
     .expect("refs");
     assert_eq!(git_text(shadow.as_path(), &["rev-parse", "refs/tags/v1"]), head);
     assert_eq!(git_text(shadow.as_path(), &["symbolic-ref", "HEAD"]), "refs/heads/main");
+    remove(root.as_path());
+}
+
+/// The tag,
+/// branch and symbolic ref of the byte-name fixture.
+const NON_TEXT_TAG: &[u8] = b"refs/tags/nonutf-\xff";
+const NON_TEXT_BRANCH: &[u8] = b"refs/heads/nonutf-\xff";
+const NON_TEXT_ALIAS: &[u8] = b"refs/heads/alias-\xfe";
+
+/// A repository holding a tag,
+/// a branch and a symbolic ref whose names are valid bytes that are not text.
+fn byte_named_refs(root: &Path) -> (PathBuf, String) {
+    let repo: PathBuf = repository(root, "repo");
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    let tag: OsString = crate::path_bytes::os_from_path_bytes(NON_TEXT_TAG);
+    let branch: OsString = crate::path_bytes::os_from_path_bytes(NON_TEXT_BRANCH);
+    let alias: OsString = crate::path_bytes::os_from_path_bytes(NON_TEXT_ALIAS);
+    for name in [&tag, &branch] {
+        git(repo.as_path(), &[OsStr::new("update-ref"), name.as_os_str(), OsStr::new(head.as_str())]);
+    }
+    git(repo.as_path(), &[OsStr::new("symbolic-ref"), alias.as_os_str(), branch.as_os_str()]);
+    return (repo, head);
+}
+
+/// The shadow holds every byte-named ref the real repository holds,
+/// as the same name,
+/// and the symbolic ref still points at the same branch.
+fn assert_byte_named_refs(shadow: &Path, head: &str) {
+    let answer = run_git_checked(&git_context(), &shadow_request(shadow, shadow, &["for-each-ref", "--format=%(refname)%00%(objectname)"])).expect("shadow refs");
+    let mut records: Vec<(&[u8], &[u8])> = Vec::new();
+    for record in answer.stdout.split(|byte| { return *byte == b'\n'; }) {
+        let fields: Vec<&[u8]> = record.split(|byte| { return *byte == 0; }).collect();
+        if let [name, oid] = fields.as_slice() {
+            records.push((name, oid));
+        }
+    }
+    for name in [NON_TEXT_TAG, NON_TEXT_BRANCH, NON_TEXT_ALIAS] {
+        let found: Option<&(&[u8], &[u8])> = records.iter().find(|(found, _)| { return *found == name; });
+        assert!(found.is_some(), "{:?} is missing from the shadow", String::from_utf8_lossy(name));
+    }
+    // A tag and a branch point at the commit, and the symbolic name resolves through the branch it names.
+    for name in [NON_TEXT_TAG, NON_TEXT_BRANCH] {
+        let oid: &&[u8] = records.iter().find(|(found, _)| { return *found == name; }).map(|(_, oid)| { return oid; }).expect("a listed ref");
+        assert_eq!(*oid, head.as_bytes(), "{:?}", String::from_utf8_lossy(name));
+    }
+    let alias: OsString = crate::path_bytes::os_from_path_bytes(NON_TEXT_ALIAS);
+    let resolved = run_git_checked(&git_context(), &shadow_request(shadow, shadow, &[OsStr::new("symbolic-ref"), alias.as_os_str()])).expect("symbolic ref");
+    assert_eq!(resolved.stdout, [NON_TEXT_BRANCH, b"\n"].concat());
+}
+
+/// The files snapshot writes a name that is not text as its bytes,
+/// so the shadow's Git reads the same ref.
+#[test]
+fn the_files_snapshot_keeps_a_name_that_is_not_text() {
+    let root: PathBuf = fixture("shadow-refs-files-non-text");
+    let (repo, head) = byte_named_refs(root.as_path());
+    let shadow: PathBuf = bare_shadow(root.as_path(), "files", repo.join(".git").join("objects").as_path());
+    write_shadow_refs(
+        &git_context(),
+        repo.as_path(),
+        shadow.as_path(),
+        RefFormat::Files,
+        "refs/heads/main",
+        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    assert_byte_named_refs(shadow.as_path(), head.as_str());
+    remove(root.as_path());
+}
+
+/// The reftable snapshot sends a name that is not text as its bytes too.
+#[test]
+fn the_reftable_snapshot_keeps_a_name_that_is_not_text() {
+    let root: PathBuf = fixture("shadow-refs-reftable-non-text");
+    let (repo, head) = byte_named_refs(root.as_path());
+    let shadow: PathBuf = bare_shadow(root.as_path(), "reftable", repo.join(".git").join("objects").as_path());
+    write_shadow_refs(
+        &git_context(),
+        repo.as_path(),
+        shadow.as_path(),
+        RefFormat::Reftable,
+        "refs/heads/main",
+        &SymbolicHead::Branch(String::from("refs/heads/main")),
+        &Base::Commit(head.clone()),
+    )
+    .expect("refs");
+    assert_byte_named_refs(shadow.as_path(), head.as_str());
     remove(root.as_path());
 }
