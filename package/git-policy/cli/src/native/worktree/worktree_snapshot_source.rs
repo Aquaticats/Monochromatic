@@ -27,14 +27,15 @@
 
 use crate::add_timing::{begin_work, end_work};
 pub use crate::worktree_snapshot_source_changed_paths::{ChangedPaths, changed_paths, plain};
-use crate::side_by_side_threads::run_beside_caller;
-use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot};
+use crate::config_snapshot::{ConfigEntry, ConfigSnapshot, read_config_snapshot, read_config_snapshot_awaiting};
 use crate::fs_kind::{FilesystemKind, filesystem_kind, is_subvolume_root};
 use crate::fs_mount_options::read_mount_facts;
+use crate::lazy_runtime::run_on_runtime;
 use crate::transaction_git::GitContext;
 use crate::worktree_add_plan::AddPlan;
-use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, dirty_source};
+use crate::worktree_clean::{CleanRefusal, CleanRefusalKind, CleanSource, check_clean, check_clean_awaiting, dirty_source};
 use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_trash::{trash_location_is_ignored, trash_location_is_ignored_awaiting};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -393,11 +394,11 @@ pub fn source_or_dirty(context: &GitContext, identity: &WorktreeIdentity) -> Res
 
 /// What:
 ///  The Git configuration of the source,
-/// read on a thread of its own and timed as the work `readConfig`.
+/// timed as the work `readConfig`.
 /// Why:
 ///   The read writes nothing,
 /// so it runs beside the cleanliness check;
-/// the add timing record sums the work of threads by name.
+/// the add timing record sums the work of the checks by name.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -406,6 +407,25 @@ pub fn source_or_dirty(context: &GitContext, identity: &WorktreeIdentity) -> Res
 fn read_configuration_timed((context, root): (&GitContext, &Path)) -> Option<ConfigSnapshot> {
     let began: std::time::Instant = begin_work();
     let read: Option<ConfigSnapshot> = read_config_snapshot(context, root);
+    end_work("readConfig", began);
+    return read;
+}
+
+/// What:
+///  `read_configuration_timed` with the Git child awaited on the runtime.
+/// Why:
+///   The read is one of the three the source check makes on a task of the runtime,
+/// which starts no child through the
+///  synchronous face;
+/// the run's bound and quiet window are the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork(); const read = await readConfigSnapshotAwaiting(context, root); endWork('readConfig', began);
+/// ```
+async fn read_configuration_timed_awaiting((context, root): (&GitContext, &Path)) -> Option<ConfigSnapshot> {
+    let began: std::time::Instant = begin_work();
+    let read: Option<ConfigSnapshot> = read_config_snapshot_awaiting(context, root).await;
     end_work("readConfig", began);
     return read;
 }
@@ -426,24 +446,43 @@ fn read_configuration_timed((context, root): (&GitContext, &Path)) -> Option<Con
 /// ```
 fn trash_location_ignored_timed((context, root, _git_dir, _common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
     let began: std::time::Instant = begin_work();
-    let ignored: bool = crate::worktree_trash::trash_location_is_ignored(context, root);
+    let ignored: bool = trash_location_is_ignored(context, root);
+    end_work("trashIgnored", began);
+    return ignored;
+}
+
+/// What:
+///  `trash_location_ignored_timed` with the Git child awaited on the runtime.
+/// Why:
+///   The question is one of the three the source check asks on a task of the runtime,
+/// beside the configuration read and the
+///  cleanliness check;
+/// the run's bound and quiet window are the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const began = beginWork(); const ignored = await trashLocationIsIgnoredAwaiting(context, root); endWork('trashIgnored', began);
+/// ```
+async fn trash_location_ignored_timed_awaiting((context, root, _git_dir, _common_dir): (&GitContext, &Path, &Path, &Path)) -> bool {
+    let began: std::time::Instant = begin_work();
+    let ignored: bool = trash_location_is_ignored_awaiting(context, root).await;
     end_work("trashIgnored", began);
     return ignored;
 }
 
 /// The cleanliness check of the source,
-/// which runs on the calling thread beside the two reads on threads of their own.
+/// which runs beside the two reads.
 fn clean_check_of_source((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> Result<CleanSource, CleanRefusal> {
     return check_clean(context, root, git_dir, common_dir);
 }
 
-/// What the trash-location read on its thread and the cleanliness check on the calling thread found.
-type TrashAndCleanVerdicts = (std::thread::Result<bool>, Result<CleanSource, CleanRefusal>);
+/// What the trash-location read and the cleanliness check found.
+type TrashAndCleanVerdicts = (bool, Result<CleanSource, CleanRefusal>);
 
 /// What:
-///  Read whether the trash location is ignored on a thread,
-/// and check the cleanliness of the source here,
-/// beside it.
+///  `read whether the trash location is ignored` and `check the cleanliness of the source` on a task of the runtime:
+/// the trash question awaited
+///  through its child and the cleanliness check awaited through its own two waits.
 /// Why:
 ///   The two read different things and write nothing;
 /// the verdicts are read in the order the checks have always had.
@@ -452,8 +491,50 @@ type TrashAndCleanVerdicts = (std::thread::Result<bool>, Result<CleanSource, Cle
 /// ```ts
 /// const [ignored, checked] = await Promise.all([trashLocationIgnored(args), cleanCheckOfSource(args)]);
 /// ```
-fn check_trash_and_cleanliness(state: (&GitContext, &Path, &Path, &Path)) -> TrashAndCleanVerdicts {
-    return run_beside_caller((state, trash_location_ignored_timed), (state, clean_check_of_source));
+async fn check_trash_and_cleanliness_awaiting((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> TrashAndCleanVerdicts {
+    return tokio::join!(trash_location_ignored_timed_awaiting((context, root, git_dir, common_dir)), check_clean_awaiting(context, root, git_dir, common_dir));
+}
+
+/// What:
+///  The three checks the source needs before it can be copied:
+/// the configuration read,
+/// the ignore rule of the trash
+///  location and the cleanliness of the files,
+/// each a wait of this task where Git is asked.
+/// Why:
+///   The three read different things and write nothing,
+/// so they run beside each other;
+/// the filesystem proof inside the
+///  cleanliness check is a job of the blocking pool (`worktree_clean.rs`),
+/// so no walk of the source holds the Git waits open.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [config, [ignored, checked]] = await Promise.all([readConfiguration(args), checkTrashAndCleanliness(args)]);
+/// ```
+async fn the_checks_of_the_source(state: (&GitContext, &Path, &Path, &Path)) -> (Option<ConfigSnapshot>, TrashAndCleanVerdicts) {
+    return tokio::join!(read_configuration_timed_awaiting((state.0, state.1)), check_trash_and_cleanliness_awaiting(state));
+}
+
+/// What:
+///  `the_checks_of_the_source` one check after another on the calling thread,
+/// for the state where no runtime can be built.
+/// Why:
+///   The owner's rule is "Commits should never fail.",
+/// so an add whose checks cannot share the runtime still gets the same three
+///  answers and the same refusals;
+/// nothing runs beside anything,
+/// which is the only difference.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const config = readConfiguration(args); const ignored = trashLocationIgnored(args); const checked = checkClean(args);
+/// ```
+fn the_checks_of_the_source_in_turn((context, root, git_dir, common_dir): (&GitContext, &Path, &Path, &Path)) -> (Option<ConfigSnapshot>, TrashAndCleanVerdicts) {
+    let read_config: Option<ConfigSnapshot> = read_configuration_timed((context, root));
+    let trash_ignored: bool = trash_location_ignored_timed((context, root, git_dir, common_dir));
+    let checked: Result<CleanSource, CleanRefusal> = clean_check_of_source((context, root, git_dir, common_dir));
+    return (read_config, (trash_ignored, checked));
 }
 
 /// The checks of `source_refusal`,
@@ -478,15 +559,17 @@ fn checked_source(context: &GitContext, identity: &WorktreeIdentity, allow_dirty
             nested.push(real);
         }
     }
-    // The configuration, the cleanliness of the files and (for a main checkout) the ignore rule for the place left-out directories
-    //  are set aside read different things and write nothing, so they run side by side; the verdicts are read in the order the
-    //  checks have always had.
-    let (config_joined, (trash_joined, checked)): (std::thread::Result<Option<ConfigSnapshot>>, TrashAndCleanVerdicts) = run_beside_caller(
-        ((context, root.as_path()), read_configuration_timed),
-        ((context, root.as_path(), git_dir.as_path(), common_dir.as_path()), check_trash_and_cleanliness),
-    );
-    let read_config: Option<ConfigSnapshot> = config_joined.unwrap_or(None);
-    let trash_ignored: bool = trash_joined.unwrap_or(false);
+    // The configuration, the ignore rule of the place left-out directories are set aside at and the cleanliness of the files
+    //  read different things and write nothing, so they run side by side on the process's runtime, or one after another on this
+    //  thread where no runtime can be built; the verdicts are read in the order the checks have always had.
+    let state: (&GitContext, &Path, &Path, &Path) = (context, root.as_path(), git_dir.as_path(), common_dir.as_path());
+    let (read_config, (trash_ignored, checked)): (Option<ConfigSnapshot>, TrashAndCleanVerdicts) = match run_on_runtime(the_checks_of_the_source(state)) {
+        Ok(verdicts) => verdicts,
+        Err(refusal) => {
+            crate::diagnostic_log::debug("checkedSource", format!("the checks of the source run one after another ({refusal})").as_str());
+            the_checks_of_the_source_in_turn(state)
+        }
+    };
     let Some(snapshot) = read_config else {
         return Err(Refusal::unsupported("the Git configuration could not be read"));
     };
