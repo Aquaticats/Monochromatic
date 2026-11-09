@@ -241,7 +241,10 @@ fn a_conversion_is_refused_while_the_main_checkout_is_being_migrated() {
     let (parent, root, worktree) = quiet_worktree("ownership-migration-running");
     let platform: PlainPlatform = PlainPlatform::new();
     let layout = layout_of(root.as_path()).expect("layout");
-    let mut migration: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("30")).expect("sleep");
+    // The stand-in must outlive this test however slow the host is: the conversion reads the claim's owner when it looks
+    // at it, and a stand-in that has ended by then makes the claim stale, so the conversion is not refused. Five minutes is
+    // six times the longest run seen on a loaded host, and the process group is ended with the test thread anyway.
+    let mut migration: std::process::Child = crate::test_support::spawn_owned(std::process::Command::new("sleep").arg("300")).expect("sleep");
     let pid: i64 = i64::from(migration.id());
     let birth: String = process_birth_identity(pid).expect("identity").expect("alive");
     plant_claim_for_tests(layout.parent.as_path(), layout.claim_prefix.as_os_str(), 1, pid, birth.as_str());

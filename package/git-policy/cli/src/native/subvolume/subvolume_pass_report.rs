@@ -59,8 +59,8 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
     for path in &stats.conflicts {
         lines.push(format!("{label}: kept the newer or differently typed entry {} in the destination; it was not replaced", path.display()));
     }
-    if stats.left_out > 0 {
-        lines.push(format!("{label}: {} entr(ies) absent from the destination were left out because they predate the catch-up", stats.left_out));
+    if !stats.left_out.is_empty() {
+        lines.push(format!("{label}: {} entr(ies) absent from the destination were left out because they predate the catch-up", stats.left_out.len()));
     }
     if stats.recopied > 0 {
         lines.push(format!("{label}: {} file(s) changed while they were copied and were copied again", stats.recopied));

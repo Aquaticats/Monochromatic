@@ -43,14 +43,15 @@
 //! ```
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::diagnostic_log::{debug, warn};
+use crate::diagnostic_log::debug;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::process_identity::current_birth_identity;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::GITDIR_HEX_PREFIX;
-use crate::push_failure_notice::{ORPHAN_NOTICE_DIRECTORY, notice_directory, record_lost_push};
+use crate::push_failure_notice::notice_directory;
 use crate::service_instance::instance_of;
-use crate::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkItem, WorkKind, find_claim, id_of_entry};
+use crate::work_item::{CLAIMED, PENDING, RECOVERING, WORK_DIRECTORY, WorkKind, find_claim, id_of_entry};
+use crate::worktree_removal_snapshot_promotion::{NOTICES, WORK, files_of, name_of, promote_snapshot};
 use std::path::{Path, PathBuf};
 
 /// Tag used for diagnostics from this module.
@@ -63,13 +64,6 @@ pub const SNAPSHOT_DIRECTORY: &str = "monochromatic-git-policy-cli/removal-snaps
 /// written last,
 /// so a snapshot that has it is whole.
 const GIT_DIR_FILE: &str = "gitdir";
-
-/// Directory in a snapshot that holds copies of the notices.
-const NOTICES: &str = "notices";
-
-/// Directory in a snapshot that holds copies of the unfinished push records,
-/// named `<state>-<record>`.
-const WORK: &str = "work";
 
 /// Directory in a snapshot that holds one file per command that took or retook it,
 /// named by the command's process number
@@ -90,29 +84,6 @@ const LOOK_ROUNDS: usize = 2;
 #[path = "worktree_removal_rescue_removal_state.rs"]
 mod removal_state;
 use removal_state::{Removal, named_git_dir, removal_of};
-
-/// The files of a directory,
-/// or none when it cannot be read.
-fn files_of(directory: &Path) -> Vec<PathBuf> {
-    let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
-    let mut paths: Vec<PathBuf> = Vec::new();
-    for entry in listing.flatten() {
-        let path: PathBuf = entry.path();
-        if path.is_file() {
-            paths.push(path);
-        }
-    }
-    paths.sort();
-    return paths;
-}
-
-/// The name of a file as text.
-fn name_of(path: &Path) -> String {
-    return match path.file_name() {
-        Some(name) => name.to_string_lossy().into_owned(),
-        None => String::new(),
-    };
-}
 
 /// Writes a file into a snapshot unless a file of that name is already there,
 /// which an earlier snapshot of the same worktree
@@ -250,13 +221,35 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
         if !git_dir.is_dir() {
             continue;
         }
-        let notices: Vec<PathBuf> = files_of(notice_directory(git_dir.as_path()).as_path());
-        let work_directory: PathBuf = path_for_reading(git_dir.as_path(), WORK_DIRECTORY);
+        for problem in snapshot_one(common_dir, git_dir.as_path()) {
+            problems.push(problem);
+        }
+    }
+    return problems;
+}
+
+/// What:
+///  The same snapshot for one worktree's Git directory,
+/// which a caller that knows exactly which worktree it means uses.
+/// Why:
+///   The finish of an interrupted destroy copies the records of that one registration before it removes it,
+/// without
+///  reading every other worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const problems: string[] = snapshotOne(commonDir, gitDir)
+/// ```
+pub(crate) fn snapshot_one(common_dir: &Path, git_dir: &Path) -> Vec<String> {
+    let mut problems: Vec<String> = Vec::new();
+    {
+        let notices: Vec<PathBuf> = files_of(notice_directory(git_dir).as_path());
+        let work_directory: PathBuf = path_for_reading(git_dir, WORK_DIRECTORY);
         let pushes: Vec<String> = push_record_names(work_directory.as_path());
         if notices.is_empty() && pushes.is_empty() {
-            continue;
+            return problems;
         }
-        let snapshot: PathBuf = common_dir.join(SNAPSHOT_DIRECTORY).join(instance_of(git_dir.as_path()));
+        let snapshot: PathBuf = common_dir.join(SNAPSHOT_DIRECTORY).join(instance_of(git_dir));
         let mut failures: Vec<String> = Vec::new();
         match create_private_directory_all(snapshot.as_path()) {
             Ok(()) => {
@@ -289,7 +282,7 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
             }
             // Last, so that a snapshot that names its worktree is a whole one.
             // The snapshot names its worktree by the bytes of its Git directory, so a path that is not text is still found.
-            let named: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir.as_path()));
+            let named: String = format!("{GITDIR_HEX_PREFIX}{}\n", path_bytes::hex_of_path(git_dir));
             if let Err(error) = save_once(snapshot.join(GIT_DIR_FILE).as_path(), named.as_bytes()) {
                 failures.push(format!("the snapshot could not be completed ({error})"));
             }
@@ -307,94 +300,6 @@ pub fn snapshot_linked_worktrees(common_dir: &Path) -> Vec<String> {
         }
     }
     return problems;
-}
-
-/// Moves one saved notice to the notices any worktree shows;
-/// a notice another command already moved is not a failure.
-fn promote_notice(orphans: &Path, path: &Path) -> std::io::Result<()> {
-    create_private_directory_all(orphans)?;
-    return match std::fs::rename(path, orphans.join(name_of(path))) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
-        Ok(()) | Err(_) => Ok(()),
-    };
-}
-
-/// What:
-///  Turns what a snapshot of a removed worktree kept into notices any worktree shows,
-/// and removes what it promoted;
-/// whether
-///  everything was promoted.
-/// Why:
-///   Each item is removed from the snapshot as soon as it is promoted,
-/// so a snapshot kept after a failure promotes only what is
-///  left on the next try and a notice already shown is not made again.
-/// A failure is reported to the person and the snapshot
-///  stays,
-/// because the snapshot is then the last copy of that record.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const complete = await promote(commonDir, snapshot, problems)
-/// ```
-fn promote(common_dir: &Path, snapshot: &Path, problems: &mut Vec<String>) -> bool {
-    let orphans: PathBuf = common_dir.join(ORPHAN_NOTICE_DIRECTORY);
-    let mut complete: bool = true;
-    for path in files_of(snapshot.join(NOTICES).as_path()) {
-        if let Err(error) = promote_notice(orphans.as_path(), path.as_path()) {
-            complete = false;
-            let said: String = format!(
-                "The push failure notice {} of a removed worktree could not be kept for you ({error}). It stays in {}; once that is fixed, any git command shows it.",
-                name_of(path.as_path()),
-                snapshot.display()
-            );
-            debug(TAG, said.as_str());
-            problems.push(said);
-        }
-    }
-    for path in files_of(snapshot.join(WORK).as_path()) {
-        let text: String = match std::fs::read_to_string(path.as_path()) {
-            Ok(read) => read,
-            // Another command promoted it first.
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => {
-                complete = false;
-                let said: String = format!("The saved record {} of a removed worktree's unfinished push could not be read ({error}); it stays in {}.", name_of(path.as_path()), snapshot.display());
-                debug(TAG, said.as_str());
-                problems.push(said);
-                continue;
-            }
-        };
-        match WorkItem::decode(text.as_str()) {
-            Ok(found) => match record_lost_push(common_dir, found.branch_ref.as_str(), found.oid.as_str()) {
-                Ok(()) => {
-                    // Removed now, so that a try after a failure elsewhere in this snapshot does not record the push again.
-                    if let Err(error) = std::fs::remove_file(path.as_path()) {
-                        warn(TAG, format!("removing the promoted record {} failed: {error}", path.display()).as_str());
-                    }
-                }
-                Err(reason) => {
-                    complete = false;
-                    let said: String = format!(
-                        "The backup push of {} for commit {} had not finished when its worktree was removed, and noting that failed ({reason}). \
-                         The record stays in {}; once that is fixed, any git command shows it.",
-                        found.branch_ref,
-                        found.oid,
-                        snapshot.display()
-                    );
-                    debug(TAG, said.as_str());
-                    problems.push(said);
-                }
-            },
-            Err(reason) => {
-                // A record that cannot be read now cannot be read later: it is said once and dropped.
-                let said: String = format!("A saved record of an unfinished push of a removed worktree is unreadable ({reason}), so that push is not reported: {}", path.display());
-                debug(TAG, said.as_str());
-                problems.push(said);
-                let _dropped = std::fs::remove_file(path.as_path());
-            }
-        }
-    }
-    return complete;
 }
 
 /// What:
@@ -432,11 +337,7 @@ pub fn settle_removals(common_dir: &Path) -> Vec<String> {
             Removal::Refused => {
                 let _discarded = std::fs::remove_dir_all(snapshot.as_path());
             }
-            Removal::Done => {
-                if promote(common_dir, snapshot.as_path(), &mut problems) {
-                    let _settled = std::fs::remove_dir_all(snapshot.as_path());
-                }
-            }
+            Removal::Done => promote_snapshot(common_dir, snapshot.as_path(), &mut problems),
         }
     }
     return problems;

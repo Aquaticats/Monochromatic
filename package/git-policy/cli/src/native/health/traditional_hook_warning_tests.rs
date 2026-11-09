@@ -175,7 +175,24 @@ fn a_hostile_value_stays_inside_one_line() {
     assert!(!line.contains("{\"type\":\"core-finding\""), "{line}");
 }
 
-/// What:
+///  A commit run inside a Git the wrapper started warns about the person's hooks path,
+///  not about the wrapper's own.
+/// Why:
+///   The wrapper's switches travel into a child Git as command-scope configuration,
+/// which Git places last,
+///  so the last entry of the key is the wrapper's and the person's path must be found before it;
+///  otherwise the
+///  warning says nothing about a repository whose hooks are configured.
+#[test]
+fn a_nested_run_warns_about_the_persons_hooks_path_and_not_the_wrappers() {
+    let own: String = format!("core.hookspath\n{NO_HOOKS_DIRECTORY}");
+    let nested: ConfigSnapshot = listing_snapshot(&[("local", "core.hookspath\n/my/repository/hooks"), ("command", own.as_str())]);
+    assert_eq!(configured_hooks_path(&nested), Some(String::from("/my/repository/hooks")));
+    let line: String = traditional_hooks_warning(Some(&nested)).expect("a warning about the person's path");
+    assert!(line.contains("/my/repository/hooks"), "{line}");
+    assert!(!line.contains(NO_HOOKS_DIRECTORY), "{line}");
+}
+
 ///  A stream whose write waits for an answer that never comes,
 /// as a full pipe does.
 /// Why:

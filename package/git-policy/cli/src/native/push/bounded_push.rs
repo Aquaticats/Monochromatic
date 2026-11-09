@@ -8,6 +8,21 @@
 //!  Such a push is stopped when its stall window passes,
 //!  the commit stays saved locally,
 //!  and the failure is reported like any other failed push.
+//!  A stopped push is reported as what is known and no more:
+//! that it was stopped,
+//! that the remote may or may not have
+//!  taken it,
+//! and whether a retry is planned.
+//! Nothing here asks the remote what it holds:
+//! the wrapper cannot know
+//!  which object Git really sent,
+//! which of a remote's push URLs went first or what configuration shaped the attempt,
+//! and a claim of delivery a person acts on has to hold for all of them.
+//! The retry settles the question instead,
+//! because
+//!  a push of something the remote already has succeeds and clears the record (`SPEC.md`,
+//! "A local remote's hooks run in the
+//!  push's tree").
 //!  A push whose connection to the remote is open is never stopped for time (owner,
 //! 2026-11-03:
 //! "Wait while connected
@@ -66,6 +81,7 @@ pub use crate::push_deadline_and_patience_settings::{DEFAULT_PUSH_DEADLINE, PUSH
 /// Tag used for diagnostics from this module.
 const TAG: &str = "monochromatic-git-policy-cli";
 
+
 /// What a person is told when a push is ended for showing no progress:
 /// the owner's answer of 2026-11-03,
 /// "Bound it,
@@ -74,6 +90,18 @@ const TAG: &str = "monochromatic-git-policy-cli";
 /// is that the service's retry plan keeps the push and tries it again,
 /// and the line says so.
 pub const PUSH_QUEUED_LINE: &str = "The push is queued: the commit service keeps it in its retry plan and tries it again.";
+
+/// What a person is told about the remote when a push was stopped:
+/// that the wrapper does not know,
+/// and that the retry is what settles it.
+///  A stopped push proves nothing about the remote:
+/// the wrapper cannot know which object Git really sent,
+/// which of a
+///  remote's push URLs went first or which configuration shaped the attempt,
+/// so the report says what is known and the retry
+///  answers the question,
+/// because a push of something the remote already has succeeds.
+pub const STOPPED_DELIVERY_IS_NOT_KNOWN: &str = "the remote may or may not have taken the push, and only the next push settles which";
 
 /// How long a stopped push gets to end after the polite stop signal before it is killed.
 ///  Citation:
@@ -442,8 +470,11 @@ pub fn run_bounded_push(
 /// Why:
 ///   Both streams share one anonymous file so lines keep the order Git wrote them,
 ///  and a file needs no reader thread that a stuck helper could keep alive.
-///  A stopped push becomes a failed attempt that says so,
-///  so the commit stays saved and the failure is recorded for later invocations.
+///  A stopped push becomes an attempt that says so,
+///  so the commit stays saved and the report is recorded for later invocations;
+/// an attempt whose references the remote
+///  already holds says that instead,
+/// so a published branch is never reported as a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -548,7 +579,7 @@ pub async fn run_bounded_push_awaiting(
                 ),
                 StopCause::Stalled(report) => format!(
                     "monochromatic-git-policy-cli: git push made no progress for {} seconds and was stopped (limit=stall, bytes_moved={}, \
-                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} Hint: if you were pushing over a slow or \
+                     elapsed_seconds={}); {}. {PUSH_QUEUED_LINE} {STOPPED_DELIVERY_IS_NOT_KNOWN}. Hint: if you were pushing over a slow or \
                      offline connection, your commit is already saved; push again when the connection works.",
                     report.limit.as_secs(),
                     report.moved,

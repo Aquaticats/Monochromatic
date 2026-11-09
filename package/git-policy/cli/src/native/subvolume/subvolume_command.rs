@@ -220,7 +220,11 @@ fn run_mode(platform: &dyn Platform, arguments: &MigrateArguments, root: &Path, 
         run.line(format!("dry run: the command would {what} of {}; nothing was changed.", layout.root.display()).as_str());
         return Ok(0);
     }
-    let refused: Option<Vec<Refusal>> = if arguments.mode == MigrateMode::Rollback { rollback(&mut run, arguments.discard_unreadable)? } else { remove_old_tree(&mut run, arguments.discard_unreadable)? };
+    let refused: Option<Vec<Refusal>> = if arguments.mode == MigrateMode::Rollback {
+        rollback(&mut run, arguments.discard_unreadable, arguments.discard_left_out)?
+    } else {
+        remove_old_tree(&mut run, arguments.discard_unreadable, arguments.discard_left_out)?
+    };
     if let Some(refusals) = refused {
         say_refusals(run.say, refusals.as_slice());
         return Ok(REFUSED_EXIT_CODE);

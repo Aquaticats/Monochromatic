@@ -249,6 +249,13 @@ pub struct PushShape {
     /// The value of `--recurse-submodules`,
     /// when one was written.
     pub recurse_submodules: Option<OsString>,
+    /// `--follow-tags`,
+    /// `--no-follow-tags` or neither:
+    /// whether the caller decided that annotated tags follow the push.
+    pub follow_tags_stated: bool,
+    /// Whether annotated tags follow the push,
+    /// as the last `--follow-tags` or `--no-follow-tags` left it.
+    pub follow_tags: bool,
 }
 
 /// What:
@@ -313,6 +320,8 @@ pub fn push_shape(region: &[OsString]) -> Option<PushShape> {
         mirror: is_enabled(&parsed, MIRROR),
         deletes: is_enabled(&parsed, DELETE),
         recurse_submodules: option_value(&parsed, region, RECURSE_SUBMODULES),
+        follow_tags_stated: is_stated(&parsed, FOLLOW_TAGS),
+        follow_tags: is_enabled(&parsed, FOLLOW_TAGS),
     });
 }
 

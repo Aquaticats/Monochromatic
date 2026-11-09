@@ -209,6 +209,48 @@ where
 }
 
 /// What:
+///  Run `work(state)` as a job of the blocking pool,
+/// or run it in turn here where the system refused a thread,
+/// with a place of the process's bound held for as long as that work runs.
+/// Why:
+///   The owner's rule is that a thread is only a way to do the work sooner
+/// (`scoped_start.rs`),
+/// so the work is done on this
+///  task where no thread can start and the command loses nothing.
+/// Only a refusal falls back:
+/// `NoThreadToStart` is the one answer
+///  that promises the step will not run and changed nothing
+/// (`a_refused_thread_start`),
+/// while a busy pool queues the job and the wait for it
+///  is the caller's.
+/// The work is the same blocking work the job would have done,
+/// so it takes a place again before it starts:
+/// the job gave its place back before this call learned it would never run,
+/// and a fallback without a place would let a second job take the free one and run beside it,
+/// so the process
+///  would run more blocking work at once than its bound allows.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// try { return await runBlockingJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); const place = await budget.places.acquire(); try { return work(state); } finally { place.release(); } }
+/// ```
+pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    let theirs: S = state.clone();
+    let outcome: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(move || { return work(theirs); }).await;
+    return match outcome {
+        Ok(value) => Ok(value),
+        // The job will not run and changed nothing, so the same work runs here, and its place is held until it ends.
+        Err(BlockingJobError::NoThreadToStart) => match Arc::clone(&budget().places).acquire_owned().await {
+            // The place is this frame's and it is dropped after the work, never before it.
+            Ok(_place) => Ok(work(state)),
+            // The semaphore lives as long as the process, so a closed one is a defect: nothing is run.
+            Err(_closed) => Err(BlockingJobError::Cancelled),
+        },
+        Err(another) => Err(another),
+    };
+}
+
+/// What:
 ///  The error a refused start is,
 ///  from what the claim on the job's work decided.
 /// Why:
