@@ -182,10 +182,8 @@ The old tree kept for the rollback stays until the owner deletes it.
   because the practical limit of agents was reached when each was written,
   in this order,
   briefs in `~/temp/agent/pi-runs/`:
-  `commit-scratch-removal-round-4-prompt.md`
-  (a sweep or release can remove a tree a queued landing needs,
-  a slow cleanup fails a commit with `AlreadyExists`,
-  and the first sweep has no limit across entries).
+  `resume-after-wall-clock-prompt.md` for `shadow-and-replay-findings-fixed` as run 3 from the session of run 2,
+  which reached its time limit while merging main.
   Start each with `start-pi-run-if-a-slot-is-free.ts`,
   which counts launchers as well as units and refuses at the limit.
 - The provider ended several runs with `terminated`:
