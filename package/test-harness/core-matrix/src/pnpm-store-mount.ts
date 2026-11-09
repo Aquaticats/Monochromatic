@@ -6,7 +6,7 @@
  themselves live only in that store. A container that mounts this checkout and nothing else therefore finds links
  whose targets do not exist inside it, and every import of an installed package fails with `ERR_MODULE_NOT_FOUND`
  (measured 2026-11-08T19:18:31-05:00 on the `env-local-json` matrix cell, and again on 2026-11-09; see
- `doc/handover/container-limits-everywhere.md`, section Measured runs on this host).
+ `doc/handover/container-limits-everywhere.md`, section The shared pnpm store inside a container).
 
  Mounting the store read-only at the absolute path the links name is what makes them resolve: a link is interpreted
  against its own directory, so any other mount point leaves it dangling, and the store needs no write access because
@@ -39,7 +39,7 @@ export const STORE_DIRECTORY_FROM_HOME: string = join(
 );
 
 /**
- Names every spelling of the store a container may have to see.
+ Environment variable that names the physical store directory; mise supplies it.
  */
 export const STORE_DIRECTORY_VARIABLE = 'PNPM_CONFIG_STORE_DIR';
 
