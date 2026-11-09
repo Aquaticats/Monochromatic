@@ -100,6 +100,9 @@ pub mod commit_args;
 /// pathspec files and listings.
 pub mod commit_index;
 
+/// The one read of the real index that every private copy of a commit is written from.
+pub mod commit_index_bytes;
+
 /// The copying of the real index into a private index and the check of whether it may seed an explicit-path commit.
 pub mod commit_index_copying;
 

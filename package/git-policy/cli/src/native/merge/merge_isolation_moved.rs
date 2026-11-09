@@ -39,7 +39,9 @@ use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge, install_entries,
     judge_changes, merge_changes, put_back_stranded_takes, remove_record,
 };
-use crate::merge_isolation_index_reading::{index_entries, standing_of_index};
+use crate::merge_isolation_index_reading::{entries_by_path, index_entries, standing_of_index};
+/// The maps of records a settling asks by path.
+use std::collections::HashMap;
 /// The fail-closed recovery failure,
 /// and the refusal that says whether the merge began.
 use crate::recovery_error::RecoveryError;
@@ -131,9 +133,12 @@ pub(crate) fn settle_moved_branch(
     //  independent commit of the same content leaves the very file the merge would,
     // and writing it then would replace a
     //  person's own file for nothing.
+    // One pass over the moved head's records answers every path asked about below, so neither list is walked per change
+    //  (`AGENTS.md` `RG2`).
+    let beyond_by_path: HashMap<&[u8], &Change> = entries_by_path(beyond.as_slice());
     let mut wrote_a_file: bool = false;
     for (judged, change) in worktree.iter().zip(changes.iter()) {
-        if holds_the_merge(judged) && moved_head_holds_its_own_entry(beyond.as_slice(), change.path.as_slice()) {
+        if holds_the_merge(judged) && moved_head_holds_its_own_entry(&beyond_by_path, change.path.as_slice()) {
             wrote_a_file = true;
             break;
         }
@@ -144,7 +149,7 @@ pub(crate) fn settle_moved_branch(
     }
     let mut ends: Vec<Change> = Vec::with_capacity(changes.len());
     for change in &changes {
-        let moved_entry: Option<&Change> = entry_of_path(beyond.as_slice(), change.path.as_slice());
+        let moved_entry: Option<&Change> = beyond_by_path.get(change.path.as_slice()).copied();
         let (mode, oid): (String, String) = match moved_entry {
             Some(moved) => (moved.new_mode.clone(), moved.new_oid.clone()),
             None => (change.new_mode.clone(), change.new_oid.clone()),
@@ -163,9 +168,10 @@ pub(crate) fn settle_moved_branch(
         Ok(found) => found,
         Err(error) => return Err(MergeRefusal { error, began }),
     };
+    let staged_by_path: HashMap<&[u8], &Change> = entries_by_path(staged_index.as_slice());
     let mut staged: Vec<String> = Vec::new();
     for end in &ends {
-        let entry: Option<&Change> = entry_of_path(staged_index.as_slice(), end.path.as_slice());
+        let entry: Option<&Change> = staged_by_path.get(end.path.as_slice()).copied();
         if standing_of_index(entry, end, end) == Standing::Foreign {
             staged.push(String::from_utf8_lossy(end.path.as_slice()).into_owned());
         }
@@ -269,10 +275,11 @@ fn holds_the_merge(judged: &Judged) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function movedHeadHoldsItsOwnEntry(beyond, path): boolean; // beyond.some((moved) => moved.path === path)
+/// function movedHeadHoldsItsOwnEntry(beyond, path): boolean; // beyond.has(path)
 /// ```
-fn moved_head_holds_its_own_entry(beyond: &[Change], path: &[u8]) -> bool {
-    return entry_of_path(beyond, path).is_some();
+fn moved_head_holds_its_own_entry(beyond: &HashMap<&[u8], &Change>, path: &[u8]) -> bool {
+    crate::collected_elements_looked_at::note_looked_at(1);
+    return beyond.contains_key(path);
 }
 
 /// What:
@@ -293,15 +300,4 @@ fn only_the_record_goes(record: &Path, began: bool) -> Result<MergeRecoveryActio
         return Err(MergeRefusal { error, began });
     }
     return Ok(MergeRecoveryAction::BranchMoved);
-}
-
-/// The index entry of one path,
-/// or nothing when the index reports none for it.
-fn entry_of_path<'a>(staged: &'a [Change], path: &[u8]) -> Option<&'a Change> {
-    for candidate in staged {
-        if candidate.path == path {
-            return Some(candidate);
-        }
-    }
-    return None;
 }

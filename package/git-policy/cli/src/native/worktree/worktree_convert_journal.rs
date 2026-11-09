@@ -244,11 +244,7 @@ pub fn io_step<T>(outcome: std::io::Result<T>, action: &str, path: &Path) -> Res
 
 /// The lowercase hexadecimal form of some bytes.
 fn hex(bytes: &[u8]) -> String {
-    let mut spelled: String = String::new();
-    for byte in bytes {
-        spelled.push_str(format!("{byte:02x}").as_str());
-    }
-    return spelled;
+    return crate::hexadecimal_of_bytes::hexadecimal_of_bytes(bytes);
 }
 
 /// The bytes a hexadecimal string names.
