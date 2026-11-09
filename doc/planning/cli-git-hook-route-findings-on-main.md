@@ -222,9 +222,10 @@ so it has no watch and its remote hook is never signalled by the wrapper.
   and reports an executable regular file or a link per line
   (`:154-181`),
   with exit 0 for none or only Git LFS shims,
-  1 for any other hook,
+  1 for any other hook
+  (`:494-518`),
   and 2 when the repository cannot be located
-  (`:490-518`).
+  (`:537-543`).
   A missing directory and a path that is not a directory both count as no hooks
   (`:157`),
   so `core.hooksPath=/dev/null` is handled.
@@ -287,11 +288,19 @@ so the statements that defend the watch,
 `:2995` ("Hooks are never ended by the wrapper."),
 and the module comment at `push/child_watch.rs:36-39`,
 are not true of a local-path push.
-`SPEC.md:2540-2542` states the condition that would make them true
+`SPEC.md:3786` records the stop itself for this case
+("its hook is a child of the push") and stops it "as before",
+so the code follows that sentence and the other two are overbroad wording,
+not a violated decision.
+What no record states is the consequence above:
+the branch is published and the command still reports failure,
+`SPEC.md:2540-2542` names the condition under which the broad sentences would be true
 ("If hooks are ever started below a watched step,
 a descendant that is a hook must count as work"),
-and `SPEC.md:3786` records the opposite for this case
-("its hook is a child of the push") and stops it "as before".
+and the push route's own audit repeats the broad sentence
+(`doc/planning/cli-git-push-route-findings-on-main.md:1333-1337`,
+"so a push cannot wait on a prompt or on a hook nobody sees"),
+so the wording has already spread.
 The code has no way to tell a hook from Git,
 which is what `SPEC.md:2536-2538` says it never needed.
 
@@ -367,9 +376,14 @@ and `doctor` scans `/dev/null/cli-git-no-hooks` instead of `.myhooks`,
 lists nothing,
 and exits 0,
 so the one command that exists to find these hooks reports there are none.
-Two other nests show the same split without a conditional include:
-the warning and `doctor` then disagree with each other,
-because one is answered from the files and the other by the in-process reader.
+The crate holds no reader of `GIT_CONFIG_PARAMETERS` at all
+(`rg 'GIT_CONFIG_PARAMETERS' package/git-policy/cli/src` finds it only in prose,
+at `lfs/lfs_upload.rs:16` and `health/doctor_fsmonitor.rs:180`),
+so a query the in-process reader does answer behaves as if the entry were absent,
+and the two readers of one key then disagree.
+That disagreement is read from the code and was not run;
+the conditional-include case is the one that reaches real Git,
+which is what makes the wrong result above happen.
 
 Suggested fix (a suggestion,
 not a decision):
