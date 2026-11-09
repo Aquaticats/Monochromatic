@@ -24,7 +24,6 @@ use crate::index_lock_evidence::{
     Verdict, WaitEnd, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
     ceiling_line, blocker_words, unproven_removal_advice, holder_way_out,
 };
-use crate::index_lock_holders::scan_platform_holders_bounded;
 use crate::process_start::resolve_process_start;
 use crate::service_index_lock::{Announce, Announcer, LockFailure, notice_every};
 use crate::service_index_found::{WaitNotes, describe_lock, open_by_text};
@@ -108,8 +107,11 @@ struct Looked {
 /// its notice line for the person,
 /// its words,
 /// and the diagnostic for a look that ends the wait.
-fn look_at_holder(index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
-    let gathered = gather_with(index, resolve_process_start, scan_platform_holders_bounded);
+/// The scan is the platform's,
+/// the same one the removal is decided on,
+/// so one acquisition reads one host.
+fn look_at_holder(platform: &Platform, index: &Path, waited: Duration, first: bool, ceiling: Duration) -> Looked {
+    let gathered = gather_with(index, resolve_process_start, platform.scan);
     let evidence = match gathered {
         Ok(Some(found)) => found,
         // The lock was released between the placement and this look.
@@ -217,7 +219,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
                         // A lock that nothing holds and no Git lock PID file stands behind is removed (owner, 2026-11-07, "Service removes it"):
                         //  the check is made at the first look and at each repeat of the notice, as the evidence is, not at every wake.
                         if first || last_notice.elapsed() >= notice_every() {
-                            match remove_if_unheld(platform, index, &scan_platform_holders_bounded) {
+                            match remove_if_unheld(platform, index, &platform.scan) {
                                 Unheld::Removed(removed) => {
                                     announce.announce(Announce::Waiting(told_words(&removed)));
                                     continue;
@@ -248,7 +250,7 @@ pub(crate) fn wait_and_place(platform: &Platform, placing: &Placing, watch: &mut
         let due: bool = first || last_notice.elapsed() >= notice_every();
         // The evidence is read at the first look and at each repeat of the line, not at every wake or poll.
         let at_ceiling: bool = already_waited.is_some() || waited >= ceiling;
-        let mut looked: Looked = if due || at_ceiling { look_at_holder(index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
+        let mut looked: Looked = if due || at_ceiling { look_at_holder(platform, index, waited, first, ceiling) } else { Looked { blocker: String::new(), proved: proof, line: None, who: None, open: None, ending: None, way_out: None } };
         if let Some((words, who)) = left_stale {
             // The notice is the person's way to the lock; the holder is named from the marker, not from a process scan.
             looked.line = Some(words);
