@@ -1169,18 +1169,18 @@ commands,
 
 ## Script linting
 
-The verification scripts in `bin` are TypeScript.
-`mise run //package/forbidden-strings/cli:lint:scripts:types` type-checks them,
-and `mise run //package/forbidden-strings/cli:lint:scripts:oxlint -- bin/<file>.ts` lints the files it is given.
-The Oxlint task takes explicit paths and has no package-wide form on purpose.
-A package-wide `lint:oxlint` run,
-measured on 2026-10-30,
-fails with 30 errors and 29 warnings,
-all in `bin/port-betterleaks.ts`,
-which the package's `tsconfig.json` includes.
-It also lints `task.ts`,
-which no `tsconfig.json` includes:
-the semantic bridge reports `project-not-found`
-and a type-aware rule throws.
-Making the package-wide task usable needs those two files fixed,
+The package's TypeScript is the crate's `bin` tooling plus the pattern
+conversions in `src`,
+and the package `lint` task enforces both halves:
+`cargo check`,
+then `lint:scripts:types` (`tsc --build` over the `tsconfig.json` include list),
+then `lint:scripts:oxlint` over `src` and `bin`.
+`mise run //package/forbidden-strings/cli:lint:scripts:oxlint -- <path>` narrows
+a one-off run to the path it is given.
+The Oxlint task keeps explicit roots rather than a package-wide form:
+`task.ts`,
+which no `tsconfig.json` includes,
+would make the semantic bridge report `project-not-found`
+and a type-aware rule throw.
+Making a package-wide task usable needs `task.ts` included in a tsconfig,
 not a looser rule.
