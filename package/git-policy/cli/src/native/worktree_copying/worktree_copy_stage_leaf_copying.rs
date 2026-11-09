@@ -345,29 +345,33 @@ pub fn copy_worker_count_on(host: &HostResources, entries: usize) -> usize {
 }
 
 /// What:
-///  Copies the files and links of one slice of a manifest into the stage,
+///  Copies the files and links of the manifest entries at `positions` into the stage,
 /// recording each cloned file's stamp in a list of the slice's own.
 /// Why:
 ///   Each entry is recreated from the source's no-follow view,
 /// so no symbolic link is ever followed;
 ///  directories exist already,
 /// and a parent is created only when the entry's parent changes.
-///  The stamps come back with the slice rather than into one shared list,
-/// because a job of the blocking pool owns what it reads and writes.
+///  The stamps come back in the order of the positions rather than into one shared list,
+/// because a job of the blocking pool owns what it reads and writes;
+/// the caller places them by the slice each position belongs to,
+/// so a slice that stopped early cannot shift another slice's stamps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function copyLeaves({ sourceRoot, stageRoot, entries, failed }): Promise<(FileStamp | undefined)[]>;
+/// function copyLeaves({ sourceRoot, stageRoot, entries, positions, failed }): (FileStamp | undefined)[];
 /// ```
 fn copy_leaves(
     source_root: &Path,
     stage_root: &Path,
     entries: &[WorktreeCopyEntry],
+    positions: &[usize],
     failed: &AtomicBool,
 ) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
     let mut last_parent: Option<PathBuf> = None;
-    let mut stamps: Vec<Option<FileStamp>> = Vec::with_capacity(entries.len());
-    for entry in entries {
+    let mut stamps: Vec<Option<FileStamp>> = Vec::with_capacity(positions.len());
+    for at in positions {
+        let Some(entry) = entries.get(*at) else { continue };
         if failed.load(Ordering::Relaxed) {
             return Ok(stamps);
         }
@@ -400,43 +404,47 @@ fn copy_leaves(
 }
 
 /// What:
-///  Every entry of the manifest,
-/// shared with the jobs that copy the leaves among them,
-/// and the two roots they go between.
-/// Why:
-///   A job of the blocking pool owns what it reads,
-/// so the manifest the caller lent is shared once here
-///  and each job takes its own share of it,
-/// and its own slice of the stamps by position.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type TheCopy = { entries: readonly WorktreeCopyEntry[]; source: string; stage: string; positions: number[]; failed: boolean };
-/// ```
-type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc<AtomicBool>);
-
-/// What:
 ///  One slice of the manifest as the state of one job:
 /// the entries,
 /// the positions of this slice,
 /// the two roots and the flag that stops the other workers.
 /// Why:
-///   The budget runner takes a function and the state it reads,
+///   A job of the blocking pool owns what it reads,
+/// so the manifest the caller lent is shared once here
+///  and each job takes its own share of it with the positions it copies,
+/// which no job has to copy an entry for.
+/// The budget runner takes a function and the state it reads,
 /// never a closure,
 /// so the slice travels as values the job owns and
 ///  may be taken again where no thread can start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const copyASliceOf = ([entries, source, stage, positions, failed]) => copySlice(source, stage, positions, failed);
+/// type ASliceToCopy = [entries: readonly WorktreeCopyEntry[], source: string, stage: string, positions: number[], failed: boolean];
 /// ```
-fn copy_a_slice_of((entries, source_root, stage_root, positions, failed): ASliceToCopy) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
-    let mut slice: Vec<WorktreeCopyEntry> = Vec::with_capacity(positions.len());
-    for at in positions {
-        let Some(entry) = entries.get(at) else { continue };
-        slice.push(entry.clone());
+type ASliceToCopy = (Arc<[WorktreeCopyEntry]>, PathBuf, PathBuf, Vec<usize>, Arc<AtomicBool>);
+
+/// What:
+///  Copy one slice of leaf entries on a worker,
+/// and tell the other workers to stop when it failed.
+/// Why:
+///   The workers share the flag only to end early;
+/// the first failure is each worker's own result,
+/// and the caller reports the
+///  first in slice order.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function copySliceAndFlagFailure([entries, sourceRoot, stageRoot, positions, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
+/// ```
+fn copy_slice_and_flag_failure(
+    (entries, source_root, stage_root, positions, failed): ASliceToCopy,
+) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
+    let outcome: Result<Vec<Option<FileStamp>>, WorktreeCopyError> = copy_leaves(source_root.as_path(), stage_root.as_path(), entries.as_ref(), positions.as_slice(), failed.as_ref());
+    if outcome.is_err() {
+        failed.store(true, Ordering::Relaxed);
     }
-    return copy_slice_and_flag_failure((source_root.as_path(), stage_root.as_path(), slice.as_slice(), failed.as_ref()));
+    return outcome;
 }
 
 /// What:
@@ -496,60 +504,32 @@ async fn copy_manifest_entries_awaiting(
     let mut stamps: Vec<Option<FileStamp>> = vec![None; entries.len()];
     let workers: usize = copy_worker_count(entries.len());
     let failed: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
-    if workers <= 1 {
-        let copied: Vec<Option<FileStamp>> = copy_leaves(source_root, stage_root, entries.as_ref(), failed.as_ref())?;
-        for (slot, stamp) in stamps.iter_mut().zip(copied) {
-            *slot = stamp;
-        }
-        return Ok(stamps);
-    }
-    let slice_length: usize = entries.len().div_ceil(workers);
+    let slice_length: usize = entries.len().div_ceil(workers.max(1)).max(1);
     let mut states: Vec<ASliceToCopy> = Vec::new();
+    let mut slices: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut at: usize = 0;
     for chunk in entries.chunks(slice_length) {
-        let first: usize = (chunk.as_ptr() as usize - entries.as_ptr() as usize) / std::mem::size_of::<WorktreeCopyEntry>();
-        let positions: Vec<usize> = (first..first + chunk.len()).collect();
-        states.push((Arc::clone(&entries), source_root.to_path_buf(), stage_root.to_path_buf(), positions, Arc::clone(&failed)));
+        let range: std::ops::Range<usize> = at..at + chunk.len();
+        states.push((Arc::clone(&entries), source_root.to_path_buf(), stage_root.to_path_buf(), range.clone().collect(), Arc::clone(&failed)));
+        slices.push(range);
+        at += chunk.len();
     }
     let mut outcomes: Vec<Result<Vec<Option<FileStamp>>, WorktreeCopyError>> = Vec::new();
-    for answer in run_all_side_by_side_on_the_runtime(states, copy_a_slice_of).await {
+    for answer in run_all_side_by_side_on_the_runtime(states, copy_slice_and_flag_failure).await {
         outcomes.push(match answer {
             Ok(outcome) => outcome,
             Err(crate::blocking_job::BlockingJobError::Panicked) => Err(raw_failure(&std::io::Error::other("a copy worker panicked"))),
             Err(refused) => Err(raw_failure(&std::io::Error::other(format!("a copy worker did not run ({refused})")))),
         });
     }
-    let mut at: usize = 0;
-    for outcome in outcomes {
-        for stamp in outcome? {
-            let Some(slot) = stamps.get_mut(at) else { break };
+    for (range, outcome) in slices.into_iter().zip(outcomes) {
+        let copied: Vec<Option<FileStamp>> = outcome?;
+        // A slice writes the stamps of its own positions, so a slice that stopped early cannot shift another's.
+        for (slot, stamp) in stamps[range].iter_mut().zip(copied) {
             *slot = stamp;
-            at += 1;
         }
     }
     return Ok(stamps);
-}
-
-/// What:
-///  Copy one slice of leaf entries on a worker,
-/// and tell the other workers to stop when it failed.
-/// Why:
-///   The workers share the flag only to end early;
-/// the first failure is each worker's own result,
-/// and the caller reports the
-///  first in slice order.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function copySliceAndFlagFailure([sourceRoot, stageRoot, slice, failed]) { const outcome = copyLeaves(...); if (outcome.isErr()) failed.set(true); return outcome; }
-/// ```
-fn copy_slice_and_flag_failure(
-    (source_root, stage_root, slice, failed): (&Path, &Path, &[WorktreeCopyEntry], &AtomicBool),
-) -> Result<Vec<Option<FileStamp>>, WorktreeCopyError> {
-    let outcome: Result<Vec<Option<FileStamp>>, WorktreeCopyError> = copy_leaves(source_root, stage_root, slice, failed);
-    if outcome.is_err() {
-        failed.store(true, Ordering::Relaxed);
-    }
-    return outcome;
 }
 
 /// What:
