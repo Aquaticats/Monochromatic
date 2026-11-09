@@ -6,8 +6,9 @@
 //! and an item that awaits a Git child is what this form exists for.
 
 use super::*;
+use crate::line_sink::LineSink;
 use crate::parallel_runner::Event;
-use crate::parallel_test_support::PATIENCE;
+use crate::parallel_test_support::{PATIENCE, Rendezvous};
 use crate::test_support::{fixture, git_context, remove, repository};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -47,9 +48,8 @@ fn run_beside_each_other<R: Send + 'static>(items: Vec<u64>, work: Arc<dyn Order
 
 /// Items that wait for the time they are given say one line and return ten times their index.
 struct WaitThenSay;
-
 impl OrderedAwaitingWork<u64, u64> for WaitThenSay {
-    fn run<'a>(&'a self, index: usize, item: &'a u64, say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(&'a self, index: usize, item: &'a u64, mut say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             tokio::time::sleep(Duration::from_millis(*item)).await;
             say.say(format!("item {index}").as_str());
@@ -108,7 +108,7 @@ struct MeetTheOthers {
 }
 
 impl OrderedAwaitingWork<u64, bool> for MeetTheOthers {
-    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: LinesToTheConsumer<bool>) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         return Box::pin(async move {
             return tokio::time::timeout(PATIENCE, self.point.wait()).await.is_ok();
         });
@@ -151,7 +151,7 @@ struct EnterAndLeave {
 }
 
 impl OrderedAwaitingWork<u64, u64> for EnterAndLeave {
-    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+    fn run<'a>(&'a self, index: usize, _item: &'a u64, _say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
         return Box::pin(async move {
             self.order.lock().expect("lock").push(format!("enter {index}"));
             tokio::time::sleep(Duration::from_millis(BUSY_MILLIS)).await;
@@ -204,7 +204,7 @@ struct AskGit {
 }
 
 impl OrderedAwaitingWork<u64, Option<String>> for AskGit {
-    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: &'a mut (dyn LineSink + Send)) -> Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>> {
+    fn run<'a>(&'a self, _index: usize, _item: &'a u64, _say: LinesToTheConsumer<Option<String>>) -> Pin<Box<dyn Future<Output = Option<String>> + Send + 'a>> {
         return Box::pin(async move {
             let request: crate::transaction_git::GitRequest = crate::transaction_git::GitRequest::new(self.directory.as_path(), &["rev-parse", "--show-toplevel"]);
             let output = crate::transaction_git_awaiting::run_git_awaiting(&self.context, &request).await.ok()?;
@@ -249,4 +249,66 @@ fn an_item_may_await_a_git_child() {
     let expected: String = repo.display().to_string();
     assert_eq!(seen.answers, vec![expected; ITEMS], "every item is answered by the Git child it awaited");
     remove(root.as_path());
+}
+
+/// An item whose work is a job of the blocking pool says its lines as it works,
+/// and the consumer sees each one before the job ends.
+/// Why:
+///  A job must own what it reads (`run_blocking_job_within_the_budget`),
+/// so the sink an item says its lines through has to be a value
+/// the item can move into that job.
+struct SayFromThePool {
+    /// The point the consumer reaches when it has seen the item's line.
+    seen_by_the_consumer: Arc<Rendezvous>,
+}
+
+impl OrderedAwaitingWork<u64, u64> for SayFromThePool {
+    fn run<'a>(&'a self, index: usize, _item: &'a u64, say: LinesToTheConsumer<u64>) -> Pin<Box<dyn Future<Output = u64> + Send + 'a>> {
+        return Box::pin(async move {
+            let seen: Arc<Rendezvous> = Arc::clone(&self.seen_by_the_consumer);
+            // The job takes the sink: it is `'static`, and a sink the item owns may travel with it.
+            let said: bool = crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget(move || {
+                let mut sink: LinesToTheConsumer<u64> = say;
+                sink.say("halfway");
+                return seen.wait_for_target();
+            })
+            .await
+            .expect("the job ran");
+            assert!(said, "the consumer saw the line only after the job ended");
+            return index as u64;
+        });
+    }
+}
+
+/// Every line the consumer is handed,
+/// and the point it reaches on the first one.
+struct ArriveOnTheFirstLine {
+    /// The point the item's job waits for.
+    point: Arc<Rendezvous>,
+    /// The events as text.
+    seen: Vec<String>,
+}
+
+impl OrderedEvents<u64> for ArriveOnTheFirstLine {
+    fn on_event(&mut self, event: Event<'_, u64>) {
+        self.seen.push(match event {
+            Event::Begin(index) => format!("begin {index}"),
+            Event::Line(index, text) => {
+                self.point.arrive_without_waiting();
+                format!("line {index} {text}")
+            }
+            Event::End(index, result) => format!("end {index} {result}"),
+        });
+    }
+}
+
+/// A line said inside a job of the blocking pool reaches the consumer while that job still runs.
+#[test]
+fn a_line_said_inside_a_blocking_job_reaches_the_consumer_as_it_happens() {
+    let point: Arc<Rendezvous> = Arc::new(Rendezvous::impatient(1, PATIENCE));
+    let mut seen: ArriveOnTheFirstLine = ArriveOnTheFirstLine { point: Arc::clone(&point), seen: Vec::new() };
+    let work: Arc<SayFromThePool> = Arc::new(SayFromThePool { seen_by_the_consumer: Arc::clone(&point) });
+    run_beside_each_other(vec![0], work, &mut seen).expect("the run finished");
+    let expected: Vec<String> = vec![String::from("begin 0"), String::from("line 0 halfway"), String::from("end 0 0")];
+    assert_eq!(seen.seen, expected, "the line of a job of the blocking pool did not reach the consumer as it happened");
 }

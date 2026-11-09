@@ -12,19 +12,31 @@
 //! which inside the commit service's control group is the two
 //!  threads and the memory that unit is given,
 //! and the reasons come back in entry order (`parallel_runner.rs`).
+//! Each removal is a job of the process's blocking pool,
+//! awaited by a task of its runtime
+//!  (`parallel_runner_on_the_runtime_awaiting.rs`),
+//! so the process's one bound on blocking jobs covers it and no
+//!  thread of a runtime's own is held while a directory is emptied.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const left = await removeEntries({ inside, trash, manifest, host, remove }); // one reason per entry that stays
 //! ```
 
+use crate::blocking_jobs_within_the_budget::run_blocking_job_within_the_budget;
+use crate::lazy_runtime::run_on_runtime;
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
-use crate::line_sink::LineSink;
-use crate::parallel_runner::{Event, OrderedEvents, OrderedRun, OrderedWork, run_ordered};
+use crate::parallel_runner::{Event, OrderedEvents};
+use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
+use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
 use crate::worktree_trash_manifest::{TrashManifest, entry_name};
 use crate::worktree_trash_remove::Removal;
+use std::ffi::OsStr;
 use std::fs::File;
-use std::path::Path;
+use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 
 /// The peak resident growth of removing one flat directory of a million names (`remove_tree_beneath`,
 /// names of 42 characters,
@@ -53,7 +65,9 @@ const ENTRY_MEMORY: u64 = MEASURED_MILLION_NAME_PEAK.next_power_of_two();
 
 /// The removal of one entry beneath the trash handle,
 /// replaceable so a control can watch or delay it.
-pub type RemoveOne<'a> = dyn Fn(&Path, &File, &std::ffi::OsStr, Option<crate::fs_beneath::ObjectId>) -> Result<crate::worktree_trash_remove::Removal, String> + Sync + 'a;
+///  It is shared rather than lent because a job of the blocking pool must own what it reads,
+/// and it must be `Send` so the job that runs it may travel to another thread.
+pub type RemoveOne = dyn Fn(&Path, &File, &OsStr, Option<crate::fs_beneath::ObjectId>) -> Result<crate::worktree_trash_remove::Removal, String> + Send + Sync;
 
 /// What:
 ///  What the removal of a trash's entries is told.
@@ -63,56 +77,75 @@ pub type RemoveOne<'a> = dyn Fn(&Path, &File, &std::ffi::OsStr, Option<crate::fs
 /// its manifest,
 /// the host the budget is derived from,
 /// and the removal of one entry.
+///  Every field is owned so the value can outlive the call:
+/// the items of the run are jobs of the blocking pool,
+/// which must be `'static`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// type EntryRemoval = { inside: string; trash: Dir; manifest: TrashManifest; host: HostResources; remove: RemoveOne };
 /// ```
-pub struct EntryRemoval<'a> {
+pub struct EntryRemoval {
     /// The path of the trash directory,
     /// for messages.
-    pub inside: &'a Path,
+    pub inside: PathBuf,
     /// The trash directory,
     /// held open;
     /// every entry is opened by name below it.
-    pub trash: &'a File,
+    pub trash: Arc<File>,
     /// What the leave-out recorded.
-    pub manifest: &'a TrashManifest,
+    pub manifest: Arc<TrashManifest>,
     /// The CPUs and memory the budget is derived from.
-    pub host: &'a HostResources,
+    pub host: HostResources,
     /// The removal of one entry.
-    pub remove: &'a RemoveOne<'a>,
+    pub remove: Arc<RemoveOne>,
 }
 
 /// What:
 ///  The removal of one trash entry,
-/// run by a worker of the ordered runner.
+/// run by a task of the awaited ordered runner.
 /// Why:
 ///   The trash handle,
 /// the manifest and the removal are what the removal reads;
-/// the runner shares them among its worker threads.
+/// the runner shares them with its tasks,
+///  and each job takes its own share of them before it goes to the pool.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// class RemoveEachEntry implements OrderedWork<number, Result<Removal>> { run(slot, index) { return remove(inside, trash, entryName(index), manifest.entries[index]); } }
+/// class RemoveEachEntry implements OrderedAwaitingWork<number, Result<Removal>> { async run(slot, index) { return await runBlockingJobWithinTheBudget(() => remove(inside, trash, entryName(index), manifest.entries[index])); } }
 /// ```
-struct RemoveEachEntry<'a> {
+struct RemoveEachEntry {
     /// The path of the trash directory,
     /// for messages.
-    inside: &'a Path,
+    inside: PathBuf,
     /// The trash directory,
     /// held open;
     /// every entry is opened by name below it.
-    trash: &'a File,
+    trash: Arc<File>,
     /// What the leave-out recorded.
-    manifest: &'a TrashManifest,
+    manifest: Arc<TrashManifest>,
     /// The removal of one entry.
-    remove: &'a RemoveOne<'a>,
+    remove: Arc<RemoveOne>,
 }
 
-impl OrderedWork<usize, Result<Removal, String>> for RemoveEachEntry<'_> {
-    fn run(&self, _slot: usize, index: &usize, _say: &mut dyn LineSink) -> Result<Removal, String> {
-        return (self.remove)(self.inside, self.trash, std::ffi::OsStr::new(entry_name(*index).as_str()), Some(self.manifest.entries[*index]));
+impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
+    fn run<'a>(&'a self, _index: usize, index: &'a usize, _say: LinesToTheConsumer<Result<Removal, String>>) -> Pin<Box<dyn Future<Output = Result<Removal, String>> + Send + 'a>> {
+        return Box::pin(async move {
+            let inside: PathBuf = self.inside.clone();
+            let trash: Arc<File> = Arc::clone(&self.trash);
+            let manifest: Arc<TrashManifest> = Arc::clone(&self.manifest);
+            let remove: Arc<RemoveOne> = Arc::clone(&self.remove);
+            let entry: usize = *index;
+            let removal = run_blocking_job_within_the_budget(move || {
+                return (remove)(inside.as_path(), trash.as_ref(), OsStr::new(entry_name(entry).as_str()), Some(manifest.entries[entry]));
+            })
+            .await;
+            return match removal {
+                Ok(outcome) => outcome,
+                // Which entry this was is what makes the reason usable, since the list keeps no index.
+                Err(refused) => Err(format!("{}: {refused}", entry_name(entry))),
+            };
+        });
     }
 }
 
@@ -120,7 +153,7 @@ impl OrderedWork<usize, Result<Removal, String>> for RemoveEachEntry<'_> {
 ///  Keeps the reason of each entry that stays,
 /// in entry order.
 /// Why:
-///   The runner reports on the calling thread only and in input order,
+///   The runner reports on the calling task only and in input order,
 /// so the list needs no lock and keeps entry order.
 ///
 /// In TS you'd write (pseudocode):
@@ -152,28 +185,59 @@ impl OrderedEvents<Result<Removal, String>> for KeepReasonsOfEntriesThatStay<'_>
 ///  state but the held trash handle,
 /// which opens each by its own name.
 /// A reason for one never stops the others.
+/// The callers of this face are synchronous (the copy path of a worktree and the service's
+/// handler),
+///  so it enters the process's runtime once and waits there;
+/// from inside the runtime it refuses,
+///  and `remove_entries_awaiting` is the face such a caller uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const left = await removeEntries({ inside, trash, manifest, host, remove }); // one reason per entry that stays
 /// ```
-pub fn remove_entries(request: &EntryRemoval<'_>) -> Vec<String> {
-    let EntryRemoval { inside, trash, manifest, host, remove } = *request;
-    let indices: Vec<usize> = (0..manifest.entries.len()).collect();
+pub fn remove_entries(request: &EntryRemoval) -> Vec<String> {
+    return match run_on_runtime(remove_entries_awaiting(request)) {
+        Ok(left) => left,
+        // No entry was removed, and the runtime's own reason is why they all stay.
+        Err(refusal) => vec![refusal.to_string()],
+    };
+}
+
+/// What:
+///  `remove_entries` on the runtime:
+/// every entry is a task of the awaited ordered runner,
+/// and each removal is one job of the blocking pool inside its task.
+/// Why:
+///   A caller that is itself asynchronous (the service's work loop when it lands on the runtime)
+/// cannot enter the runtime,
+///  so it awaits this face;
+/// the lines and the reasons are the synchronous face's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// async function removeEntriesAwaiting(request: EntryRemoval): Promise<string[]>;
+/// ```
+pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
+    let indices: Arc<[usize]> = Arc::from((0..request.manifest.entries.len()).collect::<Vec<usize>>());
     // One lane per entry, so no entry waits for another.
     let mut lanes: Vec<Vec<usize>> = Vec::new();
-    for index in &indices {
+    for index in indices.iter() {
         lanes.push(vec![*index]);
     }
-    let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host });
+    let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &request.host });
     let mut left: Vec<String> = Vec::new();
-    run_ordered(OrderedRun {
-        items: indices.as_slice(),
-        lanes: lanes.as_slice(),
+    let removed = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+        items: indices,
+        lanes: Arc::from(lanes),
         workers,
-        work: &RemoveEachEntry { inside, trash, manifest, remove },
+        work: Arc::new(RemoveEachEntry { inside: request.inside.clone(), trash: Arc::clone(&request.trash), manifest: Arc::clone(&request.manifest), remove: Arc::clone(&request.remove) }),
         on_event: &mut KeepReasonsOfEntriesThatStay { left: &mut left },
-    });
+    })
+    .await;
+    if let Err(stopped) = removed {
+        // The entries the run did not reach stay, so what ended the run is a reason among the others.
+        left.push(format!("the removal of the other entries stopped: {stopped}"));
+    }
     return left;
 }
 
