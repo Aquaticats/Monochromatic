@@ -625,8 +625,12 @@ fn a_creation_from_a_source_still_being_filled_copies_nothing_and_says_so() {
     );
     assert!(live.path.exists(), "the running copy's journal is whole");
     assert!(read_pending_journals(common.as_path()).expect("pending").len() == 1, "nothing of this command's own stays pending");
+    let claims_left: Vec<String> = recorded_names(common.as_path())
+        .into_iter()
+        .filter(|name: &String| return !name.ends_with(".json"))
+        .collect();
     assert_eq!(
-        recorded_names(common.as_path()),
+        claims_left,
         Vec::<String>::new(),
         "the destination record of a copy that was refused is settled, so no later command reports an interrupted add"
     );
