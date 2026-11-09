@@ -1,10 +1,16 @@
 # Linux 7.2.15, `statx(2)` of a `/proc/<pid>/fd/<n>` link: a stalled FUSE or NFS server holds the read for ever, and no signal ends it
 
 A read of a descriptor's file attributes through the path of its `/proc/<pid>/fd` link waits on the file system's own
-dentry revalidation, so a FUSE server that has stopped, or an NFS server that is unreachable, holds that read in
-uninterruptible sleep with no deadline, and `SIGTERM` does not end it.
-A read of the same open file through a copy of the descriptor, with `statx(2)` and `AT_EMPTY_PATH` plus
-`AT_STATX_DONT_SYNC`, answers in milliseconds from what the kernel already holds.
+dentry revalidation,
+so a FUSE server that has stopped,
+or an NFS server that is unreachable,
+holds that read in
+uninterruptible sleep with no deadline,
+and `SIGTERM` does not end it.
+A read of the same open file through a copy of the descriptor,
+with `statx(2)` and `AT_EMPTY_PATH` plus
+`AT_STATX_DONT_SYNC`,
+answers in milliseconds from what the kernel already holds.
 
 ## Symptom
 
@@ -19,15 +25,20 @@ $ ps -o pid,stat,wchan:24,comm -p 1733568
 
 Nothing that runs a deadline helps.
 `timeout 5 stat /proc/<pid>/fd/3` and `timeout 5 python3 statx_probe.py /proc/<pid>/fd/3 0x4000` both outlive their
-deadline: the process is asleep in the kernel, so the signal stays pending until the request is answered.
+deadline:
+the process is asleep in the kernel,
+so the signal stays pending until the request is answered.
 Only aborting the FUSE connection ends it.
 Measured here on 2026-11-09,
 one such read stayed asleep for a whole 25-minute window with the server stopped,
 and a second run of the same probe for 71 minutes;
 the connection was aborted from outside in both cases.
 
-The same hazard reaches a program that never touches the stalled mount: a scan that identifies a *lock* by the device
-and inode it has, and resolves every descriptor whose record names that inode number, asks each descriptor's file
+The same hazard reaches a program that never touches the stalled mount:
+a scan that identifies a *lock* by the device
+and inode it has,
+and resolves every descriptor whose record names that inode number,
+asks each descriptor's file
 system for attributes.
 Any unrelated mount can then hold the scan.
 
@@ -43,7 +54,9 @@ static int proc_fd_link(struct dentry *dentry, struct path *path,
 ```
 
 and [fs/proc/fd.c:214](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/proc/fd.c#L214) puts it on the descriptor's inode (`ei->op.proc_get_link = proc_fd_link;`).
-A walk that follows it does not look the file up by name, but the VFS still revalidates the dentry it lands on, in the
+A walk that follows it does not look the file up by name,
+but the VFS still revalidates the dentry it lands on,
+in the
 walk itself ([fs/namei.c:1036, `d_revalidate`](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/namei.c#L1036-L1043)):
 
 ```c
@@ -58,13 +71,16 @@ which sends `FUSE_LOOKUP` at [fs/fuse/dir.c:432](https://github.com/torvalds/lin
 		fuse_lookup_init(&args, get_node_id(dir), name, &outarg);
 ```
 
-A stopped or dead server never answers, and the walk does not come back.
-No `statx` flag reaches this step: the flags govern the attribute read that follows
+A stopped or dead server never answers,
+and the walk does not come back.
+No `statx` flag reaches this step:
+the flags govern the attribute read that follows
 ([fs/stat.c:181](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/stat.c#L181-L219),
 `vfs_getattr_nosec`,
 which narrows them to `AT_STATX_SYNC_TYPE` and hands them to the file system's `getattr`).
 
-`AT_STATX_DONT_SYNC` does govern the attribute read, and both file systems that can stall honour it.
+`AT_STATX_DONT_SYNC` does govern the attribute read,
+and both file systems that can stall honour it.
 FUSE ([fs/fuse/dir.c:1558](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/fuse/dir.c#L1558-L1567)):
 
 ```c
@@ -87,16 +103,24 @@ and NFS ([fs/nfs/inode.c:986](https://github.com/torvalds/linux/blob/7475ea8b586
 ```
 
 with `generic_fillattr` at [fs/nfs/inode.c:1052](https://github.com/torvalds/linux/blob/7475ea8b58616b33c04afb976cf0fbaad9dd63fb/fs/nfs/inode.c#L1052-L1058) and FUSE's equivalent on the same `sync = false` path.
-That is why a *descriptor* read answers and a *path* read does not: the path reaches the same `getattr` only after the
+That is why a *descriptor* read answers and a *path* read does not:
+the path reaches the same `getattr` only after the
 walk has already asked the server to revalidate the entry.
 
 ### An earlier reading that was wrong
 
-The first reading of this was that `AT_STATX_DONT_SYNC` bounds the read of the path too, because the flag means "do not
-synchronise, take what is cached".
-The measurement disproved it: with the server stopped, the path read blocked with the flag set (5006 ms, ended only by
-the probe's own `timeout`), while the descriptor read of the same file answered in 21 ms.
-The flag is honoured by `getattr`; the walk's `d_revalidate` is a separate ask that no `statx` flag covers.
+The first reading of this was that `AT_STATX_DONT_SYNC` bounds the read of the path too,
+because the flag means "do not
+synchronise,
+take what is cached".
+The measurement disproved it:
+with the server stopped,
+the path read blocked with the flag set (5006 ms,
+ended only by
+the probe's own `timeout`),
+while the descriptor read of the same file answered in 21 ms.
+The flag is honoured by `getattr`;
+the walk's `d_revalidate` is a separate ask that no `statx` flag covers.
 
 ## Verification
 
@@ -111,17 +135,25 @@ $ fusermount3 --version
 fusermount3 version: 3.18.3
 ```
 
-Harness: a FUSE overlay served by `fuse-overlayfs` inside a **private** mount namespace
+Harness:
+a FUSE overlay served by `fuse-overlayfs` inside a **private** mount namespace
 (`unshare --mount --user --map-root-user --propagation private`),
-a file in it opened by a process of the same account, a `statx(2)` probe written with `ctypes`
-(`AT_FDCWD` for a path, `AT_EMPTY_PATH` for a descriptor), and the server stopped with `SIGSTOP` after the mount's
+a file in it opened by a process of the same account,
+a `statx(2)` probe written with `ctypes`
+(`AT_FDCWD` for a path,
+`AT_EMPTY_PATH` for a descriptor),
+and the server stopped with `SIGSTOP` after the mount's
 attribute timeout had passed.
 
-A private namespace is required, not optional: a FUSE mount created in the shared mount table propagates to every
-process on the host, and a stopped server there hung another agent's `find` under the same tree while this was being
+A private namespace is required,
+not optional:
+a FUSE mount created in the shared mount table propagates to every
+process on the host,
+and a stopped server there hung another agent's `find` under the same tree while this was being
 investigated.
 
-Patterns that answer, with the same stalled mount:
+Patterns that answer,
+with the same stalled mount:
 
 ```text
 $ python3 statx_probe.py /proc/self/fd/7 0x4000     # AT_STATX_DONT_SYNC
@@ -132,7 +164,8 @@ $ python3 -c 'import os,sys; os.lstat(sys.argv[1])' /proc/self/fd/7
                                                       #  10 ms, the link's own procfs inode
 ```
 
-Patterns that do not answer, with the same stalled mount:
+Patterns that do not answer,
+with the same stalled mount:
 
 ```text
 $ timeout 5 python3 statx_probe.py /proc/self/fd/7 0x0000   # following the link, sync
@@ -152,15 +185,19 @@ and the rest were checked line by line against the raw file at the same commit
 `7475ea8b58616b33c04afb976cf0fbaad9dd63fb`,
 because GitHub's viewer renders only a window of a very large file such as `fs/nfs/inode.c`).
 
-NFS was read from the source only: no NFS server was available on this host, so the `nfs_getattr` branch above is not
+NFS was read from the source only:
+no NFS server was available on this host,
+so the `nfs_getattr` branch above is not
 measured here.
-Its `goto out_no_revalidate` answers before any request is sent, which is what `statx(2)` documents of the flag.
+Its `goto out_no_revalidate` answers before any request is sent,
+which is what `statx(2)` documents of the flag.
 
 ## Verified workarounds
 
 ### Copy the descriptor, then read it in memory
 
-`pidfd_getfd(2)` copies another process's descriptor into this one without walking a path, and `statx(2)` on the copy
+`pidfd_getfd(2)` copies another process's descriptor into this one without walking a path,
+and `statx(2)` on the copy
 with `AT_EMPTY_PATH` and `AT_STATX_DONT_SYNC` asks only for what the kernel holds.
 This is what `src/native/process/open_file_of_a_descriptor.rs` of this repository does.
 
@@ -175,50 +212,92 @@ unsafe { libc::statx(copied.as_raw_fd(), b"\0".as_ptr().cast(),
 
 Tradeoffs:
 
-- `pidfd_getfd(2)` needs the permission a scan of `/proc/<pid>/fd` already needs (the same account, `ptrace_may_access`
-  with `PTRACE_MODE_ATTACH_REALCREDS`, and a target that has not hidden itself with `PR_SET_DUMPABLE`).
-  A refusal must be read as "this process cannot be looked into", never as "this process does not hold the file":
-  the first leaves a lock unproven, the second would delete a live lock.
-- It needs Linux 5.6 or later, and a sandbox whose seccomp filter allows `pidfd_getfd`.
-- The copy is a reference to the same open file, so nothing on the file system is touched on the way in or out.
+- `pidfd_getfd(2)` needs the permission a scan of `/proc/<pid>/fd` already needs (the same account,
+  `ptrace_may_access`
+  with `PTRACE_MODE_ATTACH_REALCREDS`,
+  and a target that has not hidden itself with `PR_SET_DUMPABLE`).
+  A refusal must be read as "this process cannot be looked into",
+  never as "this process does not hold the file":
+  the first leaves a lock unproven,
+  the second would delete a live lock.
+- It needs Linux 5.6 or later,
+  and a sandbox whose seccomp filter allows `pidfd_getfd`.
+- The copy is a reference to the same open file,
+  so nothing on the file system is touched on the way in or out.
 - `AT_STATX_DONT_SYNC` can return attributes up to the file system's cache timeout out of date.
-  For a device number and an inode that is what the scan wants: they do not change while the file is open.
+  For a device number and an inode that is what the scan wants:
+  they do not change while the file is open.
 
 ### Do not resolve a descriptor at all
 
-A scan that treats every descriptor it cannot answer for as an unreadable process is bounded by construction, since it
+A scan that treats every descriptor it cannot answer for as an unreadable process is bounded by construction,
+since it
 never touches the file system.
-The tradeoff is the live-holder veto: a program that holds the file open would no longer be found, and a lock it holds
+The tradeoff is the live-holder veto:
+a program that holds the file open would no longer be found,
+and a lock it holds
 would be reported unproven rather than held.
 
 ## What does not work
 
-- `timeout` and `SIGTERM`: the thread is asleep in the kernel, so the signal waits for the answer (measured: 25 minutes,
-  then 71 minutes on a second run, both ended only by aborting the FUSE connection).
-- A worker thread with a deadline: the caller is unblocked, but the thread never returns, the mount cannot be unmounted
-  while the request is pending, and a program that then needs the same path waits behind it.
-- `statx(2)` with `AT_STATX_DONT_SYNC` on the path: blocks in the walk (measured 5006 ms).
-- `AT_SYMLINK_NOFOLLOW` on the link: answers at once, with the procfs link's own inode, which says nothing about the
+- `timeout` and `SIGTERM`:
+  the thread is asleep in the kernel,
+  so the signal waits for the answer (measured:
+  25 minutes,
+  then 71 minutes on a second run,
+  both ended only by aborting the FUSE connection).
+- A worker thread with a deadline:
+  the caller is unblocked,
+  but the thread never returns,
+  the mount cannot be unmounted
+  while the request is pending,
+  and a program that then needs the same path waits behind it.
+- `statx(2)` with `AT_STATX_DONT_SYNC` on the path:
+  blocks in the walk (measured 5006 ms).
+- `AT_SYMLINK_NOFOLLOW` on the link:
+  answers at once,
+  with the procfs link's own inode,
+  which says nothing about the
   file.
-- `readlink(2)` and comparing the text: a bind mount, another mount namespace, a rename and a deleted file all make the
-  text an ambiguous name for the file, so a holder is missed or another file is taken for it.
+- `readlink(2)` and comparing the text:
+  a bind mount,
+  another mount namespace,
+  a rename and a deleted file all make the
+  text an ambiguous name for the file,
+  so a holder is missed or another file is taken for it.
 
 ## Upstream filing decision
 
 Nothing is filed.
 Walk of the six constraints:
 
-1. **Is it really upstream's fault?** No. The `d_revalidate` in the walk is by design, `statx(2)` documents
-   `AT_STATX_DONT_SYNC` as "on a network filesystem, it may not involve a round trip", and the kernel offers the
-   descriptor route that answers without a walk. This is behaviour of the interface, not a defect in it.
-2. **Can upstream fix it?** It could add a flag that forbids dentry revalidation, but nothing is broken that a fix
-   would repair, so this constraint is not reached.
-3. **Are they supporting this use case?** Yes: `AT_STATX_DONT_SYNC` exists for callers that must not wait, and
-   `pidfd_getfd(2)` exists for callers that need another process's open file.
-4. **Would the repo welcome our contribution?** Not reached, since there is nothing to contribute.
-5. **Do we have a reproduction they can run?** The harness above is ours and needs a private mount namespace, a
-   `fuse-overlayfs` build and a stopped server; it reproduces a documented behaviour rather than a bug.
-6. **Is a filing in the public interest?** No. It would report a design as a bug.
+1. **Is it really upstream's fault?**
+   No. The `d_revalidate` in the walk is by design,
+   `statx(2)` documents `AT_STATX_DONT_SYNC` as "on a network filesystem,
+   it may not involve a round trip",
+   and the kernel offers the descriptor route that answers without a walk.
+   This is behaviour of the interface,
+   not a defect in it.
+2. **Can upstream fix it?**
+   It could add a flag that forbids dentry revalidation,
+   but nothing is broken that a fix would repair,
+   so this constraint is not reached.
+3. **Are they supporting this use case?**
+   Yes:
+   `AT_STATX_DONT_SYNC` exists for callers that must not wait,
+   and `pidfd_getfd(2)` exists for callers that need another process's open file.
+4. **Would the repo welcome our contribution?**
+   Not reached,
+   since there is nothing to contribute.
+5. **Do we have a reproduction they can run?**
+   The harness above is ours,
+   it needs a private mount namespace,
+   a `fuse-overlayfs` build and a stopped server,
+   and it reproduces a documented behaviour rather than a bug.
+6. **Is a filing in the public interest?**
+   No.
+   It would report a design as a bug.
 
-The durable lesson is ours: never read a descriptor's file through the path of its `/proc` link, and never create a
-FUSE mount outside a private mount namespace.
+The durable lesson is ours:
+never read a descriptor's file through the path of its `/proc` link,
+and never create a FUSE mount outside a private mount namespace.

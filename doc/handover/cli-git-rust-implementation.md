@@ -208,15 +208,27 @@ The old tree kept for the rollback stays until the owner deletes it.
   `doc/planning/cli-git-subvolume-and-conversion-route-findings-on-main.md`
   and `doc/planning/cli-git-worktree-add-route-findings-on-main.md`.
 - `fix/git-policy-cli-lock-proofs-cover-reftable-clock-steps-and-descriptors`:
-  its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed.
-  Its tests on top of main and the review `locks-and-transactions-round-1` are running;
-  the first attempt at that review crashed on `ELOCKED` for `/home/user/.pi/agent` and reviewed nothing.
+  its agent reports the four findings of `doc/planning/cli-git-locks-and-transactions-route-findings-on-main.md` fixed,
+  and then fixed the three findings of the first cross-vendor review
+  (`${HOME}/temp/agent/reviews/locks-and-transactions-round-1-sol.txt`),
+  all three of which held:
+  a forward clock step no longer authorizes removing a reference lock
+  (`Proof::PidReused` is gone,
+  and a running program that is not named like Git leaves the lock unproven),
+  a process number that matches a stopped child's is no longer taken for that child
+  (only a lock the wrapper saw held before the stop is removed on that proof),
+  and a descriptor's file is read through `pidfd_getfd(2)` and `statx(2)` with `AT_EMPTY_PATH` and
+  `AT_STATX_DONT_SYNC` instead of the path of its `/proc` link,
+  which a stopped FUSE or NFS server held for ever
+  (`doc/troubleshooting/fuse-descriptor-attributes.md`).
+  The review's own narrower rule for a reused number was weighed and rejected in `SPEC.md`:
+  a live Git holds its reference locks with no descriptor open,
+  so a scan that finds no holder says nothing about it.
+  294 `lock::`,
+  122 `process::` and
+  84 `transaction::` tests pass with the package's lint clean.
   The audit's disagreement with `doc/decision/cli-git-concurrent-commits.md:166`
-  ("cli-git never deletes a lock") waits for the owner.
-  The agent left one proof alone for the owner:
-  `stale_ref_lock_judge::judge_listed_pid` still compares a start with a change time for `Proof::PidReused`,
-  and that proof removes a lock,
-  so a forward clock step can remove a live reference lock.
+  ("cli-git never deletes a lock") still waits for the owner.
 
 - `fix/git-policy-cli-service-work-items-keep-path-bytes`:
   it breaks `provisioning_notes_which_worktree_the_units_are_for`,
