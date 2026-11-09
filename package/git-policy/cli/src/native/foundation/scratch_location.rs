@@ -443,6 +443,9 @@ fn assert_private_directory(path: &Path) -> std::io::Result<()> {
 ///  Each removal goes through `remove_within`,
 ///  so an entry whose deletion stalls costs the caller `ceiling` and no more,
 ///  and what did not finish stays for a later sweep.
+///  Which entry may go is `service_scratch_abandonment::may_go`'s to decide,
+///  the same decision the collection a preparation does makes,
+///  so a tree whose owner still runs is kept however old it is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -473,16 +476,9 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
                 continue;
             }
         };
-        // An entry whose age cannot be told is never old enough to remove.
-        let age: Option<Duration> = match metadata.modified() {
-            Ok(modified) => now.duration_since(modified).ok(),
-            Err(_unsupported) => None,
-        };
-        let old_enough: bool = match age {
-            Some(found) => found > max_age,
-            None => false,
-        };
-        if !old_enough {
+        // One decision, shared with the collection a preparation does: a commit tree stays while the command that made it runs,
+        //  however old it is, and every other entry of the place goes by its age.
+        if !crate::service_scratch_abandonment::may_go(path.as_path(), &metadata, now, max_age) {
             continue;
         }
         // The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the entry to the

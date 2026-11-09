@@ -96,6 +96,51 @@ fn older_than_the_unmarked_age(age: Duration) -> bool {
 }
 
 /// What:
+///  Whether the entry at `path`, listed with `metadata`,
+///  may be removed now:
+///  the one decision the sweep of a scratch place and the collection a preparation does both make.
+/// Why:
+///   Two rules that disagree undo each other:
+///  a sweep that removed a tree by its age alone took the private index and the typed message of a command that still runs,
+///  because age says nothing about the command that made the tree.
+///  A commit tree therefore goes only when its marker names a process `/proc` proves is gone,
+///  or, with no marker at all, once it is older than `UNMARKED_SCRATCH_TREE_AGE`;
+///  a live command's tree stays however old it is,
+///  and one whose marker the reader cannot judge stays too,
+///  which keeps a live command's work rather than taking it.
+///  Every other entry of a scratch place is the wrapper's own and goes by the age the caller gives it,
+///  because nothing else ever collects it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mayGo(entry, metadata, now, day) // true when nothing may still read it
+/// ```
+pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_age: Duration) -> bool {
+    let name: Option<&str> = path.file_name().and_then(std::ffi::OsStr::to_str);
+    let named_a_tree: bool = name
+        .and_then(|text| { return text.strip_prefix(SERVICE_SCRATCH_PREFIX); })
+        .is_some_and(|identity| { return !identity.is_empty() && identity.as_bytes().iter().all(is_identity_byte); })
+        && metadata.is_dir();
+    // An entry whose age cannot be told is never old enough to remove, and one dated in the future is kept: a wrong clock must
+    //  not delete live files.
+    let age: Option<Duration> = metadata.modified().ok().and_then(|modified| { return now.duration_since(modified).ok(); });
+    if !named_a_tree {
+        return age.is_some_and(|found| { return found > max_age; });
+    }
+    let marker: PathBuf = path.join(OWNER_MARKER);
+    if is_reclaimable(marker.as_path()) {
+        return true;
+    }
+    // A marker this reader can parse names a process, and only `/proc` may then decide: age never does, because a commit can hold
+    //  a tree while a person leaves an editor open in it.
+    let marked: bool = marker.try_exists().unwrap_or(true);
+    if marked {
+        return false;
+    }
+    return age.is_some_and(older_than_the_unmarked_age);
+}
+
+/// What:
 ///  Removes the commit scratch trees of `directory` that belong to no live command,
 ///  oldest first,
 ///  at most `SCRATCH_TREES_REMOVED_PER_COMMAND` of them,
@@ -106,6 +151,8 @@ fn older_than_the_unmarked_age(age: Duration) -> bool {
 ///  A tree a live command holds is left alone however old it is,
 ///  and so is one whose marker names a process the reader cannot judge,
 ///  which keeps it rather than taking a live command's work.
+///  `may_go` is the same decision the sweep of the place makes,
+///  so the two cannot disagree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -135,16 +182,10 @@ pub fn remove_abandoned_trees(directory: &Path) -> usize {
         if !metadata.is_dir() {
             continue;
         }
-        let Ok(modified) = metadata.modified() else { continue };
-        // A tree this release made carries the marker of the command that made it, and that command's own liveness is the only
-        //  thing that may decide its fate: age never does, because a commit can hold a tree while a person leaves an editor open
-        //  in it.
-        let marked: bool = path.join(OWNER_MARKER).try_exists().unwrap_or(true);
-        let unmarked_and_old: bool = !marked && now.duration_since(modified).is_ok_and(older_than_the_unmarked_age);
-        let owned_by_a_dead_process: bool = is_reclaimable(path.join(OWNER_MARKER).as_path());
-        if !unmarked_and_old && !owned_by_a_dead_process {
+        if !may_go(path.as_path(), &metadata, now, UNMARKED_SCRATCH_TREE_AGE) {
             continue;
         }
+        let Ok(modified) = metadata.modified() else { continue };
         candidates.push((modified, path));
     }
     candidates.sort_by(oldest_first);

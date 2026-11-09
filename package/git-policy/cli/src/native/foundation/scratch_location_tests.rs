@@ -168,6 +168,33 @@ fn the_sweep_removes_only_stale_entries_and_never_follows_links() {
     remove(root.as_path());
 }
 
+/// A sweep keeps the tree of a command that still runs however old that tree is,
+/// and takes one whose owner is gone without waiting for an age:
+/// the sweep and the collection a preparation does are one decision,
+/// and age alone must never take a live command's private index and typed message.
+#[test]
+fn a_sweep_keeps_a_live_commands_tree_and_takes_a_gone_ones() {
+    let root: PathBuf = fixture("scratch-sweep-owner");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(&common).expect("common directory");
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    std::fs::create_dir_all(&scratch).expect("scratch directory");
+    let live: PathBuf = scratch.join("monochromatic-git-policy-cli-service-live1");
+    std::fs::create_dir_all(&live).expect("a live command's tree");
+    std::fs::write(live.join("commit.index"), b"index").expect("a file in the tree");
+    crate::service_scratch_abandonment::mark_the_owner(live.as_path());
+    // A commit can hold its tree past any age, so the sweep's day proves nothing about the command that made it.
+    age(live.as_path(), SCRATCH_STALE_AFTER * 2);
+    let dead: PathBuf = scratch.join("monochromatic-git-policy-cli-service-dead1");
+    std::fs::create_dir_all(&dead).expect("a killed command's tree");
+    let gone: String = format!("{}{}0 0 1.1:0\n", crate::service_index_marker::LOCK_MARKER, crate::service_index_marker::MARKER_VERSION);
+    std::fs::write(dead.join("owner"), gone.as_bytes()).expect("a marker naming a process that is gone");
+    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
+    assert!(live.exists(), "a live command's tree stays however old it is");
+    assert!(!dead.exists(), "a tree whose owner is gone goes without waiting for an age");
+    remove(root.as_path());
+}
+
 /// A missing directory sweeps nothing and does not fail.
 #[test]
 fn sweeping_a_missing_directory_removes_nothing() {
@@ -386,12 +413,13 @@ fn a_sweep_removes_within_its_ceiling_and_leaves_what_it_cannot() {
     assert_eq!(removed, 0, "an entry whose removal outlasts the ceiling is not counted as removed");
     assert_eq!(outside_the_phases().removals_that_did_not_finish, before + 1, "the removal went through the bounded one and said so");
     assert!(tree.exists(), "what the ceiling cut short stays for a later sweep");
-    // A later sweep, given the ceiling a caller really gives it, removes what it finds.
-    let later: PathBuf = scratch.join("cli-git-later");
+    // A later sweep, given the ceiling a caller really gives it, removes an entry it finds stale.
+    let second: PathBuf = root.join("second-scratch");
+    let later: PathBuf = second.join("cli-git-later");
     std::fs::create_dir_all(&later).expect("later tree");
     std::fs::write(later.join("entry"), b"x").expect("an entry");
     age(later.as_path(), SCRATCH_STALE_AFTER * 2);
-    assert_eq!(sweep_stale(scratch.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
+    assert_eq!(sweep_stale(second.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING), 1);
     assert!(!later.exists(), "a stale entry goes within the ceiling");
     remove(root.as_path());
 }
