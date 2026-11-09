@@ -162,7 +162,8 @@ struct RewriteEachIndex {
 }
 
 /// What:
-///  How many rewrites gave no result, by the kind of end,
+///  How many rewrites gave no result,
+/// by the kind of end,
 /// because the two kinds promise different things about the person's files.
 /// Why:
 ///   A job that never started left its index alone.
