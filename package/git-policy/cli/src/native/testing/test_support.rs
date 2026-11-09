@@ -203,28 +203,6 @@ pub(crate) fn this_test_binary() -> std::io::Result<PathBuf> {
     return std::env::current_exe();
 }
 
-/// What:
-///  This test binary started on one test,
-/// with `variable` set so the child knows it is the child.
-/// Why:
-///  A descriptor,
-///  a signal mask and a record of one process belong to that process,
-/// so each control of them runs its own body in a child and
-///  asserts what the parent sees.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// spawnSync(process.execPath, [binary, '--exact', name], { env: { [variable]: '1' } })
-/// ```
-pub(crate) fn child_this_test(variable: &str, name: &str) -> std::process::Output {
-    let binary: PathBuf = this_test_binary().expect("the test binary");
-    return std::process::Command::new(binary)
-        .args(["--exact", name, "--nocapture", "--test-threads=1"])
-        .env(variable, "1")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("the child test runs");
-}
 
 /// Create one empty fixture directory owned by this test process and test name,
 ///  under a prefix that keeps the fixtures of different support modules apart.
@@ -296,35 +274,6 @@ pub(crate) fn shown_notices(notices: Vec<crate::push_failure_notice::Notice>) ->
     return texts;
 }
 
-/// Run real Git in a fixture with no system or global configuration and a fixed identity.
-pub(crate) fn git_output<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
-    return Command::new(REAL_GIT)
-        .current_dir(directory)
-        .env_clear()
-        .env("PATH", "/usr/bin:/bin")
-        .env("GIT_CONFIG_NOSYSTEM", "1")
-        .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
-        .env("GIT_AUTHOR_NAME", "Fixture")
-        .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
-        .env("GIT_COMMITTER_NAME", "Fixture")
-        .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
-        .args(arguments)
-        .output()
-        .expect("native Git fixture command");
-}
-
-/// Run real Git in a fixture and require success.
-pub(crate) fn git<S: AsRef<OsStr>>(directory: &Path, arguments: &[S]) -> Output {
-    let output: Output = git_output(directory, arguments);
-    assert!(
-        output.status.success(),
-        "git {:?} failed: {}",
-        arguments.iter().map(AsRef::as_ref).collect::<Vec<&OsStr>>(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    return output;
-}
-
 /// Create a repository with one empty commit on `main` inside a fixture directory.
 pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
     let root: PathBuf = parent.join(name);
@@ -343,6 +292,15 @@ pub(crate) fn repository(parent: &Path, name: &str) -> PathBuf {
 /// The one writer of executable fixture files,
 /// shared with the binary-level controls.
 #[cfg(unix)]
+#[path = "fixture_git_commands.rs"]
+pub(crate) mod fixture_git_commands;
+
+/// Run real Git in a fixture with no system or global configuration and a fixed identity.
+pub(crate) use fixture_git_commands::{git, git_output};
+
+#[path = "child_test_process.rs"]
+pub(crate) mod child_test_process;
+
 #[path = "fixture_executable.rs"]
 mod fixture_executable;
 
