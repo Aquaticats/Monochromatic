@@ -94,7 +94,8 @@ Versions:
 libfuzzer-sys 0.4.13 (`package/git-policy/cli.fuzz/Cargo.lock`),
 cargo-fuzz 0.13.2,
 podman 6.1.3,
-rustc 1.101.0-nightly (19833af72 2026-10-20).
+rustc 1.102.0-nightly (f5cedb83a 2026-11-07),
+the version the campaign's `manifest.json` records.
 
 The failing case is the campaign itself:
 one unit of `wrapper_controls` in its container,
