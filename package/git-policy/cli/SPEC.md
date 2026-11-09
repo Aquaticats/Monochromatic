@@ -9083,6 +9083,15 @@ and leave one audit line each
   Untracked and ignored files are deliberately not counted:
   walking them is what would make a removal of a large worktree slow,
   and the record says what it counted rather than claiming the worktree was clean.
+  Both files are read only when they are regular files,
+  and each is opened without waiting (`O_NONBLOCK`) and read up to 4,096 bytes:
+  a FIFO named `.git` with no writer, or one whose writer never writes, would otherwise
+  hold the removal for ever,
+  and a record that cannot be completed is left out rather than waited for.
+  A relative `gitdir:` pointer is resolved against the worktree that holds it,
+  as Git resolves it,
+  so the `HEAD` named is that worktree's,
+  and a pointer Git would refuse names no `HEAD` at all.
 - `git branch -d`,
   `git branch -D` and `git branch --delete` from the main worktree.
   The owner's choice is "Allow,

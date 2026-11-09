@@ -85,3 +85,59 @@ fn real_git_answers_the_head_and_the_tracked_changes() {
     assert_eq!(changed_paths(&reading, joined.as_path()), Some(0));
     remove(root.as_path());
 }
+
+/// A `.git` that is not a regular file is never opened:
+/// a FIFO with no writer would hold the removal for ever.
+#[test]
+fn a_pointer_that_is_not_a_regular_file_is_never_opened() {
+    let root: PathBuf = fixture("worktree-audit-fifo");
+    let linked: PathBuf = root.join("linked");
+    std::fs::create_dir(&linked).expect("linked directory");
+    let made: std::process::Output = std::process::Command::new("mkfifo")
+        .arg(linked.join(".git"))
+        .output()
+        .expect("mkfifo runs");
+    assert!(made.status.success(), "{}", String::from_utf8_lossy(made.stderr.as_slice()));
+    // The question runs on another thread, so a read that waits cannot hold this control for ever.
+    let (sender, receiver) = std::sync::mpsc::channel::<Option<String>>();
+    let asked: PathBuf = linked.clone();
+    let _asker = std::thread::spawn(move || {
+        // A receiver that is gone means the control already failed; nobody is left to tell.
+        let _sent = sender.send(worktree_head(asked.as_path()));
+    });
+    let answer: Option<String> = match receiver.recv_timeout(std::time::Duration::from_secs(10)) {
+        Ok(found) => found,
+        Err(_) => panic!("the audit opened the FIFO and never returned"),
+    };
+    assert_eq!(answer, None);
+    // A directory named `.git` is a main worktree, which a removal never names.
+    std::fs::remove_file(linked.join(".git")).expect("drop the FIFO");
+    std::fs::create_dir(linked.join(".git")).expect("main worktree directory");
+    assert_eq!(worktree_head(linked.as_path()), None);
+    remove(root.as_path());
+}
+
+/// A relative `gitdir:` pointer is resolved against the worktree it sits in,
+/// not against the directory the
+///  wrapper happens to run in.
+#[test]
+fn a_relative_pointer_is_resolved_against_its_worktree() {
+    let root: PathBuf = fixture("worktree-audit-relative");
+    let linked: PathBuf = root.join("linked");
+    let own: PathBuf = linked.join("own-git-dir");
+    std::fs::create_dir_all(&own).expect("own Git directory");
+    std::fs::write(own.join("HEAD"), b"ref: refs/heads/topic\n").expect("HEAD");
+    std::fs::write(linked.join(".git"), b"gitdir: ./own-git-dir\n").expect("pointer file");
+    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    // An absolute pointer is read as it is written.
+    std::fs::write(
+        linked.join(".git"),
+        format!("gitdir: {}\n", own.display()).as_bytes(),
+    )
+    .expect("pointer file");
+    assert_eq!(worktree_head(linked.as_path()), Some(String::from("refs/heads/topic")));
+    // A pointer Git would refuse names no Git directory.
+    std::fs::write(linked.join(".git"), b"not a pointer\n").expect("pointer file");
+    assert_eq!(worktree_head(linked.as_path()), None);
+    remove(root.as_path());
+}

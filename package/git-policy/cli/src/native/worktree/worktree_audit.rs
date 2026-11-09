@@ -38,10 +38,103 @@ use crate::transaction_git::GitContext;
 /// `OsString`/`OsStr` are owned/borrowed operating-system text of raw bytes,
 ///  and `Path`/`PathBuf` owned/borrowed paths.
 use std::ffi::{OsStr, OsString};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// The sentence the record carries about what it counted.
 const COUNTED_TRACKED_ONLY: &str = "tracked changes only";
+
+/// The most bytes a pointer file may hold,
+///  more than any `gitdir:` line or `HEAD`.
+/// Why:
+///   A record is written before a removal and never holds one up,
+///  so the read is bounded as well as
+///       non-blocking.
+const POINTER_BYTES: u64 = 4096;
+
+/// What:
+///  The Git directory a linked worktree's `.git` names,
+///  read as Git resolves it:
+///  a relative
+///       pointer is relative to the worktree that holds it.
+///  `Option<PathBuf>` is "the directory or nothing".
+/// Why:
+///   A `.git` that is a directory names a main worktree,
+///  which a removal never names,
+///  and a pointer that is not
+///       `gitdir:` is one Git refuses;
+///  resolving a relative pointer against the process's directory
+///  would read
+///       another worktree's facts or none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function worktreeGitDirectory(target: string): string | undefined;
+/// ```
+fn worktree_git_directory(target: &Path) -> Option<PathBuf> {
+    let pointer: String = read_pointer_file(target.join(".git").as_path())?;
+    let named: &str = pointer.trim().strip_prefix("gitdir:")?.trim();
+    if named.is_empty() {
+        return None;
+    }
+    let directory: &Path = Path::new(named);
+    if directory.is_absolute() {
+        return Some(directory.to_path_buf());
+    }
+    return Some(target.join(directory));
+}
+
+/// What:
+///  The text of a pointer file,
+///  or nothing when the path is not a regular file or cannot be read.
+/// Why:
+///   Opening a FIFO with no writer waits for ever,
+///  and this read happens before a removal the person asked for:
+///  the type is checked
+///  first and the open cannot wait,
+///  so a best-effort fact never holds the command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readPointerFile(path: string): string | undefined;
+/// ```
+fn read_pointer_file(path: &Path) -> Option<String> {
+    // `metadata` follows a link, so a link to a regular file is still a regular file; anything else is not read.
+    let metadata: std::fs::Metadata = std::fs::metadata(path).ok()?;
+    if !metadata.is_file() {
+        return None;
+    }
+    let opened: std::fs::File = open_without_waiting(path).ok()?;
+    let mut bytes: Vec<u8> = Vec::new();
+    // `.take(n)` bounds the read; a file longer than that is not a pointer file.
+    opened.take(POINTER_BYTES).read_to_end(&mut bytes).ok()?;
+    return String::from_utf8(bytes).ok();
+}
+
+/// What:
+///  A file opened for reading without waiting for anything.
+/// Why:
+///   A path can be replaced by a FIFO between the type check and this open,
+///  and a blocking open of a
+///       FIFO with no writer never returns;
+///  `O_NONBLOCK` makes that open fail instead,
+///  and a read of a
+///       pipe with no bytes ready fails rather than waiting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function openWithoutWaiting(path: string): FileHandle;
+/// ```
+fn open_without_waiting(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    return options.open(path);
+}
 
 /// What:
 ///  The `HEAD` of a worktree,
@@ -57,11 +150,9 @@ const COUNTED_TRACKED_ONLY: &str = "tracked changes only";
 /// function worktreeHead(target: string): string | undefined;
 /// ```
 pub fn worktree_head(target: &Path) -> Option<String> {
-    // A file holding `gitdir: <the worktree's own Git directory>`; a directory for a main worktree, which a removal
-    //  never names.
-    let pointer: String = std::fs::read_to_string(target.join(".git")).ok()?;
-    let git_dir: &str = pointer.trim().strip_prefix("gitdir:")?.trim();
-    let head: String = std::fs::read_to_string(Path::new(git_dir).join("HEAD")).ok()?;
+    // The Git directory the worktree's own `.git` names; a main worktree names none a removal could take.
+    let directory: PathBuf = worktree_git_directory(target)?;
+    let head: String = read_pointer_file(directory.join("HEAD").as_path())?;
     let trimmed: &str = head.trim();
     let named: &str = trimmed.strip_prefix("ref: ").unwrap_or(trimmed);
     if named.is_empty() {
