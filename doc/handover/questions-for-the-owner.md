@@ -203,6 +203,21 @@ deleting the merged branches with nondescript names (done with your approval),
 and bumping and publishing ("I'm authorizing you to bump and publish any updates this session.").
 The two library layout questions stay at your "Not yet.".
 
+## Answered in plain messages, recorded 2026-11-08T23:47:13-05:00
+
+- Stale folders and the handover:
+  "Delete dirs that shouldn't be there anymore and update handover now."
+- Cleanup from now on:
+  "Cleanup whenever it makes sense on your own."
+  and then,
+  about the detached worktrees the handover held for the owner's word:
+  "It covers deleting stale detached worktrees."
+  The coordinator now removes worktrees and leftovers without asking when nothing would be lost:
+  a worktree goes only if its commits are on a branch and it has no uncommitted work.
+  Branches stay,
+  because branch deletion was not part of these messages,
+  and the old tree kept for the 860 rollback stays for the owner.
+
 ## Answered in the question tool, recorded 2026-11-08T23:24:03-05:00
 
 - The ceiling of the signed scratch `git commit` step,
@@ -870,6 +885,16 @@ nothing here needs an answer.
 
 ## Choices the session made itself (non-destructive; say "undo" next to any of them)
 
+- 2026-11-08T23:47:13-05:00,
+  conclusion record on repositories using the files backend:
+  a commit no longer writes an empty `conclusion/store-held.json` (main `c13851b2fa`),
+  and the new reader accepts its absence.
+  A cross-vendor review found one consequence:
+  if a commit is killed before its cleanup finishes and a wrapper from before that change recovers it,
+  that older wrapper's cleanup fails instead of completing.
+  The review established no data loss,
+  and the case needs an older wrapper recovering a newer one's transaction.
+  Say "undo" to keep writing the empty record.
 - 2026-11-08T22:14:46-05:00,
   secret scanner:
   when `forbidden-strings --all` cannot read a repository's index,

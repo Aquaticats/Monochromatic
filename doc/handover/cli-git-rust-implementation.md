@@ -59,49 +59,89 @@ move its durable facts to their canonical doc and delete it from this page.
 
 ## Current state
 
-Installed versions and the release in flight were written 2026-11-04T14:08:00-05:00 against main `651fc7b9a5`;
-the branch and agent lists below them are older and carry their own times.
+### Where the work stands (2026-11-08T23:47:13-05:00)
+
+This subsection is the current picture.
+`### Release in flight`,
+`### Unmerged branches and worktrees of this effort` and `### Agents and gates running` date from 2026-11-03 and 2026-11-04.
+They no longer describe now,
+and the Pi agent `wrapper-handover-stale-sections-moved-out` is moving their durable facts to canonical docs and deleting them.
+
+Main is at `3e48c84c17`.
+Merged since the last record here:
+`71795ab77a`,
+the audit of the wrapper's entry and service lifecycle route
+(`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`);
+`a8295d5de8`,
+the second pass over open wrapper issues (`doc/planning/git-wrapper-open-issues-round-2.md`);
+and `3e48c84c17`,
+landing and lock controls that read what happened rather than a clock.
+
+Issues closed against main in this stretch:
+634,
+635,
+4576,
+4563,
+6003,
+2135,
+2108,
+4530,
+4585,
+4505,
+4514,
+4515 and 4516.
+Issue 6005 stays open for its surviving instance,
+`landing/service_handoff.rs` against `service_work_handlers_replanning_and_acceptance.rs`.
+
+#### The 860 move
+
+`package/repository-move/cli/src/run-repository-move.ts status` is the live record;
+stages through `c25-pnpm-links` are done.
+`c26-kopia-snapshot` has failed three times,
+each for a different reason:
+kopia could not re-create `/mnt/pcloud/rclone` while the pCloud client restarted;
+the coordinator removed a worktree during a snapshot;
+and a Pi agent finished while kopia read its per-worktree wrapper service folder
+(`.git/worktrees/pi-index-reset-keeps-stat-data/monochromatic-git-policy-cli-service-*/shadow/objects`),
+which kopia counted as one fatal error.
+That third run still created snapshot `99b6c01bdec1c8a50a491236552601e3`,
+but `kopia snapshot create` exits non-zero on a fatal error,
+so the stage stops before its own check,
+`kopia snapshot list`.
+
+Next:
+rerun the cut-over once no worktree is being removed.
+If it fails again only on a folder that vanished during the read,
+change that stage in `package/repository-move/cli/src/guided-cutover-stages.data.ts` rather than rerunning,
+because with Pi agents running another vanished service folder is likely.
+After it come `c27-container-bind`,
+the `c28` IDE check in the nested compositor with `--assert=c28-ide-through-link`,
+and the merge of `fix/repository-move-cli-checks-after-the-860-move`.
+The old tree kept for the rollback stays until the owner deletes it.
+
+#### Reviews and landings in progress
+
+- `fix/git-policy-cli-landing-keeps-stat-data-and-parallel-staleness`:
+  its round-four commits pass 201 tests on top of main.
+  The cross-vendor review of them found two defects,
+  and the agent is on round five.
+  A `.gitattributes` rewritten on the same inode between two reads can mix two versions and still match the current size,
+  so an obsolete rule can record a falsely clean entry.
+  An interrupted read of that file drops stat data for the rest of the landing.
+- `fix/test-browser-runs-fit-their-container-limits`:
+  finished,
+  waiting for the coordinator's check and merge.
+
+Running agents are the `pi-*.service` user units,
+each with its brief and run folder under `${HOME}/temp/agent/pi-runs/`.
 
 ### Installed versions
 
-- Git wrapper `monochromatic-git-policy-cli` 0.5.32 (`toolchain.lock.json`,
-  row `cargo:monochromatic-git-policy-cli`,
-  lock commit `e6bb6fbb62`;
-  `git --version` prints "monochromatic-git-policy-cli 0.5.32,
-  shadowing git at /usr/bin/git" over Git 2.56.0).
-  Installed by `upgrade-wrapper.ts 0.5.32`:
-  the 0.5.31 service retired on the client's request,
-  0.5.32 started (protocol 7),
-  and the sample commit on main landed in 1680 ms in all,
-  1215 ms of it provisioning the new service (landing 31 ms,
-  lock hold 28 ms).
-  Its commit service unit runs with systemd's defaults
-  (`systemctl --user show` at 2026-11-03T10:47-05:00:
-  `MemoryMax=infinity`,
-  `MemoryHigh=infinity`,
-  `CPUQuotaPerSecUSec=infinity`,
-  `IOWeight` not set,
-  `TasksMax=75462`,
-  systemd's own default).
-- `monochromatic-mpm-shadow` 0.2.5,
-  `monochromatic-pnpm-shadow` 0.1.1,
-  `monochromatic-search-shadow` 0.2.1,
-  `monochromatic-file-enforcer-cli` 0.1.1,
-  `monochromatic-lint` 0.5.0 (all from the same lock file).
-- `monochromatic-dependency-catalog` 0.2.0 (with `trustLockfile`) was published 2026-11-04T18:58:16Z,
-  after the cargo-shadow merge reached main;
-  0.1.0 is the earlier version.
-- `monochromatic-cargo-shadow` 0.1.0 was published 2026-11-04 with the owner's `cargo login` token
-  (`mise run //package/cargo-shadow/cli:publish`);
-  Trusted Publishing config 30988 (`Aquaticats/Monochromatic`,
-  `cargo-publish.yml`,
-  no environment,
-  `repository_owner_id` 343218767) was created through the API.
-  It is not yet in `toolchain.lock.json`.
-- The global toolchain lock (`~/.config/monochromatic-dev/toolchain/toolchain.lock.json`) was moved to wrapper 0.5.25
-  on
-  2026-11-03;
-  its copy from before that move is `~/temp/agent/global-lock/toolchain.lock.json.before-2026-11-03T0715`.
+`toolchain.lock.json` records what is installed,
+and `git --version` prints the wrapper's own.
+At 2026-11-08T23:47:13-05:00 that was wrapper `0.6.1-alpha.5` over Git 2.56.0.
+The wrapper commits on main after that release are not published yet.
+Alpha and beta labels go to GitHub releases only (`doc/planning/crates-io-footprint.md`).
 
 ### Release in flight
 
@@ -3114,11 +3154,6 @@ An earlier version of this section also listed a container probe,
 the build-folder timer and the worktree conversions.
 The owner doubted that,
 and checking each one showed none needed the move.
-
-Two rounds wait only for the next free slots,
-both from cross-vendor reviews read at 2026-11-08T23:10:25-05:00:
-`landing-route-findings-fixed-round-2-prompt.md` and `copy-route-records-before-git-round-4-prompt.md` in that folder,
-each resumed with the session named in its last run's `summary.json`.
 
 Converting the remaining worktrees waits on a defect instead:
 301 of 353 registrations spell the repository link,
