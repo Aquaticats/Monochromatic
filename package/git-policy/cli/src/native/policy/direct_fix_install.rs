@@ -62,6 +62,17 @@ const INSTALL_FAILED: &str = "monochromatic-git-policy-cli fix could not install
 ///  debug printing and `==`.
 /// Why:
 ///   The read bytes prove nobody changed the file while the fix ran.
+///  What a replacement keeps is the
+///       destination's permission bits and owner (see `Kept`);
+///  what it does not carry is everything
+///       else a file can hold:
+///  its extended attributes and access-control list,
+///  its inode number and
+///       birth time,
+///  and its share of a hard link,
+///  whose other name keeps the bytes it had.
+///  A symbolic
+///       link at the path is refused rather than replaced.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -266,21 +277,31 @@ fn rollback(installed: &[Replacement]) -> Result<(), String> {
 }
 
 /// What:
-///  Write `bytes` to a new file at `path` with permissions for `mode`.
+///  Write `bytes` to a new file at `path`,
+///  then give it the permission bits and owner of the
+///       file it will replace.
 /// Why:
 ///   The file must not exist yet,
-///  so no other file is overwritten;
-///  executable
-///       files get `0755` and others `0644`,
-///  before the umask,
-///  as the installed wrapper
-///       writes them.
+///  so no other file is overwritten,
+///  and a replacement keeps what the
+///       person's file had:
+///  a replacement created at `0644` would publish a file kept at `0600` to
+///       every local user,
+///  and dropping the executable bits or the set-uid and set-gid bits would
+///       change how the file runs.
+///  The owner is restored only where the system lets this process set it
+///       (a file created by the running user is already theirs),
+///  and a failure to restore it is not a
+///       failure of the write:
+///  the bytes are what the fix was asked to change.
+///  What a replacement does not
+///       carry is named beside `InstallChange`.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await writeFile(path, bytes, { mode: mode === 'executable' ? 0o755 : 0o644, flag: 'wx' });
+/// await writeFile(path, bytes, { mode: kept.mode, flag: 'wx' }); await fchmod(fd, kept.mode); await fchown(fd, kept.uid, kept.gid);
 /// ```
-fn write_new(path: &Path, bytes: &[u8], mode: CandidateMode) -> std::io::Result<()> {
+fn write_new(path: &Path, bytes: &[u8], kept: &Kept) -> std::io::Result<()> {
     /// `Write` adds `write_all` to the open file.
     use std::io::Write;
     let mut options: std::fs::OpenOptions = std::fs::OpenOptions::new();
@@ -290,20 +311,105 @@ fn write_new(path: &Path, bytes: &[u8], mode: CandidateMode) -> std::io::Result<
         /// `OpenOptionsExt` adds `mode`,
         ///  the permissions a new file is created with.
         use std::os::unix::fs::OpenOptionsExt;
-        let permissions: u32 = if mode == CandidateMode::Executable {
-            0o755
-        } else {
-            0o644
-        };
-        options.mode(permissions);
+        options.mode(kept.mode);
     }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
+    let mut file: std::fs::File = options.open(path)?;
+    file.write_all(bytes)?;
+    #[cfg(unix)]
     {
-        // Only Unix records an executable bit; the mode decides nothing elsewhere.
-        let _ = mode;
+        keep_what_the_old_file_had(&file, kept);
     }
-    return options.open(path)?.write_all(bytes);
+    return Ok(());
+}
+
+/// What:
+///  What the file being replaced had,
+///  which its replacement keeps.
+/// Why:
+///  A new file carries the umask's mode and the running user's identity;
+///  both must be
+///       replaced by the destination's,
+///  or the fix publishes a private file and changes who may write it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Kept = { mode: number; uid: number; gid: number };
+/// ```
+struct Kept {
+    /// The destination's permission bits,
+    ///  the set-user-id,
+    ///  set-group-id and sticky bits included.
+    mode: u32,
+    /// The destination's owner.
+    uid: u32,
+    /// The destination's group.
+    gid: u32,
+}
+
+impl Kept {
+    /// What:
+    ///  The mode and owner of the file a replacement stands in for.
+    /// Why:
+    ///   Both are read from the name before anything is written,
+    ///  so the replacement cannot be given the
+    ///       umask's mode or the running user's identity by accident.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const kept = { mode: st.mode & 0o7777, uid: st.uid, gid: st.gid };
+    /// ```
+    fn of(described: &std::fs::Metadata) -> Kept {
+        #[cfg(unix)]
+        {
+            /// `MetadataExt` adds `uid` and `gid`;
+            ///  `PermissionsExt` adds `mode`.
+            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+            return Kept {
+                mode: described.permissions().mode() & 0o7777,
+                uid: described.uid(),
+                gid: described.gid(),
+            };
+        }
+        // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
+        #[cfg(not(unix))]
+        {
+            // Other systems carry no mode or numeric owner a replacement could keep.
+            let _ = described;
+            return Kept {
+                mode: 0,
+                uid: 0,
+                gid: 0,
+            };
+        }
+    }
+}
+
+/// What:
+///  Give the open replacement the permission bits and owner it keeps.
+///  `&std::fs::File` borrows the written file.
+/// Why:
+///  `fchmod` and `fchown` act on the descriptor,
+///  so no other process can swap the name between the
+///       write and the change;
+///  an owner this process may not give is left as the running user's,
+///  because
+///       only privilege can set another one and the bytes were still written.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fchmodSync(fd, kept.mode); try { fchownSync(fd, kept.uid, kept.gid) } catch { /* not ours to give */ }
+/// ```
+#[cfg(unix)]
+fn keep_what_the_old_file_had(file: &std::fs::File, kept: &Kept) {
+    /// `AsRawFd` lends the descriptor the system calls take.
+    use std::os::unix::io::AsRawFd;
+    let descriptor: libc::c_int = file.as_raw_fd();
+    // SAFETY: both calls take a descriptor this file owns and plain numbers;
+    // neither reads or writes memory of this process.
+    let _mode_set: libc::c_int = unsafe { libc::fchmod(descriptor, kept.mode as libc::mode_t) };
+    // An owner this process may not set is not an error: the file already belongs to the running user.
+    let _owner_set: libc::c_int =
+        unsafe { libc::fchown(descriptor, kept.uid as libc::uid_t, kept.gid as libc::gid_t) };
 }
 
 /// What:
@@ -333,6 +439,30 @@ pub fn prepare_replacements(
             ));
         };
         let destination: PathBuf = root.join(relative);
+        // What: `symlink_metadata` describes the name itself, so a symbolic link is seen as a link and not followed.
+        // Why:  Reading through the link reads another file, and the swap would put the corrected bytes where the link
+        //       is, so the link itself would be gone.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // const kept = await lstat(destination);
+        // ```
+        let described: std::fs::Metadata = match std::fs::symlink_metadata(destination.as_path()) {
+            Ok(found) => found,
+            Err(error) => {
+                cleanup(replacements.as_slice());
+                return Err(install_failure(
+                    format!("reading a corrected file failed ({error}), so no file was changed.")
+                        .as_str(),
+                ));
+            }
+        };
+        if described.file_type().is_symlink() {
+            cleanup(replacements.as_slice());
+            return Err(install_failure(
+                "a selected file is a symbolic link, and putting corrected bytes at its path would remove the link, so no file was changed.",
+            ));
+        }
         let current: Vec<u8> = match std::fs::read(destination.as_path()) {
             Ok(bytes) => bytes,
             Err(error) => {
@@ -353,6 +483,7 @@ pub fn prepare_replacements(
             Some(found) => found.to_path_buf(),
             None => root.to_path_buf(),
         };
+        let kept: Kept = Kept::of(&described);
         let prefix: String = format!("{INSTALL_SIBLING_PREFIX}{}", unique_suffix());
         let replacement: Replacement = Replacement {
             prepared: parent.join(format!("{prefix}.new")),
@@ -362,7 +493,7 @@ pub fn prepare_replacements(
         let written: std::io::Result<()> = write_new(
             replacement.prepared.as_path(),
             &change.replacement,
-            change.mode,
+            &kept,
         );
         // Recorded before the failure check, so a failure still removes what was written.
         replacements.push(replacement);

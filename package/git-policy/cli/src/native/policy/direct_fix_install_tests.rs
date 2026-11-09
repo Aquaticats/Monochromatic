@@ -167,6 +167,88 @@ fn corrections_are_installed_with_their_modes() {
     remove(fixture_tree.root.as_path());
 }
 
+/// What:
+///  A file kept private stays private:
+///  the correction takes the destination's own
+///       permission bits,
+///  never a mode of its own,
+///  and a symbolic link is refused instead of
+///       replaced.
+/// Why:
+///   The person's token file,
+///  key or local configuration sits at `0600`;
+///  a replacement
+///       created at `0644` would publish it to every local user (the owner's "never discard user
+///       data").
+///  A symbolic link at the path would be replaced by a regular file,
+///  which is not the
+///       file the policy read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await chmod(file, 0o600); await installCorrections(...); expect((await stat(file)).mode & 0o777).toBe(0o600)
+/// ```
+#[test]
+fn a_private_file_stays_private() {
+    let fixture_tree: Tree = tree("install-private");
+    let private: PathBuf = fixture_tree.top.join("a.txt");
+    std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o600)).expect("private");
+    let script: PathBuf = fixture_tree.top.join("sub/run.sh");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).expect("private script");
+    /// `MetadataExt` adds the numeric owner and group.
+    use std::os::unix::fs::MetadataExt;
+    let before: std::fs::Metadata = std::fs::metadata(&private).expect("a");
+    let (owner_before, group_before): (u32, u32) = (before.uid(), before.gid());
+    assert_eq!(
+        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice()),
+        Ok(())
+    );
+    let kept: u32 = std::fs::metadata(&private).expect("a").permissions().mode() & 0o7777;
+    assert_eq!(kept, 0o600, "{kept:o}");
+    let kept_script: u32 = std::fs::metadata(&script).expect("script").permissions().mode() & 0o7777;
+    assert_eq!(kept_script, 0o700, "{kept_script:o}");
+    let after: std::fs::Metadata = std::fs::metadata(&private).expect("a");
+    assert_eq!((after.uid(), after.gid()), (owner_before, group_before));
+    assert_eq!(
+        contents(&fixture_tree.top),
+        (b"a\n".to_vec(), b"#!/bin/sh\n".to_vec())
+    );
+    remove(fixture_tree.root.as_path());
+}
+
+/// What:
+///  A selected file that is a symbolic link is left as it is and the fix refuses.
+/// Why:
+///   Reading it follows the link,
+///  so the corrected bytes belong to another file,
+///  and writing
+///       them at the link's path would remove the link itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // await symlink('elsewhere', path); await expect(installCorrections(...)).rejects.toThrow('symbolic link')
+/// ```
+#[test]
+fn a_symbolic_link_is_refused_instead_of_replaced() {
+    let fixture_tree: Tree = tree("install-symlink");
+    let linked: PathBuf = fixture_tree.top.join("sub/run.sh");
+    std::fs::remove_file(&linked).expect("remove");
+    std::os::unix::fs::symlink("../a.txt", &linked).expect("link");
+    let refused: String =
+        install_corrections(&fixture_tree.top, &fixture_tree.index, changes().as_slice())
+            .expect_err("a symbolic link");
+    assert_eq!(
+        refused,
+        String::from(
+            "monochromatic-git-policy-cli fix could not install its corrections: a selected file is a symbolic link, and putting corrected bytes at its path would remove the link, so no file was changed."
+        )
+    );
+    assert!(std::fs::symlink_metadata(&linked).expect("link").file_type().is_symlink());
+    assert_eq!(std::fs::read(fixture_tree.top.join("a.txt")).expect("a"), b"a");
+    assert_eq!(siblings(&fixture_tree.top), Vec::<String>::new());
+    remove(fixture_tree.root.as_path());
+}
+
 /// A file that changed under the fix,
 ///  is missing,
 ///  or has no name stops the fix before
