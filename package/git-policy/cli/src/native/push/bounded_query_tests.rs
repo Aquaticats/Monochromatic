@@ -346,10 +346,13 @@ fn a_command_that_closes_its_input_early_is_not_an_answer() {
     let failure: SingleFlightError = run_bounded_git(
         Command::new(shim.as_path()),
         "hash-object --stdin",
+        // The window main's control was written against is the only bound it needs: no total ceiling and the push report's cap.
         Duration::from_secs(30),
+        None,
         Duration::from_millis(500),
         scratch_environment().as_slice(),
         Some(vec![b'x'; 1 << 20]),
+        MAX_PUSH_OUTPUT,
     )
     .expect_err("the request was cut, so the answer is not the command's answer to it");
     match &failure {

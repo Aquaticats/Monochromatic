@@ -243,7 +243,8 @@ pub async fn wait_until_done(
 ///  The same wait as `wait_until_done`,
 /// with the output ceiling it stops past given by the caller.
 /// Why:
-///   A query's answer is a report, and the push report's cap bounds it;
+///   A query's answer is a report,
+/// and the push report's cap bounds it;
 /// the second pass of a merge reads the three stages of the files it may merge,
 /// up to the
 ///  pass's own blob limit for each name it asks for,

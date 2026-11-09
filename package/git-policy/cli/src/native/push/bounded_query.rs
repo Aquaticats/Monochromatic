@@ -293,9 +293,8 @@ pub async fn run_bounded_git_awaiting(
     // The clock is made from the child's number before the wait borrows it.
     let clock: Clock = query_clock(child.id(), window);
     // The progress window and the total ceiling are two bounds: a silent command is stopped by the first, and one that keeps working without returning only by the second.
-    let watched: [&File; 2] = [&stdout, &stderr];
     let ended: Result<ExitStatus, StopCause> = match ceiling {
-        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, watched.as_slice(), clock, cap, &mut quiet, stop.as_ref())).await {
+        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref())).await {
             Ok(outcome) => outcome?,
             Err(_passed) => {
                 stop_push(child, grace, locks).await;
@@ -305,7 +304,7 @@ pub async fn run_bounded_git_awaiting(
                 });
             }
         },
-        None => wait_until_done_up_to(&mut child, watched.as_slice(), clock, cap, &mut quiet, stop.as_ref()).await?,
+        None => wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref()).await?,
     };
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
