@@ -196,6 +196,8 @@ pub enum StopCause {
 /// `quiet` receives the longest quiet gap seen,
 /// for the ledger,
 /// and nothing where the system counts nothing.
+/// The clock is the caller's,
+/// because what a run may do where nothing can be measured is the caller's decision.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -204,12 +206,11 @@ pub enum StopCause {
 pub async fn wait_until_done(
     child: &mut OwnedChild,
     outputs: &[&File],
-    patience: Patience,
+    clock: Clock,
     quiet: &mut Option<Duration>,
     stop: Option<&StopArm>,
 ) -> Result<Result<ExitStatus, StopCause>, SingleFlightError> {
     let mut waits: Vec<WaitReport> = Vec::new();
-    let clock: Clock = Clock::start(child.id(), patience).without_wall_fallback();
     return wait_with_clock(child, outputs, clock, "git", &mut waits, quiet, stop).await;
 }
 

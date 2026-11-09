@@ -159,3 +159,18 @@ fn a_query_that_keeps_working_is_never_stopped_however_long_it_runs() {
     assert_eq!(output.code, Some(0));
     assert!(started.elapsed() > window * 2, "the fixture ran only {:?}", started.elapsed());
 }
+
+/// A query on a host whose `/proc/<pid>/io` cannot be read still ends:
+/// the window it is given is then the whole time it may run,
+/// and without that fallback nothing at all would end it.
+/// The seam is the clock the shipped query builds,
+/// made unmeasured as such a host makes it.
+#[test]
+fn a_query_where_nothing_is_measured_ends_at_its_window() {
+    let window: Duration = Duration::ZERO;
+    let mut query: Clock = query_clock(0, window).unmeasured();
+    assert!(matches!(query.check(), Some(StopCause::Deadline)), "the query's clock ends the run at its window");
+    // The control: the same zero window ends nothing without the fallback, so the window above is live.
+    let mut unjudged: Clock = query_clock(0, window).unmeasured().without_wall_fallback();
+    assert!(unjudged.check().is_none(), "the same window ends nothing when the run may not be ended by wall time");
+}

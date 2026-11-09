@@ -31,6 +31,9 @@ use crate::auto_push_single_flight::SingleFlightError;
 /// and its stop causes.
 use crate::bounded_push::{MAX_PUSH_OUTPUT, StopCause, stop_push, wait_until_done};
 use crate::push_deadline_and_patience_settings::{Patience, push_deadline};
+/// The clock a wait is judged by,
+/// and its reading of the signs of work.
+use crate::push_progress::Clock;
 /// The longest quiet gap of each step,
 /// kept for the timing records.
 use crate::quiet_ledger;
@@ -94,6 +97,35 @@ pub struct QueryOutput {
 /// ```
 pub fn query_window(environment: &[(OsString, OsString)]) -> Duration {
     return push_deadline(environment);
+}
+
+/// What:
+///  The clock a read-only query's wait runs under.
+/// Why:
+///   A query is read-only,
+/// so ending one is safe,
+/// and the window it is given is also the whole time it may run where the kernel does not count its bytes
+/// (a hardened container,
+/// `hidepid`,
+/// a kernel without `CONFIG_TASK_IO_ACCOUNTING`).
+/// Without that fallback nothing at all ended a hung `config --list`,
+/// `rev-parse`,
+/// `merge-base` or `for-each-ref` there,
+/// and the push worker and the drain of its repository waited for it for good.
+/// The window and its default are the owner's (`CLI_GIT_PUSH_DEADLINE_SECONDS`,
+/// 30 seconds;
+/// the rule "Stop only on no progress" and the journal's 794 landed pushes,
+/// p50 3.5 s,
+/// p99 26.4 s,
+/// maximum 72.4 s,
+/// are cited beside the value in `push_deadline_and_patience_settings.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// Clock.start(pid, { stall: windowMs }) // the wall fallback kept
+/// ```
+pub fn query_clock(pid: u32, window: Duration) -> Clock {
+    return Clock::start(pid, Patience::Progress { stall: window });
 }
 
 /// Read one output file back from its start,
@@ -242,8 +274,9 @@ pub async fn run_bounded_git_awaiting(
     }
     let mut child: OwnedChild = adopt(started);
     let mut quiet: Option<Duration> = None;
-    let ended: Result<ExitStatus, StopCause> =
-        wait_until_done(&mut child, &[&stdout, &stderr], Patience::Progress { stall: window }, &mut quiet, stop.as_ref()).await?;
+    // The clock is made from the child's number before the wait borrows it.
+    let clock: Clock = query_clock(child.id(), window);
+    let ended: Result<ExitStatus, StopCause> = wait_until_done(&mut child, &[&stdout, &stderr], clock, &mut quiet, stop.as_ref()).await?;
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {
         quiet_ledger::note(step.as_str(), gap, ended.is_err());
