@@ -12,7 +12,7 @@ import {
 } from '@monochromatic-dev/fs-path-core/ts';
 import {
   existsSync,
-  readCssFileSync,
+  readTextFileSync,
 } from './fs.ts';
 import { splitPackageSpecifier, } from './specifier.ts';
 
@@ -125,7 +125,7 @@ export function readPackageJson(
     /**
      Raw JSON text
      */
-    const raw = readCssFileSync(packageJsonPath,);
+    const raw = readTextFileSync(packageJsonPath,);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- JSON.parse returns unknown; package.json shape is Record<string, unknown>
     return JSON.parse(raw,) as Record<string, unknown>;
   }

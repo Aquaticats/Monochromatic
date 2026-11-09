@@ -7,7 +7,7 @@ import {
   parseCss,
   stringifyNodes,
 } from '@monochromatic-dev/css-core-edit/ts';
-import { readCssFile, } from './fs.ts';
+import { readTextFile, } from './fs.ts';
 import { inlineCssImports, } from './import.ts';
 import {
   collectMixins,
@@ -75,7 +75,7 @@ export async function buildCss(options: CssBuildOptions,): Promise<string> {
    */
   const bundled = inlineCssImports({
     root: parseCss({
-      source: asCssSource(await readCssFile(inputPath,),),
+      source: asCssSource(await readTextFile(inputPath,),),
     },)
       .root,
     fromFile: inputPath,

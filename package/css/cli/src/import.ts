@@ -26,7 +26,7 @@ import {
 } from '@monochromatic-dev/css-core-edit/ts';
 import {
   existsSync,
-  readCssFileSync,
+  readTextFileSync,
 } from './fs.ts';
 import { resolvePackage, } from './package-resolver.ts';
 import { isPackageSpecifier, } from './specifier.ts';
@@ -207,7 +207,7 @@ export function inlineCssImports({
        */
       const importedRoot = inlineCssImports({
         root: parseCss({
-          source: asCssSource(readCssFileSync(resolvedPath,),),
+          source: asCssSource(readTextFileSync(resolvedPath,),),
         },)
           .root,
         fromFile: resolvedPath,

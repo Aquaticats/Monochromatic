@@ -36,7 +36,7 @@ const NO_NODE_FS = Symbol('runtime node:fs import unavailable',);
  Eagerly loaded `node:fs` module, or {@link NO_NODE_FS} in browser.
  Uses a variable specifier so browser bundlers cannot statically resolve the import.
  Loaded eagerly (not lazily) because sync functions like
- {@link readCssFileSync} and {@link existsSync} cannot await.
+ {@link readTextFileSync} and {@link existsSync} cannot await.
  */
 const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- dynamic import lacks static type
@@ -48,9 +48,11 @@ const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
 //region File reading
 
 /**
- Reads a CSS file by absolute path.
- Looks in {@link fsRegistry} first; falls back to `node:fs/promises`
- when running server-side.
+ Reads a text file by absolute path.
+ Checks {@link fsRegistry} first (browser path); otherwise reads from disk
+ through `node:fs/promises` when running server-side. Nothing about the
+ fallback is CSS-specific: callers pass stylesheets and package manifests
+ alike, so the name states the boundary rather than one caller's file type.
  
  @param absolutePath - Absolute file path to read
  
@@ -60,10 +62,10 @@ const nodeFs: typeof NodeFs | typeof NO_NODE_FS = hasNodeFs
  
  @example
  ```ts
- const css = await readCssFile('/project/src/styles.css');
+ const css = await readTextFile('/project/src/styles.css');
  ```
  */
-export async function readCssFile(absolutePath: string,): Promise<string> {
+export async function readTextFile(absolutePath: string,): Promise<string> {
   /**
    Registry hit shortcuts the filesystem fallback for browser builds.
    */
@@ -88,8 +90,9 @@ export async function readCssFile(absolutePath: string,): Promise<string> {
 }
 
 /**
- Synchronous variant of {@link readCssFile} for contexts that cannot be async
+ Synchronous variant of {@link readTextFile} for contexts that cannot be async
  (e.g. inside PostCSS plugin walkers that don't support promises).
+ Same registry-then-disk order: {@link fsRegistry} first, disk second.
  
  @param absolutePath - Absolute file path to read
  
@@ -99,10 +102,10 @@ export async function readCssFile(absolutePath: string,): Promise<string> {
  
  @example
  ```ts
- const css = readCssFileSync('/project/src/styles.css');
+ const css = readTextFileSync('/project/src/styles.css');
  ```
  */
-export function readCssFileSync(absolutePath: string,): string {
+export function readTextFileSync(absolutePath: string,): string {
   /**
    Registry hit shortcuts the filesystem fallback for browser builds.
    */
