@@ -654,7 +654,8 @@ and the platform limits above were measured with `subprocess` and `sysconf`
 in a throwaway directory under the agent scratch root.
 
 The final tree,
-after the branch merged `main` at `a1f5ab2193`,
+`a0a6cf49ff`,
+which merged `main` twice,
 ran the affected surface and the wrapper's own commit controls:
 
 - 285 tests of `test(commit::) or test(native_commit) or test(service_native)` passed
@@ -663,10 +664,12 @@ ran the affected surface and the wrapper's own commit controls:
   through the installed wrapper's fixtures,
   which is the user boundary for the native commit path,
   its trailers and its signing.
-- `mise run //package/git-policy/cli:lint:clippy` and the repository linter over every touched file
-  (Rust,
+- `mise run //package/git-policy/cli:lint:clippy` and the package's
+  `lint:monochromatic-lint` (Rust,
   rustdoc,
-  Markdown and `SPEC.md`) passed with `--max-warnings 0`.
+  Markdown and `SPEC.md`,
+  at `--max-warnings 0`) passed over the whole package,
+  with no finding anywhere.
 
 One full lib suite was started and ended early:
 the scope's own `MemoryMax=8G` was too small for the parallel run,
@@ -675,8 +678,9 @@ All 7 failures in that partial run were tests aborted by that signal,
 and one push test timed out at 300 seconds under the host's load average near 100.
 Those results are not counted as evidence for any change here.
 
-The package-wide linter run reports one finding,
-`repo_read/repo_read_index_tests.rs:188` (`markdown/semantic-line-breaks`),
-in a file this branch does not change:
-`git diff origin/main HEAD` for it is empty.
-Nothing this round touched carries a finding.
+Merging `main` a second time conflicted in `testing/mod.rs`:
+`main` had split one fixture into `testing/test_support_dead_copy_owner.rs`,
+and this round had added `testing/argument_limit.rs` there.
+Both declarations were kept and both files stay,
+so neither branch's work was resolved away.
+Nothing else conflicted.
