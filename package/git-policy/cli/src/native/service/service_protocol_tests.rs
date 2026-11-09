@@ -154,10 +154,9 @@ fn a_welcome_without_a_release_reads_as_none() {
 fn a_work_message_round_trips_and_hostile_directories_are_refused() {
     let sent: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
-    let line: String = encode_client(&sent);
-    for bad in ["relative/.git", "", "\\u0000/.git"] {
-        let hostile: String = line.replace("/srv/repo/.git", bad);
-        assert!(decode_client(hostile.as_str()).is_err(), "{bad:?}");
+    for bad in ["relative/.git", "", "/\u{0}/.git"] {
+        let hostile: ClientMessage = ClientMessage::Work { git_dir: PathBuf::from(bad), review_key: None };
+        assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
     }
     let missing: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION}}}");
     assert!(decode_client(missing.as_str()).is_err());
@@ -172,15 +171,59 @@ fn a_work_message_round_trips_and_hostile_directories_are_refused() {
 fn a_warm_message_round_trips_and_hostile_paths_are_refused() {
     let sent: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") };
     assert_eq!(decode_client(encode_client(&sent).as_str()), Ok(sent.clone()));
-    let line: String = encode_client(&sent);
-    for bad in ["relative/.git", "", "\\u0000/.git"] {
-        let hostile: String = line.replace("/srv/repo/.git", bad);
-        assert!(decode_client(hostile.as_str()).is_err(), "{bad:?}");
+    for bad in ["relative/.git", "", "/\u{0}/.git"] {
+        let hostile: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from(bad), repository: PathBuf::from("/srv/repo") };
+        assert!(decode_client(encode_client(&hostile).as_str()).is_err(), "{bad:?}");
+        let hostile_repository: ClientMessage = ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from(bad) };
+        assert!(decode_client(encode_client(&hostile_repository).as_str()).is_err(), "{bad:?}");
     }
-    let relative_repository: String = line.replace("\"/srv/repo\"", "\"repo\"");
-    assert!(decode_client(relative_repository.as_str()).is_err());
     let missing: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
     assert!(decode_client(missing.as_str()).is_err());
+}
+
+/// What:
+///  Every message that names a directory round-trips one whose path is not text,
+/// byte for byte.
+/// Why:
+///   The wrapper sends the worktree it commits in over the socket,
+/// and the service acts on the path it reads:
+/// a spelling with replacement characters names a directory that is not the person's,
+/// so the commit would fail there.
+#[test]
+fn a_message_of_a_repository_that_is_not_text_round_trips() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    let git_dir: PathBuf = PathBuf::from(OsStr::from_bytes(b"/srv/r\xffpo/.git"));
+    let repository: PathBuf = PathBuf::from(OsStr::from_bytes(b"/srv/r\xffpo"));
+    let mut sent: CommitRequest = request();
+    sent.repository = repository.clone();
+    sent.common_dir = git_dir.clone();
+    sent.git_dir = git_dir.clone();
+    sent.index = git_dir.join("index");
+    // A cleanup belongs to a commit built elsewhere, which is the only request that names one.
+    sent.commit = Some(String::from(BLOB));
+    sent.cleanup = Some(Cleanup { git_dir: git_dir.clone(), scratch: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d"), reftable: false });
+    for message in [
+        ClientMessage::Work { git_dir: git_dir.clone(), review_key: None },
+        ClientMessage::Warm { git_dir: git_dir.clone(), repository },
+        ClientMessage::Scratch { git_dir: git_dir.clone(), path: git_dir.join("monochromatic-git-policy-cli-service-0a1b2c3d") },
+        ClientMessage::Commit(Box::new(sent)),
+    ] {
+        assert_eq!(decode_client(encode_client(&message).as_str()), Ok(message.clone()), "{message:?}");
+    }
+}
+
+/// What:
+///  A line written by a release that spelled its directories as plain text reads as those directories.
+/// Why:
+///   A wrapper of a release that sends only the plain fields must still reach a service of this one,
+/// and the plain field is the whole path whenever the path is text.
+#[test]
+fn a_line_of_an_earlier_release_is_read_as_its_plain_paths() {
+    let warm: String = format!("{{\"type\":\"warm\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\",\"repository\":\"/srv/repo\"}}");
+    assert_eq!(decode_client(warm.as_str()), Ok(ClientMessage::Warm { git_dir: PathBuf::from("/srv/repo/.git"), repository: PathBuf::from("/srv/repo") }));
+    let work: String = format!("{{\"type\":\"work\",\"version\":{PROTOCOL_VERSION},\"gitDir\":\"/srv/repo/.git\"}}");
+    assert_eq!(decode_client(work.as_str()), Ok(ClientMessage::Work { git_dir: PathBuf::from("/srv/repo/.git"), review_key: None }));
 }
 
 /// A commit built elsewhere is named whole,
@@ -320,8 +363,14 @@ fn a_commit_request_names_its_worktrees_git_directory() {
     let sent: CommitRequest = request();
     let line: String = encode_client(&ClientMessage::Commit(Box::new(sent.clone())));
     assert!(line.contains(&format!("\"gitDir\":\"{}\"", sent.git_dir.display())));
-    assert!(decode_client(line.replace("\"gitDir\"", "\"gitDirectory\"").as_str()).is_err(), "missing");
-    assert!(decode_client(line.replace(&sent.git_dir.display().to_string(), "relative/.git").as_str()).is_err(), "relative");
+    let mut value: serde_json::Value = serde_json::from_str(line.as_str()).expect("a JSON line");
+    let fields = value.as_object_mut().expect("an object");
+    fields.remove("gitDir");
+    fields.remove("gitDirHex");
+    assert!(decode_client(value.to_string().as_str()).is_err(), "missing");
+    let mut relative: CommitRequest = sent;
+    relative.git_dir = PathBuf::from("relative/.git");
+    assert!(decode_client(encode_client(&ClientMessage::Commit(Box::new(relative))).as_str()).is_err(), "relative");
 }
 
 /// A request that changes as many paths as one may,

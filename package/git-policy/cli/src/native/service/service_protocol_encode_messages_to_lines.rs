@@ -11,7 +11,23 @@
 //! ```
 
 use serde_json::{Map, Value};
+use crate::path_bytes_in_records as path_bytes;
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, Change, Cleanup, LandedCapture, ClientMessage, ServiceMessage};
+
+/// What:
+///  One field of a message,
+/// by its name.
+/// Why:
+///  A message that carries paths is built here rather than from a list of pairs,
+/// because a path takes two fields (see `path_bytes::write_field`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const put = (fields, key, value) => { fields[key] = value; };
+/// ```
+fn put(fields: &mut Map<String, Value>, key: &str, value: Value) {
+    fields.insert(String::from(key), value);
+}
 
 /// What:
 ///  One changed path of a commit request as a JSON object:
@@ -45,11 +61,11 @@ fn change_json(change: &Change) -> Value {
 /// const cleanupJson = (cleanup: Cleanup) => ({ gitDir: cleanup.gitDir, scratch: cleanup.scratch, reftable: cleanup.reftable });
 /// ```
 fn cleanup_json(cleanup: &Cleanup) -> Value {
-    return Value::Object(Map::from_iter([
-        (String::from("gitDir"), Value::from(cleanup.git_dir.to_string_lossy().as_ref())),
-        (String::from("scratch"), Value::from(cleanup.scratch.to_string_lossy().as_ref())),
-        (String::from("reftable"), Value::from(cleanup.reftable)),
-    ]));
+    let mut fields: Map<String, Value> = Map::new();
+    path_bytes::write_field(&mut fields, "gitDir", cleanup.git_dir.as_path());
+    path_bytes::write_field(&mut fields, "scratch", cleanup.scratch.as_path());
+    put(&mut fields, "reftable", Value::from(cleanup.reftable));
+    return Value::Object(fields);
 }
 
 /// What:
@@ -116,61 +132,54 @@ pub fn encode_client(message: &ClientMessage) -> String {
             ("version", Value::from(PROTOCOL_VERSION)),
             ("id", Value::from(id.as_str())),
         ]),
-        ClientMessage::Scratch { git_dir, path } => object(vec![
-            ("type", Value::from("scratch")),
-            ("version", Value::from(PROTOCOL_VERSION)),
-            ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
-            ("path", Value::from(path.to_string_lossy().as_ref())),
-        ]),
-        ClientMessage::Warm { git_dir, repository } => object(vec![
-            ("type", Value::from("warm")),
-            ("version", Value::from(PROTOCOL_VERSION)),
-            ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
-            ("repository", Value::from(repository.to_string_lossy().as_ref())),
-        ]),
-        ClientMessage::Work { git_dir, review_key } => {
-            let mut entries: Vec<(&str, Value)> = vec![
-                ("type", Value::from("work")),
-                ("version", Value::from(PROTOCOL_VERSION)),
-                ("gitDir", Value::from(git_dir.to_string_lossy().as_ref())),
-            ];
-            if let Some(key) = review_key {
-                entries.push(("reviewKey", Value::from(key.expose())));
-            }
-            object(entries)
+        ClientMessage::Scratch { git_dir, path } => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("scratch"));
+            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
+            path_bytes::write_field(&mut fields, "path", path.as_path());
+            Value::Object(fields).to_string()
         }
-        ClientMessage::Commit(request) => object(vec![
-            ("type", Value::from("commit")),
-            ("version", Value::from(PROTOCOL_VERSION)),
-            ("id", Value::from(request.id.as_str())),
-            ("repository", Value::from(request.repository.to_string_lossy().as_ref())),
-            ("commonDir", Value::from(request.common_dir.to_string_lossy().as_ref())),
-            ("gitDir", Value::from(request.git_dir.to_string_lossy().as_ref())),
-            ("reference", Value::from(request.reference.as_str())),
-            ("base", Value::from(request.base.as_str())),
-            (
-                "changes",
-                Value::Array(
-                    request
-                        .changes
-                        .iter()
-                        .map(change_json)
-                        .collect(),
-                ),
-            ),
-            ("message", Value::from(request.message.as_str())),
-            ("author", request.author.as_deref().map_or(Value::Null, Value::from)),
-            ("committer", Value::from(request.committer.as_str())),
-            ("amend", Value::from(request.amend)),
-            ("tree", request.tree.as_deref().map_or(Value::Null, Value::from)),
-            ("commit", request.commit.as_deref().map_or(Value::Null, Value::from)),
-            ("index", Value::from(request.index.to_string_lossy().as_ref())),
-            ("captured", Value::from(request.captured)),
-            (
-                "cleanup",
-                request.cleanup.as_ref().map_or(Value::Null, cleanup_json),
-            ),
-        ]),
+        ClientMessage::Warm { git_dir, repository } => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("warm"));
+            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
+            path_bytes::write_field(&mut fields, "repository", repository.as_path());
+            Value::Object(fields).to_string()
+        }
+        ClientMessage::Work { git_dir, review_key } => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("work"));
+            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+            path_bytes::write_field(&mut fields, "gitDir", git_dir.as_path());
+            if let Some(key) = review_key {
+                put(&mut fields, "reviewKey", Value::from(key.expose()));
+            }
+            Value::Object(fields).to_string()
+        }
+        ClientMessage::Commit(request) => {
+            let mut fields: Map<String, Value> = Map::new();
+            put(&mut fields, "type", Value::from("commit"));
+            put(&mut fields, "version", Value::from(PROTOCOL_VERSION));
+            put(&mut fields, "id", Value::from(request.id.as_str()));
+            path_bytes::write_field(&mut fields, "repository", request.repository.as_path());
+            path_bytes::write_field(&mut fields, "commonDir", request.common_dir.as_path());
+            path_bytes::write_field(&mut fields, "gitDir", request.git_dir.as_path());
+            path_bytes::write_field(&mut fields, "index", request.index.as_path());
+            put(&mut fields, "reference", Value::from(request.reference.as_str()));
+            put(&mut fields, "base", Value::from(request.base.as_str()));
+            put(&mut fields, "changes", Value::Array(request.changes.iter().map(change_json).collect()));
+            put(&mut fields, "message", Value::from(request.message.as_str()));
+            put(&mut fields, "author", request.author.as_deref().map_or(Value::Null, Value::from));
+            put(&mut fields, "committer", Value::from(request.committer.as_str()));
+            put(&mut fields, "amend", Value::from(request.amend));
+            put(&mut fields, "tree", request.tree.as_deref().map_or(Value::Null, Value::from));
+            put(&mut fields, "commit", request.commit.as_deref().map_or(Value::Null, Value::from));
+            put(&mut fields, "captured", Value::from(request.captured));
+            put(&mut fields, "cleanup", request.cleanup.as_ref().map_or(Value::Null, cleanup_json));
+            Value::Object(fields).to_string()
+        }
     };
 }
 

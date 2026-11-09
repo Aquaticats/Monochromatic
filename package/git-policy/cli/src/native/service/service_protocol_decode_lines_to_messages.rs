@@ -12,6 +12,7 @@
 //! ```
 
 use serde_json::Value;
+use crate::path_bytes_in_records as path_bytes;
 use crate::service_review_key::ReviewKey;
 use std::path::PathBuf;
 use crate::service_protocol_messages_and_name_checks::{PROTOCOL_VERSION, MAX_LINE_BYTES, MAX_CHANGES, MAX_ID_BYTES, ALLOWED_MODES, Change, Cleanup, CommitRequest, LandedCapture, is_zero_object, FailureCode, ClientMessage, ServiceMessage, field, is_object_name, is_identity_byte, is_plain_path, is_scratch_path};
@@ -52,16 +53,16 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             return Ok(ClientMessage::Withdraw { id: id.to_string() });
         }
         "scratch" => {
-            let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
-            let path: PathBuf = PathBuf::from(field(&value, "path")?);
+            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
+            let path: PathBuf = path_bytes::read_field(&value, "path")?;
             if !is_scratch_path(path.as_path(), git_dir.as_path()) {
                 return Err(String::from("scratch directory is not acceptable"));
             }
             return Ok(ClientMessage::Scratch { git_dir, path });
         }
         "warm" => {
-            let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
-            let repository: PathBuf = PathBuf::from(field(&value, "repository")?);
+            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
+            let repository: PathBuf = path_bytes::read_field(&value, "repository")?;
             for path in [&git_dir, &repository] {
                 if !path.is_absolute() || path.to_string_lossy().contains('\0') {
                     return Err(String::from("warm request is not acceptable"));
@@ -70,7 +71,7 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
             return Ok(ClientMessage::Warm { git_dir, repository });
         }
         "work" => {
-            let git_dir: PathBuf = PathBuf::from(field(&value, "gitDir")?);
+            let git_dir: PathBuf = path_bytes::read_field(&value, "gitDir")?;
             if !git_dir.is_absolute() || git_dir.to_string_lossy().contains('\0') {
                 return Err(String::from("work request is not acceptable"));
             }
@@ -102,9 +103,9 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
     }
     let request = CommitRequest {
         id: field(&value, "id")?.to_string(),
-        repository: PathBuf::from(field(&value, "repository")?),
-        common_dir: PathBuf::from(field(&value, "commonDir")?),
-        git_dir: PathBuf::from(field(&value, "gitDir")?),
+        repository: path_bytes::read_field(&value, "repository")?,
+        common_dir: path_bytes::read_field(&value, "commonDir")?,
+        git_dir: path_bytes::read_field(&value, "gitDir")?,
         reference: field(&value, "reference")?.to_string(),
         base: field(&value, "base")?.to_string(),
         changes,
@@ -114,13 +115,13 @@ pub fn decode_client(line: &str) -> Result<ClientMessage, String> {
         amend: value.get("amend").and_then(Value::as_bool).unwrap_or(false),
         tree: value.get("tree").and_then(Value::as_str).map(str::to_string),
         commit: value.get("commit").and_then(Value::as_str).map(str::to_string),
-        index: PathBuf::from(field(&value, "index")?),
+        index: path_bytes::read_field(&value, "index")?,
         captured: value.get("captured").and_then(Value::as_u64).unwrap_or(0),
         // A `cleanup` that is absent or null asks for none.
         cleanup: match value.get("cleanup") {
             Some(entry) if !entry.is_null() => Some(Cleanup {
-                git_dir: PathBuf::from(field(entry, "gitDir")?),
-                scratch: PathBuf::from(field(entry, "scratch")?),
+                git_dir: path_bytes::read_field(entry, "gitDir")?,
+                scratch: path_bytes::read_field(entry, "scratch")?,
                 reftable: entry.get("reftable").and_then(Value::as_bool).unwrap_or(false),
             }),
             _ => None,
