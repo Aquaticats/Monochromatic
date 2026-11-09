@@ -124,7 +124,8 @@ fn a_correction_below_the_top_is_recorded_by_its_repository_relative_name() {
 
 /// A caller whose two glob modes disagree makes Git refuse every pathspec it is given,
 /// and the completion-record step still reads the corrected entry:
-/// its pathspec is the wrapper's own, so it runs without the caller's modes.
+/// its pathspec is the wrapper's own,
+/// so it runs without the caller's modes.
 #[test]
 fn a_completion_record_reads_its_entry_under_the_callers_conflicting_glob_modes() {
     let root: PathBuf = fixture("worktree-records-glob-modes");

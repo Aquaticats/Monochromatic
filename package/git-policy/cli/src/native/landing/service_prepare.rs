@@ -78,7 +78,8 @@ use std::path::{Path, PathBuf};
 ///  The staging start that puts the working copy of every unmerged file into the commit's own index,
 /// each named with `:(top,literal)` magic.
 /// Why:
-///   Every name is a pathspec the wrapper wrote, and this start skips the caller's prefix,
+///   Every name is a pathspec the wrapper wrote,
+/// and this start skips the caller's prefix,
 /// so every mode the caller set is removed from the child's environment:
 /// under literal mode the names would match nothing,
 /// and two glob modes at once make Git refuse the start and fail the commit.

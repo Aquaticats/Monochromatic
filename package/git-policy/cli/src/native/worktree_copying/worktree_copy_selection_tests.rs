@@ -205,7 +205,8 @@ fn named_ignored_file_is_selected_alone() {
     remove(root.as_path());
 }
 
-/// The named spec is the wrapper's own, so two glob modes that disagree in the caller's environment must not make
+/// The named spec is the wrapper's own,
+/// so two glob modes that disagree in the caller's environment must not make
 /// the listing refuse it and the copy fail.
 #[test]
 fn a_named_ignored_file_is_selected_under_the_callers_conflicting_glob_modes() {

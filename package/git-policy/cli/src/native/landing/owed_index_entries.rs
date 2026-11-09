@@ -156,9 +156,12 @@ pub(crate) fn tree_entries(git: &GitContext, repository: &Path, old: &str, names
 /// Why:
 ///   What the commit is about to record for a path is this entry.
 ///
-///  The question is asked with `--full-name`, because every name here is written from the top of the
-/// worktree and looked up again by that same path: without it `ls-files` answers relative to the
-/// directory Git runs in, which a caller's own `-C` can move below the top.
+///  The question is asked with `--full-name`,
+///  because every name here is written from the top of the
+/// worktree and looked up again by that same path:
+///  without it `ls-files` answers relative to the
+/// directory Git runs in,
+///  which a caller's own `-C` can move below the top.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
