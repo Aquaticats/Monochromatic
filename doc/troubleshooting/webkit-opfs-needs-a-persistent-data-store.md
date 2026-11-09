@@ -263,12 +263,16 @@ chromium and firefox passed all of them.
 ### Launch the test's context as a persistent context
 
 What this repository now does,
-through `playwright/test-with-a-persistent-context.ts`,
+through `package/logger/core/src/sink/opfs-browser-fixture.ts`,
 which overrides Playwright
 Test's `context` fixture with `launchPersistentContext` in a fresh temporary directory per test.
+The logger sink's OPFS test imports it;
+the fs-path root discovery test and the fuzz OPFS property keep their own skip,
+because a shared fixture would need a private harness package both of them already depend on.
 Measured at
 `mise run test:browser`:
-84 passed in 34.6 s,
+84 passed in 34.6 s with all three files on the fixture,
+and 83 passed and 1 skipped in 24.3 s with only the logger file on it,
 against 82 passed,
 1 skipped and 1 failed in 21.1 s before it.
 

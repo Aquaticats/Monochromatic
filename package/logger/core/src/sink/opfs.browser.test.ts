@@ -3,7 +3,7 @@
 import {
   expect,
   test,
-} from '../../../../../playwright/test-with-a-persistent-context.ts';
+} from './opfs-browser-fixture.ts';
 
 declare global {
   // oxlint-disable-next-line typescript/consistent-type-imports -- typeof import() cannot use import type syntax
