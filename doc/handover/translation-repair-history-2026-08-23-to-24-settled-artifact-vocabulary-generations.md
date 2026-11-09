@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-23 to 2026-08-24: the settled artifact's index vocabulary across generations 3 and 4
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/translation-repair/src` is now split across the `src/` folders of the 36
+> packages under `package/translation-repair/` (2026-10-18 `4bd1aea8d5`).
+
 The rename of the shipped and withdrawn index arrays and the critics record as generation 3,
 the rename of the stamped index as generation 4 and the name collision it exposed,
 how both generations are read and verified at the boundary,

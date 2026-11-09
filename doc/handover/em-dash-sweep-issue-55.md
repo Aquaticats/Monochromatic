@@ -1,5 +1,12 @@
 # Handover: em-dash sweep (issue #55)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/cli/forbidden-strings/README.md` is now `package/forbidden-strings/cli/README.md`
+> (2026-10-29 `113633b259`).
+> `package/module/hyperscript/src/css/index.unit.test.ts` is now
+> `package/hyperscript/core/src/css/index.unit.test.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

@@ -1,5 +1,22 @@
 # catalog-tighten repair and portability decision log
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/module/pnpm-workspace-catalog/src/parse.ts` is now
+> `package/dependency-catalog/core-pnpm/src/parse.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/catalog-tighten/src/index.ts` is now
+> `package/dependency-catalog/cli-tighten/src/index.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/catalog-tighten/README.md` is now
+> `package/dependency-catalog/cli-tighten/README.md` (2026-10-29 `592d78b143`).
+> `package/dev-script/mutation-test` is now `package/mutation-test/cli`
+> (2026-10-29 `113633b259`).
+> `package/dev-script/catalog-tighten/src/version-resolve.ts` is now
+> `package/dependency-catalog/cli-tighten/src/version-resolve.ts` (2026-10-29 `592d78b143`).
+> `package/dev-script/catalog-tighten/src/version-read.ts` is now
+> `package/dependency-catalog/cli-tighten/src/version-read.ts` (2026-10-29 `592d78b143`).
+> `package/module/pnpm-workspace-catalog/src/read.ts` is now
+> `package/dependency-catalog/core-pnpm/src/read.ts` (2026-10-29 `592d78b143`).
+
 > Moved 2026-10-29 by the generic package category elimination
 > (`doc/planning/generic-category-elimination.md`);
 > paths and names below this note are historical:

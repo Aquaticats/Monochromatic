@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-05 to 2026-08-07: the introduced-defect probe, its telemetry and the chain that joins it to human grades
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:score-probe` is now
+> `//package/translation-repair/probe:score-probe` (2026-10-18 `4bd1aea8d5`).
+
 Building the shadow-mode probe that looks for defects a repair introduced:
 the misread of the user's answer,
 the omission direction added to the screen,

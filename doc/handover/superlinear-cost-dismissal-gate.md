@@ -1,5 +1,15 @@
 # Superlinear cost dismissed as acceptable: gate research
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `package/file-enforcer/core/src/toolchain/providers.parse.ts` is deleted
+> (2026-10-31 `e7b5130459`) and the toolchain code is `package/mpm-shadow/cli/src/toolchain`
+> today.
+> `package/claude-code-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
+> `package/pi-plugin/cost-dismissal` serves its job today.
+> `package/pi-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
+> `package/dsh-plugin/thinking-dismissal` is deleted (2026-10-29 `c3e1880822`) and
+
 ## Purpose
 
 State of the research into how to stop agents from waving away superlinear cost with "inputs are short today".

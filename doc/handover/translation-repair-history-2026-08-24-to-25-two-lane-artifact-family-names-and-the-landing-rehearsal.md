@@ -1,5 +1,10 @@
 # Translation repair history 2026-08-24 to 2026-08-25: naming the two-lane artifact family for its shape, and rehearsing the landing of the parked work on a throwaway worktree
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/module/translation-repair:run-timing-report` is now
+> `//package/translation-repair/run:run-timing-report` (2026-10-18 `4bd1aea8d5`).
+
 The naming of the two-lane artifact family for its shape rather than a version,
 with the two measurements that changed the answer,
 the renames that followed and the landing note,

@@ -1,5 +1,10 @@
 # Handover: porting music-player to Android (Jetpack Compose + Kotlin)
 
+> References below this note that no longer resolve in the tree.
+> Each entry gives the value that identifier has now:
+> `//package/music-player/android-app:build:media3` is not a task this repository defined
+> and the Android app has one engine and one variant today.
+
 > Scratch-path note:
 > `/tmp/agent` paths in this document are historical.
 > Use `~/temp/agent` for current work.
