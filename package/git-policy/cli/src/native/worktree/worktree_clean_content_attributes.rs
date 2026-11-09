@@ -23,13 +23,13 @@ use crate::fs_beneath::{open_directory_beneath, open_file_at};
 use crate::repo_read_config_list::list_config;
 use crate::repo_read_config_text::{ConfigEntry, last_entry};
 use crate::worktree_attributes::{may_apply, parse_attribute_lines};
-use crate::worktree_clean_content::{ATTRIBUTES_LIMIT, CONTENT_LIMIT};
+use crate::worktree_clean_content::{ATTRIBUTES_LIMIT, CONTENT_LIMIT, same_state};
 use crate::worktree_clean_content_attribute_sources::{AttributeFile, FixedSources, SystemAttributes, converting_macros, first_converting_token, has_quoted_line};
 use crate::worktree_path_failure_message::subject_failure;
 use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::os::unix::ffi::OsStrExt;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 /// The bytes one attribute read asks for at most.
@@ -95,7 +95,7 @@ impl<'a> ContentJudge<'a> {
         if metadata.len() > room {
             return Err(format!("{label} is larger than the {room} bytes this caller may still read, so the attributes it sets cannot be ruled out"));
         }
-        let Some(bytes) = self.attribute_bytes(&file, room, &label)? else {
+        let Some(bytes) = self.attribute_bytes(&file, &metadata, room, &label)? else {
             return Err(format!("{label} changed while it was read, so the attributes it sets cannot be ruled out"));
         };
         return Ok(Some(AttributeFile { label, base, lines: parse_attribute_lines(bytes.as_slice()) }));
@@ -121,35 +121,62 @@ impl<'a> ContentJudge<'a> {
     ///  The bytes of an attributes file,
     /// up to `room`,
     /// taken with the read a control sets or the operating system's own,
-    /// each piece charged as it arrives.
+    /// each piece charged as it arrives,
+    /// and accepted only when the file did not move under the read.
     /// Why:
     ///   The bound is on the reading,
     /// not on the size an earlier look reported:
     /// a file that grows after that look may not hand over a byte the caller
     ///  never counted,
-    /// so the read is capped at the room and the file is measured again after it,
-    /// and a file whose size moved under the read is refused rather than parsed
-    ///  short.
+    /// so the read is capped at the room.
+    /// The proof that the bytes are one version of the file is the state `before` compared with the state after:
+    /// on this host's file systems (ext4 and btrfs) a write to the same inode advances the change and modification
+    ///  times,
+    /// both to the nanosecond,
+    /// and a user cannot set the change time back,
+    /// so an unchanged state is an unchanged file;
+    /// a size alone is not enough,
+    /// because a rewrite whose pieces add up to the new length
+    ///  passes it (the fourth review found exactly that).
+    /// Where the nanoseconds are absent,
+    /// the file system keeps whole seconds and a rewrite within one
+    ///  of them would leave the same recorded times,
+    /// so such a file is refused rather than trusted.
+    /// A read the system interrupts is tried again,
+    /// as the recorded-content reader already does:
+    ///  an interruption is not a fact about the file,
+    /// and it may not cost every remaining path of the landing its stat data.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// function attributeBytes(file, room) {
-    ///   const data = []; while (data.length < room) { const taken = read(file, new Uint8Array(Math.min(64 << 10, room - data.length)));
-    ///     if (taken === 0) break; data.push(...taken); spent += taken; }
-    ///   return stat(file).size === data.length ? data : undefined;
+    /// function attributeBytes(file, before, room) {
+    ///   const data = []; while (data.length < room) { let taken; try { taken = read(file, new Uint8Array(Math.min(64 << 10, room - data.length))); }
+    ///     catch (error) { if (error.kind === 'Interrupted') continue; throw error; } if (taken === 0) break; data.push(...taken); spent += taken; }
+    ///   const after = stat(file); return after.ctimeNsec !== 0 && sameState(before, after) ? data : undefined;
     /// }
     /// ```
-    fn attribute_bytes(&self, file: &std::fs::File, room: u64, label: &dyn std::fmt::Display) -> Result<Option<Vec<u8>>, String> {
+    fn attribute_bytes(&self, file: &std::fs::File, before: &std::fs::Metadata, room: u64, label: &dyn std::fmt::Display) -> Result<Option<Vec<u8>>, String> {
+        // A file whose change time has no nanoseconds is on a file system that cannot tell two rewrites in one second
+        // apart, so nothing it hands over can be proven to be one version.
+        if before.ctime_nsec() == 0 {
+            return Ok(None);
+        }
         let mut data: Vec<u8> = Vec::new();
         let mut buffer: Vec<u8> = vec![0; usize::try_from(room.min(ATTRIBUTES_CHUNK as u64)).unwrap_or(ATTRIBUTES_CHUNK)];
         while (data.len() as u64) < room {
             let want: usize = usize::try_from(room - data.len() as u64).unwrap_or(usize::MAX).min(ATTRIBUTES_CHUNK);
-            let taken: usize = match self.attribute_read {
-                Some(read) => subject_failure(read(file, &mut buffer[..want]), label, "cannot be read")?,
+            let read: std::io::Result<usize> = match self.attribute_read {
+                Some(read) => read(file, &mut buffer[..want]),
                 None => {
                     use std::io::Read as _;
-                    subject_failure((&*file).take(want as u64).read(&mut buffer[..want]), label, "cannot be read")?
+                    (&*file).take(want as u64).read(&mut buffer[..want])
                 }
+            };
+            let taken: usize = match read {
+                Ok(taken) => taken,
+                // An interruption is not a fact about the file; the read is tried again.
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(error) => return Err(format!("{label} cannot be read ({error})")),
             };
             if taken == 0 {
                 break;
@@ -159,7 +186,7 @@ impl<'a> ContentJudge<'a> {
             self.charge(took as u64);
         }
         let after: std::fs::Metadata = subject_failure(file.metadata(), label, "cannot be examined")?;
-        if after.len() != data.len() as u64 {
+        if !same_state(before, &after) {
             return Ok(None);
         }
         return Ok(Some(data));

@@ -91,7 +91,7 @@ pub fn read_at_most(reader: impl Read, limit: u64) -> std::io::Result<Option<Vec
 /// same object,
 /// size,
 /// mode and times.
-fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
+pub(super) fn same_state(first: &std::fs::Metadata, second: &std::fs::Metadata) -> bool {
     return first.dev() == second.dev()
         && first.ino() == second.ino()
         && first.size() == second.size()
